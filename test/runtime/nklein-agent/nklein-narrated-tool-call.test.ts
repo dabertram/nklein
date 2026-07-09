@@ -3,6 +3,7 @@ import {
 	parseNarratedToolCalls,
 	parseToolValidatedNarration,
 	recoverNarratedToolCalls,
+	resolveNarratedToolName,
 	stripNarratedToolCallMarkup,
 } from "../../../src/nklein-agent/nklein-narrated-tool-call";
 import type { AgentMessage, AgentMessagePart } from "../../../src/nklein-agent/sdk-agent-types";
@@ -235,6 +236,56 @@ describe("recoverNarratedToolCalls", () => {
 		const msg = message({ type: "text", text: "All done — the files look correct." });
 		expect(recoverNarratedToolCalls(msg)).toEqual([]);
 		expect(msg.content).toHaveLength(1);
+	});
+
+	it("resolves polluted MCP narrated names against the offered tools before appending", () => {
+		const msg = message({
+			type: "text",
+			text: `<function=sequential_thinking_sequentialthinking_1>{"thought":"split it","nextThoughtNeeded":false,"thoughtNumber":1,"totalThoughts":1}</function>`,
+		});
+		const recovered = recoverNarratedToolCalls(msg, {
+			offeredToolNames: ["sequential-thinking__sequentialthinking", "read_files"],
+		});
+		expect(recovered).toHaveLength(1);
+		expect(recovered[0]).toMatchObject({
+			type: "tool-call",
+			toolName: "sequential-thinking__sequentialthinking",
+			input: { thought: "split it", nextThoughtNeeded: false, thoughtNumber: 1, totalThoughts: 1 },
+		});
+	});
+
+	it("drops narrated calls that do not resolve to an offered tool", () => {
+		const msg = message({
+			type: "text",
+			text: `<tool_call>{"name":"delete_everything","arguments":{}}</tool_call>`,
+		});
+		expect(recoverNarratedToolCalls(msg, { offeredToolNames: ["read_files"] })).toEqual([]);
+		expect(msg.content.filter((part) => part.type === "tool-call")).toHaveLength(0);
+	});
+});
+
+describe("resolveNarratedToolName", () => {
+	it("prefers exact offered-tool matches", () => {
+		expect(resolveNarratedToolName("read_files", ["read_files"])).toBe("read_files");
+	});
+
+	it("repairs punctuation-normalized MCP names and repeated-call numeric suffixes only when unambiguous", () => {
+		expect(
+			resolveNarratedToolName("sequential_thinking_sequentialthinking_2", [
+				"sequential-thinking__sequentialthinking",
+				"read_files",
+			]),
+		).toBe("sequential-thinking__sequentialthinking");
+		expect(resolveNarratedToolName("read_files_1", ["read_files"])).toBe("read_files");
+	});
+
+	it("does not guess when alias normalization collides", () => {
+		expect(resolveNarratedToolName("ab_1", ["a-b", "ab"])).toBeNull();
+	});
+
+	it("does not resolve unoffered tools", () => {
+		expect(resolveNarratedToolName("write_file", ["read_files"])).toBeNull();
+		expect(resolveNarratedToolName("write_file", [])).toBeNull();
 	});
 });
 

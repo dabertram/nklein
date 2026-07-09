@@ -3,7 +3,11 @@ import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
 import { withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
-import { parseNarratedToolCalls, parseToolValidatedNarration } from "./nklein-narrated-tool-call";
+import {
+	parseNarratedToolCalls,
+	parseToolValidatedNarration,
+	resolveNarratedToolName,
+} from "./nklein-narrated-tool-call";
 
 /**
  * !Klein-owned direct client for local OpenAI-compatible model servers (LM Studio / Ollama / llama.cpp).
@@ -469,14 +473,21 @@ export class LocalLlmClient {
 				// reasoning model that keeps narrating the done tool (live: qwopus3.6-27b re-narrated `read_file(...)` after
 				// run_command) must be rejected so the loop dedupe doesn't collapse it to "no progress". On a normal turn all
 				// real tools are offered, so nothing legitimate is dropped — this only bites the excluded-tool case.
-				const offeredNames = new Set(tools.map((tool) => tool.name));
-				toolCalls = recovered
-					.filter((call) => offeredNames.has(call.toolName))
-					.map((call, index) => ({
-						id: `narrated_${index}`,
-						name: call.toolName,
-						arguments: parseToolCallArguments(call.input),
-					}));
+				const offeredNames = tools.map((tool) => tool.name);
+				const structuredOfferedNames = new Set(offeredNames);
+				toolCalls = recovered.flatMap((call, index) => {
+					const resolvedToolName = resolveNarratedToolName(call.toolName, offeredNames);
+					if (!resolvedToolName || !structuredOfferedNames.has(resolvedToolName)) {
+						return [];
+					}
+					return [
+						{
+							id: `narrated_${index}`,
+							name: resolvedToolName,
+							arguments: parseToolCallArguments(call.input),
+						},
+					];
+				});
 			}
 			return {
 				content: choice?.message?.content ?? "",

@@ -124,6 +124,7 @@ export function createKanbanContextFocusExtension(
 ): NKleinSdkRuntimeExtension {
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
+	let lastOfferedToolNames: readonly string[] = [];
 	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
 	const getCachedRepoMap = async (personalizationText: string) => {
 		const cacheKey = personalizationText;
@@ -210,6 +211,7 @@ export function createKanbanContextFocusExtension(
 						}
 					}
 				}
+				lastOfferedToolNames = (finalResult?.tools ?? context.request.tools).map((tool) => tool.name);
 				return finalResult;
 			},
 			async afterModel(context) {
@@ -217,7 +219,9 @@ export function createKanbanContextFocusExtension(
 				// structured call, parse it and append a real tool-call part so the loop executes it (this hook runs
 				// before the loop extracts tool calls from the message). A recovered call means the turn is NOT a
 				// completion, so skip the synthesis/self-review completion hooks and let the loop dispatch the tool.
-				const recoveredToolCalls = recoverNarratedToolCalls(context.assistantMessage);
+				const recoveredToolCalls = recoverNarratedToolCalls(context.assistantMessage, {
+					offeredToolNames: lastOfferedToolNames,
+				});
 				if (recoveredToolCalls.length > 0) {
 					recordSelfObservation({
 						signal: "tool_argument_error",

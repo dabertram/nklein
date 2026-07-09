@@ -29,6 +29,11 @@
   Review-ladder recovery cards are no longer orphaned after a parked escalation: when the second-opinion runner spawns a
   `redecompose-*` card, runtime-server immediately schedules that new backlog card instead of waiting for a later terminal
   sweep that may never fire.
+  A follow-up live verifier run exposed a second weak-model recovery defect: marker-based narrated-tool recovery trusted
+  polluted MCP tool names such as `sequential_thinking_sequentialthinking_1`, while the offered SDK tool was
+  `sequential-thinking__sequentialthinking`, so the card burned retries on `Unknown tool`. Swarm and chat recovery now
+  resolve narrated names against the tools actually offered on that turn, exact-match first and then one unambiguous
+  punctuation/suffix alias pass, and drop any narrated call that does not resolve to an offered tool.
   It also distinguishes `awaiting_review` capture/finalization handoffs from operator-attention/error pauses, so a failed
   seed that is waiting for human attention no longer suppresses the dead-stall lane. Persisted prompt-session records under
   `.nklein/data/sessions` now count too, so synthetic `::review` sessions that are absent from workspace summaries still

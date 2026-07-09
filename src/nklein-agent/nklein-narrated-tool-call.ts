@@ -36,6 +36,15 @@ export interface NarratedToolCall {
 	input: unknown;
 }
 
+export interface NarratedToolCallRecoveryOptions {
+	/**
+	 * The exact tool names offered on this model turn. When supplied, recovered calls are constrained to this set:
+	 * exact match first, then a conservative alias pass for punctuation/suffix pollution seen in local-model narrated
+	 * calls. An unoffered narrated tool is dropped instead of being executed.
+	 */
+	offeredToolNames?: readonly string[];
+}
+
 /**
  * Openers for the tool-call wrappers the major local-model families emit when they narrate a call as text:
  * - Hermes / Qwen / Granite: `<tool_call>` and the pipe-delimited `<|tool_call|>` variant (and `<function_call>`)
@@ -287,6 +296,76 @@ export function parseToolValidatedNarration(text: string, offeredToolNames: read
 	return calls;
 }
 
+function aliasKey(value: string): string {
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/gu, "");
+}
+
+function withoutTrailingNumericSuffix(value: string): string {
+	return value.replace(/(?:[_-]+[0-9]+)+$/u, "");
+}
+
+function narratedToolNameAliasCandidates(toolName: string): string[] {
+	const candidates = new Set<string>();
+	const trimmed = toolName.trim();
+	const lastDottedSegment = trimmed.split(".").at(-1)?.trim() ?? "";
+	for (const candidate of [trimmed, lastDottedSegment]) {
+		if (!candidate) {
+			continue;
+		}
+		candidates.add(candidate);
+		const withoutSuffix = withoutTrailingNumericSuffix(candidate);
+		if (withoutSuffix) {
+			candidates.add(withoutSuffix);
+		}
+	}
+	return [...candidates];
+}
+
+/**
+ * Resolve a narrated tool name against the tools offered on the current turn.
+ *
+ * Root cause this guards: a live swarm run recovered `<function=sequential_thinking_sequentialthinking_1>…` from a
+ * Qwen turn while the actual SDK MCP tool was `sequential-thinking__sequentialthinking`; executing the polluted name
+ * produced `Unknown tool` and exhausted the card. The alias pass is deliberately constrained to the offered set and
+ * must be unambiguous, so it repairs punctuation / repeated-call suffix pollution without turning arbitrary model text
+ * into executable tools.
+ */
+export function resolveNarratedToolName(toolName: string, offeredToolNames: readonly string[]): string | null {
+	const trimmed = toolName.trim();
+	if (!trimmed || offeredToolNames.length === 0) {
+		return null;
+	}
+	if (offeredToolNames.includes(trimmed)) {
+		return trimmed;
+	}
+	const caseMatches = offeredToolNames.filter((offered) => offered.toLowerCase() === trimmed.toLowerCase());
+	if (caseMatches.length === 1) {
+		return caseMatches[0];
+	}
+
+	const offeredByAliasKey = new Map<string, Set<string>>();
+	for (const offered of offeredToolNames) {
+		const key = aliasKey(offered);
+		if (!key) {
+			continue;
+		}
+		const values = offeredByAliasKey.get(key) ?? new Set<string>();
+		values.add(offered);
+		offeredByAliasKey.set(key, values);
+	}
+
+	for (const candidate of narratedToolNameAliasCandidates(trimmed)) {
+		const matches = offeredByAliasKey.get(aliasKey(candidate));
+		if (matches?.size === 1) {
+			return [...matches][0];
+		}
+	}
+	return null;
+}
+
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -473,11 +552,20 @@ function readNarratableText(message: AgentMessage): string {
  * recovered `tool-call` part(s) to `message.content` (mutating in place, the array the agent loop dispatches
  * from) and return them. A no-op — returning `[]` — when a real tool call is already present or none is narrated.
  */
-export function recoverNarratedToolCalls(message: AgentMessage): AgentToolCallPart[] {
+export function recoverNarratedToolCalls(
+	message: AgentMessage,
+	options: NarratedToolCallRecoveryOptions = {},
+): AgentToolCallPart[] {
 	if (message.content.some((part) => part.type === "tool-call")) {
 		return [];
 	}
-	const calls = parseNarratedToolCalls(readNarratableText(message));
+	const parsedCalls = parseNarratedToolCalls(readNarratableText(message));
+	const calls = options.offeredToolNames
+		? parsedCalls.flatMap((call) => {
+				const resolvedToolName = resolveNarratedToolName(call.toolName, options.offeredToolNames ?? []);
+				return resolvedToolName ? [{ ...call, toolName: resolvedToolName }] : [];
+			})
+		: parsedCalls;
 	if (calls.length === 0) {
 		return [];
 	}

@@ -427,6 +427,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   the service's sandbox rebuild path so fresh `toolExecutors`, `extraTools`, and sandbox MCP transports are wired. Never
   let a restored sandbox turn reuse the generic runtime restart path: the runtime's persisted start request deliberately
   omits closure-backed sandbox tools, so a generic restart can recreate host-backed file tools pointed at `/workspaces`.
+- **Narrated tool-call recovery is an offered-tool resolver, not a raw parser passthrough (2026-07-09).** Live fleet proof:
+  qwen3 recovered `<function=sequential_thinking_sequentialthinking_1>...` while the actual SDK MCP tool name was
+  `sequential-thinking__sequentialthinking`, causing `Unknown tool` retries until the card abandoned. Recovery must first
+  constrain to the tools offered on that exact turn, then repair only unambiguous alias pollution (punctuation collapse,
+  repeated-call numeric suffix); unoffered narrated names are dropped. This is now shared by swarm `afterModel` and chat.
 - **Acceptance checks run in fresh synthetic sandboxes (2026-07-09).** A task card may contain an `Acceptance check:` that
   was generated while the worker/reviewer lived under `/workspaces/<old-task>`, but the verifier runs it under
   `<taskId>::acceptance-<n>`. The gate may remap only a leading `cd /workspaces/<old-task> && ...` prefix into the fresh
