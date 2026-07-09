@@ -225,9 +225,33 @@ if (dockerGate.ready) {
 					expect(workspaceA.workdir).toBe(`/workspaces/${taskA}`);
 					expect(workspaceB.workdir).toBe(`/workspaces/${taskB}`);
 					expect(workspaceA.uid).not.toBe(workspaceB.uid);
+					expect(sandboxContainerExists()).toBe(true);
+
+					const hostnameA = await manager.exec(taskA, ["hostname"]);
+					const hostnameB = await manager.exec(taskB, ["hostname"]);
+					expect(hostnameA.exitCode).toBe(0);
+					expect(hostnameB.exitCode).toBe(0);
+					expect(hostnameA.stdout.trim()).toBe(hostnameB.stdout.trim());
+
+					const workspaceBMode = await manager.exec(taskB, ["stat", "-c", "%a", workspaceB.workdir]);
+					expect(workspaceBMode.exitCode).toBe(0);
+					expect(workspaceBMode.stdout.trim()).toBe("700");
 
 					const siblingRead = await manager.exec(taskA, ["cat", `${workspaceB.workdir}/README.md`]);
 					expect(siblingRead.exitCode).not.toBe(0);
+					const siblingWrite = await manager.exec(taskA, [
+						"sh",
+						"-lc",
+						`echo pwned > ${workspaceB.workdir}/pwned.txt`,
+					]);
+					expect(siblingWrite.exitCode).not.toBe(0);
+					const siblingWriteAbsent = await manager.exec(taskB, [
+						"test",
+						"!",
+						"-e",
+						`${workspaceB.workdir}/pwned.txt`,
+					]);
+					expect(siblingWriteAbsent.exitCode).toBe(0);
 
 					await expect(manager.runTool(taskA, "bash", "pwd")).resolves.toContain(workspaceA.workdir);
 					await expect(manager.runTool(taskA, "readFile", { path: "README.md" })).resolves.toContain("hello");
@@ -305,6 +329,19 @@ if (dockerGate.ready) {
 				expect(workspaceA.uid).not.toBe(workspaceB.uid);
 				const siblingRead = await manager.exec(taskA, ["cat", `${workspaceB.workdir}/README.md`]);
 				expect(siblingRead.exitCode).not.toBe(0);
+				const siblingWrite = await manager.exec(taskA, [
+					"sh",
+					"-lc",
+					`echo pwned > ${workspaceB.workdir}/pwned.txt`,
+				]);
+				expect(siblingWrite.exitCode).not.toBe(0);
+				const siblingWriteAbsent = await manager.exec(taskB, [
+					"test",
+					"!",
+					"-e",
+					`${workspaceB.workdir}/pwned.txt`,
+				]);
+				expect(siblingWriteAbsent.exitCode).toBe(0);
 
 				let queued = false;
 				const thirdWorkspacePromise = manager.prepareWorkspace({

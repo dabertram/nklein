@@ -999,10 +999,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       configs infer `custom`) and `sandboxIsolationProfileOverride` for projects. `strict_per_agent` forces one agent per
       container and defaults its container cap to 4 when no cap is configured; direct numeric pool edits become `custom`.
       Settings exposes the global profile and project override, and tests cover resolver semantics, persistence,
-      component save payloads, and the Playwright settings save path. **Remaining before `[x]`:** Docker integration proof
-      that two simultaneous lean-profile agents cannot read/write each other's workspace, live container-count/resource
-      comparison across profiles, and the root-cause fix for the 2026-07-09 capture/lifecycle evidence where sandbox
-      delivery claimed captured files that did not land in the host dev workspace.
+      component save payloads, and the Playwright settings save path. ◐ **LEAN-PROFILE CONTAINMENT PROOF SHIPPED
+      (2026-07-09):** the live Docker integration suite now asserts that two simultaneous tasks on the lean shared
+      profile run in the same container but different UIDs, that each task workspace is mode `700`, and that a sibling
+      task cannot read or write another task's workspace; the same run confirmed teardown left no labeled agent sandbox
+      containers behind. **Remaining before `[x]`:** live container-count/resource comparison across profiles and the
+      root-cause fix for the 2026-07-09 capture/lifecycle evidence where sandbox delivery claimed captured files that did
+      not land in the host dev workspace.
 - [x] **Created-workspace location guard (2026-06-25, user-directed safety fix after a real pollution incident).** A
       dev-test scaffold (`scaffoldNKleinDevTestProject`) whose `parentDir` resolved inside the repo seeded ~23 fixture
       commits onto the working branch + flipped `core.bare=true` (broke all work-tree git ops). Fix:
