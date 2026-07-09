@@ -74,6 +74,7 @@
 		"test:vendor": "node scripts/test-vendor.mjs",
 		"test:precommit": "npm run test:fast",
 		"test:watch": "vitest",
+		"verify:long-memory": "tsx scripts/verify-long-memory-eval.mts",
 		"prepare": "husky",
 		"prepublishOnly": "npm run build && npm run check"
 	},

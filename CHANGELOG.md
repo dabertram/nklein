@@ -56,7 +56,11 @@
 - **Memory scope broadening now has a concrete LongMemEval-style signal producer** (todo §5.M/§5.V). The new pure
   `long-memory-eval` core fixture injects multi-session project facts, scores recall@k plus abstention on missing
   evidence, and exposes `decideMemoryScopeBroadening` so `accessAllOptIn` can only be allowed after a passing benchmark.
-  Runtime wiring is still held until this benchmark is validated against real model-backed recall.
+  A new `npm run verify:long-memory` harness validates that signal against real model-backed recall without wiring runtime
+  scope broadening: it has the model select memory ids, answer only from selected memories, score grounded answers
+  deterministically, and require first-session-only/noisy controls to fail. Live validation passed sequentially on the
+  loaded Qwen3.6-35B-A3B and Devstral Small 2 models; the first run also caught and fixed an under-specified verifier JSON
+  schema that could legally emit `{}` for abstention.
 - **Settings now exposes the learned per-model behavior profile** (todo §5.AA). The existing Model Performance dialog
   includes a "Learned model behavior" table backed by `runtime.getModelBehaviorProfiles`, showing samples, success rate,
   average retries, dominant failure mode, preferred tool-call format, responsive prompt phrasing, complexity ceiling, and

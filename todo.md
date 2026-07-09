@@ -2310,9 +2310,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [~] **LAYERED memory as one projection over the §5.AF substrate (2026-06-27, small-LLM research pass).** *(nearly
       complete — the Four memory layers (memory-layers.ts, 2026-07-08), the turn-budget allocator, the namespaced
       memory scope, memory governance (provenance/scopes/deletion/contradiction-replacement/recency-frequency-importance/
-      reversible history), and "why recalled" surfacing are all [x] below; the SOLE remaining sub-leaf is gating a scope
-      BROADENING on an internal LongMemEval-style benchmark (⏱ EVAL+FLEET — needs the benchmark authored + model-validated
-      to discriminate). Reclassified [ ]→[~] 2026-07-08.)*
+      reversible history), and "why recalled" surfacing are all [x] below; LongMemEval authoring + live model validation
+      are also [x]. Still [~] rather than [x] because runtime scope broadening must be wired only from a real benchmark
+      producer/result path, not from a hardcoded "validated once" flag. Reclassified [ ]→[~] 2026-07-08; validation
+      updated 2026-07-09.)*
       The chat memory core is a good start; the long-horizon
       story is four layers: **working** (active state + current step), **episodic** (the immutable §5.AF event/attempt
       ledger), **semantic** (facts/preferences/project constraints extracted from episodes), **procedural** (the §5.AE
@@ -2344,16 +2345,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         replacement · recency/frequency/importance weighting · reversible history.
   - [x] **"Why recalled" surfacing** — show, per recalled memory, why it was selected. *(2026-07-05: `explainRecall` in basic-memory-provenance.ts surfaces relevance × trust(verdict) × freshness(age-decay) = effective score, with human labels; WeightedRecall now exposes the components; 3 tests)*
   - [~] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V). *(partial
-        2026-07-08: producer + pure gate shipped; live/fleet validation remains before runtime wiring.)*
+        2026-07-08: producer + pure gate shipped; 2026-07-09: live model-backed validation shipped + passed. Runtime
+        wiring remains separate: feed a real benchmark result into the scope resolver before access-all broadening, rather
+        than treating validation as a compile-time constant.)*
     - [x] AUTHOR the internal LongMemEval-style benchmark signal + pure gate. *(2026-07-08:
           [long-memory-eval.ts](src/core/long-memory-eval.ts) defines an injected-history, multi-session project-memory
           fixture, evaluates recall@k + abstention on answer-missing prompts, and exposes
           `decideMemoryScopeBroadening` (`broaden-scope-iff-benchmark-passed`). Tests prove exact recall passes, a
           first-session-only/narrow ranker fails cross-session recall, noisy retrieval fails abstention, and the gate
           only allows `accessAllOptIn` when requested + passed.)*
-    - [ ] VALIDATE the LongMemEval-style benchmark against real model-backed recall before wiring it into runtime
-          scope broadening. ⏱ EVAL+FLEET *(the benchmark must discriminate recall quality in a live model loop; until
-          that signal is validated, `resolveAllowedNamespaces` remains unchanged and access-all stays explicit.)*
+    - [x] VALIDATE the LongMemEval-style benchmark against real model-backed recall before wiring it into runtime
+          scope broadening. *(✅ 2026-07-09 — added [long-memory-live-eval.ts](src/core/long-memory-live-eval.ts) pure
+          JSON selection/answer parsing + deterministic grounded-answer scoring, and
+          [verify-long-memory-eval.mts](scripts/verify-long-memory-eval.mts) / `npm run verify:long-memory` as the live,
+          sequential LM Studio verifier. The verifier requires: model-selected memory ids pass recall@k+abstention;
+          model answers from selected memories include expected evidence or abstain; first-session-only and noisy controls
+          fail. Live runs passed on already-loaded idle models `qwen/qwen3.6-35b-a3b` and
+          `mistralai/devstral-small-2-2512` (`recall=1.000`, `abstain=1.000`, answers PASS, controls PASS). First Qwen run
+          exposed the real harness root cause: a generic JSON schema allowed `{}` on abstention, so the verifier now uses
+          strict per-operation schemas requiring `memoryIds` or `answerable`+`answer`. `resolveAllowedNamespaces` remains
+          intentionally unchanged until a runtime producer/result path is wired.)*
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
 > Every agent drafts an ordered checklist at task start + works through it — keeps small models on-task, makes

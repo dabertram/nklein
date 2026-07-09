@@ -21,6 +21,8 @@ export interface LongMemoryEvalPrompt {
 	query: string;
 	/** Empty means the correct behavior is abstain/no retrieval. */
 	relevantMemoryIds: readonly string[];
+	/** Needles used by the live model-backed validation harness to score grounded answers deterministically. */
+	expectedAnswerMustInclude?: readonly string[];
 }
 
 export interface LongMemoryEvalCase {
@@ -95,11 +97,13 @@ export function buildInternalLongMemoryEvalFixture(): LongMemoryEvalCase[] {
 					id: "alpha-base-url",
 					query: "What API base URL should Project Alpha use?",
 					relevantMemoryIds: ["alpha-api-base-url"],
+					expectedAnswerMustInclude: ["http://localhost:4317/v2"],
 				},
 				{
 					id: "alpha-release-prerequisite",
 					query: "What must happen before tagging a Project Alpha release?",
 					relevantMemoryIds: ["alpha-release-dry-run"],
+					expectedAnswerMustInclude: ["migration dry-run"],
 				},
 				{
 					id: "alpha-payment-provider",
