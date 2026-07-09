@@ -314,6 +314,7 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 			async readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null> {
 				return await readPersistedTaskSessionMock(taskId);
 			},
+			async releaseTaskMcpTools(_taskId: string): Promise<void> {},
 			async dispose(): Promise<void> {
 				sessionIdByTaskId.clear();
 				taskIdBySessionId.clear();
@@ -1189,6 +1190,75 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				}),
 			}),
 		);
+	});
+
+	it("rebuilds sandbox tools instead of sending into an old reviewed session after workspace restoration", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-redrive-rebuild",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-redrive-rebuild");
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-redrive-rebuild");
+		});
+
+		runtime.startTaskSessionMock.mockClear();
+		runtime.sendTaskSessionInputMock.mockClear();
+		sandboxManager.disposeWorkspaceMock.mockClear();
+		sandboxManager.prepareWorkspaceMock.mockClear();
+		sandboxManager.isWorkspacePreparedMock.mockResolvedValue(false);
+
+		await service.sendTaskSessionInput("task-redrive-rebuild", "Address the review feedback");
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-redrive-rebuild",
+					cwd: "/workspaces/task-redrive-rebuild",
+					workspaceRoot: "/tmp/project",
+					toolExecutors: expect.objectContaining({
+						bash: expect.any(Function),
+						applyPatch: expect.any(Function),
+					}),
+					extraTools: expect.arrayContaining([
+						expect.objectContaining({ name: "repo_map", execute: expect.any(Function) }),
+						expect.objectContaining({ name: "write_files", execute: expect.any(Function) }),
+					]),
+				}),
+			);
+		});
+		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-redrive-rebuild");
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
+			taskId: "task-redrive-rebuild",
+			projectRepoPath: "/tmp/project",
+			baseRef: "result-commit",
+			maxQueueWaitMs: 120_000,
+		});
 	});
 
 	it("does not dispatch a re-drive turn when stale sandbox restoration fails", async () => {

@@ -34,6 +34,7 @@ function deps(over: Partial<SandboxReviewFinalizerDeps> = {}, ss = sandboxState(
 		emitMessage: vi.fn(),
 		isExplicitDecomposition: vi.fn(() => false),
 		getDiagnosticStoreRoot: () => undefined,
+		releaseSandboxMcpResources: vi.fn(async () => {}),
 		...over,
 	};
 }
@@ -96,5 +97,30 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 			),
 		).finalizeSandboxReview("t1");
 		expect(ss.markFinalizing).toHaveBeenCalledWith("t1");
+	});
+
+	it("releases task-scoped sandbox MCP resources before disposing a parked workspace", async () => {
+		const captureWorkspacePatch = vi.fn(async () => "");
+		const disposeWorkspace = vi.fn(async () => {});
+		const releaseSandboxMcpResources = vi.fn(async () => {});
+		createSandboxReviewFinalizer(
+			deps({
+				getAgentSandboxManager: () =>
+					({
+						captureWorkspacePatch,
+						disposeWorkspace,
+						hasWorkspace: () => true,
+					}) as never,
+				releaseSandboxMcpResources,
+			}),
+		).finalizeSandboxReview("t1");
+
+		await vi.waitFor(() => {
+			expect(disposeWorkspace).toHaveBeenCalledWith("t1");
+		});
+		expect(releaseSandboxMcpResources).toHaveBeenCalledWith("t1");
+		expect(releaseSandboxMcpResources.mock.invocationCallOrder[0] ?? 0).toBeLessThan(
+			disposeWorkspace.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+		);
 	});
 });

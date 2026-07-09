@@ -162,6 +162,9 @@ export function ModelRolesEditor({
 			if (!defaultModelId || isLmStudioProviderId(trimmedProviderId)) {
 				delete next[roleId].modelId;
 			}
+			if (!next[roleId].modelId?.trim()) {
+				delete next[roleId].modelSelectionMode;
+			}
 			return next;
 		});
 	};
@@ -174,6 +177,7 @@ export function ModelRolesEditor({
 				nextRole.modelId = trimmedModelId;
 			} else {
 				delete nextRole.modelId;
+				delete nextRole.modelSelectionMode;
 			}
 			return { ...prev, [roleId]: nextRole };
 		});
@@ -224,6 +228,10 @@ export function ModelRolesEditor({
 		onChange((prev) => {
 			const nextRole = { ...prev[roleId] };
 			if (mode === "pinned") {
+				if (!nextRole.modelId?.trim()) {
+					delete nextRole.modelSelectionMode;
+					return { ...prev, [roleId]: nextRole };
+				}
 				nextRole.modelSelectionMode = "pinned";
 			} else {
 				delete nextRole.modelSelectionMode;
@@ -256,6 +264,7 @@ export function ModelRolesEditor({
 				const assignmentSelectId = `runtime-settings-model-role-${roleId}-assignment`;
 				const roleModels = getProviderModels(effectiveProviderId);
 				const selectedRoleModelId = roleSettings.modelId ?? "";
+				const hasConcretePrimaryModel = Boolean(selectedRoleModelId.trim());
 				const selectedRoleModel = roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
 				const selectedRoleModelLabel = selectedRoleModel
 					? formatModelOptionLabel(selectedRoleModel)
@@ -341,14 +350,18 @@ export function ModelRolesEditor({
 								<NativeSelect
 									id={assignmentSelectId}
 									fill
-									value={roleSettings.modelSelectionMode ?? "auto"}
+									value={hasConcretePrimaryModel ? (roleSettings.modelSelectionMode ?? "auto") : "auto"}
 									onChange={(event) =>
 										handleModelSelectionModeChange(roleId, event.target.value as RuntimeModelSelectionMode)
 									}
-									disabled={disabled}
+									disabled={disabled || !hasConcretePrimaryModel}
 								>
 									{MODEL_SELECTION_MODE_OPTIONS.map((option) => (
-										<option key={option} value={option}>
+										<option
+											key={option}
+											value={option}
+											disabled={option === "pinned" && !hasConcretePrimaryModel}
+										>
 											{MODEL_SELECTION_MODE_LABELS[option]}
 										</option>
 									))}

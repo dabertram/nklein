@@ -176,6 +176,12 @@ export interface NKleinSessionRuntime {
 	getTaskProviderId(taskId: string): string | null;
 	canRestartTaskSession(taskId: string): boolean;
 	readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null>;
+	/**
+	 * Release task-scoped MCP transports without clearing the SDK session binding. Sandbox review finalization can
+	 * dispose `/workspaces/<taskId>` while the card parks for review; Docker-hosted MCP stdio transports must be
+	 * closed at that same boundary and recreated on the next sandbox restart.
+	 */
+	releaseTaskMcpTools(taskId: string): Promise<void>;
 	dispose(): Promise<void>;
 }
 

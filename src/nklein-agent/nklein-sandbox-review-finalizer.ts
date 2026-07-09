@@ -33,6 +33,7 @@ export interface SandboxReviewFinalizerDeps {
 	emitMessage(taskId: string, message: NKleinTaskMessage): void;
 	isExplicitDecomposition(taskId: string): boolean;
 	getDiagnosticStoreRoot(): string | undefined;
+	releaseSandboxMcpResources(taskId: string): Promise<void>;
 }
 
 export interface SandboxReviewFinalizer {
@@ -239,6 +240,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				// handoff re-finalizes (and disposes) as usual.
 				const stateAfterCapture = deps.getTaskEntry(taskId)?.summary.state;
 				if (!isBusySessionState(stateAfterCapture)) {
+					await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
 					await manager.disposeWorkspace(taskId);
 				}
 				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or
@@ -270,6 +272,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 						},
 					});
 					if (hasWorkspace && deps.getTaskEntry(taskId)?.summary.state !== "running") {
+						await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
 						await manager.disposeWorkspace(taskId).catch(() => null);
 					}
 					// Same as the capture path above: keep the sandbox state for a possible re-drive round.

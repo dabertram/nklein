@@ -1595,6 +1595,10 @@ describe("RuntimeSettingsDialog", () => {
 
 		await act(async () => {
 			setSelectValue(architectModelSelect, "loaded-qwen");
+		});
+		await flushAsyncWork();
+
+		await act(async () => {
 			setSelectValue(architectAssignmentSelect, "pinned");
 			setSelectValue(workerModelSelect, "loaded-qwen");
 		});
@@ -2057,13 +2061,17 @@ describe("RuntimeSettingsDialog", () => {
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectProviderSelect = selects[0];
 		const architectModelSelect = selects[1];
+		const architectAssignmentSelect = selects[2];
 		if (
 			!(saveButton instanceof HTMLButtonElement) ||
 			!(architectProviderSelect instanceof HTMLSelectElement) ||
-			!(architectModelSelect instanceof HTMLSelectElement)
+			!(architectModelSelect instanceof HTMLSelectElement) ||
+			!(architectAssignmentSelect instanceof HTMLSelectElement)
 		) {
 			throw new Error("Expected architect role controls to render.");
 		}
+		expect(architectAssignmentSelect.value).toBe("auto");
+		expect(architectAssignmentSelect.disabled).toBe(true);
 
 		await act(async () => {
 			setSelectValue(architectProviderSelect, "lmstudio");
@@ -2072,6 +2080,13 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toEqual(["", "loaded-qwen"]);
 		expect(document.body.textContent).toContain("Architect role uses LM Studio");
+		expect(architectAssignmentSelect.value).toBe("auto");
+		expect(architectAssignmentSelect.disabled).toBe(true);
+		await act(async () => {
+			setSelectValue(architectAssignmentSelect, "pinned");
+		});
+		await flushAsyncWork();
+		expect(architectAssignmentSelect.value).toBe("auto");
 		await act(async () => {
 			saveButton?.click();
 		});
@@ -2081,6 +2096,8 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setSelectValue(architectModelSelect, "loaded-qwen");
 		});
+		await flushAsyncWork();
+		expect(architectAssignmentSelect.disabled).toBe(false);
 		saveButton = findButtonByText(document.body, "Save");
 		await act(async () => {
 			saveButton?.click();

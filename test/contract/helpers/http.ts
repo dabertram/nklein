@@ -4,6 +4,7 @@ export async function requestJson<T>(input: {
 	type: "query" | "mutation";
 	workspaceId?: string | null;
 	payload?: unknown;
+	timeoutMs?: number;
 }): Promise<{ status: number; payload: T }> {
 	const unwrapTrpcPayload = (value: unknown): unknown => {
 		const envelope = Array.isArray(value) ? value[0] : value;
@@ -53,6 +54,7 @@ export async function requestJson<T>(input: {
 		method,
 		headers,
 		body,
+		...(input.timeoutMs ? { signal: AbortSignal.timeout(input.timeoutMs) } : {}),
 	});
 	const payload = unwrapTrpcPayload(await response.json().catch(() => null)) as T;
 	return {

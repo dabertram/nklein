@@ -706,6 +706,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		};
 	}
 
+	async releaseTaskMcpTools(taskId: string): Promise<void> {
+		await this.releaseTaskMcpToolBundle(taskId);
+	}
+
 	async dispose(): Promise<void> {
 		const hostPromise = this.sessionHostPromise;
 		this.sessionHostPromise = null;

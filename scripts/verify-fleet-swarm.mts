@@ -58,6 +58,7 @@ const REVIEWER_AUTO = isAutoReviewerSetting(REVIEWER);
 const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "2700000");
 const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
+const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "30000");
 
 const TERMINAL_COLUMN_IDS = new Set(["review", "completed", "done"]);
 const ACTIVE_COLUMN_IDS = new Set(["backlog", "planning", "in_progress", "in-progress"]);
@@ -344,7 +345,7 @@ async function main(): Promise<void> {
 		log(
 			`Server: ${server.baseUrl}\n` +
 				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
-				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})`,
+				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
 		);
 
 		// Global selected provider = the WORKER model (cascade cards with no per-card provider default to it; a fast coder).
@@ -353,6 +354,7 @@ async function main(): Promise<void> {
 			procedure: "runtime.saveNKleinProviderSettings",
 			type: "mutation",
 			payload: { providerId: PROVIDER_ID, modelId: WORKER, baseUrl: BASE_URL },
+			timeoutMs: RPC_REQUEST_TIMEOUT_MS,
 		});
 		log(`saveNKleinProviderSettings(worker=${WORKER}): ok=${provRes.payload.ok ?? "?"}`);
 
@@ -379,6 +381,7 @@ async function main(): Promise<void> {
 						: { reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER, modelSelectionMode: "pinned" } }),
 				},
 			},
+			timeoutMs: RPC_REQUEST_TIMEOUT_MS,
 		});
 		log(`saveConfig(fleet roles + maxConcurrent=${MAX_CONCURRENT}): HTTP ${cfgRes.status}`);
 
@@ -402,6 +405,7 @@ async function main(): Promise<void> {
 			procedure: "projects.createDevTestProject",
 			type: "mutation",
 			payload: { preset: PRESET },
+			timeoutMs: RPC_REQUEST_TIMEOUT_MS,
 		});
 		if (!createRes.payload.ok || !createRes.payload.project || !createRes.payload.task) {
 			throw new Error(`createDevTestProject failed (HTTP ${createRes.status}): ${JSON.stringify(createRes.payload)}`);
@@ -430,6 +434,7 @@ async function main(): Promise<void> {
 				agentId: task.agentId,
 				nkleinSettings: task.nkleinSettings,
 			},
+			timeoutMs: RPC_REQUEST_TIMEOUT_MS,
 		});
 		log(
 			`startTaskSession(seed): HTTP ${startRes.status} ok=${startRes.payload?.ok ?? "?"}` +
@@ -515,6 +520,7 @@ async function main(): Promise<void> {
 					procedure: "workspace.getState",
 					type: "query",
 					workspaceId,
+					timeoutMs: RPC_REQUEST_TIMEOUT_MS,
 				});
 				consecutivePollErrors = 0;
 				const columns = stateRes.payload.board?.columns ?? [];

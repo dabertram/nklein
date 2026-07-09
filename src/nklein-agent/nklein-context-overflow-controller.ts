@@ -43,6 +43,7 @@ export interface ContextOverflowControllerDeps {
 		images?: RuntimeTaskImage[];
 		initialMessages: NKleinSdkPersistedMessage[];
 		launchConfigOverrides?: NKleinTaskRestartLaunchConfig;
+		cwd?: string | null;
 	}): Promise<RestartOutcome>;
 	/** Rebuild a fresh session from the persisted launch config (used when no live session can be restarted). */
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
@@ -108,6 +109,7 @@ export function createContextOverflowController(deps: ContextOverflowControllerD
 				images: input.images,
 				initialMessages: input.compactedMessages,
 				launchConfigOverrides: input.restartLaunchConfig ?? undefined,
+				cwd: input.cwd,
 			});
 			return { result: restartedSession.result, warnings: restartedSession.warnings };
 		}

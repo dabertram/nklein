@@ -33,7 +33,15 @@
   `pinned_model_unavailable` instead of silently falling through to auto-selection. Pinned reviewers now follow the same
   rule: a proven-missing reviewer pin blocks review/delivery instead of waiving to auto-pick. Auto-picked escalation
   workers and plan critics now identify themselves as such in telemetry instead of reusing the reviewer label, so live
-  sweeps do not imply that a pinned reviewer was ignored.
+  sweeps do not imply that a pinned reviewer was ignored. The Settings assignment control now stays on Auto until a role
+  has a concrete primary model and clears the pin immediately when that model is removed, preventing provider-only
+  "pins" that would be normalized away later.
+- **Reviewed sandbox re-drives now rebuild the full Docker tool surface** (todo §5.AB/§5.AR). When review finalization
+  parks a card and frees its Docker workspace, !Klein closes task-scoped sandbox MCP transports before deleting the cwd.
+  If that card is bounced or escalated, the next turn restores the result branch and restarts through the sandbox rebuild
+  path, so fresh sandbox file tools and curated MCP transports are wired instead of host-backed tools pointing at
+  `/workspaces/<taskId>`. The fleet verifier's tRPC calls now also have bounded per-request timeouts, so a wedged backend
+  poll reports a stall instead of waiting indefinitely while models are idle.
 - **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
   `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
   tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a

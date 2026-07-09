@@ -150,6 +150,7 @@ import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
 import type { AgentTool } from "./sdk-agent-types";
 import {
 	listNKleinSdkWorkflowSlashCommands,
+	type NKleinSdkPersistedMessage,
 	type NKleinSdkSlashCommand,
 	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
@@ -233,6 +234,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
 		isExplicitDecomposition: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
 		getDiagnosticStoreRoot: () => this.diagnosticStoreRoot,
+		releaseSandboxMcpResources: (taskId) => this.sessionRuntime.releaseTaskMcpTools(taskId),
 	});
 	/** §5.U auxiliary secondary-session runner: acceptance verification against the delivered tree in a sandbox. */
 	private readonly acceptanceVerifier = createAcceptanceVerifier({
@@ -319,9 +321,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		waitUntilTaskResumed: (taskId) => this.waitUntilTaskResumed(taskId),
 		markStarted: (taskId) => this.requestTimer.markStarted(taskId),
 		restartTaskSession: (input) =>
-			this.sessionRuntime.restartTaskSession({
-				...input,
-				onTeamEvent: (event, teamName) => this.teamProgressEmitter.emit(input.taskId, event, teamName),
+			this.restartTaskSessionFromResolvedConfig({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: input.initialMessages,
+				launchConfig: this.resolveRestartLaunchConfig({
+					taskId: input.taskId,
+					launchConfigOverrides: input.launchConfigOverrides,
+				}),
+				fallbackCwd: input.cwd,
 			}),
 		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
 		prepareMessagesForKnownContextWindow: (input) =>
@@ -632,6 +642,92 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		return this.cacheLaunchConfig(input.taskId, persisted);
+	}
+
+	private resolveRestartLaunchConfig(input: {
+		taskId: string;
+		persistedSnapshot?: NKleinPersistedTaskSessionSnapshot | null;
+		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides;
+	}): NKleinTaskRestartLaunchConfig | null {
+		const persisted = this.resolvePersistedLaunchConfig({
+			taskId: input.taskId,
+			persistedSnapshot: input.persistedSnapshot,
+		});
+		if (!input.launchConfigOverrides) {
+			return persisted;
+		}
+		return normalizeLaunchConfig({
+			...(persisted ?? {}),
+			...input.launchConfigOverrides,
+		});
+	}
+
+	private async restartTaskSessionFromResolvedConfig(input: {
+		taskId: string;
+		prompt: string;
+		mode?: RuntimeTaskSessionMode;
+		images?: RuntimeTaskImage[];
+		initialMessages?: NKleinSdkPersistedMessage[];
+		launchConfig: NKleinTaskRestartLaunchConfig | null;
+		persistedSnapshot?: NKleinPersistedTaskSessionSnapshot | null;
+		fallbackCwd?: string | null;
+	}): Promise<RuntimeTaskSessionStartResult> {
+		const sandboxRepoPath = this.sandboxState.getRepoPath(input.taskId)?.trim() || null;
+		if (sandboxRepoPath) {
+			if (!input.launchConfig) {
+				throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
+			}
+			return await this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: input.taskId,
+				cwd: sandboxRepoPath,
+				workspaceRoot: sandboxRepoPath,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: input.initialMessages,
+				launchConfig: {
+					...input.launchConfig,
+					workspaceRoot: input.launchConfig.workspaceRoot ?? sandboxRepoPath,
+				},
+			});
+		}
+
+		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			await this.waitUntilTaskResumed(input.taskId);
+			this.requestTimer.markStarted(input.taskId);
+			const restartedSession = await this.sessionRuntime.restartTaskSession({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: input.initialMessages,
+				launchConfigOverrides: input.launchConfig ?? undefined,
+				onTeamEvent: (event, teamName) => {
+					this.teamProgressEmitter.emit(input.taskId, event, teamName);
+				},
+			});
+			if (input.launchConfig) {
+				this.cacheLaunchConfig(input.taskId, input.launchConfig);
+			}
+			return {
+				result: restartedSession.result,
+				warnings: restartedSession.warnings,
+			};
+		}
+
+		const cwd = input.persistedSnapshot?.record.cwd ?? input.fallbackCwd ?? null;
+		if (input.launchConfig && cwd) {
+			return await this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: input.taskId,
+				cwd,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: input.initialMessages,
+				launchConfig: input.launchConfig,
+			});
+		}
+		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
 	}
 
 	/**
@@ -970,11 +1066,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		images?: RuntimeTaskImage[];
 		delivery?: "queue" | "steer";
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides;
+		forceRestart?: boolean;
 	}): Promise<{
 		result: unknown;
 		warnings?: string[];
 	}> {
 		if (
+			!input.forceRestart &&
 			this.sessionRuntime.getTaskSessionId(input.taskId) &&
 			!this.sessionRuntime.requiresTaskSessionRestart(input.taskId, input.mode, input.launchConfigOverrides)
 		) {
@@ -994,12 +1092,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 		if (this.sessionRuntime.getTaskSessionId(input.taskId)) {
 			const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
-			const restartLaunchConfig =
-				input.launchConfigOverrides ??
-				this.resolvePersistedLaunchConfig({
-					taskId: input.taskId,
-					persistedSnapshot,
-				});
+			const restartLaunchConfig = this.resolveRestartLaunchConfig({
+				taskId: input.taskId,
+				persistedSnapshot,
+				launchConfigOverrides: input.launchConfigOverrides,
+			});
 			const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
 				input.taskId,
 				restartLaunchConfig?.contextWindow,
@@ -1012,40 +1109,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				contextWindow,
 			});
 			await this.sessionRuntime.stopTaskSession(input.taskId);
-			if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
-				await this.waitUntilTaskResumed(input.taskId);
-				this.requestTimer.markStarted(input.taskId);
-				const restartedSession = await this.sessionRuntime.restartTaskSession({
-					taskId: input.taskId,
-					prompt: input.prompt,
-					mode: input.mode,
-					images: input.images,
-					initialMessages,
-					launchConfigOverrides: restartLaunchConfig ?? undefined,
-					onTeamEvent: (event, teamName) => {
-						this.teamProgressEmitter.emit(input.taskId, event, teamName);
-					},
-				});
-				if (restartLaunchConfig) {
-					this.cacheLaunchConfig(input.taskId, restartLaunchConfig);
-				}
-				return {
-					result: restartedSession.result,
-					warnings: restartedSession.warnings,
-				};
-			}
-			if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
-				return await this.startRuntimeTaskSessionFromLaunchConfig({
-					taskId: input.taskId,
-					cwd: persistedSnapshot.record.cwd,
-					prompt: input.prompt,
-					mode: input.mode,
-					images: input.images,
-					initialMessages,
-					launchConfig: restartLaunchConfig,
-				});
-			}
-			throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
+			return await this.restartTaskSessionFromResolvedConfig({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages,
+				launchConfig: restartLaunchConfig,
+				persistedSnapshot,
+			});
 		}
 
 		if (isHomeAgentSessionId(input.taskId) && !this.sessionRuntime.canRestartTaskSession(input.taskId)) {
@@ -1053,12 +1125,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
-		const restartLaunchConfig =
-			input.launchConfigOverrides ??
-			this.resolvePersistedLaunchConfig({
-				taskId: input.taskId,
-				persistedSnapshot,
-			});
+		const restartLaunchConfig = this.resolveRestartLaunchConfig({
+			taskId: input.taskId,
+			persistedSnapshot,
+			launchConfigOverrides: input.launchConfigOverrides,
+		});
 		const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
 			input.taskId,
 			restartLaunchConfig?.contextWindow,
@@ -1070,40 +1141,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			images: input.images,
 			contextWindow,
 		});
-		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
-			await this.waitUntilTaskResumed(input.taskId);
-			this.requestTimer.markStarted(input.taskId);
-			const restartedSession = await this.sessionRuntime.restartTaskSession({
-				taskId: input.taskId,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages,
-				launchConfigOverrides: restartLaunchConfig ?? undefined,
-				onTeamEvent: (event, teamName) => {
-					this.teamProgressEmitter.emit(input.taskId, event, teamName);
-				},
-			});
-			if (restartLaunchConfig) {
-				this.cacheLaunchConfig(input.taskId, restartLaunchConfig);
-			}
-			return {
-				result: restartedSession.result,
-				warnings: restartedSession.warnings,
-			};
-		}
-		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
-			return await this.startRuntimeTaskSessionFromLaunchConfig({
-				taskId: input.taskId,
-				cwd: persistedSnapshot.record.cwd,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages,
-				launchConfig: restartLaunchConfig,
-			});
-		}
-		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
+		return await this.restartTaskSessionFromResolvedConfig({
+			taskId: input.taskId,
+			prompt: input.prompt,
+			mode: input.mode,
+			images: input.images,
+			initialMessages,
+			launchConfig: restartLaunchConfig,
+			persistedSnapshot,
+		});
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
@@ -1644,17 +1690,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * cwd is still present. A placement-map hit alone is not enough: a crashed/restarted container can leave stale
 	 * manager state while `/workspaces/<task>` is gone.
 	 */
-	private async restoreDisposedSandboxWorkspaceForRedrive(taskId: string): Promise<void> {
+	private async restoreDisposedSandboxWorkspaceForRedrive(taskId: string): Promise<boolean> {
 		const manager = this.agentSandboxManager;
 		const repoPath = this.sandboxState.getRepoPath(taskId);
 		if (!manager || !repoPath) {
-			return;
+			return false;
 		}
 		try {
 			const hasPlacement = manager.hasWorkspace(taskId);
 			if (hasPlacement && (await manager.isWorkspacePrepared(taskId))) {
-				return;
+				return false;
 			}
+			await this.sessionRuntime.releaseTaskMcpTools(taskId).catch(() => undefined);
 			if (hasPlacement) {
 				await manager.disposeWorkspace(taskId).catch(() => null);
 			}
@@ -1673,6 +1720,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				workspacePath: repoPath,
 				metadata: { category: "sandbox_workspace_redrive_restore", fromResultBranch: Boolean(resultCommit) },
 			});
+			return true;
 		} catch (error) {
 			recordSelfObservation({
 				signal: "runtime_error",
@@ -1764,7 +1812,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				.then(async (runtimeSetup) => {
 					// A bounced/escalated card's workspace may have been disposed at capture — restore it BEFORE
 					// the turn so the session's sandbox tools work again (see the helper's run20 story).
-					await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
+					const restoredSandboxWorkspace = await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
 					const resolvedContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
 						taskId,
@@ -1807,6 +1855,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							images,
 							delivery: queueDelivery ? "queue" : undefined,
 							launchConfigOverrides,
+							forceRestart: restoredSandboxWorkspace,
 						});
 					} catch (error) {
 						const recovered = await this.contextOverflowController.recoverAfterOverflow({
