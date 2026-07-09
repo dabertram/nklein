@@ -10927,3 +10927,13 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       infrastructure is BUILT + validated on an 8-model roster (§5.AB). This item = running the FULL ~71-model local
       catalog through both harnesses to produce a complete fitness matrix + fold verdicts into §5.AL. Do this LAST, after
       the backlog is worked. (Roster load/unload control confirmed; Docker healthy for the implement family.)
+
+## 12. UI-polish sweep findings (2026-07-10, non-UI — logged for backlog)
+- [ ] **Fixture models pollute the LIVE model registry:** `huge-advertised-model`, `local-model`, `small-local-model`
+      (test fixtures) show up as real rows in the fleet strip ("unknown ×3") and in the registry API. The registry
+      store should never persist dev-test/fixture model entries — scrub on write or filter fixture ids from
+      runtime.getNKleinModelRegistry. (UI now condenses them under the idle summary, but the DATA is wrong.)
+- [ ] **Fleet under-utilization while cards wait:** deep-chain board had 12 cards WAITING with `qwen/qwen3-coder-next`
+      (44GB local) IDLE the whole time — only devstral drove work (Running 1, Cap 3). Investigate worker-role
+      candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
+      from the lm-link work? role pinning to the configured-but-absent legion worker?). This serializes the swarm.
