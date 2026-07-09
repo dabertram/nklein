@@ -37,6 +37,8 @@ export interface BoardCardInput {
 	id?: string;
 	title: string;
 	prompt?: string;
+	/** Extra card fields spread verbatim (e.g. `generatedFromPlan`, `agentId`, `autoReviewEnabled`). */
+	extra?: Record<string, unknown>;
 }
 
 /** A minimal board card (shape mirrors the proven fixtures) for seeding deterministic board state. */
@@ -49,6 +51,7 @@ export function buildBoardCard(input: BoardCardInput): Record<string, unknown> {
 		baseRef: "main",
 		createdAt: 1_700_000_000_000,
 		updatedAt: 1_700_001_000_000,
+		...(input.extra ?? {}),
 	};
 }
 
@@ -58,6 +61,8 @@ export interface BoardSnapshotInput {
 	columns?: BoardColumnFixture[];
 	sessions?: Record<string, unknown>;
 	projects?: unknown[];
+	/** Board dependencies ({id, fromTaskId, toTaskId}) — the §5.BC edges overlay renders these. */
+	dependencies?: unknown[];
 }
 
 /** Build the `type:"snapshot"` WebSocket message the app hydrates the board from (shape mirrors the proven fixtures). */
@@ -79,7 +84,7 @@ export function buildBoardSnapshot(input: BoardSnapshotInput = {}): Record<strin
 			repoPath: "/home/user/project",
 			statePath: "/home/user/project/.nklein/state.json",
 			git: { currentBranch: "main", defaultBranch: "main", branches: ["main"] },
-			board: { columns, dependencies: [] },
+			board: { columns, dependencies: input.dependencies ?? [] },
 			sessions: input.sessions ?? {},
 			revision: 1,
 		},

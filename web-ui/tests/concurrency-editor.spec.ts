@@ -15,10 +15,11 @@ test.describe("concurrency editor (per-machine pool)", () => {
 		await gotoBoard(page);
 		await openSettings(page);
 
-		// Add a per-machine (endpoint) concurrency cap.
-		await page.getByLabel("New machine key").fill("http://localhost:1234/v1");
-		await page.getByLabel("New machine cap").fill("2");
-		await page.getByRole("button", { name: "Add machine cap" }).click();
+		// Add a per-endpoint (pool) concurrency cap — the editor's sections are now
+		// provider / model / LM Studio host / endpoint (the old single "machine" section split).
+		await page.getByLabel("New endpoint key").first().fill("http://localhost:1234/v1");
+		await page.getByLabel("New endpoint cap").first().fill("2");
+		await page.getByRole("button", { name: "Add endpoint cap" }).first().click();
 
 		// Save the dialog.
 		await page.getByRole("button", { name: "Save", exact: true }).first().click();

@@ -271,7 +271,7 @@ async function selectFirstSession(page: Page): Promise<void> {
 // ---------------------------------------------------------------------------
 
 test.describe("Chat scope selector", () => {
-	test("scope selector renders all four options", async ({ page }) => {
+	test("scope selector renders all five options", async ({ page }) => {
 		await setupMocks(page);
 		await page.goto("/");
 		await openChatSidebar(page);
@@ -280,15 +280,16 @@ test.describe("Chat scope selector", () => {
 		const scopeSelect = page.getByTestId("chat-session-scope");
 		await expect(scopeSelect).toBeVisible();
 
-		// Check that all four scope options are present.
+		// All five scope options, in ladder order (klein_self added with the self-observation work).
 		const options = scopeSelect.locator("option");
-		await expect(options).toHaveCount(4);
+		await expect(options).toHaveCount(5);
 		await expect(options.nth(0)).toHaveText("Chat only");
+		await expect(options.nth(1)).toHaveText("!Klein self (read-only)");
 		// The "can-act" scopes say "(host)" so it's explicit they run host commands (§5.M security clarity).
-		await expect(options.nth(1)).toHaveText("Current (host)");
-		await expect(options.nth(2)).toHaveText("All (host)");
+		await expect(options.nth(2)).toHaveText("Current (host)");
+		await expect(options.nth(3)).toHaveText("All (host)");
 		// Host option has a warning prefix
-		await expect(options.nth(3)).toContainText("Host");
+		await expect(options.nth(4)).toContainText("Host");
 	});
 
 	test("scope selector shows the session's current scope", async ({ page }) => {
