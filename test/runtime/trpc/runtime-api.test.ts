@@ -1720,6 +1720,96 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.selectionReason).not.toContain("Pinned-model recommendation");
 	});
 
+	it("scopes explicit pins per role while unpinned roles stay on auto-selection", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen3-8b",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:qwen/qwen3-8b:default": createModelRegistryEntry({
+					key: "anthropic:qwen/qwen3-8b:default",
+					providerId: "anthropic",
+					modelId: "qwen/qwen3-8b",
+					contextWindow: 80_000,
+					capability: 95,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: {
+						providerId: "unconfigured-provider",
+						modelId: "claude-opus",
+						modelSelectionMode: "pinned",
+					},
+					worker: {
+						providerId: "unconfigured-provider",
+						modelId: "qwen/qwen2.5-coder-14b",
+						modelSelectionMode: "auto",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const workerResponse = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "worker-task",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+			},
+		);
+
+		expect(workerResponse.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen/qwen3-8b",
+			}),
+		);
+		expect(workerResponse.selectionReason).not.toContain("Pinned architect model");
+		expect(workerResponse.selectionReason).not.toContain("Pinned worker model");
+		expect(workerResponse.selectionReason).not.toContain("Pinned-model recommendation");
+
+		nkleinTaskSessionService.startTaskSession.mockClear();
+		const architectResponse = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "architect-task",
+				baseRef: "main",
+				prompt: "Plan a task graph.",
+				startInPlanMode: true,
+			},
+		);
+
+		expect(architectResponse.ok).toBe(false);
+		expect(architectResponse.errorCode).toBe("pinned_model_unavailable");
+		expect(architectResponse.error).toContain("Pinned architect model unconfigured-provider/claude-opus");
+		expect(architectResponse.error).toContain("switch the architect assignment back to Auto");
+		expect(architectResponse.selectionReason).toContain("Pinned architect model unconfigured-provider/claude-opus");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
 	it("honors a concrete task model override instead of replacing it with an auto-selected worker model", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);

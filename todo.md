@@ -418,9 +418,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 - **Model-role pinning contract (David, 2026-07-09):** automatic skill-set + task-difficulty/complexity based model
   selection is the default and must not create implicit pins. A role/"thing" is hard-pinned only when the user explicitly
   sets `modelSelectionMode:"pinned"` with a concrete primary model id; provider-only role settings and unpinned model
-  choices are auto-selection candidates. Users may pin any subset of roles/things while leaving the rest on auto. If auto
-  ranking thinks a different model is better for a pinned thing, surface a recommendation but honor the pin; if the pin is
-  unavailable, unrunnable, or class-ineligible, fail closed instead of silently falling through. Do not "fix" pinning by
+  choices are auto-selection candidates. Enabling/defaulting to Auto means there is no hidden global/default model pin:
+  do not translate a selected default/provider model into a pin unless the user explicitly pins that exact role/card.
+  Users may pin any subset of roles/things while leaving the rest on auto. If auto ranking thinks a different model is
+  better for a pinned thing, surface a recommendation but honor the pin; if the pin is unavailable, unrunnable, or
+  class-ineligible, fail closed instead of silently falling through. Do not "fix" pinning by
   adding `/api/v0` descriptor fallbacks — descriptor robustness is separate from the pin contract. The Settings UI must not
   let a provider-only role look pinned: keep assignment on Auto until a concrete primary model exists, and clear the pin
   immediately when that model is removed. A card/task `nkleinSettings.modelId` is the narrower task-level model pin for
