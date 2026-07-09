@@ -36,7 +36,8 @@ export interface ProjectSetupPlanFactSources {
 	getLoadedModelIds: () => Promise<readonly string[]>;
 	getHardware: () => { cpuCount: number };
 	detectBaseBranch: () => Promise<string | null>;
-	getCompletedAt: () => number | null;
+	/** May be async: the caller can consult workspace state (e.g. the dev-test marker) beyond the config stamp. */
+	getCompletedAt: () => number | null | Promise<number | null>;
 }
 
 export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSources): Promise<RuntimeSetupPlanResponse> {
@@ -77,5 +78,5 @@ export async function handleGetProjectSetupPlan(
 		cpuCount: sources.getHardware().cpuCount,
 		detectedBaseBranch,
 	};
-	return { kind: "project", steps: buildProjectSetupPlan(facts), completedAt: sources.getCompletedAt() };
+	return { kind: "project", steps: buildProjectSetupPlan(facts), completedAt: await sources.getCompletedAt() };
 }

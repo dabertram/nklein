@@ -103,21 +103,49 @@ function isSpecTaskId(taskId: string): boolean {
 }
 
 /**
- * Derive the short label for the machine-grouping header from an endpoint reference. A bare URL is condensed to
- * `host:port` (or just `host`); a shared-endpoint id / non-URL string is shown trimmed; blank falls back to "local".
+ * Loopback/self aliases that all mean THIS machine. Grouping is by MACHINE, so `localhost:1234`,
+ * `127.0.0.1:1234`, and an LM-Link device name of "Local" must land in ONE group — live-observed
+ * (2026-07-09): the same Mac rendered as three separate fleet groups ("127.0.0.1:1234", "LOCAL",
+ * "LOCALHOST:1234") purely from label spelling.
+ */
+const LOCAL_MACHINE_LABEL = "local";
+const LOOPBACK_LABEL_PATTERN = /^(local|localhost|127(?:\.\d{1,3}){3}|\[?::1\]?|0\.0\.0\.0)(:\d+)?$/i;
+
+/** Canonicalize a machine/endpoint label: any loopback/self alias (with or without port) → "local". */
+export function normalizeFleetGroupLabel(label: string): string {
+	const trimmed = label.trim();
+	return LOOPBACK_LABEL_PATTERN.test(trimmed) ? LOCAL_MACHINE_LABEL : trimmed;
+}
+
+/**
+ * Derive the short label for the machine-grouping header from an endpoint reference. Shared-endpoint ids append
+ * `#<model>` to the endpoint they serialize (e.g. `http://localhost:1234/v1#qwen/qwen3-8b`,
+ * `lmstudio:default#qwopus3.5-9b`), so the fragment is stripped first. A URL base condenses to `host:port`;
+ * `<provider>:default` means the provider's default endpoint on THIS machine; a non-URL id passes through trimmed;
+ * blank falls back to "local". Loopback hosts normalize to the canonical "local" group (machine grouping, not
+ * endpoint spelling — live-found 2026-07-09: `lmstudio:default#…` ids produced a HEADERLESS group via an empty
+ * URL hostname, alongside separate "localhost:1234"/"127.0.0.1:1234" groups for the same Mac).
  * TODO(§5.AX): map this to a real machine name via the LM-Link map once that is client-visible.
  */
 export function toEndpointLabel(endpointRef: string | null | undefined): string {
 	const trimmed = (endpointRef ?? "").trim();
 	if (trimmed.length === 0) {
-		return "local";
+		return LOCAL_MACHINE_LABEL;
 	}
+	const base = trimmed.split("#", 1)[0] ?? trimmed;
 	try {
-		const parsed = new URL(trimmed);
-		return parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+		const parsed = new URL(base);
+		if (parsed.hostname) {
+			return normalizeFleetGroupLabel(parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname);
+		}
 	} catch {
-		return trimmed;
+		// Not a URL — fall through to the id-shaped handling below.
 	}
+	// "<provider>:default" = the provider's default endpoint, which is this machine (e.g. "lmstudio:default").
+	if (/^[a-z][\w.-]*:default$/i.test(base)) {
+		return LOCAL_MACHINE_LABEL;
+	}
+	return normalizeFleetGroupLabel(base);
 }
 
 /** The endpoint grouping key for a registry model: shared-endpoint id, else endpoint, else "local". */
@@ -202,9 +230,12 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 			activityText: driver?.latestHookActivity?.activityText?.trim() || null,
 			activityToolName: driver?.latestHookActivity?.toolName ?? null,
 		};
-		// Machine name (LM-Link feed) beats the endpoint label — real multi-machine grouping.
+		// Machine name (LM-Link feed) beats the endpoint label — real multi-machine grouping. Both routes
+		// canonicalize loopback/self aliases so this machine is always ONE group.
 		const machineName = input.machineByModelId?.[entry.key] ?? input.machineByModelId?.[entry.modelId];
-		const label = machineName?.trim() || toEndpointLabel(endpointRefForModel(entry));
+		const label = machineName?.trim()
+			? normalizeFleetGroupLabel(machineName)
+			: toEndpointLabel(endpointRefForModel(entry));
 		const bucket = groupsByLabel.get(label);
 		if (bucket) {
 			bucket.push(row);
@@ -227,4 +258,25 @@ function compareRows(left: FleetRow, right: FleetRow): number {
 		return left.state === "running" ? -1 : 1;
 	}
 	return left.servedId.localeCompare(right.servedId);
+}
+
+/** A row worth showing even in the condensed strip: it is doing (or about to do) something. */
+export function isActiveFleetRow(row: FleetRow): boolean {
+	return row.state === "running" || row.isSpec || row.warmKind !== null;
+}
+
+/**
+ * One-line summary for a group's hidden idle rows, e.g. "8 idle · qwen ×4 · deepseek ×2 · phi ×1 · mistral ×1".
+ * The strip is a glance surface — a wall of identical "idle" rows carries no information, but the lineage MIX does
+ * (family diversity is a §5.AB routing signal), so the condensed line keeps exactly that.
+ */
+export function summarizeIdleFleetRows(rows: readonly FleetRow[]): string {
+	const counts = new Map<FleetLineage, number>();
+	for (const row of rows) {
+		counts.set(row.lineage, (counts.get(row.lineage) ?? 0) + 1);
+	}
+	const parts = [...counts.entries()]
+		.sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+		.map(([lineage, count]) => `${lineage} ×${count}`);
+	return `${rows.length} idle · ${parts.join(" · ")}`;
 }

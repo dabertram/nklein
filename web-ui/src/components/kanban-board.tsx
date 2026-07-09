@@ -241,19 +241,19 @@ export function KanbanBoard({
 			return !current;
 		});
 	}, []);
-	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted, DEFAULT COLLAPSED so the strip
-	// stays compact at rest; the loaded-model registry only polls while the block is open.
-	const [fleetStripExpandedStored, setFleetStripExpanded] = useState(
-		() => readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded) === "1",
+	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted TRI-STATE: unset defers to the
+	// zoom default (§5.BB Professional opens it, other zooms keep it collapsed), while an EXPLICIT user toggle wins
+	// everywhere — the previous force-open on Professional made the toggle a dead click there (live-found 2026-07-09).
+	// The loaded-model registry only polls while the block is open.
+	const [fleetStripPref, setFleetStripPref] = useState<string | null>(() =>
+		readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded),
 	);
-	// §5.BB Zoom 3 (Professional) forces the fleet block open; the stored toggle still governs elsewhere.
-	const fleetStripExpanded = forceFleetExpanded || fleetStripExpandedStored;
+	const fleetStripExpanded = fleetStripPref === null ? forceFleetExpanded : fleetStripPref === "1";
 	const handleToggleFleetStrip = useCallback(() => {
-		setFleetStripExpanded((current) => {
-			writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, current ? "0" : "1");
-			return !current;
-		});
-	}, []);
+		const next = fleetStripExpanded ? "0" : "1";
+		writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, next);
+		setFleetStripPref(next);
+	}, [fleetStripExpanded]);
 	// §5.AG/W3.3: feed the board-health rollup the per-task off-summary signals it can't derive from state alone, from
 	// data the client already has — the card's `blockedKind` and a session parked with reviewReason "attention" (held
 	// for the operator). Fixes the "needs you" / risky counts that were always 0 (no overrides were threaded). The

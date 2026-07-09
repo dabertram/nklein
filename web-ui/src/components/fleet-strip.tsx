@@ -5,7 +5,10 @@
 // Klein token language: cyan (accent) = worker/primary; violet (accent-2) = AI (architect/reviewer/speculative).
 // Liveness dot: green when running, dashed violet for a `::spec` session, hollow when idle.
 
+import { useState } from "react";
+
 import type { FleetGroup, FleetLineage, FleetRole, FleetRow } from "@/components/fleet-strip-model";
+import { isActiveFleetRow, summarizeIdleFleetRows } from "@/components/fleet-strip-model";
 import { cn } from "@/components/ui/cn";
 
 const ROLE_TAG_LABEL: Record<Exclude<FleetRole, null>, string> = {
@@ -133,6 +136,41 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 	);
 }
 
+/**
+ * One machine group: active rows (running / spec / warm) always render; idle rows condense into a single
+ * lineage-mix summary line that expands on click. A wall of "idle" rows carries no signal — the ACTIVE swarm is
+ * what the cockpit strip is for.
+ */
+function FleetGroupView({ group }: { group: FleetGroup }): React.ReactElement {
+	const [idleExpanded, setIdleExpanded] = useState(false);
+	const activeRows = group.rows.filter(isActiveFleetRow);
+	const idleRows = group.rows.filter((row) => !isActiveFleetRow(row));
+	const visibleRows = idleExpanded ? group.rows : activeRows;
+	return (
+		<div>
+			<div className="mt-2 mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider text-text-tertiary">
+				<span>{group.endpointLabel}</span>
+				<span className="h-px flex-1 bg-border" />
+			</div>
+			{visibleRows.map((row) => (
+				<FleetRowView key={`${group.endpointLabel}:${row.servedId}:${row.modelId}`} row={row} />
+			))}
+			{idleRows.length > 0 ? (
+				<button
+					type="button"
+					data-testid="fleet-idle-summary"
+					aria-expanded={idleExpanded}
+					onClick={() => setIdleExpanded((current) => !current)}
+					className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] text-text-tertiary hover:bg-surface-2 hover:text-text-secondary"
+				>
+					<span className="text-[9px]">{idleExpanded ? "▾" : "▸"}</span>
+					{idleExpanded ? "hide idle models" : summarizeIdleFleetRows(idleRows)}
+				</button>
+			) : null}
+		</div>
+	);
+}
+
 export function FleetStrip({ groups }: { groups: readonly FleetGroup[] }): React.ReactElement {
 	if (groups.length === 0) {
 		return (
@@ -142,17 +180,9 @@ export function FleetStrip({ groups }: { groups: readonly FleetGroup[] }): React
 		);
 	}
 	return (
-		<div className="px-4 pt-0.5 pb-2.5" data-testid="fleet-strip">
+		<div className="max-h-[34vh] overflow-y-auto px-4 pt-0.5 pb-2.5" data-testid="fleet-strip">
 			{groups.map((group) => (
-				<div key={group.endpointLabel}>
-					<div className="mt-2 mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider text-text-tertiary">
-						<span>{group.endpointLabel}</span>
-						<span className="h-px flex-1 bg-border" />
-					</div>
-					{group.rows.map((row) => (
-						<FleetRowView key={`${group.endpointLabel}:${row.servedId}:${row.modelId}`} row={row} />
-					))}
-				</div>
+				<FleetGroupView key={group.endpointLabel} group={group} />
 			))}
 		</div>
 	);

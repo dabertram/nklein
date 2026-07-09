@@ -56,6 +56,7 @@ import { deriveStreams } from "../core/stream-derivation";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
+import { NKLEIN_DEV_TEST_PROJECT_MARKER_PATH } from "../nklein-agent/nklein-dev-test-project";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
@@ -500,7 +501,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return null;
 					}
 				},
-				getCompletedAt: () => scopedConfig.projectSetupWizardCompletedAt,
+				getCompletedAt: async () => {
+					if (scopedConfig.projectSetupWizardCompletedAt !== null) {
+						return scopedConfig.projectSetupWizardCompletedAt;
+					}
+					// A dev-test FIXTURE workspace is scaffolded ready-to-run — its marker counts as onboarding, so the
+					// project wizard never auto-fires on it (live-found 2026-07-09: every scaffold popped the 6-step wizard).
+					try {
+						const raw = await readFile(
+							join(workspaceScope.workspacePath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH),
+							"utf8",
+						);
+						const marker = JSON.parse(raw) as { createdAt?: unknown };
+						return typeof marker.createdAt === "number" ? marker.createdAt : Date.now();
+					} catch {
+						return null;
+					}
+				},
 			});
 		},
 		getKnowledgeToolUsageStats: async (workspaceScope) => {

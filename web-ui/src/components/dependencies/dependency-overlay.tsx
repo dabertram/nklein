@@ -57,7 +57,7 @@ interface AnchorPoint {
 
 const SOURCE_CONNECTOR_PADDING = 2;
 const TARGET_CONNECTOR_PADDING = 8;
-const COLUMN_ORDER: BoardColumnId[] = ["backlog", "in_progress", "review", "completed", "trash"];
+const COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
 const SIDE_NORMALS: Record<AnchorSide, { x: number; y: number }> = {
 	left: { x: -1, y: 0 },
 	right: { x: 1, y: 0 },
@@ -198,10 +198,11 @@ function chooseConnection(
 	firstPadding: number,
 	secondPadding: number,
 ): { start: AnchorPoint; end: AnchorPoint } {
-	// Rendered links currently only survive when at least one endpoint is in backlog.
+	// Persisted links render across ALL columns (the §5.BC Deps toggle gates visibility, not column membership —
+	// a decomposed DAG lives in planning/in_progress/review, so a backlog-only rule would hide every live edge).
 	// Draft links may still target free pointer space while the user is dragging.
 	// Routing rules:
-	// 1) If both cards are in backlog, connect right -> right.
+	// 1) If both cards are in the same column, connect right -> right (lane-routed along the column edge).
 	// 2) If cards are in different columns, preserve first -> second direction while preferring
 	//    right -> left for forward links and left -> right for backward links.
 	// 3) Otherwise fall back to the cheapest side-pairing based on geometry.
@@ -236,12 +237,7 @@ function chooseConnection(
 		};
 	}
 
-	if (
-		firstColumnId &&
-		secondColumnId &&
-		firstColumnId === secondColumnId &&
-		(firstColumnId === "backlog" || firstColumnId === "in_progress" || firstColumnId === "review")
-	) {
+	if (firstColumnId && secondColumnId && firstColumnId === secondColumnId) {
 		return {
 			start: getAnchorPoint(firstAnchor, "right", firstLaneOffset, firstPadding),
 			end: getAnchorPoint(secondAnchor, "right", secondLaneOffset, secondPadding),
@@ -677,9 +673,6 @@ export function DependencyOverlay({
 					activeTaskId !== null && activeTaskId !== undefined
 						? dependency.fromTaskId === activeTaskId || dependency.toTaskId === activeTaskId
 						: false;
-				if (!isTransient && sourceAnchor.columnId !== "backlog" && targetAnchor.columnId !== "backlog") {
-					return null;
-				}
 				if (isTransient && !touchesActiveTask) {
 					return null;
 				}

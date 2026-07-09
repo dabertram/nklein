@@ -89,18 +89,25 @@ describe("FleetStrip", () => {
 		expect(text).toContain("arch");
 		expect(text).toContain("Decompose · buildout");
 		expect(text).toContain("41 tok/s");
-		// The idle row shows "idle" and an em-dash for speed.
-		expect(text).toContain("idle");
-		expect(text).toContain("—");
+		// Idle rows CONDENSE into a per-group lineage-mix summary line; expanding it reveals the row.
+		expect(text).toContain("1 idle · qwen ×1");
+		expect(container.querySelectorAll('[aria-label="idle"]').length).toBe(0);
+		const idleSummary = container.querySelector<HTMLButtonElement>('[data-testid="fleet-idle-summary"]');
+		expect(idleSummary).not.toBeNull();
+		act(() => {
+			idleSummary?.click();
+		});
+		const expandedText = container.textContent ?? "";
+		expect(expandedText).toContain("idle");
+		expect(expandedText).toContain("—");
+		expect(container.querySelectorAll('[aria-label="idle"]').length).toBe(1);
 		// The worker row on the second machine.
-		expect(text).toContain("coder-gpu");
-		expect(text).toContain("wrk");
-		expect(text).toContain("55 tok/s");
+		expect(expandedText).toContain("coder-gpu");
+		expect(expandedText).toContain("wrk");
+		expect(expandedText).toContain("55 tok/s");
 
 		const liveness = container.querySelectorAll('[aria-label="running"]');
 		expect(liveness.length).toBe(2);
-		const idleDots = container.querySelectorAll('[aria-label="idle"]');
-		expect(idleDots.length).toBe(1);
 	});
 
 	it("marks a ::spec row with a dashed violet liveness dot and an A/B badge", () => {

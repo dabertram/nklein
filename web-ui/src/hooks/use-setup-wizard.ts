@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchGlobalSetupPlan, fetchProjectSetupPlan, saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import type { RuntimeSetupPlanResponse, RuntimeSetupPlanStep } from "@/runtime/types";
+import {
+	LocalStorageKey,
+	readScopedLocalStorageItem,
+	writeScopedLocalStorageItem,
+} from "@/storage/local-storage-store";
 
 export type SetupWizardKind = "global" | "project";
 
@@ -43,18 +48,29 @@ function stampFieldForKind(kind: SetupWizardKind): "setupWizardCompletedAt" | "p
 	return kind === "global" ? "setupWizardCompletedAt" : "projectSetupWizardCompletedAt";
 }
 
+/** Scope for the persisted skip marker: per kind + workspace, so each project remembers its own dismissal. */
+function skipScope(kind: SetupWizardKind, workspaceId: string | null): string {
+	return `${kind}.${workspaceId ?? "global"}`;
+}
+
+function readPersistedSkip(kind: SetupWizardKind, workspaceId: string | null): boolean {
+	return readScopedLocalStorageItem(LocalStorageKey.SetupWizardSkipped, skipScope(kind, workspaceId)) === "1";
+}
+
 /**
  * §5.BA guided-setup wizard controller. One instance per {@link SetupWizardKind}. It fetches the resolved plan (global on
  * mount, project on active-project change), decides the AUTO-FIRE (open when the plan has never been completed and the
- * user hasn't dismissed it this session), and owns the complete/skip handlers. `complete` writes the config STAMP via the
- * existing saveRuntimeConfig; `skip` just closes for the session. `open` force-opens for the settings re-trigger buttons.
+ * user hasn't dismissed it), and owns the complete/skip handlers. `complete` writes the config STAMP via the existing
+ * saveRuntimeConfig; `skip` closes AND persists a per-workspace marker — "Skip setup" is an explicit choice, so the
+ * wizard must not re-fire on every reload (live-found 2026-07-09: it popped on each visit to a never-completed
+ * workspace). `open` force-opens for the settings re-trigger buttons, which remain the recovery path after a skip.
  */
 export function useSetupWizard(options: UseSetupWizardOptions): UseSetupWizardResult {
 	const { kind, workspaceId, enabled, autoFireSuppressed = false, onCompleted } = options;
 
 	const [plan, setPlan] = useState<RuntimeSetupPlanResponse | null>(null);
 	const [isForcedOpen, setIsForcedOpen] = useState(false);
-	const [didDismissForSession, setDidDismissForSession] = useState(false);
+	const [didDismissForSession, setDidDismissForSession] = useState(() => readPersistedSkip(kind, workspaceId));
 	const [isSaving, setIsSaving] = useState(false);
 
 	// Keep the latest onCompleted without retriggering the fetch effect.
@@ -87,11 +103,12 @@ export function useSetupWizard(options: UseSetupWizardOptions): UseSetupWizardRe
 		};
 	}, [enabled, kind, workspaceId]);
 
-	// A change of workspace resets the per-session dismissal so a freshly opened project can auto-fire its own wizard.
+	// A change of workspace re-reads that workspace's persisted dismissal — a fresh project may auto-fire its own
+	// wizard, while one the user already skipped stays quiet.
 	useEffect(() => {
-		setDidDismissForSession(false);
+		setDidDismissForSession(readPersistedSkip(kind, workspaceId));
 		setIsForcedOpen(false);
-	}, [workspaceId]);
+	}, [kind, workspaceId]);
 
 	const completedAt = plan?.completedAt ?? null;
 	const steps = plan?.steps ?? [];
@@ -107,7 +124,8 @@ export function useSetupWizard(options: UseSetupWizardOptions): UseSetupWizardRe
 	const skip = useCallback(() => {
 		setIsForcedOpen(false);
 		setDidDismissForSession(true);
-	}, []);
+		writeScopedLocalStorageItem(LocalStorageKey.SetupWizardSkipped, skipScope(kind, workspaceId), "1");
+	}, [kind, workspaceId]);
 
 	const complete = useCallback(async () => {
 		setIsSaving(true);

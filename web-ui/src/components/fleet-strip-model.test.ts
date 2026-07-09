@@ -95,7 +95,12 @@ describe("resolveFleetLineage", () => {
 describe("toEndpointLabel", () => {
 	it("condenses a URL to host:port, passes through a non-URL id, and falls back to local", () => {
 		expect(toEndpointLabel("http://192.168.1.9:1234/v1")).toBe("192.168.1.9:1234");
-		expect(toEndpointLabel("http://localhost")).toBe("localhost");
+		expect(toEndpointLabel("http://localhost")).toBe("local"); // loopback aliases normalize to ONE machine group
+		expect(toEndpointLabel("http://127.0.0.1:1234/v1")).toBe("local");
+		// Shared-endpoint ids append "#<model>" and provider-default ids mean THIS machine (live shapes 2026-07-09).
+		expect(toEndpointLabel("http://localhost:1234/v1#qwen/qwen3-8b")).toBe("local");
+		expect(toEndpointLabel("lmstudio:default#qwopus3.5-9b-coder-mtp")).toBe("local");
+		expect(toEndpointLabel("http://192.168.1.9:1234/v1#some/model")).toBe("192.168.1.9:1234");
 		expect(toEndpointLabel("m5max")).toBe("m5max");
 		expect(toEndpointLabel(null)).toBe("local");
 		expect(toEndpointLabel("   ")).toBe("local");

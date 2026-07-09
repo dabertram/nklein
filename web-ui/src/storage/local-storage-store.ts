@@ -38,6 +38,8 @@ export enum LocalStorageKey {
 	UiZoomLevelV2 = "nklein.ui-zoom-level.v2",
 	/** §5.AX: whether the board's per-model fleet block is expanded (default collapsed). */
 	BoardFleetStripExpanded = "nklein.board-fleet-strip-expanded",
+	/** §5.BA: per-kind/per-workspace "Skip setup" marker (scoped key) so a skipped wizard never re-fires on reload. */
+	SetupWizardSkipped = "nklein.setup-wizard-skipped",
 }
 
 export const LAYOUT_CUSTOMIZATION_LOCAL_STORAGE_KEYS = [
@@ -195,6 +197,35 @@ export function writeLocalStorageItem(key: LocalStorageKey, value: string): void
 	}
 	try {
 		storage.setItem(key, value);
+	} catch {
+		// Ignore storage write failures.
+	}
+}
+
+/**
+ * Read a SCOPED storage item — `<key>.<scope>` — for per-workspace/per-kind state the static
+ * {@link LocalStorageKey} enum can't express (e.g. the setup wizard's per-workspace skip marker).
+ */
+export function readScopedLocalStorageItem(key: LocalStorageKey, scope: string): string | null {
+	const storage = getLocalStorage();
+	if (!storage) {
+		return null;
+	}
+	try {
+		return storage.getItem(buildPrefixedKey(key, scope));
+	} catch {
+		return null;
+	}
+}
+
+/** Write a SCOPED storage item — `<key>.<scope>` (see {@link readScopedLocalStorageItem}). */
+export function writeScopedLocalStorageItem(key: LocalStorageKey, scope: string, value: string): void {
+	const storage = getLocalStorage();
+	if (!storage) {
+		return;
+	}
+	try {
+		storage.setItem(buildPrefixedKey(key, scope), value);
 	} catch {
 		// Ignore storage write failures.
 	}
