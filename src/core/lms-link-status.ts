@@ -10,6 +10,8 @@ import type { LmsRunner } from "./lms-model-runner";
 export interface LmsLinkDevices {
 	/** This host's LM Link device name (the top-level `deviceName`), or null when unavailable. */
 	localMachineName: string | null;
+	/** The current preferred LM Link device id for model resolution, or null when none/unavailable. */
+	preferredDeviceIdentifier: string | null;
 	/** Linked PEER device id (hex) → friendly device name. */
 	namesByDeviceId: Map<string, string>;
 }
@@ -25,7 +27,11 @@ function asString(value: unknown): string | undefined {
 
 /** Parse `lms link status --json` into the device roster. A malformed / non-object payload yields an empty roster. */
 export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
-	const empty: LmsLinkDevices = { localMachineName: null, namesByDeviceId: new Map() };
+	const empty: LmsLinkDevices = {
+		localMachineName: null,
+		preferredDeviceIdentifier: null,
+		namesByDeviceId: new Map(),
+	};
 	let payload: unknown;
 	try {
 		payload = JSON.parse(stdout);
@@ -35,7 +41,7 @@ export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
 	if (!payload || typeof payload !== "object") {
 		return empty;
 	}
-	const obj = payload as { deviceName?: unknown; peers?: unknown };
+	const obj = payload as { deviceName?: unknown; preferredDeviceIdentifier?: unknown; peers?: unknown };
 	const namesByDeviceId = new Map<string, string>();
 	for (const raw of Array.isArray(obj.peers) ? obj.peers : []) {
 		if (!raw || typeof raw !== "object") {
@@ -48,7 +54,11 @@ export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
 			namesByDeviceId.set(id, name);
 		}
 	}
-	return { localMachineName: asString(obj.deviceName) ?? null, namesByDeviceId };
+	return {
+		localMachineName: asString(obj.deviceName) ?? null,
+		preferredDeviceIdentifier: asString(obj.preferredDeviceIdentifier) ?? null,
+		namesByDeviceId,
+	};
 }
 
 /** Fetch + parse the LM Link device roster via the injectable `lms` runner. Returns an empty roster on any failure. */
@@ -57,6 +67,6 @@ export async function fetchLmsLinkDevices(run: LmsRunner): Promise<LmsLinkDevice
 		const { stdout } = await run(["link", "status", "--json"]);
 		return parseLmsLinkDevices(stdout);
 	} catch {
-		return { localMachineName: null, namesByDeviceId: new Map() };
+		return { localMachineName: null, preferredDeviceIdentifier: null, namesByDeviceId: new Map() };
 	}
 }

@@ -27,7 +27,10 @@
   review-session telemetry before the synthetic SDK session is cleaned up, so the verifier proves the reviewer role itself
   ran instead of merely seeing that model elsewhere in the swarm. `NKLEIN_FLEET_REVIEWER=auto|none|empty` is now a true
   mixed pin/auto verifier mode: it leaves the reviewer unpinned and fails unless a non-worker auto-review session is
-  observed, instead of counting an unconfigured reviewer as observed by definition.
+  observed, instead of counting an unconfigured reviewer as observed by definition. Guarded `model-lab` loads can now target
+  an LM Link machine by preferred-device id/name, scope unloads to that machine, restore the previous preferred device, and
+  evaluate headroom against `NKLEIN_LOAD_TARGET_RAM_GB` so remote loads are planned against the remote box instead of the
+  local M5.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

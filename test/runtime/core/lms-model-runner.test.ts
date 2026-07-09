@@ -5,14 +5,35 @@ const GiB = 1024 ** 3;
 const totalRamBytes = 128 * GiB;
 
 const PS_HEADER = "IDENTIFIER          MODEL          STATUS    SIZE       CONTEXT    PARALLEL    DEVICE    TTL";
+const LINK_STATUS = JSON.stringify({
+	deviceName: "m5max",
+	preferredDeviceIdentifier: "old-device",
+	peers: [{ deviceIdentifier: "remote-device", deviceName: "m4mini", status: "connected" }],
+});
 
 /** A fake `lms` runner: serves a scripted `ps` table and records every invocation. */
-function fakeRunner(psRows: string[], loadExit = 0) {
+function fakeRunner(
+	psRows: string[],
+	loadExit = 0,
+	options: { setPreferredExit?: number; throwOnRestorePreferred?: boolean } = {},
+) {
 	const calls: string[][] = [];
 	const run: LmsRunner = async (args) => {
 		calls.push([...args]);
 		if (args[0] === "ps") {
 			return { stdout: [PS_HEADER, ...psRows].join("\n"), exitCode: 0 };
+		}
+		if (args[0] === "link" && args[1] === "status") {
+			return { stdout: LINK_STATUS, exitCode: 0 };
+		}
+		if (args[0] === "link" && args[1] === "set-preferred-device") {
+			if (options.throwOnRestorePreferred && args[2] === "old-device") {
+				throw new Error("restore failed");
+			}
+			return {
+				stdout: options.setPreferredExit === 0 || options.setPreferredExit === undefined ? "ok" : "no link",
+				exitCode: options.setPreferredExit ?? 0,
+			};
 		}
 		if (args[0] === "load") {
 			return { stdout: loadExit === 0 ? "loaded" : "error: oom", exitCode: loadExit };
@@ -160,6 +181,75 @@ describe("loadModelExclusive", () => {
 		expect(result.unloaded).toEqual(["legion-model"]);
 		expect(calls).toContainEqual(["unload", "legion-model"]);
 		expect(calls).not.toContainEqual(["unload", "m5-model"]);
+	});
+
+	it("sets and restores the preferred LM Link device around a remote load", async () => {
+		const { run, calls } = fakeRunner([
+			"local-model       m          IDLE      4 GB       40000      1    Local",
+			"remote-model      m          IDLE      4 GB       40000      1    m4mini",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "remote-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+			candidateSizeBytes: 4 * GiB,
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.unloaded).toEqual(["remote-model"]);
+		expect(calls).toContainEqual(["link", "status", "--json"]);
+		expect(calls).toContainEqual(["link", "set-preferred-device", "remote-device"]);
+		expect(calls).toContainEqual(["link", "set-preferred-device", "old-device"]);
+		expect(calls).not.toContainEqual(["unload", "local-model"]);
+	});
+
+	it("keeps the load result when restoring the previous preferred LM Link device fails", async () => {
+		const { run, calls } = fakeRunner(
+			["remote-model      m          IDLE      4 GB       40000      1    m4mini"],
+			0,
+			{ throwOnRestorePreferred: true },
+		);
+		const result = await loadModelExclusive(run, {
+			modelId: "remote-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+			candidateSizeBytes: 4 * GiB,
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.reason).toMatch(/^Loaded/);
+		expect(calls).toContainEqual(["link", "set-preferred-device", "old-device"]);
+	});
+
+	it("does not switch the preferred device when the target is already resident", async () => {
+		const { run, calls } = fakeRunner(["remote-target      m          IDLE      4 GB       40000      1    m4mini"]);
+		const result = await loadModelExclusive(run, {
+			modelId: "remote-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+		});
+		expect(result.loaded).toBe(true);
+		expect(calls.some((call) => call[0] === "link")).toBe(false);
+		expect(calls.some((call) => call[0] === "load")).toBe(false);
+	});
+
+	it("fails closed before unload/load when LM Link cannot select the target device", async () => {
+		const { run, calls } = fakeRunner(
+			["remote-model      m          IDLE      4 GB       40000      1    m4mini"],
+			0,
+			{ setPreferredExit: 1 },
+		);
+		const result = await loadModelExclusive(run, {
+			modelId: "remote-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toContain("Failed to set LM Link preferred device");
+		expect(calls).not.toContainEqual(["unload", "remote-model"]);
+		expect(calls.some((call) => call[0] === "load")).toBe(false);
 	});
 
 	it("passes a numeric gpu offload ratio through to the load argv (small-VRAM linked box)", async () => {

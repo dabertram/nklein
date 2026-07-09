@@ -14,12 +14,15 @@
  * Usage: tsx scripts/model-lab.mts <subcommand> …
  * Env:   NKLEIN_LMS_BIN (default ~/.lmstudio/bin/lms), NKLEIN_LOAD_RESERVE_FRACTION (default 0.25),
  *        NKLEIN_LOAD_GPU (max|off|auto|0..1 offload ratio — the small-VRAM linked-box lever), NKLEIN_LOAD_DEVICE
- *        (scope the one-at-a-time unload to a single LM Link device, e.g. legion5pro/m4mini).
+ *        (scope the one-at-a-time unload to a single LM Link device, e.g. legion5pro/m4mini), NKLEIN_LOAD_DEVICE_ID
+ *        (optional LM Link device identifier; resolved from NKLEIN_LOAD_DEVICE when omitted), NKLEIN_LOAD_TARGET_RAM_GB
+ *        (target machine RAM for remote headroom).
  */
 
 import { spawn } from "node:child_process";
 import { homedir, totalmem, userInfo } from "node:os";
 import { buildLmsUnloadArgs } from "../src/core/lms-model-control";
+import { fetchLmsLinkDevices } from "../src/core/lms-link-status";
 import {
 	assessModelSuitability,
 	buildCatalogRosterRecommendation,
@@ -58,10 +61,41 @@ function parseGpuEnv(): "max" | "off" | "auto" | number | undefined {
 	return Number.isFinite(n) ? n : undefined;
 }
 
+function parseGbEnv(name: string): number | undefined {
+	const raw = process.env[name]?.trim();
+	if (!raw) {
+		return undefined;
+	}
+	const gb = Number.parseFloat(raw);
+	return Number.isFinite(gb) && gb > 0 ? Math.round(gb * 1024 ** 3) : undefined;
+}
+
+async function resolveTargetDeviceIdentifier(run: LmsRunner, targetDevice: string | undefined): Promise<string | undefined> {
+	const explicit = process.env.NKLEIN_LOAD_DEVICE_ID?.trim();
+	if (explicit) {
+		return explicit;
+	}
+	if (!targetDevice || targetDevice === "Local") {
+		return undefined;
+	}
+	const devices = await fetchLmsLinkDevices(run);
+	if (devices.namesByDeviceId.has(targetDevice)) {
+		return targetDevice;
+	}
+	for (const [id, name] of devices.namesByDeviceId) {
+		if (name === targetDevice) {
+			return id;
+		}
+	}
+	return undefined;
+}
+
 async function main(): Promise<void> {
 	const [, , subcommand, arg, ctxArg] = process.argv;
 	const run = createLmsRunner();
 	const reserveFraction = Number.parseFloat(process.env.NKLEIN_LOAD_RESERVE_FRACTION ?? "0.25");
+	const targetDevice = process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined;
+	const targetTotalRamBytes = parseGbEnv("NKLEIN_LOAD_TARGET_RAM_GB") ?? totalmem();
 
 	if (subcommand === "ps") {
 		const models = await listResidentModels(run);
@@ -79,12 +113,13 @@ async function main(): Promise<void> {
 		}
 		const result = await loadModelExclusive(run, {
 			modelId: arg,
-			totalRamBytes: totalmem(),
+			totalRamBytes: targetTotalRamBytes,
 			contextLength: ctxArg ? Number.parseInt(ctxArg, 10) : 40_000,
 			reserveFraction,
 			suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
 			gpu: parseGpuEnv(),
-			targetDevice: process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined,
+			targetDevice,
+			targetDeviceIdentifier: await resolveTargetDeviceIdentifier(run, targetDevice),
 		});
 		console.log(JSON.stringify(result, null, 2));
 		process.exit(result.loaded ? 0 : 1);
@@ -164,11 +199,12 @@ async function main(): Promise<void> {
 			console.log(`\n──────── ${harness} · ${modelId} ────────`);
 			const load = await loadModelExclusive(run, {
 				modelId,
-				totalRamBytes: totalmem(),
+				totalRamBytes: targetTotalRamBytes,
 				reserveFraction,
 				suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
 				gpu: parseGpuEnv(),
-				targetDevice: process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined,
+				targetDevice,
+				targetDeviceIdentifier: await resolveTargetDeviceIdentifier(run, targetDevice),
 			});
 			console.log(`  load: ${load.reason}${load.unloaded.length ? ` (unloaded ${load.unloaded.join(", ")})` : ""}`);
 			if (!load.loaded) {

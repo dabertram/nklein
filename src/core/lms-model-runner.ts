@@ -8,6 +8,7 @@
  * Selection (which model / size cap) is the caller's (the model-lab sweep); this runner just makes the load SAFE.
  */
 
+import { fetchLmsLinkDevices } from "./lms-link-status";
 import {
 	buildLmsLoadArgs,
 	buildLmsUnloadArgs,
@@ -87,6 +88,13 @@ export interface LoadExclusiveInput {
 	 */
 	targetDevice?: string;
 	/**
+	 * The LM Link device identifier to make preferred while loading. LM Studio's `lms load -y` resolves duplicate model
+	 * keys on the preferred linked device; this id is restored after the load attempt when the previous preferred id is
+	 * observable. Pair with `targetDevice` (friendly DEVICE label) for scoped unloads and pass the target machine's own
+	 * RAM as `totalRamBytes` so headroom is evaluated per machine.
+	 */
+	targetDeviceIdentifier?: string;
+	/**
 	 * GPU offload for the load (see {@link LmsLoadOptions.gpu}); default "max". A 0..1 ratio partially offloads — the
 	 * lever for a small-VRAM linked box (e.g. the laptop's 8 GB dGPU) where a bigger model must spill to system RAM.
 	 */
@@ -129,75 +137,107 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 
 	const pinned = new Set(input.pinnedIdentifiers ?? []);
 	const resident = await listResidentModels(run);
+	const targetAlreadyResident = resident.some((model) => model.identifier === input.modelId);
+	let preferredChanged = false;
+	let previousPreferredDeviceIdentifier: string | null = null;
 
-	const unloaded: string[] = [];
-	for (const model of resident) {
-		if (model.identifier === input.modelId || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
-			continue;
+	if (!targetAlreadyResident && input.targetDeviceIdentifier) {
+		const linkDevices = await fetchLmsLinkDevices(run);
+		previousPreferredDeviceIdentifier = linkDevices.preferredDeviceIdentifier;
+		if (previousPreferredDeviceIdentifier !== input.targetDeviceIdentifier) {
+			const { stdout, exitCode } = await run(["link", "set-preferred-device", input.targetDeviceIdentifier]);
+			if (exitCode !== 0) {
+				return {
+					loaded: false,
+					modelId: input.modelId,
+					unloaded: [],
+					reason: `Failed to set LM Link preferred device ${input.targetDeviceIdentifier}: ${stdout.slice(0, 200)}`,
+					suitability,
+				};
+			}
+			preferredChanged = true;
 		}
-		// Per-machine scoping: with a known target device, only clear residents on the SAME device — never evict a model
-		// running on another linked box (a resident whose device is unknown is left alone under scoping, to be safe).
-		if (input.targetDevice !== undefined && model.device !== input.targetDevice) {
-			continue;
-		}
-		await run(buildLmsUnloadArgs(model.identifier));
-		unloaded.push(model.identifier);
 	}
 
-	if (resident.some((model) => model.identifier === input.modelId)) {
+	try {
+		const unloaded: string[] = [];
+		for (const model of resident) {
+			if (model.identifier === input.modelId || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
+				continue;
+			}
+			// Per-machine scoping: with a known target device, only clear residents on the SAME device — never evict a model
+			// running on another linked box (a resident whose device is unknown is left alone under scoping, to be safe).
+			if (input.targetDevice !== undefined && model.device !== input.targetDevice) {
+				continue;
+			}
+			await run(buildLmsUnloadArgs(model.identifier));
+			unloaded.push(model.identifier);
+		}
+
+		if (targetAlreadyResident) {
+			return {
+				loaded: true,
+				modelId: input.modelId,
+				unloaded,
+				reason: "Already resident; cleared other models.",
+				suitability,
+			};
+		}
+
+		// After unload, the only resident bytes left are the kept (pinned + embedding) models.
+		const keptResidentBytes = resident
+			.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
+			.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
+			.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
+
+		const decision = decideModelLoad({
+			candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
+			residentSizeBytes: keptResidentBytes,
+			totalRamBytes: input.totalRamBytes,
+			// Explicit budget wins; otherwise honor a power-user env cap (NKLEIN_MAX_RAM_BUDGET_GB) so "use ≤N GB" works today.
+			userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
+			reserveFraction: input.reserveFraction,
+		});
+		if (!decision.allow) {
+			return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
+		}
+
+		// §5.AQ-G context right-sizing: opt-in (taskNeededTokens + maxContextLength) → fit the task within [floor, max];
+		// otherwise the existing fixed-context behavior. Inert by default (no existing caller passes taskNeededTokens).
+		const loadContextLength =
+			input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
+				? planLoadContextLength({
+						taskNeededTokens: input.taskNeededTokens,
+						maxContextLength: input.maxContextLength,
+						minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+					})
+				: (input.contextLength ?? DEFAULT_CONTEXT_LENGTH);
+		const argv = buildLmsLoadArgs(input.modelId, {
+			contextLength: loadContextLength,
+			maxContextLength: input.maxContextLength,
+			gpu: input.gpu ?? "max",
+		});
+		const { stdout, exitCode } = await run(argv);
+		// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
+		const caveat =
+			suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`;
 		return {
-			loaded: true,
+			loaded: exitCode === 0,
 			modelId: input.modelId,
 			unloaded,
-			reason: "Already resident; cleared other models.",
+			reason:
+				exitCode === 0
+					? `Loaded (${decision.reason})${caveat}`
+					: `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
 			suitability,
 		};
+	} finally {
+		if (preferredChanged && previousPreferredDeviceIdentifier) {
+			try {
+				await run(["link", "set-preferred-device", previousPreferredDeviceIdentifier]);
+			} catch {
+				// Best-effort cleanup only: never hide the load/headroom/unload result behind an LM Link restore failure.
+			}
+		}
 	}
-
-	// After unload, the only resident bytes left are the kept (pinned + embedding) models.
-	const keptResidentBytes = resident
-		.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
-		.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
-		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
-
-	const decision = decideModelLoad({
-		candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
-		residentSizeBytes: keptResidentBytes,
-		totalRamBytes: input.totalRamBytes,
-		// Explicit budget wins; otherwise honor a power-user env cap (NKLEIN_MAX_RAM_BUDGET_GB) so "use ≤N GB" works today.
-		userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
-		reserveFraction: input.reserveFraction,
-	});
-	if (!decision.allow) {
-		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
-	}
-
-	// §5.AQ-G context right-sizing: opt-in (taskNeededTokens + maxContextLength) → fit the task within [floor, max];
-	// otherwise the existing fixed-context behavior. Inert by default (no existing caller passes taskNeededTokens).
-	const loadContextLength =
-		input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
-			? planLoadContextLength({
-					taskNeededTokens: input.taskNeededTokens,
-					maxContextLength: input.maxContextLength,
-					minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
-				})
-			: (input.contextLength ?? DEFAULT_CONTEXT_LENGTH);
-	const argv = buildLmsLoadArgs(input.modelId, {
-		contextLength: loadContextLength,
-		maxContextLength: input.maxContextLength,
-		gpu: input.gpu ?? "max",
-	});
-	const { stdout, exitCode } = await run(argv);
-	// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
-	const caveat = suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`;
-	return {
-		loaded: exitCode === 0,
-		modelId: input.modelId,
-		unloaded,
-		reason:
-			exitCode === 0
-				? `Loaded (${decision.reason})${caveat}`
-				: `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
-		suitability,
-	};
 }

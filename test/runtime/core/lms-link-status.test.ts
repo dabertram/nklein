@@ -11,12 +11,14 @@ const STDOUT = JSON.stringify({
 	],
 	deviceIdentifier: "579028ee71c8d9e9c7cfe92572e6a445",
 	deviceName: "m5max",
+	preferredDeviceIdentifier: "2d30f46d0371d004b1758e6df7790a03",
 });
 
 describe("parseLmsLinkDevices", () => {
 	it("maps the local host name + each peer device id → name", () => {
 		const devices = parseLmsLinkDevices(STDOUT);
 		expect(devices.localMachineName).toBe("m5max");
+		expect(devices.preferredDeviceIdentifier).toBe("2d30f46d0371d004b1758e6df7790a03");
 		expect(devices.namesByDeviceId.get("040891f3ad9352c2ec9389aba79cd022")).toBe("davidlegion5pro");
 		expect(devices.namesByDeviceId.get("2d30f46d0371d004b1758e6df7790a03")).toBe("m4mini");
 		expect(devices.namesByDeviceId.size).toBe(2);
