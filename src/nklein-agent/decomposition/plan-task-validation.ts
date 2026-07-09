@@ -60,8 +60,9 @@ export function validateTaskSizingContract(task: NKleinPlanTask): void {
  * `recommended` option (else the first option) instead of bouncing the model with "add an `assumption`". Weak
  * local models frequently cannot comply with that directive and just re-send the identical decompose call,
  * looping until the repeated-tool-call guard pauses the task. The question stays **open** (so the §5.S clarify
- * loop / the user can still resolve it) but now carries a default, so the plan proceeds. An OPEN question with no
- * options is left untouched — there is nothing safe to assume, so validation still guides. An `assumed-default`
+ * loop / the user can still resolve it) but now carries a default, so the plan proceeds. When a model emits an OPEN
+ * question with no options, derive a conservative assumption from the question text instead of bouncing: the question
+ * remains open, but the generated plan can move forward against the current project/spec context. An `assumed-default`
  * question missing its assumption is ALSO recovered (live-found 2026-07-08: qwopus3.5's decompose call bounced on
  * exactly this and the session ended before a successful retry): the model already COMMITTED to assuming and only
  * omitted the text, so derive it from the options — or, with none, from the question itself.
@@ -82,13 +83,10 @@ export function deriveOpenQuestionDefaults(questions: readonly NKleinPlanQuestio
 				assumption: `Proceeding with "${chosen.label}" as the default${chosen.recommended ? " (recommended option)" : ""}; revisit during clarification.`,
 			};
 		}
-		if (question.status === "assumed-default") {
-			return {
-				...question,
-				assumption: `Assuming the conventional default for: "${question.question}"; revisit during clarification.`,
-			};
-		}
-		return question;
+		return {
+			...question,
+			assumption: `Assuming the current project/specification context provides the working default for: "${question.question}"; revisit during clarification.`,
+		};
 	});
 }
 

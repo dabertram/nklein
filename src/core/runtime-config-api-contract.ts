@@ -232,11 +232,16 @@ export type RuntimeModelClassCap = z.infer<typeof runtimeModelClassCapSchema>;
 /** §5.I#4 speed-vs-capability dial: bias this role's auto-selection toward the fastest fit vs the most capable. */
 export const runtimeSpeedVsCapabilitySchema = z.enum(["capability", "balanced", "speed"]);
 export type RuntimeSpeedVsCapability = z.infer<typeof runtimeSpeedVsCapabilitySchema>;
+/** Auto is the default. Pinned means the role's primary model is a hard user pin when loaded/class-eligible/feasible. */
+export const runtimeModelSelectionModeSchema = z.enum(["auto", "pinned"]);
+export type RuntimeModelSelectionMode = z.infer<typeof runtimeModelSelectionModeSchema>;
 export const runtimeRoleModelSettingsSchema = runtimeTaskNKleinSettingsSchema.extend({
 	additionalModels: z.array(runtimeTaskNKleinSettingsSchema).optional(),
 	modelClassCap: runtimeModelClassCapSchema.optional(),
 	/** Omitted ⇒ "capability" (today's behavior: most-capable-first; speed only as an implicit tiebreak). */
 	speedVsCapability: runtimeSpeedVsCapabilitySchema.optional(),
+	/** Omitted ⇒ "auto": role model(s) participate in auto-selection but do not override it. */
+	modelSelectionMode: runtimeModelSelectionModeSchema.optional(),
 });
 export type RuntimeRoleModelSettings = z.infer<typeof runtimeRoleModelSettingsSchema>;
 export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeRoleModelSettingsSchema);

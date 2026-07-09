@@ -612,6 +612,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					);
 					continue;
 				}
+				const pinnedModelRecommendation = started.selectionReason?.match(/Pinned-model recommendation:.*$/u)?.[0];
+				if (pinnedModelRecommendation) {
+					deps.warn(`Auto-start of ${task.id}: ${pinnedModelRecommendation}`);
+				}
 				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
 					const movement = moveTaskToColumn(latestState.board, task.id, targetColumnId);
 					return {

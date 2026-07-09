@@ -15,7 +15,8 @@
  *
  * Covers the tool-call text formats of the major local-model families (todo §5.O): Hermes/Qwen `<tool_call>`,
  * the pipe-delimited `<|tool_call|>`/`<function_call>`, Llama 3.1 `<|python_tag|>`, Mistral/Mixtral
- * `[TOOL_CALLS][…]` (a JSON array), the OpenAI-shaped nested `function:{name,arguments}` object, the
+ * `[TOOL_CALLS][…]` (a JSON array), Devstral's `name[ARGS]{…}` tool transcript, the OpenAI-shaped nested
+ * `function:{name,arguments}` object, the
  * Functionary `<function=NAME>{…}</function>` named-tag form, the **Microsoft Phi** `[TOOL_REQUEST]{…}[END_TOOL_REQUEST]`
  * form, and the **DeepSeek-V3/R1** native format
  * (special-token `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>`, with the
@@ -129,6 +130,14 @@ const DEEPSEEK_OPENER = /<[｜|]\s*tool[▁_ ]calls?[▁_ ]begin\s*[｜|]>/i;
 const PLAIN_PROSE_TOOL_CALL = /\btool\s+call\s*:\s*`?\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\(/i;
 
 /**
+ * Devstral / LM Studio transcript-style narration observed live: `list_files[ARGS]{"path":"."}`. The explicit
+ * `[ARGS]` marker keeps this conservative; the name is the identifier immediately before it and the following balanced
+ * JSON value is the tool input object.
+ */
+const BRACKET_ARGS_TOOL_CALL_MARKER = /\b[A-Za-z_][A-Za-z0-9_.-]*\s*\[ARGS\]\s*[[{]/i;
+const BRACKET_ARGS_TOOL_CALL = /\b([A-Za-z_][A-Za-z0-9_.-]*)\s*\[ARGS\]\s*/gi;
+
+/**
  * Gemma `tool_code` Python-call narration. Gemma models (esp. the small e2b) narrate a call as Python in a `tool_code`
  * context — `tool_code = read_file(filename="FACT.txt")`, or a ```tool_code … ``` fence with `name(kwarg=value, …)`,
  * sometimes `print(default_api.name(…))` — instead of emitting a structured tool call (observed live in the §5.Z e2e
@@ -206,6 +215,30 @@ function parsePlainProseToolCalls(text: string): NarratedToolCall[] {
 			calls.push({ toolName: name, input: parsePythonKwargs(balanced.body) });
 		}
 		match = lead.exec(text);
+	}
+	return calls;
+}
+
+/** Recover `name[ARGS]{json}` transcript-style tool narration. */
+function parseBracketArgsToolCalls(text: string): NarratedToolCall[] {
+	if (!BRACKET_ARGS_TOOL_CALL_MARKER.test(text)) {
+		return [];
+	}
+	const calls: NarratedToolCall[] = [];
+	BRACKET_ARGS_TOOL_CALL.lastIndex = 0;
+	let match: RegExpExecArray | null = BRACKET_ARGS_TOOL_CALL.exec(text);
+	while (match !== null) {
+		const toolName = match[1].split(".").at(-1)?.trim() ?? "";
+		const contentStart = match.index + match[0].length;
+		const span = extractBalancedJsonSpan(text, contentStart);
+		if (toolName && span) {
+			const repaired = repairJsonValue(span.json);
+			calls.push({ toolName, input: repaired.ok ? repaired.value : {} });
+		}
+		if (span && span.end > BRACKET_ARGS_TOOL_CALL.lastIndex) {
+			BRACKET_ARGS_TOOL_CALL.lastIndex = span.end;
+		}
+		match = BRACKET_ARGS_TOOL_CALL.exec(text);
 	}
 	return calls;
 }
@@ -303,7 +336,12 @@ function collectNarratedToolCalls(value: unknown, calls: NarratedToolCall[]): vo
 export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 	if (
 		!text ||
-		!(TOOL_CALL_MARKER.test(text) || GEMMA_TOOL_CODE_MARKER.test(text) || PLAIN_PROSE_TOOL_CALL.test(text))
+		!(
+			TOOL_CALL_MARKER.test(text) ||
+			GEMMA_TOOL_CODE_MARKER.test(text) ||
+			PLAIN_PROSE_TOOL_CALL.test(text) ||
+			BRACKET_ARGS_TOOL_CALL_MARKER.test(text)
+		)
 	) {
 		return [];
 	}
@@ -368,6 +406,9 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 	// Gemma `tool_code` Python-call narration (`tool_code = read_file(filename="…")`) — the name + kwargs become a call.
 	calls.push(...parseGemmaToolCodeCalls(text));
 
+	// Devstral / LM Studio `name[ARGS]{json}` narration — recover the explicit transcript form.
+	calls.push(...parseBracketArgsToolCalls(text));
+
 	// Plain-prose `Tool call: name(kwargs)` narration (gemma-e2b e2e dialect) — recover, don't just strip for display.
 	calls.push(...parsePlainProseToolCalls(text));
 
@@ -409,6 +450,10 @@ export function stripNarratedToolCallMarkup(text: string): string {
 	const plainProse = PLAIN_PROSE_TOOL_CALL.exec(text);
 	if (plainProse) {
 		cut = Math.min(cut, plainProse.index);
+	}
+	const bracketArgs = BRACKET_ARGS_TOOL_CALL_MARKER.exec(text);
+	if (bracketArgs) {
+		cut = Math.min(cut, bracketArgs.index);
 	}
 	// Preserve the exact no-op (return the original, untrimmed) when nothing matched.
 	return cut === text.length ? text : text.slice(0, cut).trim();

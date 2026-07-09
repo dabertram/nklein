@@ -74,6 +74,20 @@ describe("parseNarratedToolCalls", () => {
 		expect(parseNarratedToolCalls(`I would list the files in /workspace and then read them.`)).toEqual([]);
 		expect(parseNarratedToolCalls(`{"name":"list_files","arguments":{}}`)).toEqual([]); // bare JSON, no wrapper
 	});
+
+	it("recovers Devstral / LM Studio transcript-style name[ARGS] narration", () => {
+		const text = 'list_files[ARGS]{"path": ".", "recursive": true, "maxDepth": 3}';
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "list_files", input: { path: ".", recursive: true, maxDepth: 3 } },
+		]);
+	});
+
+	it("recovers name[ARGS] narration from a dotted tool prefix and skips past balanced JSON", () => {
+		const text = 'default_api.read_files[ARGS]{"files":["src/a.ts","src/b.ts"]}\nThen continue.';
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "read_files", input: { files: ["src/a.ts", "src/b.ts"] } },
+		]);
+	});
 });
 
 describe("parseNarratedToolCalls — model-family tool-call formats (todo §5.O)", () => {
@@ -192,6 +206,22 @@ describe("recoverNarratedToolCalls", () => {
 		expect(recoverNarratedToolCalls(msg)).toHaveLength(1);
 	});
 
+	it("appends a recovered tool-call part for name[ARGS] transcript narration", () => {
+		const msg = message({
+			type: "text",
+			text: 'list_files[ARGS]{"path": ".", "recursive": true, "maxDepth": 3}',
+		});
+		const recovered = recoverNarratedToolCalls(msg);
+		expect(recovered).toHaveLength(1);
+		expect(recovered[0]).toMatchObject({
+			type: "tool-call",
+			toolName: "list_files",
+			input: { path: ".", recursive: true, maxDepth: 3 },
+			metadata: { recoveredFromNarratedToolCall: true },
+		});
+		expect(msg.content.filter((part) => part.type === "tool-call")).toHaveLength(1);
+	});
+
 	it("is a no-op when a real tool call is already present (no double-execution)", () => {
 		const msg = message(
 			{ type: "text", text: `<tool_call>{"name":"list_files","arguments":{}}</tool_call>` },
@@ -232,6 +262,11 @@ describe("stripNarratedToolCallMarkup", () => {
 		expect(stripNarratedToolCallMarkup('Tool call: read_file("a.txt")')).toBe("");
 		// Case/spacing tolerant.
 		expect(stripNarratedToolCallMarkup("Done.\nTOOL CALL : list_dir( . )")).toBe("Done.");
+	});
+
+	it("strips name[ARGS] transcript narration from a final reply", () => {
+		expect(stripNarratedToolCallMarkup('Working.\nlist_files[ARGS]{"path":"."}')).toBe("Working.");
+		expect(stripNarratedToolCallMarkup('list_files[ARGS]{"path":"."}')).toBe("");
 	});
 
 	it("does NOT strip ordinary prose that merely mentions a tool call (no name+paren shape)", () => {

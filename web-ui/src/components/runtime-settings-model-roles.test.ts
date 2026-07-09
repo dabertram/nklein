@@ -39,6 +39,18 @@ describe("normalizeModelRolesForSettings", () => {
 		const out = normalizeModelRolesForSettings(input);
 		expect(out.reviewer?.additionalModels).toEqual([{ providerId: "p" }]);
 	});
+
+	it("keeps pinned assignment only when the role names a primary model", () => {
+		const input = {
+			architect: { providerId: "lmstudio", modelId: "m", modelSelectionMode: "pinned" },
+			worker: { modelSelectionMode: "pinned" },
+			reviewer: { providerId: "lmstudio", modelId: "r", modelSelectionMode: "auto" },
+		} as unknown as RuntimeModelRoles;
+		const out = normalizeModelRolesForSettings(input);
+		expect(out.architect).toEqual({ providerId: "lmstudio", modelId: "m", modelSelectionMode: "pinned" });
+		expect(out.worker).toBeUndefined();
+		expect(out.reviewer).toEqual({ providerId: "lmstudio", modelId: "r" });
+	});
 });
 
 describe("serializeModelRoles", () => {

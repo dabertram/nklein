@@ -75,6 +75,37 @@ describe("parseLoadedModelDescriptors", () => {
 		expect(parseLoadedModelDescriptors(null)).toEqual([]);
 		expect(parseLoadedModelDescriptors({ data: "nope" })).toEqual([]);
 	});
+
+	it("parses the minimal /api/v0/models loaded-state envelope as fallback descriptors", () => {
+		const descriptors = parseLoadedModelDescriptors({
+			data: [
+				{
+					id: "qwen/qwen2.5-coder-14b",
+					state: "loaded",
+					type: "llm",
+					architecture: "qwen2",
+					max_context_length: 32768,
+				},
+				{ id: "text-embedding-nomic", state: "loaded", type: "embedding" },
+				{ id: "not-resident", state: "not-loaded", type: "llm" },
+			],
+		});
+
+		expect(descriptors).toEqual([
+			{
+				runtimeId: "qwen/qwen2.5-coder-14b",
+				modelKey: "qwen/qwen2.5-coder-14b",
+				isEmbedding: false,
+				architecture: "qwen2",
+				maxContextLength: 32768,
+			},
+			{
+				runtimeId: "text-embedding-nomic",
+				modelKey: "text-embedding-nomic",
+				isEmbedding: true,
+			},
+		]);
+	});
 });
 
 describe("lmStudioApiV1ModelsUrl", () => {
@@ -96,5 +127,28 @@ describe("fetchLoadedModelDescriptors", () => {
 			throw new Error("network");
 		}) as unknown as typeof fetch;
 		expect(await fetchLoadedModelDescriptors("http://x/v1", threw)).toEqual([]);
+	});
+
+	it("falls back to /api/v0/models when the rich endpoint is unavailable or empty", async () => {
+		const calls: string[] = [];
+		const f = (async (url: string) => {
+			calls.push(url);
+			if (url.endsWith("/api/v1/models")) {
+				return new Response("", { status: 404 });
+			}
+			return new Response(
+				JSON.stringify({ data: [{ id: "qwen/qwen2.5-coder-14b", state: "loaded", type: "llm" }] }),
+				{ status: 200 },
+			);
+		}) as unknown as typeof fetch;
+
+		await expect(fetchLoadedModelDescriptors("http://x/v1", f)).resolves.toEqual([
+			{
+				runtimeId: "qwen/qwen2.5-coder-14b",
+				modelKey: "qwen/qwen2.5-coder-14b",
+				isEmbedding: false,
+			},
+		]);
+		expect(calls).toEqual(["http://x/api/v1/models", "http://x/api/v0/models"]);
 	});
 });

@@ -216,11 +216,11 @@ export async function runSecondOpinionReviewForTask(
 			: "";
 	const reviewerRole = config.effectiveModelRoles?.reviewer ?? null;
 	const pinnedReviewer =
-		reviewerRole?.providerId && reviewerRole.modelId
+		reviewerRole?.modelSelectionMode === "pinned" && reviewerRole.providerId && reviewerRole.modelId
 			? { providerId: reviewerRole.providerId, modelId: reviewerRole.modelId }
 			: null;
-	// W2.5 role auto-assignment: the configured reviewer is an optional PIN, not a requirement. Honored when it is
-	// loaded (byte-equivalent with the old always-honor behavior) — but a pin that is positively NOT in the loaded
+	// W2.5 role auto-assignment: the configured reviewer is automatic by default. Only an explicit pinned reviewer is
+	// honored as a hard user choice when it is loaded — but a pin that is positively NOT in the loaded
 	// set is WAIVED to the service's lineage-diverse auto-pick (`pickDiverseReviewerModel` runs when reviewer is
 	// null) instead of launching an unloaded model (which would either fail the review turn or trigger a model
 	// load, violating the §5.AB no-load directive). Lenient exactly like `shouldBlockUnloadedModel`: an unknown/

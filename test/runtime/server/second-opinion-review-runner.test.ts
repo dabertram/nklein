@@ -38,13 +38,19 @@ function makeDeps(overrides: {
 	submission?: ReviewSubmissionInput | null;
 	diff?: string | null;
 	maxRounds?: number;
+	reviewerPinned?: boolean;
 }) {
 	const board = boardWithCardInReview();
+	const reviewerRole = {
+		providerId: "lmstudio",
+		modelId: "reviewer-model",
+		...(overrides.reviewerPinned ? { modelSelectionMode: "pinned" as const } : {}),
+	};
 	const loadRuntimeConfig = vi.fn(async () => ({
 		secondOpinionReviewEnabled: overrides.enabled ?? true,
 		reviewMaxRounds: overrides.maxRounds ?? 20,
-		modelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
-		effectiveModelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
+		modelRoles: { reviewer: reviewerRole },
+		effectiveModelRoles: { reviewer: reviewerRole },
 	})) as unknown as never;
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
 	const mutationResults: unknown[] = [];
@@ -207,10 +213,8 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(outcome.type).toBe("delivered");
 		expect(deps.mutateWorkspaceState).toHaveBeenCalledTimes(1);
 		expect(deps.sendTaskSessionInput).not.toHaveBeenCalled();
-		// the reviewer model from config is passed to the session
-		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(
-			expect.objectContaining({ reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } }),
-		);
+		// Auto reviewer config does not hard-pin the reviewer; the service picks a diverse reviewer.
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(expect.objectContaining({ reviewer: null }));
 	});
 
 	it("§5.AB panel (opt-in NKLEIN_REVIEW_PANEL): runs N base-family-diverse judges and combines majority → delivered", async () => {
@@ -261,7 +265,10 @@ describe("runSecondOpinionReviewForTask", () => {
 	});
 
 	it("waives a configured reviewer that is NOT loaded to the service's diverse auto-pick (W2.5 pin-miss)", async () => {
-		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		const deps = makeDeps({
+			submission: { verdict: "approve", summary: "Good", feedback: null, insight: null },
+			reviewerPinned: true,
+		});
 		const warn = vi.fn();
 		const outcome = await runSecondOpinionReviewForTask({
 			workspacePath: "/repo",
@@ -282,7 +289,10 @@ describe("runSecondOpinionReviewForTask", () => {
 	});
 
 	it("honors a configured reviewer that IS loaded (valid-pin behavior unchanged)", async () => {
-		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		const deps = makeDeps({
+			submission: { verdict: "approve", summary: "Good", feedback: null, insight: null },
+			reviewerPinned: true,
+		});
 		const warn = vi.fn();
 		await runSecondOpinionReviewForTask({
 			workspacePath: "/repo",
@@ -302,7 +312,10 @@ describe("runSecondOpinionReviewForTask", () => {
 	});
 
 	it("honors the pin leniently when the loaded set is unknown (empty probe never wedges a review)", async () => {
-		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		const deps = makeDeps({
+			submission: { verdict: "approve", summary: "Good", feedback: null, insight: null },
+			reviewerPinned: true,
+		});
 		await runSecondOpinionReviewForTask({
 			workspacePath: "/repo",
 			taskId: "task-1",

@@ -1,10 +1,10 @@
 /**
  * W2.5 role auto-assignment (todo §5.0.5, decided 2026-07-02: auto is the DEFAULT) — the PIN-vs-AUTO layer for a
- * swarm role's model. No role ever REQUIRES a configured model: a configured `effectiveModelRoles` entry is an
- * OPTIONAL PIN layered on top of automatic selection, and a pin that is not loaded/feasible FALLS THROUGH to auto
- * with the waiver surfaced (never a hard start failure — contrast the deliberate task-start residency gate, which
- * still hard-blocks launching an explicitly chosen unloaded model; this core decides the PREFERENCE, callers own
- * residency and feasibility of what they actually launch).
+ * swarm role's model. Callers pass `pinned` ONLY for an explicit user pin (for role config, that means
+ * `modelSelectionMode:"pinned"`). Unpinned role models remain auto-selection candidates/pool members, not hard pins.
+ * A pin that is not loaded/feasible falls through to auto with the waiver surfaced (never a hard start failure —
+ * contrast the deliberate task-start residency gate, which still hard-blocks launching an explicitly chosen unloaded
+ * model; this core decides the assignment preference, callers own residency and feasibility of what they launch).
  *
  * Composition contract (the shipped W0.4/§5.AQ pattern, uniform across seams):
  *  1. **Pin first, absolutely.** A pin that matches a candidate (caller-tagged `isPinned` or identity match) WINS —

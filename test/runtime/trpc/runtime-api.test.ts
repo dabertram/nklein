@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
+import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 import type { NKleinModelRegistryEntry } from "../../../src/nklein-agent/nklein-model-registry";
@@ -1556,6 +1557,265 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.selectionReason).toContain("qwen2.5-coder-14b");
 	});
 
+	it("honors the configured worker pin in a multi-role local roster even when the architect has higher class fit", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen2.5-coder-14b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:qwen/qwen2.5-coder-14b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen2.5-coder-14b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+					endpoint,
+					contextWindow: 32_768,
+					capability: 60,
+				}),
+				[`anthropic:qwen/qwen3-8b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen3-8b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen3-8b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 95,
+				}),
+				[`anthropic:mistralai/devstral-small-2-2512:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:mistralai/devstral-small-2-2512:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "mistralai/devstral-small-2-2512",
+					endpoint,
+					contextWindow: 65_536,
+					capability: 62,
+				}),
+				[`anthropic:qwopus3.5-9b-coder-mtp:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwopus3.5-9b-coder-mtp:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwopus3.5-9b-coder-mtp",
+					endpoint,
+					contextWindow: 80_128,
+					capability: 50,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: { providerId: "anthropic", modelId: "qwen/qwen3-8b" },
+					worker: {
+						providerId: "anthropic",
+						modelId: "qwen/qwen2.5-coder-14b",
+						modelSelectionMode: "pinned",
+						additionalModels: [{ providerId: "anthropic", modelId: "qwopus3.5-9b-coder-mtp" }],
+					},
+					reviewer: { providerId: "anthropic", modelId: "qwopus3.5-9b-coder-mtp" },
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen/qwen2.5-coder-14b",
+			}),
+		);
+		expect(response.selectionReason).toContain("Pinned worker model anthropic/qwen/qwen2.5-coder-14b");
+	});
+
+	it("does not treat configured role models as hard pins while the role is in auto selection mode", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen2.5-coder-14b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:qwen/qwen2.5-coder-14b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen2.5-coder-14b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+					endpoint,
+					contextWindow: 32_768,
+					capability: 60,
+				}),
+				[`anthropic:qwen/qwen3-8b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen3-8b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen3-8b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 95,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: { providerId: "anthropic", modelId: "qwen/qwen3-8b" },
+					worker: { providerId: "anthropic", modelId: "qwen/qwen2.5-coder-14b" },
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(response.selectionReason).not.toContain("Pinned worker model");
+		expect(response.selectionReason).not.toContain("Pinned-model recommendation");
+	});
+
+	it("does not let cache-warmth displace an available configured worker pin", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		const workspacePath = "/tmp/repo";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen2.5-coder-14b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:qwen/qwen2.5-coder-14b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen2.5-coder-14b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+					endpoint,
+					contextWindow: 32_768,
+					capability: 60,
+				}),
+				[`anthropic:qwen/qwen3-8b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen3-8b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen3-8b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 95,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.getPromptWarmthLedger.mockReturnValue(
+			new Map([
+				[
+					"qwen/qwen3-8b",
+					{
+						shellKey: buildPromptShellKey({
+							sessionKind: "architect",
+							workspacePath,
+							modelId: "qwen/qwen3-8b",
+						}),
+						at: Date.now(),
+					},
+				],
+			]),
+		);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: { providerId: "anthropic", modelId: "qwen/qwen3-8b" },
+					worker: {
+						providerId: "anthropic",
+						modelId: "qwen/qwen2.5-coder-14b",
+						modelSelectionMode: "pinned",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen/qwen2.5-coder-14b",
+			}),
+		);
+		expect(response.selectionReason).toContain("Pinned-model recommendation");
+		expect(response.selectionReason).toContain("qwen/qwen3-8b");
+		expect(response.selectionReason).toContain("configured worker pin");
+		expect(response.selectionReason).toContain("was honored");
+	});
+
 	it("prefers the configured architect role model for plan-mode NKlein starts", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
@@ -1673,6 +1933,7 @@ describe("createRuntimeApi startTaskSession", () => {
 					architect: {
 						providerId: "unconfigured-provider",
 						modelId: "claude-opus",
+						modelSelectionMode: "pinned",
 					},
 				};
 				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;

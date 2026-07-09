@@ -1491,16 +1491,19 @@ describe("RuntimeSettingsDialog", () => {
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectProviderSelect = selects[0];
 		const architectModelSelect = selects[1];
-		const architectReasoningSelect = selects[2];
+		const architectAssignmentSelect = selects[2];
+		const architectReasoningSelect = selects[3];
 		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
 		expect(modelRolesSection).toBeInstanceOf(HTMLDivElement);
 		if (
 			!(architectProviderSelect instanceof HTMLSelectElement) ||
 			!(architectModelSelect instanceof HTMLSelectElement) ||
+			!(architectAssignmentSelect instanceof HTMLSelectElement) ||
 			!(architectReasoningSelect instanceof HTMLSelectElement)
 		) {
 			throw new Error("Expected architect model role controls to render.");
 		}
+		expect(architectAssignmentSelect.value).toBe("auto");
 
 		await act(async () => {
 			setSelectValue(architectProviderSelect, "lmstudio");
@@ -1531,6 +1534,78 @@ describe("RuntimeSettingsDialog", () => {
 						providerId: "lmstudio",
 						modelId: "loaded-qwen",
 						reasoningEffort: "high",
+					},
+				},
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("saves explicit pinned model role assignment mode", async () => {
+		fetchNKleinProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+			if (providerId === "lmstudio") {
+				return [
+					{
+						id: "loaded-qwen",
+						name: "Loaded Qwen",
+						contextWindow: 128_000,
+						supportsReasoningEffort: true,
+					},
+				];
+			}
+			return [];
+		});
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		let saveButton = findButtonByText(document.body, "Save");
+		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
+		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectProviderSelect = selects[0];
+		const architectModelSelect = selects[1];
+		const architectAssignmentSelect = selects[2];
+		if (
+			!(architectProviderSelect instanceof HTMLSelectElement) ||
+			!(architectModelSelect instanceof HTMLSelectElement) ||
+			!(architectAssignmentSelect instanceof HTMLSelectElement)
+		) {
+			throw new Error("Expected architect model role controls to render.");
+		}
+
+		await act(async () => {
+			setSelectValue(architectProviderSelect, "lmstudio");
+		});
+		await waitForCondition(() =>
+			fetchNKleinProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
+		);
+		await flushAsyncWork();
+
+		await act(async () => {
+			setSelectValue(architectModelSelect, "loaded-qwen");
+			setSelectValue(architectAssignmentSelect, "pinned");
+		});
+
+		saveButton = findButtonByText(document.body, "Save");
+		await act(async () => {
+			saveButton?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelRoles: {
+					architect: {
+						providerId: "lmstudio",
+						modelId: "loaded-qwen",
+						modelSelectionMode: "pinned",
 					},
 				},
 			}),

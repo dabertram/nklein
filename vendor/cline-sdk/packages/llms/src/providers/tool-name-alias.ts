@@ -11,6 +11,16 @@ function normalizeToolName(name: string): string {
 }
 
 /**
+ * LM Studio can occasionally leak Mistral/Devstral transcript text into the parsed tool name itself, e.g.
+ * `<prior tool result>[TOOL_CALLS]read_files` with a correct input object. Recover only the explicit marker suffix and
+ * only when that suffix resolves to an actually offered tool.
+ */
+function extractMarkedToolNameSuffix(name: string): string | null {
+	const match = name.match(/\[(?:TOOL_CALLS?|FUNCTION_CALL|TOOL_REQUEST)\]\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*$/i);
+	return match?.[1] ?? null;
+}
+
+/**
  * Conservative synonym map (normalized keys → canonical tool name). Every target is gated by the available set
  * below, so an entry is inert unless that tool is actually offered — a wrong entry can only ever redirect a call
  * that would OTHERWISE have been rejected, never break a working one. Kept to high-confidence, unambiguous
@@ -79,6 +89,14 @@ export function resolveToolNameAlias(requested: string, availableNames: readonly
 		const key = normalizeToolName(name);
 		if (!normalizedToCanonical.has(key)) {
 			normalizedToCanonical.set(key, name);
+		}
+	}
+
+	const markedSuffix = extractMarkedToolNameSuffix(trimmed);
+	if (markedSuffix) {
+		const suffixMatch = normalizedToCanonical.get(normalizeToolName(markedSuffix));
+		if (suffixMatch) {
+			return suffixMatch;
 		}
 	}
 

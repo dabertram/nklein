@@ -122,6 +122,25 @@ function buildStartBlockedReason(started: StartTaskSessionResult): string {
 	return started.selectionReason ? `${baseReason}\n\n${started.selectionReason}` : baseReason;
 }
 
+function extractPinnedModelRecommendation(selectionReason: string | undefined): string | null {
+	return selectionReason?.match(/Pinned-model recommendation:.*$/u)?.[0] ?? null;
+}
+
+function showPinnedModelRecommendationToast(taskId: string, selectionReason: string | undefined): void {
+	const pinnedModelRecommendation = extractPinnedModelRecommendation(selectionReason);
+	if (!pinnedModelRecommendation) {
+		return;
+	}
+	showAppToast(
+		{
+			intent: "primary",
+			message: pinnedModelRecommendation,
+			timeout: 9000,
+		},
+		`pinned-model-recommendation:${taskId}`,
+	);
+}
+
 function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
 	return columnId === "backlog" || columnId === "planning";
 }
@@ -459,6 +478,7 @@ export function useBoardInteractions({
 				}
 				return false;
 			}
+			showPinnedModelRecommendationToast(taskId, started.selectionReason);
 			if (!optimisticMove) {
 				setBoard((currentBoard) => {
 					const currentColumnId = getTaskColumnId(currentBoard, taskId);
@@ -920,6 +940,7 @@ export function useBoardInteractions({
 						notifyError(started.message ?? "Could not replay task.");
 						return;
 					}
+					showPinnedModelRecommendationToast(taskId, started.selectionReason);
 					setBoard((currentBoard) => {
 						const moved = moveTaskToColumn(currentBoard, taskId, getTaskActiveColumnId(selection.card), {
 							insertAtTop: true,
@@ -969,6 +990,7 @@ export function useBoardInteractions({
 					notifyError(started.message ?? "Could not start decomposition planning.");
 					return;
 				}
+				showPinnedModelRecommendationToast(taskId, started.selectionReason);
 				setBoard((currentBoard) => {
 					const moved = moveTaskToColumn(currentBoard, taskId, "planning", { insertAtTop: true });
 					if (!moved.moved) {

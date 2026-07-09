@@ -391,6 +391,51 @@ describe("useBoardInteractions", () => {
 		expect(currentBoard.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
 	});
 
+	it("shows a positive diagnostic when a pinned model is honored over a recommended model", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		const { board } = createBoardWithPlanningCard({ startInPlanMode: false });
+		let currentBoard = board;
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const selectionReason =
+			"Pinned-model recommendation: qwen/qwen3-8b looks preferable because cache-warmth preferred it, but configured worker pin qwen/qwen2.5-coder-14b was honored.";
+		const startTaskSession = vi.fn(async () => ({ ok: true as const, selectionReason }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleDragEnd(buildPlanningToInProgressDrop("task-plan"));
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(showAppToastMock).toHaveBeenCalledWith(
+			{
+				intent: "primary",
+				message: selectionReason,
+				timeout: 9000,
+			},
+			"pinned-model-recommendation:task-plan",
+		);
+	});
+
 	it("does not restart a planning card that already has a session when dragged into in_progress", async () => {
 		setupDefaultBoardInteractionMocks();
 		let latestSnapshot: HookSnapshot | null = null;

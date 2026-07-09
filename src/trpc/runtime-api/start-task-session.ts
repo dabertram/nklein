@@ -541,18 +541,15 @@ export async function handleStartTaskSession(
 			: null;
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
-		// W2.5 role auto-assignment (auto is the DEFAULT): the card's role never REQUIRES a configured model — a
-		// configured effectiveModelRoles entry is an optional PIN layered on top of automatic selection, resolved
-		// through the pure core so pin-vs-auto semantics + reasons are uniform across seams. A loaded pin wins
-		// (byte-equivalent with the previous ad-hoc architect-role preference, including its primary-then-pool
-		// insertion order via the role-tagged candidates); a configured-but-unavailable pin FALLS THROUGH to the
-		// auto chain below with the waiver surfaced on selectionReason (previously a silent fallback) — never a
-		// hard start failure. Act-mode cards layer the worker pin only when the card carries no explicit model
-		// choice (a decompose-pinned nkleinSettings model outranks the role config — the §5.AB carry-through);
-		// plan mode keeps its shipped architect-over-card-settings precedence. The downstream free-first/pool/
-		// warmth/router chain stays authoritative for feasibility and availability (a pin is a preference here,
-		// not a bypass), and the task-start residency gate above is untouched (an explicitly chosen unloaded
-		// model still hard-fails with the clear "load it first" error — deliberate §5.AB no-load safety).
+		// W2.5 role auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role
+		// explicitly sets modelSelectionMode:"pinned" and the model is loaded, class-eligible, and feasible. Later
+		// optimization passes (free-first, pool, cache-warmth, speed/capability) may diagnose that another model would be
+		// better, but they must NOT silently replace the pinned role model. A configured-but-unavailable explicit pin
+		// still falls through to auto with the waiver surfaced on selectionReason (never a hidden fallback). Act-mode
+		// cards apply the worker role pin only when the card carries no explicit provider/model choice; a decompose-pinned
+		// nkleinSettings model outranks role config. Plan mode keeps the shipped architect-over-card-settings precedence.
+		// The task-start residency gate above is untouched: an explicitly chosen unloaded model still hard-fails with the
+		// clear "load it first" error (§5.AB no-load safety).
 		const cardRole = body.startInPlanMode ? ("architect" as const) : ("worker" as const);
 		const cardRoleSettings = scopedRuntimeConfig.effectiveModelRoles[cardRole];
 		const cardRoleHasConfiguredModel = Boolean(
@@ -563,7 +560,10 @@ export async function handleStartTaskSession(
 		);
 		const rolePinApplies = body.startInPlanMode || !(body.nkleinSettings?.providerId || body.nkleinSettings?.modelId);
 		const cardRolePin =
-			rolePinApplies && cardRoleHasConfiguredModel
+			rolePinApplies &&
+			cardRoleHasConfiguredModel &&
+			cardRoleSettings?.modelSelectionMode === "pinned" &&
+			cardRoleSettings.modelId?.trim()
 				? { providerId: cardRoleSettings?.providerId ?? null, modelId: cardRoleSettings?.modelId ?? null }
 				: null;
 		const roleAssignment = resolveSwarmRoleModel({
@@ -578,8 +578,13 @@ export async function handleStartTaskSession(
 					candidate.role,
 					candidate.entry.modelId,
 				),
-				// Pin membership = the candidate came from the card role's configured pool (primary or member).
-				isPinned: candidate.role === cardRole,
+				// Explicit role pins target the role's PRIMARY configured model. Additional role models stay in the
+				// auto-selection pool; they are not silently promoted to hard pins.
+				isPinned:
+					cardRolePin?.modelId !== undefined &&
+					cardRolePin.modelId !== null &&
+					candidate.role === cardRole &&
+					candidate.entry.modelId === cardRolePin.modelId,
 			})),
 		});
 		const modelClassFactsForCandidate = (
@@ -611,6 +616,14 @@ export async function handleStartTaskSession(
 			weighting: "efficient",
 		});
 		const freeFirstSelection = swarmRoleDecision.selection;
+		const rolePinnedModelKey =
+			roleAssignment.source === "pinned" && roleAssignment.pick ? roleAssignment.pick.modelKey : null;
+		const honoredRolePinKey =
+			rolePinnedModelKey &&
+			freeFirstSelection.type === "assign" &&
+			freeFirstSelection.modelKey === rolePinnedModelKey
+				? rolePinnedModelKey
+				: null;
 		const classSelectedCandidate =
 			freeFirstSelection.type === "assign" ? (guardCandidates.get(freeFirstSelection.modelKey) ?? null) : null;
 		const preferredCandidate = classSelectedCandidate ?? selectedCandidate;
@@ -806,12 +819,13 @@ export async function handleStartTaskSession(
 			dial: cardRoleSettings?.speedVsCapability,
 		});
 		const dialPreferredKey = dialPreference.reordered ? (dialPreference.ranked[0]?.modelKey ?? null) : null;
+		const optimizationPreferredKey = dialPreferredKey ?? warmthPreferredKey ?? baselinePreferredKey;
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: routingOutputTokens,
-			preferredModelKey: dialPreferredKey ?? warmthPreferredKey ?? baselinePreferredKey,
+			preferredModelKey: honoredRolePinKey ?? optimizationPreferredKey,
 			candidates: [...guardCandidates.values()].map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {
@@ -858,6 +872,18 @@ export async function handleStartTaskSession(
 		const roleClassPinSuffix = classIgnoredPinnedModel
 			? ` Pinned ${cardRole} model ${classIgnoredPinnedModel} was not used because it did not pass the role class/feasibility gate.`
 			: "";
+		const optimizationPreferenceReason =
+			dialPreferredKey && dialPreferredKey !== baselinePreferredKey
+				? `the ${cardRole} speed-vs-capability dial preferred it`
+				: warmthPreferredKey && warmthPreferredKey !== baselinePreferredKey && warmthPreference.warmthReason
+					? `cache-warmth preferred it: ${warmthPreference.warmthReason}`
+					: poolRoutedModelKey && poolRoutedModelKey !== baselinePreferredKey
+						? "pool routing preferred a less-busy model endpoint"
+						: "automatic routing preferred it";
+		const pinnedModelRecommendationSuffix =
+			honoredRolePinKey && optimizationPreferredKey !== honoredRolePinKey
+				? ` Pinned-model recommendation: ${optimizationPreferredKey} looks preferable because ${optimizationPreferenceReason}, but configured ${cardRole} pin ${honoredRolePinKey} was honored.`
+				: "";
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
 		const selectionReason =
 			renderModelSelectionReason(
@@ -894,7 +920,8 @@ export async function handleStartTaskSession(
 			warmthReasonSuffix +
 			rolePinReasonSuffix +
 			roleClassReasonSuffix +
-			roleClassPinSuffix;
+			roleClassPinSuffix +
+			pinnedModelRecommendationSuffix;
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,

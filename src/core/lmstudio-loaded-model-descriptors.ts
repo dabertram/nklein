@@ -1,6 +1,6 @@
 /**
- * Rich descriptors for the currently-LOADED LM Studio models, read from the NATIVE `/api/v1/models` endpoint (the
- * OpenAI-compat `/v1/models` and the enhanced `/api/v0/models` only give an id + residency `state`). Crucially this
+ * Rich descriptors for the currently-LOADED LM Studio models, read from the NATIVE `/api/v1/models` endpoint when
+ * available, with a minimal `/api/v0/models` fallback for LM Studio builds that do not expose the rich endpoint. Crucially this
  * separates the two identifiers LM Studio carries:
  *
  *   - `loaded_instances[].id` — the **runtime id you INVOKE**, i.e. the user's per-instance ALIAS (e.g.
@@ -15,6 +15,8 @@
  *
  * Pure parser + injectable fetch, so it is unit-testable without a live endpoint.
  */
+
+import { lmStudioApiV0ModelsUrl } from "./lmstudio-loaded-models";
 
 export interface LoadedModelDescriptor {
 	/** The runtime identifier to INVOKE — LM Studio's per-instance alias (`loaded_instances[].id`). Candidate identity. */
@@ -41,6 +43,8 @@ interface RawV1Instance {
 	id?: unknown;
 }
 interface RawV1Model {
+	id?: unknown;
+	state?: unknown;
 	type?: unknown;
 	key?: unknown;
 	architecture?: unknown;
@@ -77,6 +81,26 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 		const model = entry as RawV1Model;
 		const instances = Array.isArray(model.loaded_instances) ? model.loaded_instances : [];
 		if (instances.length === 0) {
+			const runtimeId = asString(model.id);
+			if (model.state === "loaded" && runtimeId) {
+				const caps = (model.capabilities ?? undefined) as RawV1Capabilities | undefined;
+				const toolUse = typeof caps?.trained_for_tool_use === "boolean" ? caps.trained_for_tool_use : undefined;
+				const reasoning = caps && caps.reasoning != null ? true : undefined;
+				const architecture = asString(model.architecture);
+				const maxContextLength =
+					typeof model.max_context_length === "number" && Number.isFinite(model.max_context_length)
+						? model.max_context_length
+						: undefined;
+				descriptors.push({
+					runtimeId,
+					modelKey: asString(model.key) ?? runtimeId,
+					isEmbedding: model.type === "embedding",
+					...(toolUse !== undefined ? { toolUse } : {}),
+					...(reasoning !== undefined ? { reasoning } : {}),
+					...(architecture !== undefined ? { architecture } : {}),
+					...(maxContextLength !== undefined ? { maxContextLength } : {}),
+				});
+			}
 			continue; // not loaded — skip (residency-only entry)
 		}
 		const modelKey = asString(model.key);
@@ -124,10 +148,17 @@ export async function fetchLoadedModelDescriptors(
 ): Promise<LoadedModelDescriptor[]> {
 	try {
 		const res = await fetchImpl(lmStudioApiV1ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
-		if (!res.ok) {
+		if (res.ok) {
+			const descriptors = parseLoadedModelDescriptors(await res.json());
+			if (descriptors.length > 0) {
+				return descriptors;
+			}
+		}
+		const fallback = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
+		if (!fallback.ok) {
 			return [];
 		}
-		return parseLoadedModelDescriptors(await res.json());
+		return parseLoadedModelDescriptors(await fallback.json());
 	} catch {
 		return [];
 	}

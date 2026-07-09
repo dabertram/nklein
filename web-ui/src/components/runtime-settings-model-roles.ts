@@ -26,12 +26,20 @@ function normalizeModelRoleTaskSettings(settings: RuntimeTaskNKleinSettings | un
 }
 
 function normalizeModelRoleSettings(settings: RuntimeModelRoles[string] | undefined): RuntimeModelRoles[string] {
+	const primarySettings = normalizeModelRoleTaskSettings(settings);
 	const additionalModels = (settings?.additionalModels ?? [])
 		.map((entry) => normalizeModelRoleTaskSettings(entry))
 		.filter((entry) => entry.providerId || entry.modelId);
 	return {
-		...normalizeModelRoleTaskSettings(settings),
+		...primarySettings,
 		...(additionalModels.length > 0 ? { additionalModels } : {}),
+		...(settings?.modelSelectionMode === "pinned" && (primarySettings.providerId || primarySettings.modelId)
+			? { modelSelectionMode: "pinned" as const }
+			: {}),
+		...(settings?.modelClassCap ? { modelClassCap: settings.modelClassCap } : {}),
+		...(settings?.speedVsCapability && settings.speedVsCapability !== "capability"
+			? { speedVsCapability: settings.speedVsCapability }
+			: {}),
 	};
 }
 

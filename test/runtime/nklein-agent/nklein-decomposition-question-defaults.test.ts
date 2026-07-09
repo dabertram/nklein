@@ -44,9 +44,11 @@ describe("deriveOpenQuestionDefaults (decompose parse-and-recover, real-evidence
 		expect(resolved?.assumption).not.toContain("recommended");
 	});
 
-	it("leaves an open question with no options untouched (nothing safe to assume)", () => {
-		const input = question({ options: [] });
-		expect(deriveOpenQuestionDefaults([input])[0]).toEqual(input);
+	it("derives a conservative assumption for an open question with no options", () => {
+		const [resolved] = deriveOpenQuestionDefaults([question({ options: [] })]);
+		expect(resolved?.status).toBe("open");
+		expect(resolved?.assumption).toContain("current project/specification context");
+		expect(resolved?.assumption).toContain("Will the audio core use Web Audio or native bindings?");
 	});
 
 	it("never overwrites an existing assumption or answer, nor non-open questions", () => {
@@ -78,11 +80,12 @@ describe("assumed-default recovery (live-found 2026-07-08: qwopus3.5 decompose b
 		expect(resolved?.assumption).toContain("IndexedDB persistence");
 	});
 
-	it("derives a conventional-default assumption from the question text when it has no options", () => {
+	it("derives a project-context assumption from the question text when it has no options", () => {
 		// assumed-default = the model COMMITTED to assuming; bouncing it for the missing text just burns turns
 		// (live: the decompose call failed validation and the session ended before a successful retry).
 		const [resolved] = deriveOpenQuestionDefaults([question({ status: "assumed-default", options: [] })]);
 		expect(resolved?.status).toBe("assumed-default");
+		expect(resolved?.assumption).toContain("current project/specification context");
 		expect(resolved?.assumption).toContain("Will the audio core use Web Audio or native bindings?");
 	});
 

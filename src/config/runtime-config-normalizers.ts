@@ -191,11 +191,12 @@ export function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 			continue;
 		}
 		const settings = parsedSettings.data;
+		const primarySettings = pickNKleinSettingsFields(settings);
 		const additionalModels = (settings.additionalModels ?? [])
 			.map((entry) => pickNKleinSettingsFields(entry))
 			.filter((entry) => entry.providerId || entry.modelId);
-		normalized[role] = {
-			...pickNKleinSettingsFields(settings),
+		const normalizedSettings = {
+			...primarySettings,
 			...(settings.modelClassCap ? { modelClassCap: settings.modelClassCap } : {}),
 			...(additionalModels.length > 0 ? { additionalModels } : {}),
 			// §5.I#4: the speed-vs-capability dial survives normalization; "capability" is the implicit default,
@@ -203,7 +204,13 @@ export function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 			...(settings.speedVsCapability && settings.speedVsCapability !== "capability"
 				? { speedVsCapability: settings.speedVsCapability }
 				: {}),
+			...(settings.modelSelectionMode === "pinned" && (primarySettings.providerId || primarySettings.modelId)
+				? { modelSelectionMode: "pinned" as const }
+				: {}),
 		};
+		if (Object.keys(normalizedSettings).length > 0) {
+			normalized[role] = normalizedSettings;
+		}
 	}
 	return normalized;
 }

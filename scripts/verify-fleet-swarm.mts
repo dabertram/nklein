@@ -1,13 +1,13 @@
 /**
  * FLEET SWARM e2e — drive a complex dev-test project across the HETEROGENEOUS local fleet.
  *
- * Unlike verify-multi-card-pipeline.mts (one model pinned to every role), this exercises the REAL fleet:
- *   architect (decompose)  = a strong LARGE model (default the m5max 27b)
- *   worker   (implement)   = a fast coder + a POOL of the other loaded workers (auto free-first fan-out)
- *   reviewer               = a mid model
- * plus the §5.AB auto-selection that already offers every LOADED model as a candidate. It then OBSERVES which
- * model each card actually ran on and whether each card DELIVERED a result branch — so we learn not just
- * "did the cascade finish" but "did something that works come out, and did the fleet actually spread".
+ * This verifier opts into explicit primary role pins so the "configured model was observed" assertion is meaningful:
+ *   architect (decompose)  = a pinned strong LARGE model (default the m5max 27b)
+ *   worker   (implement)   = a pinned fast coder primary + configured pool members for guardrail/advisor coverage
+ *   reviewer               = a pinned mid model unless NKLEIN_FLEET_REVIEWER=none
+ * Product defaults stay auto-selection; this script is the pinned-role regression. It then OBSERVES which model each
+ * card actually ran on and whether each card DELIVERED a result branch — so we learn not just "did the cascade finish"
+ * but "did the requested role pins actually hold".
  *
  * The project workspace is PRESERVED (path printed) so the produced code can be inspected.
  *
@@ -241,7 +241,8 @@ async function main(): Promise<void> {
 		});
 		log(`saveNKleinProviderSettings(worker=${WORKER}): ok=${provRes.payload.ok ?? "?"}`);
 
-		// Heterogeneous roles: strong architect for decompose, fast coder + pool for workers, mid reviewer.
+		// Heterogeneous pinned roles: this regression needs explicit pins because configured role models are auto candidates
+		// by default. If auto would choose differently, runtime telemetry should report a recommendation without overriding.
 		const cfgRes = await requestJson({
 			baseUrl: server.baseUrl,
 			procedure: "runtime.saveConfig",
@@ -249,15 +250,18 @@ async function main(): Promise<void> {
 			payload: {
 				maxConcurrentTasks: MAX_CONCURRENT,
 				modelRoles: {
-					architect: { providerId: PROVIDER_ID, modelId: ARCHITECT },
+					architect: { providerId: PROVIDER_ID, modelId: ARCHITECT, modelSelectionMode: "pinned" },
 					worker: {
 						providerId: PROVIDER_ID,
 						modelId: WORKER,
+						modelSelectionMode: "pinned",
 						additionalModels: WORKER_POOL.map((modelId) => ({ providerId: PROVIDER_ID, modelId })),
 					},
 					// REVIEWER="none" leaves the reviewer role UNCONFIGURED — exercising the W2.5a lineage-diverse
 					// reviewer AUTO-PICK (previously the silent worker-reviews-itself fallback).
-					...(REVIEWER === "none" ? {} : { reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER } }),
+					...(REVIEWER === "none"
+						? {}
+						: { reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER, modelSelectionMode: "pinned" } }),
 				},
 			},
 		});
@@ -418,10 +422,12 @@ async function main(): Promise<void> {
 				if (polledSessions.some(([, s]) => s.state === "running")) {
 					lastProgressAt = Date.now();
 				}
-				const anySessionAlive =
-					anyPolledSessionAlive ||
-					[...latestActivityByTask.values()].some((info) => ALIVE_SESSION_STATES.has(info.state));
-				if (!anySessionAlive && latestActivityByTask.size > 0 && Date.now() - lastProgressAt > deadStallMs) {
+				// The polled workspace state is canonical for liveness. Stale WS card summaries can outlive their backing
+				// sessions (observed live: WS still implied work while `sessions` was `{}` and all models were IDLE), so they
+				// are for diagnostics only and must not keep the dead-stall lane open.
+				const anySessionAlive = anyPolledSessionAlive;
+				const hasObservedWorkToWaitFor = latestActivityByTask.size > 0 || active > 0;
+				if (!anySessionAlive && hasObservedWorkToWaitFor && Date.now() - lastProgressAt > deadStallMs) {
 					stalled = true;
 					log(
 						`[${new Date().toISOString().slice(11, 19)}] DEAD-STALLED — every session is idle/terminal and no progress for ${Math.round(deadStallMs / 1000)}s; aborting early.`,

@@ -1136,29 +1136,33 @@ describe("nklein decomposition tools", () => {
 		).rejects.toThrow("requires at least 3 task leaves; received 2");
 	});
 
-	it("rejects an open clarifying question with no working default (no assumption or answer)", async () => {
+	it("recovers an open clarifying question with no working default by adding a conservative assumption", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-open-questions-"));
 		const tool = getTool("decompose_project", workspacePath);
 
-		await expect(
-			tool.execute(
-				{
-					slug: "Habit Tracker",
-					title: "Habit Tracker",
-					spec: "Track habits.",
-					plan: "Build storage before UI.",
-					questions: [
-						{
-							id: "q1",
-							question: "Should reminders be included?",
-							status: "open",
-						},
-					],
-					tasks: createTaskGraph().tasks,
-				},
-				undefined as never,
-			),
-		).rejects.toThrow("open with no working default");
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				questions: [
+					{
+						id: "q1",
+						question: "Should reminders be included?",
+						status: "open",
+					},
+				],
+				tasks: createTaskGraph().tasks,
+			},
+			undefined as never,
+		)) as { ok: boolean; questionsPath: string; decisionsPath: string };
+
+		expect(result.ok).toBe(true);
+		const questions = await readFile(join(workspacePath, result.questionsPath), "utf8");
+		const decisions = await readFile(join(workspacePath, result.decisionsPath), "utf8");
+		expect(questions).toContain("Assuming the current project/specification context provides the working default");
+		expect(decisions).toContain("Should reminders be included?");
 	});
 
 	it("accepts an open clarifying question that carries a working assumption (stays open for clarification)", async () => {

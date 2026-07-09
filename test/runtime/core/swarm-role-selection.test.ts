@@ -13,7 +13,7 @@ const candidate = (modelId: string, score: number, extra?: { realModelId?: strin
 const warmthLedger = (entries: Record<string, string>, at = 1_000): ReadonlyMap<string, PromptWarmthLedgerEntry> =>
 	new Map(Object.entries(entries).map(([modelId, shellKey]) => [modelId, { shellKey, at }]));
 
-describe("resolveSwarmRoleModel (W2.5 pin-vs-auto: config = optional pin layered on auto)", () => {
+describe("resolveSwarmRoleModel (W2.5 pin-vs-auto: explicit pin layered on auto)", () => {
 	it("honors a loaded pin absolutely (caller-tagged pin membership wins over higher-scored candidates)", () => {
 		const pinnedWorker = candidate("qwen2.5-coder-14b", 60, { isPinned: true });
 		const result = resolveSwarmRoleModel({

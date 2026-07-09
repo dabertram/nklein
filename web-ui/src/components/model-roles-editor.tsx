@@ -29,6 +29,7 @@ import {
 import type {
 	RuntimeModelClassCap,
 	RuntimeModelRoles,
+	RuntimeModelSelectionMode,
 	RuntimeNKleinProviderCatalogItem,
 	RuntimeNKleinProviderModel,
 	RuntimeNKleinReasoningEffort,
@@ -49,6 +50,11 @@ const MODEL_CLASS_CAP_LABELS: Record<RuntimeModelClassCap | "inherit", string> =
 	small_only: "Small only",
 	any_local: "Any local",
 	any: "Any",
+};
+const MODEL_SELECTION_MODE_OPTIONS: RuntimeModelSelectionMode[] = ["auto", "pinned"];
+const MODEL_SELECTION_MODE_LABELS: Record<RuntimeModelSelectionMode, string> = {
+	auto: "Auto",
+	pinned: "Pinned",
 };
 
 interface ModelRolesEditorProps {
@@ -214,6 +220,18 @@ export function ModelRolesEditor({
 		});
 	};
 
+	const handleModelSelectionModeChange = (roleId: ModelRoleId, mode: RuntimeModelSelectionMode) => {
+		onChange((prev) => {
+			const nextRole = { ...prev[roleId] };
+			if (mode === "pinned") {
+				nextRole.modelSelectionMode = "pinned";
+			} else {
+				delete nextRole.modelSelectionMode;
+			}
+			return { ...prev, [roleId]: nextRole };
+		});
+	};
+
 	const handleResetRole = (roleId: ModelRoleId) => {
 		onChange((prev) => {
 			const next = { ...prev };
@@ -235,6 +253,7 @@ export function ModelRolesEditor({
 				const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
 				const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
 				const reasoningSelectId = `runtime-settings-model-role-${roleId}-reasoning`;
+				const assignmentSelectId = `runtime-settings-model-role-${roleId}-assignment`;
 				const roleModels = getProviderModels(effectiveProviderId);
 				const selectedRoleModelId = roleSettings.modelId ?? "";
 				const selectedRoleModel = roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
@@ -255,7 +274,7 @@ export function ModelRolesEditor({
 				const roleContextWarning = getContextWarning(roleId);
 				return (
 					<div key={roleId} className="grid gap-1">
-						<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_120px_34px]">
+						<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(150px,0.75fr)_minmax(330px,1.5fr)_110px_110px_110px_34px]">
 							<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
 								{MODEL_ROLE_LABELS[roleId]}
 							</div>
@@ -315,6 +334,26 @@ export function ModelRolesEditor({
 									))}
 								</NativeSelect>
 							</label>
+							<div className="min-w-0">
+								<label className="mb-1 block text-[12px] text-text-secondary" htmlFor={assignmentSelectId}>
+									Assignment
+								</label>
+								<NativeSelect
+									id={assignmentSelectId}
+									fill
+									value={roleSettings.modelSelectionMode ?? "auto"}
+									onChange={(event) =>
+										handleModelSelectionModeChange(roleId, event.target.value as RuntimeModelSelectionMode)
+									}
+									disabled={disabled}
+								>
+									{MODEL_SELECTION_MODE_OPTIONS.map((option) => (
+										<option key={option} value={option}>
+											{MODEL_SELECTION_MODE_LABELS[option]}
+										</option>
+									))}
+								</NativeSelect>
+							</div>
 							<div className="min-w-0">
 								<label className="mb-1 block text-[12px] text-text-secondary" htmlFor={reasoningSelectId}>
 									Reasoning

@@ -37,6 +37,14 @@ describe("resolveToolNameAlias (§5.BD tool-name aliasing)", () => {
 		expect(resolveToolNameAlias("ls", ["read_files"])).toBeNull();
 	});
 
+	it("recovers a Mistral/Devstral marker suffix leaked into the parsed tool name", () => {
+		const polluted =
+			'[{"query":"src/index.ts","result":"...","success":true}][TOOL_CALLS]read_files';
+		expect(resolveToolNameAlias(polluted, AVAILABLE)).toBe("read_files");
+		expect(resolveToolNameAlias("previous output [TOOL_CALL]SEARCH_CODEBASE", AVAILABLE)).toBe("search_codebase");
+		expect(resolveToolNameAlias("[TOOL_CALLS]delete_everything", AVAILABLE)).toBeNull();
+	});
+
 	it("returns null for an already-available name, an unknown name, and empty inputs", () => {
 		expect(resolveToolNameAlias("read_files", AVAILABLE)).toBeNull();
 		expect(resolveToolNameAlias("edit_file", AVAILABLE)).toBeNull();

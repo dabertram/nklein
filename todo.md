@@ -312,6 +312,13 @@ source repo went private — so if it vanishes the buildable source still lives 
 > you record it, act on it, or ship a fix on it.** The failure mode this bans: pattern-matching a symptom to a tidy
 > label ("it's a TTL", "it's a 6-min prefill", "it's flaky/environmental/pre-existing") and moving on as if the label
 > were verified fact. That is how wrong understanding calcifies into wrong fixes.
+> - **Never apply only the smallest possible patch unless the root cause is already known and evidenced.** A tiny local
+>   change that makes the current symptom disappear is a dirty quick fix if it does not explain what actually went wrong.
+>   Before changing code, identify the failure path; if the evidence is insufficient, collect or generate more evidence
+>   first (logs, preserved run artifacts, focused regression tests, live probes, instrumentation). The goal is to improve
+>   the whole system's understanding, diagnostics, and behavior, not to hide one observed bug behind an extra fallback.
+>   Complexity is only acceptable when it follows from the verified cause and reduces future ambiguity; speculative
+>   fallbacks, silent bypasses, and "just make it pass" patches are banned.
 > - **Distinguish "verified" from "guessed" in what you WRITE.** If you haven't confirmed it with evidence, say
 >   "hypothesis" / "unverified" / "plausible but unconfirmed" — never state a guess in the declarative voice of fact.
 >   (Recorded miss 2026-07-07: I wrote a model vanished due to "TTL expiry" — but `lms ps` had shown that model with a
@@ -361,6 +368,10 @@ source repo went private — so if it vanishes the buildable source still lives 
 > symptoms.** The harness/runtime only tells you *something* is slow or wrong; the model-server logs tell you *what* and
 > *how slow*. (Caught 2026-06-30: I rationalized a decompose stall as "a ~6-min/40k-token prefill" and shipped a fix on
 > that guess — the user rightly pushed back; `lms ps` showed the real state immediately.)
+> - **Never wait on an assumed long generation or assumed model activity without checking the ground truth.** If !Klein is
+>   quiet, check `lms ps` (and, when relevant, workspace sessions / task-run state / dev logs) before burning wall-clock.
+>   `IDLE` models plus no active task session is a **stall**, not "probably still thinking"; stop the stale wait, preserve
+>   the run artifacts, diagnose from evidence, and either recover or file the concrete bug.
 > - **`lms ps`** — live per-model state: `PROCESSINGPROMPT` (prefilling — emits NO stream tokens, so this is what trips a
 >   stream-INACTIVITY timeout) vs `GENERATING` (emitting tokens) vs `IDLE`, plus loaded context window + parallelism. This
 >   alone distinguishes "prefilling slowly", "generating a long reasoning block", and "actually hung".
@@ -5753,9 +5764,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         m4mini) was not selected before it had registry/ledger evidence. Fixed the cold configured-candidate seed to
         compose the role prior with the catalog prior (`nklein-task-start-guard.ts`), with a focused regression test.
         Local gates green: `npm run test -- nklein-task-start-guard.test.ts`, `npm run typecheck`, `npm run lint`,
-        `npm run test:fast`, `npm run test:protected`. **STILL OWED:** rerun the live verifier after the m4mini restart
-        and only after David explicitly says go; confirm the 14B worker is observed, all cards terminate, and teardown
-        leaves no containers.
+        `npm run test:fast`, `npm run test:protected`.
+        **POST-RESTART LIVE RERUN (2026-07-09, after David gave go):** qwen3-8b as architect successfully called
+        `decompose_project` and created the 12-card DAG; the first worker card then ran on qwen3-8b, failed on an
+        absolute-path edit, and retried on Devstral, which captured a patch and moved to review. The configured m4mini
+        worker (`qwen/qwen2.5-coder-14b`) was loaded and idle but was still not observed in task telemetry. Root-cause
+        correction (David 2026-07-09): `/api/v0` descriptor fallback is **not** a pinning fix. Ground truth:
+        `/api/v0/models` and `lms ps` both saw the 14B; `/api/v1/models` descriptor divergence only affected rich
+        auto-discovery metadata. The pinning bug was the live composition: a configured role model was treated as an
+        optional preference, then later cache-warmth/speed/pool optimization could replace it silently. Contract now:
+        auto skill/difficulty/complexity model-selection is the default; role models are only hard pins when the role
+        explicitly has `modelSelectionMode:"pinned"`. A valid explicit pin is honored, and if another model looks better
+        !Klein surfaces a `Pinned-model recommendation` instead of overriding the user. `/api/v0/models` descriptor
+        fallback remains as separate robustness for loaded-model auto-discovery. **STILL OWED:** rerun the live verifier
+        with an explicit pinned 14B worker and require actual 14B worker observation, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple

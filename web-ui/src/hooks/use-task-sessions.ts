@@ -177,7 +177,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 				if (options?.resumeFromTrash) {
 					trackTaskResumedFromTrash();
 				}
-				return { ok: true };
+				return { ok: true, selectionReason: payload.selectionReason };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return { ok: false, message };

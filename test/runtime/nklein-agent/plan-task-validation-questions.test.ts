@@ -41,8 +41,10 @@ describe("deriveOpenQuestionDefaults (parse-and-recover for open questions)", ()
 		expect(out?.assumption).not.toContain("(recommended option)");
 	});
 
-	it("leaves untouched: questions with no options, an existing default, or a non-open status", () => {
-		expect(deriveOpenQuestionDefaults([question({ options: [] })])[0]?.assumption).toBeNull();
+	it("fills no-option questions, but leaves existing defaults and non-open statuses untouched", () => {
+		expect(deriveOpenQuestionDefaults([question({ options: [] })])[0]?.assumption).toContain(
+			"current project/specification context",
+		);
 		const withDefault = question({ options: [option()], assumption: "already decided" });
 		expect(deriveOpenQuestionDefaults([withDefault])[0]?.assumption).toBe("already decided");
 		const answered = question({ status: "answered", answer: "Postgres", options: [option()] });
