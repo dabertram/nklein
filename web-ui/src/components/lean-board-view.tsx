@@ -1,15 +1,20 @@
-// §5.BB Zoom 1 — the LEAN board: a minimal Doing / Review / Done render of the SAME board data (no cockpit,
-// no fleet, no card chrome), optionally filtered to one stream (clicking a cluster on the activity map lands
-// here). Deliberately a simple projection — not a fork of the kanban board component tree.
+// §5.BB Zoom 1 — the LEAN board: a minimal Queued / Doing / Review / Done render of the SAME board data (no
+// cockpit, no fleet, no card chrome), optionally filtered to one stream (clicking a cluster on the activity map
+// lands here). Deliberately a simple projection — not a fork of the kanban board component tree.
 
 import type { ReactElement } from "react";
 
 import { UNPLANNED_CLUSTER_ID } from "@/components/activity-map-model";
+import { shortenModelIdForBadge } from "@/components/board-card";
 import { cn } from "@/components/ui/cn";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import type { BoardCard, BoardColumn } from "@/types";
 
+// The full minimal lifecycle. "Queued" (backlog + planning) was MISSING — a freshly decomposed project lives
+// entirely in planning, so the lean view rendered it as three empty lanes (David 2026-07-09: "lean view seems
+// incomplete").
 const LEAN_LANES: readonly { key: string; label: string; columnIds: readonly string[] }[] = [
+	{ key: "queued", label: "Queued", columnIds: ["backlog", "planning"] },
 	{ key: "doing", label: "Doing", columnIds: ["in_progress"] },
 	{ key: "review", label: "Review", columnIds: ["review"] },
 	{ key: "done", label: "Done", columnIds: ["completed"] },
@@ -49,7 +54,7 @@ export function LeanBoardView({
 				</span>
 				<span>— lean view</span>
 			</div>
-			<div className="grid flex-1 min-h-0 grid-cols-3 gap-3 overflow-y-auto content-start">
+			<div className="grid flex-1 min-h-0 grid-cols-4 gap-3 overflow-y-auto content-start">
 				{LEAN_LANES.map((lane) => {
 					const cards = columns
 						.filter((column) => lane.columnIds.includes(column.id))
@@ -81,9 +86,12 @@ export function LeanBoardView({
 										{card.title}
 										{live ? (
 											<span className="mt-1 block text-[10.5px] font-normal text-accent">
-												{session?.modelId ?? "running"} ·{" "}
+												{session?.modelId ? shortenModelIdForBadge(session.modelId) : "running"} ·{" "}
 												{session?.latestHookActivity?.toolName ?? "active"}
 											</span>
+										) : null}
+										{!live && card.blockedKind ? (
+											<span className="mt-1 block text-[10.5px] font-normal text-status-gold">blocked</span>
 										) : null}
 									</button>
 								);

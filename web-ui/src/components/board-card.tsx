@@ -202,7 +202,7 @@ const MODEL_BADGE_MAX_CHARS = 20;
 const MODEL_BADGE_NOISE_TOKEN = /-(?:q\d[\w-]*|gguf|mlx|instruct|it|chat|\d{4})$|@\d+bit$/i;
 
 /** Strip the provider prefix (`openai/gpt-5.5` → `gpt-5.5`) + noise suffixes, then middle-truncate as a last resort. */
-function shortenModelIdForBadge(modelId: string): string {
+export function shortenModelIdForBadge(modelId: string): string {
 	let shortId = modelId.split("/").pop()?.trim() || modelId.trim();
 	while (shortId.length > MODEL_BADGE_MAX_CHARS && MODEL_BADGE_NOISE_TOKEN.test(shortId)) {
 		shortId = shortId.replace(MODEL_BADGE_NOISE_TOKEN, "");
