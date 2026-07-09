@@ -206,6 +206,31 @@ function normalizeTaskNKleinSettings(input: {
 	};
 }
 
+/**
+ * Preserve a card's plan provenance through normalization. The Overview clusters and the Lean view's stream
+ * grouping both key on `generatedFromPlan.planSlug` — dropping it here rendered EVERY decomposed card as
+ * "unplanned" (live-found 2026-07-10: a 12-card DAG showed as one unplanned blob while the wire carried the slug).
+ */
+function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"] | undefined {
+	if (!raw || typeof raw !== "object") {
+		return undefined;
+	}
+	const value = raw as { artifactKind?: unknown; planSlug?: unknown; planTaskId?: unknown; sourceTaskId?: unknown };
+	if (typeof value.planSlug !== "string" || !value.planSlug.trim()) {
+		return undefined;
+	}
+	if (typeof value.planTaskId !== "string" || !value.planTaskId.trim()) {
+		return undefined;
+	}
+	return {
+		artifactKind:
+			value.artifactKind === "buildout" || value.artifactKind === "spec" ? value.artifactKind : "decomposition",
+		planSlug: value.planSlug,
+		planTaskId: value.planTaskId,
+		...(typeof value.sourceTaskId === "string" && value.sourceTaskId ? { sourceTaskId: value.sourceTaskId } : {}),
+	};
+}
+
 function normalizeCard(rawCard: unknown): BoardCard | null {
 	if (!rawCard || typeof rawCard !== "object") {
 		return null;
@@ -228,6 +253,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		nkleinSettings?: unknown;
 		blockedKind?: unknown;
 		blockedReason?: unknown;
+		generatedFromPlan?: unknown;
 		nkleinProviderId?: unknown;
 		nkleinModelId?: unknown;
 		nkleinReasoningEffort?: unknown;
@@ -282,6 +308,10 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		...(typeof card.blockedReason === "string" && card.blockedReason.trim()
 			? { blockedReason: card.blockedReason.trim() }
 			: {}),
+		...(() => {
+			const generatedFromPlan = normalizeGeneratedFromPlan(card.generatedFromPlan);
+			return generatedFromPlan ? { generatedFromPlan } : {};
+		})(),
 		createdAt: typeof card.createdAt === "number" ? card.createdAt : now,
 		updatedAt: typeof card.updatedAt === "number" ? card.updatedAt : now,
 	};

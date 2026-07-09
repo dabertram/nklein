@@ -35,6 +35,30 @@ const CLUSTER_ANCHORS: readonly { x: number; y: number }[] = [
 interface BubblePosition {
 	x: number;
 	y: number;
+	/** Label below (default) or above the bubble — staggered on dense rings to reduce collisions. */
+	labelAbove: boolean;
+}
+
+/**
+ * Distribute a cluster's bubbles over CONCENTRIC RINGS instead of one fixed circle — a 12-card cluster on a
+ * single ring stacked every label on its neighbor (the "lazy sketch" impression, David 2026-07-09). Ring
+ * capacities grow outward (6, 11, 16, …); rings are angle-staggered so bubbles don't align radially.
+ */
+function ringAssignments(count: number): { ring: number; indexInRing: number; ringSize: number; rings: number }[] {
+	const capacities: number[] = [];
+	let remaining = count;
+	for (let ring = 0; remaining > 0; ring++) {
+		const capacity = Math.min(remaining, 6 + ring * 5);
+		capacities.push(capacity);
+		remaining -= capacity;
+	}
+	const assignments: { ring: number; indexInRing: number; ringSize: number; rings: number }[] = [];
+	capacities.forEach((ringSize, ring) => {
+		for (let indexInRing = 0; indexInRing < ringSize; indexInRing++) {
+			assignments.push({ ring, indexInRing, ringSize, rings: capacities.length });
+		}
+	});
+	return assignments;
 }
 
 export function ActivityMapView({
@@ -81,11 +105,22 @@ export function ActivityMapView({
 		const anchor = CLUSTER_ANCHORS[index % CLUSTER_ANCHORS.length] ?? { x: 0.5, y: 0.5 };
 		const cx = anchor.x * width;
 		const cy = anchor.y * height;
-		const haloRadius = Math.min(170, 84 + cluster.bubbles.length * 12);
+		const assignments = ringAssignments(cluster.bubbles.length);
+		const ringsTotal = assignments[0]?.rings ?? 1;
+		const haloRadius = Math.min(230, 64 + ringsTotal * 52 + cluster.bubbles.length * 2);
 		cluster.bubbles.forEach((bubble, bubbleIndex) => {
-			const angle = (bubbleIndex / Math.max(1, cluster.bubbles.length)) * Math.PI * 2 - Math.PI / 3;
-			const distance = haloRadius * 0.48;
-			positions.set(bubble.id, { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance });
+			const slot = assignments[bubbleIndex] ?? { ring: 0, indexInRing: 0, ringSize: 1, rings: 1 };
+			// Radial fraction per ring: a lone ring sits mid-halo; multiple rings spread 0.30 → 0.72.
+			const fraction = ringsTotal === 1 ? 0.45 : 0.3 + (slot.ring / Math.max(1, ringsTotal - 1)) * 0.42;
+			// Stagger ring start angles so bubbles never align radially (label pile-up).
+			const angle =
+				(slot.indexInRing / Math.max(1, slot.ringSize)) * Math.PI * 2 - Math.PI / 3 + slot.ring * (Math.PI / 7);
+			const distance = haloRadius * fraction;
+			positions.set(bubble.id, {
+				x: cx + Math.cos(angle) * distance,
+				y: cy + Math.sin(angle) * distance,
+				labelAbove: ringsTotal > 1 && slot.indexInRing % 2 === 1,
+			});
 		});
 		return { cluster, cx, cy, haloRadius };
 	});
@@ -100,6 +135,31 @@ export function ActivityMapView({
 				aria-label="Project activity map"
 			>
 				<title>Project activity map</title>
+				<defs>
+					{/* Dependency direction matters — a blocked-by relation without an arrowhead is just a smudge. */}
+					<marker
+						id="activity-edge-arrow"
+						viewBox="0 0 8 8"
+						refX="7"
+						refY="4"
+						markerWidth="6"
+						markerHeight="6"
+						orient="auto-start-reverse"
+					>
+						<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--color-accent)" fillOpacity="0.55" />
+					</marker>
+					<marker
+						id="activity-edge-arrow-cross"
+						viewBox="0 0 8 8"
+						refX="7"
+						refY="4"
+						markerWidth="6"
+						markerHeight="6"
+						orient="auto-start-reverse"
+					>
+						<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--color-accent-2)" fillOpacity="0.5" />
+					</marker>
+				</defs>
 				{clusterGeometry.map(({ cluster, cx, cy, haloRadius }) => (
 					<g key={cluster.id} onClick={() => onZoomToStream(cluster.id)} className="cursor-pointer">
 						<circle
@@ -128,17 +188,25 @@ export function ActivityMapView({
 					if (!from || !to) {
 						return null;
 					}
+					// Gentle curve (perpendicular bow) so parallel dependencies don't fuse into one line.
+					const midX = (from.x + to.x) / 2;
+					const midY = (from.y + to.y) / 2;
+					const dx = to.x - from.x;
+					const dy = to.y - from.y;
+					const norm = Math.hypot(dx, dy) || 1;
+					const bow = Math.min(22, norm * 0.14);
+					const controlX = midX - (dy / norm) * bow;
+					const controlY = midY + (dx / norm) * bow;
 					return (
-						<line
+						<path
 							key={`${edge.fromCardId}->${edge.toCardId}`}
-							x1={from.x}
-							y1={from.y}
-							x2={to.x}
-							y2={to.y}
+							d={`M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`}
+							fill="none"
 							stroke={edge.crossCluster ? "var(--color-accent-2)" : "var(--color-accent)"}
-							strokeOpacity={edge.crossCluster ? 0.16 : 0.18}
-							strokeWidth={1.25}
+							strokeOpacity={edge.crossCluster ? 0.4 : 0.45}
+							strokeWidth={1.5}
 							strokeDasharray={edge.crossCluster ? "5 5" : undefined}
+							markerEnd={edge.crossCluster ? "url(#activity-edge-arrow-cross)" : "url(#activity-edge-arrow)"}
 						/>
 					);
 				})}
@@ -203,7 +271,7 @@ export function ActivityMapView({
 								) : null}
 								<text
 									x={position.x}
-									y={position.y + bubble.radius + 13}
+									y={position.labelAbove ? position.y - bubble.radius - 6 : position.y + bubble.radius + 13}
 									textAnchor="middle"
 									className="fill-text-secondary text-[10px]"
 								>
