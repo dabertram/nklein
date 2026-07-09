@@ -1,5 +1,4 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
-import { LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
@@ -41,9 +40,9 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	endpointConcurrencyCap?: number | null;
 	/**
 	 * §5.AB per-LM-STUDIO-HOST cap (`resolveEffectiveHostConcurrency`): the max concurrent sessions this task's
-	 * `lms ps` host/machine admits across ALL its models. Host id is resolved from `machineByModelId`, falling back to
-	 * `local`. Explicit per-host settings can therefore let a large local host run 2+ requests while a smaller linked box
-	 * stays at 1.
+	 * `lms ps` host/machine admits across ALL its models. Host id is resolved from `hostId` or `machineByModelId`.
+	 * Local models still resolve to `local` because `lms ps` maps them that way; unresolved aliases are not assumed local.
+	 * Explicit per-host settings can therefore let a large local host run 2+ requests while a smaller linked box stays at 1.
 	 */
 	hostConcurrencyCap?: number | null;
 	/**
@@ -247,15 +246,15 @@ function evaluateEndpointPoolConcurrencyGate(
 	};
 }
 
-function resolveRequestHostId(request: NKleinEndpointSchedulingRequest): string {
-	return request.hostId?.trim() || request.machineByModelId?.get(request.modelId) || LOCAL_MACHINE_ID;
+function resolveRequestHostId(request: NKleinEndpointSchedulingRequest): string | null {
+	return request.hostId?.trim() || request.machineByModelId?.get(request.modelId)?.trim() || null;
 }
 
 function resolveSessionHostId(
 	session: NKleinEndpointSessionSnapshot,
 	machineByModelId: ReadonlyMap<string, string>,
-): string {
-	return session.hostId?.trim() || machineByModelId.get(session.modelId) || LOCAL_MACHINE_ID;
+): string | null {
+	return session.hostId?.trim() || machineByModelId.get(session.modelId)?.trim() || null;
 }
 
 /**
@@ -270,10 +269,13 @@ function evaluateMachinePoolConcurrencyGate(
 	if (cap === null || !request.machineByModelId) {
 		return null;
 	}
+	const targetMachineId = resolveRequestHostId(request);
+	if (!targetMachineId) {
+		return null;
+	}
 	const runningOnMachines = request.runningSessions.filter(
 		(session) => session.taskId !== request.taskId && session.state === "running",
 	);
-	const targetMachineId = resolveRequestHostId(request);
 	const runningOnTargetMachine = runningOnMachines.filter(
 		(session) => resolveSessionHostId(session, request.machineByModelId ?? new Map()) === targetMachineId,
 	);
@@ -302,6 +304,9 @@ function evaluateHostConcurrencyGate(
 		return null;
 	}
 	const targetHostId = resolveRequestHostId(request);
+	if (!targetHostId) {
+		return null;
+	}
 	const runningOnHost = request.runningSessions.filter(
 		(session) =>
 			session.taskId !== request.taskId &&

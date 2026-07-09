@@ -432,6 +432,13 @@ source repo went private — so if it vanishes the buildable source still lives 
   `sequential-thinking__sequentialthinking`, causing `Unknown tool` retries until the card abandoned. Recovery must first
   constrain to the tools offered on that exact turn, then repair only unambiguous alias pollution (punctuation collapse,
   repeated-call numeric suffix); unoffered narrated names are dropped. This is now shared by swarm `afterModel` and chat.
+- **Model-turn admission waits are live activity; unresolved LM Studio hosts are UNKNOWN, not local (2026-07-09).** A
+  re-drive/review turn can be `state:"running"` before its SDK model call is admitted through the host/model capacity gate.
+  While it waits, the service must emit `latestHookActivity.hookEventName:"model_turn_admission_wait"` on the admission
+  warning cadence so verifiers do not mistake a capacity queue for an idle model stall. Conversely, never apply host or
+  per-machine caps by falling back an unmapped model alias to `local`; `local` is valid only when `lms ps --json` mapped
+  that concrete runtime model id/key to the local host. If the model-to-host map cannot resolve the selected model, skip
+  host-specific caps and collect better `lms ps`/alias evidence instead of serializing unrelated machines.
 - **Acceptance checks run in fresh synthetic sandboxes (2026-07-09).** A task card may contain an `Acceptance check:` that
   was generated while the worker/reviewer lived under `/workspaces/<old-task>`, but the verifier runs it under
   `<taskId>::acceptance-<n>`. The gate may remap only a leading `cd /workspaces/<old-task> && ...` prefix into the fresh

@@ -82,7 +82,10 @@
   runtime aliases, publisher keys, indexed ids, paths, and canonical registry keys, and admitted turns carry their resolved
   host id so later admissions do not collapse linked-machine work onto `local` after an alias miss. Duplicate active turns
   for the same synthetic session, such as repeated `::review` starts, are serialized before they can queue a single-host
-  LM Studio model.
+  LM Studio model. Admission waits now emit a `model_turn_admission_wait` session activity on the normal warning cadence,
+  so live verifiers and the UI can distinguish a turn queued behind capacity from a quiet in-model stall. Unresolved
+  model-to-host aliases no longer fall back to `local` for host/per-machine caps; local is used only when `lms ps` actually
+  maps the selected model to the local host.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

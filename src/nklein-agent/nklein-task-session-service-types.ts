@@ -92,6 +92,7 @@ export interface NKleinModelTurnAdmissionRequest {
 	providerId: string;
 	modelId: string;
 	endpoint: string | null;
+	onWaiting?: (event: { reason: string; retryAfterMs: number | null }) => void | Promise<void>;
 }
 
 export type NKleinModelTurnAdmissionGate = <T>(

@@ -42,7 +42,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
-import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -553,15 +553,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const findExternalLmsHostBlock = (
 		request: NKleinModelTurnAdmissionRequest,
 		psModels: readonly LmsPsModel[],
-		hostId: string,
+		hostId: string | null,
 		runningSessions: readonly NKleinEndpointSessionSnapshot[],
 		machineByModelId: ReadonlyMap<string, string>,
 	): string | null => {
+		if (!hostId) {
+			return null;
+		}
 		const runningOnHost = runningSessions.some(
 			(session) =>
 				session.taskId !== request.taskId &&
 				!session.taskId.startsWith("external-lms:") &&
-				(session.hostId?.trim() || machineByModelId.get(session.modelId) || LOCAL_MACHINE_ID) === hostId,
+				(session.hostId?.trim() || machineByModelId.get(session.modelId)?.trim() || null) === hostId,
 		);
 		const hostModels = psModels.filter((model) => model.machineId === hostId);
 		const queued = hostModels.find((model) => model.queued > 0);
@@ -594,7 +597,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			providerIds: [request.providerId],
 			endpoints: [request.endpoint],
 		});
-		const hostId = machineByModelId.get(request.modelId) ?? LOCAL_MACHINE_ID;
+		const hostId = machineByModelId.get(request.modelId)?.trim() || null;
 		const registryModelKey = buildNKleinModelRegistryKey({
 			providerId: request.providerId,
 			modelId: request.modelId,
@@ -673,14 +676,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				return decision.reservation;
 			}
 			const nowMs = Date.now();
-			if (nowMs >= nextWarnAt) {
-				deps.warn(`Model turn for ${request.taskId} is waiting for capacity: ${decision.reason}`);
-				nextWarnAt = nowMs + MODEL_TURN_ADMISSION_WARN_MS;
-			}
 			const retryAfterMs =
 				typeof decision.retryAfterMs === "number" && Number.isFinite(decision.retryAfterMs)
 					? decision.retryAfterMs
 					: MODEL_TURN_ADMISSION_POLL_MS;
+			if (nowMs >= nextWarnAt) {
+				deps.warn(`Model turn for ${request.taskId} is waiting for capacity: ${decision.reason}`);
+				await Promise.resolve(request.onWaiting?.({ reason: decision.reason, retryAfterMs })).catch(
+					() => undefined,
+				);
+				nextWarnAt = nowMs + MODEL_TURN_ADMISSION_WARN_MS;
+			}
 			await sleep(Math.min(Math.max(MODEL_TURN_ADMISSION_POLL_MS, retryAfterMs), 30_000));
 		}
 	};

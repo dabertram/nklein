@@ -854,8 +854,35 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				providerId,
 				modelId,
 				endpoint: input.endpoint?.trim() || null,
+				onWaiting: ({ reason }) => {
+					this.recordModelTurnAdmissionWait(input.taskId, reason);
+				},
 			},
 			run,
+		);
+	}
+
+	private recordModelTurnAdmissionWait(taskId: string, reason: string): void {
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (entry?.summary.state !== "running") {
+			return;
+		}
+		const activityText = `Waiting for model capacity — ${reason}`;
+		this.emitSummary(
+			updateSummary(entry, {
+				lastHookAt: now(),
+				lastHeartbeatAt: now(),
+				heartbeatStatus: "healthy",
+				latestHookActivity: {
+					activityText,
+					toolName: null,
+					toolInputSummary: null,
+					finalMessage: null,
+					hookEventName: "model_turn_admission_wait",
+					notificationType: null,
+					source: "nklein",
+				},
+			}),
 		);
 	}
 

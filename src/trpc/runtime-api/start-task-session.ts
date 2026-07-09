@@ -8,7 +8,7 @@ import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
-import { createDefaultLmsRunner, fetchLmsPsModelsCached, LOCAL_MACHINE_ID } from "../../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
@@ -1067,7 +1067,7 @@ export async function handleStartTaskSession(
 		// §5.W: resolve the effective per-provider/per-model concurrency caps (project override ?? global default) and
 		// feed them to the scheduler gate. The per-model registry `maxConcurrentRequests` fallback stays inside the
 		// scheduler, so a null cap here leaves today's behavior unchanged.
-		const launchHostId = machineByModelIdRaw?.get(nkleinLaunchConfig.modelId ?? "") ?? LOCAL_MACHINE_ID;
+		const launchHostId = machineByModelIdRaw?.get(nkleinLaunchConfig.modelId ?? "")?.trim() || null;
 		const concurrencyCaps = resolveSessionConcurrencyCaps({
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: buildNKleinModelRegistryKey({
@@ -1077,7 +1077,7 @@ export async function handleStartTaskSession(
 			}),
 			// §5.AB per-machine pools: the endpoint/baseUrl is the machine pool key for the per-pool cap.
 			endpoint: nkleinLaunchConfig.baseUrl ?? null,
-			// §5.AB per-LM-Studio-host caps: the host id comes from `lms ps`; unmapped models conservatively resolve to local.
+			// §5.AB per-LM-Studio-host caps: the host id comes from `lms ps`; unmapped models skip host caps.
 			hostId: launchHostId,
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,

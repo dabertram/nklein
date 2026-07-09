@@ -1305,12 +1305,13 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await gateEntered.promise;
 
 		expect(gateRequests).toEqual([
-			{
+			expect.objectContaining({
 				taskId: "task-gated-redrive",
 				providerId: "lmstudio",
 				modelId: "qwen3-8b",
 				endpoint: "http://127.0.0.1:1234/v1",
-			},
+				onWaiting: expect.any(Function),
+			}),
 		]);
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 		expect(
@@ -1318,6 +1319,17 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				.listMessages("task-gated-redrive")
 				.some((message) => message.content === "Address the review feedback"),
 		).toBe(false);
+		await gateRequests[0]?.onWaiting?.({
+			reason:
+				'LM Studio host "m4mini" is at its 1 concurrent-session cap; another !Klein task on this host must finish first.',
+			retryAfterMs: null,
+		});
+		expect(service.getSummary("task-gated-redrive")?.latestHookActivity).toMatchObject({
+			activityText:
+				'Waiting for model capacity — LM Studio host "m4mini" is at its 1 concurrent-session cap; another !Klein task on this host must finish first.',
+			hookEventName: "model_turn_admission_wait",
+			source: "nklein",
+		});
 
 		gateRelease.resolve();
 		await vi.waitFor(() => {

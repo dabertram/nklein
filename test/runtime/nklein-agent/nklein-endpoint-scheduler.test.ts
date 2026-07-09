@@ -528,6 +528,36 @@ describe("nklein endpoint scheduler", () => {
 		).toEqual({ ok: true });
 	});
 
+	it("does not treat an unresolved task model as local for host caps", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "reviewer-alias-not-in-map",
+				endpoint: "http://localhost:1234/v1",
+				modelRegistry: createSnapshot(),
+				hostConcurrencyCap: 1,
+				machineByModelId,
+				runningSessions: [onLink("task-1", "qwopus")], // local is busy, but this task's host is unknown
+			}),
+		).toEqual({ ok: true });
+	});
+
+	it("does not treat an unresolved task model as local for per-machine caps", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "reviewer-alias-not-in-map",
+				endpoint: "http://localhost:1234/v1",
+				modelRegistry: createSnapshot(),
+				perMachineCap: 1,
+				machineByModelId,
+				runningSessions: [onLink("task-1", "qwopus")], // local is busy, but this task's host is unknown
+			}),
+		).toEqual({ ok: true });
+	});
+
 	it("uses resolved session host ids before falling back to the model map", () => {
 		expect(
 			scheduleNKleinEndpointStart({
