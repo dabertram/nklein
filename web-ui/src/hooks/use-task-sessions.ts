@@ -41,7 +41,8 @@ interface StartTaskSessionResult {
 		| "swarm_stopped"
 		| "concurrency_limit"
 		| "agent_sandbox_unavailable"
-		| "model_not_loaded";
+		| "model_not_loaded"
+		| "pinned_model_unavailable";
 	modelNotLoaded?: {
 		requestedModelId: string;
 		loadedModelIds: string[];

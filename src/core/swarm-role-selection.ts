@@ -2,14 +2,15 @@
  * W2.5 role auto-assignment (todo §5.0.5, decided 2026-07-02: auto is the DEFAULT) — the PIN-vs-AUTO layer for a
  * swarm role's model. Callers pass `pinned` ONLY for an explicit user pin (for role config, that means
  * `modelSelectionMode:"pinned"`). Unpinned role models remain auto-selection candidates/pool members, not hard pins.
- * A pin that is not loaded/feasible falls through to auto with the waiver surfaced (never a hard start failure —
- * contrast the deliberate task-start residency gate, which still hard-blocks launching an explicitly chosen unloaded
- * model; this core decides the assignment preference, callers own residency and feasibility of what they launch).
+ * A pin that is not loaded/feasible is reported as an unmatched pin in the rationale. This pure core still returns the
+ * auto pick so optional/legacy seams can decide locally, but runtime task starts must treat explicit user pins as
+ * fail-closed unless the caller intentionally implements a different opt-in fallback.
  *
  * Composition contract (the shipped W0.4/§5.AQ pattern, uniform across seams):
  *  1. **Pin first, absolutely.** A pin that matches a candidate (caller-tagged `isPinned` or identity match) WINS —
  *     the user chose it. Diversity is NOT applied over a pin, but a correlated pin is REPORTED (`diversityWaived`),
- *     never silently monocultural. A configured-but-unmatched pin is waived with a surfaced reason and auto runs.
+ *     never silently monocultural. A configured-but-unmatched pin is reported with a surfaced reason; callers decide
+ *     whether that is a hard block (runtime task starts) or an optional fallback seam.
  *  2. **Diversity second (DECISION roles only).** reviewer/critic/merge judge other models' work, so
  *     `applyDiversityPreference` re-ranks toward an uncorrelated lineage (margin-bounded HARD preference);
  *     generation roles (architect/worker) keep pure fit ranking (Self-MoA — forced diversity does not help

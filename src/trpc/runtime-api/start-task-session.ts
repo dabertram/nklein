@@ -131,6 +131,26 @@ export function applyCandidateEffectiveContextWindow<TLaunchConfig extends Resol
 /** Embedding ids aren't agentic fallbacks (mirror of the candidate builder's filter). */
 const FALLBACK_EMBEDDING_ID_PATTERN = /(?:^|[-/@])(?:text-)?embed/i;
 
+function describeRuntimeRolePin(
+	role: "architect" | "worker",
+	pin: { providerId?: string | null; modelId?: string | null },
+): string {
+	const provider = pin.providerId?.trim();
+	const model = pin.modelId?.trim();
+	const label = provider && model ? `${provider}/${model}` : model || provider || "(unspecified)";
+	return `${role} model ${label}`;
+}
+
+function createPinnedModelUnavailableStartError(
+	role: "architect" | "worker",
+	pin: { providerId?: string | null; modelId?: string | null },
+): string {
+	return (
+		`Pinned ${describeRuntimeRolePin(role, pin)} is not currently selectable. ` +
+		`Load that model, choose a different pinned ${role} model, or switch the ${role} assignment back to Auto.`
+	);
+}
+
 /**
  * §5.AB "use whatever's loaded": when the configured/DEFAULT model can't resolve (e.g. a stale default pointing to an
  * UNLOADED variant — live-found 2026-07-01), fall back to an already-LOADED model so the card still starts instead of
@@ -542,14 +562,14 @@ export async function handleStartTaskSession(
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
 		// W2.5 role auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role
-		// explicitly sets modelSelectionMode:"pinned" and the model is loaded, class-eligible, and feasible. Later
-		// optimization passes (free-first, pool, cache-warmth, speed/capability) may diagnose that another model would be
-		// better, but they must NOT silently replace the pinned role model. A configured-but-unavailable explicit pin
-		// still falls through to auto with the waiver surfaced on selectionReason (never a hidden fallback). Act-mode
-		// cards apply the worker role pin only when the card carries no explicit provider/model choice; a decompose-pinned
-		// nkleinSettings model outranks role config. Plan mode keeps the shipped architect-over-card-settings precedence.
-		// The task-start residency gate above is untouched: an explicitly chosen unloaded model still hard-fails with the
-		// clear "load it first" error (§5.AB no-load safety).
+		// explicitly sets modelSelectionMode:"pinned". A valid explicit pin wins when loaded, class-eligible, and feasible.
+		// Later optimization passes (free-first, pool, cache-warmth, speed/capability) may diagnose that another model would
+		// be better, but they must NOT silently replace the pinned role model. If an explicit role pin is absent/unrunnable
+		// or fails the class/feasibility gate, fail closed with an operator-visible error instead of falling through to
+		// auto-selection. Act-mode cards apply the worker role pin only when the card carries no explicit provider/model
+		// choice; a decompose-pinned nkleinSettings model outranks role config. Plan mode keeps the shipped
+		// architect-over-card-settings precedence. The task-start residency gate above is untouched: an explicitly chosen
+		// unloaded model still hard-fails with the clear "load it first" error (§5.AB no-load safety).
 		const cardRole = body.startInPlanMode ? ("architect" as const) : ("worker" as const);
 		const cardRoleSettings = scopedRuntimeConfig.effectiveModelRoles[cardRole];
 		const cardRoleHasConfiguredModel = Boolean(
@@ -587,6 +607,15 @@ export async function handleStartTaskSession(
 					candidate.entry.modelId === cardRolePin.modelId,
 			})),
 		});
+		if (cardRolePin && roleAssignment.source !== "pinned") {
+			return {
+				ok: false,
+				summary: null,
+				error: createPinnedModelUnavailableStartError(cardRole, cardRolePin),
+				errorCode: "pinned_model_unavailable",
+				selectionReason: roleAssignment.reasons.join(" "),
+			};
+		}
 		const modelClassFactsForCandidate = (
 			candidate: NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>,
 		): ModelClassFacts | undefined => {
@@ -624,6 +653,16 @@ export async function handleStartTaskSession(
 			freeFirstSelection.modelKey === rolePinnedModelKey
 				? rolePinnedModelKey
 				: null;
+		if (cardRolePin && rolePinnedModelKey && !honoredRolePinKey) {
+			const selectionReason = [...roleAssignment.reasons, freeFirstSelection.reason].filter(Boolean).join(" ");
+			return {
+				ok: false,
+				summary: null,
+				error: createPinnedModelUnavailableStartError(cardRole, cardRolePin),
+				errorCode: "pinned_model_unavailable",
+				selectionReason,
+			};
+		}
 		const classSelectedCandidate =
 			freeFirstSelection.type === "assign" ? (guardCandidates.get(freeFirstSelection.modelKey) ?? null) : null;
 		const preferredCandidate = classSelectedCandidate ?? selectedCandidate;

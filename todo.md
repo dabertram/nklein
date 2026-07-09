@@ -5776,8 +5776,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         auto skill/difficulty/complexity model-selection is the default; role models are only hard pins when the role
         explicitly has `modelSelectionMode:"pinned"`. A valid explicit pin is honored, and if another model looks better
         !Klein surfaces a `Pinned-model recommendation` instead of overriding the user. `/api/v0/models` descriptor
-        fallback remains as separate robustness for loaded-model auto-discovery. **STILL OWED:** rerun the live verifier
-        with an explicit pinned 14B worker and require actual 14B worker observation, all cards terminating, and clean teardown.
+        fallback remains as separate robustness for loaded-model auto-discovery.
+        **PINNED-WORKER LIVE RERUN (2026-07-09):** with `modelSelectionMode:"pinned"` on architect/worker/reviewer, the
+        first worker card DID start on the m4mini `qwen/qwen2.5-coder-14b`; the runtime also surfaced the expected
+        `Pinned-model recommendation` that qwen3 looked better due cache-warmth while honoring the 14B pin. The 14B then
+        produced real tool activity (`read_files`, `edit_file`) but crashed/unloaded after repeated tool failures/no
+        captured changes. Because the explicit pin was no longer loaded, the old start path fell through to auto and
+        started later worker cards on qwen3. Root-cause fix: explicit pinned role models now fail closed with
+        `pinned_model_unavailable` when absent/unrunnable or class-ineligible, instead of silently auto-routing. **STILL
+        OWED:** reload/recover the 14B and rerun the live verifier; require no silent fallback after a pinned-model crash,
+        actual 14B worker observation, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple

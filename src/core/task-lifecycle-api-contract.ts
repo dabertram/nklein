@@ -117,6 +117,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 			"agent_sandbox_unavailable",
 			"concurrency_limit",
 			"model_not_loaded",
+			"pinned_model_unavailable",
 		])
 		.optional(),
 	modelNotLoaded: z

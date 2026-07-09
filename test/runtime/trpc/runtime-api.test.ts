@@ -1720,6 +1720,73 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.selectionReason).not.toContain("Pinned-model recommendation");
 	});
 
+	it("blocks an unavailable explicit worker pin instead of launching an auto candidate", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen3-8b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:qwen/qwen3-8b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen3-8b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen3-8b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 95,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: { providerId: "anthropic", modelId: "qwen/qwen3-8b" },
+					worker: {
+						providerId: "unconfigured-provider",
+						modelId: "qwen/qwen2.5-coder-14b",
+						modelSelectionMode: "pinned",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+			},
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("pinned_model_unavailable");
+		expect(response.error).toContain("Pinned worker model unconfigured-provider/qwen/qwen2.5-coder-14b");
+		expect(response.error).toContain("switch the worker assignment back to Auto");
+		expect(response.selectionReason).toContain("Pinned worker model unconfigured-provider/qwen/qwen2.5-coder-14b");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
 	it("does not let cache-warmth displace an available configured worker pin", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
@@ -1897,10 +1964,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("waives an unresolvable architect role pin to auto-selection with the reason surfaced (W2.5 pin-miss)", async () => {
-		// The configured architect points at a provider that has NO settings, so its role candidate can never
-		// resolve — previously the fallback to the default model was SILENT; W2.5 makes it a surfaced pin waiver
-		// on selectionReason while the start still succeeds on the auto-selected default (never a hard failure).
+	it("blocks an unresolvable explicit architect role pin instead of auto-selecting another model", async () => {
+		// The configured architect points at a provider that has NO settings, so its role candidate can never resolve.
+		// An explicit pin is a user choice: surface the problem and do not launch the auto-selected default instead.
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1956,15 +2022,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		);
 
-		expect(response.ok).toBe(true);
-		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				providerId: "anthropic",
-				modelId: "small-model",
-			}),
-		);
+		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("pinned_model_unavailable");
+		expect(response.error).toContain("Pinned architect model unconfigured-provider/claude-opus");
+		expect(response.error).toContain("switch the architect assignment back to Auto");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(response.selectionReason).toContain("Pinned architect model unconfigured-provider/claude-opus");
-		expect(response.selectionReason).toContain("pin waived");
+		expect(response.selectionReason).toContain("not loaded/runnable");
 	});
 
 	it("uses the configured architect role model for plan-mode starts with stale task model settings", async () => {
