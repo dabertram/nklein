@@ -1003,9 +1003,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (2026-07-09):** the live Docker integration suite now asserts that two simultaneous tasks on the lean shared
       profile run in the same container but different UIDs, that each task workspace is mode `700`, and that a sibling
       task cannot read or write another task's workspace; the same run confirmed teardown left no labeled agent sandbox
-      containers behind. **Remaining before `[x]`:** live container-count/resource comparison across profiles and the
-      root-cause fix for the 2026-07-09 capture/lifecycle evidence where sandbox delivery claimed captured files that did
-      not land in the host dev workspace.
+      containers behind. ◐ **PROFILE COUNT/RESOURCE SNAPSHOT DONE (2026-07-09):** integration coverage now proves two
+      simultaneous tasks use one lean shared container versus two strict per-agent containers; a live `docker stats
+      --no-stream` probe on the same two-task shape measured lean = 1 container at ~856 KiB idle / 0.00% CPU, strict = 2
+      containers at ~736 KiB + ~864 KiB idle / 0.00% CPU. **Remaining before `[x]`:** root-cause and fix the 2026-07-09
+      capture/lifecycle evidence where sandbox delivery claimed captured files that did not land in the host dev
+      workspace.
 - [x] **Created-workspace location guard (2026-06-25, user-directed safety fix after a real pollution incident).** A
       dev-test scaffold (`scaffoldNKleinDevTestProject`) whose `parentDir` resolved inside the repo seeded ~23 fixture
       commits onto the working branch + flipped `core.bare=true` (broke all work-tree git ops). Fix:

@@ -45,7 +45,8 @@
   to `custom` so user-tuned limits are not silently overwritten.
 - **The lean shared sandbox profile now has live containment coverage** (todo §5.A). The Docker integration suite proves
   that two simultaneous tasks share one container while running as different UIDs, that task workspaces are mode `700`,
-  and that a sibling task cannot read or write another task's workspace.
+  and that a sibling task cannot read or write another task's workspace. It also now proves the profile-count delta:
+  two concurrent tasks use one lean container versus two strict per-agent containers.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

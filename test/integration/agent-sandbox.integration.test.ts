@@ -154,6 +154,15 @@ function sandboxVolumeExists(): boolean {
 	);
 }
 
+function sandboxContainerNamesForSlots(namespace: string, maxSlot: number): string[] {
+	const existingNames = new Set(
+		dockerOutputLines(["ps", "-a", "--format", "{{.Names}}", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`]),
+	);
+	return Array.from({ length: maxSlot }, (_, index) => createAgentSandboxContainerName(index + 1, namespace)).filter(
+		(name) => existingNames.has(name),
+	);
+}
+
 async function withTemporaryHome<T>(run: (homePath: string) => Promise<T>): Promise<T> {
 	const { path: tempHome, cleanup } = createTempDir("kanban-home-agent-sandbox-");
 	const previousHome = process.env.HOME;
@@ -372,6 +381,56 @@ if (dockerGate.ready) {
 				await manager.disposeWorkspace(taskC);
 			} finally {
 				await manager.stopNow();
+				cleanup();
+			}
+		}, 60_000);
+
+		it("uses one lean shared container and two strict per-agent containers for two concurrent tasks", async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-agent-sandbox-profile-count-");
+			const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+			const leanNamespace = `lean-${suffix}`;
+			const strictNamespace = `strict-${suffix}`;
+			const leanManager = new AgentSandboxManager({
+				image: dockerGate.image,
+				poolConfig: {
+					maxContainers: 1,
+					agentsPerContainer: 0,
+					idleTimeoutMs: 0,
+					namespace: leanNamespace,
+				},
+			});
+			const strictManager = new AgentSandboxManager({
+				image: dockerGate.image,
+				poolConfig: {
+					maxContainers: 4,
+					agentsPerContainer: 1,
+					idleTimeoutMs: 0,
+					namespace: strictNamespace,
+				},
+			});
+			try {
+				const repoPath = createCommittedRepo(sandboxRoot);
+				const leanTaskA = `profile-lean-a-${suffix}`;
+				const leanTaskB = `profile-lean-b-${suffix}`;
+				const strictTaskA = `profile-strict-a-${suffix}`;
+				const strictTaskB = `profile-strict-b-${suffix}`;
+
+				await leanManager.prepareWorkspace({ taskId: leanTaskA, projectRepoPath: repoPath, baseRef: "HEAD" });
+				await leanManager.prepareWorkspace({ taskId: leanTaskB, projectRepoPath: repoPath, baseRef: "HEAD" });
+				const leanHostnameA = await leanManager.exec(leanTaskA, ["hostname"]);
+				const leanHostnameB = await leanManager.exec(leanTaskB, ["hostname"]);
+				expect(leanHostnameA.stdout.trim()).toBe(leanHostnameB.stdout.trim());
+				expect(sandboxContainerNamesForSlots(leanNamespace, 4)).toHaveLength(1);
+
+				await strictManager.prepareWorkspace({ taskId: strictTaskA, projectRepoPath: repoPath, baseRef: "HEAD" });
+				await strictManager.prepareWorkspace({ taskId: strictTaskB, projectRepoPath: repoPath, baseRef: "HEAD" });
+				const strictHostnameA = await strictManager.exec(strictTaskA, ["hostname"]);
+				const strictHostnameB = await strictManager.exec(strictTaskB, ["hostname"]);
+				expect(strictHostnameA.stdout.trim()).not.toBe(strictHostnameB.stdout.trim());
+				expect(sandboxContainerNamesForSlots(strictNamespace, 4)).toHaveLength(2);
+			} finally {
+				await leanManager.stopNow();
+				await strictManager.stopNow();
 				cleanup();
 			}
 		}, 60_000);
