@@ -190,14 +190,16 @@ describe("normalizeModelRoles", () => {
 		expect(out.invalid).toBeUndefined(); // schema-invalid role entry skipped entirely
 	});
 
-	it("keeps explicit pinned model selection only when a primary model is configured", () => {
+	it("keeps explicit pinned model selection only when a concrete primary model id is configured", () => {
 		const out = normalizeModelRoles({
 			pinned: { providerId: "p", modelId: "m", modelSelectionMode: "pinned" },
 			auto: { providerId: "p", modelId: "m", modelSelectionMode: "auto" },
+			providerOnlyPin: { providerId: "p", modelSelectionMode: "pinned" },
 			emptyPin: { modelSelectionMode: "pinned" },
 		});
 		expect(out.pinned).toEqual({ providerId: "p", modelId: "m", modelSelectionMode: "pinned" });
 		expect(out.auto).toEqual({ providerId: "p", modelId: "m" });
+		expect(out.providerOnlyPin).toEqual({ providerId: "p" });
 		expect(out.emptyPin).toBeUndefined();
 	});
 

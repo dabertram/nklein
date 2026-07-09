@@ -204,7 +204,7 @@ export function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 			...(settings.speedVsCapability && settings.speedVsCapability !== "capability"
 				? { speedVsCapability: settings.speedVsCapability }
 				: {}),
-			...(settings.modelSelectionMode === "pinned" && (primarySettings.providerId || primarySettings.modelId)
+			...(settings.modelSelectionMode === "pinned" && primarySettings.modelId
 				? { modelSelectionMode: "pinned" as const }
 				: {}),
 		};

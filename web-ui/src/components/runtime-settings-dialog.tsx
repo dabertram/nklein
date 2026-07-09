@@ -2831,7 +2831,7 @@ export function RuntimeSettingsDialog({
 											</option>
 											<option value="static_skills_auto_model">Static skills, auto model</option>
 											<option value="assigned_skills">Assigned skills</option>
-											<option value="fully_static">Fully static (skills + model pinned)</option>
+											<option value="fully_static">Fully static skills, model assignment unchanged</option>
 										</NativeSelect>
 									</div>
 								</div>
@@ -3300,7 +3300,7 @@ export function RuntimeSettingsDialog({
 											</option>
 											<option value="static_skills_auto_model">Static skills, auto model</option>
 											<option value="assigned_skills">Assigned skills</option>
-											<option value="fully_static">Fully static (skills + model pinned)</option>
+											<option value="fully_static">Fully static skills, model assignment unchanged</option>
 										</NativeSelect>
 									</OverrideRow>
 									<OverrideRow

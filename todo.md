@@ -5777,9 +5777,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         auto-discovery metadata. The pinning bug was the live composition: a configured role model was treated as an
         optional preference, then later cache-warmth/speed/pool optimization could replace it silently. Contract now:
         auto skill/difficulty/complexity model-selection is the default; role models are only hard pins when the role
-        explicitly has `modelSelectionMode:"pinned"`. A valid explicit pin is honored, and if another model looks better
-        !Klein surfaces a `Pinned-model recommendation` instead of overriding the user. `/api/v0/models` descriptor
-        fallback remains as separate robustness for loaded-model auto-discovery.
+        explicitly has `modelSelectionMode:"pinned"` on a concrete primary model id. Provider-only role settings are not
+        model pins; they remain auto-selected candidates after normalization. A user may pin one role (e.g. Architect) while
+        leaving other configured roles (e.g. Worker/Reviewer) on auto-selection. A valid explicit pin is honored, and if
+        another model looks better !Klein surfaces a `Pinned-model recommendation` instead of overriding the user.
+        `/api/v0/models` descriptor fallback remains as separate robustness for loaded-model auto-discovery.
         **PINNED-WORKER LIVE RERUN (2026-07-09):** with `modelSelectionMode:"pinned"` on architect/worker/reviewer, the
         first worker card DID start on the m4mini `qwen/qwen2.5-coder-14b`; the runtime also surfaced the expected
         `Pinned-model recommendation` that qwen3 looked better due cache-warmth while honoring the 14B pin. The 14B then

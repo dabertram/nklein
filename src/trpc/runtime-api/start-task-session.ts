@@ -562,7 +562,8 @@ export async function handleStartTaskSession(
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
 		// W2.5 role auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role
-		// explicitly sets modelSelectionMode:"pinned". A valid explicit pin wins when loaded, class-eligible, and feasible.
+		// explicitly sets modelSelectionMode:"pinned" on a concrete primary model id. A valid explicit pin wins when loaded,
+		// class-eligible, and feasible.
 		// Later optimization passes (free-first, pool, cache-warmth, speed/capability) may diagnose that another model would
 		// be better, but they must NOT silently replace the pinned role model. If an explicit role pin is absent/unrunnable
 		// or fails the class/feasibility gate, fail closed with an operator-visible error instead of falling through to

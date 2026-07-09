@@ -33,7 +33,7 @@ function normalizeModelRoleSettings(settings: RuntimeModelRoles[string] | undefi
 	return {
 		...primarySettings,
 		...(additionalModels.length > 0 ? { additionalModels } : {}),
-		...(settings?.modelSelectionMode === "pinned" && (primarySettings.providerId || primarySettings.modelId)
+		...(settings?.modelSelectionMode === "pinned" && primarySettings.modelId
 			? { modelSelectionMode: "pinned" as const }
 			: {}),
 		...(settings?.modelClassCap ? { modelClassCap: settings.modelClassCap } : {}),

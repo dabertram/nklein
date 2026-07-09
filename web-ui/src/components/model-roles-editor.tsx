@@ -53,8 +53,8 @@ const MODEL_CLASS_CAP_LABELS: Record<RuntimeModelClassCap | "inherit", string> =
 };
 const MODEL_SELECTION_MODE_OPTIONS: RuntimeModelSelectionMode[] = ["auto", "pinned"];
 const MODEL_SELECTION_MODE_LABELS: Record<RuntimeModelSelectionMode, string> = {
-	auto: "Auto",
-	pinned: "Pinned",
+	auto: "Auto-select",
+	pinned: "Pin model",
 };
 
 interface ModelRolesEditorProps {

@@ -1541,7 +1541,7 @@ describe("RuntimeSettingsDialog", () => {
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("saves explicit pinned model role assignment mode", async () => {
+	it("saves one explicit pinned model role while leaving another configured role on auto", async () => {
 		fetchNKleinProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "lmstudio") {
 				return [
@@ -1568,21 +1568,25 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		let saveButton = findButtonByText(document.body, "Save");
-		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
-		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
-		const architectProviderSelect = selects[0];
-		const architectModelSelect = selects[1];
-		const architectAssignmentSelect = selects[2];
-		if (
-			!(architectProviderSelect instanceof HTMLSelectElement) ||
-			!(architectModelSelect instanceof HTMLSelectElement) ||
-			!(architectAssignmentSelect instanceof HTMLSelectElement)
-		) {
-			throw new Error("Expected architect model role controls to render.");
-		}
+		const selectById = (id: string): HTMLSelectElement => {
+			const element = document.getElementById(id);
+			if (!(element instanceof HTMLSelectElement)) {
+				throw new Error(`Expected ${id} select to render.`);
+			}
+			return element;
+		};
+		const architectProviderSelect = selectById("runtime-settings-model-role-architect-provider");
+		const architectModelSelect = selectById("runtime-settings-model-role-architect-model");
+		const architectAssignmentSelect = selectById("runtime-settings-model-role-architect-assignment");
+		const workerProviderSelect = selectById("runtime-settings-model-role-worker-provider");
+		const workerModelSelect = selectById("runtime-settings-model-role-worker-model");
+		const workerAssignmentSelect = selectById("runtime-settings-model-role-worker-assignment");
+		expect(architectAssignmentSelect.value).toBe("auto");
+		expect(workerAssignmentSelect.value).toBe("auto");
 
 		await act(async () => {
 			setSelectValue(architectProviderSelect, "lmstudio");
+			setSelectValue(workerProviderSelect, "lmstudio");
 		});
 		await waitForCondition(() =>
 			fetchNKleinProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
@@ -1592,6 +1596,7 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setSelectValue(architectModelSelect, "loaded-qwen");
 			setSelectValue(architectAssignmentSelect, "pinned");
+			setSelectValue(workerModelSelect, "loaded-qwen");
 		});
 
 		saveButton = findButtonByText(document.body, "Save");
@@ -1606,6 +1611,10 @@ describe("RuntimeSettingsDialog", () => {
 						providerId: "lmstudio",
 						modelId: "loaded-qwen",
 						modelSelectionMode: "pinned",
+					},
+					worker: {
+						providerId: "lmstudio",
+						modelId: "loaded-qwen",
 					},
 				},
 			}),
