@@ -10933,6 +10933,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (test fixtures) show up as real rows in the fleet strip ("unknown ×3") and in the registry API. The registry
       store should never persist dev-test/fixture model entries — scrub on write or filter fixture ids from
       runtime.getNKleinModelRegistry. (UI now condenses them under the idle summary, but the DATA is wrong.)
+- [ ] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
+      endlessly on whether the task's test command for `*.js` is correct when the repo needs `*.ts` — a "solution
+      outside allowed space" loop: the model keeps re-raising the same boundary question instead of progressing, because
+      every path it wants is outside what the task/gates allow. Required: (1) DETECT the loop (same question/proposal/
+      tool-call recurring across turns — fingerprint recent turns; also covers oscillation between two proposals);
+      (2) NAME the actual conflict (extract the contested boundary, e.g. "acceptance command targets *.js but sources
+      are *.ts"); (3) ESCALATE + trigger a solution mechanism instead of helplessly looping: try auto-resolution from
+      spec/acceptance context (often the answer is derivable — here: the spec's acceptance command is authoritative),
+      else park the card with a needs-you that states the SPECIFIC question (not "stuck"), else route the question to a
+      stronger/different-family model (§5.AG escalation) with the boundary as the prompt. Ties into §5.AG hard-stuck +
+      the review ladder; the LLM simulator (§13) must include this exact scenario as a canned track so the mechanism is
+      testable without live models.
 - [ ] **Fleet under-utilization while cards wait:** deep-chain board had 12 cards WAITING with `qwen/qwen3-coder-next`
       (44GB local) IDLE the whole time — only devstral drove work (Running 1, Cap 3). Investigate worker-role
       candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
@@ -10953,6 +10965,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       RNG; !Klein points at it via its normal provider config (no code-path forks in production code); a scenario DSL maps
       request classification (decompose / worker edit / review / chat) → response generators; e2e specs launch runtime +
       simulator + drive the real UI. This becomes a first-class test layer (`test:simulated-flows`).
+      **ADDITIONS (David 2026-07-10):** (a) FAILURE-MODE COMPLETENESS — the simulator must cover ALL failure modes:
+      LLM response looping (token/phrase/whole-response + agent-level re-ask loops), timeouts (connect/read/idle),
+      stalling (slow TTFT, mid-stream stalls, zero-progress responses), crashing (server death mid-request/mid-stream),
+      too-short responses, truncated responses (mid-JSON/mid-fence, finish_reason=length), plus the full catalog from
+      the deep research (docs/dev/llm-simulator/ — research in flight). (b) PRODUCT SEPARATION — the simulator may become
+      a standalone product for agentic-tool development: build it SEPARATED from day one (own package, e.g.
+      `packages/llm-simulator/`, zero !Klein imports, !Klein consumes it only via its OpenAI-compatible HTTP surface +
+      a thin scenario-config API). (c) BUILD-VS-BUY GATE — before implementing, complete the existing-solutions research
+      (Microsoft Dev Proxy LLM mocks, WireMock, LiteLLM mock_response, openai-mock packages, MSW/Polly record-replay,
+      etc.): if a battle-proven simulator covers all needs, USE it; if needs are only partially covered, prefer a hybrid
+      (reuse transport, build our scenario/profile layer); implement fully ourselves ONLY if the gap analysis says so.
+      Decision + evidence goes to docs/dev/llm-simulator/build-vs-buy.md before code.
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
