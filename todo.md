@@ -4385,7 +4385,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           the embedding discover/save tests anchor on the `Code intelligence embeddings` h6 and stay green) + build green.
     - [x] relabel "Git Prompts" → "Git" **(2026-07-01)** — `runtime-settings-dialog.tsx`: tab label + section header now
           "Git" (the stable `git-prompts` id / `data-settings-section` anchor kept, so navigation is unaffected). web-ui tsc clean.
-    - [ ] Workspace/Project settings polish ⏸ NEEDS-DAVID-UX-CALL *(2026-07-08: the Project section is already
+    - [?] Workspace/Project settings polish ⏸ NEEDS-DAVID-UX-CALL *(2026-07-08: the Project section is already
           substantive — config-path link (click-to-open), §5.BA per-project guided-setup re-trigger, and the
           per-project OverrideRow cluster (max concurrent tasks / agent / model roles). "Polish" here has no concrete
           spec (the 2026-07-01 note: "needs a specific UX call, not a mechanical move"). Candidate calls when David
@@ -4942,7 +4942,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (`nklein-session-runtime` afterModel — shared with the constrained rung's owed re-invoke seam); recording the rung +
       winning family on the §5.AF ledger; and learning each model's responsive family into the `ModelBehaviorProfile` so a
       known-responsive phrasing is tried first.
-  - [ ] Wire prompt-variation rung into SWARM/SDK path seam (afterModel hook) *(gated-on-vendored-wrapModel — §4A
+  - [>] Wire prompt-variation rung into SWARM/SDK path seam (afterModel hook) *(gated-on-vendored-wrapModel — §4A
         2026-07-06 scope finding: TURN-level re-invoke needs the multi-package `wrapModel` engine change; the
         increment-1 recovery-ladder wrapper is built + ready)*
   - [x] Record rung outcome + winning family per attempt *(✅ 2026-07-08, 65a9d1e8 — the chat adapter fires
@@ -4952,8 +4952,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] Add model's responsive family to `ModelBehaviorProfile` for persistence *(✅ 2026-07-08, 65a9d1e8 —
         `promptVariantFamilyCounts` on the profile (legacy-tolerant fold) + `preferredPromptVariantFamily`; the
         adapter tries the learned family FIRST (saves the ladder walk); store schema extended. 5 new tests.)*
-  - [ ] Test via phi/reasoning models (canonical ruminator cases) ⏱ FLEET-RUN *(phi models not currently loaded;
-        needs a model-roster session)*
+  - [-] Test via phi/reasoning models (canonical ruminator cases) ⏱ FLEET-RUN *(deferred with model sweeps per the
+        2026-07-09 user steer; phi models not currently loaded, needs a model-roster session)*
   - [~] Re-verify across 9-model roster with chat path (ensure no regression) **RAN (2026-07-08, 8-model chat-agent-e2e
         fleet sweep, real 4-tool chain via `nklein chat`+Docker):** phi-4-mini-instruct + qwen3-8b PASS (full chain);
         r1-8b/mistral-small/coder-14b PARTIAL (chain+persist, weak synth); phi-reasoning models FAIL (don't drive the chain).
@@ -5163,7 +5163,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           *(✅ 2026-07-08 — the adapter stamps each response with the rung that produced it (`constrained_schema` /
           `native_tool_choice_required` / `prompt_variant:<family>`); the loop collects per turn; chat + autonomous
           ledger attempts now carry `promptStrategy`, so the §5.AF projections see WHICH lever rescued a turn.)*
-    - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
+    - [-] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing
+          models. *(deferred with model sweeps per the 2026-07-09 user steer)*
     - [x] **(challenge: C1, 2026-06-29) ROOT-CAUSED + FIXED the decompose stall-nudger detection gap.** Methodically,
           without over-claiming: (1) the first scouts ran WITHOUT `startInPlanMode` so the nudger wasn't even armed
           (harness artifact — added env-gated `NKLEIN_VERIFY_PLAN_MODE` to fix the harness); (2) a plan-mode re-run
@@ -5275,8 +5276,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         byte-identical on an empty ledger. The remaining piece — swapping the hand-ordered in-turn chat ladder to the
         engine's rung ORDER — is ⏱ FLEET-GATED on the 9-model re-verify (the proven phi-4/coder flips ride the current
         order).)*
-  - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress) ⏱ FLEET-RUN
-  - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt) *(gated-on-vendored-wrapModel —
+  - [-] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress) ⏱ FLEET-RUN
+        *(deferred with model sweeps per the 2026-07-09 user steer)*
+  - [>] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt) *(gated-on-vendored-wrapModel —
         same §4A multi-package engine change as the recovery ladder; beforeModel alone cannot re-invoke a terminal turn)*
   - [x] Record each rung outcome on §5.AF ledger (enables learning) *(✅ 2026-07-08 — chat/autonomous attempt events
         now carry `promptStrategy` (the fired rung: reduced-set recoveries land as the winning call; variant/constrained/
@@ -5480,7 +5482,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         small-model contract: models may report status, but the controller owns global transitions.)*
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
-- [ ] **Measure and configure LM Studio concurrency per host and per model.** *(Raised 2026-07-09, user: the M5 Max may
+- [~] **Measure and configure LM Studio concurrency per host and per model.** *(Raised 2026-07-09, user: the M5 Max may
       be able to sustain concurrent local LLM requests; do not assume either overload or incapability.)* Build a
       measurement-backed serving-capacity layer instead of hardcoded caution. The runtime/verifier should record live
       host/model concurrency, queueing, prompt-processing/generation overlap, latency, failures, and memory headroom for
@@ -5496,7 +5498,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       architect run was very slow but genuinely active: LM Studio status alternated `PROCESSINGPROMPT`/`GENERATING`, then
       model-performance recorded `awaiting_review` after ~42 minutes, ~10.9k output tokens, and a low nominal context
       pressure (~0.33). Stall detection, verifier logs, and capacity recommendations must combine LM status with run
-      artifacts instead of assuming either "still generating" or "stalled" from wall time alone.
+      artifacts instead of assuming either "still generating" or "stalled" from wall time alone. **FIRST INCREMENT
+      SHIPPED (2026-07-09):** runtime concurrency config now has sparse `perHost` caps keyed by `lms ps --json` machine id
+      (`local` or a linked device id), with project overrides composing over global defaults. The scheduler resolves the
+      selected model's host from the live `lms ps` map and gates against the effective host cap; the old
+      `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env remains a lowest-precedence fallback. Settings exposes provider, model, LM
+      Studio host, and endpoint-pool caps, and `nklein dev capacity` is a read-only no-write probe that reports loaded
+      hosts/models, queue/status, LM Studio's `parallel` value, configured caps, and conservative recommendations. Live
+      probe on 2026-07-09 saw `local` with Devstral + Qwen3.6 and two linked hosts (`040891f3…` Gemma 12B,
+      `2d30f4…` Qwen3.5 9B), all idle, all reporting `parallel:1`, so the recommendation stayed cap 1 unless the user
+      explicitly raises a host cap. **Remaining before `[x]`:** persist richer observed overlap/latency/headroom samples,
+      prove a live fleet run obeys explicit host caps, and surface measured cap recommendations in the operator UI beyond
+      the dev command.
 > **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**
 > NO manual role→model assignment (the user's `modelRoles` config was early-testing, now deprecated — "forget my
 > config"). Each card AUTO-gets the best-fit **model + dynamic skill set**, decided by !Klein from (1) runtime empirical

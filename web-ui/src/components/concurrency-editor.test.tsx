@@ -30,6 +30,7 @@ describe("ConcurrencyEditor", () => {
 				<ConcurrencyEditor
 					perProvider={{ lmstudio: 2 }}
 					perModel={{ "lmstudio:m:e": 1 }}
+					perHost={{ local: 2 }}
 					perEndpoint={{}}
 					onChange={() => {}}
 				/>,
@@ -37,6 +38,7 @@ describe("ConcurrencyEditor", () => {
 		);
 		expect(container.textContent).toContain("lmstudio");
 		expect(container.textContent).toContain("lmstudio:m:e");
+		expect(container.textContent).toContain("local");
 		expect(container.querySelector<HTMLInputElement>('[aria-label="lmstudio concurrency cap"]')?.value).toBe("2");
 	});
 
@@ -44,30 +46,51 @@ describe("ConcurrencyEditor", () => {
 		const onChange = vi.fn();
 		act(() =>
 			root.render(
-				<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} perEndpoint={{}} onChange={onChange} />,
+				<ConcurrencyEditor
+					perProvider={{ lmstudio: 2 }}
+					perModel={{}}
+					perHost={{}}
+					perEndpoint={{}}
+					onChange={onChange}
+				/>,
 			),
 		);
 		act(() => container.querySelector<HTMLButtonElement>('[aria-label="Remove lmstudio cap"]')?.click());
-		expect(onChange).toHaveBeenCalledWith({ perProvider: {}, perModel: {}, perEndpoint: {} });
+		expect(onChange).toHaveBeenCalledWith({ perProvider: {}, perModel: {}, perHost: {}, perEndpoint: {} });
 	});
 
 	it("edits a provider cap", () => {
 		const onChange = vi.fn();
 		act(() =>
 			root.render(
-				<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} perEndpoint={{}} onChange={onChange} />,
+				<ConcurrencyEditor
+					perProvider={{ lmstudio: 2 }}
+					perModel={{}}
+					perHost={{}}
+					perEndpoint={{}}
+					onChange={onChange}
+				/>,
 			),
 		);
 		const input = container.querySelector<HTMLInputElement>('[aria-label="lmstudio concurrency cap"]');
 		if (input) {
 			act(() => setInputValue(input, "5"));
 		}
-		expect(onChange).toHaveBeenCalledWith({ perProvider: { lmstudio: 5 }, perModel: {}, perEndpoint: {} });
+		expect(onChange).toHaveBeenCalledWith({
+			perProvider: { lmstudio: 5 },
+			perModel: {},
+			perHost: {},
+			perEndpoint: {},
+		});
 	});
 
 	it("adds a new provider cap from the add-row", () => {
 		const onChange = vi.fn();
-		act(() => root.render(<ConcurrencyEditor perProvider={{}} perModel={{}} perEndpoint={{}} onChange={onChange} />));
+		act(() =>
+			root.render(
+				<ConcurrencyEditor perProvider={{}} perModel={{}} perHost={{}} perEndpoint={{}} onChange={onChange} />,
+			),
+		);
 		const keyInput = container.querySelector<HTMLInputElement>('[aria-label="New provider key"]');
 		const capInput = container.querySelector<HTMLInputElement>('[aria-label="New provider cap"]');
 		if (keyInput && capInput) {
@@ -75,7 +98,33 @@ describe("ConcurrencyEditor", () => {
 			act(() => setInputValue(capInput, "4"));
 			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add provider cap"]')?.click());
 		}
-		expect(onChange).toHaveBeenCalledWith({ perProvider: { ollama: 4 }, perModel: {}, perEndpoint: {} });
+		expect(onChange).toHaveBeenCalledWith({ perProvider: { ollama: 4 }, perModel: {}, perHost: {}, perEndpoint: {} });
+	});
+
+	it("renders the per-host section and edits a host cap (§5.AB)", () => {
+		const onChange = vi.fn();
+		act(() =>
+			root.render(
+				<ConcurrencyEditor
+					perProvider={{}}
+					perModel={{}}
+					perHost={{ local: 2 }}
+					perEndpoint={{}}
+					onChange={onChange}
+				/>,
+			),
+		);
+		expect(container.textContent).toContain("Per LM Studio host");
+		const input = container.querySelector<HTMLInputElement>('[aria-label="local concurrency cap"]');
+		if (input) {
+			act(() => setInputValue(input, "3"));
+		}
+		expect(onChange).toHaveBeenCalledWith({
+			perProvider: {},
+			perModel: {},
+			perHost: { local: 3 },
+			perEndpoint: {},
+		});
 	});
 
 	it("renders the per-machine (pool) section and edits an endpoint cap (§5.AB)", () => {
@@ -85,12 +134,13 @@ describe("ConcurrencyEditor", () => {
 				<ConcurrencyEditor
 					perProvider={{}}
 					perModel={{}}
+					perHost={{}}
 					perEndpoint={{ "http://localhost:1234/v1": 2 }}
 					onChange={onChange}
 				/>,
 			),
 		);
-		expect(container.textContent).toContain("Per machine (pool)");
+		expect(container.textContent).toContain("Per endpoint pool");
 		expect(container.textContent).toContain("http://localhost:1234/v1");
 		const input = container.querySelector<HTMLInputElement>(
 			'[aria-label="http://localhost:1234/v1 concurrency cap"]',
@@ -101,6 +151,7 @@ describe("ConcurrencyEditor", () => {
 		expect(onChange).toHaveBeenCalledWith({
 			perProvider: {},
 			perModel: {},
+			perHost: {},
 			perEndpoint: { "http://localhost:1234/v1": 4 },
 		});
 	});

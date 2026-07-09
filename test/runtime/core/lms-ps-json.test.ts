@@ -15,6 +15,7 @@ const STDOUT = JSON.stringify([
 		deviceIdentifier: null,
 		status: "idle",
 		queued: 0,
+		parallel: 2,
 		trainedForToolUse: true,
 		contextLength: 40000,
 	},
@@ -25,6 +26,7 @@ const STDOUT = JSON.stringify([
 		deviceIdentifier: "040891f3ad9352c2ec9389aba79cd022",
 		status: "idle",
 		queued: 2,
+		parallel: 1,
 		trainedForToolUse: true,
 		contextLength: 40000,
 	},
@@ -48,20 +50,28 @@ describe("parseLmsPsModels", () => {
 		]);
 	});
 
-	it("captures the real modelKey, embedding flag, status and queue depth", () => {
+	it("captures the real modelKey, embedding flag, status, queue depth, and parallel slots", () => {
 		const models = parseLmsPsModels(STDOUT);
 		const legion = models[1];
-		expect(legion).toMatchObject({ modelKey: "unsloth/qwen3.5-9b", isEmbedding: false, status: "idle", queued: 2 });
+		expect(legion).toMatchObject({
+			modelKey: "unsloth/qwen3.5-9b",
+			isEmbedding: false,
+			status: "idle",
+			queued: 2,
+			parallel: 1,
+		});
 		expect(models[2]?.isEmbedding).toBe(true);
 		expect(models[0]?.modelKey).toBe("qwopus3.6-27b-v2-mlx");
+		expect(models[0]?.parallel).toBe(2);
 	});
 
-	it("falls back modelKey→identifier, defaults queued to 0, and tolerates junk", () => {
+	it("falls back modelKey→identifier, defaults queued/parallel, and tolerates junk", () => {
 		expect(parseLmsPsModels(JSON.stringify([{ identifier: "only-id" }]))[0]).toMatchObject({
 			identifier: "only-id",
 			modelKey: "only-id",
 			machineId: LOCAL_MACHINE_ID,
 			queued: 0,
+			parallel: null,
 		});
 		expect(parseLmsPsModels("not json")).toEqual([]);
 		expect(parseLmsPsModels(JSON.stringify({ nope: true }))).toEqual([]);

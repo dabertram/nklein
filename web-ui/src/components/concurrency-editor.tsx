@@ -1,5 +1,5 @@
-// §5.W Settings editor for the per-provider / per-model concurrency caps. Controlled: the settings dialog owns the two
-// maps + the unified save (mirrors ModelRolesEditor). Each section lists the current entries (key shown read-only, cap
+// §5.W/§5.AB Settings editor for provider/model/host concurrency caps. Controlled: the settings dialog owns the maps +
+// the unified save (mirrors ModelRolesEditor). Each section lists the current entries (key shown read-only, cap
 // editable, removable) plus an add-row; to change a key you remove + re-add. Blank/0 caps are dropped on save by the
 // runtime `normalizeConcurrencyMap`, so the editor stays permissive.
 import { Plus, Trash2 } from "lucide-react";
@@ -120,6 +120,8 @@ function ConcurrencyMapEditor({
 export interface ConcurrencyMaps {
 	perProvider: ConcurrencyMap;
 	perModel: ConcurrencyMap;
+	/** §5.AB per-LM-Studio-host caps, keyed by `lms ps --json` machine id (`local` or linked device id). */
+	perHost: ConcurrencyMap;
 	/** §5.AB per-MACHINE pool caps, keyed by endpoint/baseUrl (an LM-Studio-linked machine). */
 	perEndpoint: ConcurrencyMap;
 }
@@ -127,12 +129,20 @@ export interface ConcurrencyMaps {
 interface ConcurrencyEditorProps {
 	perProvider: ConcurrencyMap;
 	perModel: ConcurrencyMap;
+	perHost: ConcurrencyMap;
 	perEndpoint: ConcurrencyMap;
 	onChange: (next: ConcurrencyMaps) => void;
 	disabled?: boolean;
 }
 
-export function ConcurrencyEditor({ perProvider, perModel, perEndpoint, onChange, disabled }: ConcurrencyEditorProps) {
+export function ConcurrencyEditor({
+	perProvider,
+	perModel,
+	perHost,
+	perEndpoint,
+	onChange,
+	disabled,
+}: ConcurrencyEditorProps) {
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="grid gap-2 sm:grid-cols-2">
@@ -142,7 +152,7 @@ export function ConcurrencyEditor({ perProvider, perModel, perEndpoint, onChange
 					keyPlaceholder="e.g. lmstudio"
 					value={perProvider}
 					disabled={disabled}
-					onChange={(next) => onChange({ perProvider: next, perModel, perEndpoint })}
+					onChange={(next) => onChange({ perProvider: next, perModel, perHost, perEndpoint })}
 				/>
 				<ConcurrencyMapEditor
 					title="Per model"
@@ -150,16 +160,24 @@ export function ConcurrencyEditor({ perProvider, perModel, perEndpoint, onChange
 					keyPlaceholder="provider:model:endpoint"
 					value={perModel}
 					disabled={disabled}
-					onChange={(next) => onChange({ perProvider, perModel: next, perEndpoint })}
+					onChange={(next) => onChange({ perProvider, perModel: next, perHost, perEndpoint })}
 				/>
 			</div>
 			<ConcurrencyMapEditor
-				title="Per machine (pool)"
-				keyLabel="machine"
+				title="Per LM Studio host"
+				keyLabel="host"
+				keyPlaceholder="local or LM-Link device id"
+				value={perHost}
+				disabled={disabled}
+				onChange={(next) => onChange({ perProvider, perModel, perHost: next, perEndpoint })}
+			/>
+			<ConcurrencyMapEditor
+				title="Per endpoint pool"
+				keyLabel="endpoint"
 				keyPlaceholder="endpoint, e.g. http://localhost:1234/v1"
 				value={perEndpoint}
 				disabled={disabled}
-				onChange={(next) => onChange({ perProvider, perModel, perEndpoint: next })}
+				onChange={(next) => onChange({ perProvider, perModel, perHost, perEndpoint: next })}
 			/>
 		</div>
 	);

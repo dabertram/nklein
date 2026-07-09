@@ -9,6 +9,7 @@ import {
 	normalizeConcurrencyConfig,
 	normalizeConcurrencyMap,
 	normalizeConcurrencyOverride,
+	resolveEffectiveHostConcurrency,
 	resolveEffectiveModelConcurrency,
 	resolveEffectiveProviderConcurrency,
 	resolveSessionConcurrencyCaps,
@@ -29,6 +30,12 @@ describe("concurrency config/override equality (change-detection helpers)", () =
 		expect(
 			areConcurrencyConfigsEqual({ perProvider: {}, perModel: { m: 1 } }, { perProvider: {}, perModel: {} }),
 		).toBe(false);
+		expect(
+			areConcurrencyConfigsEqual(
+				{ perProvider: {}, perModel: {}, perHost: { local: 2 } },
+				{ perProvider: {}, perModel: {}, perHost: { local: 3 } },
+			),
+		).toBe(false);
 	});
 
 	it("areConcurrencyOverridesEqual is null-aware", () => {
@@ -36,14 +43,18 @@ describe("concurrency config/override equality (change-detection helpers)", () =
 		expect(areConcurrencyOverridesEqual(null, { perProvider: { a: 1 } })).toBe(false);
 		expect(areConcurrencyOverridesEqual({ perModel: { m: 1 } }, { perModel: { m: 1 } })).toBe(true);
 		expect(areConcurrencyOverridesEqual({ perModel: { m: 1 } }, { perModel: { m: 2 } })).toBe(false);
+		expect(areConcurrencyOverridesEqual({ perHost: { local: 1 } }, { perHost: { local: 1 } })).toBe(true);
 	});
 });
 
 describe("concurrency wire schemas", () => {
 	it("parses a config with both grains", () => {
-		expect(concurrencyConfigSchema.parse({ perProvider: { ollama: 2 }, perModel: {} })).toEqual({
+		expect(
+			concurrencyConfigSchema.parse({ perProvider: { ollama: 2 }, perModel: {}, perHost: { local: 2 } }),
+		).toEqual({
 			perProvider: { ollama: 2 },
 			perModel: {},
+			perHost: { local: 2 },
 		});
 	});
 
@@ -53,9 +64,10 @@ describe("concurrency wire schemas", () => {
 	});
 
 	it("accepts a nullable-per-grain project override (incl. absent)", () => {
-		expect(concurrencyOverrideSchema.parse({ perProvider: { ollama: 1 }, perModel: null })).toEqual({
+		expect(concurrencyOverrideSchema.parse({ perProvider: { ollama: 1 }, perModel: null, perHost: null })).toEqual({
 			perProvider: { ollama: 1 },
 			perModel: null,
+			perHost: null,
 		});
 		expect(concurrencyOverrideSchema.parse({})).toEqual({});
 	});
@@ -83,16 +95,22 @@ describe("normalizeConcurrencyConfig", () => {
 		expect(normalizeConcurrencyConfig(null)).toEqual({ perProvider: {}, perModel: {} });
 	});
 
-	it("carries the per-ENDPOINT (machine-pool) grain sparsely + round-trips through the wire schema (§5.AB threading)", () => {
+	it("carries host + per-ENDPOINT grains sparsely + round-trips through the wire schema (§5.AB threading)", () => {
 		const withPool = normalizeConcurrencyConfig({
 			perProvider: {},
 			perModel: {},
+			perHost: { local: 2, "m4mini-device": 1 },
 			perEndpoint: { "http://m4mini.local:1234/v1": 2 },
 		});
-		expect(withPool).toEqual({ perProvider: {}, perModel: {}, perEndpoint: { "http://m4mini.local:1234/v1": 2 } });
+		expect(withPool).toEqual({
+			perProvider: {},
+			perModel: {},
+			perHost: { local: 2, "m4mini-device": 1 },
+			perEndpoint: { "http://m4mini.local:1234/v1": 2 },
+		});
 		// Threaded via the same concurrencyConfigSchema the runtime-config + tRPC contract use → round-trips intact.
 		expect(concurrencyConfigSchema.parse(withPool)).toEqual(withPool);
-		// SPARSE: a config without a pool cap stays the exact 2-grain shape (no perEndpoint key → no round-trip drift).
+		// SPARSE: a config without host/pool caps stays the exact 2-grain shape (no round-trip drift).
 		expect(normalizeConcurrencyConfig({ perProvider: { lmstudio: 2 }, perModel: {} })).toEqual({
 			perProvider: { lmstudio: 2 },
 			perModel: {},
@@ -110,6 +128,9 @@ describe("normalizeConcurrencyOverride (null-when-empty)", () => {
 	it("keeps only the grains that have entries", () => {
 		expect(normalizeConcurrencyOverride({ perProvider: { lmstudio: 8 } })).toEqual({ perProvider: { lmstudio: 8 } });
 		expect(normalizeConcurrencyOverride({ perModel: { m: 2 }, perProvider: {} })).toEqual({ perModel: { m: 2 } });
+		expect(normalizeConcurrencyOverride({ perHost: { local: 3 }, perEndpoint: {} })).toEqual({
+			perHost: { local: 3 },
+		});
 	});
 });
 
@@ -157,6 +178,22 @@ describe("resolveEffectiveModelConcurrency (override ?? global ?? registry fallb
 	});
 });
 
+describe("resolveEffectiveHostConcurrency (override ?? global ?? env fallback)", () => {
+	const global: ConcurrencyConfig = { perProvider: {}, perModel: {}, perHost: { local: 2, "m4mini-device": 1 } };
+
+	it("project override beats the global host cap", () => {
+		expect(resolveEffectiveHostConcurrency("local", { global, override: { perHost: { local: 4 } } })).toBe(4);
+	});
+
+	it("global beats the uniform fallback", () => {
+		expect(resolveEffectiveHostConcurrency("m4mini-device", { global, fallback: 9 })).toBe(1);
+	});
+
+	it("uses the fallback when no configured host cap exists", () => {
+		expect(resolveEffectiveHostConcurrency("legion-device", { global, fallback: 3 })).toBe(3);
+	});
+});
+
 describe("resolveSessionConcurrencyCaps (both grains independent)", () => {
 	it("resolves provider + model caps from the right layers", () => {
 		const global: ConcurrencyConfig = {
@@ -171,15 +208,42 @@ describe("resolveSessionConcurrencyCaps (both grains independent)", () => {
 				override: { perModel: { "lmstudio:coder:default": 4 } },
 				registryModelFallback: 9,
 			}),
-		).toEqual({ providerCap: 2, modelCap: 4, endpointCap: null });
+		).toEqual({ providerCap: 2, modelCap: 4, hostCap: null, endpointCap: null });
 	});
 
 	it("null caps when no layer constrains the session", () => {
 		expect(resolveSessionConcurrencyCaps({ providerId: "ollama", modelId: "ollama:x:default" })).toEqual({
 			providerCap: null,
 			modelCap: null,
+			hostCap: null,
 			endpointCap: null,
 		});
+	});
+
+	it("resolves the per-HOST cap from lms machine id, with a uniform fallback", () => {
+		const global: ConcurrencyConfig = {
+			perProvider: {},
+			perModel: {},
+			perHost: { local: 2 },
+		};
+		expect(
+			resolveSessionConcurrencyCaps({
+				providerId: "lmstudio",
+				modelId: "lmstudio:qwen:default",
+				hostId: "local",
+				global,
+				hostFallback: 1,
+			}).hostCap,
+		).toBe(2);
+		expect(
+			resolveSessionConcurrencyCaps({
+				providerId: "lmstudio",
+				modelId: "lmstudio:qwen:default",
+				hostId: "m4mini-device",
+				global,
+				hostFallback: 1,
+			}).hostCap,
+		).toBe(1);
 	});
 
 	it("resolves the per-ENDPOINT (machine-pool) cap when an endpoint is given (§5.AB per-machine pools)", () => {
@@ -195,7 +259,7 @@ describe("resolveSessionConcurrencyCaps (both grains independent)", () => {
 				endpoint: "http://m4mini.local:1234/v1",
 				global,
 			}),
-		).toEqual({ providerCap: null, modelCap: null, endpointCap: 2 });
+		).toEqual({ providerCap: null, modelCap: null, hostCap: null, endpointCap: 2 });
 		// A project override wins for its pool; absent endpoint ⇒ no endpoint gate.
 		expect(
 			resolveSessionConcurrencyCaps({

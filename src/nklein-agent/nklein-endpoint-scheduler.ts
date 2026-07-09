@@ -38,6 +38,13 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	 */
 	endpointConcurrencyCap?: number | null;
 	/**
+	 * §5.AB per-LM-STUDIO-HOST cap (`resolveEffectiveHostConcurrency`): the max concurrent sessions this task's
+	 * `lms ps` host/machine admits across ALL its models. Host id is resolved from `machineByModelId`, falling back to
+	 * `local`. Explicit per-host settings can therefore let a large local host run 2+ requests while a smaller linked box
+	 * stays at 1.
+	 */
+	hostConcurrencyCap?: number | null;
+	/**
 	 * §5.AB per-MACHINE cap for the LM-Link case: several machines share ONE endpoint, so `endpointConcurrencyCap` (keyed
 	 * on the baseUrl) can't tell them apart. When both this cap AND `machineByModelId` (runtime model id → owning machine,
 	 * from `lms ps --json`) are supplied, each MACHINE admits up to this many sessions independently. `null`/absent = no
@@ -274,6 +281,37 @@ function evaluateMachinePoolConcurrencyGate(
 	};
 }
 
+/**
+ * §5.AB per-LM-STUDIO-HOST gate — a configured cap for the target host/machine id (`local`, m4mini's LM-Link device id,
+ * etc.). This is the persisted, per-host version of the older uniform `perMachineCap` env gate.
+ */
+function evaluateHostConcurrencyGate(
+	request: NKleinEndpointSchedulingRequest,
+): NKleinEndpointSchedulingDecision | null {
+	const cap = normalizePositiveCap(request.hostConcurrencyCap);
+	if (cap === null || !request.machineByModelId) {
+		return null;
+	}
+	const targetHostId = request.machineByModelId.get(request.modelId) ?? LOCAL_MACHINE_ID;
+	const runningOnHost = request.runningSessions.filter(
+		(session) =>
+			session.taskId !== request.taskId &&
+			session.state === "running" &&
+			(request.machineByModelId?.get(session.modelId) ?? LOCAL_MACHINE_ID) === targetHostId,
+	);
+	const earliest = runningOnHost[0];
+	if (runningOnHost.length < cap || !earliest) {
+		return null;
+	}
+	return {
+		ok: false,
+		blockedByTaskId: earliest.taskId,
+		sharedEndpointId: `host:${targetHostId}`,
+		estimatedWaitMs: null,
+		reason: `LM Studio host "${targetHostId}" is at its ${cap} concurrent-session cap; another !Klein task on this host must finish first.`,
+	};
+}
+
 export function scheduleNKleinEndpointStart(
 	request: NKleinEndpointSchedulingRequest,
 ): NKleinEndpointSchedulingDecision {
@@ -287,6 +325,11 @@ export function scheduleNKleinEndpointStart(
 	const poolBlock = evaluateEndpointPoolConcurrencyGate(request);
 	if (poolBlock) {
 		return poolBlock;
+	}
+	// §5.AB persisted host caps: a full LM Studio host holds even when another host behind the same endpoint is free.
+	const hostBlock = evaluateHostConcurrencyGate(request);
+	if (hostBlock) {
+		return hostBlock;
 	}
 	// §5.AB LM-Link: the per-MACHINE gate (machines sharing one endpoint) is likewise independent.
 	const machineBlock = evaluateMachinePoolConcurrencyGate(request);

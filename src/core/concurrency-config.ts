@@ -24,6 +24,11 @@ export interface ConcurrencyConfig {
 	/** Global per-model caps (canonical `provider:model:endpoint` id). */
 	perModel: ConcurrencyMap;
 	/**
+	 * Global per-LM-Studio-host caps keyed by `lms ps --json` machine id (`local` for the current host, linked device
+	 * identifiers for LM Link machines). Sparse so configs without host caps keep their existing on-disk shape.
+	 */
+	perHost?: ConcurrencyMap;
+	/**
 	 * Global per-ENDPOINT caps keyed by endpoint/baseUrl — todo §5.AB per-machine pools (user 2026-06-29). LM Studio links
 	 * each machine as a distinct endpoint, so an endpoint cap IS the machine pool's concurrency. Optional + sparse so
 	 * configs that don't use pools keep their exact shape (no round-trip change).
@@ -35,6 +40,7 @@ export interface ConcurrencyConfig {
 export interface ConcurrencyOverride {
 	perProvider?: ConcurrencyMap | null;
 	perModel?: ConcurrencyMap | null;
+	perHost?: ConcurrencyMap | null;
 	perEndpoint?: ConcurrencyMap | null;
 }
 
@@ -47,11 +53,13 @@ export const concurrencyMapSchema: z.ZodType<ConcurrencyMap> = z.record(z.string
 export const concurrencyConfigSchema = z.object({
 	perProvider: concurrencyMapSchema,
 	perModel: concurrencyMapSchema,
+	perHost: concurrencyMapSchema.optional(),
 	perEndpoint: concurrencyMapSchema.optional(),
 });
 export const concurrencyOverrideSchema = z.object({
 	perProvider: concurrencyMapSchema.nullable().optional(),
 	perModel: concurrencyMapSchema.nullable().optional(),
+	perHost: concurrencyMapSchema.nullable().optional(),
 	perEndpoint: concurrencyMapSchema.nullable().optional(),
 });
 // Compile-time drift guards: keep the wire schemas in lockstep with the threaded types.
@@ -96,10 +104,13 @@ export function normalizeConcurrencyMap(value: unknown): ConcurrencyMap {
 }
 
 export function normalizeConcurrencyConfig(value: Partial<ConcurrencyConfig> | null | undefined): ConcurrencyConfig {
+	const perHost = normalizeConcurrencyMap(value?.perHost);
 	const perEndpoint = normalizeConcurrencyMap(value?.perEndpoint);
 	return {
 		perProvider: normalizeConcurrencyMap(value?.perProvider),
 		perModel: normalizeConcurrencyMap(value?.perModel),
+		// Sparse: only emit perHost when a host cap is actually set, so older two-grain configs round-trip unchanged.
+		...(Object.keys(perHost).length > 0 ? { perHost } : {}),
 		// Sparse: only emit perEndpoint when a pool cap is actually set, so non-pool configs round-trip unchanged.
 		...(Object.keys(perEndpoint).length > 0 ? { perEndpoint } : {}),
 	};
@@ -117,16 +128,19 @@ export function normalizeConcurrencyOverride(
 	}
 	const perProvider = normalizeConcurrencyMap(value.perProvider);
 	const perModel = normalizeConcurrencyMap(value.perModel);
+	const perHost = normalizeConcurrencyMap(value.perHost);
 	const perEndpoint = normalizeConcurrencyMap(value.perEndpoint);
 	const hasProvider = Object.keys(perProvider).length > 0;
 	const hasModel = Object.keys(perModel).length > 0;
+	const hasHost = Object.keys(perHost).length > 0;
 	const hasEndpoint = Object.keys(perEndpoint).length > 0;
-	if (!hasProvider && !hasModel && !hasEndpoint) {
+	if (!hasProvider && !hasModel && !hasHost && !hasEndpoint) {
 		return null;
 	}
 	return {
 		...(hasProvider ? { perProvider } : {}),
 		...(hasModel ? { perModel } : {}),
+		...(hasHost ? { perHost } : {}),
 		...(hasEndpoint ? { perEndpoint } : {}),
 	};
 }
@@ -152,6 +166,7 @@ export function areConcurrencyConfigsEqual(left: ConcurrencyConfig, right: Concu
 	return (
 		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
 		areConcurrencyMapsEqual(left.perModel, right.perModel) &&
+		areConcurrencyMapsEqual(left.perHost, right.perHost) &&
 		areConcurrencyMapsEqual(left.perEndpoint, right.perEndpoint)
 	);
 }
@@ -167,6 +182,7 @@ export function areConcurrencyOverridesEqual(
 	return (
 		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
 		areConcurrencyMapsEqual(left.perModel, right.perModel) &&
+		areConcurrencyMapsEqual(left.perHost, right.perHost) &&
 		areConcurrencyMapsEqual(left.perEndpoint, right.perEndpoint)
 	);
 }
@@ -204,6 +220,19 @@ export function resolveEffectiveEndpointConcurrency(
 	return resolveKeyCap(endpoint, input.override?.perEndpoint, input.global?.perEndpoint, null);
 }
 
+/** The effective per-LM-Studio-host cap for a session, or null when no layer sets one (§5.AB host caps). */
+export function resolveEffectiveHostConcurrency(
+	hostId: string,
+	input: {
+		global?: ConcurrencyConfig | null;
+		override?: ConcurrencyOverride | null;
+		/** Optional lowest-precedence uniform host cap, kept for the legacy `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env. */
+		fallback?: number | null;
+	},
+): number | null {
+	return resolveKeyCap(hostId, input.override?.perHost, input.global?.perHost, input.fallback ?? null);
+}
+
 /** The effective per-model cap for a session: override ?? global ?? the per-model registry `maxConcurrentRequests`. */
 export function resolveEffectiveModelConcurrency(
 	modelId: string,
@@ -222,6 +251,8 @@ export interface SessionConcurrencyCaps {
 	providerCap: number | null;
 	/** Max concurrent sessions for this session's model (null = no model-grain limit). */
 	modelCap: number | null;
+	/** Max concurrent sessions for this session's LM Studio host/machine id (null = no host-grain limit). */
+	hostCap: number | null;
 	/** Max concurrent sessions for this session's ENDPOINT/machine pool (null = no endpoint-grain limit). */
 	endpointCap: number | null;
 }
@@ -235,9 +266,12 @@ export function resolveSessionConcurrencyCaps(input: {
 	modelId: string;
 	/** The session's endpoint/baseUrl (its machine pool). Optional so existing callers are unaffected until pool-wired. */
 	endpoint?: string | null;
+	/** The LM Studio host/machine id from `lms ps --json` (`local` for the current host). */
+	hostId?: string | null;
 	global?: ConcurrencyConfig | null;
 	override?: ConcurrencyOverride | null;
 	registryModelFallback?: number | null;
+	hostFallback?: number | null;
 }): SessionConcurrencyCaps {
 	return {
 		providerCap: resolveEffectiveProviderConcurrency(input.providerId, {
@@ -252,6 +286,14 @@ export function resolveSessionConcurrencyCaps(input: {
 		endpointCap:
 			input.endpoint && input.endpoint.trim().length > 0
 				? resolveEffectiveEndpointConcurrency(input.endpoint, { global: input.global, override: input.override })
+				: null,
+		hostCap:
+			input.hostId && input.hostId.trim().length > 0
+				? resolveEffectiveHostConcurrency(input.hostId, {
+						global: input.global,
+						override: input.override,
+						fallback: input.hostFallback ?? null,
+					})
 				: null,
 	};
 }

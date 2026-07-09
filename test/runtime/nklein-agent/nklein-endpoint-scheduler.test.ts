@@ -494,6 +494,40 @@ describe("nklein endpoint scheduler", () => {
 		expect(decision).toMatchObject({ ok: false, sharedEndpointId: "machine:local", blockedByTaskId: "task-1" });
 	});
 
+	it("holds a start when the task's configured LM Studio host cap is reached", () => {
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-3",
+			providerId: "lmstudio",
+			modelId: "coder", // local
+			endpoint: "http://localhost:1234/v1",
+			modelRegistry: createSnapshot(),
+			hostConcurrencyCap: 1,
+			machineByModelId,
+			runningSessions: [onLink("task-1", "qwopus")], // qwopus is local ⇒ local host already at 1
+		});
+		expect(decision).toMatchObject({
+			ok: false,
+			sharedEndpointId: "host:local",
+			blockedByTaskId: "task-1",
+			reason: expect.stringContaining('LM Studio host "local" is at its 1 concurrent-session cap'),
+		});
+	});
+
+	it("allows the same shared endpoint when another configured LM Studio host is busy", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "coder", // local (free)
+				endpoint: "http://localhost:1234/v1",
+				modelRegistry: createSnapshot(),
+				hostConcurrencyCap: 1,
+				machineByModelId,
+				runningSessions: [onLink("task-1", "gen-legion")], // legion busy, local empty
+			}),
+		).toEqual({ ok: true });
+	});
+
 	it("allows when the task's machine is free even though ANOTHER machine is busy (independent pools)", () => {
 		expect(
 			scheduleNKleinEndpointStart({

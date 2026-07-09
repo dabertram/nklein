@@ -56,6 +56,8 @@ export interface LmsPsModel {
 	status: string | null;
 	/** How many requests are currently queued on this instance (a free-first routing signal); 0 when idle/unknown. */
 	queued: number;
+	/** LM Studio's reported per-instance parallel request slots, when present. */
+	parallel: number | null;
 	/** LM Studio's `trainedForToolUse`, when reported. */
 	trainedForToolUse: boolean | null;
 	/** The LOADED context length for this instance (not the model's max), when reported. */
@@ -69,6 +71,7 @@ interface RawLmsPsEntry {
 	deviceIdentifier?: unknown;
 	status?: unknown;
 	queued?: unknown;
+	parallel?: unknown;
 	trainedForToolUse?: unknown;
 	contextLength?: unknown;
 }
@@ -112,6 +115,10 @@ export function parseLmsPsModels(stdout: string): LmsPsModel[] {
 			isEmbedding: entry.type === "embedding",
 			status: asString(entry.status) ?? null,
 			queued: typeof entry.queued === "number" && Number.isFinite(entry.queued) ? entry.queued : 0,
+			parallel:
+				typeof entry.parallel === "number" && Number.isFinite(entry.parallel) && entry.parallel > 0
+					? Math.trunc(entry.parallel)
+					: null,
 			trainedForToolUse: typeof entry.trainedForToolUse === "boolean" ? entry.trainedForToolUse : null,
 			contextLength:
 				typeof entry.contextLength === "number" && Number.isFinite(entry.contextLength)

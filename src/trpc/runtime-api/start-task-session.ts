@@ -8,7 +8,7 @@ import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
-import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached, LOCAL_MACHINE_ID } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
@@ -751,24 +751,28 @@ export async function handleStartTaskSession(
 				queued: body.queueOnEndpointBusy ? true : undefined,
 			};
 		}
-		// §5.AB LM-Link per-MACHINE handling (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): resolved ONCE here and
-		// reused for BOTH the routing pool keys (below) and the admission gate (further down) — a SINGLE `lms ps`
-		// subprocess. When set, fetch each loaded model's owning machine so LM-Link machines sharing one endpoint are
-		// told apart. OFF by default ⇒ no subprocess, `machineByModelIdRaw` stays undefined ⇒ routing keeps ENDPOINT
-		// keys and the admission gate stays inert (byte-identical). Best-effort: an empty/failed map ⇒ endpoint keying.
+		// §5.AB LM-Link per-HOST handling: resolved ONCE here and reused for BOTH routing pool keys (below) and the
+		// admission gate (further down). Host caps from Settings are keyed by `lms ps --json` machine id (`local` for this
+		// box, linked device ids for LM Link machines). The older NKLEIN_PER_MACHINE_MAX_CONCURRENCY env remains as a
+		// lowest-precedence uniform fallback. With no host cap/env, no subprocess runs and behavior stays byte-identical.
 		const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
-		const perMachineCap =
+		const legacyPerMachineCap =
 			Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 && residencyCheckEnabled ? rawPerMachineCap : null;
-		const machineByModelIdRaw =
-			perMachineCap !== null
-				? new Map(
-						(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
-							model.identifier,
-							model.machineId,
-						]),
-					)
-				: undefined;
-		// Only key ROUTING pools by machine when the map resolved NON-EMPTY; an empty map (flag on but `lms ps`
+		const configuredHostCaps = {
+			...(scopedRuntimeConfig.concurrencyDefaults?.perHost ?? {}),
+			...(scopedRuntimeConfig.concurrencyOverride?.perHost ?? {}),
+		};
+		const shouldResolveHostMap =
+			residencyCheckEnabled && (legacyPerMachineCap !== null || Object.keys(configuredHostCaps).length > 0);
+		const machineByModelIdRaw = shouldResolveHostMap
+			? new Map(
+					(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
+						model.identifier,
+						model.machineId,
+					]),
+				)
+			: undefined;
+		// Only key ROUTING pools by machine when the map resolved NON-EMPTY; an empty map (flag/config on but `lms ps`
 		// unavailable) falls back to endpoint keying so routing never collapses into one synthetic pool. The admission
 		// gate keeps using the RAW map below, unchanged, so its shipped behavior is untouched.
 		const machineByModelId = machineByModelIdRaw && machineByModelIdRaw.size > 0 ? machineByModelIdRaw : undefined;
@@ -1069,12 +1073,14 @@ export async function handleStartTaskSession(
 			}),
 			// §5.AB per-machine pools: the endpoint/baseUrl is the machine pool key for the per-pool cap.
 			endpoint: nkleinLaunchConfig.baseUrl ?? null,
+			// §5.AB per-LM-Studio-host caps: the host id comes from `lms ps`; unmapped models conservatively resolve to local.
+			hostId: machineByModelIdRaw?.get(nkleinLaunchConfig.modelId ?? "") ?? LOCAL_MACHINE_ID,
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,
+			hostFallback: legacyPerMachineCap,
 		});
-		// §5.AB LM-Link per-MACHINE gate (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): admit per MACHINE using the
-		// model→machine map resolved ONCE above (the linked machines share one endpoint). OFF by default ⇒ the raw map
-		// is undefined ⇒ no gate (byte-identical). Best-effort: an empty raw map leaves the gate inert, as before.
+		// §5.AB LM-Link per-HOST gate: admit per LM Studio host using the model→machine map resolved ONCE above. Settings
+		// caps win per host; the legacy env acts only as the fallback cap. With no cap, the gate is inert.
 		const endpointDecision = scheduleNKleinEndpointStart({
 			taskId: body.taskId,
 			providerId: nkleinLaunchConfig.providerId,
@@ -1086,7 +1092,9 @@ export async function handleStartTaskSession(
 			providerConcurrencyCap: concurrencyCaps.providerCap,
 			modelConcurrencyCap: concurrencyCaps.modelCap,
 			endpointConcurrencyCap: concurrencyCaps.endpointCap,
-			...(perMachineCap !== null ? { perMachineCap } : {}),
+			hostConcurrencyCap: concurrencyCaps.hostCap,
+			// Keep the legacy uniform gate only for callers/tests that still pass it directly; runtime now resolves the env
+			// fallback into hostConcurrencyCap above so explicit per-host caps can vary by machine.
 			...(machineByModelIdRaw ? { machineByModelId: machineByModelIdRaw } : {}),
 		});
 		if (!endpointDecision.ok) {

@@ -318,10 +318,12 @@ export function RuntimeSettingsDialog({
 	const [concurrencyDefaults, setConcurrencyDefaults] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
+		perHost: ConcurrencyMap;
 		perEndpoint: ConcurrencyMap;
 	}>({
 		perProvider: {},
 		perModel: {},
+		perHost: {},
 		perEndpoint: {},
 	});
 	// §5.AL global model-capability gate policy default.
@@ -333,6 +335,7 @@ export function RuntimeSettingsDialog({
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
+		perHost: ConcurrencyMap;
 		perEndpoint: ConcurrencyMap;
 	} | null>(null);
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
@@ -540,6 +543,7 @@ export function RuntimeSettingsDialog({
 		() => ({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+			perHost: { ...(config?.concurrencyDefaults?.perHost ?? {}) },
 			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
 		}),
 		[config?.concurrencyDefaults],
@@ -556,6 +560,7 @@ export function RuntimeSettingsDialog({
 				? {
 						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
 						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+						perHost: { ...(config.concurrencyOverride.perHost ?? {}) },
 						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
 					}
 				: null,
@@ -1102,6 +1107,7 @@ export function RuntimeSettingsDialog({
 		setConcurrencyDefaults({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+			perHost: { ...(config?.concurrencyDefaults?.perHost ?? {}) },
 			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
 		});
 		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
@@ -1113,6 +1119,7 @@ export function RuntimeSettingsDialog({
 				? {
 						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
 						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+						perHost: { ...(config.concurrencyOverride.perHost ?? {}) },
 						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
 					}
 				: null,
@@ -2697,17 +2704,18 @@ export function RuntimeSettingsDialog({
 
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-								Per-provider / per-model concurrency
+								LM Studio and provider concurrency
 							</h6>
 							<p className="text-text-tertiary text-[11px] mt-0 mb-2">
-								Cap how many sessions run at once on a provider, or on a specific model (canonical{" "}
-								<code>provider:model:endpoint</code> id). A cap of 1 serializes; remove a row for no extra
-								limit. This is the global default (a per-project override is a follow-up); it AND-s with the
-								per-model registry limit.
+								Cap how many sessions run at once on a provider, LM Studio host, endpoint pool, or specific
+								model (canonical <code>provider:model:endpoint</code> id). A cap of 1 serializes; remove a row
+								for no extra limit. These defaults compose with per-project overrides and the per-model registry
+								limit.
 							</p>
 							<ConcurrencyEditor
 								perProvider={concurrencyDefaults.perProvider}
 								perModel={concurrencyDefaults.perModel}
+								perHost={concurrencyDefaults.perHost}
 								perEndpoint={concurrencyDefaults.perEndpoint}
 								disabled={controlsDisabled}
 								onChange={setConcurrencyDefaults}
@@ -3299,9 +3307,11 @@ export function RuntimeSettingsDialog({
 										label="Concurrency caps"
 										inheritLabel={
 											Object.keys(concurrencyDefaults.perProvider).length +
-												Object.keys(concurrencyDefaults.perModel).length >
+												Object.keys(concurrencyDefaults.perModel).length +
+												Object.keys(concurrencyDefaults.perHost).length +
+												Object.keys(concurrencyDefaults.perEndpoint).length >
 											0
-												? `${Object.keys(concurrencyDefaults.perProvider).length} provider, ${Object.keys(concurrencyDefaults.perModel).length} model cap(s)`
+												? `${Object.keys(concurrencyDefaults.perProvider).length} provider, ${Object.keys(concurrencyDefaults.perModel).length} model, ${Object.keys(concurrencyDefaults.perHost).length} host, ${Object.keys(concurrencyDefaults.perEndpoint).length} endpoint cap(s)`
 												: "defaults"
 										}
 										isOverridden={concurrencyOverride !== null}
@@ -3309,6 +3319,7 @@ export function RuntimeSettingsDialog({
 											setConcurrencyOverride({
 												perProvider: { ...concurrencyDefaults.perProvider },
 												perModel: { ...concurrencyDefaults.perModel },
+												perHost: { ...concurrencyDefaults.perHost },
 												perEndpoint: { ...concurrencyDefaults.perEndpoint },
 											})
 										}
@@ -3318,6 +3329,7 @@ export function RuntimeSettingsDialog({
 										<ConcurrencyEditor
 											perProvider={concurrencyOverride?.perProvider ?? {}}
 											perModel={concurrencyOverride?.perModel ?? {}}
+											perHost={concurrencyOverride?.perHost ?? {}}
 											perEndpoint={concurrencyOverride?.perEndpoint ?? {}}
 											disabled={controlsDisabled}
 											onChange={setConcurrencyOverride}

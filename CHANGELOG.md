@@ -51,6 +51,13 @@
   files and branch tree samples for each `nklein/tasks/*` result branch, and it explicitly reports whether the host
   checkout is clean because captured work is still waiting for the delivery merge. That removes the ambiguity between
   `sandbox_patch_captured` and files being present in the developer checkout.
+- **LM Studio concurrency caps now include per-host settings and a read-only capacity probe** (todo §5.AB). Runtime
+  concurrency config supports sparse `perHost` caps keyed by `lms ps --json` machine id (`local` or linked device id),
+  with project overrides composing with global defaults. The task scheduler resolves the selected model's host and gates
+  against that host cap, while the legacy `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env remains a fallback. Settings exposes
+  provider, model, LM Studio host, and endpoint-pool caps, and `nklein dev capacity` reports loaded hosts/models,
+  queue/status, LM Studio's reported `parallel` value, configured caps, and conservative recommendations without sending
+  a model request.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

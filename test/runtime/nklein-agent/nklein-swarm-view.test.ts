@@ -9,6 +9,7 @@ function psModel(input: Partial<LmsPsModel> & { identifier: string; machineId: s
 		isEmbedding: false,
 		status: "idle",
 		queued: 0,
+		parallel: null,
 		trainedForToolUse: true,
 		contextLength: 40000,
 		...input,

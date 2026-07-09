@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
-import { loadGlobalRuntimeConfig } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
+import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
+import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -442,6 +444,11 @@ interface DevModelSpeedOptions {
 	endpoint?: string;
 }
 
+interface DevCapacityOptions {
+	json?: boolean;
+	cwd?: string;
+}
+
 /**
  * §5.AN: measure a loaded model's REAL speed via LM Studio's native `/api/v0/chat/completions` `stats` (tokens_per_second
  * + time_to_first_token), which the OpenAI `/v1` endpoint does not populate. A diagnostic for the §5.AB/MCSR speed signal
@@ -480,6 +487,25 @@ async function runDevModelSpeedCommand(options: DevModelSpeedOptions = {}): Prom
 		return;
 	}
 	process.stdout.write(`Model speed (real /api/v0 stats):\n  ${renderLmStudioRequestStats(modelId, stats)}\n`);
+}
+
+async function runDevCapacityCommand(options: DevCapacityOptions = {}): Promise<void> {
+	const cwd = options.cwd ?? process.cwd();
+	const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
+	const legacyHostFallback = Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 ? rawPerMachineCap : null;
+	const [config, models] = await Promise.all([loadRuntimeConfig(cwd), fetchLmsPsModels(createDefaultLmsRunner())]);
+	const report = buildLmStudioCapacityReport({
+		models,
+		global: config.concurrencyDefaults,
+		override: config.concurrencyOverride,
+		hostFallback: legacyHostFallback,
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ cwd, legacyHostFallback, ...report }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("LM Studio serving capacity (read-only lms ps + runtime config):\n\n");
+	process.stdout.write(formatLmStudioCapacityReport(report));
 }
 
 export function registerDevCommand(program: Command): void {
@@ -601,6 +627,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--endpoint <url>", "LM Studio base URL (default http://localhost:1234).")
 		.action(async (options: DevModelSpeedOptions) => {
 			await runDevModelSpeedCommand(options);
+		});
+
+	dev.command("capacity")
+		.description("Report loaded LM Studio host/model capacity from lms ps plus configured concurrency caps (§5.AB).")
+		.option("--json", "Print machine-readable JSON.")
+		.option(
+			"--cwd <path>",
+			"Workspace path whose runtime/project config should be read (default: current directory).",
+		)
+		.action(async (options: DevCapacityOptions) => {
+			await runDevCapacityCommand(options);
 		});
 
 	dev.command("advice")
