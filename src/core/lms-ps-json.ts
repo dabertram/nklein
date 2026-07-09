@@ -10,7 +10,8 @@
  *     richer than "is a session running", straight from the server.
  *
  * PURE parser (given the CLI's stdout), so it is unit-testable without spawning `lms`; the effectful fetch reuses the
- * existing injectable {@link LmsRunner} (`lms-model-runner`). Tolerant of shape — any parse failure yields `[]`.
+ * existing injectable {@link LmsRunner} (`lms-model-runner`). Runtime callers can use the tolerant API — any parse
+ * failure yields `[]` — while proof harnesses can use the explicit snapshot API to fail on missing / unparseable evidence.
  */
 
 import { execFile } from "node:child_process";
@@ -19,6 +20,7 @@ import type { LmsRunner } from "./lms-model-runner";
 import { modelDiscoveryCacheTtlMs } from "./model-discovery-throttle";
 
 const execFileAsync = promisify(execFile);
+const STDOUT_PREVIEW_LIMIT = 1_000;
 
 /**
  * A default spawn-backed {@link LmsRunner} for READ-ONLY `lms` queries (e.g. `ps --json`). Bounded + never-throws (a spawn
@@ -68,6 +70,28 @@ export interface LmsPsModel {
 	contextLength: number | null;
 }
 
+export type LmsPsParseStatus = "ok" | "empty_stdout" | "invalid_json" | "invalid_shape";
+
+export interface LmsPsParseResult {
+	status: LmsPsParseStatus;
+	models: LmsPsModel[];
+	/** Number of raw entries in the parsed CLI payload before addressability filtering. */
+	rawEntryCount: number;
+}
+
+export type LmsPsSnapshotStatus = LmsPsParseStatus | "runner_failed" | "runner_exception";
+
+export interface LmsPsSnapshot {
+	ok: boolean;
+	status: LmsPsSnapshotStatus;
+	parseStatus: LmsPsParseStatus | "not_run";
+	models: LmsPsModel[];
+	rawEntryCount: number;
+	exitCode: number | null;
+	stdoutPreview: string;
+	errorMessage?: string;
+}
+
 interface RawLmsPsEntry {
 	type?: unknown;
 	identifier?: unknown;
@@ -86,13 +110,24 @@ function asString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-/** Parse `lms ps --json` stdout into {@link LmsPsModel}s. Any malformed / non-array payload yields `[]` (never throws). */
-export function parseLmsPsModels(stdout: string): LmsPsModel[] {
+function stdoutPreview(stdout: string): string {
+	const trimmed = stdout.trim();
+	return trimmed.length > STDOUT_PREVIEW_LIMIT ? `${trimmed.slice(0, STDOUT_PREVIEW_LIMIT)}...` : trimmed;
+}
+
+/**
+ * Parse `lms ps --json` stdout into {@link LmsPsModel}s and preserve parse status. Empty valid arrays are `ok`; malformed
+ * stdout is not, so verification harnesses can distinguish "no loaded models" from "no trustworthy CLI evidence".
+ */
+export function parseLmsPsModelsDetailed(stdout: string): LmsPsParseResult {
+	if (!stdout.trim()) {
+		return { status: "empty_stdout", models: [], rawEntryCount: 0 };
+	}
 	let payload: unknown;
 	try {
 		payload = JSON.parse(stdout);
 	} catch {
-		return [];
+		return { status: "invalid_json", models: [], rawEntryCount: 0 };
 	}
 	// `lms ps --json` emits a bare array; tolerate a `{ data: [...] }` / `{ models: [...] }` wrapper too.
 	const container = payload && typeof payload === "object" ? (payload as { data?: unknown; models?: unknown }) : null;
@@ -102,7 +137,10 @@ export function parseLmsPsModels(stdout: string): LmsPsModel[] {
 			? container.data
 			: Array.isArray(container?.models)
 				? container.models
-				: [];
+				: null;
+	if (!entries) {
+		return { status: "invalid_shape", models: [], rawEntryCount: 0 };
+	}
 	const models: LmsPsModel[] = [];
 	for (const raw of entries) {
 		if (!raw || typeof raw !== "object") {
@@ -134,7 +172,12 @@ export function parseLmsPsModels(stdout: string): LmsPsModel[] {
 					: null,
 		});
 	}
-	return models;
+	return { status: "ok", models, rawEntryCount: entries.length };
+}
+
+/** Parse `lms ps --json` stdout into {@link LmsPsModel}s. Any malformed / non-array payload yields `[]` (never throws). */
+export function parseLmsPsModels(stdout: string): LmsPsModel[] {
+	return parseLmsPsModelsDetailed(stdout).models;
 }
 
 /** Group loaded models by their owning machine — the per-machine POOL membership the swarm concurrency accounting needs. */
@@ -158,6 +201,60 @@ export async function fetchLmsPsModels(run: LmsRunner): Promise<LmsPsModel[]> {
 		return parseLmsPsModels(stdout);
 	} catch {
 		return [];
+	}
+}
+
+/**
+ * Fetch a diagnostic `lms ps --json` snapshot. Unlike {@link fetchLmsPsModels}, this does NOT collapse CLI failures or
+ * malformed stdout into an empty model list; proof harnesses use it when host/queue/machine evidence is required.
+ */
+export async function fetchLmsPsSnapshot(run: LmsRunner): Promise<LmsPsSnapshot> {
+	try {
+		const { stdout, exitCode } = await run(["ps", "--json"]);
+		const parsed = parseLmsPsModelsDetailed(stdout);
+		const preview = stdoutPreview(stdout);
+		if (exitCode !== 0) {
+			return {
+				ok: false,
+				status: "runner_failed",
+				parseStatus: parsed.status,
+				models: parsed.models,
+				rawEntryCount: parsed.rawEntryCount,
+				exitCode,
+				stdoutPreview: preview,
+			};
+		}
+		if (parsed.status !== "ok") {
+			return {
+				ok: false,
+				status: parsed.status,
+				parseStatus: parsed.status,
+				models: parsed.models,
+				rawEntryCount: parsed.rawEntryCount,
+				exitCode,
+				stdoutPreview: preview,
+			};
+		}
+		return {
+			ok: true,
+			status: "ok",
+			parseStatus: "ok",
+			models: parsed.models,
+			rawEntryCount: parsed.rawEntryCount,
+			exitCode,
+			stdoutPreview: preview,
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			status: "runner_exception",
+			parseStatus: "not_run",
+			models: [],
+			rawEntryCount: 0,
+			exitCode: null,
+			stdoutPreview: "",
+			errorMessage: error instanceof Error ? error.message : String(error),
+		};
 	}
 }
 

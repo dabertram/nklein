@@ -406,6 +406,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
+- **Basic Memory MCP is LOCAL on this host unless explicitly proven otherwise.** Use the local/default project (currently
+  `main`) or omit the `project` parameter; do NOT pass `project:"nklein"` unless a local Basic Memory project with that
+  exact name has been confirmed. A cloud-credentials error from Basic Memory is a tool-routing mistake, not a reason to
+  require Basic Memory Cloud for !Klein work. The same rule applies to any future !Klein Basic Memory integration:
+  local-first Markdown store by default; cloud sync/remote memory only by deliberate user opt-in.
 - !Klein's native NKlein agent is powered by the installed `@nkleinbot/core` + `@nkleinbot/llms` packages plus the local `src/nklein-agent/` boundary layer — when NKlein behavior is unclear, inspect those packages and `src/nklein-agent/` for the real implementation.
 - The NKlein session host does not expose its internal session map. Model changes may use the public `updateSessionModel` API; provider, endpoint, reasoning, mode, context, or timeout changes require restarting from persisted history. Never cast the host to a private `sessions` shape and mutate it.
 - Default NKlein/sandbox tasks no longer use host task worktrees: work lives in the Docker sandbox volume (`/workspaces/<taskId>`) and is captured as an `nklein/tasks/<task>` result branch the trusted runtime applies to the user's repo (`src/workspace/task-result-branches.ts`). Verified end-to-end by `scripts/verify-strict-isolation.mts` (isolated `HOME` + live LM Studio): a Docker sandbox container appears, **no** host worktree under `~/.nklein/nklein/worktrees`, containers clean up on dispose. The host-worktree **creation** machinery + the terminal-CLI **agent launcher** are deleted (§5.A C7c/C7d); shell-on-task is decoupled (it `docker exec`s into the sandbox, or opens at the project root). What remains of `src/workspace/task-worktree*.ts` is **legacy cleanup only** (`deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/`deleteTaskPatchFilesForRepo`), invoked on task-trash + shutdown. The single boundary predicate is `usesLegacyHostTaskWorkspace(agentId)` in `src/core/agent-catalog.ts` — true for any non-nklein id, still drives that legacy cleanup for migrated boards, so it is **live, not dead**; never re-derive it. Still deferred (§2.B): shrinking `RUNTIME_AGENT_CATALOG`/`runtimeAgentIdSchema` to nklein-only (web-ui + CLI contract-coupled → needs UI verification) then deleting the worktree modules outright.
@@ -6003,6 +6008,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         proves clone cwd + dispose/prepare serialization; [swarm-deterministic-bounce.integration.test.ts](test/integration/swarm-deterministic-bounce.integration.test.ts)
         stayed green. Remaining convergence issue is now worker/review quality + all-card termination, not role observation
         or host-cap safety.
+        **CLI-ROSTER PROOF HARDENED (2026-07-09):** after LM Studio crash/reopen instability, the verifier now treats
+        `lms ps --json` as required proof evidence, not an optional convenience. [lms-ps-json.ts](src/core/lms-ps-json.ts)
+        exposes a diagnostic snapshot that distinguishes CLI failure, empty stdout, invalid JSON, invalid shape, and a
+        valid empty roster while preserving the tolerant runtime API. [verify-fleet-swarm.mts](scripts/verify-fleet-swarm.mts)
+        aborts before starting the backend/workspace if `lms ps --json` is unavailable or shows zero loaded LLMs, because
+        `/api/v0/models` proves only residency, not queue/machine/host-spread/no-overload evidence. If the CLI roster
+        disappears mid-run while sessions are quiet, the harness fails on the short idle window instead of granting the
+        long active-model wait on unobservable activity.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*

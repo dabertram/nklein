@@ -28,7 +28,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { evaluateFleetHostObservation } from "../src/core/fleet-host-observation";
 import { fetchLmsLinkDevices, type LmsLinkDevices } from "../src/core/lms-link-status";
-import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel, LOCAL_MACHINE_ID } from "../src/core/lms-ps-json";
+import {
+	createDefaultLmsRunner,
+	fetchLmsPsSnapshot,
+	type LmsPsModel,
+	type LmsPsSnapshot,
+	LOCAL_MACHINE_ID,
+} from "../src/core/lms-ps-json";
 import {
 	evaluateFleetReviewerObservation,
 	extractFleetReviewSessionModelObservation,
@@ -98,6 +104,18 @@ function busyLmsSummary(models: readonly LmsPsModel[]): string | null {
 		})
 		.map((model) => `${model.identifier}@${model.machineId}:${model.status ?? "?"}/q${model.queued}`);
 	return busy.length > 0 ? busy.join(", ") : null;
+}
+
+function shortenLogValue(value: string, maxLength = 240): string {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
+}
+
+function describeLmsPsSnapshot(snapshot: LmsPsSnapshot): string {
+	const exitCode = snapshot.exitCode === null ? "n/a" : String(snapshot.exitCode);
+	const stdout = snapshot.stdoutPreview ? ` stdout="${shortenLogValue(snapshot.stdoutPreview)}"` : "";
+	const error = snapshot.errorMessage ? ` error="${shortenLogValue(snapshot.errorMessage)}"` : "";
+	return `status=${snapshot.status} parse=${snapshot.parseStatus} exit=${exitCode} entries=${snapshot.rawEntryCount}${stdout}${error}`;
 }
 
 interface BoardCard {
@@ -364,9 +382,31 @@ function reportDeliverables(workspacePath: string): void {
 }
 
 async function main(): Promise<void> {
-	const cwd = mkdtempSync(join(tmpdir(), "nklein-fleet-cwd-"));
-	const homeDir = mkdtempSync(join(tmpdir(), "nklein-fleet-home-"));
-	initGitRepository(cwd);
+	const lmsRunner = createDefaultLmsRunner(LMS_COMMAND_TIMEOUT_MS);
+	const initialPsSnapshot = await fetchLmsPsSnapshot(lmsRunner);
+	if (!initialPsSnapshot.ok) {
+		log(
+			`LM Studio CLI roster unavailable via \`lms ps --json\` (${describeLmsPsSnapshot(initialPsSnapshot)}); ` +
+				"aborting before starting the swarm. `/api/v0/models` alone proves residency, not queue/machine/host-spread evidence.",
+		);
+		process.exitCode = 1;
+		return;
+	}
+	const initialPsModels = initialPsSnapshot.models;
+	const initialLlmModels = initialPsModels.filter((entry) => !entry.isEmbedding);
+	if (initialLlmModels.length === 0) {
+		log(
+			"LM Studio CLI roster returned zero loaded LLMs; aborting before starting the swarm because host-spread and " +
+				"no-overload evidence would be impossible to prove.",
+		);
+		process.exitCode = 1;
+		return;
+	}
+	const linkDevices = await fetchLmsLinkDevices(lmsRunner);
+	const initialMachineByModelId = buildLmStudioMachineByModelId(initialPsModels, {
+		providerIds: [PROVIDER_ID],
+		endpoints: [BASE_URL],
+	});
 
 	// Refuse any non-resident fleet model up front (never load — user directive).
 	for (const model of [ARCHITECT, WORKER, ...WORKER_POOL, ...(REVIEWER_AUTO ? [] : [REVIEWER])]) {
@@ -375,13 +415,9 @@ async function main(): Promise<void> {
 
 	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
 	const TIMEOUT_MS = power.timeoutMs;
-	const lmsRunner = createDefaultLmsRunner(LMS_COMMAND_TIMEOUT_MS);
-	const initialPsModels = await fetchLmsPsModels(lmsRunner);
-	const linkDevices = await fetchLmsLinkDevices(lmsRunner);
-	const initialMachineByModelId = buildLmStudioMachineByModelId(initialPsModels, {
-		providerIds: [PROVIDER_ID],
-		endpoints: [BASE_URL],
-	});
+	const cwd = mkdtempSync(join(tmpdir(), "nklein-fleet-cwd-"));
+	const homeDir = mkdtempSync(join(tmpdir(), "nklein-fleet-home-"));
+	initGitRepository(cwd);
 
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
@@ -595,7 +631,9 @@ async function main(): Promise<void> {
 		let lastSeenSessionActivityStamp = 0;
 		let lastSessionStateById = new Map<string, string>();
 		let lastLmsProbeAt = 0;
-		let latestLmsPsModels: LmsPsModel[] = [];
+		let latestLmsPsModels: LmsPsModel[] = initialPsModels;
+		let latestLmsPsSnapshotOk = true;
+		let latestLmsPsFailureSummary = "";
 		let lastLoggedLmsSummary = "";
 		while (Date.now() < deadline) {
 			try {
@@ -651,10 +689,32 @@ async function main(): Promise<void> {
 				const quietMs = now - lastProgressAt;
 				if (runningSessions.length > 0 && quietMs >= lmsProbeStartMs) {
 					if (now - lastLmsProbeAt >= lmsProbeMs) {
-						latestLmsPsModels = await fetchLmsPsModels(lmsRunner);
+						const lmsSnapshot = await fetchLmsPsSnapshot(lmsRunner);
+						latestLmsPsSnapshotOk = lmsSnapshot.ok;
+						if (lmsSnapshot.ok) {
+							latestLmsPsModels = lmsSnapshot.models;
+							latestLmsPsFailureSummary = "";
+						} else {
+							latestLmsPsModels = [];
+							latestLmsPsFailureSummary = describeLmsPsSnapshot(lmsSnapshot);
+						}
 						lastLmsProbeAt = Date.now();
 					}
-					if (lastLmsProbeAt > 0) {
+					if (!latestLmsPsSnapshotOk) {
+						if (quietMs >= modelIdleStallMs) {
+							stalled = true;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] MODEL-STALLED — quiet running session(s) for ${Math.round(quietMs / 1000)}s, but LM Studio CLI activity evidence is unavailable (${latestLmsPsFailureSummary}); aborting.`,
+							);
+							break;
+						}
+						if (latestLmsPsFailureSummary && latestLmsPsFailureSummary !== lastLoggedLmsSummary) {
+							lastLoggedLmsSummary = latestLmsPsFailureSummary;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] MODEL-WAIT — quiet running session(s) for ${Math.round(quietMs / 1000)}s; waiting inside the short idle window because lms ps is unavailable (${latestLmsPsFailureSummary})`,
+							);
+						}
+					} else if (lastLmsProbeAt > 0) {
 						const verdict = evaluateQuietRunningSessionStall({
 							runningSessions,
 							lmsModels: latestLmsPsModels,
@@ -698,10 +758,18 @@ async function main(): Promise<void> {
 				const detail = error instanceof Error ? error.message : String(error);
 				const now = Date.now();
 				if (now - lastLmsProbeAt >= lmsProbeMs) {
-					latestLmsPsModels = await fetchLmsPsModels(lmsRunner);
+					const lmsSnapshot = await fetchLmsPsSnapshot(lmsRunner);
+					latestLmsPsSnapshotOk = lmsSnapshot.ok;
+					if (lmsSnapshot.ok) {
+						latestLmsPsModels = lmsSnapshot.models;
+						latestLmsPsFailureSummary = "";
+					} else {
+						latestLmsPsModels = [];
+						latestLmsPsFailureSummary = describeLmsPsSnapshot(lmsSnapshot);
+					}
 					lastLmsProbeAt = Date.now();
 				}
-				const lmsBusy = busyLmsSummary(latestLmsPsModels);
+				const lmsBusy = latestLmsPsSnapshotOk ? busyLmsSummary(latestLmsPsModels) : null;
 				const quietMs = now - lastProgressAt;
 				if (lmsBusy && quietMs < modelActiveStallMs) {
 					consecutivePollErrors = 0;
@@ -710,6 +778,9 @@ async function main(): Promise<void> {
 					);
 					await new Promise((resolve) => setTimeout(resolve, 2000));
 					continue;
+				}
+				if (!latestLmsPsSnapshotOk && latestLmsPsFailureSummary) {
+					log(`   [poll WARN] ${detail}; lms ps unavailable (${latestLmsPsFailureSummary}).`);
 				}
 				if (lmsBusy && quietMs >= modelActiveStallMs) {
 					stalled = true;

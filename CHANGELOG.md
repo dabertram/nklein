@@ -20,6 +20,10 @@
   `running` as progress forever, and it no longer lets heartbeat-only session `updatedAt` changes reset the quiet timer.
   The verifier now counts only hook/output activity or session lifecycle changes as progress, aborting promptly when the
   serving model is idle and bounding long `processingPrompt`/`generating` silence with a diagnostic LM Studio snapshot.
+  It now also preflights `lms ps --json` as required host/queue/machine evidence and aborts before starting a swarm when
+  that CLI roster is unavailable or no loaded LLMs are visible; `/api/v0/models` remains residency-only and is not accepted
+  for host-spread/no-overload proof. If the CLI roster disappears mid-run while sessions are quiet, the verifier fails on
+  the short idle window instead of granting the long active-model wait to unobservable work.
   It also distinguishes `awaiting_review` capture/finalization handoffs from operator-attention/error pauses, so a failed
   seed that is waiting for human attention no longer suppresses the dead-stall lane. Persisted prompt-session records under
   `.nklein/data/sessions` now count too, so synthetic `::review` sessions that are absent from workspace summaries still

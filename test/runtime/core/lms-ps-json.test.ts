@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	fetchLmsPsModels,
+	fetchLmsPsSnapshot,
 	groupModelsByMachine,
 	LOCAL_MACHINE_ID,
 	parseLmsPsModels,
+	parseLmsPsModelsDetailed,
 } from "../../../src/core/lms-ps-json";
 
 // Shaped after real `lms ps --json` output: local instances report deviceIdentifier:null, linked remotes report a hex id.
@@ -88,6 +90,21 @@ describe("parseLmsPsModels", () => {
 		expect(parseLmsPsModels(JSON.stringify({ data: [{ identifier: "a" }] }))).toHaveLength(1);
 		expect(parseLmsPsModels(JSON.stringify({ models: [{ identifier: "b" }] }))).toHaveLength(1);
 	});
+
+	it("preserves parse status for proof harnesses that cannot treat every failure as an empty roster", () => {
+		expect(parseLmsPsModelsDetailed("").status).toBe("empty_stdout");
+		expect(parseLmsPsModelsDetailed("not json").status).toBe("invalid_json");
+		expect(parseLmsPsModelsDetailed(JSON.stringify({ nope: true })).status).toBe("invalid_shape");
+		expect(parseLmsPsModelsDetailed(JSON.stringify([]))).toMatchObject({
+			status: "ok",
+			models: [],
+			rawEntryCount: 0,
+		});
+		expect(parseLmsPsModelsDetailed(STDOUT)).toMatchObject({
+			status: "ok",
+			rawEntryCount: 3,
+		});
+	});
 });
 
 describe("groupModelsByMachine", () => {
@@ -108,5 +125,55 @@ describe("fetchLmsPsModels", () => {
 				throw new Error("lms not found");
 			}),
 		).toEqual([]);
+	});
+});
+
+describe("fetchLmsPsSnapshot", () => {
+	it("returns an explicit ok snapshot for parseable CLI output", async () => {
+		const snapshot = await fetchLmsPsSnapshot(async () => ({ stdout: STDOUT, exitCode: 0 }));
+		expect(snapshot).toMatchObject({
+			ok: true,
+			status: "ok",
+			parseStatus: "ok",
+			rawEntryCount: 3,
+			exitCode: 0,
+		});
+		expect(snapshot.models).toHaveLength(3);
+	});
+
+	it("distinguishes runner failure from a valid empty model roster", async () => {
+		const failed = await fetchLmsPsSnapshot(async () => ({
+			stdout: "Waking up LM Studio service...",
+			exitCode: 1,
+		}));
+		expect(failed).toMatchObject({
+			ok: false,
+			status: "runner_failed",
+			parseStatus: "invalid_json",
+			exitCode: 1,
+			stdoutPreview: "Waking up LM Studio service...",
+		});
+
+		const empty = await fetchLmsPsSnapshot(async () => ({ stdout: "[]", exitCode: 0 }));
+		expect(empty).toMatchObject({
+			ok: true,
+			status: "ok",
+			parseStatus: "ok",
+			models: [],
+			rawEntryCount: 0,
+		});
+	});
+
+	it("reports runner exceptions without throwing", async () => {
+		const snapshot = await fetchLmsPsSnapshot(async () => {
+			throw new Error("lms cli missing");
+		});
+		expect(snapshot).toMatchObject({
+			ok: false,
+			status: "runner_exception",
+			parseStatus: "not_run",
+			exitCode: null,
+			errorMessage: "lms cli missing",
+		});
 	});
 });
