@@ -1,7 +1,7 @@
 /**
  * FLEET SWARM e2e — drive a complex dev-test project across the HETEROGENEOUS local fleet.
  *
- * This verifier opts into explicit primary role pins so the "configured model was observed" assertion is meaningful:
+ * This verifier opts into explicit primary role pins so the "configured model was observed" assertions are meaningful:
  *   architect (decompose)  = a pinned strong LARGE model (default the m5max 27b)
  *   worker   (implement)   = a pinned fast coder primary + configured pool members for guardrail/advisor coverage
  *   reviewer               = a pinned mid model unless NKLEIN_FLEET_REVIEWER=none
@@ -60,7 +60,13 @@ interface BoardState {
 	/** Every session summary incl. SYNTHETIC ::review/::merge/::spec ones (invisible on the WS card stream). */
 	sessions?: Record<
 		string,
-		{ state?: string; lastHookAt?: number | null; lastOutputAt?: number | null; updatedAt?: number }
+		{
+			state?: string;
+			modelId?: string | null;
+			lastHookAt?: number | null;
+			lastOutputAt?: number | null;
+			updatedAt?: number;
+		}
 	>;
 }
 
@@ -405,6 +411,11 @@ async function main(): Promise<void> {
 					break;
 				}
 				const polledSessions = Object.entries(stateRes.payload.sessions ?? {});
+				for (const [, session] of polledSessions) {
+					if (session.modelId) {
+						seenRuntimeModels.add(session.modelId);
+					}
+				}
 				const anyPolledSessionAlive = polledSessions.some(([, s]) => ALIVE_SESSION_STATES.has(s.state ?? ""));
 				const freshestStamp = Math.max(
 					0,
@@ -467,7 +478,7 @@ async function main(): Promise<void> {
 		const architectSeen = hasModelUsage(seenModels, ARCHITECT);
 		const workerSeen = hasModelUsage(seenModels, WORKER);
 		const reviewerSeen = REVIEWER === "none" ? true : hasModelUsage(seenModels, REVIEWER);
-		const fleetUsageOk = architectSeen && workerSeen;
+		const fleetUsageOk = architectSeen && workerSeen && reviewerSeen;
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
 		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);

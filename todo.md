@@ -5757,10 +5757,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         verification below.
   - [~] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers. **IN PROGRESS
-        (2026-07-09):** the `complex_dag` fleet verifier now fails closed unless the configured architect + worker
+        (2026-07-09):** the `complex_dag` fleet verifier now fails closed unless the configured architect + worker + reviewer
         models are actually observed in runtime/ledger telemetry (`scripts/verify-fleet-swarm.mts`), so a run cannot
-        "pass" by silently using only the default/architect model. A live pre-restart run decomposed and exercised the
-        architect/reviewer path, but exposed a real gap: the cold configured worker (`qwen/qwen2.5-coder-14b` on
+        "pass" by silently using only the default/architect model or by hiding a synthetic reviewer session. A live
+        pre-restart run decomposed and exercised the architect/reviewer path, but exposed a real gap: the cold configured
+        worker (`qwen/qwen2.5-coder-14b` on
         m4mini) was not selected before it had registry/ledger evidence. Fixed the cold configured-candidate seed to
         compose the role prior with the catalog prior (`nklein-task-start-guard.ts`), with a focused regression test.
         Local gates green: `npm run test -- nklein-task-start-guard.test.ts`, `npm run typecheck`, `npm run lint`,

@@ -8,10 +8,11 @@
   remains unchanged until a controller supplies a phase; offered tool names now also reach the existing evidence gate that
   prevents premature "done" replies on explicit multi-tool instructions.
 - **Fleet verification now proves the configured role models actually ran** (todo §5.AB). The complex fleet-swarm verifier
-  records runtime and ledger model usage and fails unless the configured architect and worker models are observed, so a run
-  cannot pass by silently routing worker cards to the default model. Cold configured models now seed their fallback registry
-  entry with the catalog-derived capability prior, so an unloaded-from-ledger worker such as `qwen/qwen2.5-coder-14b` is
-  not treated as a generic weak worker before it has local outcome history.
+  records runtime and ledger model usage and fails unless the configured architect, worker, and reviewer models are observed,
+  so a run cannot pass by silently routing worker cards to the default model or hiding a synthetic reviewer session. Cold
+  configured models now seed their fallback registry entry with the catalog-derived capability prior, so an
+  unloaded-from-ledger worker such as `qwen/qwen2.5-coder-14b` is not treated as a generic weak worker before it has local
+  outcome history.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation
