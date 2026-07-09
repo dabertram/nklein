@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
 import { evaluateQuietRunningSessionStall, evaluateWorkspaceSessionProgress } from "../src/core/lms-session-stall";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
+import { extractPersistedPromptSessionModel } from "../src/core/persisted-prompt-session-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
 import { connectRuntimeStream, initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
@@ -164,6 +165,36 @@ function reportLedger(homeDir: string): Set<string> {
 function hasModelUsage(seenModels: ReadonlySet<string>, modelId: string): boolean {
 	const wanted = modelId.trim();
 	return wanted.length > 0 && [...seenModels].some((seen) => seen === wanted || seen.includes(wanted));
+}
+
+function reportPersistedPromptSessions(homeDir: string): Set<string> {
+	const files = findFiles(homeDir, "data/sessions").filter((file) => file.endsWith(".json") && !file.endsWith(".messages.json"));
+	const byModel = new Map<string, number>();
+	const seenModels = new Set<string>();
+	let rows = 0;
+	for (const file of files) {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(readFileSync(file, "utf8"));
+		} catch {
+			continue;
+		}
+		const observation = extractPersistedPromptSessionModel(parsed);
+		if (!observation) {
+			continue;
+		}
+		rows += 1;
+		seenModels.add(observation.modelId);
+		byModel.set(observation.modelId, (byModel.get(observation.modelId) ?? 0) + 1);
+	}
+	log(`=== Persisted prompt sessions: ${rows} session record(s) across ${byModel.size} model(s) ===`);
+	for (const [model, count] of byModel) {
+		log(`   ${model}  sessions=${count}`);
+	}
+	if (rows === 0) {
+		log("   (no persisted prompt-session model records found)");
+	}
+	return seenModels;
 }
 
 /** List task result branches (`nklein/tasks/*`) in the project workspace = the DELIVERABLES. */
@@ -519,7 +550,8 @@ async function main(): Promise<void> {
 		}
 		log("");
 		const seenLedgerModels = reportLedger(homeDir);
-		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels]);
+		const seenPersistedSessionModels = reportPersistedPromptSessions(homeDir);
+		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels, ...seenPersistedSessionModels]);
 		log("");
 		if (workspacePath) reportDeliverables(workspacePath);
 

@@ -16,6 +16,8 @@
   `running` as progress forever, and it no longer lets heartbeat-only session `updatedAt` changes reset the quiet timer.
   The verifier now counts only hook/output activity or session lifecycle changes as progress, aborting promptly when the
   serving model is idle and bounding long `processingPrompt`/`generating` silence with a diagnostic LM Studio snapshot.
+  It also counts persisted prompt-session records under `.nklein/data/sessions`, so synthetic `::review` sessions that are
+  absent from workspace summaries still satisfy the configured reviewer model observation gate.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

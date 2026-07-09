@@ -5812,6 +5812,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         transitions count as verifier progress; heartbeat-only `updatedAt` advances are ignored. The same pass also fixed
         misleading diverse-pick telemetry: the helper now says "escalation worker" or "plan critic" when that is what was
         auto-picked, instead of always saying "reviewer".
+        **POST-FIX LIVE RERUN (2026-07-09, after `d00c6028`):** qwen3 architect decomposed successfully; pinned Devstral
+        workers produced three result branches; Qwopus reviewer delivered the first review but returned `no_verdict` for
+        later reviews; the score-band worker hit the repeated `edit_file` guard; the run then dead-stalled with 8 planning
+        cards left. Important verifier root cause: Qwopus **did** run as the pinned reviewer, but reviewer synthetic sessions
+        were absent from `workspace.getState.sessions` and the agent-attempt ledger; the evidence lived in persisted
+        prompt-session records under `.nklein/data/sessions/*__review*/...json`. Fixed with
+        `extractPersistedPromptSessionModel` + verifier artifact scanning so synthetic review sessions count toward the
+        configured reviewer observation gate.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
