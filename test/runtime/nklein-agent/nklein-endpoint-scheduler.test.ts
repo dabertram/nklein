@@ -528,6 +528,51 @@ describe("nklein endpoint scheduler", () => {
 		).toEqual({ ok: true });
 	});
 
+	it("uses resolved session host ids before falling back to the model map", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "reviewer-alias-not-in-map",
+				endpoint: "http://localhost:1234/v1",
+				hostId: "legion-hex",
+				modelRegistry: createSnapshot(),
+				hostConcurrencyCap: 1,
+				machineByModelId,
+				runningSessions: [
+					{
+						...onLink("task-1", "worker-alias-not-in-map"),
+						hostId: "m4mini-hex",
+					},
+				],
+			}),
+		).toEqual({ ok: true });
+	});
+
+	it("blocks by resolved session host id even when the model id is not in the map", () => {
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-3",
+			providerId: "lmstudio",
+			modelId: "reviewer-alias-not-in-map",
+			endpoint: "http://localhost:1234/v1",
+			hostId: "legion-hex",
+			modelRegistry: createSnapshot(),
+			hostConcurrencyCap: 1,
+			machineByModelId,
+			runningSessions: [
+				{
+					...onLink("task-1", "other-reviewer-alias-not-in-map"),
+					hostId: "legion-hex",
+				},
+			],
+		});
+		expect(decision).toMatchObject({
+			ok: false,
+			sharedEndpointId: "host:legion-hex",
+			blockedByTaskId: "task-1",
+		});
+	});
+
 	it("allows when the task's machine is free even though ANOTHER machine is busy (independent pools)", () => {
 		expect(
 			scheduleNKleinEndpointStart({

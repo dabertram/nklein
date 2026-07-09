@@ -48,6 +48,10 @@ export interface LmsPsModel {
 	identifier: string;
 	/** The real publisher model key (`modelKey`) for catalog/affinity lookups; falls back to `identifier` if absent. */
 	modelKey: string;
+	/** LM Studio's linked-machine-qualified catalog id when present. */
+	indexedModelIdentifier: string | null;
+	/** LM Studio's model path when present; useful as a stable alias for manually configured pins. */
+	path: string | null;
 	/** WHICH machine serves this instance: {@link LOCAL_MACHINE_ID} for the local host, else the linked device's id. */
 	machineId: string;
 	/** `true` for an embedding model (`type === "embedding"`). */
@@ -68,6 +72,8 @@ interface RawLmsPsEntry {
 	type?: unknown;
 	identifier?: unknown;
 	modelKey?: unknown;
+	indexedModelIdentifier?: unknown;
+	path?: unknown;
 	deviceIdentifier?: unknown;
 	status?: unknown;
 	queued?: unknown;
@@ -111,6 +117,8 @@ export function parseLmsPsModels(stdout: string): LmsPsModel[] {
 		models.push({
 			identifier,
 			modelKey: asString(entry.modelKey) ?? identifier,
+			indexedModelIdentifier: asString(entry.indexedModelIdentifier) ?? null,
+			path: asString(entry.path) ?? null,
 			machineId: deviceId ?? LOCAL_MACHINE_ID,
 			isEmbedding: entry.type === "embedding",
 			status: asString(entry.status) ?? null,

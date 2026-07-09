@@ -38,6 +38,7 @@ import {
 	llmfitPriorPredictedWallTimeMs,
 	loadOptInLlmfitRoutingPriorResolver,
 } from "../../nklein-agent/nklein-llmfit-routing-prior";
+import { buildLmStudioMachineByModelId } from "../../nklein-agent/nklein-lmstudio-host-map";
 import type { LoadedModelRoutingProfile } from "../../nklein-agent/nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../../nklein-agent/nklein-loaded-model-profile";
 import {
@@ -764,13 +765,15 @@ export async function handleStartTaskSession(
 		};
 		const shouldResolveHostMap =
 			residencyCheckEnabled && (legacyPerMachineCap !== null || Object.keys(configuredHostCaps).length > 0);
+		const hostMapProviderIds = [
+			...new Set([...guardCandidates.values()].map((candidate) => candidate.entry.providerId)),
+		];
+		const hostMapEndpoints = [...new Set([...guardCandidates.values()].map((candidate) => candidate.entry.endpoint))];
 		const machineByModelIdRaw = shouldResolveHostMap
-			? new Map(
-					(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
-						model.identifier,
-						model.machineId,
-					]),
-				)
+			? buildLmStudioMachineByModelId(await fetchLmsPsModelsCached(createDefaultLmsRunner()), {
+					providerIds: hostMapProviderIds,
+					endpoints: hostMapEndpoints,
+				})
 			: undefined;
 		// Only key ROUTING pools by machine when the map resolved NON-EMPTY; an empty map (flag/config on but `lms ps`
 		// unavailable) falls back to endpoint keying so routing never collapses into one synthetic pool. The admission
@@ -1064,6 +1067,7 @@ export async function handleStartTaskSession(
 		// §5.W: resolve the effective per-provider/per-model concurrency caps (project override ?? global default) and
 		// feed them to the scheduler gate. The per-model registry `maxConcurrentRequests` fallback stays inside the
 		// scheduler, so a null cap here leaves today's behavior unchanged.
+		const launchHostId = machineByModelIdRaw?.get(nkleinLaunchConfig.modelId ?? "") ?? LOCAL_MACHINE_ID;
 		const concurrencyCaps = resolveSessionConcurrencyCaps({
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: buildNKleinModelRegistryKey({
@@ -1074,7 +1078,7 @@ export async function handleStartTaskSession(
 			// §5.AB per-machine pools: the endpoint/baseUrl is the machine pool key for the per-pool cap.
 			endpoint: nkleinLaunchConfig.baseUrl ?? null,
 			// §5.AB per-LM-Studio-host caps: the host id comes from `lms ps`; unmapped models conservatively resolve to local.
-			hostId: machineByModelIdRaw?.get(nkleinLaunchConfig.modelId ?? "") ?? LOCAL_MACHINE_ID,
+			hostId: launchHostId,
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,
 			hostFallback: legacyPerMachineCap,
@@ -1086,6 +1090,7 @@ export async function handleStartTaskSession(
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: nkleinLaunchConfig.modelId ?? "",
 			endpoint: nkleinLaunchConfig.baseUrl ?? null,
+			hostId: launchHostId,
 			runningSessions: nkleinTaskSessionService.listModelEndpointSessions(),
 			modelRegistry: modelRegistrySnapshot,
 			now: Date.now(),

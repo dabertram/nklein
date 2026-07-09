@@ -22,6 +22,8 @@ const STDOUT = JSON.stringify([
 	{
 		type: "llm",
 		modelKey: "unsloth/qwen3.5-9b",
+		indexedModelIdentifier: "040891f3ad9352c2ec9389aba79cd022:unsloth/qwen3.5-9b",
+		path: "unsloth/qwen3.5-9b",
 		identifier: "qwen3.5-9b-mtp-q4-k-xl-legion5pro",
 		deviceIdentifier: "040891f3ad9352c2ec9389aba79cd022",
 		status: "idle",
@@ -55,6 +57,8 @@ describe("parseLmsPsModels", () => {
 		const legion = models[1];
 		expect(legion).toMatchObject({
 			modelKey: "unsloth/qwen3.5-9b",
+			indexedModelIdentifier: "040891f3ad9352c2ec9389aba79cd022:unsloth/qwen3.5-9b",
+			path: "unsloth/qwen3.5-9b",
 			isEmbedding: false,
 			status: "idle",
 			queued: 2,
@@ -69,6 +73,8 @@ describe("parseLmsPsModels", () => {
 		expect(parseLmsPsModels(JSON.stringify([{ identifier: "only-id" }]))[0]).toMatchObject({
 			identifier: "only-id",
 			modelKey: "only-id",
+			indexedModelIdentifier: null,
+			path: null,
 			machineId: LOCAL_MACHINE_ID,
 			queued: 0,
 			parallel: null,

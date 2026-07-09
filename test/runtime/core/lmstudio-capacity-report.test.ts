@@ -6,6 +6,8 @@ function model(overrides: Partial<LmsPsModel> & Pick<LmsPsModel, "identifier" | 
 	return {
 		identifier: overrides.identifier,
 		modelKey: overrides.modelKey ?? overrides.identifier,
+		indexedModelIdentifier: overrides.indexedModelIdentifier ?? null,
+		path: overrides.path ?? null,
 		machineId: overrides.machineId,
 		isEmbedding: overrides.isEmbedding ?? false,
 		status: overrides.status ?? "idle",

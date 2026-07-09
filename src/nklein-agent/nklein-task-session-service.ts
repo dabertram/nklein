@@ -176,6 +176,7 @@ const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 
 import type {
 	CreateInMemoryNKleinTaskSessionServiceOptions,
+	NKleinModelTurnAdmissionGate,
 	NKleinTaskSessionService,
 	StartNKleinTaskSessionRequest,
 } from "./nklein-task-session-service-types";
@@ -187,6 +188,8 @@ export type {
 } from "./nklein-merge-resolution-runner";
 export type {
 	CreateInMemoryNKleinTaskSessionServiceOptions,
+	NKleinModelTurnAdmissionGate,
+	NKleinModelTurnAdmissionRequest,
 	NKleinTaskSessionService,
 	StartNKleinTaskSessionRequest,
 } from "./nklein-task-session-service-types";
@@ -209,6 +212,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdStore = new TaskProviderIdStore();
 	private readonly modelEndpoint = new TaskModelEndpointStore();
+	private modelTurnAdmissionGate: NKleinModelTurnAdmissionGate | null = null;
 	/** Owns per-task context-window resolution + the pre-send context-budget guard (deps are lazy → field-init safe). */
 	private readonly contextBudgetController = createContextBudgetController({
 		getModelIdForTask: (taskId) => this.launchConfigByTaskId.get(taskId)?.modelId ?? null,
@@ -257,7 +261,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getPauseController: () => this.pauseController,
 		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
 		setResultBranch: (taskId, branch) => this.sandboxState.setResultBranch(taskId, branch),
-		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
 		cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
@@ -269,8 +273,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
 		getPauseController: () => this.pauseController,
 		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
-		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
 	});
@@ -281,8 +285,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getShellKeyByModelId: () => this.promptWarmthLedger.shellKeyByModelId,
 		getPauseController: () => this.pauseController,
 		getHarness: () => this.secondarySessionHarness,
-		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
@@ -295,8 +299,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getHarness: () => this.secondarySessionHarness,
 		pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
 		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
-		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 		runBudget: 2,
@@ -333,7 +337,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				}),
 				fallbackCwd: input.cwd,
 			}),
-		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
 		prepareMessagesForKnownContextWindow: (input) =>
 			this.contextBudgetController.prepareMessagesForKnownContextWindow(input),
 		emitSummary: (summary) => this.emitSummary(summary),
@@ -479,6 +483,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
 		this.agentWebResearchAllowed = options.agentWebResearchAllowed ?? true;
 		this.agentMcpAccess = options.agentMcpAccess ?? "on";
+		this.modelTurnAdmissionGate = options.modelTurnAdmissionGate ?? null;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -823,6 +828,72 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const events = await readAllAgentLedger({ rootDir: this.diagnosticStoreRoot }).catch(() => []);
 		const note = buildAttemptRetryNoteFromLedger(events, { workflowId: taskId }).trim();
 		return note.length > 0 ? note : null;
+	}
+
+	private async withModelTurnAdmission<T>(
+		input: {
+			taskId: string;
+			providerId: string | null | undefined;
+			modelId: string | null | undefined;
+			endpoint: string | null | undefined;
+		},
+		run: () => Promise<T>,
+	): Promise<T> {
+		const gate = this.modelTurnAdmissionGate;
+		if (!gate) {
+			return await run();
+		}
+		const providerId = input.providerId?.trim() || "";
+		const modelId = input.modelId?.trim() || "";
+		if (!providerId || !modelId || providerId === UNCONFIGURED_PROVIDER_ID || modelId === UNCONFIGURED_MODEL_ID) {
+			return await run();
+		}
+		return await gate(
+			{
+				taskId: input.taskId,
+				providerId,
+				modelId,
+				endpoint: input.endpoint?.trim() || null,
+			},
+			run,
+		);
+	}
+
+	private async withModelTurnAdmissionForTask<T>(
+		taskId: string,
+		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
+		run?: () => Promise<T>,
+	): Promise<T> {
+		const launchConfig = this.resolveRestartLaunchConfig({ taskId, launchConfigOverrides });
+		return await this.withModelTurnAdmission(
+			{
+				taskId,
+				providerId: launchConfig?.providerId,
+				modelId: launchConfig?.modelId,
+				endpoint: launchConfig?.baseUrl ?? null,
+			},
+			run ?? (async () => undefined as T),
+		);
+	}
+
+	private async sendAuxiliaryTaskSessionInput(taskId: string, prompt: string): Promise<unknown> {
+		return await this.withModelTurnAdmissionForTask(taskId, undefined, () =>
+			this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		);
+	}
+
+	private async startAuxiliaryRuntimeTaskSessionFromLaunchConfig(
+		input: StartRuntimeTaskSessionFromLaunchConfigInput,
+	): Promise<RuntimeTaskSessionStartResult> {
+		return await this.withModelTurnAdmission(
+			{
+				taskId: input.taskId,
+				providerId: input.launchConfig.providerId,
+				modelId: input.launchConfig.modelId,
+				endpoint: input.launchConfig.baseUrl ?? null,
+			},
+			() => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		);
 	}
 
 	private async startRuntimeTaskSessionFromLaunchConfig(
@@ -1778,100 +1849,115 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			);
 		}
 		{
-			const message = createMessage(taskId, "user", normalized, images);
-			entry.messages.push(message);
-			this.emitMessage(taskId, message);
-			clearActiveTurnState(entry);
-			const waitingSummary = updateSummary(entry, {
-				state: "running",
-				mode: effectiveMode,
-				reviewReason: null,
-				warningMessage: null,
-				lastOutputAt: now(),
-				lastHookAt: now(),
-				lastTokenAt: null,
-				lastHeartbeatAt: now(),
-				heartbeatStatus: "healthy",
-				latestHookActivity: {
-					activityText: "Agent active",
-					toolName: null,
-					toolInputSummary: null,
-					finalMessage: null,
-					hookEventName: "turn_start",
-					notificationType: null,
-					source: "nklein-sdk",
-				},
-			});
-			this.emitSummary(waitingSummary);
-			this.timeoutController.scheduleStreamTimeout(taskId);
-			this.timeoutController.scheduleConversationTimeout(taskId);
-			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
-			const runtimeSetupWorkspacePath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
-			void this.runtimeSetupLeaseCache
-				.ensure(runtimeSetupWorkspacePath)
-				.then(async (runtimeSetup) => {
-					// A bounced/escalated card's workspace may have been disposed at capture — restore it BEFORE
-					// the turn so the session's sandbox tools work again (see the helper's run20 story).
-					const restoredSandboxWorkspace = await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
-					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
-					const resolvedContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
-						taskId,
-						launchConfigOverrides?.contextWindow,
-					);
-					try {
-						const persistedSnapshotForBudget = await this.sessionRuntime
-							.readPersistedTaskSession(taskId)
-							.catch(() => null);
-						this.emitSummary(
-							updateSummary(entry, {
-								contextBudgetBreakdown: buildContextBudgetBreakdown({
-									systemPrompt: this.contextBudgetInputs.getSystemPrompt(taskId),
-									toolSchemaTokens: this.contextBudgetInputs.getToolSchemaTokens(taskId),
-									messages: persistedSnapshotForBudget?.messages,
-									prompt: resolvedPrompt,
-									images,
-									contextWindow: resolvedContextWindow,
-								}),
-							}),
+			const deliverResolvedInput = async (): Promise<{
+				result: unknown;
+				warnings?: string[];
+				assistantCountBeforeSend: number;
+			}> => {
+				if (this.messageRepository.getTaskEntry(taskId) !== entry) {
+					return { result: null, assistantCountBeforeSend: entry.messages.length };
+				}
+				const message = createMessage(taskId, "user", normalized, images);
+				entry.messages.push(message);
+				this.emitMessage(taskId, message);
+				clearActiveTurnState(entry);
+				const waitingSummary = updateSummary(entry, {
+					state: "running",
+					mode: effectiveMode,
+					reviewReason: null,
+					warningMessage: null,
+					lastOutputAt: now(),
+					lastHookAt: now(),
+					lastTokenAt: null,
+					lastHeartbeatAt: now(),
+					heartbeatStatus: "healthy",
+					latestHookActivity: {
+						activityText: "Agent active",
+						toolName: null,
+						toolInputSummary: null,
+						finalMessage: null,
+						hookEventName: "turn_start",
+						notificationType: null,
+						source: "nklein-sdk",
+					},
+				});
+				this.emitSummary(waitingSummary);
+				this.timeoutController.scheduleStreamTimeout(taskId);
+				this.timeoutController.scheduleConversationTimeout(taskId);
+				const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
+				const runtimeSetupWorkspacePath =
+					this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
+				const { result, warnings } = await this.runtimeSetupLeaseCache
+					.ensure(runtimeSetupWorkspacePath)
+					.then(async (runtimeSetup) => {
+						// A bounced/escalated card's workspace may have been disposed at capture — restore it BEFORE
+						// the turn so the session's sandbox tools work again (see the helper's run20 story).
+						const restoredSandboxWorkspace = await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
+						const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
+						const resolvedContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+							taskId,
+							launchConfigOverrides?.contextWindow,
 						);
-						if (!queueDelivery) {
-							const proactiveCompaction = await this.contextOverflowController.compactBeforeOverflow({
+						try {
+							const persistedSnapshotForBudget = await this.sessionRuntime
+								.readPersistedTaskSession(taskId)
+								.catch(() => null);
+							this.emitSummary(
+								updateSummary(entry, {
+									contextBudgetBreakdown: buildContextBudgetBreakdown({
+										systemPrompt: this.contextBudgetInputs.getSystemPrompt(taskId),
+										toolSchemaTokens: this.contextBudgetInputs.getToolSchemaTokens(taskId),
+										messages: persistedSnapshotForBudget?.messages,
+										prompt: resolvedPrompt,
+										images,
+										contextWindow: resolvedContextWindow,
+									}),
+								}),
+							);
+							if (!queueDelivery) {
+								const proactiveCompaction = await this.contextOverflowController.compactBeforeOverflow({
+									taskId,
+									entry,
+									prompt: resolvedPrompt,
+									mode: effectiveMode,
+									images,
+									launchConfigOverrides,
+									contextWindow: resolvedContextWindow,
+								});
+								if (proactiveCompaction) {
+									return proactiveCompaction;
+								}
+							}
+							return await this.dispatchResolvedTaskInput({
 								taskId,
-								entry,
 								prompt: resolvedPrompt,
 								mode: effectiveMode,
 								images,
+								delivery: queueDelivery ? "queue" : undefined,
 								launchConfigOverrides,
-								contextWindow: resolvedContextWindow,
+								forceRestart: restoredSandboxWorkspace,
 							});
-							if (proactiveCompaction) {
-								return proactiveCompaction;
+						} catch (error) {
+							const recovered = await this.contextOverflowController.recoverAfterOverflow({
+								taskId,
+								prompt: resolvedPrompt,
+								mode: effectiveMode,
+								images,
+								error,
+							});
+							if (recovered) {
+								return recovered;
 							}
+							throw error;
 						}
-						return await this.dispatchResolvedTaskInput({
-							taskId,
-							prompt: resolvedPrompt,
-							mode: effectiveMode,
-							images,
-							delivery: queueDelivery ? "queue" : undefined,
-							launchConfigOverrides,
-							forceRestart: restoredSandboxWorkspace,
-						});
-					} catch (error) {
-						const recovered = await this.contextOverflowController.recoverAfterOverflow({
-							taskId,
-							prompt: resolvedPrompt,
-							mode: effectiveMode,
-							images,
-							error,
-						});
-						if (recovered) {
-							return recovered;
-						}
-						throw error;
-					}
-				})
-				.then(({ result, warnings }) => {
+					});
+				return { result, warnings, assistantCountBeforeSend };
+			};
+			const deliveryPromise = queueDelivery
+				? deliverResolvedInput()
+				: this.withModelTurnAdmissionForTask(taskId, launchConfigOverrides, deliverResolvedInput);
+			void deliveryPromise
+				.then(({ result, warnings, assistantCountBeforeSend }) => {
 					// This fire-and-forget continuation captured `entry` before several awaits. A concurrent
 					// clearTaskSession (/clear) can SWAP the map entry for a fresh cleared object in between, leaving
 					// the captured `entry` orphaned. Re-fetch the live entry and bail if it was replaced (identity
@@ -2194,6 +2280,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** §5.AN decision-9: live-update the model-stats tracking level when the runtime config changes. */
 	setModelStatsTrackingLevel(level: ModelStatsTrackingLevel): void {
 		this.modelStatsTrackingLevel = level;
+	}
+
+	setModelTurnAdmissionGate(gate: NKleinModelTurnAdmissionGate | null): void {
+		this.modelTurnAdmissionGate = gate;
 	}
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {

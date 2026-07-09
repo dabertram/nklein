@@ -87,6 +87,18 @@ export interface StartNKleinTaskSessionRequest {
 	skillDynamicsLevel?: SkillDynamicsLevel | null;
 }
 
+export interface NKleinModelTurnAdmissionRequest {
+	taskId: string;
+	providerId: string;
+	modelId: string;
+	endpoint: string | null;
+}
+
+export type NKleinModelTurnAdmissionGate = <T>(
+	request: NKleinModelTurnAdmissionRequest,
+	run: () => Promise<T>,
+) => Promise<T>;
+
 export interface NKleinTaskSessionService {
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
@@ -209,6 +221,7 @@ export interface NKleinTaskSessionService {
 	rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	setSandboxNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void>;
+	setModelTurnAdmissionGate(gate: NKleinModelTurnAdmissionGate | null): void;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
@@ -248,6 +261,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	/** The §5.AC SearXNG-compatible search endpoint base URL; null (default) keeps `web_search` detached. */
 	retrievalSearchBackendUrl?: string | null;
+	/**
+	 * Admission gate for actual SDK model turns after a session exists. Normal card STARTS are already gated in the
+	 * tRPC start path, but review nudges, review-bounce re-drives, synthetic reviewers, plan critics, merge helpers, and
+	 * restarts can otherwise submit directly to the model runtime and overload a host.
+	 */
+	modelTurnAdmissionGate?: NKleinModelTurnAdmissionGate | null;
 	/**
 	 * §5.L — whether the resolved capability ruleset GRANTS the agent web-research (`resolveAgentToolAccess().webResearch`).
 	 * Default `true` (the shipped `fully_open` preset ⇒ byte-identical). When a restricted role's ruleset denies it, the

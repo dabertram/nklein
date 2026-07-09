@@ -5514,9 +5514,35 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       hosts/models, queue/status, LM Studio's `parallel` value, configured caps, and conservative recommendations. Live
       probe on 2026-07-09 saw `local` with Devstral + Qwen3.6 and two linked hosts (`040891f3…` Gemma 12B,
       `2d30f4…` Qwen3.5 9B), all idle, all reporting `parallel:1`, so the recommendation stayed cap 1 unless the user
-      explicitly raises a host cap. **Remaining before `[x]`:** persist richer observed overlap/latency/headroom samples,
-      prove a live fleet run obeys explicit host caps, and surface measured cap recommendations in the operator UI beyond
-      the dev command.
+      explicitly raises a host cap. **Qwen2.5.1 CODER LIVE RERUN (2026-07-09):** after the user made
+      `mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit` available on `m4mini`, the guarded loader switched that host from
+      `qwen3.5-9b-mlx` to `qwen2.5.1-coder-7b-instruct` at 32k context with ~8 GiB free. The model cards checked at
+      Hugging Face show this MLX package is converted from `Qwen/Qwen2.5-Coder-7B-Instruct`, 4-bit, Apache-2.0, so the
+      catalog's Qwen2.5 Coder 7B classification is the right family-specific prior, despite LM Studio reporting
+      `trainedForToolUse:false` for the instance. A conservative live verifier run (Qwen3.6 architect + Qwen2.5.1 m4mini
+      worker + Devstral pool + Gemma reviewer, `NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY=1`) decomposed into 12 cards;
+      the Qwen2.5.1 worker first produced one no-change prose attempt, then successfully used real sandbox tools on the
+      next task and captured a result branch. The run also exposed the root cap bug: Gemma showed `queued:2` even with
+      per-host cap 1, and m4mini re-drive/session overlap appeared, because post-start SDK turns (reviewers, plan/merge
+      helpers, review-bounce re-drives, and existing-session sends) bypassed the initial task-start scheduler. **SECOND
+      INCREMENT SHIPPED (2026-07-09):** `NKleinTaskSessionService` now has a model-turn admission gate wrapping those
+      post-start SDK calls; runtime-server resolves the same provider/model/endpoint/host caps, checks fresh `lms ps`
+      busy/queue state, reserves a turn slot across loaded workspaces, releases it when the SDK call finishes, and logs
+      repeated capacity waits instead of silently over-queuing a host. Unit coverage proves a reviewed re-drive cannot
+      emit its visible user message or call the SDK until the gate admits it. **LIVE ROOT-CAUSE FOLLOW-UP (2026-07-09):**
+      the first verifier reruns found three deeper issues and fixed the class, not just the symptom: (1) the runtime gate
+      treated the synchronous model-registry `getSnapshot()` as a promise; (2) broad `state:"running"` workspace summaries
+      were counted as active model turns even when no SDK request was in flight; (3) host caps re-resolved every active
+      turn through fresh `lms ps` aliases, so registry-key/path aliases or an empty fresh poll could collapse linked-host
+      work onto `local`. The fix now uses an alias-aware LM Studio host map (`identifier`, `modelKey`, indexed id, path,
+      and canonical `provider:model:endpoint` keys), records the admitted `hostId` on model-turn reservations, and prefers
+      that reservation host over rediscovery. A final live pass also exposed duplicate synthetic `::review` turns with the
+      same task id queueing Gemma (`queued:1`) because the scheduler's same-task exclusion treated them as the same logical
+      start; model-turn admission now serializes active same-task turns before scheduler admission. **FINAL LIVE EVIDENCE
+      (rerun5, stopped after targeted proof):** after a bounced review, Gemma reported `idle queued:0`, Qwen2.5.1 reported
+      `generating queued:0`, no `Model turn ... LM Studio host "local"` warning appeared, and Docker returned to the
+      baseline single SearxNG container after cleanup. **Remaining before `[x]`:** persist richer observed
+      overlap/latency/headroom samples, and surface measured cap recommendations in the operator UI beyond the dev command.
 > **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**
 > NO manual role→model assignment (the user's `modelRoles` config was early-testing, now deprecated — "forget my
 > config"). Each card AUTO-gets the best-fit **model + dynamic skill set**, decided by !Klein from (1) runtime empirical

@@ -58,6 +58,15 @@
   provider, model, LM Studio host, and endpoint-pool caps, and `nklein dev capacity` reports loaded hosts/models,
   queue/status, LM Studio's reported `parallel` value, configured caps, and conservative recommendations without sending
   a model request.
+- **LM Studio host caps now cover post-start model turns** (todo §5.AB). Reviewers, plan/merge helpers, review-bounce
+  re-drives, and other existing-session SDK sends now pass through a runtime model-turn admission gate that resolves the
+  same provider/model/endpoint/host caps as task start, checks fresh `lms ps` busy/queue state, reserves a turn slot across
+  loaded workspaces, and releases it when the SDK call finishes. A reviewed re-drive no longer emits its visible user
+  message or starts stream timeouts while it is only waiting for model capacity. The host map now understands LM Studio
+  runtime aliases, publisher keys, indexed ids, paths, and canonical registry keys, and admitted turns carry their resolved
+  host id so later admissions do not collapse linked-machine work onto `local` after an alias miss. Duplicate active turns
+  for the same synthetic session, such as repeated `::review` starts, are serialized before they can queue a single-host
+  LM Studio model.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

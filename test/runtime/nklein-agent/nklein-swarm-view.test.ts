@@ -6,6 +6,8 @@ import { buildSwarmMachineView, formatSwarmMachineView } from "../../../src/nkle
 function psModel(input: Partial<LmsPsModel> & { identifier: string; machineId: string }): LmsPsModel {
 	return {
 		modelKey: input.identifier,
+		indexedModelIdentifier: null,
+		path: null,
 		isEmbedding: false,
 		status: "idle",
 		queued: 0,

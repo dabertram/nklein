@@ -31,6 +31,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { readPausedTasks } from "../core/card-pause";
+import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
 import {
 	deriveDeliveryGateEvidence,
@@ -41,11 +42,13 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
+import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
+import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import {
@@ -79,10 +82,18 @@ import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalati
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
+import {
+	type NKleinEndpointSessionSnapshot,
+	scheduleNKleinEndpointStart,
+} from "../nklein-agent/nklein-endpoint-scheduler";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
+import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
+import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import {
 	createInMemoryNKleinTaskSessionService,
+	type NKleinModelTurnAdmissionGate,
+	type NKleinModelTurnAdmissionRequest,
 	type NKleinTaskSessionService,
 } from "../nklein-agent/nklein-task-session-service";
 import { isTrustedAutoMergeProtectedPath } from "../nklein-agent/nklein-trusted-auto-merge";
@@ -468,6 +479,231 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			timer: ReturnType<typeof setTimeout>;
 		}
 	>();
+	const MODEL_TURN_ADMISSION_POLL_MS = 3_000;
+	const MODEL_TURN_ADMISSION_WARN_MS = 30_000;
+	const MODEL_TURN_LMS_PS_TIMEOUT_MS = 15_000;
+	const activeModelTurnsByWorkspaceId = new Map<string, NKleinEndpointSessionSnapshot[]>();
+	const modelTurnAdmissionTailByWorkspaceId = new Map<string, Promise<void>>();
+	let lastNonEmptyModelTurnPsModels: readonly LmsPsModel[] = [];
+	const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+	const emptyModelRegistrySnapshot = () => ({
+		schemaVersion: 1 as const,
+		updatedAt: 0,
+		models: {},
+	});
+	const runSerializedModelTurnAdmission = async <T>(workspaceId: string, run: () => Promise<T>): Promise<T> => {
+		const previous = modelTurnAdmissionTailByWorkspaceId.get(workspaceId) ?? Promise.resolve();
+		let releaseNext: () => void = () => {};
+		const next = new Promise<void>((resolve) => {
+			releaseNext = resolve;
+		});
+		const tail = previous.catch(() => undefined).then(() => next);
+		modelTurnAdmissionTailByWorkspaceId.set(workspaceId, tail);
+		await previous.catch(() => undefined);
+		try {
+			return await run();
+		} finally {
+			releaseNext();
+			if (modelTurnAdmissionTailByWorkspaceId.get(workspaceId) === tail) {
+				modelTurnAdmissionTailByWorkspaceId.delete(workspaceId);
+			}
+		}
+	};
+	const resolveLegacyPerMachineCap = (): number | null => {
+		if (process.env.VITEST || process.env.NODE_ENV === "test") {
+			return null;
+		}
+		const raw = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
+		return Number.isInteger(raw) && raw > 0 ? raw : null;
+	};
+	const collectModelTurnSchedulingSessions = (
+		workspaceId: string,
+		request: NKleinModelTurnAdmissionRequest,
+		psModels: readonly LmsPsModel[],
+	): NKleinEndpointSessionSnapshot[] => {
+		const byTaskId = new Map<string, NKleinEndpointSessionSnapshot>();
+		for (const [turnWorkspaceId, sessions] of activeModelTurnsByWorkspaceId) {
+			for (const session of sessions) {
+				byTaskId.set(turnWorkspaceId === workspaceId ? session.taskId : `${turnWorkspaceId}:${session.taskId}`, {
+					...session,
+					taskId: turnWorkspaceId === workspaceId ? session.taskId : `${turnWorkspaceId}:${session.taskId}`,
+				});
+			}
+		}
+		const trackedModelIds = new Set([...byTaskId.values()].map((session) => session.modelId));
+		for (const model of psModels) {
+			const status = model.status?.trim().toLowerCase() ?? "";
+			const isBusy = model.queued > 0 || (status.length > 0 && status !== "idle");
+			if (!isBusy || trackedModelIds.has(model.identifier)) {
+				continue;
+			}
+			const taskId = `external-lms:${model.machineId}:${model.identifier}`;
+			byTaskId.set(taskId, {
+				taskId,
+				state: "running",
+				startedAt: null,
+				providerId: request.providerId,
+				modelId: model.identifier,
+				hostId: model.machineId,
+				endpoint: model.identifier === request.modelId ? request.endpoint : null,
+			});
+		}
+		return [...byTaskId.values()].sort((left, right) => (left.startedAt ?? 0) - (right.startedAt ?? 0));
+	};
+	const findExternalLmsHostBlock = (
+		request: NKleinModelTurnAdmissionRequest,
+		psModels: readonly LmsPsModel[],
+		hostId: string,
+		runningSessions: readonly NKleinEndpointSessionSnapshot[],
+		machineByModelId: ReadonlyMap<string, string>,
+	): string | null => {
+		const runningOnHost = runningSessions.some(
+			(session) =>
+				session.taskId !== request.taskId &&
+				!session.taskId.startsWith("external-lms:") &&
+				(session.hostId?.trim() || machineByModelId.get(session.modelId) || LOCAL_MACHINE_ID) === hostId,
+		);
+		const hostModels = psModels.filter((model) => model.machineId === hostId);
+		const queued = hostModels.find((model) => model.queued > 0);
+		if (queued) {
+			return `LM Studio host "${hostId}" already has ${queued.queued} queued request(s) on ${queued.identifier}.`;
+		}
+		const busy = hostModels.find((model) => {
+			const status = model.status?.trim().toLowerCase() ?? "";
+			return status.length > 0 && status !== "idle";
+		});
+		if (busy && !runningOnHost) {
+			return `LM Studio host "${hostId}" is busy outside !Klein on ${busy.identifier} (status ${busy.status ?? "unknown"}).`;
+		}
+		return null;
+	};
+	const evaluateModelTurnAdmission = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		request: NKleinModelTurnAdmissionRequest,
+	): Promise<
+		| { ok: true; reservation: NKleinEndpointSessionSnapshot }
+		| { ok: false; reason: string; retryAfterMs: number | null }
+	> => {
+		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
+		const freshPsModels = await fetchLmsPsModels(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS));
+		if (freshPsModels.length > 0) {
+			lastNonEmptyModelTurnPsModels = freshPsModels;
+		}
+		const psModelsForHostMap = freshPsModels.length > 0 ? freshPsModels : lastNonEmptyModelTurnPsModels;
+		const machineByModelId = buildLmStudioMachineByModelId(psModelsForHostMap, {
+			providerIds: [request.providerId],
+			endpoints: [request.endpoint],
+		});
+		const hostId = machineByModelId.get(request.modelId) ?? LOCAL_MACHINE_ID;
+		const registryModelKey = buildNKleinModelRegistryKey({
+			providerId: request.providerId,
+			modelId: request.modelId,
+			endpoint: request.endpoint,
+		});
+		const concurrencyCaps = resolveSessionConcurrencyCaps({
+			providerId: request.providerId,
+			modelId: registryModelKey,
+			endpoint: request.endpoint,
+			hostId,
+			global: runtimeConfig.concurrencyDefaults,
+			override: runtimeConfig.concurrencyOverride,
+			hostFallback: resolveLegacyPerMachineCap(),
+		});
+		const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() =>
+			emptyModelRegistrySnapshot(),
+		);
+		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels);
+		const sameTaskTurn = findActiveSameTaskModelTurn(request.taskId, runningSessions);
+		if (sameTaskTurn) {
+			return {
+				ok: false,
+				reason: `Task "${request.taskId}" already has an active model turn; waiting before starting another turn for the same session.`,
+				retryAfterMs: null,
+			};
+		}
+		const endpointDecision = scheduleNKleinEndpointStart({
+			taskId: request.taskId,
+			providerId: request.providerId,
+			modelId: request.modelId,
+			endpoint: request.endpoint,
+			hostId,
+			runningSessions,
+			modelRegistry: modelRegistrySnapshot,
+			now: Date.now(),
+			providerConcurrencyCap: concurrencyCaps.providerCap,
+			modelConcurrencyCap: concurrencyCaps.modelCap,
+			endpointConcurrencyCap: concurrencyCaps.endpointCap,
+			hostConcurrencyCap: concurrencyCaps.hostCap,
+			machineByModelId,
+		});
+		if (!endpointDecision.ok) {
+			return {
+				ok: false,
+				reason: endpointDecision.reason,
+				retryAfterMs: endpointDecision.estimatedWaitMs,
+			};
+		}
+		const externalBlock = findExternalLmsHostBlock(request, freshPsModels, hostId, runningSessions, machineByModelId);
+		if (externalBlock) {
+			return { ok: false, reason: externalBlock, retryAfterMs: null };
+		}
+		const reservation: NKleinEndpointSessionSnapshot = {
+			taskId: request.taskId,
+			state: "running",
+			startedAt: Date.now(),
+			providerId: request.providerId,
+			modelId: request.modelId,
+			endpoint: request.endpoint,
+			hostId,
+		};
+		const activeTurns = activeModelTurnsByWorkspaceId.get(scope.workspaceId) ?? [];
+		activeModelTurnsByWorkspaceId.set(scope.workspaceId, [...activeTurns, reservation]);
+		return { ok: true, reservation };
+	};
+	const waitForModelTurnAdmission = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		request: NKleinModelTurnAdmissionRequest,
+	): Promise<NKleinEndpointSessionSnapshot> => {
+		let nextWarnAt = Date.now() + MODEL_TURN_ADMISSION_WARN_MS;
+		for (;;) {
+			const decision = await runSerializedModelTurnAdmission(scope.workspaceId, () =>
+				evaluateModelTurnAdmission(scope, request),
+			);
+			if (decision.ok) {
+				return decision.reservation;
+			}
+			const nowMs = Date.now();
+			if (nowMs >= nextWarnAt) {
+				deps.warn(`Model turn for ${request.taskId} is waiting for capacity: ${decision.reason}`);
+				nextWarnAt = nowMs + MODEL_TURN_ADMISSION_WARN_MS;
+			}
+			const retryAfterMs =
+				typeof decision.retryAfterMs === "number" && Number.isFinite(decision.retryAfterMs)
+					? decision.retryAfterMs
+					: MODEL_TURN_ADMISSION_POLL_MS;
+			await sleep(Math.min(Math.max(MODEL_TURN_ADMISSION_POLL_MS, retryAfterMs), 30_000));
+		}
+	};
+	const releaseModelTurnAdmission = (workspaceId: string, reservation: NKleinEndpointSessionSnapshot): void => {
+		const activeTurns = activeModelTurnsByWorkspaceId.get(workspaceId) ?? [];
+		const nextTurns = activeTurns.filter((turn) => turn !== reservation);
+		if (nextTurns.length > 0) {
+			activeModelTurnsByWorkspaceId.set(workspaceId, nextTurns);
+		} else {
+			activeModelTurnsByWorkspaceId.delete(workspaceId);
+		}
+	};
+	const createModelTurnAdmissionGate =
+		(scope: RuntimeTrpcWorkspaceScope): NKleinModelTurnAdmissionGate =>
+		async (request, run) => {
+			const reservation = await waitForModelTurnAdmission(scope, request);
+			try {
+				return await run();
+			} finally {
+				releaseModelTurnAdmission(scope.workspaceId, reservation);
+				drainQueuedTaskStarts(scope, { force: true });
+			}
+		};
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
 	const autoStartTaskIds = async (
 		scope: RuntimeTrpcWorkspaceScope,
@@ -1526,6 +1762,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 				agentWebResearchAllowed,
 				agentMcpAccess,
+				modelTurnAdmissionGate: createModelTurnAdmissionGate(scope),
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -1988,6 +2225,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setAgentWebResearchAllowed(agentWebResearchAllowed);
 			service.setAgentMcpAccess(agentMcpAccess);
 			service.setModelStatsTrackingLevel(runtimeConfig.modelStatsTrackingLevel);
+			service.setModelTurnAdmissionGate(createModelTurnAdmissionGate(scope));
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
@@ -2007,6 +2245,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// timer keeps ticking (review finding #2). No-op when the flag is off.
 		durableRunWiring?.dispose(workspaceId);
 		scopeByWorkspaceId.delete(workspaceId);
+		activeModelTurnsByWorkspaceId.delete(workspaceId);
+		modelTurnAdmissionTailByWorkspaceId.delete(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
 		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);
@@ -2468,6 +2708,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}),
 			);
 			nkleinTaskSessionServiceByWorkspaceId.clear();
+			activeModelTurnsByWorkspaceId.clear();
+			modelTurnAdmissionTailByWorkspaceId.clear();
+			lastNonEmptyModelTurnPsModels = [];
 			await stopAllChatSandboxManagers();
 			await nkleinWatcherRegistry.close();
 			await deps.runtimeStateHub.close();

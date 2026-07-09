@@ -1,6 +1,5 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { LOCAL_MACHINE_ID } from "../core/lms-ps-json";
-import { evaluateMachineConcurrencyGate } from "../core/machine-concurrency-gate";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
@@ -13,6 +12,7 @@ export interface NKleinEndpointSessionSnapshot extends NKleinModelRegistryKeyInp
 	taskId: string;
 	state: RuntimeTaskSessionSummary["state"];
 	startedAt?: number | null;
+	hostId?: string | null;
 }
 
 export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyInput {
@@ -20,6 +20,8 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	runningSessions: readonly NKleinEndpointSessionSnapshot[];
 	modelRegistry: NKleinModelRegistrySnapshot;
 	now?: number;
+	/** Already-resolved LM Studio host id for this request; preferred over re-looking up `modelId` in a fresh map. */
+	hostId?: string | null;
 	/**
 	 * §5.W: the effective per-PROVIDER concurrent-session cap for this task's provider (the resolved
 	 * override?? global from `resolveEffectiveProviderConcurrency`). When set, a start is held once the provider
@@ -245,6 +247,17 @@ function evaluateEndpointPoolConcurrencyGate(
 	};
 }
 
+function resolveRequestHostId(request: NKleinEndpointSchedulingRequest): string {
+	return request.hostId?.trim() || request.machineByModelId?.get(request.modelId) || LOCAL_MACHINE_ID;
+}
+
+function resolveSessionHostId(
+	session: NKleinEndpointSessionSnapshot,
+	machineByModelId: ReadonlyMap<string, string>,
+): string {
+	return session.hostId?.trim() || machineByModelId.get(session.modelId) || LOCAL_MACHINE_ID;
+}
+
 /**
  * §5.AB per-MACHINE gate for LM-Link setups (several machines behind one endpoint): admit up to `perMachineCap` sessions
  * per MACHINE, resolved via `machineByModelId` (from `lms ps`). Independent of the endpoint pool. Returns `null` (inert)
@@ -260,24 +273,20 @@ function evaluateMachinePoolConcurrencyGate(
 	const runningOnMachines = request.runningSessions.filter(
 		(session) => session.taskId !== request.taskId && session.state === "running",
 	);
-	const decision = evaluateMachineConcurrencyGate({
-		taskModelId: request.modelId,
-		runningModelIds: runningOnMachines.map((session) => session.modelId),
-		machineByModelId: request.machineByModelId,
-		perMachineCap: cap,
-	});
-	if (decision.allowed) {
+	const targetMachineId = resolveRequestHostId(request);
+	const runningOnTargetMachine = runningOnMachines.filter(
+		(session) => resolveSessionHostId(session, request.machineByModelId ?? new Map()) === targetMachineId,
+	);
+	if (runningOnTargetMachine.length < cap) {
 		return null;
 	}
-	const blocker = runningOnMachines.find(
-		(session) => (request.machineByModelId?.get(session.modelId) ?? LOCAL_MACHINE_ID) === decision.machineId,
-	);
+	const blocker = runningOnTargetMachine[0];
 	return {
 		ok: false,
 		blockedByTaskId: blocker?.taskId ?? request.taskId,
-		sharedEndpointId: `machine:${decision.machineId}`,
+		sharedEndpointId: `machine:${targetMachineId}`,
 		estimatedWaitMs: null,
-		reason: `Machine "${decision.machineId}" is at its ${cap} concurrent-session cap; another !Klein task on this machine must finish first.`,
+		reason: `Machine "${targetMachineId}" is at its ${cap} concurrent-session cap; another !Klein task on this machine must finish first.`,
 	};
 }
 
@@ -292,12 +301,12 @@ function evaluateHostConcurrencyGate(
 	if (cap === null || !request.machineByModelId) {
 		return null;
 	}
-	const targetHostId = request.machineByModelId.get(request.modelId) ?? LOCAL_MACHINE_ID;
+	const targetHostId = resolveRequestHostId(request);
 	const runningOnHost = request.runningSessions.filter(
 		(session) =>
 			session.taskId !== request.taskId &&
 			session.state === "running" &&
-			(request.machineByModelId?.get(session.modelId) ?? LOCAL_MACHINE_ID) === targetHostId,
+			resolveSessionHostId(session, request.machineByModelId ?? new Map()) === targetHostId,
 	);
 	const earliest = runningOnHost[0];
 	if (runningOnHost.length < cap || !earliest) {

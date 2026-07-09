@@ -24,6 +24,7 @@ import type {
 import { createSessionId } from "../../../src/nklein-agent/nklein-session-state";
 import type {
 	CreateInMemoryNKleinTaskSessionServiceOptions,
+	NKleinModelTurnAdmissionRequest,
 	NKleinTaskSessionService,
 } from "../../../src/nklein-agent/nklein-task-session-service";
 import {
@@ -1259,6 +1260,79 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			baseRef: "result-commit",
 			maxQueueWaitMs: 120_000,
 		});
+	});
+
+	it("admits a reviewed re-drive through the model-turn gate before sending to the SDK", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const gateEntered = createDeferred<void>();
+		const gateRelease = createDeferred<void>();
+		const gateRequests: NKleinModelTurnAdmissionRequest[] = [];
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			modelTurnAdmissionGate: async (request, run) => {
+				gateRequests.push(request);
+				gateEntered.resolve();
+				await gateRelease.promise;
+				return await run();
+			},
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-gated-redrive",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate gated re-drive",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-gated-redrive");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-gated-redrive")?.state).toBe("awaiting_review");
+		});
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		const summary = await service.sendTaskSessionInput("task-gated-redrive", "Address the review feedback");
+		expect(summary?.state).toBe("running");
+		await gateEntered.promise;
+
+		expect(gateRequests).toEqual([
+			{
+				taskId: "task-gated-redrive",
+				providerId: "lmstudio",
+				modelId: "qwen3-8b",
+				endpoint: "http://127.0.0.1:1234/v1",
+			},
+		]);
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+		expect(
+			service
+				.listMessages("task-gated-redrive")
+				.some((message) => message.content === "Address the review feedback"),
+		).toBe(false);
+
+		gateRelease.resolve();
+		await vi.waitFor(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-gated-redrive",
+				"resolved:Address the review feedback",
+				"act",
+				undefined,
+			);
+		});
+		expect(
+			service
+				.listMessages("task-gated-redrive")
+				.some((message) => message.content === "Address the review feedback"),
+		).toBe(true);
 	});
 
 	it("does not dispatch a re-drive turn when stale sandbox restoration fails", async () => {

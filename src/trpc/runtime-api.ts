@@ -59,6 +59,7 @@ import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
+import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
 import { createNKleinMcpSettingsService } from "../nklein-agent/nklein-mcp-settings-service";
@@ -441,12 +442,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getFleetStatus: async (workspaceScope) => {
 			return await handleGetFleetStatus({
 				getMachineMap: async () =>
-					new Map(
-						(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
-							model.identifier,
-							model.machineId,
-						]),
-					),
+					buildLmStudioMachineByModelId(await fetchLmsPsModelsCached(createDefaultLmsRunner())),
 				getWarmthLedger: () =>
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
 			});
