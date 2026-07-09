@@ -20,6 +20,7 @@
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
  *        NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY (default 1; raise only with measured capacity evidence),
+ *        NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY (optional "m5max=2,m4mini=1,legion5pro=1"; names from `lms link status`),
  *        NKLEIN_VERIFY_RPC_TIMEOUT_MS (default 120s; slow local hosts can block state polls while still generating),
  *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
  */
@@ -29,6 +30,7 @@ import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { evaluateFleetHostObservation } from "../src/core/fleet-host-observation";
+import { formatFleetHostCapConfig, resolveFleetHostCapConfig } from "../src/core/fleet-host-cap-config";
 import { fetchLmsLinkDevices, type LmsLinkDevices } from "../src/core/lms-link-status";
 import {
 	createDefaultLmsRunner,
@@ -77,6 +79,7 @@ const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "2700000");
 const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
 const PER_MACHINE_MAX_CONCURRENCY = positiveIntegerEnv(process.env.NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY, 1);
+const PER_HOST_MAX_CONCURRENCY = process.env.NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY;
 const MIN_OBSERVED_HOSTS = positiveIntegerEnv(process.env.NKLEIN_FLEET_MIN_OBSERVED_HOSTS, 2);
 const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "120000");
 const LMS_COMMAND_TIMEOUT_MS = positiveIntegerEnv(process.env.NKLEIN_VERIFY_LMS_TIMEOUT_MS, 15_000);
@@ -410,6 +413,15 @@ async function main(): Promise<void> {
 		return;
 	}
 	const linkDevices = await fetchLmsLinkDevices(lmsRunner);
+	const perHostCaps = resolveFleetHostCapConfig(PER_HOST_MAX_CONCURRENCY, linkDevices);
+	if (perHostCaps.issues.length > 0) {
+		log("Invalid NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY:");
+		for (const issue of perHostCaps.issues) {
+			log(`   ${issue.entry}: ${issue.reason}`);
+		}
+		process.exitCode = 1;
+		return;
+	}
 	const initialMachineByModelId = buildLmStudioMachineByModelId(initialPsModels, {
 		providerIds: [PROVIDER_ID],
 		endpoints: [BASE_URL],
@@ -441,8 +453,8 @@ async function main(): Promise<void> {
 			cwd,
 			homeDir,
 			// Fleet-spread env: tell LM-Link machines (all on one :1234 endpoint) apart by machineId, and let free-first
-			// use real `lms ps` busy state so worker cards spread across machines instead of piling on one model. The default
-			// machine cap is deliberately conservative because `lms ps` reports parallel=1 on the current three-host fleet.
+			// use real `lms ps` busy state so worker cards spread across machines instead of piling on one model. The legacy
+			// env stays a conservative fallback; explicit per-host caps below let m5max be raised without also raising m4mini.
 			extraEnv: {
 				NODE_ENV: "development",
 				NKLEIN_PER_MACHINE_MAX_CONCURRENCY: String(PER_MACHINE_MAX_CONCURRENCY),
@@ -462,7 +474,9 @@ async function main(): Promise<void> {
 		log(
 			`Server: ${server.baseUrl}\n` +
 				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (${WORKER_MODE}, +pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
-				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineCap=${PER_MACHINE_MAX_CONCURRENCY}  minObservedHosts=${MIN_OBSERVED_HOSTS}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
+				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineFallbackCap=${PER_MACHINE_MAX_CONCURRENCY}  ` +
+				`perHostCaps=${formatFleetHostCapConfig(perHostCaps.perHost, linkDevices)}  minObservedHosts=${MIN_OBSERVED_HOSTS}  ` +
+				`timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
 		);
 		log("=== Initial LM Studio host map ===");
 		for (const model of initialPsModels.filter((entry) => !entry.isEmbedding)) {
@@ -494,6 +508,15 @@ async function main(): Promise<void> {
 			type: "mutation",
 			payload: {
 				maxConcurrentTasks: MAX_CONCURRENT,
+				...(Object.keys(perHostCaps.perHost).length > 0
+					? {
+							concurrencyDefaults: {
+								perProvider: {},
+								perModel: {},
+								perHost: perHostCaps.perHost,
+							},
+						}
+					: {}),
 				modelRoles: {
 					architect: { providerId: PROVIDER_ID, modelId: ARCHITECT, modelSelectionMode: "pinned" },
 					worker: {

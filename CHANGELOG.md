@@ -53,7 +53,9 @@
   local M5. `model-lab roster-load <rosterId>` now resolves the user's swarm roster/budgets, maps roster machine ids/classes
   to LM Link devices via `NKLEIN_ROSTER_MACHINE_MAP` when needed, preflights the whole roster, guarded-loads each primary
   assignment on its target machine, restores the previous preferred device after each remote load, and verifies every model
-  is resident before reporting the roster ready.
+  is resident before reporting the roster ready. The fleet verifier can now take
+  `NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY` (for example `m5max=2,m4mini=1`) and writes those explicit per-host caps into the
+  runtime config, so a capable host can be raised without also overloading weaker linked machines.
 - **LM-Link resident models no longer disappear from model selection when REST discovery omits them** (todo §5.AB). LM
   Studio provider discovery, residency checks, and loaded-model descriptors now merge the live `lms ps --json` identities
   with `/api/v1|v0/models`, so linked-host aliases can be selected and routed without triggering a load. The runtime also

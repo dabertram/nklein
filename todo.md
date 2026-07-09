@@ -6089,6 +6089,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         "document domain model" card reasonably tried to create `DOMAIN_MODEL.md`, but its declared scope allowed only
         `src/habit-insights.ts` + `src/habit-score.ts`, so the guardrail blocked the likely deliverable and fed the
         no-change review loop.
+        **PER-HOST CAP LIVE RERUN (2026-07-09, after `4afde72f`):** added verifier support for explicit
+        `NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY` (e.g. `m5max=2,m4mini=1`) so a capable local host can be raised without
+        also raising weaker linked machines; malformed/unknown host names fail closed before the swarm starts. Live run
+        used `qwen/qwen3-coder-next` architect on m5max, pinned `mistralai/devstral-small-2-2512` worker on m5max,
+        pinned `qwen2.5.1-coder-7b-instruct` reviewer on m4mini, per-host caps `m5max=2,m4mini=1`, and legacy fallback
+        cap 1. Result: **role usage PASS + host-spread PASS** (architect/worker/reviewer all observed; 2/2 hosts observed);
+        m4mini review turns were durably recorded and cap-held while busy, Docker stayed lean at one sandbox container
+        during the run, and the leftover sandbox was removed after exit. Overall still **STALLED**, not passed: card 6
+        stayed `running` on Devstral after a no-change repair loop while LM Studio reported that serving model idle for
+        91s. Artifact workspace:
+        `/private/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-fleet-home-V0IpdL/.nklein/dev-workspaces/nklein-habit-product-nklein-complex-1783630368545-64UHI0`;
+        ledger home: `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-fleet-home-V0IpdL`. Next root cause:
+        no-change repair/redrive can leave a worker session `running` after model activity is idle; terminal convergence
+        remains open, while routing/host-cap proof is no longer the blocker.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple
