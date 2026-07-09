@@ -7037,8 +7037,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (no local container), optional managed local SearXNG with explicit start/stop + idle TTL (not autostart), and later
         direct provider adapters only with explicit egress/API-key consent. The helper compose file must not use a restart
         policy that resurrects `nklein-searxng` after Docker Desktop restart; visible Docker resources should normally be
-        the agent sandbox containers only. Settings copy should remain provider-neutral ("Search backend URL") and name
-        SearXNG only as one compatible optional backend.
+        one understandable !Klein agent/sandbox surface, not arbitrary extra service containers appearing in the user's
+        Docker daemon. Settings copy should remain provider-neutral ("Search backend URL") and name SearXNG only as one
+        compatible optional backend. **User reaffirmed 2026-07-09:** if online lookup truly needs SearXNG, that is
+        acceptable; if the same capability can be delivered without an extra visible container, better. Prefer integrating
+        required search tooling into the existing managed surface (or using a user-supplied/provider backend) over spawning
+        a separate container by default. Extra containers may still be an advanced/power-user deployment mode with explicit
+        opt-in and clear names/controls, but the default must serve non-power-users who should not have to understand a
+        container landscape. Decide by capability + maintenance evidence, not container ideology.
   - [x] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed). *(SHIPPED + LIVE-VERIFIED: fail-closed `blocked_by_egress` default; egress-e2e flow validated across 7 models in the 2026-07-07 §5.Z sweep.)*
   - [x] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow. *(✅ 2026-07-08 —
         `test/runtime/chat/web-search-browse-integration.test.ts`: a URL from web_search's rendered output feeds
@@ -10281,6 +10287,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **STEP 2 — mid-run recovery (highest value, lowest policy risk).** Wire the durable cluster: `runtime-server.ts onSummary` → `mapTaskSessionStateToDurableRunReaction` (`durable-run-reaction.ts`) → `durable-run-controller.tick()`; persist via `durable-scheduler-ledger.ts`; heartbeat live sessions; reclaim on lease expiry (`durable-lease-renewal.ts`). Pure cores are tested — the leaf is the port impls (dispatch/appendLog/now/mintWorkerId) + the onSummary subscription. No LLM.
 > - [ ] **STEP 3 — contention safety.** Wire `orderReadyJobs` (fan-out/critical-path/starvation via `durable-job-critical-path.ts`) into `autoStartTaskIds` (start in critical-path order, not board order) + `durable-scheduler-backpressure.ts` (admit/defer/shed; per-pool cap + global ceiling). *(Disjoint from STEP 5, per the critique: STEP 3 = lease-ORDER of ready jobs; STEP 5 = SHAPE re-planning of a subtree — wiring both is not redundant.)*
 > - [ ] **STEP 4 — adaptive granularity (measurement-gated).** Feed the LIVE can't-handle signal (force-advance stall / evidence-gate incompleteness / truncation via `deriveTruncationSignal`) into `decideCardDecomposition`'s `priorCantHandleSignal`, + catalog chaining/synthesis facts on the model side. TUNE `directCapabilityMargin` via STEP-1 measurement before it drives anything. Reactive only — no speculative up-front over-decomposition.
+> - [ ] **STEP 4b — brain-size-aware tiny-task mode (user 2026-07-09).** Make !Klein able to decompose and run genuinely
+>       tiny, precise implementation leaves so small coder models can succeed reliably: one narrow behavior, tight file
+>       scope, explicit acceptance check, minimal surrounding architecture burden, and review/merge evidence. The
+>       decomposition policy must adapt to the loaded local fleet's actual capability/context/speed: weak/small workers get
+>       smaller leaves and stronger contracts; strong local models can take wider synthesis cards. If the initial user spec
+>       is too vague/large/interdependent for the available local models to decompose safely, !Klein should stop early with
+>       actionable feedback ("provide narrower scope / concrete acceptance examples / more domain details") instead of
+>       pretending the swarm can infer everything. This is local-first; future optional frontier-cloud escalation can be a
+>       later, explicit escalation strategy, not a prerequisite for the early-maturity path. Validate through the
+>       dev-test-project ladder by measuring whether small coder models produce correct code on tiny leaves.
 > - [ ] **STEP 5 — bounded re-planning (NOT a conductor).** On a card completing/failing, run `decideRedecomposeAction` (loop-safety cap) to accept/refine/split/merge/redo the AFFECTED subtree only — event-driven off completion, never a periodic whole-board LLM turn.
 > - [ ] **STEP 6 — capable-model gate where it matters (local-only).** If STEP 5's redo path needs an LLM to decompose, route ONLY that step to the strongest available LOCAL model that clears the architect class/difficulty floor via the existing catalog gate (asymmetric planner-vs-worker sizing; workers stay small on narrow verbose-contract leaves). **If no local model clears the floor → return `no_fit` → the existing USER-GATED escalation (`isHardStuck`/`selectRoleModel` no_fit) — NEVER a non-local or off-floor model** (per the prime-directive-lens critique). Keep the evaluator/review loop as mandatory verification (covers the ~21% no-verification failure mode).
 > - [ ] **STEP 7 — guardrails from the research.** Async fan-out with the existing liveness/heartbeat (no synchronous joins — one slow local worker can't block the swarm); keep escalation/model-swap USER-GATED; trim per-worker context (last-message + shared artifact store) to protect the ≥32k floor + avoid small-model context-quality collapse.
