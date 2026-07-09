@@ -1640,15 +1640,24 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * "the repository is missing critical files" until the park rung gave up). The placement path is
 	 * deterministic from the taskId, so re-preparing under the same id makes the session's existing sandbox
 	 * executors valid again — checked out at the RESULT BRANCH first, so the accumulated work is present for the
-	 * follow-up round. No-op when there is no sandbox manager, the task never had a sandbox, or it still has one.
+	 * follow-up round. No-op when there is no sandbox manager, the task never had a sandbox, or its concrete Docker
+	 * cwd is still present. A placement-map hit alone is not enough: a crashed/restarted container can leave stale
+	 * manager state while `/workspaces/<task>` is gone.
 	 */
 	private async restoreDisposedSandboxWorkspaceForRedrive(taskId: string): Promise<void> {
 		const manager = this.agentSandboxManager;
 		const repoPath = this.sandboxState.getRepoPath(taskId);
-		if (!manager || !repoPath || manager.hasWorkspace(taskId)) {
+		if (!manager || !repoPath) {
 			return;
 		}
 		try {
+			const hasPlacement = manager.hasWorkspace(taskId);
+			if (hasPlacement && (await manager.isWorkspacePrepared(taskId))) {
+				return;
+			}
+			if (hasPlacement) {
+				await manager.disposeWorkspace(taskId).catch(() => null);
+			}
 			const resultCommit = await resolveTaskResultBranchCommit({ repoPath, taskId }).catch(() => null);
 			await manager.prepareWorkspace({
 				taskId,
@@ -1673,6 +1682,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				workspacePath: repoPath,
 				createdAt: Date.now(),
 			});
+			throw error;
 		}
 	}
 

@@ -741,6 +741,40 @@ describe("AgentSandboxManager", () => {
 		expect(manager.hasWorkspace("task-2")).toBe(true);
 	});
 
+	it("probes the concrete Docker workdir instead of trusting a placement hint", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		expect(await manager.isWorkspacePrepared("task-1")).toBe(false);
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		expect(manager.hasWorkspace("task-1")).toBe(true);
+		expect(await manager.isWorkspacePrepared("task-1")).toBe(true);
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces",
+			"nklein-agent-sandbox-1",
+			"test",
+			"-d",
+			"/workspaces/task-1",
+		]);
+	});
+
+	it("reports a stale placement as not prepared when the Docker workdir is gone", async () => {
+		const { execFile: execFileStub } = createExecFileStub({
+			failExecCommand: ["test", "-d", "/workspaces/task-1"],
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		expect(manager.hasWorkspace("task-1")).toBe(true);
+		expect(await manager.isWorkspacePrepared("task-1")).toBe(false);
+	});
+
 	it("issues EXACTLY ONE liveness probe under concurrent reuse of a dead container — the single-flight guard (race, C3 review 2026-07-04)", async () => {
 		// The discriminating regression guard for the double-recreate RACE. The pre-fix code awaited the liveness
 		// probe BEFORE the single-flight `starting` guard, so N concurrent reusers each probed + each could recreate →

@@ -144,6 +144,7 @@ interface FakeAgentSandboxManagerController {
 	captureWorkspacePatchMock: Mock<AgentSandboxManager["captureWorkspacePatch"]>;
 	disposeWorkspaceMock: Mock<AgentSandboxManager["disposeWorkspace"]>;
 	hasWorkspaceMock: Mock<AgentSandboxManager["hasWorkspace"]>;
+	isWorkspacePreparedMock: Mock<AgentSandboxManager["isWorkspacePrepared"]>;
 	stopNowMock: Mock<AgentSandboxManager["stopNow"]>;
 	updatePoolConfigMock: Mock<AgentSandboxManager["updatePoolConfig"]>;
 }
@@ -449,6 +450,9 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 	);
 	const disposeWorkspaceMock: FakeAgentSandboxManagerController["disposeWorkspaceMock"] = vi.fn(async () => {});
 	const hasWorkspaceMock: FakeAgentSandboxManagerController["hasWorkspaceMock"] = vi.fn(() => true);
+	const isWorkspacePreparedMock: FakeAgentSandboxManagerController["isWorkspacePreparedMock"] = vi.fn(
+		async () => true,
+	);
 	const stopNowMock: FakeAgentSandboxManagerController["stopNowMock"] = vi.fn(async () => {});
 	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(async () => {});
 	const manager = {
@@ -458,6 +462,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		captureWorkspacePatch: captureWorkspacePatchMock,
 		disposeWorkspace: disposeWorkspaceMock,
 		hasWorkspace: hasWorkspaceMock,
+		isWorkspacePrepared: isWorkspacePreparedMock,
 		stopNow: stopNowMock,
 		updatePoolConfig: updatePoolConfigMock,
 		// §5.AR: the sandbox-MCP feature is ON by default, so task start now queries the exec target; the fake has no
@@ -472,6 +477,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		captureWorkspacePatchMock,
 		disposeWorkspaceMock,
 		hasWorkspaceMock,
+		isWorkspacePreparedMock,
 		stopNowMock,
 		updatePoolConfigMock,
 	};
@@ -1123,6 +1129,123 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				message.includes("Captured sandbox changes to task result branch nklein/tasks/task-result"),
 			),
 		).toBe(true);
+	});
+
+	it("releases a stale sandbox placement before restoring a reviewed task for re-drive", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-stale-redrive",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-stale-redrive");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
+		});
+
+		sandboxManager.disposeWorkspaceMock.mockClear();
+		sandboxManager.prepareWorkspaceMock.mockClear();
+		sandboxManager.isWorkspacePreparedMock.mockResolvedValue(false);
+
+		await service.sendTaskSessionInput("task-stale-redrive", "Address the review feedback");
+
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
+			expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
+				taskId: "task-stale-redrive",
+				projectRepoPath: "/tmp/project",
+				baseRef: "result-commit",
+				maxQueueWaitMs: 120_000,
+			});
+		});
+		const disposeOrder = sandboxManager.disposeWorkspaceMock.mock.invocationCallOrder[0] ?? 0;
+		const prepareOrder = sandboxManager.prepareWorkspaceMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+		expect(disposeOrder).toBeLessThan(prepareOrder);
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				taskId: "task-stale-redrive",
+				metadata: expect.objectContaining({
+					category: "sandbox_workspace_redrive_restore",
+					fromResultBranch: true,
+				}),
+			}),
+		);
+	});
+
+	it("does not dispatch a re-drive turn when stale sandbox restoration fails", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-stale-restore-fail",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-stale-restore-fail");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-restore-fail");
+		});
+
+		sandboxManager.disposeWorkspaceMock.mockClear();
+		sandboxManager.prepareWorkspaceMock.mockReset();
+		sandboxManager.prepareWorkspaceMock.mockRejectedValueOnce(new Error("docker unavailable"));
+		sandboxManager.isWorkspacePreparedMock.mockResolvedValue(false);
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		await service.sendTaskSessionInput("task-stale-restore-fail", "Address the review feedback");
+
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "runtime_error",
+					severity: "warning",
+					taskId: "task-stale-restore-fail",
+					message: expect.stringContaining("Could not restore the sandbox workspace"),
+				}),
+			);
+		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-restore-fail");
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
+			taskId: "task-stale-restore-fail",
+			projectRepoPath: "/tmp/project",
+			baseRef: "result-commit",
+			maxQueueWaitMs: 120_000,
+		});
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 	});
 
 	it("treats sandbox patch capture failure as benign when the workspace was disposed concurrently", async () => {

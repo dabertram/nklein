@@ -1058,11 +1058,33 @@ export class AgentSandboxManager {
 	}
 
 	/**
-	 * Whether a sandbox workspace is currently prepared for the task. Used by callers to distinguish a
-	 * benign teardown race from a real error.
+	 * Whether the manager still has an in-memory placement for the task. This is only a fast ownership hint: the
+	 * Docker container or `/workspaces/<task>` directory can disappear out-of-band. Use `isWorkspacePrepared` before
+	 * deciding a task can safely re-drive without restoring its sandbox cwd.
 	 */
 	hasWorkspace(taskId: string): boolean {
 		return this.placements.has(taskId);
+	}
+
+	/**
+	 * Probe the concrete Docker cwd for a placed task. A stale placement is not enough for tool execution: Node/Docker
+	 * reports a missing cwd as `spawn /bin/bash ENOENT` / `chdir ... no such file or directory`, which previously made
+	 * re-driven review turns look like model/tool failures instead of lost sandbox state.
+	 */
+	async isWorkspacePrepared(taskId: string): Promise<boolean> {
+		const placement = this.placements.get(taskId);
+		if (!placement) {
+			return false;
+		}
+		try {
+			const result = await this.execAsTaskUser(placement, ["test", "-d", placement.workdir], {
+				workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+				timeoutMs: 10_000,
+			});
+			return result.exitCode === 0;
+		} catch {
+			return false;
+		}
 	}
 
 	/**
