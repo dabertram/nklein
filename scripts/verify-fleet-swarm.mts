@@ -24,7 +24,7 @@ import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
-import { evaluateQuietRunningSessionStall } from "../src/core/lms-session-stall";
+import { evaluateQuietRunningSessionStall, evaluateWorkspaceSessionProgress } from "../src/core/lms-session-stall";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
@@ -397,9 +397,10 @@ async function main(): Promise<void> {
 		const MAX_CONSECUTIVE_POLL_ERRORS = 6;
 		// #36 (run36 false dead-stall): synthetic sessions (::review/::merge/::spec) never appear on the WS card
 		// stream, so a live 10-minute reviewer looked like total silence and the dead-stall lane killed the run
-		// mid-review. Track the freshest activity stamp across ALL polled sessions; synthetic liveness counts as
-		// progress for BOTH stall lanes.
-		let lastSeenSessionStamp = 0;
+		// mid-review. Track observable progress across ALL polled sessions. `updatedAt` is deliberately ignored here:
+		// live evidence showed heartbeat/bookkeeping stamps can advance while the model is quiet, masking stalls.
+		let lastSeenSessionActivityStamp = 0;
+		let lastSessionStateById = new Map<string, string>();
 		let lastLmsProbeAt = 0;
 		let latestLmsPsModels: LmsPsModel[] = [];
 		let lastLoggedLmsSummary = "";
@@ -433,12 +434,20 @@ async function main(): Promise<void> {
 					}
 				}
 				const anyPolledSessionAlive = polledSessions.some(([, s]) => ALIVE_SESSION_STATES.has(s.state ?? ""));
-				const freshestStamp = Math.max(
-					0,
-					...polledSessions.map(([, s]) => Math.max(s.lastHookAt ?? 0, s.lastOutputAt ?? 0, s.updatedAt ?? 0)),
-				);
-				if (freshestStamp > lastSeenSessionStamp) {
-					lastSeenSessionStamp = freshestStamp;
+				const sessionProgress = evaluateWorkspaceSessionProgress({
+					sessions: polledSessions.map(([id, s]) => ({
+						id,
+						state: s.state,
+						lastHookAt: s.lastHookAt,
+						lastOutputAt: s.lastOutputAt,
+						updatedAt: s.updatedAt,
+					})),
+					previousStatesBySessionId: lastSessionStateById,
+					previousActivityStamp: lastSeenSessionActivityStamp,
+				});
+				lastSessionStateById = sessionProgress.statesBySessionId;
+				if (sessionProgress.progressed) {
+					lastSeenSessionActivityStamp = sessionProgress.activityStamp;
 					lastProgressAt = Date.now();
 				}
 				const now = Date.now();

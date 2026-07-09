@@ -5803,6 +5803,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (tested): the verifier now probes `lms ps --json`, aborts short-window when the serving model is `IDLE`, and gives
         active `PROCESSINGPROMPT`/`GENERATING` work a longer but bounded quiet window with a `MODEL-WAIT`/`MODEL-STALLED`
         diagnostic that includes the LM Studio snapshot.
+        **FOLLOW-UP VERIFIER ROOT CAUSE (2026-07-09, after `c46c2bb7`):** the next pinned run proved the previous fix was
+        still incomplete. qwen3 architect decomposed, Devstral workers produced result branches, and Qwopus reviewer
+        sessions were observed, but the harness again failed to print `MODEL-WAIT` while Qwopus sat quiet. Root cause:
+        `updatedAt` from polled session summaries was still included in the "freshest progress" stamp, so heartbeat/state
+        bookkeeping could refresh `lastProgressAt` without model output or tool calls. Fixed with
+        `evaluateWorkspaceSessionProgress` (tested): only `lastHookAt`, `lastOutputAt`, new/removed sessions, and state
+        transitions count as verifier progress; heartbeat-only `updatedAt` advances are ignored. The same pass also fixed
+        misleading diverse-pick telemetry: the helper now says "escalation worker" or "plan critic" when that is what was
+        auto-picked, instead of always saying "reviewer".
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*

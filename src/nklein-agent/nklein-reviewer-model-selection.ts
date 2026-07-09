@@ -13,6 +13,39 @@ export interface ReviewerModelSelectionDeps {
 	lastShellKeyByModel: Map<string, PromptWarmthLedgerEntry>;
 }
 
+function describeDiversePickPurpose(sessionKind: PromptSessionKind): {
+	label: string;
+	category: string;
+	waiverMessage: string;
+} {
+	switch (sessionKind) {
+		case "worker":
+			return {
+				label: "escalation worker",
+				category: "escalation_worker_auto_diverse",
+				waiverMessage: "the stuck card stays on its current worker lineage",
+			};
+		case "plan-critique":
+			return {
+				label: "plan critic",
+				category: "plan_critic_auto_diverse",
+				waiverMessage: "the architect plan proceeds without a lineage-diverse critic",
+			};
+		case "review":
+			return {
+				label: "reviewer",
+				category: "reviewer_auto_diverse",
+				waiverMessage: "the worker model reviews its own work",
+			};
+		default:
+			return {
+				label: `${sessionKind} model`,
+				category: `${sessionKind.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}_auto_diverse`,
+				waiverMessage: "the caller keeps its fallback model",
+			};
+	}
+}
+
 /**
  * W2.5a: pick a lineage-diverse LOADED model as the reviewer/escalation model. The worker's REAL model key
  * (descriptor.modelKey, not the per-machine alias) resolves its lineage; candidates are the other loaded
@@ -28,6 +61,7 @@ export async function pickDiverseReviewerModel(
 	sessionKind: PromptSessionKind,
 	deps: ReviewerModelSelectionDeps,
 ): Promise<{ providerId: string; modelId: string } | null> {
+	const purpose = describeDiversePickPurpose(sessionKind);
 	const baseUrl = workerLaunch.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
 	const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
 		() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
@@ -49,9 +83,9 @@ export async function pickDiverseReviewerModel(
 		recordSelfObservation({
 			signal: "custom",
 			severity: "info",
-			message: `Reviewer diversity waived for ${taskId}: ${preferred.diversityWaivedReason ?? "no diverse loaded model"} — the worker model reviews its own work.`,
+			message: `${purpose.label} diversity waived for ${taskId}: ${preferred.diversityWaivedReason ?? "no diverse loaded model"} — ${purpose.waiverMessage}.`,
 			taskId,
-			metadata: { category: "reviewer_diversity_waived", reason: preferred.diversityWaivedReason ?? null },
+			metadata: { category: `${purpose.category}_waived`, reason: preferred.diversityWaivedReason ?? null },
 		});
 		return null;
 	}
@@ -91,9 +125,9 @@ export async function pickDiverseReviewerModel(
 	recordSelfObservation({
 		signal: "custom",
 		severity: "info",
-		message: `Auto-picked lineage-diverse reviewer ${pick.modelKey} (${resolveLineage(pick.modelId)}) for ${taskId} — worker is ${workerRealId} (${resolveLineage(workerRealId)}).`,
+		message: `Auto-picked lineage-diverse ${purpose.label} ${pick.modelKey} (${resolveLineage(pick.modelId)}) for ${taskId} — worker is ${workerRealId} (${resolveLineage(workerRealId)}).`,
 		taskId,
-		metadata: { category: "reviewer_auto_diverse", reviewer: pick.modelKey, worker: workerRealId },
+		metadata: { category: purpose.category, reviewer: pick.modelKey, worker: workerRealId },
 	});
 	return { providerId: workerLaunch.providerId, modelId: pick.modelKey };
 }

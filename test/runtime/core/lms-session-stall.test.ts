@@ -1,5 +1,67 @@
 import { describe, expect, it } from "vitest";
-import { evaluateQuietRunningSessionStall } from "../../../src/core/lms-session-stall";
+import {
+	evaluateQuietRunningSessionStall,
+	evaluateWorkspaceSessionProgress,
+} from "../../../src/core/lms-session-stall";
+
+describe("evaluateWorkspaceSessionProgress", () => {
+	it("does not treat heartbeat-only updatedAt advances as verifier progress", () => {
+		const verdict = evaluateWorkspaceSessionProgress({
+			sessions: [
+				{
+					id: "card-1::review",
+					state: "running",
+					lastHookAt: null,
+					lastOutputAt: null,
+					updatedAt: 30_000,
+				},
+			],
+			previousStatesBySessionId: new Map([["card-1::review", "running"]]),
+			previousActivityStamp: 10_000,
+		});
+
+		expect(verdict.progressed).toBe(false);
+		expect(verdict.activityStamp).toBe(10_000);
+	});
+
+	it("treats hook/output activity as verifier progress", () => {
+		const verdict = evaluateWorkspaceSessionProgress({
+			sessions: [
+				{
+					id: "card-1::review",
+					state: "running",
+					lastHookAt: 12_000,
+					lastOutputAt: null,
+					updatedAt: 30_000,
+				},
+			],
+			previousStatesBySessionId: new Map([["card-1::review", "running"]]),
+			previousActivityStamp: 10_000,
+		});
+
+		expect(verdict.progressed).toBe(true);
+		expect(verdict.activityStamp).toBe(12_000);
+		expect(verdict.reasons).toContain("activity:card-1::review");
+	});
+
+	it("treats new sessions and state transitions as verifier progress", () => {
+		const first = evaluateWorkspaceSessionProgress({
+			sessions: [{ id: "card-1", state: "queued", updatedAt: 1 }],
+			previousStatesBySessionId: new Map(),
+			previousActivityStamp: 0,
+		});
+		const second = evaluateWorkspaceSessionProgress({
+			sessions: [{ id: "card-1", state: "running", updatedAt: 2 }],
+			previousStatesBySessionId: first.statesBySessionId,
+			previousActivityStamp: first.activityStamp,
+		});
+
+		expect(first.progressed).toBe(true);
+		expect(first.reasons).toContain("new:card-1:queued");
+		expect(second.progressed).toBe(true);
+		expect(second.reasons).toContain("state:card-1:queued->running");
+	});
+});
 
 describe("evaluateQuietRunningSessionStall", () => {
 	it("waits when there are no running sessions", () => {

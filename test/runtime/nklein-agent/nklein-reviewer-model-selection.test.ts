@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	fetchLoadedModelDescriptors: vi.fn(async (_baseUrl: string) => [] as Array<Record<string, unknown>>),
+	recordSelfObservation: vi.fn(),
 }));
 vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", () => ({
 	fetchLoadedModelDescriptors: mocks.fetchLoadedModelDescriptors,
 }));
-vi.mock("../../../src/telemetry/self-observation-sink", () => ({ recordSelfObservation: vi.fn() }));
+vi.mock("../../../src/telemetry/self-observation-sink", () => ({
+	recordSelfObservation: mocks.recordSelfObservation,
+}));
 
 import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { pickDiverseReviewerModel } from "../../../src/nklein-agent/nklein-reviewer-model-selection";
@@ -61,5 +64,22 @@ describe("pickDiverseReviewerModel", () => {
 		// Depth wins: the 60-pt reviewer-fit gap exceeds the 10-pt warmth margin, so warmth can't promote the shallow model.
 		// (Under the old flat score:50, the margin was inert and the warm shallow model would have been picked.)
 		expect(pick?.modelId).toBe("phi-rt");
+	});
+
+	it("labels auto-picked escalation workers as escalation workers, not reviewers", async () => {
+		mocks.fetchLoadedModelDescriptors.mockResolvedValueOnce([
+			{ runtimeId: "worker-m", modelKey: "qwen/qwen3-8b", isEmbedding: false },
+			{ runtimeId: "devstral-rt", modelKey: "mistralai/devstral-small-2-2512", isEmbedding: false },
+		]);
+
+		const pick = await pickDiverseReviewerModel(workerLaunch, "t3", "worker", deps);
+
+		expect(pick?.modelId).toBe("devstral-rt");
+		expect(mocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: expect.stringContaining("Auto-picked lineage-diverse escalation worker devstral-rt"),
+				metadata: expect.objectContaining({ category: "escalation_worker_auto_diverse" }),
+			}),
+		);
 	});
 });

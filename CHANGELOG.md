@@ -13,14 +13,17 @@
   configured models now seed their fallback registry entry with the catalog-derived capability prior, so an
   unloaded-from-ledger worker such as `qwen/qwen2.5-coder-14b` is not treated as a generic weak worker before it has local
   outcome history. Its stall detector now checks `lms ps --json` for quiet `running` sessions instead of treating
-  `running` as progress forever, aborting promptly when the serving model is idle and bounding long
-  `processingPrompt`/`generating` silence with a diagnostic LM Studio snapshot.
+  `running` as progress forever, and it no longer lets heartbeat-only session `updatedAt` changes reset the quiet timer.
+  The verifier now counts only hook/output activity or session lifecycle changes as progress, aborting promptly when the
+  serving model is idle and bounding long `processingPrompt`/`generating` silence with a diagnostic LM Studio snapshot.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation
   instead of overriding the user's pin. If a pinned role model is no longer loaded/runnable or fails the role gate, task
   start now fails with `pinned_model_unavailable` instead of silently falling through to auto-selection. Pinned reviewers
   now follow the same rule: a proven-missing reviewer pin blocks review/delivery instead of waiving to auto-pick.
+  Auto-picked escalation workers and plan critics now identify themselves as such in telemetry instead of reusing the
+  reviewer label, so live sweeps do not imply that a pinned reviewer was ignored.
 - **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
   `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
   tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a
