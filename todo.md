@@ -145,6 +145,14 @@ agents — in parallel where safe — entirely on the user's own hardware. Brand
 OS/packaging `nKlein`, identifiers `nklein`. The repo name and the `kanban.repositoryCreatedByKanban` git
 marker are intentional keeps.
 
+!Klein must scale across the whole "available brains" spectrum. With only one usable model, it should still work
+through projects and host-side agentic tasks by cycling explicit prompt perspectives (builder, reviewer, risk lens,
+user-intent lens, integrator) instead of pretending a single model is a real swarm. With multiple models, it should
+exploit the benefits of model-family diversity and host diversity: route work to the best fit, assign orthogonal review
+lenses, compare independent judgments, and use idle capacity for valuable read-only work. With many capable models
+(including future explicit/user-approved frontier fleets), it should go full-force while preserving the same evidence,
+isolation, and user-control rules rather than hard-coding assumptions for today's small local fleet.
+
 ---
 
 ## 2. The iteration loop (how to work)

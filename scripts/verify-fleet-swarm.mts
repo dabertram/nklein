@@ -43,8 +43,12 @@ import {
 	isPromptReviewSessionId,
 } from "../src/core/fleet-review-observation";
 import {
+	derivePostModelIdleQuietMs,
+	evaluateQuietAliveHandoffStall,
 	evaluateQuietRunningSessionStall,
 	evaluateWorkspaceSessionProgress,
+	hasActiveLmsModel,
+	hasActiveLmsModelForSessions,
 	isWorkspaceSessionAliveForVerifier,
 } from "../src/core/lms-session-stall";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
@@ -635,6 +639,8 @@ async function main(): Promise<void> {
 		let latestLmsPsSnapshotOk = true;
 		let latestLmsPsFailureSummary = "";
 		let lastLoggedLmsSummary = "";
+		let lastObservedRunningModelActivityAt = 0;
+		let lastObservedHandoffModelActivityAt = 0;
 		while (Date.now() < deadline) {
 			try {
 				const stateRes = await requestJson<BoardState>({
@@ -686,6 +692,9 @@ async function main(): Promise<void> {
 				const runningSessions = polledSessions
 					.filter(([, s]) => s.state === "running")
 					.map(([id, s]) => ({ id, modelId: s.modelId ?? null }));
+				const aliveHandoffSessions = polledSessions
+					.filter(([, s]) => s.state === "awaiting_review" && isWorkspaceSessionAliveForVerifier(s))
+					.map(([id, s]) => ({ id, modelId: s.modelId ?? null }));
 				const quietMs = now - lastProgressAt;
 				if (runningSessions.length > 0 && quietMs >= lmsProbeStartMs) {
 					if (now - lastLmsProbeAt >= lmsProbeMs) {
@@ -715,10 +724,21 @@ async function main(): Promise<void> {
 							);
 						}
 					} else if (lastLmsProbeAt > 0) {
+						const hasActiveRunningModel = hasActiveLmsModelForSessions(runningSessions, latestLmsPsModels);
+						if (hasActiveRunningModel) {
+							lastObservedRunningModelActivityAt = lastLmsProbeAt;
+						}
+						const modelAwareQuietMs = hasActiveRunningModel
+							? quietMs
+							: derivePostModelIdleQuietMs({
+									workspaceQuietMs: quietMs,
+									nowMs: now,
+									lastObservedActiveModelAtMs: lastObservedRunningModelActivityAt,
+								});
 						const verdict = evaluateQuietRunningSessionStall({
 							runningSessions,
 							lmsModels: latestLmsPsModels,
-							quietMs,
+							quietMs: modelAwareQuietMs,
 							idleStallMs: modelIdleStallMs,
 							activeStallMs: modelActiveStallMs,
 						});
@@ -729,10 +749,71 @@ async function main(): Promise<void> {
 							);
 							break;
 						}
-						if (quietMs >= modelIdleStallMs && verdict.lmsSummary !== lastLoggedLmsSummary) {
+						if (modelAwareQuietMs >= modelIdleStallMs && verdict.lmsSummary !== lastLoggedLmsSummary) {
 							lastLoggedLmsSummary = verdict.lmsSummary;
 							log(
-								`[${new Date().toISOString().slice(11, 19)}] MODEL-WAIT — quiet running session(s) for ${Math.round(quietMs / 1000)}s; lms ps: ${verdict.lmsSummary}`,
+								`[${new Date().toISOString().slice(11, 19)}] MODEL-WAIT — quiet running session(s) for ${Math.round(modelAwareQuietMs / 1000)}s; lms ps: ${verdict.lmsSummary}`,
+							);
+						}
+					}
+				}
+				if (runningSessions.length === 0 && aliveHandoffSessions.length > 0 && quietMs >= lmsProbeStartMs) {
+					if (now - lastLmsProbeAt >= lmsProbeMs) {
+						const lmsSnapshot = await fetchLmsPsSnapshot(lmsRunner);
+						latestLmsPsSnapshotOk = lmsSnapshot.ok;
+						if (lmsSnapshot.ok) {
+							latestLmsPsModels = lmsSnapshot.models;
+							latestLmsPsFailureSummary = "";
+						} else {
+							latestLmsPsModels = [];
+							latestLmsPsFailureSummary = describeLmsPsSnapshot(lmsSnapshot);
+						}
+						lastLmsProbeAt = Date.now();
+					}
+					if (!latestLmsPsSnapshotOk) {
+						if (quietMs >= modelIdleStallMs) {
+							stalled = true;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] HANDOFF-STALLED — quiet alive handoff session(s) for ${Math.round(quietMs / 1000)}s, but LM Studio CLI activity evidence is unavailable (${latestLmsPsFailureSummary}); aborting.`,
+							);
+							break;
+						}
+						if (latestLmsPsFailureSummary && latestLmsPsFailureSummary !== lastLoggedLmsSummary) {
+							lastLoggedLmsSummary = latestLmsPsFailureSummary;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] HANDOFF-WAIT — quiet alive handoff session(s) for ${Math.round(quietMs / 1000)}s; waiting inside the short idle window because lms ps is unavailable (${latestLmsPsFailureSummary})`,
+							);
+						}
+					} else if (lastLmsProbeAt > 0) {
+						const hasActiveHandoffModel = hasActiveLmsModel(latestLmsPsModels);
+						if (hasActiveHandoffModel) {
+							lastObservedHandoffModelActivityAt = lastLmsProbeAt;
+						}
+						const modelAwareQuietMs = hasActiveHandoffModel
+							? quietMs
+							: derivePostModelIdleQuietMs({
+									workspaceQuietMs: quietMs,
+									nowMs: now,
+									lastObservedActiveModelAtMs: lastObservedHandoffModelActivityAt,
+								});
+						const verdict = evaluateQuietAliveHandoffStall({
+							aliveSessions: aliveHandoffSessions,
+							lmsModels: latestLmsPsModels,
+							quietMs: modelAwareQuietMs,
+							idleStallMs: modelIdleStallMs,
+							activeStallMs: modelActiveStallMs,
+						});
+						if (verdict.action === "abort") {
+							stalled = true;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] HANDOFF-STALLED — ${verdict.reason}; lms ps: ${verdict.lmsSummary}; aborting.`,
+							);
+							break;
+						}
+						if (modelAwareQuietMs >= modelIdleStallMs && verdict.lmsSummary !== lastLoggedLmsSummary) {
+							lastLoggedLmsSummary = verdict.lmsSummary;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] HANDOFF-WAIT — quiet alive handoff session(s) for ${Math.round(modelAwareQuietMs / 1000)}s; lms ps: ${verdict.lmsSummary}`,
 							);
 						}
 					}
@@ -749,7 +830,7 @@ async function main(): Promise<void> {
 					);
 					break;
 				}
-				if (runningSessions.length === 0 && Date.now() - lastProgressAt > stallMs) {
+				if (runningSessions.length === 0 && aliveHandoffSessions.length === 0 && Date.now() - lastProgressAt > stallMs) {
 					stalled = true;
 					log(`[${new Date().toISOString().slice(11, 19)}] STALLED — no progress for ${Math.round(stallMs / 1000)}s; aborting.`);
 					break;

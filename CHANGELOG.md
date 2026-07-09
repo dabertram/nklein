@@ -20,6 +20,9 @@
   `running` as progress forever, and it no longer lets heartbeat-only session `updatedAt` changes reset the quiet timer.
   The verifier now counts only hook/output activity or session lifecycle changes as progress, aborting promptly when the
   serving model is idle and bounding long `processingPrompt`/`generating` silence with a diagnostic LM Studio snapshot.
+  It also applies that LM Studio evidence to live `awaiting_review` review/capture/finalization handoffs, where the
+  active model may be a synthetic reviewer rather than the primary worker, and grants a short post-generation grace window
+  after observed model activity so review-delivery and bounce-restart state transitions are not killed in the handoff gap.
   It now also preflights `lms ps --json` as required host/queue/machine evidence and aborts before starting a swarm when
   that CLI roster is unavailable or no loaded LLMs are visible; `/api/v0/models` remains residency-only and is not accepted
   for host-spread/no-overload proof. If the CLI roster disappears mid-run while sessions are quiet, the verifier fails on

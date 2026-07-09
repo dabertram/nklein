@@ -50,6 +50,8 @@ export type QuietRunningSessionStallReason =
 	| "active_running_session_timeout"
 	| "unobservable_running_session_timeout";
 
+export type QuietAliveHandoffStallReason = "idle_alive_handoff" | "active_alive_handoff_timeout";
+
 export type QuietRunningSessionStallVerdict =
 	| {
 			action: "wait";
@@ -63,12 +65,39 @@ export type QuietRunningSessionStallVerdict =
 			lmsSummary: string;
 	  };
 
+export type QuietAliveHandoffStallVerdict =
+	| {
+			action: "wait";
+			reason: string;
+			lmsSummary: string;
+	  }
+	| {
+			action: "abort";
+			reasonCode: QuietAliveHandoffStallReason;
+			reason: string;
+			lmsSummary: string;
+	  };
+
 export interface EvaluateQuietRunningSessionStallInput {
 	runningSessions: readonly QuietRunningSession[];
 	lmsModels: readonly LmsSessionModelSnapshot[];
 	quietMs: number;
 	idleStallMs: number;
 	activeStallMs: number;
+}
+
+export interface EvaluateQuietAliveHandoffStallInput {
+	aliveSessions: readonly QuietRunningSession[];
+	lmsModels: readonly LmsSessionModelSnapshot[];
+	quietMs: number;
+	idleStallMs: number;
+	activeStallMs: number;
+}
+
+export interface DerivePostModelIdleQuietMsInput {
+	workspaceQuietMs: number;
+	nowMs: number;
+	lastObservedActiveModelAtMs: number;
 }
 
 type ObservedModelState = "active" | "idle" | "unknown";
@@ -138,6 +167,31 @@ function classifyModelState(model: LmsSessionModelSnapshot | null): ObservedMode
 	return "active";
 }
 
+export function isLmsModelSnapshotActive(model: LmsSessionModelSnapshot): boolean {
+	return classifyModelState(model) === "active";
+}
+
+export function hasActiveLmsModel(models: readonly LmsSessionModelSnapshot[]): boolean {
+	return models.some(isLmsModelSnapshotActive);
+}
+
+export function hasActiveLmsModelForSessions(
+	runningSessions: readonly QuietRunningSession[],
+	models: readonly LmsSessionModelSnapshot[],
+): boolean {
+	return observeSessions({ runningSessions, lmsModels: models, quietMs: 0, idleStallMs: 0, activeStallMs: 0 }).some(
+		(observation) => observation.state === "active",
+	);
+}
+
+export function derivePostModelIdleQuietMs(input: DerivePostModelIdleQuietMsInput): number {
+	if (input.lastObservedActiveModelAtMs <= 0) {
+		return input.workspaceQuietMs;
+	}
+	const quietSinceActiveModel = Math.max(0, input.nowMs - input.lastObservedActiveModelAtMs);
+	return Math.min(input.workspaceQuietMs, quietSinceActiveModel);
+}
+
 function observeSessions(input: EvaluateQuietRunningSessionStallInput): SessionObservation[] {
 	return input.runningSessions.map((session) => {
 		const model = input.lmsModels.find((candidate) => matchesRequestedModel(candidate, session.modelId)) ?? null;
@@ -157,6 +211,16 @@ function formatObservation(observation: SessionObservation): string {
 
 function summarizeObservations(observations: readonly SessionObservation[]): string {
 	return observations.length > 0 ? observations.map(formatObservation).join("; ") : "(no running sessions)";
+}
+
+function formatModelSnapshot(model: LmsSessionModelSnapshot): string {
+	const location = model.machineId ? `@${model.machineId}` : "";
+	return `${model.identifier}${location}:${model.status ?? "unknown"} q=${model.queued ?? 0}`;
+}
+
+function summarizeActiveModels(models: readonly LmsSessionModelSnapshot[]): string {
+	const activeModels = models.filter((model) => classifyModelState(model) === "active").map(formatModelSnapshot);
+	return activeModels.length > 0 ? activeModels.join("; ") : "(no active models)";
 }
 
 /**
@@ -250,6 +314,56 @@ export function evaluateQuietRunningSessionStall(
 		reason: hasActiveModel
 			? "LM Studio still reports active model work inside the bounded quiet window."
 			: "No abort threshold crossed for quiet running sessions.",
+		lmsSummary,
+	};
+}
+
+/**
+ * Decide whether quiet alive handoff sessions are still worth waiting on.
+ *
+ * `awaiting_review` capture/review/finalization handoffs are live work, but the actively serving model may be a synthetic
+ * reviewer (`task::review`) rather than the primary card's worker model. In that lane, global LM Studio activity is the
+ * best verifier evidence: active models get the longer bounded active window; no active models get the short idle window.
+ */
+export function evaluateQuietAliveHandoffStall(
+	input: EvaluateQuietAliveHandoffStallInput,
+): QuietAliveHandoffStallVerdict {
+	if (input.aliveSessions.length === 0) {
+		return { action: "wait", reason: "No alive handoff sessions.", lmsSummary: "(no alive handoff sessions)" };
+	}
+
+	const lmsSummary = summarizeActiveModels(input.lmsModels);
+	const quietSeconds = Math.round(input.quietMs / 1000);
+	const hasActiveModel = hasActiveLmsModel(input.lmsModels);
+
+	if (hasActiveModel) {
+		if (input.quietMs >= input.activeStallMs) {
+			return {
+				action: "abort",
+				reasonCode: "active_alive_handoff_timeout",
+				reason: `alive handoff session(s) had no observable progress for ${quietSeconds}s even though LM Studio still reports model activity`,
+				lmsSummary,
+			};
+		}
+		return {
+			action: "wait",
+			reason: "LM Studio still reports active model work during the bounded handoff window.",
+			lmsSummary,
+		};
+	}
+
+	if (input.quietMs >= input.idleStallMs) {
+		return {
+			action: "abort",
+			reasonCode: "idle_alive_handoff",
+			reason: `alive handoff session(s) had no observable progress for ${quietSeconds}s while LM Studio reports no active model work`,
+			lmsSummary,
+		};
+	}
+
+	return {
+		action: "wait",
+		reason: "No active model observed, but the short idle handoff window has not elapsed.",
 		lmsSummary,
 	};
 }

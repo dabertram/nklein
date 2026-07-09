@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	derivePostModelIdleQuietMs,
+	evaluateQuietAliveHandoffStall,
 	evaluateQuietRunningSessionStall,
 	evaluateWorkspaceSessionProgress,
+	hasActiveLmsModel,
+	hasActiveLmsModelForSessions,
 	isWorkspaceSessionAliveForVerifier,
 } from "../../../src/core/lms-session-stall";
 
@@ -156,5 +160,94 @@ describe("evaluateQuietRunningSessionStall", () => {
 
 		expect(verdict).toMatchObject({ action: "abort", reasonCode: "idle_running_session" });
 		expect(verdict.lmsSummary).toContain("qwen3-local");
+	});
+});
+
+describe("evaluateQuietAliveHandoffStall", () => {
+	it("waits on alive review handoffs while any LM Studio model is active", () => {
+		const verdict = evaluateQuietAliveHandoffStall({
+			aliveSessions: [{ id: "card-1", modelId: "worker-idle" }],
+			lmsModels: [
+				{ identifier: "worker-idle", status: "idle", queued: 0 },
+				{ identifier: "reviewer", status: "generating", queued: 0, machineId: "legion" },
+			],
+			quietMs: 300_000,
+			idleStallMs: 90_000,
+			activeStallMs: 600_000,
+		});
+
+		expect(verdict).toMatchObject({ action: "wait" });
+		expect(verdict.lmsSummary).toContain("reviewer@legion:generating");
+	});
+
+	it("aborts quiet alive review handoffs quickly when LM Studio has no active model work", () => {
+		expect(
+			evaluateQuietAliveHandoffStall({
+				aliveSessions: [{ id: "card-1", modelId: "worker-idle" }],
+				lmsModels: [
+					{ identifier: "worker-idle", status: "idle", queued: 0 },
+					{ identifier: "reviewer", status: "idle", queued: 0 },
+				],
+				quietMs: 91_000,
+				idleStallMs: 90_000,
+				activeStallMs: 600_000,
+			}),
+		).toMatchObject({ action: "abort", reasonCode: "idle_alive_handoff" });
+	});
+
+	it("still bounds active model work during a quiet alive handoff", () => {
+		expect(
+			evaluateQuietAliveHandoffStall({
+				aliveSessions: [{ id: "card-1", modelId: "worker-idle" }],
+				lmsModels: [{ identifier: "reviewer", status: "processingPrompt", queued: 0 }],
+				quietMs: 601_000,
+				idleStallMs: 90_000,
+				activeStallMs: 600_000,
+			}),
+		).toMatchObject({ action: "abort", reasonCode: "active_alive_handoff_timeout" });
+	});
+});
+
+describe("model activity helpers", () => {
+	it("classifies queued and generating snapshots as active, but idle and loaded snapshots as inactive", () => {
+		expect(hasActiveLmsModel([{ identifier: "queued", status: "idle", queued: 1 }])).toBe(true);
+		expect(hasActiveLmsModel([{ identifier: "generating", status: "generating", queued: 0 }])).toBe(true);
+		expect(hasActiveLmsModel([{ identifier: "idle", status: "idle", queued: 0 }])).toBe(false);
+		expect(hasActiveLmsModel([{ identifier: "loaded", status: "loaded", queued: 0 }])).toBe(false);
+	});
+
+	it("only counts active models that match running sessions for the running-session lane", () => {
+		expect(
+			hasActiveLmsModelForSessions(
+				[{ id: "card-1", modelId: "worker" }],
+				[
+					{ identifier: "worker", status: "idle", queued: 0 },
+					{ identifier: "reviewer", status: "generating", queued: 0 },
+				],
+			),
+		).toBe(false);
+		expect(
+			hasActiveLmsModelForSessions(
+				[{ id: "card-1", modelId: "worker" }],
+				[{ identifier: "worker", status: "processingPrompt", queued: 0 }],
+			),
+		).toBe(true);
+	});
+
+	it("derives post-generation idle quiet time from the last observed active model", () => {
+		expect(
+			derivePostModelIdleQuietMs({
+				workspaceQuietMs: 252_000,
+				nowMs: 1_000_000,
+				lastObservedActiveModelAtMs: 970_000,
+			}),
+		).toBe(30_000);
+		expect(
+			derivePostModelIdleQuietMs({
+				workspaceQuietMs: 252_000,
+				nowMs: 1_000_000,
+				lastObservedActiveModelAtMs: 0,
+			}),
+		).toBe(252_000);
 	});
 });
