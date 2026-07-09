@@ -15,13 +15,16 @@
  *   env: NKLEIN_FLEET_ARCHITECT (default qwopus3.6-27b-v2-mlx), NKLEIN_FLEET_WORKER (default coder-gpu),
  *        NKLEIN_FLEET_WORKER_POOL (comma list, default "qwen9-m4,v3-cpu"), NKLEIN_FLEET_REVIEWER (default qwen9-m4),
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
- *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1).
+ *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
+ *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
  */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
+import { evaluateQuietRunningSessionStall } from "../src/core/lms-session-stall";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
@@ -199,6 +202,7 @@ async function main(): Promise<void> {
 
 	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
 	const TIMEOUT_MS = power.timeoutMs;
+	const lmsRunner = createDefaultLmsRunner();
 
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
@@ -369,9 +373,18 @@ async function main(): Promise<void> {
 		const stallMs = Math.round(Number(process.env.NKLEIN_VERIFY_STALL_MS ?? "420000") * power.multiplier);
 		// FAST dead-stall (user 2026-07-02 "detect stalls earlier"): when NO session is alive (running/queued/
 		// starting) the long stall window is pointless — nothing can make progress. A short window catches a dead
-		// swarm in ~1.5min instead of 7min. Sessions that are RUNNING but silent (long prefill/generation) never
-		// trip this — that's what the long window is for (prefill silence ≠ death).
+		// swarm in ~1.5min instead of 7min.
 		const deadStallMs = Math.round(Number(process.env.NKLEIN_VERIFY_DEAD_STALL_MS ?? "90000") * power.multiplier);
+		// RUNNING sessions need a model-aware lane: a long prefill/generation can be quiet, but "running" alone must
+		// never waive stalls forever. `lms ps --json` distinguishes IDLE from active PROCESSINGPROMPT/GENERATING.
+		const modelIdleStallMs = Math.round(
+			Number(process.env.NKLEIN_VERIFY_MODEL_IDLE_STALL_MS ?? "90000") * power.multiplier,
+		);
+		const modelActiveStallMs = Math.round(
+			Number(process.env.NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS ?? "600000") * power.multiplier,
+		);
+		const lmsProbeMs = Math.max(5_000, Number(process.env.NKLEIN_VERIFY_LMS_PROBE_MS ?? "30000"));
+		const lmsProbeStartMs = Math.min(30_000, modelIdleStallMs, modelActiveStallMs);
 		// awaiting_review counts ALIVE (run23 false-positive: both escalated cards were mid host-side
 		// finalize/capture/review — work that runs with no session activity by design, for minutes — when the
 		// dead-stall killed the run and its teardown broke the in-flight captures mid-exec).
@@ -387,6 +400,9 @@ async function main(): Promise<void> {
 		// mid-review. Track the freshest activity stamp across ALL polled sessions; synthetic liveness counts as
 		// progress for BOTH stall lanes.
 		let lastSeenSessionStamp = 0;
+		let lastLmsProbeAt = 0;
+		let latestLmsPsModels: LmsPsModel[] = [];
+		let lastLoggedLmsSummary = "";
 		while (Date.now() < deadline) {
 			try {
 				const stateRes = await requestJson<BoardState>({
@@ -425,13 +441,38 @@ async function main(): Promise<void> {
 					lastSeenSessionStamp = freshestStamp;
 					lastProgressAt = Date.now();
 				}
-				// A RUNNING session is progress by definition — a 27B grinding a complexity-100 decompose can
-				// generate for 7+ minutes with zero tool events (run40), and synthetic sessions (::review/::spec)
-				// never emit board changes at all (run39). The RUNTIME's stream/tool timeouts bound a genuinely
-				// dead stream, so the harness trusts `running`; awaiting_review/queued deliberately do NOT count
-				// (wedged holds must still trip the stall lanes).
-				if (polledSessions.some(([, s]) => s.state === "running")) {
-					lastProgressAt = Date.now();
+				const now = Date.now();
+				const runningSessions = polledSessions
+					.filter(([, s]) => s.state === "running")
+					.map(([id, s]) => ({ id, modelId: s.modelId ?? null }));
+				const quietMs = now - lastProgressAt;
+				if (runningSessions.length > 0 && quietMs >= lmsProbeStartMs) {
+					if (now - lastLmsProbeAt >= lmsProbeMs) {
+						latestLmsPsModels = await fetchLmsPsModels(lmsRunner);
+						lastLmsProbeAt = Date.now();
+					}
+					if (lastLmsProbeAt > 0) {
+						const verdict = evaluateQuietRunningSessionStall({
+							runningSessions,
+							lmsModels: latestLmsPsModels,
+							quietMs,
+							idleStallMs: modelIdleStallMs,
+							activeStallMs: modelActiveStallMs,
+						});
+						if (verdict.action === "abort") {
+							stalled = true;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] MODEL-STALLED — ${verdict.reason}; lms ps: ${verdict.lmsSummary}; aborting.`,
+							);
+							break;
+						}
+						if (quietMs >= modelIdleStallMs && verdict.lmsSummary !== lastLoggedLmsSummary) {
+							lastLoggedLmsSummary = verdict.lmsSummary;
+							log(
+								`[${new Date().toISOString().slice(11, 19)}] MODEL-WAIT — quiet running session(s) for ${Math.round(quietMs / 1000)}s; lms ps: ${verdict.lmsSummary}`,
+							);
+						}
+					}
 				}
 				// The polled workspace state is canonical for liveness. Stale WS card summaries can outlive their backing
 				// sessions (observed live: WS still implied work while `sessions` was `{}` and all models were IDLE), so they
@@ -445,7 +486,7 @@ async function main(): Promise<void> {
 					);
 					break;
 				}
-				if (Date.now() - lastProgressAt > stallMs) {
+				if (runningSessions.length === 0 && Date.now() - lastProgressAt > stallMs) {
 					stalled = true;
 					log(`[${new Date().toISOString().slice(11, 19)}] STALLED — no progress for ${Math.round(stallMs / 1000)}s; aborting.`);
 					break;

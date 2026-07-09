@@ -371,7 +371,9 @@ source repo went private — so if it vanishes the buildable source still lives 
 > - **Never wait on an assumed long generation or assumed model activity without checking the ground truth.** If !Klein is
 >   quiet, check `lms ps` (and, when relevant, workspace sessions / task-run state / dev logs) before burning wall-clock.
 >   `IDLE` models plus no active task session is a **stall**, not "probably still thinking"; stop the stale wait, preserve
->   the run artifacts, diagnose from evidence, and either recover or file the concrete bug.
+>   the run artifacts, diagnose from evidence, and either recover or file the concrete bug. Verifier harnesses must not treat
+>   `state:"running"` as progress by itself: a quiet-running session needs a bounded, model-aware lane that records the
+>   `lms ps` state (`IDLE` vs `PROCESSINGPROMPT`/`GENERATING`) in the abort/wait diagnostic.
 > - **`lms ps`** — live per-model state: `PROCESSINGPROMPT` (prefilling — emits NO stream tokens, so this is what trips a
 >   stream-INACTIVITY timeout) vs `GENERATING` (emitting tokens) vs `IDLE`, plus loaded context window + parallelism. This
 >   alone distinguishes "prefilling slowly", "generating a long reasoning block", and "actually hung".
@@ -5791,6 +5793,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `qwopus3.5-9b-coder-mtp` but was canceled by the verifier stall before a model-performance reviewer row was written.
         Follow-up fix from this evidence: `resolveSwarmRoleModel` now returns `unmatched_pin` with no substitute pick, and
         the second-opinion review runner blocks delivery on a proven-missing pinned reviewer instead of waiving it to auto.
+        **QUIET-RUNNING VERIFIER ROOT CAUSE + FIX (2026-07-09):** a follow-up run with qwen3 architect +
+        `qwopus3.5-9b-coder-mtp` worker + Devstral pool/reviewer confirmed pins held: no qwen3 worker fallback after the
+        pinned worker started. qwen3 first emitted three invalid empty `decompose_project` calls, then dead-card recovery
+        restarted the seed and produced the 12-card DAG. The pinned Qwopus worker then sat in LM Studio
+        `processingPrompt` with no session output; manual abort preserved artifacts. The harness bug was concrete:
+        `scripts/verify-fleet-swarm.mts` reset `lastProgressAt` every time any polled session was `state:"running"`, so a
+        quiet-running model could keep the verifier alive forever. Fixed with [src/core/lms-session-stall.ts](src/core/lms-session-stall.ts)
+        (tested): the verifier now probes `lms ps --json`, aborts short-window when the serving model is `IDLE`, and gives
+        active `PROCESSINGPROMPT`/`GENERATING` work a longer but bounded quiet window with a `MODEL-WAIT`/`MODEL-STALLED`
+        diagnostic that includes the LM Studio snapshot.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
