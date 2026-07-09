@@ -408,6 +408,57 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(deps.cancelTaskTurn).toHaveBeenCalledWith("task-1");
 	});
 
+	it("quiesces a stale running primary worker before starting the reviewer", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "No changes", feedback: "Implement it", insight: null },
+		});
+		const events: string[] = [];
+		const runnerService = {
+			runSecondOpinionReviewSession: vi.fn(async () => {
+				events.push("review");
+				return {
+					verdict: "request_changes",
+					summary: "No changes",
+					feedback: "Implement it",
+					insight: null,
+				} satisfies ReviewSubmissionInput;
+			}),
+			sendTaskSessionInput: deps.sendTaskSessionInput,
+			getSummary: () => ({
+				taskId: "task-1",
+				state: "running",
+				modelId: "worker-model",
+				latestHookActivity: {
+					activityText: "Sandbox finished with no file changes",
+					toolName: null,
+					toolInputSummary: null,
+					finalMessage: null,
+					hookEventName: "sandbox_patch_empty",
+					notificationType: null,
+					source: "nklein",
+				},
+			}),
+			cancelTaskTurn: vi.fn(async () => {
+				events.push("cancel");
+				return null;
+			}),
+		} as unknown as Parameters<typeof runSecondOpinionReviewForTask>[0]["service"];
+
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: runnerService,
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+
+		expect(outcome).toEqual({ type: "bounced", round: 1 });
+		expect(runnerService.cancelTaskTurn).toHaveBeenCalledWith("task-1");
+		expect(events).toEqual(["cancel", "review"]);
+	});
+
 	const boardsFromMutations = (deps: ReturnType<typeof makeDeps>): RuntimeBoardData[] =>
 		deps.mutationResults
 			.map((result) => (result as { board?: RuntimeBoardData })?.board)

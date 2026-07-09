@@ -6103,6 +6103,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ledger home: `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-fleet-home-V0IpdL`. Next root cause:
         no-change repair/redrive can leave a worker session `running` after model activity is idle; terminal convergence
         remains open, while routing/host-cap proof is no longer the blocker.
+        **ROOT-CAUSE FIX (2026-07-09):** the stalled card was not actually generating: the primary worker summary could
+        stay `running` with latest activity `sandbox_patch_empty`/`sandbox_patch_captured` while the synthetic
+        `task::review` reviewer turn waited behind m4mini capacity. That stale primary session looked like live model work
+        and occupied verifier/scheduler lanes. Fixed in
+        [second-opinion-review-runner.ts](src/server/second-opinion-review-runner.ts): before starting a second-opinion
+        review, quiesce only the proven terminal patch-capture handoff shape (`running` + `sandbox_patch_empty` or
+        `sandbox_patch_captured`) via `cancelTaskTurn`; real in-flight re-drives with normal tool/model activity are left
+        alone. Regression coverage:
+        [second-opinion-review-runner.test.ts](test/runtime/server/second-opinion-review-runner.test.ts) proves the stale
+        primary is canceled before the reviewer session starts. **STILL OWED:** live rerun to terminal convergence.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple

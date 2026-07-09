@@ -40,6 +40,14 @@ const REVIEW_SESSION_TASK_SUFFIX = "::review";
 /** W4.2 layer 3: one worker-escalation per card per server run (resets on restart — v1 semantics). */
 const escalatedWorkerTaskIds = new Set<string>();
 
+function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
+	if (summary?.state !== "running") {
+		return false;
+	}
+	const hookEventName = summary.latestHookActivity?.hookEventName ?? null;
+	return hookEventName === "sandbox_patch_empty" || hookEventName === "sandbox_patch_captured";
+}
+
 /** Returns a new board with the card's review state set, optionally moving it to `targetColumnId`. */
 export function applyCardReviewToBoard(
 	board: RuntimeBoardData,
@@ -263,6 +271,13 @@ export async function runSecondOpinionReviewForTask(
 			`Reviewer ${reviewer.modelId} shares the ${resolveLineage(reviewer.modelId)} lineage with worker ` +
 				`${workerModelId} on ${input.taskId} — correlated second opinion (diversity waived).`,
 		);
+	}
+	// A sandbox handoff can leave the PRIMARY worker summary in `running` even though the latest activity is already the
+	// terminal patch-capture marker. If the reviewer then waits behind capacity, that stale primary session looks like
+	// live model work and can occupy verifier/scheduler lanes. Quiesce only this proven handoff shape; a real in-flight
+	// re-drive has normal tool/model activity and is left alone.
+	if (shouldQuiescePrimaryWorkerBeforeReview(workerSummary)) {
+		await input.service.cancelTaskTurn?.(input.taskId).catch(() => null);
 	}
 
 	// §5.AB parallel panel-of-judges (OPT-IN via NKLEIN_REVIEW_PANEL; default OFF ⇒ the single-reviewer path, byte-

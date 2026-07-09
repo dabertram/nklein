@@ -56,6 +56,9 @@
   is resident before reporting the roster ready. The fleet verifier can now take
   `NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY` (for example `m5max=2,m4mini=1`) and writes those explicit per-host caps into the
   runtime config, so a capable host can be raised without also overloading weaker linked machines.
+  The second-opinion runner also now quiesces a stale primary worker session before starting review when its latest activity
+  is already a terminal sandbox patch-capture marker, preventing a capacity-waiting `task::review` turn from coexisting
+  with a fake `running` worker lane.
 - **LM-Link resident models no longer disappear from model selection when REST discovery omits them** (todo §5.AB). LM
   Studio provider discovery, residency checks, and loaded-model descriptors now merge the live `lms ps --json` identities
   with `/api/v1|v0/models`, so linked-host aliases can be selected and routed without triggering a load. The runtime also
