@@ -944,7 +944,6 @@ export function CardDetailView({
 							moveToTrashLoadingById={moveToTrashLoadingById}
 							onManageDependencies={onManageDependencies}
 							panelWidth="100%"
-							defaultNKleinModelId={runtimeConfig?.nkleinProviderSettings?.modelId ?? null}
 						/>
 					</div>
 					<ResizeHandle

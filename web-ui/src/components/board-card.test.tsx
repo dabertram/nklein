@@ -572,7 +572,6 @@ describe("BoardCard", () => {
 					})}
 					index={0}
 					columnId="backlog"
-					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});
@@ -611,7 +610,6 @@ describe("BoardCard", () => {
 					})}
 					index={0}
 					columnId="backlog"
-					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});
@@ -645,7 +643,6 @@ describe("BoardCard", () => {
 					})}
 					index={0}
 					columnId="backlog"
-					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});

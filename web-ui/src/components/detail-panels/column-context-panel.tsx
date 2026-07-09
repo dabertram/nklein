@@ -34,7 +34,6 @@ function ColumnSection({
 	activeDragSourceColumnId,
 	onManageDependencies,
 	workspacePath,
-	defaultNKleinModelId,
 }: {
 	column: BoardColumn;
 	selectedCardId: string;
@@ -59,7 +58,6 @@ function ColumnSection({
 	activeDragSourceColumnId?: BoardColumnId | null;
 	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
-	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const [open, setOpen] = useState(defaultOpen);
 	const canCreate = column.id === "backlog" && onCreateTask;
@@ -202,7 +200,6 @@ function ColumnSection({
 												isMoveToTrashLoading={moveToTrashLoadingById?.[card.id] ?? false}
 												onManageDependencies={onManageDependencies}
 												workspacePath={workspacePath}
-												defaultNKleinModelId={defaultNKleinModelId}
 												onSaveTitle={onSaveTitle}
 												onClick={() => {
 													if (column.id === "backlog") {
@@ -233,7 +230,6 @@ function ColumnSection({
 export function ColumnContextPanel({
 	selection,
 	workspacePath,
-	defaultNKleinModelId,
 	onCardSelect,
 	taskSessions,
 	onTaskDragEnd,
@@ -277,7 +273,6 @@ export function ColumnContextPanel({
 	moveToTrashLoadingById?: Record<string, boolean>;
 	onManageDependencies?: (taskId: string) => void;
 	panelWidth?: string;
-	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const [activeDragSourceColumnId, setActiveDragSourceColumnId] = useState<BoardColumnId | null>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -368,7 +363,6 @@ export function ColumnContextPanel({
 							activeDragSourceColumnId={activeDragSourceColumnId}
 							onManageDependencies={onManageDependencies}
 							workspacePath={workspacePath}
-							defaultNKleinModelId={defaultNKleinModelId}
 						/>
 					))}
 				</div>

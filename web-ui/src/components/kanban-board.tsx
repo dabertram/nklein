@@ -171,7 +171,6 @@ export function KanbanBoard({
 	onTaskSessionSummary,
 	replayCardsEnabled = false,
 	forceFleetExpanded = false,
-	defaultNKleinModelId,
 	defaultAgentId,
 	reasoningSnippetByTaskId,
 }: {
@@ -211,7 +210,6 @@ export function KanbanBoard({
 	replayCardsEnabled?: boolean;
 	/** §5.BB Zoom 3 (Professional): render the fleet block expanded regardless of the stored toggle. */
 	forceFleetExpanded?: boolean;
-	defaultNKleinModelId?: string | null;
 	/** The workspace's selected agent — cards only wear an agent chip when they differ from it. */
 	defaultAgentId?: string | null;
 	/** §5.V: live reasoning-phase snippets per task (derived at App level from task-chat reasoning messages). */
@@ -982,7 +980,6 @@ export function KanbanBoard({
 			onManageDependencies={onManageDependencies}
 			workspacePath={workspacePath}
 			replayCardsEnabled={replayCardsEnabled}
-			defaultNKleinModelId={defaultNKleinModelId}
 			defaultAgentId={defaultAgentId}
 			mailboxCountByTaskId={mailboxCountByTaskId}
 			reasoningSnippetByTaskId={reasoningSnippetByTaskId}

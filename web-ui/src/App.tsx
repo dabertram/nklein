@@ -1248,7 +1248,6 @@ export default function App(): ReactElement {
 													selectedCard ? undefined : handleProgrammaticCardMoveReady
 												}
 												onDragEnd={handleDragEnd}
-												defaultNKleinModelId={runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null}
 												defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 											/>
 										)}

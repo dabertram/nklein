@@ -557,7 +557,6 @@ export function BoardCard({
 	isDependencyLinking = false,
 	onManageDependencies,
 	workspacePath,
-	defaultNKleinModelId = null,
 	defaultAgentId = null,
 	pendingMailboxCount = 0,
 	reasoningSnippet = null,
@@ -598,7 +597,6 @@ export function BoardCard({
 	/** Opens the DependencyPickerDialog for this card. Shown on hover for all non-trash cards. */
 	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
-	defaultNKleinModelId?: string | null;
 	/** The workspace's selected agent — the agent chip only shows when the card DIFFERS from it. */
 	defaultAgentId?: string | null;
 }): React.ReactElement {
