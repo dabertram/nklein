@@ -53,6 +53,8 @@ export interface RunEvidence {
 	repairSucceeded?: boolean;
 	/** The review/acceptance check passed (e.g. a planted-defect reviewer found nothing, tests green). */
 	reviewPassed?: boolean;
+	/** Advisory only: a model said it is done. Never use this as transition evidence by itself. */
+	modelSelfReportedComplete?: boolean;
 	/** The phase's tool-call or wall-time budget is spent (controller-owned, not the model's call). */
 	budgetExhausted?: boolean;
 	/** Local repair can't restore coherence — a re-decompose/split is needed. */

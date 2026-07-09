@@ -39,6 +39,18 @@ describe("run-state-machine — phase ladder", () => {
 		expect(decideNextPhase("evaluate", { allStepsComplete: true }).next).toBe("review");
 	});
 
+	it("small-model self-reports never own global completion transitions", () => {
+		expect(
+			decideNextPhase("evaluate", {
+				stepSucceeded: true,
+				allStepsComplete: false,
+				modelSelfReportedComplete: true,
+			}).next,
+		).toBe("execute_step");
+		expect(decideNextPhase("evaluate", { modelSelfReportedComplete: true }).next).toBe("repair");
+		expect(decideNextPhase("review", { modelSelfReportedComplete: true }).next).toBe("repair");
+	});
+
 	it("a step with no observed effect goes to repair, not forward", () => {
 		expect(decideNextPhase("evaluate", { stepSucceeded: false }).next).toBe("repair");
 		expect(decideNextPhase("evaluate", {}).next).toBe("repair"); // no evidence of success ⇒ repair

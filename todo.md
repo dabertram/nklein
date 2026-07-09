@@ -5462,7 +5462,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         transition reason + phase tool/budget policy for the ledger/runtime seam, parks on budget exhaustion, and stops
         `stalled` when a non-terminal phase cannot advance. Tests cover full clean flow, no-localization stall, and
         budget-exhausted park.)*
-  - [ ] Test with small models (ensures they can't own global transitions)
+  - [x] Test with small models (ensures they can't own global transitions) *(✅ 2026-07-09 — `RunEvidence` now has an
+        explicit advisory `modelSelfReportedComplete` field, and the phase-controller regression proves it never advances
+        `evaluate`/`review` to completion without real `allStepsComplete` + `reviewPassed` evidence. This pins the
+        small-model contract: models may report status, but the controller owns global transitions.)*
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
 > **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**

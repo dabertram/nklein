@@ -9,7 +9,8 @@
   prevents premature "done" replies on explicit multi-tool instructions.
   The pure controller now also has a full phase-flow driver that walks intake→plan→validate→localize→execute/observe/
   evaluate→review→merge→done from injected evidence, captures each phase's tool/budget policy on the transition record,
-  and stops safely on terminal, park, stall, or transition cap.
+  and stops safely on terminal, park, stall, or transition cap. Model self-reported completion is now an explicit advisory
+  evidence field and remains ignored for global completion transitions unless real acceptance/review evidence is present.
 - **Fleet verification now proves the configured role models actually ran** (todo §5.AB). The complex fleet-swarm verifier
   records runtime and ledger model usage and fails unless the configured architect, worker, and reviewer models are observed,
   so a run cannot pass by silently routing worker cards to the default model or hiding a synthetic reviewer session. Cold
