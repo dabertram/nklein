@@ -4,16 +4,17 @@
  * This verifier opts into explicit primary role pins so the "configured model was observed" assertions are meaningful:
  *   architect (decompose)  = a pinned strong LARGE model (default the m5max 27b)
  *   worker   (implement)   = a pinned fast coder primary + configured pool members for guardrail/advisor coverage
- *   reviewer               = a pinned mid model unless NKLEIN_FLEET_REVIEWER=none
- * Product defaults stay auto-selection; this script is the pinned-role regression. It then OBSERVES which model each
+ *   reviewer               = a pinned mid model unless NKLEIN_FLEET_REVIEWER=auto|none|empty
+ * Product defaults stay auto-selection; this script is the mixed pinned/auto regression. It then OBSERVES which model each
  * card actually ran on and whether each card DELIVERED a result branch — so we learn not just "did the cascade finish"
- * but "did the requested role pins actually hold".
+ * but "did the requested role pins hold while unpinned roles still auto-select".
  *
  * The project workspace is PRESERVED (path printed) so the produced code can be inspected.
  *
  * Run:  HOME=/tmp/nklein-fleet tsx scripts/verify-fleet-swarm.mts
- *   env: NKLEIN_FLEET_ARCHITECT (default qwopus3.6-27b-v2-mlx), NKLEIN_FLEET_WORKER (default coder-gpu),
- *        NKLEIN_FLEET_WORKER_POOL (comma list, default "qwen9-m4,v3-cpu"), NKLEIN_FLEET_REVIEWER (default qwen9-m4),
+ *   env: NKLEIN_FLEET_ARCHITECT (default gptoss120-m5), NKLEIN_FLEET_WORKER (default coder-gpu),
+ *        NKLEIN_FLEET_WORKER_POOL (comma list, default "qwen9-m4,v3-cpu"; set empty to disable),
+ *        NKLEIN_FLEET_REVIEWER (default qwen9-m4; auto|none|empty leaves reviewer unconfigured),
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
  *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
@@ -24,6 +25,12 @@ import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
+import {
+	evaluateFleetReviewerObservation,
+	hasModelUsage,
+	isAutoReviewerSetting,
+	isPromptReviewSessionId,
+} from "../src/core/fleet-review-observation";
 import {
 	evaluateQuietRunningSessionStall,
 	evaluateWorkspaceSessionProgress,
@@ -39,11 +46,14 @@ const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1
 const PROVIDER_ID = "lmstudio";
 const ARCHITECT = process.env.NKLEIN_FLEET_ARCHITECT?.trim() || "gptoss120-m5";
 const WORKER = process.env.NKLEIN_FLEET_WORKER?.trim() || "coder-gpu";
-const WORKER_POOL = (process.env.NKLEIN_FLEET_WORKER_POOL?.trim() || "qwen9-m4,v3-cpu")
+const WORKER_POOL = (process.env.NKLEIN_FLEET_WORKER_POOL === undefined
+	? "qwen9-m4,v3-cpu"
+	: process.env.NKLEIN_FLEET_WORKER_POOL)
 	.split(",")
 	.map((s) => s.trim())
 	.filter(Boolean);
-const REVIEWER = process.env.NKLEIN_FLEET_REVIEWER?.trim() || "qwen9-m4";
+const REVIEWER = process.env.NKLEIN_FLEET_REVIEWER === undefined ? "qwen9-m4" : process.env.NKLEIN_FLEET_REVIEWER.trim();
+const REVIEWER_AUTO = isAutoReviewerSetting(REVIEWER);
 const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "2700000");
 const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
@@ -167,15 +177,17 @@ function reportLedger(homeDir: string): Set<string> {
 	return seenModels;
 }
 
-function hasModelUsage(seenModels: ReadonlySet<string>, modelId: string): boolean {
-	const wanted = modelId.trim();
-	return wanted.length > 0 && [...seenModels].some((seen) => seen === wanted || seen.includes(wanted));
+interface PersistedPromptSessionReport {
+	seenModels: Set<string>;
+	reviewModels: Set<string>;
 }
 
-function reportPersistedPromptSessions(homeDir: string): Set<string> {
+function reportPersistedPromptSessions(homeDir: string): PersistedPromptSessionReport {
 	const files = findFiles(homeDir, "data/sessions").filter((file) => file.endsWith(".json") && !file.endsWith(".messages.json"));
 	const byModel = new Map<string, number>();
+	const reviewByModel = new Map<string, number>();
 	const seenModels = new Set<string>();
+	const reviewModels = new Set<string>();
 	let rows = 0;
 	for (const file of files) {
 		let parsed: unknown;
@@ -191,15 +203,21 @@ function reportPersistedPromptSessions(homeDir: string): Set<string> {
 		rows += 1;
 		seenModels.add(observation.modelId);
 		byModel.set(observation.modelId, (byModel.get(observation.modelId) ?? 0) + 1);
+		if (isPromptReviewSessionId(observation.sessionId)) {
+			reviewModels.add(observation.modelId);
+			reviewByModel.set(observation.modelId, (reviewByModel.get(observation.modelId) ?? 0) + 1);
+		}
 	}
-	log(`=== Persisted prompt sessions: ${rows} session record(s) across ${byModel.size} model(s) ===`);
+	log(
+		`=== Persisted prompt sessions: ${rows} session record(s), ${[...reviewByModel.values()].reduce((a, b) => a + b, 0)} review session(s), across ${byModel.size} model(s) ===`,
+	);
 	for (const [model, count] of byModel) {
-		log(`   ${model}  sessions=${count}`);
+		log(`   ${model}  sessions=${count}  reviewSessions=${reviewByModel.get(model) ?? 0}`);
 	}
 	if (rows === 0) {
 		log("   (no persisted prompt-session model records found)");
 	}
-	return seenModels;
+	return { seenModels, reviewModels };
 }
 
 /** List task result branches (`nklein/tasks/*`) in the project workspace = the DELIVERABLES. */
@@ -232,7 +250,7 @@ async function main(): Promise<void> {
 	initGitRepository(cwd);
 
 	// Refuse any non-resident fleet model up front (never load — user directive).
-	for (const model of [ARCHITECT, WORKER, ...WORKER_POOL, ...(REVIEWER === "none" ? [] : [REVIEWER])]) {
+	for (const model of [ARCHITECT, WORKER, ...WORKER_POOL, ...(REVIEWER_AUTO ? [] : [REVIEWER])]) {
 		await assertModelLoaded(BASE_URL, model);
 	}
 
@@ -274,7 +292,7 @@ async function main(): Promise<void> {
 		});
 		log(
 			`Server: ${server.baseUrl}\n` +
-				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER}\n` +
+				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
 				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})`,
 		);
 
@@ -303,9 +321,9 @@ async function main(): Promise<void> {
 						modelSelectionMode: "pinned",
 						additionalModels: WORKER_POOL.map((modelId) => ({ providerId: PROVIDER_ID, modelId })),
 					},
-					// REVIEWER="none" leaves the reviewer role UNCONFIGURED — exercising the W2.5a lineage-diverse
+					// REVIEWER=auto|none|empty leaves the reviewer role UNCONFIGURED — exercising the W2.5a lineage-diverse
 					// reviewer AUTO-PICK (previously the silent worker-reviews-itself fallback).
-					...(REVIEWER === "none"
+					...(REVIEWER_AUTO
 						? {}
 						: { reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER, modelSelectionMode: "pinned" } }),
 				},
@@ -554,8 +572,8 @@ async function main(): Promise<void> {
 		}
 		log("");
 		const seenLedgerModels = reportLedger(homeDir);
-		const seenPersistedSessionModels = reportPersistedPromptSessions(homeDir);
-		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels, ...seenPersistedSessionModels]);
+		const persistedPromptSessions = reportPersistedPromptSessions(homeDir);
+		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels, ...persistedPromptSessions.seenModels]);
 		log("");
 		if (workspacePath) reportDeliverables(workspacePath);
 
@@ -563,17 +581,27 @@ async function main(): Promise<void> {
 		log("=== Fleet swarm result ===");
 		const architectSeen = hasModelUsage(seenModels, ARCHITECT);
 		const workerSeen = hasModelUsage(seenModels, WORKER);
-		const reviewerSeen = REVIEWER === "none" ? true : hasModelUsage(seenModels, REVIEWER);
+		const reviewerObservation = evaluateFleetReviewerObservation({
+			configuredReviewer: REVIEWER,
+			seenModels,
+			persistedReviewModels: persistedPromptSessions.reviewModels,
+			workerModel: WORKER,
+		});
+		const reviewerSeen = reviewerObservation.observed;
 		const fleetUsageOk = architectSeen && workerSeen && reviewerSeen;
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
 		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);
 		log(`Configured worker model observed: ${workerSeen ? "YES" : "NO"} (${WORKER})`);
-		log(`Configured reviewer model observed: ${reviewerSeen ? "YES" : "NO"} (${REVIEWER})`);
+		log(
+			reviewerObservation.mode === "auto"
+				? `Auto reviewer observed: ${reviewerSeen ? "YES" : "NO"} (${reviewerObservation.observedModels.join(",") || "none"}) — ${reviewerObservation.reason}`
+				: `Configured reviewer model observed: ${reviewerSeen ? "YES" : "NO"} (${REVIEWER}) — ${reviewerObservation.reason}`,
+		);
 		log(`Fleet role usage gate: ${fleetUsageOk ? "PASS" : "FAIL"}`);
 		log(
 			`SWEEP-ROW | ${new Date().toISOString()} | fleet ${PRESET} | architect=${ARCHITECT} worker=${WORKER} | ` +
-				`decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
+				`reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER} | decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
 				`power=${power.mode}×${power.multiplier}`,
 		);
 		log(`Workspace PRESERVED for inspection: ${workspacePath}`);

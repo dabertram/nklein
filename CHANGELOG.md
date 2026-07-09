@@ -19,7 +19,9 @@
   It also distinguishes `awaiting_review` capture/finalization handoffs from operator-attention/error pauses, so a failed
   seed that is waiting for human attention no longer suppresses the dead-stall lane. Persisted prompt-session records under
   `.nklein/data/sessions` now count too, so synthetic `::review` sessions that are absent from workspace summaries still
-  satisfy the configured reviewer model observation gate.
+  satisfy the configured reviewer model observation gate. `NKLEIN_FLEET_REVIEWER=auto|none|empty` is now a true mixed
+  pin/auto verifier mode: it leaves the reviewer unpinned and fails unless a persisted non-worker auto-review session is
+  observed, instead of counting an unconfigured reviewer as observed by definition.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation
