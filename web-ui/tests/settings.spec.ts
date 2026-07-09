@@ -97,6 +97,9 @@ const MOCK_CONFIG = {
 	sandboxMemoryPerContainerMb: 2048,
 	sandboxCpusPerContainer: 2,
 	sandboxIdleTimeoutMinutes: 10,
+	sandboxIsolationProfileDefault: "lean_shared",
+	sandboxIsolationProfileOverride: null,
+	effectiveSandboxIsolationProfile: "lean_shared",
 	lostHeartbeatPolicy: "park",
 	decompositionAutoApplyEnabled: true,
 	secondOpinionReviewEnabled: true,
@@ -409,6 +412,32 @@ test.describe("RuntimeSettingsDialog", () => {
 		expect(getSaveConfigBodies().length).toBeGreaterThan(0);
 		const body = getSaveConfigBodies()[0] as Record<string, { maxConcurrentTasks?: number }>;
 		expect(body["0"]?.maxConcurrentTasks).toBe(5);
+	});
+
+	test("changing the sandbox isolation profile saves the explicit profile", async ({ page }) => {
+		const { getSaveConfigBodies } = await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+
+		await page.getByRole("button", { name: "Tasks" }).click();
+
+		const profileSelect = page.locator("#runtime-settings-sandbox-isolation-profile");
+		await expect(profileSelect).toBeVisible({ timeout: 5_000 });
+		await profileSelect.selectOption("strict_per_agent");
+
+		const saveButton = page.getByRole("dialog").getByRole("button", { name: "Save" });
+		await expect(saveButton).toBeEnabled({ timeout: 3_000 });
+		await saveButton.click();
+
+		await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 5_000 });
+
+		expect(getSaveConfigBodies().length).toBeGreaterThan(0);
+		const body = getSaveConfigBodies()[0] as Record<
+			string,
+			{ sandboxIsolationProfileDefault?: string; sandboxAgentsPerContainer?: number }
+		>;
+		expect(body["0"]?.sandboxIsolationProfileDefault).toBe("strict_per_agent");
+		expect(body["0"]?.sandboxAgentsPerContainer).toBe(1);
 	});
 
 	test("changing Autonomous turns guardrail and saving fires runtime.saveConfig with updated swarmGuardrails", async ({

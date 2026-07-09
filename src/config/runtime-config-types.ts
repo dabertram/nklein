@@ -14,6 +14,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -69,6 +70,9 @@ export interface RuntimeConfigState {
 	sandboxCpusPerContainer: number;
 	sandboxMaxConcurrentExec: number;
 	sandboxIdleTimeoutMinutes: number;
+	sandboxIsolationProfileDefault: RuntimeSandboxIsolationProfile;
+	sandboxIsolationProfileOverride: RuntimeSandboxIsolationProfile | null;
+	effectiveSandboxIsolationProfile: RuntimeSandboxIsolationProfile;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
 	hardTaskRoutingMode: "wait_for_best" | "attempt_with_available";
@@ -143,6 +147,8 @@ export interface RuntimeConfigUpdateInput {
 	sandboxCpusPerContainer?: number;
 	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
+	sandboxIsolationProfileDefault?: RuntimeSandboxIsolationProfile;
+	sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
@@ -206,6 +212,7 @@ export interface RuntimeGlobalConfigFileShape {
 	sandboxCpusPerContainer?: number;
 	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
+	sandboxIsolationProfileDefault?: RuntimeSandboxIsolationProfile;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
@@ -239,4 +246,5 @@ export interface RuntimeProjectConfigFileShape {
 	selectedAgentIdOverride?: RuntimeAgentId | null;
 	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 	modelRolesOverride?: RuntimeModelRoles | null;
+	sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 }

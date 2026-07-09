@@ -38,6 +38,11 @@
   catalog now treats `qwen2.5.1-coder-7b-instruct` and the `mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit` path as the
   Qwen2.5 Coder 7B family instead of an unknown model, with the 7B footprint and full-synthesis prior kept separate from
   the broader 14B-oriented Qwen2.5 Coder row.
+- **Docker sandbox isolation is now an explicit runtime profile** (todo §5.A). The existing low-resource shared-pool
+  behavior is preserved as the `lean_shared` default, legacy numeric pool configs infer `custom`, and a new
+  `strict_per_agent` profile forces one agent per container with a bounded default cap. Runtime config now supports both
+  global defaults and project overrides, Settings exposes both controls, and direct numeric pool edits switch the profile
+  to `custom` so user-tuned limits are not silently overwritten.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

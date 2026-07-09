@@ -978,7 +978,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - **§5.P:** **keep deferred** until we reach it (it's the last task; boundary depends on how everything lands).
 
 ### 5.A — Finish strict-isolation reconciliation & live verification
-- [ ] **Docker sandbox efficiency/isolation profile audit + settings.** *(Raised 2026-07-09, user: prefer leaner Docker
+- [~] **Docker sandbox efficiency/isolation profile audit + settings.** *(Raised 2026-07-09, user: prefer leaner Docker
       resource use; possibly one shared container with dedicated Unix users per agent, but user decides the balance.)*
       Current live fleet runs can leave several `nklein-agent-sandbox-*` containers alive at once; that may be correct for
       strict per-task isolation, but it needs a deliberate product setting instead of an implicit runtime shape. Audit the
@@ -988,13 +988,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `sandbox_patch_captured`, but the host dev workspace only contained `.nklein/nklein/workspace/*` metadata and no
       `src/formatters/*` after the agent abort), and resource cost under multi-card swarms. Then design and, if sound,
       implement global + project settings for an **isolation profile**:
-      strict per-task/per-agent container (default/safest), lean shared project container, and/or shared global container
-      only if the threat model holds. Shared-container profiles must use separate in-container users, separate workdirs,
+      lean shared project container, strict per-task/per-agent containers, and/or shared global container only if the
+      threat model holds. Shared-container profiles must use separate in-container users, separate workdirs,
       least-privilege ownership/umask, process cleanup, per-task cwd existence checks, no host fallback, unchanged
-      `--network none` default, and fail-closed degradation when the requested profile cannot preserve isolation. Add UI
-      copy that honestly explains the tradeoff (stronger isolation vs lower Docker overhead), unit tests for policy
-      resolution, integration tests proving two agents cannot read/write each other's workspace under the lean profile,
-      and a live Docker measurement note comparing container count/resource use across profiles before marking done.
+      `--network none` default, and fail-closed degradation when the requested profile cannot preserve isolation. ◐
+      **FIRST SETTINGS INCREMENT SHIPPED (2026-07-09):** code audit found the current `AgentSandboxManager` already uses a
+      lean shared pool by default (`sandboxMaxContainers=1`, `sandboxAgentsPerContainer=0`) while still assigning
+      deterministic per-task Unix users and `/workspaces/<taskId>` workdirs. The runtime config now makes that product
+      decision explicit via `sandboxIsolationProfileDefault` (`lean_shared` default for low-spec hardware, legacy numeric
+      configs infer `custom`) and `sandboxIsolationProfileOverride` for projects. `strict_per_agent` forces one agent per
+      container and defaults its container cap to 4 when no cap is configured; direct numeric pool edits become `custom`.
+      Settings exposes the global profile and project override, and tests cover resolver semantics, persistence,
+      component save payloads, and the Playwright settings save path. **Remaining before `[x]`:** Docker integration proof
+      that two simultaneous lean-profile agents cannot read/write each other's workspace, live container-count/resource
+      comparison across profiles, and the root-cause fix for the 2026-07-09 capture/lifecycle evidence where sandbox
+      delivery claimed captured files that did not land in the host dev workspace.
 - [x] **Created-workspace location guard (2026-06-25, user-directed safety fix after a real pollution incident).** A
       dev-test scaffold (`scaffoldNKleinDevTestProject`) whose `parentDir` resolved inside the repo seeded ~23 fixture
       commits onto the working branch + flipped `core.bare=true` (broke all work-tree git ops). Fix:

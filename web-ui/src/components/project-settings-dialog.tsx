@@ -13,7 +13,12 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
-import type { RuntimeCodeEmbeddingSettings, RuntimeModelGateAction, RuntimeSkillDynamicsLevel } from "@/runtime/types";
+import type {
+	RuntimeCodeEmbeddingSettings,
+	RuntimeModelGateAction,
+	RuntimeSandboxIsolationProfile,
+	RuntimeSkillDynamicsLevel,
+} from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 
 export interface ProjectSettingsDialogProps {
@@ -50,6 +55,10 @@ export function ProjectSettingsDialog({
 	// §5.AE per-project skill-dynamics level override.
 	const [skillDynamicsOverrideEnabled, setSkillDynamicsOverrideEnabled] = useState(false);
 	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
+	// §5.A sandbox isolation profile override.
+	const [sandboxIsolationOverrideEnabled, setSandboxIsolationOverrideEnabled] = useState(false);
+	const [sandboxIsolationProfile, setSandboxIsolationProfile] =
+		useState<RuntimeSandboxIsolationProfile>("lean_shared");
 	const [saveError, setSaveError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -81,6 +90,12 @@ export function ProjectSettingsDialog({
 		setSkillDynamicsLevel(override ?? config?.skillDynamicsLevelDefault ?? "fully_dynamic");
 	}, [config?.skillDynamicsLevelOverride, config?.skillDynamicsLevelDefault]);
 
+	useEffect(() => {
+		const override = config?.sandboxIsolationProfileOverride ?? null;
+		setSandboxIsolationOverrideEnabled(override !== null);
+		setSandboxIsolationProfile(override ?? config?.sandboxIsolationProfileDefault ?? "lean_shared");
+	}, [config?.sandboxIsolationProfileOverride, config?.sandboxIsolationProfileDefault]);
+
 	const defaults = config?.codeEmbeddingDefaults ?? null;
 	const effective = overrideEnabled ? buildCodeEmbeddingSettings(provider, model, baseUrl) : defaults;
 	const controlsDisabled = isSaving || isSavingProjectSetting || !workspaceId;
@@ -95,6 +110,7 @@ export function ProjectSettingsDialog({
 			codeEmbeddingOverride: override,
 			modelSuitabilityPolicyOverride: policyOverride,
 			skillDynamicsLevelOverride: skillDynamicsOverrideEnabled ? skillDynamicsLevel : null,
+			sandboxIsolationProfileOverride: sandboxIsolationOverrideEnabled ? sandboxIsolationProfile : null,
 		});
 		if (!saved) {
 			setSaveError("Could not save project settings. Check runtime logs and try again.");
@@ -157,6 +173,42 @@ export function ProjectSettingsDialog({
 										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
 									</RadixSwitch.Root>
 								</div>
+							</div>
+						</div>
+						<div>
+							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
+								<ShieldCheck size={14} />
+								Sandbox isolation
+							</div>
+							<p className="m-0 mb-3 text-[12px] text-text-secondary">
+								Override the global Docker sandbox isolation profile for this project only. When off, the
+								project uses the global default ({config?.sandboxIsolationProfileDefault ?? "lean_shared"}).
+							</p>
+							<div className="rounded-md border border-border bg-surface-1 p-3">
+								<div className="mb-3 flex items-center gap-2 text-[13px] text-text-primary">
+									<RadixSwitch.Root
+										checked={sandboxIsolationOverrideEnabled}
+										disabled={controlsDisabled}
+										onCheckedChange={setSandboxIsolationOverrideEnabled}
+										className="relative h-5 w-9 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Override for this project</span>
+								</div>
+								<NativeSelect
+									id="project-settings-sandbox-isolation-profile"
+									value={sandboxIsolationProfile}
+									onChange={(event) =>
+										setSandboxIsolationProfile(event.target.value as RuntimeSandboxIsolationProfile)
+									}
+									disabled={controlsDisabled || !sandboxIsolationOverrideEnabled}
+									fill
+								>
+									<option value="lean_shared">Lean shared container</option>
+									<option value="strict_per_agent">Strict per-agent containers</option>
+									<option value="custom">Custom global numeric pool</option>
+								</NativeSelect>
 							</div>
 						</div>
 						<div>

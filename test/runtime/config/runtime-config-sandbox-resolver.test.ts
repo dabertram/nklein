@@ -21,6 +21,9 @@ const defaults: RuntimeSandboxConfigFields = {
 	sandboxCpusPerContainer: DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	sandboxMaxConcurrentExec: DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	sandboxIdleTimeoutMinutes: DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	sandboxIsolationProfileDefault: "lean_shared",
+	sandboxIsolationProfileOverride: null,
+	effectiveSandboxIsolationProfile: "lean_shared",
 };
 
 const config = (partial: Partial<RuntimeGlobalConfigFileShape>): RuntimeGlobalConfigFileShape =>
@@ -50,6 +53,9 @@ describe("resolveRuntimeSandboxConfig", () => {
 			sandboxCpusPerContainer: 1.5,
 			sandboxMaxConcurrentExec: 3,
 			sandboxIdleTimeoutMinutes: 30,
+			sandboxIsolationProfileDefault: "custom",
+			sandboxIsolationProfileOverride: null,
+			effectiveSandboxIsolationProfile: "custom",
 		});
 	});
 
@@ -72,5 +78,58 @@ describe("resolveRuntimeSandboxConfig", () => {
 		expect(resolveRuntimeSandboxConfig(config({ sandboxMaxConcurrentExec: -2 })).sandboxMaxConcurrentExec).toBe(
 			DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 		);
+	});
+
+	it("forces the lean shared-container profile to one shared pool container", () => {
+		expect(
+			resolveRuntimeSandboxConfig(
+				config({
+					sandboxIsolationProfileDefault: "lean_shared",
+					sandboxMaxContainers: 8,
+					sandboxAgentsPerContainer: 1,
+				}),
+			),
+		).toMatchObject({
+			sandboxMaxContainers: 1,
+			sandboxAgentsPerContainer: 0,
+			sandboxIsolationProfileDefault: "lean_shared",
+			effectiveSandboxIsolationProfile: "lean_shared",
+		});
+	});
+
+	it("maps strict per-agent profile to one agent per container while keeping the configured container cap", () => {
+		expect(
+			resolveRuntimeSandboxConfig(
+				config({
+					sandboxIsolationProfileDefault: "strict_per_agent",
+					sandboxMaxContainers: 6,
+					sandboxAgentsPerContainer: 0,
+				}),
+			),
+		).toMatchObject({
+			sandboxMaxContainers: 6,
+			sandboxAgentsPerContainer: 1,
+			sandboxIsolationProfileDefault: "strict_per_agent",
+			effectiveSandboxIsolationProfile: "strict_per_agent",
+		});
+
+		expect(
+			resolveRuntimeSandboxConfig(config({ sandboxIsolationProfileDefault: "strict_per_agent" }))
+				.sandboxMaxContainers,
+		).toBe(4);
+	});
+
+	it("lets a project override the global sandbox isolation profile", () => {
+		expect(
+			resolveRuntimeSandboxConfig(config({ sandboxIsolationProfileDefault: "lean_shared" }), {
+				sandboxIsolationProfileOverride: "strict_per_agent",
+			}),
+		).toMatchObject({
+			sandboxMaxContainers: 4,
+			sandboxAgentsPerContainer: 1,
+			sandboxIsolationProfileDefault: "lean_shared",
+			sandboxIsolationProfileOverride: "strict_per_agent",
+			effectiveSandboxIsolationProfile: "strict_per_agent",
+		});
 	});
 });

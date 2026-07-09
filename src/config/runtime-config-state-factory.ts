@@ -17,6 +17,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -100,6 +101,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	sandboxCpusPerContainer: number;
 	sandboxMaxConcurrentExec: number;
 	sandboxIdleTimeoutMinutes: number;
+	sandboxIsolationProfileDefault?: RuntimeSandboxIsolationProfile;
+	sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
 	/** §5.AB hard-task routing when the best qualified model is busy (default attempt_with_available). Optional
@@ -163,14 +166,20 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			input.concurrencyOverride,
 		),
 		...deriveAgentIdFields(input.selectedAgentId, input.selectedAgentIdOverride),
-		...resolveRuntimeSandboxConfig({
-			sandboxMaxContainers: input.sandboxMaxContainers,
-			sandboxAgentsPerContainer: input.sandboxAgentsPerContainer,
-			sandboxMemoryPerContainerMb: input.sandboxMemoryPerContainerMb,
-			sandboxCpusPerContainer: input.sandboxCpusPerContainer,
-			sandboxMaxConcurrentExec: input.sandboxMaxConcurrentExec,
-			sandboxIdleTimeoutMinutes: input.sandboxIdleTimeoutMinutes,
-		}),
+		...resolveRuntimeSandboxConfig(
+			{
+				sandboxMaxContainers: input.sandboxMaxContainers,
+				sandboxAgentsPerContainer: input.sandboxAgentsPerContainer,
+				sandboxMemoryPerContainerMb: input.sandboxMemoryPerContainerMb,
+				sandboxCpusPerContainer: input.sandboxCpusPerContainer,
+				sandboxMaxConcurrentExec: input.sandboxMaxConcurrentExec,
+				sandboxIdleTimeoutMinutes: input.sandboxIdleTimeoutMinutes,
+				...(input.sandboxIsolationProfileDefault !== undefined
+					? { sandboxIsolationProfileDefault: input.sandboxIsolationProfileDefault }
+					: {}),
+			},
+			{ sandboxIsolationProfileOverride: input.sandboxIsolationProfileOverride ?? null },
+		),
 		...resolveRuntimeRetrievalConfig({
 			retrievalEgressEnabled: input.retrievalEgressEnabled,
 			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,

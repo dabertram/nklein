@@ -26,6 +26,7 @@ export type RuntimeConfigChangeComparable = Omit<
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
+	| "effectiveSandboxIsolationProfile"
 	| "commitPromptTemplateDefault"
 	| "openPrPromptTemplateDefault"
 >;
@@ -78,6 +79,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("sandboxCpusPerContainer"),
 	runtimeConfigChangeField("sandboxMaxConcurrentExec"),
 	runtimeConfigChangeField("sandboxIdleTimeoutMinutes"),
+	runtimeConfigChangeField("sandboxIsolationProfileDefault"),
 	runtimeConfigChangeField("lostHeartbeatPolicy"),
 	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
 	runtimeConfigChangeField("hardTaskRoutingMode"),
@@ -111,6 +113,7 @@ export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeF
 	runtimeConfigChangeField("selectedAgentIdOverride"),
 	runtimeConfigChangeField("agentRulesetsOverride", (a, b) => areAgentRulesetsEqual(a ?? undefined, b ?? undefined)),
 	runtimeConfigChangeField("modelRolesOverride", (a, b) => areModelRolesEqual(a ?? {}, b ?? {})),
+	runtimeConfigChangeField("sandboxIsolationProfileOverride"),
 	runtimeConfigChangeField("shortcuts", areRuntimeProjectShortcutsEqual),
 ];
 
@@ -126,6 +129,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveSelectedAgentId",
 	"effectiveAgentRulesets",
 	"effectiveModelRoles",
+	"effectiveSandboxIsolationProfile",
 	"commitPromptTemplateDefault",
 	"openPrPromptTemplateDefault",
 ] as const satisfies readonly (keyof RuntimeConfigState)[];

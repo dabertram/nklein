@@ -360,6 +360,9 @@ const savedNKleinOauthConfig = {
 	sandboxMemoryPerContainerMb: 4096,
 	sandboxCpusPerContainer: 2,
 	sandboxIdleTimeoutMinutes: 10,
+	sandboxIsolationProfileDefault: "lean_shared",
+	sandboxIsolationProfileOverride: null,
+	effectiveSandboxIsolationProfile: "lean_shared",
 	agentSandboxStatus: {
 		state: "ready",
 		dockerAvailable: true,
@@ -1028,6 +1031,7 @@ describe("RuntimeSettingsDialog", () => {
 				sandboxMemoryPerContainerMb: 8192,
 				sandboxCpusPerContainer: 1.5,
 				sandboxIdleTimeoutMinutes: 15,
+				sandboxIsolationProfileDefault: "custom",
 			}),
 		);
 	});
@@ -1043,6 +1047,8 @@ describe("RuntimeSettingsDialog", () => {
 							...savedNKleinOauthConfig,
 							sandboxMaxContainers: 3,
 							sandboxAgentsPerContainer: 2,
+							sandboxIsolationProfileDefault: "custom",
+							effectiveSandboxIsolationProfile: "custom",
 						} as RuntimeConfigResponse
 					}
 					onOpenChange={() => {}}
@@ -1081,6 +1087,39 @@ describe("RuntimeSettingsDialog", () => {
 			expect.objectContaining({
 				sandboxMaxContainers: 1,
 				sandboxAgentsPerContainer: 0,
+				sandboxIsolationProfileDefault: "lean_shared",
+			}),
+		);
+	});
+
+	it("saves the explicit sandbox isolation profile from global settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const profileSelect = document.getElementById(
+			"runtime-settings-sandbox-isolation-profile",
+		) as HTMLSelectElement | null;
+		expect(profileSelect).toBeInstanceOf(HTMLSelectElement);
+
+		await act(async () => {
+			setSelectValue(profileSelect as HTMLSelectElement, "strict_per_agent");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sandboxIsolationProfileDefault: "strict_per_agent",
+				sandboxAgentsPerContainer: 1,
 			}),
 		);
 	});

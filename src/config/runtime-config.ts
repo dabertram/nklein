@@ -16,6 +16,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -117,7 +118,10 @@ import {
 } from "./runtime-config-retrieval-resolver";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
-import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import {
+	normalizeRuntimeSandboxIsolationProfileOverride,
+	resolveRuntimeSandboxConfig,
+} from "./runtime-config-sandbox-resolver";
 import {
 	normalizeSetupWizardCompletedAt,
 	resolveRuntimeSetupWizardConfig,
@@ -198,7 +202,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeTimeoutConfig(globalConfig),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
-		...resolveRuntimeSandboxConfig(globalConfig),
+		...resolveRuntimeSandboxConfig(globalConfig, projectConfig),
 		...resolveRuntimeRetrievalConfig(globalConfig),
 		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(globalConfig?.llmfitCatalogUpdateMode),
 		...resolveRuntimeSpeculativeConfig(globalConfig),
@@ -307,6 +311,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxCpusPerContainer: current.sandboxCpusPerContainer,
 		sandboxMaxConcurrentExec: current.sandboxMaxConcurrentExec,
 		sandboxIdleTimeoutMinutes: current.sandboxIdleTimeoutMinutes,
+		sandboxIsolationProfileDefault: current.sandboxIsolationProfileDefault,
+		sandboxIsolationProfileOverride: null,
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
 		hardTaskRoutingMode: current.hardTaskRoutingMode,
@@ -391,6 +397,8 @@ export async function saveRuntimeConfig(
 		sandboxCpusPerContainer?: number;
 		sandboxMaxConcurrentExec?: number;
 		sandboxIdleTimeoutMinutes?: number;
+		sandboxIsolationProfileDefault?: RuntimeSandboxIsolationProfile;
+		sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
 		hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
@@ -477,6 +485,7 @@ export async function saveRuntimeConfig(
 				config.sandboxIdleTimeoutMinutes,
 				DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
 			),
+			sandboxIsolationProfileDefault: config.sandboxIsolationProfileDefault,
 			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
 			decompositionAutoApplyEnabled: normalizeBoolean(
 				config.decompositionAutoApplyEnabled,
@@ -511,6 +520,7 @@ export async function saveRuntimeConfig(
 			selectedAgentIdOverride: config.selectedAgentIdOverride,
 			agentRulesetsOverride: config.agentRulesetsOverride,
 			modelRolesOverride: config.modelRolesOverride,
+			sandboxIsolationProfileOverride: config.sandboxIsolationProfileOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -576,6 +586,10 @@ export async function saveRuntimeConfig(
 			sandboxIdleTimeoutMinutes: normalizePositiveInteger(
 				config.sandboxIdleTimeoutMinutes,
 				DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+			),
+			sandboxIsolationProfileDefault: config.sandboxIsolationProfileDefault,
+			sandboxIsolationProfileOverride: normalizeRuntimeSandboxIsolationProfileOverride(
+				config.sandboxIsolationProfileOverride,
 			),
 			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
 			decompositionAutoApplyEnabled: normalizeBoolean(
@@ -669,6 +683,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.modelRolesOverride,
 				normalizeModelRolesOverride,
 			),
+			sandboxIsolationProfileOverride: keepNormalizedValue(
+				updates.sandboxIsolationProfileOverride,
+				current.sandboxIsolationProfileOverride,
+				normalizeRuntimeSandboxIsolationProfileOverride,
+			),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 		};
 
@@ -709,6 +728,7 @@ export async function updateGlobalRuntimeConfig(
 				selectedAgentIdOverride: null,
 				agentRulesetsOverride: null,
 				modelRolesOverride: null,
+				sandboxIsolationProfileOverride: null,
 				shortcuts: current.shortcuts,
 			};
 

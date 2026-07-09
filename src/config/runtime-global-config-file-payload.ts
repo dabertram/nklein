@@ -18,11 +18,13 @@ import type {
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import {
 	areRuntimeSwarmGuardrailsEqual,
+	DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	normalizeRuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -103,6 +105,7 @@ import {
 	normalizeRetrievalEgressEnabled,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
+import { normalizeRuntimeSandboxIsolationProfile } from "./runtime-config-sandbox-resolver";
 import {
 	DEFAULT_SETUP_WIZARD_COMPLETED_AT,
 	normalizeSetupWizardCompletedAt,
@@ -156,6 +159,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	sandboxCpusPerContainer?: number;
 	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
+	sandboxIsolationProfileDefault?: RuntimeSandboxIsolationProfile;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
@@ -281,6 +285,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const sandboxIdleTimeoutMinutes = normalizePositiveInteger(
 		config.sandboxIdleTimeoutMinutes,
 		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	);
+	const sandboxIsolationProfileDefault = normalizeRuntimeSandboxIsolationProfile(
+		config.sandboxIsolationProfileDefault,
+		DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
 	);
 	const lostHeartbeatPolicy =
 		config.lostHeartbeatPolicy === undefined
@@ -533,6 +541,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"sandboxIdleTimeoutMinutes",
 		sandboxIdleTimeoutMinutes,
 		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxIsolationProfileDefault",
+		sandboxIsolationProfileDefault,
+		DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
 	);
 	assignChangedConfigField(
 		payload,

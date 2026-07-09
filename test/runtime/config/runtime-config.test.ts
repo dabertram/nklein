@@ -164,6 +164,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			{ key: "sandboxMemoryPerContainerMb", value: 3072 },
 			{ key: "sandboxCpusPerContainer", value: 1.5 },
 			{ key: "sandboxIdleTimeoutMinutes", value: 20 },
+			{ key: "sandboxIsolationProfileDefault", value: "strict_per_agent" },
 			{ key: "retrievalEgressEnabled", value: true },
 			{ key: "retrievalSearchBackendUrl", value: "http://localhost:8888" },
 			{ key: "speculativeBestOfNEnabled", value: false },
@@ -358,6 +359,41 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const withOverride = await loadRuntimeConfig(tempProject);
 				expect(withOverride.concurrencyOverride?.perProvider?.lmstudio).toBe(5);
 				expect(withOverride.concurrencyDefaults.perProvider.lmstudio).toBe(2);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("defaults lean sandbox isolation and round-trips the global default + per-project override (§5.A)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-sandbox-profile-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-sandbox-profile-",
+		);
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.sandboxIsolationProfileDefault).toBe("lean_shared");
+				expect(defaults.sandboxIsolationProfileOverride).toBeNull();
+				expect(defaults.effectiveSandboxIsolationProfile).toBe("lean_shared");
+				expect(defaults.sandboxMaxContainers).toBe(1);
+				expect(defaults.sandboxAgentsPerContainer).toBe(0);
+
+				await updateRuntimeConfig(tempProject, { sandboxIsolationProfileDefault: "strict_per_agent" });
+				const withGlobal = await loadRuntimeConfig(tempProject);
+				expect(withGlobal.sandboxIsolationProfileDefault).toBe("strict_per_agent");
+				expect(withGlobal.effectiveSandboxIsolationProfile).toBe("strict_per_agent");
+				expect(withGlobal.sandboxMaxContainers).toBe(4);
+				expect(withGlobal.sandboxAgentsPerContainer).toBe(1);
+
+				await updateRuntimeConfig(tempProject, { sandboxIsolationProfileOverride: "lean_shared" });
+				const withOverride = await loadRuntimeConfig(tempProject);
+				expect(withOverride.sandboxIsolationProfileDefault).toBe("strict_per_agent");
+				expect(withOverride.sandboxIsolationProfileOverride).toBe("lean_shared");
+				expect(withOverride.effectiveSandboxIsolationProfile).toBe("lean_shared");
+				expect(withOverride.sandboxMaxContainers).toBe(1);
+				expect(withOverride.sandboxAgentsPerContainer).toBe(0);
 			});
 		} finally {
 			cleanupProject();

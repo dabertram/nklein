@@ -12,6 +12,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 } from "../core/api-contract";
 import { type ConcurrencyOverride, normalizeConcurrencyOverride } from "../core/concurrency-config";
@@ -27,6 +28,7 @@ import {
 	normalizeSkillDynamicsLevelOverride,
 } from "./runtime-config-normalizers";
 import { normalizeFileOverlapParallelismOverride } from "./runtime-config-overlap-resolver";
+import { normalizeRuntimeSandboxIsolationProfileOverride } from "./runtime-config-sandbox-resolver";
 import { normalizeSetupWizardCompletedAt } from "./runtime-config-setup-wizard-resolver";
 import type { RuntimeGlobalConfigFileShape, RuntimeProjectConfigFileShape } from "./runtime-config-types";
 import {
@@ -95,6 +97,7 @@ export async function writeRuntimeProjectConfigFile(
 		selectedAgentIdOverride?: RuntimeAgentId | null;
 		agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 		modelRolesOverride?: RuntimeModelRoles | null;
+		sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
@@ -112,6 +115,9 @@ export async function writeRuntimeProjectConfigFile(
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
 	const agentRulesetsOverride = normalizeAgentRulesetsOverride(config.agentRulesetsOverride);
 	const modelRolesOverride = normalizeModelRolesOverride(config.modelRolesOverride);
+	const sandboxIsolationProfileOverride = normalizeRuntimeSandboxIsolationProfileOverride(
+		config.sandboxIsolationProfileOverride,
+	);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
@@ -143,6 +149,9 @@ export async function writeRuntimeProjectConfigFile(
 		if (modelRolesOverride !== null) {
 			throw new Error("Cannot save project model roles override without a selected project.");
 		}
+		if (sandboxIsolationProfileOverride !== null) {
+			throw new Error("Cannot save project sandbox isolation override without a selected project.");
+		}
 		return;
 	}
 	if (
@@ -156,7 +165,8 @@ export async function writeRuntimeProjectConfigFile(
 		maxConcurrentTasksOverride === null &&
 		selectedAgentIdOverride === null &&
 		agentRulesetsOverride === null &&
-		modelRolesOverride === null
+		modelRolesOverride === null &&
+		sandboxIsolationProfileOverride === null
 	) {
 		await rm(configPath, { force: true });
 		try {
@@ -180,6 +190,7 @@ export async function writeRuntimeProjectConfigFile(
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),
 			...(agentRulesetsOverride !== null ? { agentRulesetsOverride } : {}),
 			...(modelRolesOverride !== null ? { modelRolesOverride } : {}),
+			...(sandboxIsolationProfileOverride !== null ? { sandboxIsolationProfileOverride } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,

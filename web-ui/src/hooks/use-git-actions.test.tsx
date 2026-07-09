@@ -102,6 +102,9 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 		sandboxMemoryPerContainerMb: 4096,
 		sandboxCpusPerContainer: 2,
 		sandboxIdleTimeoutMinutes: 10,
+		sandboxIsolationProfileDefault: "lean_shared",
+		sandboxIsolationProfileOverride: null,
+		effectiveSandboxIsolationProfile: "lean_shared",
 		agentSandboxStatus: {
 			state: "ready",
 			dockerAvailable: true,

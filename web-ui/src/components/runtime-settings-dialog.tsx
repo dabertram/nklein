@@ -91,6 +91,7 @@ import type {
 	RuntimeNKleinMcpServerAuthStatus,
 	RuntimeNKleinProviderModel,
 	RuntimeProjectShortcut,
+	RuntimeSandboxIsolationProfile,
 	RuntimeSkillDynamicsLevel,
 	RuntimeTaskAutoReviewMode,
 } from "@/runtime/types";
@@ -251,6 +252,8 @@ export function RuntimeSettingsDialog({
 	const [sandboxMemoryPerContainerMb, setSandboxMemoryPerContainerMb] = useState("2048");
 	const [sandboxCpusPerContainer, setSandboxCpusPerContainer] = useState("2");
 	const [sandboxIdleTimeoutMinutes, setSandboxIdleTimeoutMinutes] = useState("10");
+	const [sandboxIsolationProfileDefault, setSandboxIsolationProfileDefault] =
+		useState<RuntimeSandboxIsolationProfile>("lean_shared");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [testDrivenModeEnabled, setTestDrivenModeEnabled] = useState(false);
@@ -503,6 +506,7 @@ export function RuntimeSettingsDialog({
 	const initialSandboxMemoryPerContainerMb = String(config?.sandboxMemoryPerContainerMb ?? 2048);
 	const initialSandboxCpusPerContainer = String(config?.sandboxCpusPerContainer ?? 2);
 	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
+	const initialSandboxIsolationProfileDefault = config?.sandboxIsolationProfileDefault ?? "lean_shared";
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialTestDrivenModeEnabled = config?.testDrivenModeEnabled ?? false;
@@ -701,22 +705,32 @@ export function RuntimeSettingsDialog({
 			poolCapacityLabel: agentsPerContainer === 0 ? "unlimited pool slots" : `${poolCapacity} pool slots`,
 		};
 	}, [maxConcurrentTasks, sandboxAgentsPerContainer, sandboxMaxContainers, sandboxMemoryPerContainerMb]);
-	const sandboxPoolPreset = useMemo(() => {
-		if (sandboxMaxContainers.trim() === "1" && sandboxAgentsPerContainer.trim() === "0") {
-			return "shared";
-		}
-		if (sandboxAgentsPerContainer.trim() === "1") {
-			return "dedicated";
-		}
-		return "custom";
-	}, [sandboxAgentsPerContainer, sandboxMaxContainers]);
 	const applySharedSandboxPreset = useCallback(() => {
+		setSandboxIsolationProfileDefault("lean_shared");
 		setSandboxMaxContainers("1");
 		setSandboxAgentsPerContainer("0");
 	}, []);
 	const applyDedicatedSandboxPreset = useCallback(() => {
+		setSandboxIsolationProfileDefault("strict_per_agent");
+		const parsedMaxConcurrentTasks = Number(maxConcurrentTasks.trim());
+		if (Number.isFinite(parsedMaxConcurrentTasks) && parsedMaxConcurrentTasks > 1) {
+			setSandboxMaxContainers(String(Math.trunc(parsedMaxConcurrentTasks)));
+		} else if (sandboxMaxContainers.trim() === "1") {
+			setSandboxMaxContainers("4");
+		}
 		setSandboxAgentsPerContainer("1");
-	}, []);
+	}, [maxConcurrentTasks, sandboxMaxContainers]);
+	const handleSandboxIsolationProfileChange = (profile: RuntimeSandboxIsolationProfile): void => {
+		setSandboxIsolationProfileDefault(profile);
+		if (profile === "lean_shared") {
+			setSandboxMaxContainers("1");
+			setSandboxAgentsPerContainer("0");
+			return;
+		}
+		if (profile === "strict_per_agent") {
+			applyDedicatedSandboxPreset();
+		}
+	};
 	const hasUnsavedChanges = useMemo(() => {
 		if (!config) {
 			return false;
@@ -770,6 +784,9 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (sandboxIdleTimeoutMinutes.trim() !== initialSandboxIdleTimeoutMinutes.trim()) {
+			return true;
+		}
+		if (sandboxIsolationProfileDefault !== initialSandboxIsolationProfileDefault) {
 			return true;
 		}
 		if (lostHeartbeatPolicy !== initialLostHeartbeatPolicy) {
@@ -944,6 +961,7 @@ export function RuntimeSettingsDialog({
 		initialSandboxAgentsPerContainer,
 		initialSandboxCpusPerContainer,
 		initialSandboxIdleTimeoutMinutes,
+		initialSandboxIsolationProfileDefault,
 		initialSandboxMaxContainers,
 		initialSandboxMemoryPerContainerMb,
 		initialLostHeartbeatPolicy,
@@ -992,6 +1010,7 @@ export function RuntimeSettingsDialog({
 		sandboxAgentsPerContainer,
 		sandboxCpusPerContainer,
 		sandboxIdleTimeoutMinutes,
+		sandboxIsolationProfileDefault,
 		sandboxMaxContainers,
 		sandboxMemoryPerContainerMb,
 		lostHeartbeatPolicy,
@@ -1034,6 +1053,7 @@ export function RuntimeSettingsDialog({
 		setSandboxMemoryPerContainerMb(String(config?.sandboxMemoryPerContainerMb ?? 2048));
 		setSandboxCpusPerContainer(String(config?.sandboxCpusPerContainer ?? 2));
 		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
+		setSandboxIsolationProfileDefault(config?.sandboxIsolationProfileDefault ?? "lean_shared");
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setTestDrivenModeEnabled(config?.testDrivenModeEnabled ?? false);
@@ -1139,6 +1159,7 @@ export function RuntimeSettingsDialog({
 		config?.sandboxAgentsPerContainer,
 		config?.sandboxCpusPerContainer,
 		config?.sandboxIdleTimeoutMinutes,
+		config?.sandboxIsolationProfileDefault,
 		config?.sandboxMaxContainers,
 		config?.sandboxMemoryPerContainerMb,
 		config?.lostHeartbeatPolicy,
@@ -1578,6 +1599,7 @@ export function RuntimeSettingsDialog({
 			sandboxMemoryPerContainerMb: parsedSandboxMemoryPerContainerMb,
 			sandboxCpusPerContainer: parsedSandboxCpusPerContainer,
 			sandboxIdleTimeoutMinutes: parsedSandboxIdleTimeoutMinutes,
+			sandboxIsolationProfileDefault,
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
 			testDrivenModeEnabled,
@@ -2133,8 +2155,8 @@ export function RuntimeSettingsDialog({
 										<div className="flex items-center gap-1">
 											<Button
 												size="sm"
-												variant={sandboxPoolPreset === "shared" ? "primary" : "default"}
-												aria-pressed={sandboxPoolPreset === "shared"}
+												variant={sandboxIsolationProfileDefault === "lean_shared" ? "primary" : "default"}
+												aria-pressed={sandboxIsolationProfileDefault === "lean_shared"}
 												disabled={controlsDisabled}
 												onClick={applySharedSandboxPreset}
 											>
@@ -2142,8 +2164,10 @@ export function RuntimeSettingsDialog({
 											</Button>
 											<Button
 												size="sm"
-												variant={sandboxPoolPreset === "dedicated" ? "primary" : "default"}
-												aria-pressed={sandboxPoolPreset === "dedicated"}
+												variant={
+													sandboxIsolationProfileDefault === "strict_per_agent" ? "primary" : "default"
+												}
+												aria-pressed={sandboxIsolationProfileDefault === "strict_per_agent"}
 												disabled={controlsDisabled}
 												onClick={applyDedicatedSandboxPreset}
 											>
@@ -2151,12 +2175,33 @@ export function RuntimeSettingsDialog({
 											</Button>
 										</div>
 									</div>
+									<div className="mb-2">
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">Isolation profile</p>
+										<NativeSelect
+											id="runtime-settings-sandbox-isolation-profile"
+											value={sandboxIsolationProfileDefault}
+											onChange={(event) =>
+												handleSandboxIsolationProfileChange(
+													event.target.value as RuntimeSandboxIsolationProfile,
+												)
+											}
+											disabled={controlsDisabled}
+											fill
+										>
+											<option value="lean_shared">Lean shared container</option>
+											<option value="strict_per_agent">Strict per-agent containers</option>
+											<option value="custom">Custom numeric pool</option>
+										</NativeSelect>
+									</div>
 									<div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
 										<div>
 											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMaxContainers</p>
 											<input
 												value={sandboxMaxContainers}
-												onChange={(event) => setSandboxMaxContainers(event.target.value)}
+												onChange={(event) => {
+													setSandboxIsolationProfileDefault("custom");
+													setSandboxMaxContainers(event.target.value);
+												}}
 												placeholder="1"
 												disabled={controlsDisabled}
 												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
@@ -2166,7 +2211,10 @@ export function RuntimeSettingsDialog({
 											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxAgentsPerContainer</p>
 											<input
 												value={sandboxAgentsPerContainer}
-												onChange={(event) => setSandboxAgentsPerContainer(event.target.value)}
+												onChange={(event) => {
+													setSandboxIsolationProfileDefault("custom");
+													setSandboxAgentsPerContainer(event.target.value);
+												}}
 												placeholder="0"
 												disabled={controlsDisabled}
 												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"

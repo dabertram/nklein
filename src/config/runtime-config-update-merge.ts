@@ -5,7 +5,7 @@
 // caller's update when provided (normalizing it) and otherwise retains the current value.
 
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
-import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import { DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { normalizeConcurrencyConfig } from "../core/concurrency-config";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import {
@@ -48,6 +48,7 @@ import {
 	normalizeRetrievalEgressEnabled,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
+import { normalizeRuntimeSandboxIsolationProfile } from "./runtime-config-sandbox-resolver";
 import { normalizeSetupWizardCompletedAt } from "./runtime-config-setup-wizard-resolver";
 import {
 	normalizeSpeculativeBestOfNEnabled,
@@ -59,6 +60,13 @@ import { keepNormalizedValue, keepUpdatedValue } from "./runtime-config-value-he
 
 /** Merge the global-scoped fields of an update payload onto the current config (project overrides excluded). */
 export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput, current: RuntimeConfigState) {
+	const sandboxNumericUpdatePresent =
+		updates.sandboxMaxContainers !== undefined ||
+		updates.sandboxAgentsPerContainer !== undefined ||
+		updates.sandboxMemoryPerContainerMb !== undefined ||
+		updates.sandboxCpusPerContainer !== undefined ||
+		updates.sandboxMaxConcurrentExec !== undefined ||
+		updates.sandboxIdleTimeoutMinutes !== undefined;
 	return {
 		selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
 		selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
@@ -170,6 +178,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.sandboxIdleTimeoutMinutes,
 			current.sandboxIdleTimeoutMinutes,
 			(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES),
+		),
+		sandboxIsolationProfileDefault: keepNormalizedValue(
+			updates.sandboxIsolationProfileDefault ?? (sandboxNumericUpdatePresent ? "custom" : undefined),
+			current.sandboxIsolationProfileDefault,
+			(value) => normalizeRuntimeSandboxIsolationProfile(value, DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE),
 		),
 		lostHeartbeatPolicy: keepNormalizedValue(
 			updates.lostHeartbeatPolicy,
