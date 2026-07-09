@@ -10937,3 +10937,26 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (44GB local) IDLE the whole time — only devstral drove work (Running 1, Cap 3). Investigate worker-role
       candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
       from the lm-link work? role pinning to the configured-but-absent legion worker?). This serializes the swarm.
+
+## 13. LLM simulator + mocked full-flow e2e layer (David 2026-07-10 — ACTIVE NEXT STEP)
+- [ ] **"LLM simulator": a sophisticated local LLM response simulator + a new e2e test layer that walks COMPLETE
+      dev-test-project flows through the full !Klein runtime + UI with 100% mocked LLM responses.** Motivation: both
+      machines (legion5pro, m5max) now run in low-power mode — real LLM compute is slow; the simulator cuts the timely
+      expensive LLM compute out of the dev loop so UI + full-!Klein work can be tested at "pump the UI" speed, CI-suitable.
+      Requirements (David): cover EVERYTHING — model families (reasoning_content vs content, tool-call formats,
+      stringified-JSON quirks), per-request variance, perfect output, flaky output (malformed tool calls, schema bounces),
+      hard failures, heavy stalling, randomized success/failure mixes — while ALSO supporting 100% deterministic flows
+      (seeded RNG, scripted scenario tracks). Project walk-throughs: perfect run, flaky-but-recovering, stall-heavy,
+      random chaos — every real-world scenario class. Later: extensive sweeps with REAL models harden the LLM layers and
+      surface whatever the simulator did not catch. Architecture sketch (agent): an OpenAI-compatible local HTTP server
+      (`/v1/chat/completions` + LM Studio `/api/v0` surface) driven by a SCENARIO SCRIPT + model-family PROFILES + seeded
+      RNG; !Klein points at it via its normal provider config (no code-path forks in production code); a scenario DSL maps
+      request classification (decompose / worker edit / review / chat) → response generators; e2e specs launch runtime +
+      simulator + drive the real UI. This becomes a first-class test layer (`test:simulated-flows`).
+- [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
+      queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
+      sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
+      implementation change, the affected flows must be covered with 100% (or more) test coverage across ALL testing
+      layers and test types we have (unit, component, contract, integration, e2e, simulated-flows once available) — then
+      work strictly TEST-DRIVEN.** Working through it is also a probe of how well the implementation is structured.
+      Tackle only after the simulator layer exists (it makes the protection cheap to run).

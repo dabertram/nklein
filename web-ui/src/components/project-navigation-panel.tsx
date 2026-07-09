@@ -258,11 +258,21 @@ export function ProjectNavigationPanel({
 				{sortedProjects.map((project) => {
 					const isCurrent = currentProjectId === project.id;
 					const letter = project.name.charAt(0).toUpperCase();
+					// Live activity must survive the collapse (David 2026-07-10): a pulsing green dot for agents
+					// running now, steady gold for queued — same semantics as the expanded row's chips.
+					const runningSessions = project.runningSessionCount ?? 0;
+					const queuedSessions = project.queuedSessionCount ?? 0;
 					return (
 						<button
 							key={project.id}
 							type="button"
-							title={project.name}
+							title={
+								runningSessions > 0
+									? `${project.name} — ${runningSessions} agent${runningSessions === 1 ? "" : "s"} running`
+									: queuedSessions > 0
+										? `${project.name} — ${queuedSessions} queued`
+										: project.name
+							}
 							onClick={() => {
 								if (isMobile) {
 									setCollapsed(false);
@@ -270,14 +280,26 @@ export function ProjectNavigationPanel({
 								onSelectProject(project.id);
 							}}
 							className={cn(
-								"rounded-md text-xs font-semibold shrink-0 border-0 cursor-pointer flex items-center justify-center",
+								"relative rounded-md text-xs font-semibold shrink-0 border-0 cursor-pointer flex items-center justify-center",
 								isMobile ? "w-11 h-11" : "w-8 h-8",
 								isCurrent
 									? "bg-accent text-accent-fg"
 									: "bg-surface-3 text-text-secondary hover:text-text-primary hover:bg-surface-4",
+								!isCurrent && runningSessions > 0 && "ring-1 ring-status-green/50",
 							)}
 						>
 							{letter}
+							{runningSessions > 0 ? (
+								<span
+									data-testid="collapsed-project-running-dot"
+									className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-green shadow-[0_0_5px_var(--color-status-green)] animate-pulse"
+								/>
+							) : queuedSessions > 0 ? (
+								<span
+									data-testid="collapsed-project-queued-dot"
+									className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-gold"
+								/>
+							) : null}
 						</button>
 					);
 				})}

@@ -157,7 +157,12 @@ export function ProjectRow({
 					onSelect(project.id);
 				}
 			}}
-			className={cn("kb-project-row cursor-pointer rounded-md", isCurrent && "kb-project-row-selected")}
+			className={cn(
+				"kb-project-row cursor-pointer rounded-md",
+				isCurrent && "kb-project-row-selected",
+				// Row-level glow so the ACTIVE project pops at a glance, not only via the small chip (David 2026-07-10).
+				!isCurrent && liveActivity?.tone === "running" && "ring-1 ring-status-green/40",
+			)}
 			style={{
 				display: "flex",
 				alignItems: "center",
