@@ -1,6 +1,7 @@
-# Local SearXNG backend for §5.AC web_search. Start:  docker compose -f docker/searxng/docker-compose.yml up -d
+# Optional local SearXNG backend for §5.AC web_search. Start only when you explicitly want a local search backend:
+# docker compose -f docker/searxng/docker-compose.yml up -d
 # Then the runtime's web_search works once retrievalEgressEnabled + retrievalSearchBackendUrl are set
-# (retrievalSearchBackendUrl = http://localhost:18888). Stop:  docker compose -f docker/searxng/docker-compose.yml down
+# (retrievalSearchBackendUrl = http://localhost:18888). Stop: docker compose -f docker/searxng/docker-compose.yml down
 # The container queries public search engines (this is the egress) — the !Klein runtime only reaches localhost:18888.
 services:
   searxng:
@@ -10,4 +11,4 @@ services:
       - "127.0.0.1:18888:8080"   # bind to loopback only — not exposed on the LAN
     volumes:
       - ./settings.yml:/etc/searxng/settings.yml:ro
-    restart: unless-stopped
+    restart: "no"

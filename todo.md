@@ -904,7 +904,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    (c) **Arbitration at the review seam** — when the PRIMARY hands off (awaiting_review), if a spec result branch also exists: the reviewer receives BOTH diffs labeled A/B (extend the seed prompt) and `submit_review` gains an optional `preferred: "primary"|"speculative"` field; delivery applies the preferred branch (host-side: the existing apply path takes a result branch — parametrize which). If the spec is still running at arbitration, cancel it (cancelTaskTurn on ::spec) — the primary won the race.
 >    (d) **Budget/ceiling** — config `speculativeBestOfN: { enabled (default true per the OPPORTUNISTIC decision), maxConcurrentSpecs (default 1), maxSpecsPerRun (default 3) }` surfaced in settings; every spec attempt + its arbitration outcome recorded to the ledger (the efficiency scoreboard shows whether mirroring pays — the data feeds the (c) fan-out question).
 >    (e) **Cache-awareness** — a spec start is a legitimate WARM use of an idle rail (the idle model's shell stays warm for its kind); never evict a warm rail that a QUEUED real card will need (check the queued-start queue before mirroring — real work outranks speculation).
-> 5. **Online retrieval egress — ANSWERED (2026-07-02): GREENLIT as OPT-IN, default-OFF.** **⇒ RETRIEVAL LOOP SHIPPED as the single online path 2026-07-03 (user decision): one `research` tool drives runRetrievalLoop (search→rank→fetch→sufficiency); the manual web_search/browse_url split is RETIRED; requires egress + a configured SearXNG backend; synthetic sessions never get egress.** ⇒ wire the §5.AC retrieval loop + SearXNG fetch adapter behind the egress gate: default OFF, per-project opt-in toggle, all fetches through the SSRF-safe adapter; the sandbox's strict isolation is untouched (only the gated retrieval path gets egress when the user enables it). ALL FIVE user questions are now decided — nothing awaits user input in §5.0.5.
+> 5. **Online retrieval egress — ANSWERED (2026-07-02): GREENLIT as OPT-IN, default-OFF.** **⇒ RETRIEVAL LOOP SHIPPED as the single online path 2026-07-03 (user decision): one `research` tool drives runRetrievalLoop (search→rank→fetch→sufficiency); the manual web_search/browse_url split is RETIRED; requires egress + a configured search backend; synthetic sessions never get egress.** ⇒ wire the §5.AC retrieval loop + SearXNG-compatible fetch adapter behind the egress gate: default OFF, per-project opt-in toggle, all fetches through the SSRF-safe adapter; the sandbox's strict isolation is untouched (only the gated retrieval path gets egress when the user enables it). ALL FIVE user questions are now decided — nothing awaits user input in §5.0.5.
 
 ### 5.0.7 — ★ PHASE TRANSITION: POLISHING PHASE NOW ACTIVE *(2026-07-06, David: "start polishing")*
 > **The implementation backlog for the active epics is DRAINED** (§5.AU/§5.AT feature-complete end-to-end; egress live +
@@ -947,7 +947,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - **Egress: GREENLIT (host-side).** The online-retrieval feature is CODE-COMPLETE incl. the Settings toggle
 >   (`retrievalEgressEnabled` + `retrievalSearchBackendUrl`, [runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx));
 >   the SSRF safety floor is live-validated. Turning it ON is an operational toggle (Settings / global config), and
->   `web_search` additionally needs a running **SearXNG backend URL** (owed input from David; `browse_url` works without).
+>   `web_search` additionally needs a running **search backend URL** (SearXNG-compatible today; `browse_url` works without).
 >   No code work remains to "enable" it — do not flip the fail-closed default in code.
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
@@ -5511,7 +5511,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       selected model's host from the live `lms ps` map and gates against the effective host cap; the old
       `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env remains a lowest-precedence fallback. Settings exposes provider, model, LM
       Studio host, and endpoint-pool caps, and `nklein dev capacity` is a read-only no-write probe that reports loaded
-      hosts/models, queue/status, LM Studio's `parallel` value, configured caps, and conservative recommendations. Live
+      hosts/models, queue/status, LM Studio's `parallel` value as diagnostic metadata, configured caps, and conservative
+      recommendations. Live
       probe on 2026-07-09 saw `local` with Devstral + Qwen3.6 and two linked hosts (`040891f3…` Gemma 12B,
       `2d30f4…` Qwen3.5 9B), all idle, all reporting `parallel:1`, so the recommendation stayed cap 1 unless the user
       explicitly raises a host cap. **Qwen2.5.1 CODER LIVE RERUN (2026-07-09):** after the user made
@@ -5529,7 +5530,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       post-start SDK calls; runtime-server resolves the same provider/model/endpoint/host caps, checks fresh `lms ps`
       busy/queue state, reserves a turn slot across loaded workspaces, releases it when the SDK call finishes, and logs
       repeated capacity waits instead of silently over-queuing a host. Unit coverage proves a reviewed re-drive cannot
-      emit its visible user message or call the SDK until the gate admits it. **LIVE ROOT-CAUSE FOLLOW-UP (2026-07-09):**
+      emit its visible user message or call the SDK until the gate admits it. **M4MINI CAPACITY CORRECTION
+      (2026-07-09, user):** running `qwen2.5.1-coder-7b-instruct` with LM Studio concurrency/parallelism 4 on m4mini
+      causes swapping. Therefore LM Studio's reported `parallel` value is NOT a safe recommendation and must never
+      auto-raise !Klein caps; it is only diagnostic. `buildLmStudioCapacityReport` now keeps the recommended cap at 1
+      unless an explicit user/measurement cap exists, while still printing the reported `parallel` value so the mismatch
+      is visible. **LIVE ROOT-CAUSE FOLLOW-UP (2026-07-09):**
       the first verifier reruns found three deeper issues and fixed the class, not just the symptom: (1) the runtime gate
       treated the synchronous model-registry `getSnapshot()` as a promise; (2) broad `state:"running"` workspace summaries
       were counted as active model turns even when no SDK request was in flight; (3) host caps re-resolved every active
@@ -6787,7 +6793,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### 5.AC — Online knowledge retrieval + intrinsic temporal awareness (the "knows today" lighthouse) *(2026-06-26, user — ACTIVE)*
 > **EGRESS GREENLIT (user 2026-07-02): OPT-IN, DEFAULT-OFF.** Wiring plan (scouted; cores all exist):
-> 1. **Config:** `retrievalEgressEnabled` (global default OFF + per-project override, same resolver pattern as the concurrency caps) + `retrievalSearchBackendUrl` (the SearXNG endpoint; LAN or public — user's choice at config time). Settings UI rows under the Agents group with a clear "this sends queries off this machine" warning.
+> 1. **Config:** `retrievalEgressEnabled` (global default OFF + per-project override, same resolver pattern as the concurrency caps) + `retrievalSearchBackendUrl` (the search backend endpoint; LAN or public — user's choice at config time; SearXNG-compatible today). Settings UI rows under the Agents group with a clear "this sends queries off this machine" warning.
 > 2. **Backend:** implement the egress-gated `web_search` HTTP client against SearXNG's JSON API (`/search?format=json`), normalized through `web-search-contract.ts` (the pure contract + normalizer already exist); every fetch goes through `browserFetchAdapter`/the SSRF-safe fetcher (ca74f4e3) — no raw URL access.
 > 3. **Tool binding:** attach `web_search` + `browse_url` tools to sessions ONLY when the resolved config enables retrieval for that workspace (same gating pattern as sandboxMcpExecTarget); the skill-registry entry (skill-registry.ts:102) already lists both tools for the retrieval skillset.
 > 4. **Loop (step 4 SHIPPED as standalone tools):** browse_url now rides alongside web_search in retrieval-enabled sessions (SSRF-always floor); the agent does search→browse manually. The higher-level `runRetrievalLoop` single-tool composition (retrieval-loop-driver.ts + retrieval-fetch-adapter.ts) is deferred as a step-5 nicety (needs an LLM synthesizer + query-plan tool contract).
@@ -6971,6 +6977,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (web-search-searxng.ts) IS the egress-gated network impl and normalizes through this contract
         (`normalizeWebSearchResults`); egress gating live-verified in the 2026-07-07 §5.Z sweep. Whole leaf done.)*
   - [x] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation). *(SHIPPED: `retrievalSearchBackendUrl` setting + SSRF-guarded SearXNG client; live at localhost:18888.)*
+        **USER DECISION / PRODUCT RULE 2026-07-09:** do **not** make a SearXNG Docker container part of the default
+        desktop/runtime footprint. SearXNG is useful as a privacy-preserving local metasearch backend, but it is only one
+        optional backend behind the fail-closed `retrievalSearchBackendUrl` seam. Default stays: retrieval egress OFF, no
+        backend URL, no search container. Target UX: provider mode `none` (default), user-supplied SearXNG-compatible URL
+        (no local container), optional managed local SearXNG with explicit start/stop + idle TTL (not autostart), and later
+        direct provider adapters only with explicit egress/API-key consent. The helper compose file must not use a restart
+        policy that resurrects `nklein-searxng` after Docker Desktop restart; visible Docker resources should normally be
+        the agent sandbox containers only. Settings copy should remain provider-neutral ("Search backend URL") and name
+        SearXNG only as one compatible optional backend.
   - [x] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed). *(SHIPPED + LIVE-VERIFIED: fail-closed `blocked_by_egress` default; egress-e2e flow validated across 7 models in the 2026-07-07 §5.Z sweep.)*
   - [x] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow. *(✅ 2026-07-08 —
         `test/runtime/chat/web-search-browse-integration.test.ts`: a URL from web_search's rendered output feeds

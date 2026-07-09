@@ -22,7 +22,7 @@ export interface LmStudioCapacityHostReport {
 	maxReportedParallel: number | null;
 	configuredCap: number | null;
 	recommendedCap: number;
-	recommendationBasis: "explicit_cap" | "reported_parallel" | "conservative";
+	recommendationBasis: "explicit_cap" | "conservative";
 	models: LmStudioCapacityModelReport[];
 }
 
@@ -36,13 +36,9 @@ function active(model: LmsPsModel): boolean {
 
 function recommendationForHost(input: {
 	configuredCap: number | null;
-	maxReportedParallel: number | null;
 }): Pick<LmStudioCapacityHostReport, "recommendedCap" | "recommendationBasis"> {
 	if (input.configuredCap !== null) {
 		return { recommendedCap: input.configuredCap, recommendationBasis: "explicit_cap" };
-	}
-	if (input.maxReportedParallel !== null && input.maxReportedParallel > 1) {
-		return { recommendedCap: input.maxReportedParallel, recommendationBasis: "reported_parallel" };
 	}
 	return { recommendedCap: 1, recommendationBasis: "conservative" };
 }
@@ -73,7 +69,7 @@ export function buildLmStudioCapacityReport(input: {
 				.map((model) => model.parallel)
 				.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
 				.sort((left, right) => right - left)[0] ?? null;
-		const recommendation = recommendationForHost({ configuredCap, maxReportedParallel });
+		const recommendation = recommendationForHost({ configuredCap });
 		return {
 			hostId,
 			loadedModelCount: models.length,
@@ -106,7 +102,7 @@ export function formatLmStudioCapacityReport(report: LmStudioCapacityReport): st
 		const cap = host.configuredCap === null ? "not set" : String(host.configuredCap);
 		const parallel = host.maxReportedParallel === null ? "n/a" : String(host.maxReportedParallel);
 		lines.push(
-			`Host ${host.hostId}: ${host.loadedModelCount} loaded, ${host.activeModelCount} active, q${host.queuedRequests}, configured cap ${cap}, LM parallel ${parallel}, recommended cap ${host.recommendedCap} (${host.recommendationBasis})`,
+			`Host ${host.hostId}: ${host.loadedModelCount} loaded, ${host.activeModelCount} active, q${host.queuedRequests}, configured cap ${cap}, LM parallel ${parallel} (reported, not a safe cap), recommended cap ${host.recommendedCap} (${host.recommendationBasis})`,
 		);
 		for (const model of host.models) {
 			const modelParallel = model.reportedParallel === null ? "n/a" : String(model.reportedParallel);

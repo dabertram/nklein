@@ -18,6 +18,7 @@
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
  *        NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY (default 1; raise only with measured capacity evidence),
+ *        NKLEIN_VERIFY_RPC_TIMEOUT_MS (default 120s; slow local hosts can block state polls while still generating),
  *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
  */
 import { execFileSync } from "node:child_process";
@@ -25,7 +26,9 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
+import { evaluateFleetHostObservation } from "../src/core/fleet-host-observation";
+import { fetchLmsLinkDevices, type LmsLinkDevices } from "../src/core/lms-link-status";
+import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel, LOCAL_MACHINE_ID } from "../src/core/lms-ps-json";
 import {
 	evaluateFleetReviewerObservation,
 	extractFleetReviewSessionModelObservation,
@@ -41,6 +44,7 @@ import {
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { extractPersistedPromptSessionModel } from "../src/core/persisted-prompt-session-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
+import { buildLmStudioMachineByModelId } from "../src/nklein-agent/nklein-lmstudio-host-map";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
 import { connectRuntimeStream, initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
 
@@ -60,7 +64,9 @@ const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "2700000");
 const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
 const PER_MACHINE_MAX_CONCURRENCY = positiveIntegerEnv(process.env.NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY, 1);
-const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "30000");
+const MIN_OBSERVED_HOSTS = positiveIntegerEnv(process.env.NKLEIN_FLEET_MIN_OBSERVED_HOSTS, 2);
+const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "120000");
+const LMS_COMMAND_TIMEOUT_MS = positiveIntegerEnv(process.env.NKLEIN_VERIFY_LMS_TIMEOUT_MS, 15_000);
 
 const TERMINAL_COLUMN_IDS = new Set(["review", "completed", "done"]);
 const ACTIVE_COLUMN_IDS = new Set(["backlog", "planning", "in_progress", "in-progress"]);
@@ -74,6 +80,24 @@ function positiveIntegerEnv(value: string | undefined, fallback: number): number
 	const parsed = Number(value);
 	if (!Number.isFinite(parsed) || parsed < 1) return fallback;
 	return Math.floor(parsed);
+}
+
+function hostLabel(machineId: string, devices: LmsLinkDevices): string {
+	if (machineId === LOCAL_MACHINE_ID) {
+		return devices.localMachineName ? `${devices.localMachineName} (${LOCAL_MACHINE_ID})` : LOCAL_MACHINE_ID;
+	}
+	const name = devices.namesByDeviceId.get(machineId);
+	return name ? `${name} (${machineId.slice(0, 8)})` : machineId;
+}
+
+function busyLmsSummary(models: readonly LmsPsModel[]): string | null {
+	const busy = models
+		.filter((model) => {
+			const status = model.status?.trim().toLowerCase() ?? "";
+			return model.queued > 0 || (status.length > 0 && status !== "idle");
+		})
+		.map((model) => `${model.identifier}@${model.machineId}:${model.status ?? "?"}/q${model.queued}`);
+	return busy.length > 0 ? busy.join(", ") : null;
 }
 
 interface BoardCard {
@@ -351,7 +375,13 @@ async function main(): Promise<void> {
 
 	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
 	const TIMEOUT_MS = power.timeoutMs;
-	const lmsRunner = createDefaultLmsRunner();
+	const lmsRunner = createDefaultLmsRunner(LMS_COMMAND_TIMEOUT_MS);
+	const initialPsModels = await fetchLmsPsModels(lmsRunner);
+	const linkDevices = await fetchLmsLinkDevices(lmsRunner);
+	const initialMachineByModelId = buildLmStudioMachineByModelId(initialPsModels, {
+		providerIds: [PROVIDER_ID],
+		endpoints: [BASE_URL],
+	});
 
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
@@ -389,8 +419,18 @@ async function main(): Promise<void> {
 		log(
 			`Server: ${server.baseUrl}\n` +
 				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
-				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineCap=${PER_MACHINE_MAX_CONCURRENCY}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
+				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineCap=${PER_MACHINE_MAX_CONCURRENCY}  minObservedHosts=${MIN_OBSERVED_HOSTS}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
 		);
+		log("=== Initial LM Studio host map ===");
+		for (const model of initialPsModels.filter((entry) => !entry.isEmbedding)) {
+			log(
+				`   ${model.identifier} @ ${hostLabel(model.machineId, linkDevices)} ` +
+					`status=${model.status ?? "?"} queued=${model.queued} parallel=${model.parallel ?? "?"}`,
+			);
+		}
+		if (initialPsModels.length === 0) {
+			log("   (no lms ps models visible; host-spread gate will fail unless telemetry maps models another way)");
+		}
 
 		// Global selected provider = the WORKER model (cascade cards with no per-card provider default to it; a fast coder).
 		const provRes = await requestJson<{ ok?: boolean; error?: string }>({
@@ -655,8 +695,30 @@ async function main(): Promise<void> {
 					break;
 				}
 			} catch (error) {
-				consecutivePollErrors += 1;
 				const detail = error instanceof Error ? error.message : String(error);
+				const now = Date.now();
+				if (now - lastLmsProbeAt >= lmsProbeMs) {
+					latestLmsPsModels = await fetchLmsPsModels(lmsRunner);
+					lastLmsProbeAt = Date.now();
+				}
+				const lmsBusy = busyLmsSummary(latestLmsPsModels);
+				const quietMs = now - lastProgressAt;
+				if (lmsBusy && quietMs < modelActiveStallMs) {
+					consecutivePollErrors = 0;
+					log(
+						`   [poll WAIT] ${detail}; state poll timed out but LM Studio is active (${lmsBusy}); continuing.`,
+					);
+					await new Promise((resolve) => setTimeout(resolve, 2000));
+					continue;
+				}
+				if (lmsBusy && quietMs >= modelActiveStallMs) {
+					stalled = true;
+					log(
+						`[${new Date().toISOString().slice(11, 19)}] MODEL-STALLED — state polls timed out for ${Math.round(quietMs / 1000)}s while LM Studio stayed active (${lmsBusy}); aborting.`,
+					);
+					break;
+				}
+				consecutivePollErrors += 1;
 				log(`   [poll WARN ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS}] ${detail}`);
 				if (consecutivePollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
 					log("   [poll] server unreachable — aborting observation.");
@@ -699,6 +761,12 @@ async function main(): Promise<void> {
 		});
 		const reviewerSeen = reviewerObservation.observed;
 		const fleetUsageOk = architectSeen && workerSeen && reviewerSeen;
+		const hostObservation = evaluateFleetHostObservation({
+			seenModels,
+			machineByModelId: initialMachineByModelId,
+			minHosts: MIN_OBSERVED_HOSTS,
+		});
+		const fleetHostOk = hostObservation.observed;
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
 		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);
@@ -710,13 +778,23 @@ async function main(): Promise<void> {
 		);
 		log(`Fleet role usage gate: ${fleetUsageOk ? "PASS" : "FAIL"}`);
 		log(
+			`Fleet host-spread gate: ${fleetHostOk ? "PASS" : "FAIL"} ` +
+				`(${hostObservation.hostCount}/${hostObservation.minHosts} observed LM Studio host${hostObservation.minHosts === 1 ? "" : "s"})`,
+		);
+		for (const row of hostObservation.modelsByHost) {
+			log(`   ${hostLabel(row.hostId, linkDevices)}: ${row.models.join(", ")}`);
+		}
+		if (hostObservation.unresolvedModels.length > 0) {
+			log(`   Unmapped observed model(s): ${hostObservation.unresolvedModels.join(", ")}`);
+		}
+		log(
 			`SWEEP-ROW | ${new Date().toISOString()} | fleet ${PRESET} | architect=${ARCHITECT} worker=${WORKER} | ` +
-				`reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER} | decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
+				`reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER} | decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | hostSpread=${fleetHostOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk && fleetHostOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
 				`power=${power.mode}×${power.multiplier}`,
 		);
 		log(`Workspace PRESERVED for inspection: ${workspacePath}`);
 		log(`Home (ledger) PRESERVED: ${homeDir}`);
-		process.exitCode = allTerminal && fleetUsageOk ? 0 : 1;
+		process.exitCode = allTerminal && fleetUsageOk && fleetHostOk ? 0 : 1;
 	} finally {
 		await stream?.close().catch(() => null);
 		await server?.stop().catch(() => null);

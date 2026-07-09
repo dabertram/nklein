@@ -276,7 +276,7 @@ export function RuntimeSettingsDialog({
 	const [autostartBusy, setAutostartBusy] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
-	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a SearXNG backend URL.
+	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a search backend URL.
 	const [retrievalEgressEnabled, setRetrievalEgressEnabled] = useState(false);
 	const [retrievalSearchBackendUrl, setRetrievalSearchBackendUrl] = useState("");
 	const [llmfitCatalogUpdateMode, setLlmfitCatalogUpdateMode] = useState<RuntimeLlmfitCatalogUpdateMode>("notify");
@@ -1900,15 +1900,15 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Lets agents + chat use the online <code>research</code>/<code>web_search</code> tool
-										against a self-hosted SearXNG backend (&sect;5.AC). OFF by default (fail-closed); the
-										runtime reaches only your configured backend, which queries the web. SSRF-guarded.
+										against a configured search backend (&sect;5.AC). OFF by default (fail-closed); the
+										runtime reaches only that backend, which queries the web. SSRF-guarded.
 									</p>
 									<div className="ml-11 mt-2">
 										<label
 											htmlFor={retrievalBackendUrlInputId}
 											className="block text-[12px] text-text-secondary mb-1"
 										>
-											SearXNG backend URL
+											Search backend URL
 										</label>
 										<input
 											id={retrievalBackendUrlInputId}
@@ -1920,7 +1920,8 @@ export function RuntimeSettingsDialog({
 											className="w-full max-w-sm rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
 										/>
 										<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-											Start one with <code>docker compose -f docker/searxng/docker-compose.yml up -d</code>{" "}
+											Use an existing SearXNG-compatible endpoint, or optionally start the bundled local
+											backend with <code>docker compose -f docker/searxng/docker-compose.yml up -d</code>{" "}
 											(binds localhost:18888). Web search stays off until egress is on AND a backend is set.
 										</p>
 									</div>

@@ -33,14 +33,15 @@ describe("buildLmStudioCapacityReport", () => {
 		});
 	});
 
-	it("uses LM Studio reported parallelism only when no cap is set", () => {
+	it("does not treat LM Studio reported parallelism as a safe cap", () => {
 		const report = buildLmStudioCapacityReport({
 			models: [model({ identifier: "big", machineId: "local", parallel: 3 })],
 		});
 		expect(report.hosts[0]).toMatchObject({
 			configuredCap: null,
-			recommendedCap: 3,
-			recommendationBasis: "reported_parallel",
+			maxReportedParallel: 3,
+			recommendedCap: 1,
+			recommendationBasis: "conservative",
 		});
 	});
 
@@ -66,6 +67,7 @@ describe("formatLmStudioCapacityReport", () => {
 			}),
 		);
 		expect(text).toContain("Host m4mini");
+		expect(text).toContain("reported, not a safe cap");
 		expect(text).toContain("small");
 	});
 });
