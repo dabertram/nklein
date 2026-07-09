@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-
+import type { NKleinAcceptanceGateResult } from "../../../src/nklein-agent/nklein-acceptance-gate";
 import {
 	buildNKleinAcceptanceRepairPlan,
 	extractAcceptanceFailureConstraint,
 } from "../../../src/nklein-agent/nklein-acceptance-repair";
 
-const failedAcceptance = {
+const failedAcceptance: NKleinAcceptanceGateResult = {
 	present: true,
 	command: "npm test",
 	passed: false,
@@ -67,7 +67,7 @@ describe("nklein acceptance repair", () => {
 		expect(extractAcceptanceFailureConstraint(output)).toContain("error TS2322");
 	});
 
-	it("escalates to the reviewer role after repair attempts are exhausted", () => {
+	it("escalates once to the reviewer role after repair attempts are exhausted", () => {
 		const plan = buildNKleinAcceptanceRepairPlan({
 			taskId: "task-1",
 			taskPrompt: "Implement the fix.\nAcceptance check: npm test",
@@ -91,6 +91,61 @@ describe("nklein acceptance repair", () => {
 			},
 		});
 		expect(plan?.prompt).toContain("escalate this task to the reviewer role");
+	});
+
+	it("hands off after the single escalation attempt also failed", () => {
+		const plan = buildNKleinAcceptanceRepairPlan({
+			taskId: "task-1",
+			taskPrompt: "Implement the fix.\nAcceptance check: npm test",
+			acceptance: failedAcceptance,
+			attempt: 4,
+			maxAttempts: 2,
+			modelRoles: {
+				reviewer: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet",
+				},
+			},
+		});
+
+		expect(plan).toMatchObject({
+			action: "human_review",
+			escalatedRole: null,
+			escalatedSettings: null,
+		});
+		expect(plan?.prompt).toContain("prepare a concise human handoff");
+	});
+
+	it("hands off immediately for acceptance setup failures", () => {
+		const plan = buildNKleinAcceptanceRepairPlan({
+			taskId: "task-1",
+			taskPrompt: "Implement the fix.\nAcceptance check: cd /workspaces/dev-old-task && npm test",
+			acceptance: {
+				...failedAcceptance,
+				command: "cd /workspaces/dev-old-task && npm test",
+				output: "sh: 1: cd: can't cd to /workspaces/dev-old-task",
+				failureCategory: "acceptance_setup_error",
+				failureHint: "The acceptance command could not enter its configured sandbox working directory.",
+			},
+			attempt: 1,
+			maxAttempts: 2,
+			modelRoles: {
+				reviewer: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet",
+				},
+			},
+		});
+
+		expect(plan).toMatchObject({
+			action: "human_review",
+			attempt: 1,
+			escalatedRole: null,
+			escalatedSettings: null,
+			summary: "Acceptance setup failed; hand off for human review.",
+		});
+		expect(plan?.prompt).toContain("could not enter its configured working directory");
+		expect(plan?.prompt).toContain("Failure hint:");
 	});
 
 	it("returns null when the acceptance gate passed or was missing", () => {

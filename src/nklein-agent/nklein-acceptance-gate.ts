@@ -69,6 +69,68 @@ export function resolveShellExecution(command: string): { binary: string; args: 
 	return { binary: "/bin/sh", args: ["-c", command] };
 }
 
+function stripMatchingShellQuotes(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.length >= 2) {
+		const first = trimmed[0];
+		const last = trimmed[trimmed.length - 1];
+		if ((first === "'" && last === "'") || (first === '"' && last === '"')) {
+			return trimmed.slice(1, -1);
+		}
+	}
+	return trimmed;
+}
+
+function quoteShellLiteral(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function remapWorkspacesPath(targetPath: string, workspacePath: string): string | null {
+	const workspacesPrefix = "/workspaces/";
+	if (!targetPath.startsWith(workspacesPrefix)) {
+		return null;
+	}
+	const targetSuffix = targetPath.slice(workspacesPrefix.length);
+	const separatorIndex = targetSuffix.indexOf("/");
+	if (separatorIndex < 0) {
+		return "";
+	}
+	const subpath = targetSuffix.slice(separatorIndex + 1);
+	if (!subpath) {
+		return "";
+	}
+	const segments = subpath.split("/").filter((segment) => segment.length > 0);
+	if (segments.some((segment) => segment === "." || segment === "..")) {
+		return null;
+	}
+	return `${workspacePath.replace(/\/+$/, "")}/${segments.join("/")}`;
+}
+
+/**
+ * Decomposed cards sometimes carry an absolute `/workspaces/<old-task>` prefix from the worker/review sandbox.
+ * Acceptance runs in its own fresh sandbox, so remap only that sandbox-root prefix and leave project-relative `cd`s
+ * intact.
+ */
+export function rewriteSandboxAcceptanceCommand(command: string, workspacePath: string): string {
+	const match = command.match(/^\s*cd\s+((?:"[^"]*"|'[^']*'|[^&;]+?))\s*&&\s*([\s\S]+)$/);
+	if (!match) {
+		return command;
+	}
+	const targetPath = stripMatchingShellQuotes(match[1] ?? "");
+	const remainder = (match[2] ?? "").trim();
+	if (!targetPath || !remainder) {
+		return command;
+	}
+	const remappedPath = remapWorkspacesPath(targetPath, workspacePath);
+	if (remappedPath === null) {
+		return command;
+	}
+	if (!remappedPath) {
+		return remainder;
+	}
+	return `cd ${quoteShellLiteral(remappedPath)} && ${remainder}`;
+}
+
 function readErrorOutput(error: unknown): { exitCode: number | null; stdout: string; stderr: string } {
 	const record = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
 	return {
@@ -218,7 +280,8 @@ export async function runNKleinAcceptanceGateInSandbox(
 			workspacePath: workspace.workdir,
 			runCommand: async (execution) => {
 				await options.pauseController?.waitUntilResumed(taskId);
-				const shellExecution = resolveShellExecution(execution.command);
+				const command = rewriteSandboxAcceptanceCommand(execution.command, execution.cwd);
+				const shellExecution = resolveShellExecution(command);
 				return await options.sandboxManager.exec(sandboxTaskId, [shellExecution.binary, ...shellExecution.args], {
 					timeoutMs: execution.timeoutMs,
 				});

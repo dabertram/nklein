@@ -405,6 +405,14 @@ source repo went private — so if it vanishes the buildable source still lives 
   the service's sandbox rebuild path so fresh `toolExecutors`, `extraTools`, and sandbox MCP transports are wired. Never
   let a restored sandbox turn reuse the generic runtime restart path: the runtime's persisted start request deliberately
   omits closure-backed sandbox tools, so a generic restart can recreate host-backed file tools pointed at `/workspaces`.
+- **Acceptance checks run in fresh synthetic sandboxes (2026-07-09).** A task card may contain an `Acceptance check:` that
+  was generated while the worker/reviewer lived under `/workspaces/<old-task>`, but the verifier runs it under
+  `<taskId>::acceptance-<n>`. The gate may remap only a leading `cd /workspaces/<old-task> && ...` prefix into the fresh
+  sandbox root (preserving any subpath); do not add broad shell-command fallbacks or host execution. If the check still
+  cannot enter a `/workspaces/...` cwd, classify it as acceptance setup and hand it to review instead of asking workers to
+  repair code blindly. The auto-repair ladder is intentionally bounded: configured repair attempts, then at most one
+  reviewer/architect escalation, then human review. More configured roles must not turn a failing acceptance setup into an
+  infinite re-drive loop.
 - Legacy host task worktrees (when they exist) intentionally preserve agent progress. External project-folder changes are copied only onto paths still owned by the project sync state; overlapping agent edits must remain isolated + produce a warning. Removing an entire project ≠ trashing a task: await all worktree cleanup and delete saved task patches so re-adding the folder can't restore stale content.
 - !Klein is launched from the user's shell and inherits its environment. For agent detection + task-agent startup, prefer direct PATH checks and direct process launches over spawning an interactive shell. Avoid `zsh -i`, shell fallback command discovery, or "launch shell then type command into it" on hot paths — heavy shell init (`conda`/`nvm`) per task can freeze the runtime. Interactive shells are fine for explicit shell terminals, not for normal agent session work.
 - **Model-role pinning contract (David, 2026-07-09):** automatic skill-set + task-difficulty/complexity based model

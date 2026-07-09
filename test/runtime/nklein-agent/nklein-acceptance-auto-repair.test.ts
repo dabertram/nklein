@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
+import type { AcceptanceFailureCategory } from "../../../src/core/acceptance-failure-taxonomy";
 import type { RuntimeTaskSessionSummary, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-agent/nklein-acceptance-auto-repair";
@@ -26,16 +27,24 @@ function createSummary(): RuntimeTaskSessionSummary {
 	};
 }
 
-function createAcceptanceResult(passed: boolean) {
+function createAcceptanceResult(passed: boolean, failureCategory: AcceptanceFailureCategory | null = null) {
 	return {
 		present: true as const,
 		command: "npm test",
 		passed,
 		exitCode: passed ? 0 : 1,
-		output: passed ? "ok" : "failed",
+		output:
+			failureCategory === "acceptance_setup_error"
+				? "sh: 1: cd: can't cd to /workspaces/dev-old-task"
+				: passed
+					? "ok"
+					: "failed",
 		durationMs: 20,
-		failureCategory: null,
-		failureHint: null,
+		failureCategory: passed ? null : failureCategory,
+		failureHint:
+			failureCategory === "acceptance_setup_error"
+				? "The acceptance command could not enter its configured sandbox working directory."
+				: null,
 	};
 }
 
@@ -308,5 +317,51 @@ describe("nklein acceptance auto repair", () => {
 				reasoningEffort: "high",
 			},
 		);
+	});
+
+	it("returns to review instead of re-escalating after the single escalation attempt also failed", async () => {
+		const sendTaskSessionInput = vi.fn(async () => createSummary());
+		const attemptStore = new Map<string, number>([["task-1", 3]]);
+		const outcome = await runNKleinAcceptanceAutoRepair({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			summary: createSummary(),
+			service: {
+				sendTaskSessionInput,
+				verifyTaskAcceptanceInSandbox: vi.fn(async () => createAcceptanceResult(false)),
+			},
+			attemptStore,
+			maxAttempts: 2,
+			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
+			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+		});
+
+		expect(outcome).toEqual({ type: "ready", reason: "human_review" });
+		expect(sendTaskSessionInput).not.toHaveBeenCalled();
+		expect(attemptStore.get("task-1")).toBe(4);
+	});
+
+	it("returns to review without worker repair for acceptance setup failures", async () => {
+		const sendTaskSessionInput = vi.fn(async () => createSummary());
+		const attemptStore = new Map<string, number>();
+		const outcome = await runNKleinAcceptanceAutoRepair({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			summary: createSummary(),
+			service: {
+				sendTaskSessionInput,
+				verifyTaskAcceptanceInSandbox: vi.fn(async () => createAcceptanceResult(false, "acceptance_setup_error")),
+			},
+			attemptStore,
+			maxAttempts: 2,
+			loadWorkspaceState: vi.fn(async () =>
+				createWorkspaceState("Acceptance check: cd /workspaces/dev-old-task && npm test"),
+			),
+			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+		});
+
+		expect(outcome).toEqual({ type: "ready", reason: "human_review" });
+		expect(sendTaskSessionInput).not.toHaveBeenCalled();
+		expect(attemptStore.get("task-1")).toBe(1);
 	});
 });

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	extractNKleinAcceptanceCommand,
 	resolveShellExecution,
+	rewriteSandboxAcceptanceCommand,
 	runNKleinAcceptanceGate,
 	runNKleinAcceptanceGateInSandbox,
 } from "../../../src/nklein-agent/nklein-acceptance-gate";
@@ -52,6 +53,24 @@ describe("nklein acceptance gate", () => {
 			binary: "/bin/sh",
 			args: ["-c", "npm test"],
 		});
+	});
+
+	it("rewrites stale sandbox-root cd prefixes for fresh acceptance sandboxes", () => {
+		expect(
+			rewriteSandboxAcceptanceCommand(
+				"cd /workspaces/dev-habit-product-nklein-complex-decompose && npx tsc --noEmit",
+				"/workspaces/habit-product-buildout-1-doc-domain-model::acceptance-7",
+			),
+		).toBe("npx tsc --noEmit");
+		expect(
+			rewriteSandboxAcceptanceCommand(
+				"cd /workspaces/old-task/packages/api && npm test",
+				"/workspaces/task-1::acceptance-7",
+			),
+		).toBe("cd '/workspaces/task-1::acceptance-7/packages/api' && npm test");
+		expect(rewriteSandboxAcceptanceCommand("cd packages/api && npm test", "/workspaces/task-1::acceptance-7")).toBe(
+			"cd packages/api && npm test",
+		);
 	});
 
 	it("runs the extracted command and reports success", async () => {
@@ -217,6 +236,45 @@ describe("nklein acceptance gate", () => {
 		});
 		const shellExecution = resolveShellExecution("npm test");
 		expect(assertAvailable).toHaveBeenCalledTimes(1);
+		expect(exec).toHaveBeenCalledWith(preparedTaskId, [shellExecution.binary, ...shellExecution.args], {
+			timeoutMs: 300_000,
+		});
+		expect(disposeWorkspace).toHaveBeenCalledWith(preparedTaskId);
+	});
+
+	it("executes stale /workspaces acceptance commands from the fresh sandbox root", async () => {
+		const exec = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "ok",
+			stderr: "",
+		}));
+		const prepareWorkspace = vi.fn(async (options: { taskId: string }) => ({
+			workdir: `/workspaces/${options.taskId}`,
+			uid: 70_001,
+		}));
+		const disposeWorkspace = vi.fn(async () => {});
+		const sandboxManager = {
+			assertAvailable: vi.fn(async () => {}),
+			prepareWorkspace,
+			exec,
+			disposeWorkspace,
+		} as unknown as AgentSandboxManager;
+
+		const result = await runNKleinAcceptanceGateInSandbox({
+			taskId: "task-1",
+			projectRepoPath: "/repo",
+			taskPrompt: "Acceptance check: cd /workspaces/dev-old-task && npx tsc --noEmit",
+			sandboxManager,
+		});
+
+		const preparedTaskId = (prepareWorkspace.mock.calls as unknown as ReadonlyArray<[{ taskId: string }]>)[0]?.[0]
+			?.taskId;
+		const shellExecution = resolveShellExecution("npx tsc --noEmit");
+		expect(result).toMatchObject({
+			present: true,
+			command: "cd /workspaces/dev-old-task && npx tsc --noEmit",
+			passed: true,
+		});
 		expect(exec).toHaveBeenCalledWith(preparedTaskId, [shellExecution.binary, ...shellExecution.args], {
 			timeoutMs: 300_000,
 		});

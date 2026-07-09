@@ -41,7 +41,10 @@
   If that card is bounced or escalated, the next turn restores the result branch and restarts through the sandbox rebuild
   path, so fresh sandbox file tools and curated MCP transports are wired instead of host-backed tools pointing at
   `/workspaces/<taskId>`. The fleet verifier's tRPC calls now also have bounded per-request timeouts, so a wedged backend
-  poll reports a stall instead of waiting indefinitely while models are idle.
+  poll reports a stall instead of waiting indefinitely while models are idle. Sandbox acceptance checks now remap stale
+  leading `/workspaces/<old-task>` `cd` prefixes into the fresh acceptance sandbox, classify unrecoverable sandbox path
+  setup failures separately, and stop auto-repair after the normal attempts plus one escalation attempt instead of
+  re-driving an idle card forever.
 - **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
   `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
   tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a

@@ -19,6 +19,13 @@ describe("classifyAcceptanceFailure", () => {
 		expect(categoryOf("anything", 127)).toBe("command_not_found");
 	});
 
+	it("classifies stale sandbox working-directory failures before generic command failures", () => {
+		expect(categoryOf("sh: 1: cd: can't cd to /workspaces/dev-old-task", 2)).toBe("acceptance_setup_error");
+		expect(categoryOf("chdir to cwd /workspaces/task-1 failed: no such file or directory", null)).toBe(
+			"acceptance_setup_error",
+		);
+	});
+
 	it("classifies a missing script", () => {
 		expect(categoryOf('npm error Missing script: "test"')).toBe("missing_script");
 		expect(categoryOf("Lifecycle script `test` ... no test specified")).toBe("missing_script");

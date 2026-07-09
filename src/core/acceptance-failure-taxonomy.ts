@@ -10,6 +10,7 @@
 
 /** All classification slugs, ordered. Single source for the union type and the wire-contract zod enum. */
 export const ACCEPTANCE_FAILURE_CATEGORIES = [
+	"acceptance_setup_error",
 	"command_not_found",
 	"missing_script",
 	"dependency_missing",
@@ -36,6 +37,7 @@ export interface AcceptanceFailureClassification {
  * server classifier and the UI (which only persists the category slug) render identical copy.
  */
 export const ACCEPTANCE_FAILURE_LABELS: Record<AcceptanceFailureCategory, string> = {
+	acceptance_setup_error: "Acceptance setup error",
 	command_not_found: "Command not found",
 	missing_script: "Missing script",
 	dependency_missing: "Missing dependency",
@@ -69,6 +71,13 @@ const CLASSIFIERS: Array<{
 		hint: "The acceptance command exceeded its time budget. Speed up the check or raise the task timeout.",
 		matches: ({ text, timedOut }) =>
 			timedOut || text.includes("timed out") || text.includes("timeout") || text.includes("etimedout"),
+	},
+	{
+		category: "acceptance_setup_error",
+		hint: "The acceptance command could not enter its configured sandbox working directory. Fix the Acceptance check path or rerun it from the sandbox root.",
+		matches: ({ text }) =>
+			(/\bcd:\s+.*(can'?t cd|cannot cd|no such file or directory)/s.test(text) && text.includes("/workspaces/")) ||
+			(/\b(chdir|cwd)\b/.test(text) && text.includes("/workspaces/") && text.includes("no such file or directory")),
 	},
 	{
 		category: "command_not_found",

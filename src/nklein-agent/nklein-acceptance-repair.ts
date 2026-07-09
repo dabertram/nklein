@@ -117,16 +117,19 @@ function buildRepairPrompt(input: {
 	const outputPreview = trimOutputPreview(input.acceptance.output);
 	const failureConstraint = extractAcceptanceFailureConstraint(input.acceptance.output);
 	const header =
-		input.action === "repair"
-			? `Acceptance check failed on repair attempt ${input.attempt} of ${input.maxAttempts}.`
-			: input.action === "escalate"
-				? `Acceptance check still failed; escalate this task to the ${input.escalatedRole ?? "reviewer"} role.`
-				: "Acceptance check still failed after the allowed repair attempts; prepare a concise human handoff.";
+		input.acceptance.failureCategory === "acceptance_setup_error"
+			? "Acceptance check could not enter its configured working directory; prepare a concise human handoff."
+			: input.action === "repair"
+				? `Acceptance check failed on repair attempt ${input.attempt} of ${input.maxAttempts}.`
+				: input.action === "escalate"
+					? `Acceptance check still failed; escalate this task to the ${input.escalatedRole ?? "reviewer"} role.`
+					: "Acceptance check still failed after the allowed repair attempts; prepare a concise human handoff.";
 	return [
 		header,
 		input.taskTitle ? `Task title: ${input.taskTitle}` : null,
 		`Acceptance command: ${commandText}`,
 		`Exit code: ${input.acceptance.exitCode ?? "unknown"}`,
+		input.acceptance.failureHint ? `Failure hint: ${input.acceptance.failureHint}` : null,
 		failureConstraint ? `Failing test constraint:\n${failureConstraint}` : null,
 		outputPreview.length > 0 ? `Acceptance output:\n${outputPreview}` : "Acceptance output: (empty)",
 		"",
@@ -148,9 +151,15 @@ export function buildNKleinAcceptanceRepairPlan(
 
 	const attempt = normalizeAttempt(input.attempt);
 	const maxAttempts = normalizeMaxAttempts(input.maxAttempts);
-	const escalation = attempt > maxAttempts ? selectEscalationRole(input.modelRoles) : null;
-	const action: NKleinAcceptanceRepairAction =
-		attempt <= maxAttempts ? "repair" : escalation ? "escalate" : "human_review";
+	const setupFailure = input.acceptance.failureCategory === "acceptance_setup_error";
+	const escalation = !setupFailure && attempt === maxAttempts + 1 ? selectEscalationRole(input.modelRoles) : null;
+	const action: NKleinAcceptanceRepairAction = setupFailure
+		? "human_review"
+		: attempt <= maxAttempts
+			? "repair"
+			: escalation
+				? "escalate"
+				: "human_review";
 	const prompt = buildRepairPrompt({
 		taskTitle: input.taskTitle?.trim() || null,
 		taskPrompt: input.taskPrompt,
@@ -168,8 +177,9 @@ export function buildNKleinAcceptanceRepairPlan(
 		escalatedRole: escalation?.role ?? null,
 		escalatedSettings: escalation?.settings ?? null,
 		prompt: prompt.join("\n"),
-		summary:
-			action === "repair"
+		summary: setupFailure
+			? "Acceptance setup failed; hand off for human review."
+			: action === "repair"
 				? `Acceptance failed; retry repair attempt ${attempt} of ${maxAttempts}.`
 				: action === "escalate"
 					? `Acceptance failed after ${maxAttempts} repair attempts; retry with ${escalation?.role ?? "reviewer"} role.`
