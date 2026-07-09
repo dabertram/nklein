@@ -1,4 +1,5 @@
 import type { RuntimeNKleinEndpointModelDiscoveryResponse, RuntimeNKleinProviderModel } from "../core/api-contract";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { fetchLiteLlmBaseUrlModels, fetchLmStudioBaseUrlModels } from "./nklein-baseurl-model-discovery";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
@@ -89,6 +90,18 @@ export function clearProviderModelDiscoveryCache(): void {
 	providerModelDiscoveryCache.clear();
 }
 
+function lmsPsModelsToRuntimeProviderModels(models: readonly LmsPsModel[]): RuntimeNKleinProviderModel[] {
+	return models.map((model) => {
+		const contextWindow = normalizeContextWindow(model.contextLength);
+		return {
+			id: model.identifier,
+			name: model.identifier,
+			...(model.isEmbedding ? { type: "embeddings" } : {}),
+			...(contextWindow !== null ? { contextWindow } : {}),
+		};
+	});
+}
+
 async function loadProviderModelsWithFallbackForSettings(
 	providerId: string,
 	settingsOverride?: SdkProviderSettings | null,
@@ -117,7 +130,16 @@ async function loadProviderModelsWithFallbackForSettings(
 		resolved = appendMissingModels(mergedModels, liteLlmModels);
 	} else if (normalizedProviderId === "lmstudio") {
 		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
-		resolved = mergeProviderModelsWithContextWindowFallback(lmStudioModels, providerModels);
+		const lmsPsModels = lmsPsModelsToRuntimeProviderModels(
+			await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => []),
+		);
+		const loadedModels = appendMissingModels(
+			mergeProviderModelsWithContextWindowFallback(lmStudioModels, lmsPsModels, {
+				preferFallbackContextWindow: true,
+			}),
+			lmsPsModels,
+		);
+		resolved = mergeProviderModelsWithContextWindowFallback(loadedModels, providerModels);
 	} else {
 		resolved = providerModels;
 	}

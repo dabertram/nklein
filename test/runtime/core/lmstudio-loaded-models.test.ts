@@ -4,6 +4,8 @@ import {
 	fetchLoadedModelIds,
 	fetchLoadedModelIdsCached,
 	lmStudioApiV0ModelsUrl,
+	loadedModelIdsFromLmsPsModels,
+	mergeLoadedModelIds,
 	parseLoadedModelIds,
 	shouldBlockUnloadedModel,
 } from "../../../src/core/lmstudio-loaded-models";
@@ -19,7 +21,10 @@ const payload = {
 };
 
 function fakeFetch(body: unknown, ok = true): typeof fetch {
-	return (async () => ({ ok, json: async () => body })) as unknown as typeof fetch;
+	return (async () => ({
+		ok,
+		json: async () => body,
+	})) as unknown as typeof fetch;
 }
 
 describe("parseLoadedModelIds", () => {
@@ -28,6 +33,33 @@ describe("parseLoadedModelIds", () => {
 		expect(parseLoadedModelIds(payload.data)).toEqual(["loaded-a", "loaded-c"]); // bare array
 		expect(parseLoadedModelIds({})).toEqual([]);
 		expect(parseLoadedModelIds(null)).toEqual([]);
+	});
+});
+
+describe("lms ps resident model ids", () => {
+	it("adds every addressable LM-Link identity without duplicating REST ids", () => {
+		const psIds = loadedModelIdsFromLmsPsModels([
+			{
+				identifier: "qwen2.5.1-coder-7b-instruct",
+				modelKey: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				indexedModelIdentifier: "device-1:mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				path: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				machineId: "device-1",
+				isEmbedding: false,
+				status: "idle",
+				queued: 0,
+				parallel: 1,
+				trainedForToolUse: false,
+				contextLength: 32768,
+			},
+		]);
+
+		expect(mergeLoadedModelIds(["qwen/qwen3-coder-next"], psIds)).toEqual([
+			"qwen/qwen3-coder-next",
+			"qwen2.5.1-coder-7b-instruct",
+			"mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+			"device-1:mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+		]);
 	});
 });
 
@@ -70,7 +102,10 @@ describe("assertModelLoaded", () => {
 describe("fetchLoadedModelIdsCached (anti-hammering TTL cache, §4A)", () => {
 	const counting = () => {
 		let calls = 0;
-		const fetchImpl = (async () => ({ ok: true, json: async () => payload })) as unknown as typeof fetch;
+		const fetchImpl = (async () => ({
+			ok: true,
+			json: async () => payload,
+		})) as unknown as typeof fetch;
 		const wrapped = (async (...args: unknown[]) => {
 			calls += 1;
 			return (fetchImpl as (...a: unknown[]) => unknown)(...args);

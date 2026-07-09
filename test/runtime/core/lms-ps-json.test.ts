@@ -1,5 +1,9 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	createDefaultLmsRunner,
 	fetchLmsPsModels,
 	fetchLmsPsSnapshot,
 	groupModelsByMachine,
@@ -125,6 +129,49 @@ describe("fetchLmsPsModels", () => {
 				throw new Error("lms not found");
 			}),
 		).toEqual([]);
+	});
+
+	it("runs the default lms runner with the LM Studio home instead of an isolated runtime HOME", async () => {
+		const binDir = mkdtempSync(join(tmpdir(), "nklein-fake-lms-"));
+		const lmsPath = join(binDir, "lms");
+		writeFileSync(
+			lmsPath,
+			[
+				"#!/usr/bin/env node",
+				"process.stdout.write(JSON.stringify([{ identifier: process.env.HOME, modelKey: 'home-probe' }]));",
+				"",
+			].join("\n"),
+		);
+		chmodSync(lmsPath, 0o755);
+		const originalPath = process.env.PATH;
+		const originalHome = process.env.HOME;
+		const originalLmsHome = process.env.NKLEIN_LMS_HOME;
+		try {
+			process.env.PATH = `${binDir}:${originalPath ?? ""}`;
+			process.env.HOME = "/tmp/isolated-nklein-runtime-home";
+			process.env.NKLEIN_LMS_HOME = "/tmp/real-lmstudio-home";
+
+			const models = await fetchLmsPsModels(createDefaultLmsRunner());
+
+			expect(models[0]?.identifier).toBe("/tmp/real-lmstudio-home");
+		} finally {
+			if (originalPath === undefined) {
+				delete process.env.PATH;
+			} else {
+				process.env.PATH = originalPath;
+			}
+			if (originalHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = originalHome;
+			}
+			if (originalLmsHome === undefined) {
+				delete process.env.NKLEIN_LMS_HOME;
+			} else {
+				process.env.NKLEIN_LMS_HOME = originalLmsHome;
+			}
+			rmSync(binDir, { recursive: true, force: true });
+		}
 	});
 });
 

@@ -15,6 +15,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { userInfo } from "node:os";
 import { promisify } from "node:util";
 import type { LmsRunner } from "./lms-model-runner";
 import { modelDiscoveryCacheTtlMs } from "./model-discovery-throttle";
@@ -29,8 +30,14 @@ const STDOUT_PREVIEW_LIMIT = 1_000;
  */
 export function createDefaultLmsRunner(timeoutMs = 5_000): LmsRunner {
 	return async (args) => {
+		const lmsBin = process.env.NKLEIN_LMS_BIN?.trim() || "lms";
+		const lmsHome = process.env.NKLEIN_LMS_HOME?.trim() || userInfo().homedir;
 		try {
-			const { stdout } = await execFileAsync("lms", [...args], { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+			const { stdout } = await execFileAsync(lmsBin, [...args], {
+				env: { ...process.env, HOME: lmsHome },
+				timeout: timeoutMs,
+				maxBuffer: 16 * 1024 * 1024,
+			});
 			return { stdout, exitCode: 0 };
 		} catch (error) {
 			const e = error as { stdout?: unknown; code?: unknown };

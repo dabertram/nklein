@@ -16,6 +16,7 @@
  * Pure parser + injectable fetch, so it is unit-testable without a live endpoint.
  */
 
+import type { LmsPsModel } from "./lms-ps-json";
 import { lmStudioApiV0ModelsUrl } from "./lmstudio-loaded-models";
 
 export interface LoadedModelDescriptor {
@@ -132,6 +133,34 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 	return descriptors;
 }
 
+export function loadedModelDescriptorFromLmsPsModel(model: LmsPsModel): LoadedModelDescriptor {
+	return {
+		runtimeId: model.identifier,
+		modelKey: model.modelKey || model.identifier,
+		isEmbedding: model.isEmbedding,
+		...(model.trainedForToolUse !== null ? { toolUse: model.trainedForToolUse } : {}),
+		...(model.contextLength !== null ? { maxContextLength: model.contextLength } : {}),
+	};
+}
+
+export function mergeLoadedModelDescriptors(
+	descriptors: readonly LoadedModelDescriptor[],
+	lmsPsModels: readonly LmsPsModel[],
+): LoadedModelDescriptor[] {
+	const byRuntimeId = new Map<string, LoadedModelDescriptor>();
+	for (const descriptor of descriptors) {
+		byRuntimeId.set(descriptor.runtimeId, descriptor);
+	}
+	for (const model of lmsPsModels) {
+		const runtimeId = model.identifier.trim();
+		if (!runtimeId || byRuntimeId.has(runtimeId)) {
+			continue;
+		}
+		byRuntimeId.set(runtimeId, loadedModelDescriptorFromLmsPsModel(model));
+	}
+	return [...byRuntimeId.values()];
+}
+
 /** Map an OpenAI-style base URL (`http://host:port/v1`) to LM Studio's native `/api/v1/models` URL. */
 export function lmStudioApiV1ModelsUrl(baseUrl: string): string {
 	const root = baseUrl.trim().replace(/\/+$/u, "").replace(/\/v1$/u, "");
@@ -147,14 +176,18 @@ export async function fetchLoadedModelDescriptors(
 	fetchImpl: typeof fetch = fetch,
 ): Promise<LoadedModelDescriptor[]> {
 	try {
-		const res = await fetchImpl(lmStudioApiV1ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
+		const res = await fetchImpl(lmStudioApiV1ModelsUrl(baseUrl), {
+			signal: AbortSignal.timeout(3_000),
+		});
 		if (res.ok) {
 			const descriptors = parseLoadedModelDescriptors(await res.json());
 			if (descriptors.length > 0) {
 				return descriptors;
 			}
 		}
-		const fallback = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
+		const fallback = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), {
+			signal: AbortSignal.timeout(3_000),
+		});
 		if (!fallback.ok) {
 			return [];
 		}

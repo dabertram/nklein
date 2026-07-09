@@ -8,6 +8,7 @@
  * Pure parser + injectable fetch so it's testable without a live endpoint. Checking availability is fine; loading is not.
  */
 
+import type { LmsPsModel } from "./lms-ps-json";
 import { modelDiscoveryCacheTtlMs } from "./model-discovery-throttle";
 
 interface LmStudioApiV0Model {
@@ -34,6 +35,39 @@ export function parseLoadedModelIds(payload: unknown): string[] {
 	return ids;
 }
 
+function addLoadedModelId(ids: Set<string>, value: string | null | undefined): void {
+	const id = value?.trim();
+	if (id) {
+		ids.add(id);
+	}
+}
+
+/**
+ * LM Studio's REST `/api/v0/models` endpoint is the normal no-load guard source, but LM-Link resident models can be
+ * visible only through `lms ps --json`. Treat every addressable `lms ps` identity as resident evidence so configured
+ * role/pool models on linked hosts are not filtered out while still never triggering a load.
+ */
+export function loadedModelIdsFromLmsPsModels(models: readonly LmsPsModel[]): string[] {
+	const ids = new Set<string>();
+	for (const model of models) {
+		addLoadedModelId(ids, model.identifier);
+		addLoadedModelId(ids, model.modelKey);
+		addLoadedModelId(ids, model.indexedModelIdentifier);
+		addLoadedModelId(ids, model.path);
+	}
+	return [...ids];
+}
+
+export function mergeLoadedModelIds(...sources: readonly (readonly string[])[]): string[] {
+	const ids = new Set<string>();
+	for (const source of sources) {
+		for (const value of source) {
+			addLoadedModelId(ids, value);
+		}
+	}
+	return [...ids];
+}
+
 /** Map an OpenAI-style base URL (`http://host:port/v1`) to LM Studio's enhanced `/api/v0/models` URL. */
 export function lmStudioApiV0ModelsUrl(baseUrl: string): string {
 	const root = baseUrl.trim().replace(/\/+$/u, "").replace(/\/v1$/u, "");
@@ -47,7 +81,9 @@ export function lmStudioApiV0ModelsUrl(baseUrl: string): string {
 export async function fetchLoadedModelIds(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
 	try {
 		// Bounded so it can never hang a hot path (e.g. task start) on an unreachable endpoint.
-		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
+		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), {
+			signal: AbortSignal.timeout(3_000),
+		});
 		if (!res.ok) {
 			return [];
 		}

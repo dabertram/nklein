@@ -392,6 +392,13 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   generous, hardware-aware active bounds; reserve fast aborts for verified idle/unloaded/stuck states, missing sessions,
 >   repeated no-progress loops, or explicit harness limits. When a low-spec model is slow but still active, record latency
 >   as capacity/fit evidence rather than prematurely calling the model unsuitable.
+> - **Do not confuse model diversity with hardware/model suitability (2026-07-09 live miss).** A second reviewer off the
+>   m5max is useful only if that host/model is fit for the lane. Do **not** put a latency-critical reviewer/conductor lane
+>   on an oversized dense remote model just to get family/host diversity: the live fleet run pinned `qwen3.6-27b` on the
+>   Legion5pro as the single review slot and predictably turned review into the bottleneck. For constrained hosts (for
+>   example Legion5pro-class laptop hardware), use small/appropriate models for tiny worker/probe/read-only tasks, ask the
+>   user before using a heavy dense model there, or keep heavy review on the m5max. Always gate model assignment on the real
+>   hardware envelope + `lms ps` state, not just "different machine/family".
 > - **Slow processing should produce OBSERVATION-BASED context advice, not impatience or blanket shrinkage.** If repeated
 >   `PROCESSINGPROMPT`/slow-TTFT evidence shows that a model/host/context setting is wasting wall-clock, !Klein should
 >   eventually suggest a smaller loaded/request context limit or leaner prompt level for that host/model/task class. But
@@ -5572,7 +5579,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       start; model-turn admission now serializes active same-task turns before scheduler admission. **FINAL LIVE EVIDENCE
       (rerun5, stopped after targeted proof):** after a bounced review, Gemma reported `idle queued:0`, Qwen2.5.1 reported
       `generating queued:0`, no `Model turn ... LM Studio host "local"` warning appeared, and Docker returned to the
-      baseline single SearxNG container after cleanup. **Remaining before `[x]`:** persist richer observed
+      baseline single SearxNG container after cleanup. **LM-LINK DISCOVERY ROOT CAUSE + FIX (2026-07-09):** a later
+      three-host verifier attempt proved that REST `/api/v1|v0/models` can omit LM-Link resident aliases that `lms ps
+      --json` sees, so provider launch resolution rejected a configured linked worker before the residency/routing logic
+      could use it. The root fix is not an `/api/v0` fallback; it is merging `lms ps --json` resident identities into the
+      provider roster, loaded-id residency set, and loaded-descriptor set, while keeping explicit pins fail-closed. The
+      verifier/runtime also now run `lms` with the real LM Studio home (or `NKLEIN_LMS_HOME`) instead of an isolated
+      verifier `HOME`, because the CLI needs LM Studio's local auth key. **LIVE PROOF, STOPPED RUN (2026-07-09):** with
+      the fix, a complex `complex_dag` verifier fanned out across three LM Studio hosts using one shared sandbox
+      container: m5 `qwen/qwen3-coder-next` worker, m4mini `qwen2.5.1-coder-7b-instruct` worker, Legion reviewer, and
+      Devstral re-decompose/architect work were all observed by `lms ps`/WS telemetry. The run was intentionally stopped
+      after user correction because pinning dense `qwen3.6-27b` on Legion as the sole reviewer was the wrong
+      hardware-fit choice and created a predictable review bottleneck. **Remaining before `[x]`:** persist richer observed
       overlap/latency/headroom samples, and surface measured cap recommendations in the operator UI beyond the dev command.
 > **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**
 > NO manual role→model assignment (the user's `modelRoles` config was early-testing, now deprecated — "forget my

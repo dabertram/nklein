@@ -1,19 +1,21 @@
 /**
  * FLEET SWARM e2e — drive a complex dev-test project across the HETEROGENEOUS local fleet.
  *
- * This verifier opts into explicit primary role pins so the "configured model was observed" assertions are meaningful:
+ * This verifier opts into explicit architect/reviewer role pins so the "configured model was observed" assertions are meaningful:
  *   architect (decompose)  = a pinned strong LARGE model (default the m5max 27b)
- *   worker   (implement)   = a pinned fast coder primary + configured pool members for guardrail/advisor coverage
+ *   worker   (implement)   = auto over a configured fast coder primary + pool members by default
  *   reviewer               = a pinned mid model unless NKLEIN_FLEET_REVIEWER=auto|none|empty
  * Product defaults stay auto-selection; this script is the mixed pinned/auto regression. It then OBSERVES which model each
  * card actually ran on and whether each card DELIVERED a result branch — so we learn not just "did the cascade finish"
- * but "did the requested role pins hold while unpinned roles still auto-select".
+ * but "did the requested role pins hold while worker pools still auto-select". Set NKLEIN_FLEET_WORKER_MODE=pinned only
+ * when intentionally proving that an explicit worker pin overrides pool fan-out.
  *
  * The project workspace is PRESERVED (path printed) so the produced code can be inspected.
  *
  * Run:  HOME=/tmp/nklein-fleet tsx scripts/verify-fleet-swarm.mts
  *   env: NKLEIN_FLEET_ARCHITECT (default gptoss120-m5), NKLEIN_FLEET_WORKER (default coder-gpu),
  *        NKLEIN_FLEET_WORKER_POOL (comma list, default "qwen9-m4,v3-cpu"; set empty to disable),
+ *        NKLEIN_FLEET_WORKER_MODE (auto|pinned; default auto),
  *        NKLEIN_FLEET_REVIEWER (default qwen9-m4; auto|none|empty leaves reviewer unconfigured),
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
@@ -68,6 +70,7 @@ const WORKER_POOL = (process.env.NKLEIN_FLEET_WORKER_POOL === undefined
 	.split(",")
 	.map((s) => s.trim())
 	.filter(Boolean);
+const WORKER_MODE = process.env.NKLEIN_FLEET_WORKER_MODE?.trim().toLowerCase() === "pinned" ? "pinned" : "auto";
 const REVIEWER = process.env.NKLEIN_FLEET_REVIEWER === undefined ? "qwen9-m4" : process.env.NKLEIN_FLEET_REVIEWER.trim();
 const REVIEWER_AUTO = isAutoReviewerSetting(REVIEWER);
 const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
@@ -458,7 +461,7 @@ async function main(): Promise<void> {
 		});
 		log(
 			`Server: ${server.baseUrl}\n` +
-				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
+				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (${WORKER_MODE}, +pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
 				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineCap=${PER_MACHINE_MAX_CONCURRENCY}  minObservedHosts=${MIN_OBSERVED_HOSTS}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
 		);
 		log("=== Initial LM Studio host map ===");
@@ -482,8 +485,9 @@ async function main(): Promise<void> {
 		});
 		log(`saveNKleinProviderSettings(worker=${WORKER}): ok=${provRes.payload.ok ?? "?"}`);
 
-		// Heterogeneous pinned roles: this regression needs explicit pins because configured role models are auto candidates
-		// by default. If auto would choose differently, runtime telemetry should report a recommendation without overriding.
+		// Heterogeneous roles: architect/reviewer pins prove explicit pins are honored; the worker role defaults to
+		// auto so its primary+pool can actually fan out. Setting NKLEIN_FLEET_WORKER_MODE=pinned intentionally proves
+		// the opposite contract: a hard worker pin overrides pool fan-out.
 		const cfgRes = await requestJson({
 			baseUrl: server.baseUrl,
 			procedure: "runtime.saveConfig",
@@ -495,7 +499,7 @@ async function main(): Promise<void> {
 					worker: {
 						providerId: PROVIDER_ID,
 						modelId: WORKER,
-						modelSelectionMode: "pinned",
+						modelSelectionMode: WORKER_MODE,
 						additionalModels: WORKER_POOL.map((modelId) => ({ providerId: PROVIDER_ID, modelId })),
 					},
 					// REVIEWER=auto|none|empty leaves the reviewer role UNCONFIGURED — exercising the W2.5a lineage-diverse
@@ -906,13 +910,16 @@ async function main(): Promise<void> {
 		log("=== Fleet swarm result ===");
 		const architectSeen = hasModelUsage(seenModels, ARCHITECT);
 		const workerSeen = hasModelUsage(seenModels, WORKER);
+		const workerRoleModels = [WORKER, ...WORKER_POOL];
+		const workerPoolSeenModels = workerRoleModels.filter((model) => hasModelUsage(seenModels, model));
+		const workerRoleSeen = WORKER_MODE === "pinned" ? workerSeen : workerPoolSeenModels.length > 0;
 		const reviewerObservation = evaluateFleetReviewerObservation({
 			configuredReviewer: REVIEWER,
 			reviewSessionModels,
 			workerModel: WORKER,
 		});
 		const reviewerSeen = reviewerObservation.observed;
-		const fleetUsageOk = architectSeen && workerSeen && reviewerSeen;
+		const fleetUsageOk = architectSeen && workerRoleSeen && reviewerSeen;
 		const hostObservation = evaluateFleetHostObservation({
 			seenModels,
 			machineByModelId: initialMachineByModelId,
@@ -922,7 +929,11 @@ async function main(): Promise<void> {
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
 		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);
-		log(`Configured worker model observed: ${workerSeen ? "YES" : "NO"} (${WORKER})`);
+		log(
+			WORKER_MODE === "pinned"
+				? `Configured pinned worker model observed: ${workerSeen ? "YES" : "NO"} (${WORKER})`
+				: `Auto worker role observed: ${workerRoleSeen ? "YES" : "NO"} (${workerPoolSeenModels.join(", ") || "none"} from ${workerRoleModels.join(", ")})`,
+		);
 		log(
 			reviewerObservation.mode === "auto"
 				? `Auto reviewer observed: ${reviewerSeen ? "YES" : "NO"} (${reviewerObservation.observedModels.join(",") || "none"}) — ${reviewerObservation.reason}`

@@ -8,9 +8,14 @@ import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
-import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
-import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
-import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
+import { createDefaultLmsRunner, fetchLmsPsModels, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
+import { fetchLoadedModelDescriptors, mergeLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
+import {
+	fetchLoadedModelIdsCached,
+	loadedModelIdsFromLmsPsModels,
+	mergeLoadedModelIds,
+	shouldBlockUnloadedModel,
+} from "../../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
 import {
 	assessModelSuitability,
@@ -245,7 +250,10 @@ export async function handleStartTaskSession(
 		// (model + reasoning profile) is read fresh below, and resumeFromTrash is self-hydrated inside
 		// nkleinTaskSessionService.startTaskSession (readPersistedTaskSession), so no path probe is needed.
 		const taskModelPin = body.nkleinSettings?.modelId?.trim()
-			? { providerId: body.nkleinSettings.providerId ?? null, modelId: body.nkleinSettings.modelId }
+			? {
+					providerId: body.nkleinSettings.providerId ?? null,
+					modelId: body.nkleinSettings.modelId,
+				}
 			: null;
 		const sandboxStatus = deps.refreshAgentSandboxStatus
 			? await deps.refreshAgentSandboxStatus()
@@ -307,10 +315,17 @@ export async function handleStartTaskSession(
 		// primary guard (error) and the role-pool filter (skip). Lenient: block only a positively-non-resident model.
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
 		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
-		const loadedModelIds =
-			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
-				? await fetchLoadedModelIdsCached(residencyBaseUrl)
-				: [];
+		const shouldReadLocalResidency =
+			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl);
+		const lmsPsModelsForResidency = shouldReadLocalResidency
+			? await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => [])
+			: [];
+		const loadedModelIds = shouldReadLocalResidency
+			? mergeLoadedModelIds(
+					await fetchLoadedModelIdsCached(residencyBaseUrl),
+					loadedModelIdsFromLmsPsModels(lmsPsModelsForResidency),
+				)
+			: [];
 		if (
 			residencyCheckEnabled &&
 			nkleinLaunchConfig.modelId &&
@@ -353,7 +368,10 @@ export async function handleStartTaskSession(
 			// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.
 			const roleModels = [
 				{ model: settings, primary: true },
-				...(settings.additionalModels ?? []).map((model) => ({ model, primary: false })),
+				...(settings.additionalModels ?? []).map((model) => ({
+					model,
+					primary: false,
+				})),
 			];
 			for (const { model, primary } of roleModels) {
 				if (!model.providerId && !model.modelId) {
@@ -417,7 +435,10 @@ export async function handleStartTaskSession(
 		const stableModelKeyByRuntimeId = new Map<string, string>();
 		if (residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)) {
 			try {
-				const loadedDescriptors = await fetchLoadedModelDescriptors(residencyBaseUrl);
+				const loadedDescriptors = mergeLoadedModelDescriptors(
+					await fetchLoadedModelDescriptors(residencyBaseUrl),
+					lmsPsModelsForResidency,
+				);
 				// §5.AB llmfit prior (opt-in via NKLEIN_LLMFIT_PRIOR): same cached resolver as decomposition routing.
 				// OFF by default, so task-start auto-discovery remains local-only unless the operator explicitly enables it.
 				const resolveLlmfitRoutingPrior = await loadOptInLlmfitRoutingPriorResolver();
@@ -549,9 +570,9 @@ export async function handleStartTaskSession(
 		// the strongest unsuitability signal (chronic stalls observed in real runs) never steered selection. Read the
 		// self-observation evidence once per start (best-effort; empty ⇒ UNKNOWN ⇒ multiplier 1 ⇒ unchanged) and scale
 		// each candidate's blended capability: TOOL_UNSUITABLE ×0.1, TOOL_WEAK ×0.5 (the §5.AB default penalties).
-		const selfObservationEvents = await readSelfObservationEvents({ limit: 500 }).catch(
-			() => [] as Awaited<ReturnType<typeof readSelfObservationEvents>>,
-		);
+		const selfObservationEvents = await readSelfObservationEvents({
+			limit: 500,
+		}).catch(() => [] as Awaited<ReturnType<typeof readSelfObservationEvents>>);
 		// 5.AF/5.AB capability blender (extracted to core/capability-blend.ts, 5.U): given the ledger evidence + the
 		// self-observation events it returns the verdict-multiplier + blended-capability functions the router uses
 		// (per-model verdict memo + role-outranks-global preference encapsulated; role evidence keyed by the shared
@@ -584,7 +605,7 @@ export async function handleStartTaskSession(
 		// `isModelFree` = own-sessions only (byte-identical).
 		const busyModelIds = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
 			? new Set(
-					(await fetchLmsPsModelsCached(createDefaultLmsRunner()))
+					(await fetchLmsPsModels(createDefaultLmsRunner()))
 						.filter((model) => model.queued > 0 || (model.status !== null && model.status !== "idle"))
 						.map((model) => model.identifier),
 				)
@@ -617,12 +638,21 @@ export async function handleStartTaskSession(
 			cardRoleHasConfiguredModel &&
 			cardRoleSettings?.modelSelectionMode === "pinned" &&
 			cardRoleSettings.modelId?.trim()
-				? { providerId: cardRoleSettings?.providerId ?? null, modelId: cardRoleSettings?.modelId ?? null }
+				? {
+						providerId: cardRoleSettings?.providerId ?? null,
+						modelId: cardRoleSettings?.modelId ?? null,
+					}
 				: null;
+		const allGuardCandidates = [...guardCandidates.values()];
+		const cardRoleGuardCandidates = allGuardCandidates.filter((candidate) => candidate.role === cardRole);
+		const roleScopedSelectionCandidates =
+			!taskModelPin && !cardRolePin && cardRoleHasConfiguredModel && cardRoleGuardCandidates.length > 0
+				? cardRoleGuardCandidates
+				: allGuardCandidates;
 		const roleAssignment = resolveSwarmRoleModel({
 			role: cardRole,
 			pinned: cardRolePin,
-			candidates: [...guardCandidates.values()].map((candidate) => ({
+			candidates: allGuardCandidates.map((candidate) => ({
 				modelKey: candidate.entry.key,
 				modelId: candidate.entry.modelId,
 				score: blendedCapabilityForKey(
@@ -659,7 +689,7 @@ export async function handleStartTaskSession(
 		};
 		const swarmRoleDecision = selectSwarmRoleModel({
 			role: cardRole,
-			candidates: [...guardCandidates.values()].map((candidate) => ({
+			candidates: roleScopedSelectionCandidates.map((candidate) => ({
 				modelKey: candidate.entry.key,
 				facts: modelClassFactsForCandidate(candidate),
 				capability: blendedCapabilityForKey(
@@ -769,8 +799,13 @@ export async function handleStartTaskSession(
 			...new Set([...guardCandidates.values()].map((candidate) => candidate.entry.providerId)),
 		];
 		const hostMapEndpoints = [...new Set([...guardCandidates.values()].map((candidate) => candidate.entry.endpoint))];
+		const lmsPsModelsForHostMap = shouldResolveHostMap
+			? lmsPsModelsForResidency.length > 0
+				? lmsPsModelsForResidency
+				: await fetchLmsPsModelsCached(createDefaultLmsRunner())
+			: [];
 		const machineByModelIdRaw = shouldResolveHostMap
-			? buildLmStudioMachineByModelId(await fetchLmsPsModelsCached(createDefaultLmsRunner()), {
+			? buildLmStudioMachineByModelId(lmsPsModelsForHostMap, {
 					providerIds: hostMapProviderIds,
 					endpoints: hostMapEndpoints,
 				})
@@ -789,7 +824,7 @@ export async function handleStartTaskSession(
 		};
 		let poolRoutedModelKey: string | null = null;
 		if (Object.keys(perEndpointPoolCaps).length > 0) {
-			const candidateList = [...guardCandidates.values()];
+			const candidateList = roleScopedSelectionCandidates;
 			// §5.AB LM-Link: the ROUTING pool key. With no machine map (flag off) it is the endpoint (byte-identical);
 			// with a map it is the model's owning machine (endpoint fallback for an unmapped candidate), so LM-Link
 			// machines sharing one endpoint are FANNED across distinct pools instead of collapsing into one.
@@ -867,7 +902,7 @@ export async function handleStartTaskSession(
 		// GENERATION picks with no §5.AB diversity constraint; DECISION-role picks apply diversity FIRST and
 		// warmth only within the diverse set (see `pickDiverseReviewerModel`).
 		const baselinePreferredKey = poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key;
-		const warmthCandidatesByScore = [...guardCandidates.values()]
+		const warmthCandidatesByScore = roleScopedSelectionCandidates
 			.map((candidate) => ({
 				modelKey: candidate.entry.key,
 				// The warmth ledger is keyed by the LAUNCH model id (what the prompt assembler records under).
@@ -921,7 +956,7 @@ export async function handleStartTaskSession(
 			promptTokens,
 			outputTokens: routingOutputTokens,
 			preferredModelKey: honoredTaskPinKey ?? honoredRolePinKey ?? optimizationPreferredKey,
-			candidates: [...guardCandidates.values()].map((candidate) => {
+			candidates: roleScopedSelectionCandidates.map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {
 					entry: candidate.entry,
@@ -1000,7 +1035,7 @@ export async function handleStartTaskSession(
 							: null,
 					decisionReason: routingDecision.reason,
 					taskAffinityTags,
-					candidates: [...guardCandidates.values()].map((candidate) => {
+					candidates: roleScopedSelectionCandidates.map((candidate) => {
 						const ledgerSamples = ledgerSuccessByKey.get(candidate.entry.key)?.samples ?? 0;
 						const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 						return {
@@ -1195,7 +1230,10 @@ export async function handleStartTaskSession(
 		// that the agent is now working it — a card should never show agent activity while it sits in backlog.
 		// Previously only the input/resume paths reconciled the lane, so a freshly-started card (e.g. a
 		// dev-test seed started programmatically) stayed in backlog. Best-effort; never blocks the start.
-		await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
+		await reconcileStartedTaskBoardLane({
+			workspacePath: workspaceScope.workspacePath,
+			summary,
+		});
 
 		return {
 			ok: true,

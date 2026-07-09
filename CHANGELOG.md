@@ -54,6 +54,11 @@
   to LM Link devices via `NKLEIN_ROSTER_MACHINE_MAP` when needed, preflights the whole roster, guarded-loads each primary
   assignment on its target machine, restores the previous preferred device after each remote load, and verifies every model
   is resident before reporting the roster ready.
+- **LM-Link resident models no longer disappear from model selection when REST discovery omits them** (todo §5.AB). LM
+  Studio provider discovery, residency checks, and loaded-model descriptors now merge the live `lms ps --json` identities
+  with `/api/v1|v0/models`, so linked-host aliases can be selected and routed without triggering a load. The runtime also
+  runs `lms` with the real LM Studio home (or `NKLEIN_LMS_HOME`) so verifier/server processes with isolated `HOME` values
+  can still read LM Studio's local CLI auth state.
 - **Qwen2.5 Coder 7B package aliases now resolve to a specific catalog profile** (todo §5.AB). The model capability
   catalog now treats `qwen2.5.1-coder-7b-instruct` and the `mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit` path as the
   Qwen2.5 Coder 7B family instead of an unknown model, with the 7B footprint and full-synthesis prior kept separate from

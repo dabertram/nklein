@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	fetchLoadedModelDescriptors,
 	lmStudioApiV1ModelsUrl,
+	mergeLoadedModelDescriptors,
 	parseLoadedModelDescriptors,
 } from "../../../src/core/lmstudio-loaded-model-descriptors";
 
@@ -16,14 +17,22 @@ const PAYLOAD = {
 			architecture: "qwen35",
 			capabilities: { vision: false, trained_for_tool_use: true },
 			max_context_length: 262144,
-			loaded_instances: [{ id: "qwen3.5-9b-mtp-q4-k-xl-legion5pro", config: { context_length: 40000 } }],
+			loaded_instances: [
+				{
+					id: "qwen3.5-9b-mtp-q4-k-xl-legion5pro",
+					config: { context_length: 40000 },
+				},
+			],
 		},
 		// LOADED reasoner: a declared `reasoning` capability ⇒ reasoning=true.
 		{
 			type: "llm",
 			key: "qwen/qwen3.6-27b",
 			architecture: "qwen3_5",
-			capabilities: { trained_for_tool_use: true, reasoning: { allowed_options: ["off", "on"], default: "on" } },
+			capabilities: {
+				trained_for_tool_use: true,
+				reasoning: { allowed_options: ["off", "on"], default: "on" },
+			},
 			max_context_length: 262144,
 			loaded_instances: [{ id: "qwen/qwen3.6-27b" }],
 		},
@@ -35,7 +44,12 @@ const PAYLOAD = {
 			loaded_instances: [{ id: "text-embedding-nomic-embed-text-v1.5@q8_0-m4mini" }],
 		},
 		// NOT loaded (no instances) ⇒ skipped.
-		{ type: "llm", key: "qwen/qwen3-8b", capabilities: { trained_for_tool_use: true }, loaded_instances: [] },
+		{
+			type: "llm",
+			key: "qwen/qwen3-8b",
+			capabilities: { trained_for_tool_use: true },
+			loaded_instances: [],
+		},
 	],
 };
 
@@ -67,7 +81,11 @@ describe("parseLoadedModelDescriptors", () => {
 	});
 
 	it("falls back to the runtime id when the real key is absent, and tolerates junk", () => {
-		expect(parseLoadedModelDescriptors({ data: [{ loaded_instances: [{ id: "only-id" }] }] })[0]).toMatchObject({
+		expect(
+			parseLoadedModelDescriptors({
+				data: [{ loaded_instances: [{ id: "only-id" }] }],
+			})[0],
+		).toMatchObject({
 			runtimeId: "only-id",
 			modelKey: "only-id",
 			isEmbedding: false,
@@ -108,6 +126,48 @@ describe("parseLoadedModelDescriptors", () => {
 	});
 });
 
+describe("mergeLoadedModelDescriptors", () => {
+	it("augments REST descriptors with LM-Link models visible only through lms ps", () => {
+		const descriptors = mergeLoadedModelDescriptors(parseLoadedModelDescriptors(PAYLOAD), [
+			{
+				identifier: "qwen2.5.1-coder-7b-instruct",
+				modelKey: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				indexedModelIdentifier: "device-1:mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				path: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				machineId: "device-1",
+				isEmbedding: false,
+				status: "idle",
+				queued: 0,
+				parallel: 1,
+				trainedForToolUse: false,
+				contextLength: 32768,
+			},
+			{
+				identifier: "qwen/qwen3.6-27b",
+				modelKey: "qwen/qwen3.6-27b",
+				indexedModelIdentifier: null,
+				path: "qwen/qwen3.6-27b",
+				machineId: "device-2",
+				isEmbedding: false,
+				status: "idle",
+				queued: 0,
+				parallel: 1,
+				trainedForToolUse: true,
+				contextLength: 65536,
+			},
+		]);
+
+		expect(descriptors.find((d) => d.runtimeId === "qwen2.5.1-coder-7b-instruct")).toMatchObject({
+			runtimeId: "qwen2.5.1-coder-7b-instruct",
+			modelKey: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+			isEmbedding: false,
+			toolUse: false,
+			maxContextLength: 32768,
+		});
+		expect(descriptors.filter((d) => d.runtimeId === "qwen/qwen3.6-27b")).toHaveLength(1);
+	});
+});
+
 describe("lmStudioApiV1ModelsUrl", () => {
 	it("maps a /v1 base url to the native /api/v1/models url", () => {
 		expect(lmStudioApiV1ModelsUrl("http://127.0.0.1:1234/v1")).toBe("http://127.0.0.1:1234/api/v1/models");
@@ -117,7 +177,10 @@ describe("lmStudioApiV1ModelsUrl", () => {
 
 describe("fetchLoadedModelDescriptors", () => {
 	it("returns parsed descriptors on a 200 and [] on failure", async () => {
-		const ok = (async () => new Response(JSON.stringify(PAYLOAD), { status: 200 })) as unknown as typeof fetch;
+		const ok = (async () =>
+			new Response(JSON.stringify(PAYLOAD), {
+				status: 200,
+			})) as unknown as typeof fetch;
 		expect((await fetchLoadedModelDescriptors("http://x/v1", ok)).length).toBe(3);
 
 		const bad = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
@@ -137,7 +200,9 @@ describe("fetchLoadedModelDescriptors", () => {
 				return new Response("", { status: 404 });
 			}
 			return new Response(
-				JSON.stringify({ data: [{ id: "qwen/qwen2.5-coder-14b", state: "loaded", type: "llm" }] }),
+				JSON.stringify({
+					data: [{ id: "qwen/qwen2.5-coder-14b", state: "loaded", type: "llm" }],
+				}),
 				{ status: 200 },
 			);
 		}) as unknown as typeof fetch;

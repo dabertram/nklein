@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -595,6 +595,25 @@ async function withEnvRestored<T>(
 			setEnv(key, value);
 		}
 	}
+}
+
+function installFakeLmsPs(models: readonly unknown[]): { binDir: string; cleanup: () => void } {
+	const binDir = mkdtempSync(join(tmpdir(), "nklein-fake-lms-"));
+	const lmsPath = join(binDir, "lms");
+	writeFileSync(
+		lmsPath,
+		[
+			"#!/usr/bin/env node",
+			'if (process.argv.slice(2).join(" ") !== "ps --json") process.exit(2);',
+			`process.stdout.write(${JSON.stringify(JSON.stringify(models))});`,
+			"",
+		].join("\n"),
+	);
+	chmodSync(lmsPath, 0o755);
+	return {
+		binDir,
+		cleanup: () => rmSync(binDir, { recursive: true, force: true }),
+	};
 }
 
 function createNKleinTaskSessionServiceMock() {
@@ -1658,7 +1677,7 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("does not treat configured role models as hard pins while the role is in auto selection mode", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
-		const endpoint = "http://127.0.0.1:1234/v1";
+		const endpoint = "http://localhost:1234/v1";
 		setSelectedProviderSettings({
 			provider: "anthropic",
 			model: "qwen/qwen2.5-coder-14b",
@@ -1719,8 +1738,163 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen/qwen2.5-coder-14b",
+			}),
+		);
 		expect(response.selectionReason).not.toContain("Pinned worker model");
 		expect(response.selectionReason).not.toContain("Pinned-model recommendation");
+	});
+
+	it("keeps LM-Link worker pool models in the residency set when REST discovery omits them", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://localhost:1234/v1";
+		const primaryWorker = "qwen/qwen3-coder-next";
+		const linkedWorker = "qwen2.5.1-coder-7b-instruct";
+		setSelectedProviderSettings({
+			provider: "lmstudio",
+			model: primaryWorker,
+			apiKey: "local-key",
+			baseUrl: endpoint,
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "lmstudio",
+			models: [
+				{ id: primaryWorker, name: "Qwen3 Coder Next", contextWindow: 65_536 },
+				{ id: linkedWorker, name: "Qwen2.5.1 Coder 7B Instruct", contextWindow: 32_768 },
+			],
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`lmstudio:${primaryWorker}:${endpoint}`]: createModelRegistryEntry({
+					key: `lmstudio:${primaryWorker}:${endpoint}`,
+					providerId: "lmstudio",
+					modelId: primaryWorker,
+					endpoint,
+					contextWindow: 65_536,
+					capability: 65,
+				}),
+			},
+		});
+		const fakeLms = installFakeLmsPs([
+			{
+				type: "llm",
+				identifier: primaryWorker,
+				modelKey: primaryWorker,
+				deviceIdentifier: null,
+				status: "processingPrompt",
+				queued: 0,
+				parallel: 1,
+				trainedForToolUse: true,
+				contextLength: 65_536,
+			},
+			{
+				type: "llm",
+				identifier: linkedWorker,
+				modelKey: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				indexedModelIdentifier: "m4:mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				path: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				deviceIdentifier: "m4",
+				status: "idle",
+				queued: 0,
+				parallel: 1,
+				trainedForToolUse: false,
+				contextLength: 32_768,
+			},
+		]);
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = vi.fn(async (url: unknown) => {
+			const href = String(url);
+			if (href.endsWith("/api/v1/models")) {
+				return new Response(
+					JSON.stringify({
+						models: [
+							{
+								type: "llm",
+								key: primaryWorker,
+								max_context_length: 65_536,
+								capabilities: { trained_for_tool_use: true },
+								loaded_instances: [{ id: primaryWorker }],
+							},
+						],
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response(JSON.stringify({ data: [{ id: primaryWorker, state: "loaded", type: "llm" }] }), {
+				status: 200,
+			});
+		}) as unknown as typeof globalThis.fetch;
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.listModelEndpointSessions.mockReturnValue([
+			{
+				taskId: "already-running-worker",
+				state: "running",
+				startedAt: 1,
+				providerId: "lmstudio",
+				modelId: primaryWorker,
+				endpoint,
+			},
+		]);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "lmstudio",
+						modelId: primaryWorker,
+						additionalModels: [{ providerId: "lmstudio", modelId: linkedWorker }],
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		try {
+			const response = await withEnvRestored(
+				["VITEST", "NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS", "NKLEIN_QUEUE_AWARE_FREE_FIRST", "PATH"],
+				(setEnv) => {
+					setEnv("VITEST", undefined);
+					setEnv("NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS", "0");
+					setEnv("NKLEIN_QUEUE_AWARE_FREE_FIRST", "1");
+					setEnv("PATH", `${fakeLms.binDir}:${process.env.PATH ?? ""}`);
+				},
+				() =>
+					api.startTaskSession(
+						{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+						{
+							taskId: "task-1",
+							baseRef: "main",
+							prompt: "Implement a focused change.",
+						},
+					),
+			);
+
+			expect(response.ok).toBe(true);
+			expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					providerId: "lmstudio",
+					modelId: linkedWorker,
+				}),
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			fakeLms.cleanup();
+		}
 	});
 
 	it("scopes explicit pins per role while unpinned roles stay on auto-selection", async () => {
@@ -2559,12 +2733,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			ok: true,
 			json: async () => ({ data: [{ id: "some-other-loaded-model", state: "loaded" }] }),
 		})) as unknown as typeof globalThis.fetch;
+		const fakeLms = installFakeLmsPs([]);
 		try {
 			const response = await withEnvRestored(
-				["VITEST", "NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS"],
+				["VITEST", "NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS", "PATH"],
 				(setEnv) => {
 					setEnv("VITEST", undefined);
 					setEnv("NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS", "0");
+					setEnv("PATH", `${fakeLms.binDir}:${process.env.PATH ?? ""}`);
 				},
 				() =>
 					api.startTaskSession(
@@ -2585,6 +2761,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		} finally {
 			globalThis.fetch = originalFetch;
+			fakeLms.cleanup();
 		}
 		// Tripwire: withEnvRestored must have put VITEST back (a leak would silently break sibling tests).
 		expect(process.env.VITEST).toBeDefined();

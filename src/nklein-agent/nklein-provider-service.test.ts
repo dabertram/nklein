@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,6 +42,7 @@ import {
 } from "./nklein-provider-service";
 
 const providerSelectionPath = join(tmpdir(), "kanban-nklein-provider-service-test-selection.json");
+let defaultFakeLms: ReturnType<typeof installFakeLmsPs> | null = null;
 
 function resetProviderSelection(): void {
 	rmSync(providerSelectionPath, { force: true });
@@ -53,12 +54,36 @@ function writeProviderSelection(providerId: string): void {
 	writeFileSync(providerSelectionPath, `${JSON.stringify({ providerId }, null, 2)}\n`, "utf8");
 }
 
+function installFakeLmsPs(models: readonly unknown[]): { binDir: string; cleanup: () => void } {
+	const binDir = mkdtempSync(join(tmpdir(), "nklein-fake-lms-"));
+	const lmsPath = join(binDir, "lms");
+	writeFileSync(
+		lmsPath,
+		[
+			"#!/usr/bin/env node",
+			'if (process.argv.slice(2).join(" ") !== "ps --json") process.exit(2);',
+			`process.stdout.write(${JSON.stringify(JSON.stringify(models))});`,
+			"",
+		].join("\n"),
+	);
+	chmodSync(lmsPath, 0o755);
+	return {
+		binDir,
+		cleanup: () => rmSync(binDir, { recursive: true, force: true }),
+	};
+}
+
 beforeEach(() => {
 	resetProviderSelection();
+	clearProviderModelDiscoveryCache();
+	defaultFakeLms = installFakeLmsPs([]);
+	vi.stubEnv("PATH", `${defaultFakeLms.binDir}:${process.env.PATH ?? ""}`);
 });
 
 afterEach(() => {
 	rmSync(providerSelectionPath, { force: true });
+	defaultFakeLms?.cleanup();
+	defaultFakeLms = null;
 	vi.unstubAllEnvs();
 });
 
@@ -594,6 +619,63 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.id).toBe("qwen/qwen3.5-9b-mtp-m1");
 		expect(models[0]?.contextWindow).toBe(80_000);
+	});
+
+	it("adds resident LM-Link aliases from lms ps when REST discovery omits them", async () => {
+		const primaryWorker = "qwen/qwen3-coder-next";
+		const linkedWorker = "qwen2.5.1-coder-7b-instruct";
+		listSdkProviderModelsMock.mockResolvedValue([]);
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: [
+					{
+						id: primaryWorker,
+						name: "Qwen3 Coder Next",
+						state: "loaded",
+						max_context_length: 65_536,
+					},
+				],
+			}),
+		})) as unknown as typeof globalThis.fetch;
+		const fakeLms = installFakeLmsPs([
+			{
+				type: "llm",
+				identifier: primaryWorker,
+				modelKey: primaryWorker,
+				status: "processingPrompt",
+				contextLength: 65_536,
+			},
+			{
+				type: "llm",
+				identifier: linkedWorker,
+				modelKey: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				indexedModelIdentifier: "m4:mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				path: "mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+				deviceIdentifier: "m4",
+				status: "idle",
+				contextLength: 32_768,
+			},
+		]);
+		const originalPath = process.env.PATH;
+		process.env.PATH = `${fakeLms.binDir}:${originalPath ?? ""}`;
+		try {
+			const models = await loadProviderModelsWithFallback("lmstudio");
+
+			expect(models).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: primaryWorker, contextWindow: 65_536 }),
+					expect.objectContaining({ id: linkedWorker, contextWindow: 32_768 }),
+				]),
+			);
+		} finally {
+			if (originalPath === undefined) {
+				delete process.env.PATH;
+			} else {
+				process.env.PATH = originalPath;
+			}
+			fakeLms.cleanup();
+		}
 	});
 
 	it("overrides provider context windows with measured model registry windows", () => {
