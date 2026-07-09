@@ -11,7 +11,12 @@ describe("local-storage-store", () => {
 	});
 
 	it("migrates every legacy kanban.* key to nklein.* once", () => {
-		const migratedKeys = Object.values(LocalStorageKey).filter((key) => key.startsWith("nklein."));
+		// Only keys that PREDATE the rebrand have a kanban.* twin — keys born after it (e.g. the setup-wizard
+		// skip marker) have nothing to migrate, so seeding a fake twin for them would assert a phantom migration.
+		const postRebrandKeys = new Set<string>([LocalStorageKey.SetupWizardSkipped]);
+		const migratedKeys = Object.values(LocalStorageKey).filter(
+			(key) => key.startsWith("nklein.") && !postRebrandKeys.has(key),
+		);
 		for (const key of migratedKeys) {
 			window.localStorage.setItem(toLegacyKey(key), `${key}-value`);
 		}
@@ -24,6 +29,8 @@ describe("local-storage-store", () => {
 			expect(window.localStorage.getItem(toLegacyKey(key))).toBeNull();
 		}
 		expect(window.localStorage.getItem(LocalStorageKey.ProjectNavigationPanelWidth)).toBeNull();
+		// A post-rebrand key is untouched by the migration (no phantom kanban.* source).
+		expect(window.localStorage.getItem(LocalStorageKey.SetupWizardSkipped)).toBeNull();
 	});
 
 	it("reads a legacy key through the fallback path and rewrites it to the new key", () => {
