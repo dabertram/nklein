@@ -243,8 +243,30 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// Specific 7B row first: the Qwen2.5.1-Coder MLX package is a naming/package refresh of the 7B coder line, not an
+		// unknown family. Keep it ahead of the generic Qwen2.5-Coder row so packing/advice sees the 7B footprint.
+		family: "qwen2.5-coder-7b",
+		match: /qwen2[._-]?5(?:[._-]?1)?[._-]?coder[._-]?7b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "code",
+		chaining: "native",
+		synthesis: "full",
+		structuredOutput: "json_schema",
+		speed: "fast",
+		sizeGb: 4.3,
+		note: "Qwen2.5 Coder 7B Instruct, including the `qwen2.5.1-coder-7b-instruct` MLX package id. It is the same practical 7B coder family as the prior laptop sweep: native multi-tool chain, full synthesis, fast, and small enough for m4mini worker slots. The 2026-07-09 m4mini guarded load confirmed the MLX 4bit package is resident at ~4.3 GB with 32k context; the live swarm verifier still needs a clean run after the Docker interruption and earlier broken 14B package/template evidence.",
+		sources: [
+			"https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct",
+			"https://huggingface.co/mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+			"live guarded load 2026-07-09 on m4mini (`qwen2.5.1-coder-7b-instruct`, 32k context, ~4.3 GB resident)",
+			"live chat-agent e2e 2026-07-01 (model-lab guarded sweep on laptop — qwen2.5-coder-7b-instruct CLEAN PASS, ~18s, full synth)",
+		],
+		basis: "both",
+		verified: true,
+	},
+	{
 		family: "qwen2.5-coder",
-		match: /qwen2\.?5-coder/,
+		match: /qwen2[._-]?5(?:[._-]?1)?[._-]?coder/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "code",
 		chaining: "native",

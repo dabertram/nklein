@@ -16,6 +16,22 @@ describe("model-capability-catalog: lookup", () => {
 		expect(lookupModelCapability("google/gemma-4-e2b")?.family).toBe("gemma-4-e2b");
 	});
 
+	it("resolves Qwen2.5 Coder 7B package/version aliases as the specific 7B row", () => {
+		for (const id of [
+			"qwen2.5-coder-7b-instruct",
+			"qwen2.5.1-coder-7b-instruct",
+			"mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit",
+		]) {
+			const entry = lookupModelCapability(id);
+			expect(entry?.family, id).toBe("qwen2.5-coder-7b");
+			expect(entry?.sizeGb, id).toBe(4.3);
+			expect(entry?.synthesis, id).toBe("full");
+			expect(assessModelSuitability(id, DEFAULT_MODEL_SUITABILITY_POLICY).severity, id).toBe("ok");
+		}
+
+		expect(lookupModelCapability("qwen/qwen2.5-coder-14b")?.family).toBe("qwen2.5-coder");
+	});
+
 	it("matches the most SPECIFIC family first (reasoning before mini-instruct; e4b before a generic gemma-4)", () => {
 		// phi-4-mini-reasoning must NOT fall through to the broader phi-4-mini(-instruct) pattern.
 		expect(lookupModelCapability("microsoft/phi-4-mini-reasoning")?.family).toBe("phi-4-mini-reasoning");

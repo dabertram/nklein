@@ -34,6 +34,10 @@
   to LM Link devices via `NKLEIN_ROSTER_MACHINE_MAP` when needed, preflights the whole roster, guarded-loads each primary
   assignment on its target machine, restores the previous preferred device after each remote load, and verifies every model
   is resident before reporting the roster ready.
+- **Qwen2.5 Coder 7B package aliases now resolve to a specific catalog profile** (todo §5.AB). The model capability
+  catalog now treats `qwen2.5.1-coder-7b-instruct` and the `mlx-community/Qwen2.5.1-Coder-7B-Instruct-4bit` path as the
+  Qwen2.5 Coder 7B family instead of an unknown model, with the 7B footprint and full-synthesis prior kept separate from
+  the broader 14B-oriented Qwen2.5 Coder row.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

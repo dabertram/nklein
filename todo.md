@@ -333,6 +333,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   I read Local/m5max's LM Studio config and floated its JIT-TTL as a cause for a model that was on m4mini — where JIT
 >   was actually OFF, refuting the hypothesis. Convenient nearby data masquerading as the real data, one level below the
 >   first TTL miss.)
+> - **Catalog model/package aliases by evidenced capability family, not by hope.** If LM Studio or Hugging Face exposes a
+>   patched/package-specific id such as `qwen2.5.1-coder-7b-instruct`, classify it from the underlying model family and
+>   the observed package behavior, with a specific catalog row when size or behavior differs. Do not unblock a run by
+>   suppressing an UNKNOWN warning unless the matcher, sources, and regression tests prove the alias is the intended
+>   family.
 > - **GATE a hypothesis on CONSISTENCY with ALL the facts you ALREADY hold, BEFORE you entertain / rank / investigate it —
 >   check the MECHANISM and the MAGNITUDES, not just surface plausibility.** Ask two questions of every candidate cause:
 >   (1) *does the proposed mechanism even apply to the observed conditions?* (2) *do the numbers/timeline fit?* A
@@ -374,6 +379,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   the run artifacts, diagnose from evidence, and either recover or file the concrete bug. Verifier harnesses must not treat
 >   `state:"running"` as progress by itself: a quiet-running session needs a bounded, model-aware lane that records the
 >   `lms ps` state (`IDLE` vs `PROCESSINGPROMPT`/`GENERATING`) in the abort/wait diagnostic.
+> - **Be generous with ACTIVE model timeouts, especially on low-spec hardware.** !Klein's vision includes making weaker
+>   machines useful, so a checked `PROCESSINGPROMPT`/`GENERATING` model is not a failure just because it is slow. Use
+>   generous, hardware-aware active bounds; reserve fast aborts for verified idle/unloaded/stuck states, missing sessions,
+>   repeated no-progress loops, or explicit harness limits. When a low-spec model is slow but still active, record latency
+>   as capacity/fit evidence rather than prematurely calling the model unsuitable.
 > - **`lms ps`** — live per-model state: `PROCESSINGPROMPT` (prefilling — emits NO stream tokens, so this is what trips a
 >   stream-INACTIVITY timeout) vs `GENERATING` (emitting tokens) vs `IDLE`, plus loaded context window + parallelism. This
 >   alone distinguishes "prefilling slowly", "generating a long reasoning block", and "actually hung".
@@ -968,6 +978,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - **§5.P:** **keep deferred** until we reach it (it's the last task; boundary depends on how everything lands).
 
 ### 5.A — Finish strict-isolation reconciliation & live verification
+- [ ] **Docker sandbox efficiency/isolation profile audit + settings.** *(Raised 2026-07-09, user: prefer leaner Docker
+      resource use; possibly one shared container with dedicated Unix users per agent, but user decides the balance.)*
+      Current live fleet runs can leave several `nklein-agent-sandbox-*` containers alive at once; that may be correct for
+      strict per-task isolation, but it needs a deliberate product setting instead of an implicit runtime shape. Audit the
+      actual `AgentSandboxManager` pool/container model, container naming/reaping, mount lifecycle, per-task cwd lifecycle
+      (including the live `chdir /workspaces/<taskId> ... no such file or directory` evidence), result capture/delivery
+      lifecycle (2026-07-09 m4mini fleet run: focus-chain marked formatter files done and model-performance recorded
+      `sandbox_patch_captured`, but the host dev workspace only contained `.nklein/nklein/workspace/*` metadata and no
+      `src/formatters/*` after the agent abort), and resource cost under multi-card swarms. Then design and, if sound,
+      implement global + project settings for an **isolation profile**:
+      strict per-task/per-agent container (default/safest), lean shared project container, and/or shared global container
+      only if the threat model holds. Shared-container profiles must use separate in-container users, separate workdirs,
+      least-privilege ownership/umask, process cleanup, per-task cwd existence checks, no host fallback, unchanged
+      `--network none` default, and fail-closed degradation when the requested profile cannot preserve isolation. Add UI
+      copy that honestly explains the tradeoff (stronger isolation vs lower Docker overhead), unit tests for policy
+      resolution, integration tests proving two agents cannot read/write each other's workspace under the lean profile,
+      and a live Docker measurement note comparing container count/resource use across profiles before marking done.
 - [x] **Created-workspace location guard (2026-06-25, user-directed safety fix after a real pollution incident).** A
       dev-test scaffold (`scaffoldNKleinDevTestProject`) whose `parentDir` resolved inside the repo seeded ~23 fixture
       commits onto the working branch + flipped `core.bare=true` (broke all work-tree git ops). Fix:
@@ -5468,6 +5495,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         small-model contract: models may report status, but the controller owns global transitions.)*
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
+- [ ] **Measure and configure LM Studio concurrency per host and per model.** *(Raised 2026-07-09, user: the M5 Max may
+      be able to sustain concurrent local LLM requests; do not assume either overload or incapability.)* Build a
+      measurement-backed serving-capacity layer instead of hardcoded caution. The runtime/verifier should record live
+      host/model concurrency, queueing, prompt-processing/generation overlap, latency, failures, and memory headroom for
+      each LM Studio host (`Local`, `m4mini`, `legion5pro`, etc.) and model. Add global + project settings for
+      `maxConcurrentRequests` per LM Studio host and optional per-model overrides, with an auto-measured/default mode that
+      can recommend higher or lower caps while respecting explicit user caps. Wire the scheduler/model router to these
+      caps so a powerful host like the M5 Max can run multiple concurrent requests when measured safe, while smaller
+      hosts stay conservative. Verification: a no-write capacity probe for loaded models, a live fleet run proving the caps
+      shape scheduling, UI coverage for editing host/model caps, and docs explaining that concurrency is empirical and
+      machine/model-specific.
+      **Live evidence to preserve (2026-07-09):** the M5 Max ran local `qwen/qwen3.6-35b-a3b` + Devstral concurrently
+      while Legion Gemma 12B was active; do not treat that as overload without measurement. The m4mini `qwen3.5-9b-mlx`
+      architect run was very slow but genuinely active: LM Studio status alternated `PROCESSINGPROMPT`/`GENERATING`, then
+      model-performance recorded `awaiting_review` after ~42 minutes, ~10.9k output tokens, and a low nominal context
+      pressure (~0.33). Stall detection, verifier logs, and capacity recommendations must combine LM status with run
+      artifacts instead of assuming either "still generating" or "stalled" from wall time alone.
 > **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**
 > NO manual role→model assignment (the user's `modelRoles` config was early-testing, now deprecated — "forget my
 > config"). Each card AUTO-gets the best-fit **model + dynamic skill set**, decided by !Klein from (1) runtime empirical
@@ -7077,6 +7121,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the cadence turn, and lastReanchorTurn advances — the multi-turn restatement contract, deterministic.)*
   - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models). ⏱ FLEET-RUN
         *(the flag flip + drift measurement across the roster is model-time; rides the sweep phase)*
+- [ ] **Observation-driven context-size recommendations for slow processing.** *(Raised 2026-07-09, user: suggest
+      context-size limits from observed slow processing, while keeping low-spec hardware enablement as the leading
+      vision.)* Collect per-host/per-model prompt tokens, requested window, actual prompt/generation timing, active wait,
+      stall/no-progress signals, success/failure, and task outcome. Use those observations to recommend task/role/context
+      caps or smart-zone/compaction thresholds that improve throughput on slow hardware **without excluding it**. The
+      recommendation must be advisory/default-adaptive, not a hard reject: if a low-spec host can keep working slowly,
+      !Klein should offer smaller context slices, stronger compaction, phased retrieval, more decomposition, queueing, or
+      overnight/long-running mode before calling the task impossible. Surface "recommended max context for this
+      host/model/role" with user override, add deterministic tests for the recommendation logic, and add a live validation
+      note showing slow-processing evidence changes the suggestion.
 - [~] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:** *(the
       quality-knee ESTIMATOR pure core [~] + the web Settings surfacing [x] are done; the remaining children are the
       prompt-assembly wiring (behind §5.Z re-verify) + eval-sweep probes + the small-model quality test, all fleet/live-
