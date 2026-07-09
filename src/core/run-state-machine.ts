@@ -67,6 +67,27 @@ export interface RunPhaseDecision {
 	reason: string;
 }
 
+export interface RunPhaseTransition {
+	from: RunPhase;
+	to: RunPhase;
+	evidence: RunEvidence;
+	reason: string;
+	/** The phase-owned tool/budget policy in force while `from` ran. */
+	policy: RunPhasePolicy;
+}
+
+export interface RunPhaseFlowResult {
+	finalPhase: RunPhase;
+	transitions: readonly RunPhaseTransition[];
+	stoppedReason: "terminal" | "stalled" | "max_transitions";
+}
+
+export interface RunPhaseFlowInput {
+	initialPhase?: RunPhase;
+	maxTransitions?: number;
+	evidenceForPhase: (phase: RunPhase, transitions: readonly RunPhaseTransition[]) => RunEvidence;
+}
+
 /**
  * Decide the next phase from the current phase + observed evidence. Conservative by construction: an unproven
  * precondition never advances (it re-runs the current phase or parks when the budget is spent), repo mutation
@@ -193,4 +214,34 @@ export function selectPhaseTools<T extends { mutationLevel: ToolMutationLevel }>
 	tools: readonly T[],
 ): T[] {
 	return tools.filter((tool) => isToolAllowedInPhase(phase, tool.mutationLevel));
+}
+
+/**
+ * Drive the global phase ladder with an injected evidence source. This is still pure: the caller owns observation/tool
+ * execution; the driver owns ordering, per-phase budget policy capture, terminal detection, and no-progress safety.
+ */
+export function driveRunPhaseFlow(input: RunPhaseFlowInput): RunPhaseFlowResult {
+	let phase = input.initialPhase ?? "intake";
+	const maxTransitions = Math.max(1, Math.trunc(input.maxTransitions ?? 32));
+	const transitions: RunPhaseTransition[] = [];
+	for (let index = 0; index < maxTransitions; index++) {
+		if (isTerminalRunPhase(phase)) {
+			return { finalPhase: phase, transitions, stoppedReason: "terminal" };
+		}
+		const evidence = input.evidenceForPhase(phase, transitions);
+		const decision = decideNextPhase(phase, evidence);
+		const transition: RunPhaseTransition = {
+			from: phase,
+			to: decision.next,
+			evidence: { ...evidence },
+			reason: decision.reason,
+			policy: runPhasePolicy(phase),
+		};
+		transitions.push(transition);
+		if (decision.next === phase) {
+			return { finalPhase: phase, transitions, stoppedReason: "stalled" };
+		}
+		phase = decision.next;
+	}
+	return { finalPhase: phase, transitions, stoppedReason: "max_transitions" };
 }

@@ -7,6 +7,9 @@
   applies the phase's inner-loop tool budget. The runtime resolver exposes this behind an optional phase hook, so normal chat
   remains unchanged until a controller supplies a phase; offered tool names now also reach the existing evidence gate that
   prevents premature "done" replies on explicit multi-tool instructions.
+  The pure controller now also has a full phase-flow driver that walks intake→plan→validate→localize→execute/observe/
+  evaluate→review→merge→done from injected evidence, captures each phase's tool/budget policy on the transition record,
+  and stops safely on terminal, park, stall, or transition cap.
 - **Fleet verification now proves the configured role models actually ran** (todo §5.AB). The complex fleet-swarm verifier
   records runtime and ledger model usage and fails unless the configured architect, worker, and reviewer models are observed,
   so a run cannot pass by silently routing worker cards to the default model or hiding a synthetic reviewer session. Cold

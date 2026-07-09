@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	decideNextPhase,
+	driveRunPhaseFlow,
 	isTerminalRunPhase,
 	isToolAllowedInPhase,
 	type RunPhase,
@@ -68,6 +69,80 @@ describe("run-state-machine — phase ladder", () => {
 			expect(decideNextPhase(phase, { budgetExhausted: true }).next).toBe(phase); // no park-override from terminal
 		}
 		expect(isTerminalRunPhase("execute_step")).toBe(false);
+	});
+});
+
+describe("run-state-machine — full phase flow driver", () => {
+	it("drives the full evidence-owned flow end-to-end and captures each phase budget", () => {
+		const result = driveRunPhaseFlow({
+			evidenceForPhase: (phase, transitions) => {
+				if (phase === "validate_plan") {
+					return { planValid: true };
+				}
+				if (phase === "localize") {
+					return { localized: true };
+				}
+				if (phase === "evaluate") {
+					const evaluateCount = transitions.filter((transition) => transition.from === "evaluate").length;
+					return evaluateCount === 0
+						? { stepSucceeded: true, allStepsComplete: false }
+						: { allStepsComplete: true };
+				}
+				if (phase === "review") {
+					return { reviewPassed: true };
+				}
+				return {};
+			},
+		});
+
+		expect(result.stoppedReason).toBe("terminal");
+		expect(result.finalPhase).toBe("done");
+		expect(result.transitions.map((transition) => transition.from)).toEqual([
+			"intake",
+			"plan",
+			"validate_plan",
+			"localize",
+			"execute_step",
+			"observe",
+			"evaluate",
+			"execute_step",
+			"observe",
+			"evaluate",
+			"review",
+			"merge_or_escalate",
+		]);
+		expect(result.transitions.find((transition) => transition.from === "execute_step")?.policy.maxToolCalls).toBe(
+			runPhasePolicy("execute_step").maxToolCalls,
+		);
+	});
+
+	it("stops as stalled when evidence cannot advance a non-terminal phase", () => {
+		const result = driveRunPhaseFlow({
+			initialPhase: "localize",
+			evidenceForPhase: () => ({}),
+		});
+
+		expect(result).toMatchObject({
+			finalPhase: "localize",
+			stoppedReason: "stalled",
+		});
+		expect(result.transitions).toHaveLength(1);
+		expect(result.transitions[0]).toMatchObject({
+			from: "localize",
+			to: "localize",
+			reason: "Not yet localized — repo mutation is forbidden until it is.",
+		});
+	});
+
+	it("parks when a phase budget is exhausted", () => {
+		const result = driveRunPhaseFlow({
+			initialPhase: "execute_step",
+			evidenceForPhase: () => ({ budgetExhausted: true }),
+		});
+
+		expect(result.finalPhase).toBe("park");
+		expect(result.stoppedReason).toBe("terminal");
+		expect(result.transitions.map((transition) => transition.to)).toEqual(["park"]);
 	});
 });
 

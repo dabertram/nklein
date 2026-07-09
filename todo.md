@@ -5439,8 +5439,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         composed with the named-tools gate in chat-agent-turn. 3 pure tests + a turn-level test proving a premature
         prose "done" is nudged until the acceptance run is green.)*
   - [~] Drive full phase ladder: per-phase context + tool subset + budget assignment *(2026-07-09: first live seam done —
-        optional `resolveRunPhase` narrows chat tool executors/schemas and applies the phase tool-call budget; still needs
-        the actual controller/phase owner and phase-specific context injection.)*
+        optional `resolveRunPhase` narrows chat tool executors/schemas and applies the phase tool-call budget. Pure
+        controller owner now exists too: `driveRunPhaseFlow` walks phases from injected evidence, records transitions with
+        the phase policy in force, and stops on terminal/stalled/capped flows. Still needs live phase-specific context
+        injection into the runtime turn.)*
   - [x] Record each transition on §5.AF ledger (`transition` event kind) *(✅ 2026-07-08 — LIVE writer wired:
         `createSessionTransitionRecorder` (nklein-runtime-terminal-telemetry) hooks the runtime-server's onSummary
         seam and appends a `transition` event on every task-session STATE CHANGE (queued→running→review→…; same-state
@@ -5452,7 +5454,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         unreadable ledgers are byte-identical/no-note; tests seed a prior failed attempt and prove the next SDK start
         prompt carries the "do NOT repeat" note while unrelated workflow attempts are excluded. Focused verification:
         `npx vitest run test/runtime/nklein-agent/nklein-session-system-prompt.test.ts test/runtime/nklein-agent/nklein-task-session-service.test.ts`.)*
-  - [ ] Verify full phase flow works end-to-end (intake→plan→validate→localize→execute→…→done)
+  - [x] Verify full phase flow works end-to-end (intake→plan→validate→localize→execute→…→done) *(✅ 2026-07-09 —
+        `driveRunPhaseFlow` in [run-state-machine.ts](src/core/run-state-machine.ts) is a pure phase owner over injected
+        evidence: it walks the full nominal flow through repeated execute/observe/evaluate steps to `done`, captures each
+        transition reason + phase tool/budget policy for the ledger/runtime seam, parks on budget exhaustion, and stops
+        `stalled` when a non-terminal phase cannot advance. Tests cover full clean flow, no-localization stall, and
+        budget-exhausted park.)*
   - [ ] Test with small models (ensures they can't own global transitions)
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
