@@ -437,8 +437,10 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("Running 1");
 		expect(container.textContent).toContain("Waiting 1");
 		expect(container.textContent).toContain("Blocked 1");
-		expect(container.textContent).toContain("lmstudio:default 1 active (qwen3)");
-		expect(container.textContent).toContain("One endpoint is serializing work");
+		// Endpoint chips condense ids to the machine label ("local"), never a truncated raw URL/id.
+		expect(container.textContent).toContain("local 1 active (qwen3)");
+		// The nudge renders as a compact chip; the full sentence lives in its tooltip.
+		expect(container.textContent).toContain("one endpoint serializing");
 		expect(container.textContent).toContain("Code intel");
 		const pauseButton = Array.from(container.querySelectorAll("button")).find((button) =>
 			button.textContent?.includes("Pause"),

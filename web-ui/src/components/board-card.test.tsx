@@ -145,7 +145,8 @@ function Harness(): React.ReactElement {
 		<BoardCard
 			card={card}
 			index={0}
-			columnId="backlog"
+			// The cancel-auto-action button only shows when the action is imminent (doing/review or a live session).
+			columnId="in_progress"
 			onCancelAutomaticAction={() => {
 				setCard((currentCard) => ({
 					...currentCard,

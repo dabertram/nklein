@@ -27,7 +27,7 @@ import { BoardHealthSummary } from "@/components/board-health-summary";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { FleetStrip } from "@/components/fleet-strip";
-import { composeFleetRows } from "@/components/fleet-strip-model";
+import { composeFleetRows, toEndpointLabel } from "@/components/fleet-strip-model";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
@@ -1002,7 +1002,8 @@ export function KanbanBoard({
 	return (
 		<div className="flex flex-1 min-h-0 min-w-0 flex-col">
 			<div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-1 px-3">
-				<div className="flex min-w-0 items-center gap-2 text-xs text-text-secondary">
+				{/* The cockpit counts row never wraps mid-word ("Local␤swarm") — it scrolls horizontally on overflow. */}
+				<div className="flex min-w-0 items-center gap-2 overflow-x-auto text-xs whitespace-nowrap text-text-secondary [scrollbar-width:none]">
 					<span className="font-medium text-text-primary">Local swarm</span>
 					<span>Running {swarmCounts.running}</span>
 					<span>Waiting {swarmCounts.waiting}</span>
@@ -1042,17 +1043,23 @@ export function KanbanBoard({
 					{endpointUtilization.slice(0, 2).map((endpoint) => (
 						<span
 							key={endpoint.endpointId}
+							title={endpoint.endpointId}
 							className="inline-flex max-w-64 items-center truncate rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary"
 						>
-							{formatEndpointUtilizationChip(endpoint)}
+							{/* Endpoint ids are URLs/shared-endpoint ids — condensed to the machine label ("local", host:port)
+							    so the chip never truncates mid-URL ("htt…"); the raw id lives in the tooltip. */}
+							{formatEndpointUtilizationChip({ ...endpoint, endpointId: toEndpointLabel(endpoint.endpointId) })}
 						</span>
 					))}
 					{endpointUtilization.length > 2 ? (
 						<span className="text-text-tertiary">+{endpointUtilization.length - 2} endpoints</span>
 					) : null}
 					{endpointParallelismNudge ? (
-						<span className="hidden max-w-80 truncate text-status-gold lg:inline">
-							{endpointParallelismNudge}
+						<span
+							className="hidden items-center gap-1 text-status-gold lg:inline-flex"
+							title={endpointParallelismNudge}
+						>
+							⚠ one endpoint serializing
 						</span>
 					) : null}
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}

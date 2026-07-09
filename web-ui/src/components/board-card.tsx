@@ -785,8 +785,14 @@ export function BoardCard({
 		});
 	const isAnyGitActionLoading = isCommitLoading || isOpenPrLoading;
 	const canCopyEvidence = !isTrashCard && Boolean(onCopyEvidence);
+	// The cancel-auto-action button only renders when the automatic action could actually fire soon — a live
+	// session, or the card already in the doing/review lanes. Twelve queued planning cards each wearing a
+	// full-width "Cancel Auto-commit" button was pure chrome noise (live-found 2026-07-10).
+	const automaticActionImminent = columnId === "in_progress" || columnId === "review" || sessionSummary !== undefined;
 	const cancelAutomaticActionLabel =
-		!isTrashCard && card.autoReviewEnabled ? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode) : null;
+		!isTrashCard && card.autoReviewEnabled && automaticActionImminent
+			? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode)
+			: null;
 	// The agent chip marks a DIVERGENCE from the workspace's selected agent — repeating the default agent on
 	// every card said nothing (live-found 2026-07-09: every card wore "!Klein · <default model>" while the violet
 	// badge showed the same model again, so "which model is this?" had two truncated answers).
