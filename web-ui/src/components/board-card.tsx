@@ -957,8 +957,9 @@ export function BoardCard({
 									) : onSaveTitle ? (
 										<div className="flex items-center gap-1 min-w-0">
 											<p
+												title={displayTitle}
 												className={cn(
-													"kb-line-clamp-1 m-0 min-w-0 font-medium text-sm",
+													"kb-line-clamp-2 m-0 min-w-0 font-medium text-sm",
 													isTrashCard && "line-through text-text-tertiary",
 												)}
 											>
@@ -983,8 +984,9 @@ export function BoardCard({
 										</div>
 									) : (
 										<p
+											title={displayTitle}
 											className={cn(
-												"kb-line-clamp-1 m-0 font-medium text-sm",
+												"kb-line-clamp-2 m-0 font-medium text-sm",
 												isTrashCard && "line-through text-text-tertiary",
 											)}
 										>
