@@ -141,6 +141,12 @@ function describeRuntimeRolePin(
 	return `${role} model ${label}`;
 }
 
+function describeRuntimeTaskModelPin(pin: { providerId?: string | null; modelId?: string | null }): string {
+	const provider = pin.providerId?.trim();
+	const model = pin.modelId?.trim();
+	return provider && model ? `${provider}/${model}` : (model ?? provider ?? "(unspecified)");
+}
+
 function createPinnedModelUnavailableStartError(
 	role: "architect" | "worker",
 	pin: { providerId?: string | null; modelId?: string | null },
@@ -148,6 +154,16 @@ function createPinnedModelUnavailableStartError(
 	return (
 		`Pinned ${describeRuntimeRolePin(role, pin)} is not currently selectable. ` +
 		`Load that model, choose a different pinned ${role} model, or switch the ${role} assignment back to Auto.`
+	);
+}
+
+function createPinnedTaskModelUnavailableStartError(pin: {
+	providerId?: string | null;
+	modelId?: string | null;
+}): string {
+	return (
+		`Pinned task model ${describeRuntimeTaskModelPin(pin)} is not currently selectable. ` +
+		"Load that model, choose a different task model override, or clear the task model override to use Auto."
 	);
 }
 
@@ -227,6 +243,9 @@ export async function handleStartTaskSession(
 		// disabled and the host-worktree subsystem is retired (§5.A). The card's nkleinSettings override
 		// (model + reasoning profile) is read fresh below, and resumeFromTrash is self-hydrated inside
 		// nkleinTaskSessionService.startTaskSession (readPersistedTaskSession), so no path probe is needed.
+		const taskModelPin = body.nkleinSettings?.modelId?.trim()
+			? { providerId: body.nkleinSettings.providerId ?? null, modelId: body.nkleinSettings.modelId }
+			: null;
 		const sandboxStatus = deps.refreshAgentSandboxStatus
 			? await deps.refreshAgentSandboxStatus()
 			: deps.getAgentSandboxStatus?.();
@@ -459,6 +478,16 @@ export async function handleStartTaskSession(
 		if (stableRoutingEnabled) {
 			applyStableRoutingKeysToCandidates(guardCandidates, resolveStableRoutingModelId);
 		}
+		const taskPinnedModelKey =
+			taskModelPin && nkleinLaunchConfig.modelId
+				? buildNKleinModelRegistryKey({
+						providerId: nkleinLaunchConfig.providerId,
+						modelId: stableRoutingEnabled
+							? resolveStableRoutingModelId(nkleinLaunchConfig.modelId)
+							: nkleinLaunchConfig.modelId,
+						endpoint: nkleinLaunchConfig.baseUrl ?? null,
+					})
+				: null;
 		// Best-fit affinity tags for a candidate, matched by its runtime model id against the loaded descriptors (undefined
 		// when the model isn't in the loaded set — e.g. a configured cloud role — so it simply carries no affinity).
 		const affinityTagsForCandidateModel = (modelId: string): readonly string[] | undefined => {
@@ -561,16 +590,16 @@ export async function handleStartTaskSession(
 			: null;
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
-		// W2.5 role auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role
-		// explicitly sets modelSelectionMode:"pinned" on a concrete primary model id. A valid explicit pin wins when loaded,
-		// class-eligible, and feasible.
+		// W2.5 role/task auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role
+		// explicitly sets modelSelectionMode:"pinned" on a concrete primary model id. A card's concrete task model override
+		// is also an explicit pin for that specific start. A valid explicit pin wins when loaded, class-eligible, and
+		// feasible.
 		// Later optimization passes (free-first, pool, cache-warmth, speed/capability) may diagnose that another model would
-		// be better, but they must NOT silently replace the pinned role model. If an explicit role pin is absent/unrunnable
-		// or fails the class/feasibility gate, fail closed with an operator-visible error instead of falling through to
-		// auto-selection. Act-mode cards apply the worker role pin only when the card carries no explicit provider/model
-		// choice; a decompose-pinned nkleinSettings model outranks role config. Plan mode keeps the shipped
-		// architect-over-card-settings precedence. The task-start residency gate above is untouched: an explicitly chosen
-		// unloaded model still hard-fails with the clear "load it first" error (§5.AB no-load safety).
+		// be better, but they must NOT silently replace an explicit pin. If an explicit pin is absent/unrunnable or fails
+		// the class/feasibility gate, fail closed with an operator-visible error instead of falling through to auto-selection.
+		// Role pins apply only when the card did not name a concrete task model; a task model override is the narrower
+		// choice. The task-start residency gate above is untouched: an explicitly chosen unloaded model still hard-fails with
+		// the clear "load it first" error (§5.AB no-load safety).
 		const cardRole = body.startInPlanMode ? ("architect" as const) : ("worker" as const);
 		const cardRoleSettings = scopedRuntimeConfig.effectiveModelRoles[cardRole];
 		const cardRoleHasConfiguredModel = Boolean(
@@ -579,7 +608,9 @@ export async function handleStartTaskSession(
 					(model) => model.providerId || model.modelId,
 				),
 		);
-		const rolePinApplies = body.startInPlanMode || !(body.nkleinSettings?.providerId || body.nkleinSettings?.modelId);
+		const rolePinApplies =
+			taskModelPin === null &&
+			(body.startInPlanMode || !(body.nkleinSettings?.providerId || body.nkleinSettings?.modelId));
 		const cardRolePin =
 			rolePinApplies &&
 			cardRoleHasConfiguredModel &&
@@ -642,10 +673,27 @@ export async function handleStartTaskSession(
 			})),
 			difficulty: taskDifficulty,
 			requiredContextTokens,
-			pinnedModelKey: roleAssignment.source === "pinned" ? roleAssignment.pick?.modelKey : null,
+			pinnedModelKey:
+				taskPinnedModelKey ?? (roleAssignment.source === "pinned" ? (roleAssignment.pick?.modelKey ?? null) : null),
 			weighting: "efficient",
 		});
 		const freeFirstSelection = swarmRoleDecision.selection;
+		const honoredTaskPinKey =
+			taskPinnedModelKey &&
+			freeFirstSelection.type === "assign" &&
+			freeFirstSelection.modelKey === taskPinnedModelKey
+				? taskPinnedModelKey
+				: null;
+		if (taskModelPin && taskPinnedModelKey && !honoredTaskPinKey) {
+			const selectionReason = `Pinned task model ${describeRuntimeTaskModelPin(taskModelPin)} is not selectable for the ${cardRole} role: ${freeFirstSelection.reason}`;
+			return {
+				ok: false,
+				summary: null,
+				error: createPinnedTaskModelUnavailableStartError(taskModelPin),
+				errorCode: "pinned_model_unavailable",
+				selectionReason,
+			};
+		}
 		const rolePinnedModelKey =
 			roleAssignment.source === "pinned" && roleAssignment.pick ? roleAssignment.pick.modelKey : null;
 		const honoredRolePinKey =
@@ -865,7 +913,7 @@ export async function handleStartTaskSession(
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: routingOutputTokens,
-			preferredModelKey: honoredRolePinKey ?? optimizationPreferredKey,
+			preferredModelKey: honoredTaskPinKey ?? honoredRolePinKey ?? optimizationPreferredKey,
 			candidates: [...guardCandidates.values()].map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {
@@ -924,6 +972,14 @@ export async function handleStartTaskSession(
 			honoredRolePinKey && optimizationPreferredKey !== honoredRolePinKey
 				? ` Pinned-model recommendation: ${optimizationPreferredKey} looks preferable because ${optimizationPreferenceReason}, but configured ${cardRole} pin ${honoredRolePinKey} was honored.`
 				: "";
+		const taskPinReasonSuffix =
+			honoredTaskPinKey && taskModelPin
+				? ` Pinned task model ${describeRuntimeTaskModelPin(taskModelPin)} is available — honoring the task model override.`
+				: "";
+		const taskModelRecommendationSuffix =
+			honoredTaskPinKey && optimizationPreferredKey !== honoredTaskPinKey
+				? ` Pinned-model recommendation: ${optimizationPreferredKey} looks preferable because ${optimizationPreferenceReason}, but task model override ${honoredTaskPinKey} was honored.`
+				: "";
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
 		const selectionReason =
 			renderModelSelectionReason(
@@ -958,10 +1014,23 @@ export async function handleStartTaskSession(
 				}),
 			) +
 			warmthReasonSuffix +
+			taskPinReasonSuffix +
 			rolePinReasonSuffix +
 			roleClassReasonSuffix +
 			roleClassPinSuffix +
+			taskModelRecommendationSuffix +
 			pinnedModelRecommendationSuffix;
+		const routedModelKey =
+			routingDecision.type === "assign" || routingDecision.type === "route_up" ? routingDecision.modelKey : null;
+		if (taskModelPin && taskPinnedModelKey && routedModelKey !== taskPinnedModelKey) {
+			return {
+				ok: false,
+				summary: null,
+				error: createPinnedTaskModelUnavailableStartError(taskModelPin),
+				errorCode: "pinned_model_unavailable",
+				selectionReason,
+			};
+		}
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,

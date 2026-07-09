@@ -35,7 +35,9 @@
   workers and plan critics now identify themselves as such in telemetry instead of reusing the reviewer label, so live
   sweeps do not imply that a pinned reviewer was ignored. The Settings assignment control now stays on Auto until a role
   has a concrete primary model and clears the pin immediately when that model is removed, preventing provider-only
-  "pins" that would be normalized away later.
+  "pins" that would be normalized away later. A concrete task/card model override is also honored as the narrowest pin
+  for that start, including plan-mode starts; if it fails class/feasibility checks, !Klein blocks with
+  `pinned_model_unavailable` instead of quietly launching the auto-selected role model.
 - **Reviewed sandbox re-drives now rebuild the full Docker tool surface** (todo §5.AB/§5.AR). When review finalization
   parks a card and frees its Docker workspace, !Klein closes task-scoped sandbox MCP transports before deleting the cwd.
   If that card is bounced or escalated, the next turn restores the result branch and restarts through the sandbox rebuild

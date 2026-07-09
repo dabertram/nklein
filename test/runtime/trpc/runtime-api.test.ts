@@ -1720,6 +1720,169 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.selectionReason).not.toContain("Pinned-model recommendation");
 	});
 
+	it("honors a concrete task model override instead of replacing it with an auto-selected worker model", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen2.5-coder-14b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:qwen/qwen2.5-coder-14b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen2.5-coder-14b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+					endpoint,
+					contextWindow: 32_768,
+					capability: 60,
+				}),
+				[`anthropic:mistralai/devstral-small-2-2512:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:mistralai/devstral-small-2-2512:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "mistralai/devstral-small-2-2512",
+					endpoint,
+					contextWindow: 65_536,
+					capability: 90,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "mistralai/devstral-small-2-2512",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Document the current habit score domain model and extension points.",
+				nkleinSettings: {
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+				},
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen/qwen2.5-coder-14b",
+			}),
+		);
+		expect(response.selectionReason).toContain("Pinned task model anthropic/qwen/qwen2.5-coder-14b");
+		expect(response.selectionReason).toContain("task model override");
+	});
+
+	it("blocks a concrete task model override that fails the role class gate instead of launching an auto candidate", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "qwen/qwen2.5-coder-14b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:phi-4-mini-reasoning:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:phi-4-mini-reasoning:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "phi-4-mini-reasoning",
+					endpoint,
+					contextWindow: 64_000,
+					capability: 99,
+				}),
+				[`anthropic:qwen/qwen2.5-coder-14b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:qwen/qwen2.5-coder-14b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "qwen/qwen2.5-coder-14b",
+					endpoint,
+					contextWindow: 64_000,
+					capability: 60,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "qwen/qwen2.5-coder-14b",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await withEnvRestored(
+			["NKLEIN_ALLOW_UNSUITABLE_MODEL"],
+			(setEnv) => setEnv("NKLEIN_ALLOW_UNSUITABLE_MODEL", "1"),
+			() =>
+				api.startTaskSession(
+					{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+					{
+						taskId: "task-1",
+						baseRef: "main",
+						prompt: "Document the current habit score domain model and extension points.",
+						nkleinSettings: {
+							providerId: "anthropic",
+							modelId: "phi-4-mini-reasoning",
+						},
+					},
+				),
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("pinned_model_unavailable");
+		expect(response.error).toContain("Pinned task model anthropic/phi-4-mini-reasoning");
+		expect(response.error).toContain("clear the task model override to use Auto");
+		expect(response.selectionReason).toContain("Pinned task model anthropic/phi-4-mini-reasoning");
+		expect(response.selectionReason).toContain("not selectable for the worker role");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
 	it("blocks an unavailable explicit worker pin instead of launching an auto candidate", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
@@ -2031,7 +2194,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.selectionReason).toContain("not loaded/runnable");
 	});
 
-	it("uses the configured architect role model for plan-mode starts with stale task model settings", async () => {
+	it("honors a concrete task model override for plan-mode starts instead of replacing it with architect role config", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -2105,10 +2268,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
-				modelId: "claude-opus",
-				reasoningEffort: "high",
+				modelId: "small-model",
 			}),
 		);
+		expect(response.selectionReason).toContain("Pinned task model anthropic/small-model");
+		expect(response.selectionReason).toContain("task model override");
 	});
 
 	it("blocks NKlein starts when any configured role model is below the minimum context window", async () => {
