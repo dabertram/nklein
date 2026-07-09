@@ -24,6 +24,8 @@
   that CLI roster is unavailable or no loaded LLMs are visible; `/api/v0/models` remains residency-only and is not accepted
   for host-spread/no-overload proof. If the CLI roster disappears mid-run while sessions are quiet, the verifier fails on
   the short idle window instead of granting the long active-model wait to unobservable work.
+  Dev-test project seed cards now use the scaffolded repository's actual current/default git branch instead of hardcoding
+  `main`, fixing verifier startup on machines where plain `git init` creates `master`.
   It also distinguishes `awaiting_review` capture/finalization handoffs from operator-attention/error pauses, so a failed
   seed that is waiting for human attention no longer suppresses the dead-stall lane. Persisted prompt-session records under
   `.nklein/data/sessions` now count too, so synthetic `::review` sessions that are absent from workspace summaries still

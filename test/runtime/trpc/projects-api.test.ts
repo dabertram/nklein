@@ -83,6 +83,18 @@ function getGitHead(path: string): string {
 	return revParse.stdout.trim();
 }
 
+function getGitCurrentBranch(path: string): string {
+	const revParse = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+		cwd: path,
+		encoding: "utf8",
+		env: createGitTestEnv(),
+	});
+	if (revParse.status !== 0) {
+		throw new Error(`Failed to read git current branch at ${path}`);
+	}
+	return revParse.stdout.trim();
+}
+
 function getPatchRepoKey(repoPath: string): string {
 	let canonicalRepoPath: string;
 	try {
@@ -234,6 +246,42 @@ describe("createDevTestBoard", () => {
 				reasoningEffort: "high",
 			}),
 		});
+	});
+});
+
+describe("dev-test project creation", () => {
+	const previousNodeEnv = process.env.NODE_ENV;
+
+	afterEach(() => {
+		if (previousNodeEnv === undefined) {
+			delete process.env.NODE_ENV;
+		} else {
+			process.env.NODE_ENV = previousNodeEnv;
+		}
+	});
+
+	it("seeds the initial card on the scaffolded repo's actual current branch", async () => {
+		process.env.NODE_ENV = "development";
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const api = createProjectsApi(createDefaultDeps(cleanupCwd));
+
+				const result = await api.createDevTestProject(null, { preset: "mid_task" });
+
+				expect(result.ok).toBe(true);
+				if (!result.workspacePath) {
+					throw new Error("Expected dev-test workspace path.");
+				}
+				const branch = getGitCurrentBranch(result.workspacePath);
+				expect(result.task?.baseRef).toBe(branch);
+				const state = await loadWorkspaceState(result.workspacePath);
+				const seed = state.board.columns.find((column) => column.id === "backlog")?.cards[0];
+				expect(seed?.baseRef).toBe(branch);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
 	});
 });
 

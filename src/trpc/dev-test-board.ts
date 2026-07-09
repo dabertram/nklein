@@ -30,6 +30,8 @@ export function createDevTestBoard(input: {
 	prompt: string;
 	acceptanceCommand: string;
 	modelRoles?: RuntimeModelRoles;
+	/** Git ref that exists in the scaffolded fixture repo; defaults to the historical "main" for pure callers/tests. */
+	baseRef?: string;
 	/** OS power-mode multiplier for the autonomous timeout defaults (≥1; Low Power ≈ 2). Defaults to 1 (no scaling). */
 	powerMultiplier?: number;
 	now: number;
@@ -49,7 +51,7 @@ export function createDevTestBoard(input: {
 		autoReviewEnabled: true,
 		agentId: "nklein" as const,
 		nkleinSettings,
-		baseRef: "main",
+		baseRef: input.baseRef?.trim() || "main",
 		createdAt: input.now,
 		updatedAt: input.now,
 	};

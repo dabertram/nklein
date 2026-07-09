@@ -306,12 +306,14 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				const now = Date.now();
 				const runtimeConfig = await loadRuntimeConfig(context.repoPath);
 				const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
+				const baseRef = context.git.currentBranch ?? context.git.defaultBranch ?? "HEAD";
 				const board = createDevTestBoard({
 					taskId: buildDevTestTaskId(scenario.id),
 					title: scenario.title,
 					prompt: scenario.prompt,
 					acceptanceCommand: scenario.acceptanceCommand,
 					modelRoles: runtimeConfig.effectiveModelRoles,
+					baseRef,
 					powerMultiplier,
 					now,
 				});

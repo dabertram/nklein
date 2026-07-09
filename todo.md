@@ -6016,8 +6016,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `/api/v0/models` proves only residency, not queue/machine/host-spread/no-overload evidence. If the CLI roster
         disappears mid-run while sessions are quiet, the harness fails on the short idle window instead of granting the
         long active-model wait on unobservable activity.
-        **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
-        pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
+        **LIVE RERUN AFTER CLI-ROSTER FIX (2026-07-09, qwen3 8B local architect + qwen2.5.1-coder-7b m4mini worker +
+        Gemma 12B legion reviewer):** the first post-reboot verifier attempt failed before seed start because the
+        dev-test seed board hardcoded `baseRef:"main"` while the scaffolded fixture repo's actual branch on this host was
+        `master`. Root cause fixed: [dev-test-board.ts](src/trpc/dev-test-board.ts) now accepts a seed `baseRef`, and
+        [projects-api.ts](src/trpc/projects-api.ts) passes `context.git.currentBranch ?? context.git.defaultBranch ??
+        "HEAD"` after scaffolding; [projects-api.test.ts](test/runtime/trpc/projects-api.test.ts) creates a real dev-test
+        project and proves the response task + persisted board seed card use the scaffolded repo's current branch. The
+        rerun then proved the important live pieces: `lms ps --json` preflight saw all 3 loaded hosts, qwen3 decomposed the
+        seed into a 12-card DAG, the m4mini Qwen2.5.1 worker used sandbox tools (`list_files`, `write_file`, `edit_file`),
+        Gemma reviewed on legion while other work remained eligible, and Docker stayed lean at one sandbox container. The
+        run still did **not** pass terminal completion: Gemma bounced the first card, the worker retried without producing
+        an acceptable change, the card parked after exhausting review/escalation and spawned a redecompose card; after that
+        all selected models were idle but the verifier did not emit a dead-stall diagnostic quickly enough and had to be
+        interrupted. **STILL OWED:** root-cause the parked/redecompose idle wait so the harness terminates with evidence
+        instead of hanging, then rerun with stable/reloaded role models and require no silent fallback, actual worker +
+        reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple
