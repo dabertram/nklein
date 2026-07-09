@@ -14,6 +14,7 @@ export interface QuietRunningSession {
 export interface ObservableWorkspaceSession {
 	id: string;
 	state?: string | null;
+	reviewReason?: string | null;
 	lastHookAt?: number | null;
 	lastOutputAt?: number | null;
 	/**
@@ -88,6 +89,25 @@ function normalizeStatus(value: string | null | undefined): string {
 
 function normalizeSessionState(value: string | null | undefined): string {
 	return (value ?? "").trim() || "unknown";
+}
+
+function normalizeReviewReason(value: string | null | undefined): string {
+	return (value ?? "").trim();
+}
+
+export function isWorkspaceSessionAliveForVerifier(session: {
+	state?: string | null;
+	reviewReason?: string | null;
+}): boolean {
+	const state = normalizeSessionState(session.state);
+	if (state === "running" || state === "queued" || state === "starting") {
+		return true;
+	}
+	if (state !== "awaiting_review") {
+		return false;
+	}
+	const reviewReason = normalizeReviewReason(session.reviewReason);
+	return reviewReason === "" || reviewReason === "exit" || reviewReason === "hook";
 }
 
 function matchesRequestedModel(model: LmsSessionModelSnapshot, requestedModelId: string | null | undefined): boolean {

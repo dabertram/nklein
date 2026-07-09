@@ -2,7 +2,28 @@ import { describe, expect, it } from "vitest";
 import {
 	evaluateQuietRunningSessionStall,
 	evaluateWorkspaceSessionProgress,
+	isWorkspaceSessionAliveForVerifier,
 } from "../../../src/core/lms-session-stall";
+
+describe("isWorkspaceSessionAliveForVerifier", () => {
+	it("counts executing and queued sessions as alive", () => {
+		expect(isWorkspaceSessionAliveForVerifier({ state: "running" })).toBe(true);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "queued" })).toBe(true);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "starting" })).toBe(true);
+	});
+
+	it("keeps awaiting-review capture/finalization handoffs alive", () => {
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: "exit" })).toBe(true);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: "hook" })).toBe(true);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: null })).toBe(true);
+	});
+
+	it("does not count operator-attention/error awaiting-review pauses as live work", () => {
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: "attention" })).toBe(false);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: "error" })).toBe(false);
+		expect(isWorkspaceSessionAliveForVerifier({ state: "awaiting_review", reviewReason: "interrupted" })).toBe(false);
+	});
+});
 
 describe("evaluateWorkspaceSessionProgress", () => {
 	it("does not treat heartbeat-only updatedAt advances as verifier progress", () => {

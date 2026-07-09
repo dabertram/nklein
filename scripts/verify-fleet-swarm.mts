@@ -24,7 +24,11 @@ import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
-import { evaluateQuietRunningSessionStall, evaluateWorkspaceSessionProgress } from "../src/core/lms-session-stall";
+import {
+	evaluateQuietRunningSessionStall,
+	evaluateWorkspaceSessionProgress,
+	isWorkspaceSessionAliveForVerifier,
+} from "../src/core/lms-session-stall";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { extractPersistedPromptSessionModel } from "../src/core/persisted-prompt-session-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
@@ -66,6 +70,7 @@ interface BoardState {
 		string,
 		{
 			state?: string;
+			reviewReason?: string | null;
 			modelId?: string | null;
 			lastHookAt?: number | null;
 			lastOutputAt?: number | null;
@@ -416,10 +421,9 @@ async function main(): Promise<void> {
 		);
 		const lmsProbeMs = Math.max(5_000, Number(process.env.NKLEIN_VERIFY_LMS_PROBE_MS ?? "30000"));
 		const lmsProbeStartMs = Math.min(30_000, modelIdleStallMs, modelActiveStallMs);
-		// awaiting_review counts ALIVE (run23 false-positive: both escalated cards were mid host-side
-		// finalize/capture/review — work that runs with no session activity by design, for minutes — when the
-		// dead-stall killed the run and its teardown broke the in-flight captures mid-exec).
-		const ALIVE_SESSION_STATES = new Set(["running", "queued", "starting", "awaiting_review"]);
+		// awaiting_review is alive only for capture/finalization reasons (run23 false-positive: exit/hook handoffs were
+		// mid host-side finalize/capture/review with no model activity). Operator-attention/error/interrupted
+		// awaiting_review states are not live work and must not suppress the dead-stall lane.
 		let stalled = false;
 		let lastSummary = "";
 		let decomposed = false;
@@ -464,7 +468,7 @@ async function main(): Promise<void> {
 						seenRuntimeModels.add(session.modelId);
 					}
 				}
-				const anyPolledSessionAlive = polledSessions.some(([, s]) => ALIVE_SESSION_STATES.has(s.state ?? ""));
+				const anyPolledSessionAlive = polledSessions.some(([, s]) => isWorkspaceSessionAliveForVerifier(s));
 				const sessionProgress = evaluateWorkspaceSessionProgress({
 					sessions: polledSessions.map(([id, s]) => ({
 						id,

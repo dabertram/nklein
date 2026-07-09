@@ -5822,6 +5822,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         prompt-session records under `.nklein/data/sessions/*__review*/...json`. Fixed with
         `extractPersistedPromptSessionModel` + verifier artifact scanning so synthetic review sessions count toward the
         configured reviewer observation gate.
+        **FOLLOW-UP LIVE RERUN (2026-07-09, after `9bf45bdc`):** loaded the m4mini
+        `qwen/qwen2.5-coder-14b` cleanly and ran qwen3 architect + Devstral worker + 14B reviewer, but qwen3 failed the
+        seed decomposition twice (invalid `decompose_project` graph validation, then paused with `reviewReason:"attention"`
+        after four failed decomposition attempts). All selected models were IDLE, but the verifier kept waiting because it
+        treated every `awaiting_review` session as alive. Root-cause fix: `isWorkspaceSessionAliveForVerifier` now keeps
+        only `awaiting_review` `exit`/`hook`/legacy-null capture-finalization handoffs alive; `attention`/`error`/
+        `interrupted` awaiting-review pauses no longer suppress the dead-stall lane.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
