@@ -130,6 +130,21 @@ export function resolveNKleinDevTestTemplatePath(templateName = DEFAULT_TEMPLATE
 	return join(getRepoRootFromCurrentModule(), "scripts", "dev-fixtures", templateName);
 }
 
+function getDevTestFixtureToolchainRules(templateName: string): string[] {
+	if (templateName !== DEFAULT_TEMPLATE_NAME) {
+		return [];
+	}
+	return [
+		"## Fixture/toolchain rules",
+		"",
+		"- Product source files are TypeScript under `src/**/*.ts`.",
+		"- Test files may be plain JavaScript (`test/**/*.test.js`) or TypeScript (`test/**/*.test.ts`).",
+		"- A `.test.js` file must stay plain JavaScript: no `import type`, `interface`, `type`, `: Type`, `as Type`, or generic syntax. If a test needs TypeScript syntax, name it `.test.ts`.",
+		"- Tests import product code from `../src/*.ts` and must pass through `npm test` with no network or new dependencies.",
+		"",
+	];
+}
+
 async function initializeGitRepository(workspacePath: string): Promise<void> {
 	// HARD BACKSTOP against the dev-test pollution incident: never `git init`/commit inside an existing git work tree
 	// (the !Klein repo or one of its `.claude/worktrees/*` checkouts). The resolver should already keep us out, but a
@@ -171,7 +186,8 @@ export async function scaffoldNKleinDevTestProject(
 	const now = options.now ?? Date.now;
 	const createdAt = now();
 	const workspacePath = await mkdtemp(join(parentDir, `nklein-${slugify(scenario.id)}-${createdAt}-`));
-	const templatePath = resolveNKleinDevTestTemplatePath(options.templateName ?? scenario.templateName);
+	const templateName = options.templateName ?? scenario.templateName ?? DEFAULT_TEMPLATE_NAME;
+	const templatePath = resolveNKleinDevTestTemplatePath(templateName);
 	const specification = scenario.specificationPath
 		? await readFile(join(getRepoRootFromCurrentModule(), scenario.specificationPath), "utf8")
 		: scenario.specification;
@@ -187,6 +203,7 @@ export async function scaffoldNKleinDevTestProject(
 			"",
 			specification.trim(),
 			"",
+			...getDevTestFixtureToolchainRules(templateName),
 			"## Acceptance",
 			"",
 			`Run \`${scenario.acceptanceCommand}\` successfully.`,

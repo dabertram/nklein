@@ -5835,6 +5835,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         role class is a real soft preference instead of just an ineligibility filter. Focused tests cover pure class-order
         preference and runtime worker selection (coder beats higher-scored reasoning-weak default). Remaining for this
         near-term swarm item: apply the parallel-swarm guardrail profile and live ≥3-agent multi-card verification.
+        **LIVE VERIFIER ROOT-CAUSE FOLLOW-UP (2026-07-09):** after the handoff detector survived long reviewer activity,
+        the complex swarm stalled on generated-project quality: a model wrote TypeScript-only syntax into a `.js` test and
+        used the wrong test import shape. The smoke TypeScript fixture now states the JS/TS test-file contract inside every
+        scaffolded `specification.md`, and its `npm test` runner executes both `.test.js` and `.test.ts`, so agents can
+        write typed tests by naming them `.test.ts` instead of entering a review/repair loop on a harness mismatch.
   - [~] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
         (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
         **DECOMPOSE PATH DONE + LIVE-VERIFIED (2026-07-01):** best-fit task↔model affinity in `routeNKleinTask` — opaque

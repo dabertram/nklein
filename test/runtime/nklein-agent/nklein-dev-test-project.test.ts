@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -40,6 +40,9 @@ describe("nklein dev test project", () => {
 		);
 		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
 		expect(specification).toContain(getDefaultNKleinDevTestScenario().title);
+		expect(specification).toContain("## Fixture/toolchain rules");
+		expect(specification).toContain("test/**/*.test.ts");
+		expect(specification).toContain(".test.js");
 		expect(specification).not.toContain("Acceptance command");
 		const marker = JSON.parse(
 			await readFile(join(project.workspacePath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH), "utf8"),
@@ -54,6 +57,32 @@ describe("nklein dev test project", () => {
 			}),
 		);
 		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
+	});
+
+	it("runs TypeScript test files in the smoke fixture", async () => {
+		const parentDir = await createParentDir();
+		const project = await scaffoldNKleinDevTestProject({
+			parentDir,
+			initializeGit: false,
+		});
+
+		await writeFile(
+			join(project.workspacePath, "test", "typescript-syntax.test.ts"),
+			[
+				'import test from "node:test";',
+				'import assert from "node:assert/strict";',
+				'import { calculateHabitScore, type HabitScoreInput } from "../src/habit-score.ts";',
+				"",
+				'test("accepts TypeScript syntax in .test.ts files", () => {',
+				"\tconst input: HabitScoreInput = { completedDays: 1, targetDays: 1, streakDays: 0 };",
+				"\tassert.equal(calculateHabitScore(input), 100);",
+				"});",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+
+		await execFileAsync("npm", ["test"], { cwd: project.workspacePath, timeout: 30_000 });
 	});
 
 	it("honors a configured workspaceBaseDir (the §5.W global setting) when no explicit parentDir is given", async () => {

@@ -22,6 +22,11 @@ validation rules, invariants, and acceptance criteria. Read it first and build t
 - **Dependency-ordered, reviewable cards.** Build foundations first (scoring, validation, classification),
   then features that consume them, then CLI output, then tests and docs that depend on what they cover.
 - **No new dependencies.** The toolchain is Node's built-in test runner with type stripping.
+- **Test-file syntax must match the extension.** Tests may be plain JavaScript (`test/**/*.test.js`) or
+  TypeScript (`test/**/*.test.ts`). A `.test.js` file must not contain TypeScript-only syntax such as
+  `import type`, `interface`, `type`, `: Type`, `as Type`, or generics. If a test needs TypeScript syntax,
+  name it `.test.ts`.
+- **Import product code from source.** Test files under `test/` import product modules from `../src/*.ts`.
 
 Run tests with:
 
