@@ -9,7 +9,7 @@ import {
 
 const COLUMN_IDS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 
-function boardWithCardInReview(): RuntimeBoardData {
+function boardWithCardInReview(options?: { preexistingRedecompose?: boolean }): RuntimeBoardData {
 	return {
 		columns: COLUMN_IDS.map((id) => ({
 			id,
@@ -23,11 +23,40 @@ function boardWithCardInReview(): RuntimeBoardData {
 								prompt: "Implement login.",
 								startInPlanMode: false,
 								baseRef: "main",
+								...(options?.preexistingRedecompose
+									? {
+											review: {
+												status: "changes_requested" as const,
+												round: 1,
+												history: [],
+												lastVerdict: "request_changes" as const,
+												lastSummary: "Escalated",
+												lastFeedback: "Split it",
+												lastInsight: null,
+												signOff: null,
+												parkedReason: null,
+												escalated: true,
+												updatedAt: 2,
+											},
+										}
+									: {}),
 								createdAt: 1,
 								updatedAt: 2,
 							},
 						]
-					: [],
+					: id === "backlog" && options?.preexistingRedecompose
+						? [
+								{
+									id: "redecompose-task-1",
+									title: "Decompose: Add login",
+									prompt: "Split it.",
+									startInPlanMode: true,
+									baseRef: "main",
+									createdAt: 1,
+									updatedAt: 2,
+								},
+							]
+						: [],
 		})),
 		dependencies: [],
 	};
@@ -39,8 +68,9 @@ function makeDeps(overrides: {
 	diff?: string | null;
 	maxRounds?: number;
 	reviewerPinned?: boolean;
+	preexistingRedecompose?: boolean;
 }) {
-	const board = boardWithCardInReview();
+	const board = boardWithCardInReview({ preexistingRedecompose: overrides.preexistingRedecompose });
 	const reviewerRole = {
 		providerId: "lmstudio",
 		modelId: "reviewer-model",
@@ -55,8 +85,9 @@ function makeDeps(overrides: {
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
 	const mutationResults: unknown[] = [];
 	const mutateWorkspaceState = vi.fn(async (_cwd: string, mutate: (state: { board: RuntimeBoardData }) => unknown) => {
-		mutationResults.push(mutate({ board }));
-		return { saved: true };
+		const result = mutate({ board }) as { save?: boolean; value?: unknown };
+		mutationResults.push(result);
+		return { saved: result.save !== false, value: result.value };
 	}) as unknown as never;
 	const getTaskResultBranchDiff = vi.fn(async () =>
 		overrides.diff === undefined ? "diff --git a/login.ts b/login.ts\n+code" : overrides.diff,
@@ -410,6 +441,7 @@ describe("runSecondOpinionReviewForTask", () => {
 			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
 			maxRounds: 0,
 		});
+		const onRedecomposeCardSpawned = vi.fn(async (_taskId: string) => undefined);
 		const runnerService = {
 			...(service(deps) as unknown as Record<string, unknown>),
 			pickDiverseEscalationModel: vi.fn(async () => ({ providerId: "lmstudio", modelId: "gptoss120-m5" })),
@@ -423,6 +455,7 @@ describe("runSecondOpinionReviewForTask", () => {
 				loadWorkspaceState: deps.loadWorkspaceState,
 				mutateWorkspaceState: deps.mutateWorkspaceState,
 				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+				onRedecomposeCardSpawned,
 			});
 		const first = await run();
 		expect(first.type).toBe("escalated");
@@ -436,6 +469,8 @@ describe("runSecondOpinionReviewForTask", () => {
 			.find((entry) => entry.card.id === "redecompose-task-1");
 		expect(spawned?.column.id).toBe("backlog");
 		expect(spawned?.card.prompt).toContain("decompose_project");
+		expect(onRedecomposeCardSpawned).toHaveBeenCalledTimes(1);
+		expect(onRedecomposeCardSpawned).toHaveBeenCalledWith("redecompose-task-1");
 		// Idempotent: a THIRD park attempt must not duplicate the card (same runner instance set).
 		const third = await run();
 		expect(third.type).toBe("parked");
@@ -443,6 +478,32 @@ describe("runSecondOpinionReviewForTask", () => {
 			.flatMap((candidate) => candidate.columns.flatMap((column) => column.cards))
 			.filter((card) => card.id === "redecompose-task-1").length;
 		expect(duplicates).toBeGreaterThanOrEqual(1);
+	});
+
+	it("does not re-schedule a re-decompose card that already exists", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
+			maxRounds: 0,
+			preexistingRedecompose: true,
+		});
+		const onRedecomposeCardSpawned = vi.fn(async (_taskId: string) => undefined);
+		const runnerService = {
+			...(service(deps) as unknown as Record<string, unknown>),
+			pickDiverseEscalationModel: vi.fn(async () => ({ providerId: "lmstudio", modelId: "gptoss120-m5" })),
+		} as unknown as never;
+		const run = () =>
+			runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: runnerService,
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+				onRedecomposeCardSpawned,
+			});
+		expect((await run()).type).toBe("parked");
+		expect(onRedecomposeCardSpawned).not.toHaveBeenCalled();
 	});
 
 	it("delivered and bounced outcomes never cancel the worker's turn", async () => {

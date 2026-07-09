@@ -93,6 +93,8 @@ export interface RunSecondOpinionReviewForTaskInput {
 	now?: () => number;
 	/** Sink for surfaced-but-non-blocking signals (e.g. the reviewer-monoculture waiver, §5.AB W0.4). */
 	warn?: (message: string) => void;
+	/** Called after the review ladder creates a re-decompose recovery card so the runtime can schedule it immediately. */
+	onRedecomposeCardSpawned?: (taskId: string) => void | Promise<void>;
 	/**
 	 * W2.5 pin residency probe: the loaded model ids the configured reviewer PIN is checked against (injectable for
 	 * tests). Default probes the local LM Studio endpoint outside the test runner; failures resolve to an empty
@@ -487,11 +489,11 @@ export async function runSecondOpinionReviewForTask(
 				// §5.AB RE-DECOMPOSE RUNG: a card parked after its ESCALATION also failed has exhausted the whole
 				// ladder (bounce → diverse takeover → park) — the proven can't-handle-as-one-unit signal
 				// (decideCardDecomposition Rule 1). Spawn ONE follow-up decompose card so the architect splits the
-				// objective into smaller cards; the terminal sweep auto-starts it (backlog + no deps). Runs 21-25:
+				// objective into smaller cards; the caller schedules it immediately (backlog + no deps). Runs 21-25:
 				// this is the productive escape for the score-clamp-class cards that defeated all three model tiers.
 				if (escalatedWorkerTaskIds.has(input.taskId)) {
 					const redecomposeTaskId = `redecompose-${input.taskId}`;
-					await mutate(input.workspacePath, (current) => {
+					const spawned = await mutate(input.workspacePath, (current) => {
 						const exists = current.board.columns.some((column) =>
 							column.cards.some((boardCard) => boardCard.id === redecomposeTaskId),
 						);
@@ -522,11 +524,14 @@ ${review.lastFeedback}`
 							},
 							() => globalThis.crypto.randomUUID(),
 						);
-						return { board: created.board, value: null };
+						return { board: created.board, value: redecomposeTaskId };
 					});
-					input.warn?.(
-						`Parked card ${input.taskId} exhausted the escalation ladder — spawned re-decompose card ${redecomposeTaskId} (the architect will split the objective).`,
-					);
+					if (spawned.value) {
+						input.warn?.(
+							`Parked card ${input.taskId} exhausted the escalation ladder — spawned re-decompose card ${redecomposeTaskId} (the architect will split the objective).`,
+						);
+						await input.onRedecomposeCardSpawned?.(redecomposeTaskId);
+					}
 				}
 			},
 		},

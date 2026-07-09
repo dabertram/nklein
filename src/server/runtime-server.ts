@@ -1228,6 +1228,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						taskId,
 						service,
 						warn: deps.warn,
+						onRedecomposeCardSpawned: (redecomposeTaskId) =>
+							autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
 					}).catch((error) => {
 						const message = error instanceof Error ? error.message : String(error);
 						deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
@@ -2200,6 +2202,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								taskId: decision.reviewTaskId,
 								service: trackedService,
 								warn: deps.warn,
+								onRedecomposeCardSpawned: (redecomposeTaskId) =>
+									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
 							}).catch((error) => {
 								const message = error instanceof Error ? error.message : String(error);
 								deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);

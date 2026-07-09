@@ -26,6 +26,9 @@
   the short idle window instead of granting the long active-model wait to unobservable work.
   Dev-test project seed cards now use the scaffolded repository's actual current/default git branch instead of hardcoding
   `main`, fixing verifier startup on machines where plain `git init` creates `master`.
+  Review-ladder recovery cards are no longer orphaned after a parked escalation: when the second-opinion runner spawns a
+  `redecompose-*` card, runtime-server immediately schedules that new backlog card instead of waiting for a later terminal
+  sweep that may never fire.
   It also distinguishes `awaiting_review` capture/finalization handoffs from operator-attention/error pauses, so a failed
   seed that is waiting for human attention no longer suppresses the dead-stall lane. Persisted prompt-session records under
   `.nklein/data/sessions` now count too, so synthetic `::review` sessions that are absent from workspace summaries still

@@ -6029,9 +6029,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         run still did **not** pass terminal completion: Gemma bounced the first card, the worker retried without producing
         an acceptable change, the card parked after exhausting review/escalation and spawned a redecompose card; after that
         all selected models were idle but the verifier did not emit a dead-stall diagnostic quickly enough and had to be
-        interrupted. **STILL OWED:** root-cause the parked/redecompose idle wait so the harness terminates with evidence
-        instead of hanging, then rerun with stable/reloaded role models and require no silent fallback, actual worker +
-        reviewer observations, all cards terminating, and clean teardown.
+        interrupted.
+        **ROOT-CAUSE FIX (2026-07-09):** the idle wait was not model activity at all: the review-runner's own comment said
+        the spawned `redecompose-*` card would be picked up by the "terminal sweep", but parking returns before the
+        delivery-completion sweep and no later completion event fires. Artifact proof: both workspace `sessions.json` files
+        were empty, `task-start-queue.jsonl` was empty, the board had a backlog `redecompose-habit-insights-document-domain-model`
+        plus 11 planning cards, and all selected models were idle. Fixed in
+        [second-opinion-review-runner.ts](src/server/second-opinion-review-runner.ts) +
+        [runtime-server.ts](src/server/runtime-server.ts): the runner now reports the newly created redecompose card id
+        through an injected callback, and runtime-server immediately calls `autoStartTaskIds(..., { bypassDurableGuard:
+        true })` for that dynamically spawned recovery card. Regression coverage:
+        [second-opinion-review-runner.test.ts](test/runtime/server/second-opinion-review-runner.test.ts) proves the callback
+        fires only when a new redecompose card is created and does not re-schedule an existing card. **STILL OWED:** rerun
+        with stable/reloaded role models and require no silent fallback, actual worker + reviewer observations, all cards
+        terminating, and clean teardown. Also investigate the next convergence trap from this artifact: the original
+        "document domain model" card reasonably tried to create `DOMAIN_MODEL.md`, but its declared scope allowed only
+        `src/habit-insights.ts` + `src/habit-score.ts`, so the guardrail blocked the likely deliverable and fed the
+        no-change review loop.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple
