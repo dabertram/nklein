@@ -23,3 +23,8 @@ export type { ClassifierRequestShape, RequestClassMarkers } from "./aimock/reque
 export { compileScenarioScript, compileTrack } from "./aimock/track-compiler.js";
 export { createSimulatorServer } from "./server.js";
 export type { SimulatorServer, SimulatorServerOptions } from "./server.js";
+export { createLmStudioShim, type SimulatedModel } from "./aimock/lmstudio-shim.js";
+export { createRecordProxy } from "./reflection/record-proxy.js";
+export type { RecordProxyHandle, RecordProxyOptions } from "./reflection/record-proxy.js";
+export { classifyObservedFailure, distillCampaign, distillInteraction } from "./reflection/distill.js";
+export type { CapturedInteraction } from "./reflection/distill.js";

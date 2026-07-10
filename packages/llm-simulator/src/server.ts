@@ -5,12 +5,18 @@
  */
 
 import { LLMock } from "@copilotkit/aimock";
+import { createLmStudioShim, type SimulatedModel } from "./aimock/lmstudio-shim.js";
 import { compileScenarioScript, type CompileOptions } from "./aimock/track-compiler.js";
 import type { ScenarioScript } from "./scenario/track-types.js";
 
 export interface SimulatorServerOptions extends CompileOptions {
 	/** 0 = ephemeral (read the bound port from `port()`). */
 	port?: number;
+	/**
+	 * Declared model fleet for the LM Studio `/api/v0` + `/api/v1/models` shim — lets !Klein's fleet/residency/
+	 * admission code run under the simulator. Omit to serve only the chat surface.
+	 */
+	models?: SimulatedModel[];
 }
 
 export interface SimulatorServer {
@@ -27,6 +33,9 @@ export interface SimulatorServer {
 export function createSimulatorServer(script: ScenarioScript, options: SimulatorServerOptions = {}): SimulatorServer {
 	const mock = new LLMock({ port: options.port ?? 0 });
 	mock.addFixtures(compileScenarioScript(script, options));
+	if (options.models && options.models.length > 0) {
+		mock.mount("/api", createLmStudioShim({ models: options.models }));
+	}
 	return {
 		mock,
 		async start() {
