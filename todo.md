@@ -11187,3 +11187,22 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       layers and test types we have (unit, component, contract, integration, e2e, simulated-flows once available) — then
       work strictly TEST-DRIVEN.** Working through it is also a probe of how well the implementation is structured.
       Tackle only after the simulator layer exists (it makes the protection cheap to run).
+      **INCREMENT 1 DONE (2026-07-10) — the migration-safe FOUNDATION (the scary part de-risked):** added the
+      `ready` column between Planning and In Progress across the persisted column enum (`runtimeBoardColumnIdEnum`),
+      `OperatorColumnId`, `BOARD_COLUMNS` (title "Ready"), `LIST_TASK_COLUMNS`, and portable-board-crdt order/titles.
+      KEY FINDING that de-risks the whole feature: `normalizeRuntimeBoardData` rebuilds the canonical column set on
+      EVERY load, so old 6-column boards auto-gain an empty Ready lane with ZERO migration code — proven by a new
+      migration test. `ready` is deliberately NOT a live-session lane (dep-ready but unstarted, excluded from
+      `columnCanHaveLiveTaskSession`). TypeScript exhaustiveness caught all sites (only 3 needed a case — the codebase
+      centralizes `RuntimeBoardColumnId` well). NO behavior change yet; 8885 backend + 989 web-ui tests green. An
+      empty Ready lane is a valid board state, not a regression.
+      **INCREMENT 2 (promotion — NEXT, test-driven, on a fresh runway):** the behavior change that flows cards INTO
+      ready. Design: a pure `reconcileReadyLane(board, activeSessionTaskIds)` that moves a dep-free card with NO
+      active session out of planning/backlog INTO ready (a card being DECOMPOSED has a planning session ⇒ stays in
+      planning), and ensures a started card leaves ready → in_progress; `listStartableUnstartedTaskIds` must ALSO scan
+      `ready`. RACE TO GUARD (why this is test-first): a card just moved to `STARTED_CARD_ENTRY_LANE=planning` to be
+      started must not be yanked to ready before its session attaches — key the reconcile off the AUTHORITATIVE
+      session set, applied inside the same board-state mutation the sweep uses. Cover the full session lifecycle
+      (create → dep-met → ready → start → in_progress → review) across unit/contract/simulated-flows before wiring.
+      **INCREMENT 3 (surfaces):** lean-view lane mapping (map `ready`→Queued or its own lane), board counts, drag
+      rules, DAG/overview. Run a simulated project through the harness to prove ready populates + drains.
