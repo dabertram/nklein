@@ -11091,7 +11091,16 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       **AMENDMENTS (David 2026-07-10, goal-extension — work until finished):** (d) PARALLEL CAPTURE: integrate aimock
       as a PASSTHROUGH RECORD PROXY between !Klein and the real LM Studio/Ollama endpoints so real LLM responses +
       behavior are collected automatically whenever real-LLM work runs later (the reflection loop's capture seam —
-      aimock proxy/record mode; !Klein just points its provider baseUrl at the proxy). (e) CLAUDE-AUTHORED FIRST:
+      aimock proxy/record mode; !Klein just points its provider baseUrl at the proxy). **REFLECTION LOOP EXERCISED WITH A REAL MODEL (2026-07-10, David confirmed the machines are low-power
+      but functional):** loaded qwen3-8b as-needed (`lms load`, 4.3GB — modest, no host overload), ran the eval
+      corpus THROUGH the record proxy (`scripts/capture-real-eval.mts` → `createRecordProxy` in front of LM Studio
+      :1234), captured 5 real fixtures, distilled them via `scripts/distill-capture.mts`, then UNLOADED the model
+      (`lms unload`). Real telemetry captured incl. the exact quirks the mock library should learn: qwen3-8b emits
+      near-empty `content:"\n\n"` with the real answer in the tool call, is strong at tool-use (3/3) and decompose,
+      but TIMES OUT reasoning through review prompts (0/3 at the 30s cap — a real reasoning-model stall). Captures
+      are gitignored (per-campaign artifacts); the loop + finding are the deliverable. NOTE: bare eval prompts lack
+      !Klein's worker/review scaffolds so they distill as `chat`; real !Klein-SESSION captures (scaffolded prompts)
+      classify correctly. (Fixes: `entriesFromCaptureFile` is now exported from the package index.) (e) CLAUDE-AUTHORED FIRST:
       Claude prepares the mock response sets as the design-time spec (flawless baselines for target workflows); real
       collected local-LLM telemetry hardens them later (runtime reality). (f) SCALE (UPDATED David 2026-07-10): prepare EXTENSIVE mock response
       sets for the LOWER 20 dev-test-projects (tiers 1/20…20/20 — not just 3) — up to ~50 estimated cards per

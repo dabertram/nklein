@@ -36,3 +36,6 @@ packages/desktop/runtime-child-env.js
 packages/desktop/desktop-preflight.js
 packages/desktop/cli
 packages/llm-simulator/node_modules
+
+# §13d reflection-loop capture campaigns — per-run artifacts, regeneratable (scripts/capture-real-eval.mts)
+/captures/
