@@ -1231,7 +1231,7 @@ export function KanbanBoard({
 				>
 					{flowColumns.map((column) => renderColumn(column))}
 					{completedColumn || trashColumn ? (
-						<div className="flex min-w-0 min-h-0 flex-col gap-2" style={{ flex: "1 1 0" }}>
+						<div className="kb-board-stack flex min-w-0 min-h-0 flex-col gap-2" style={{ flex: "1 1 0" }}>
 							{completedColumn ? (
 								<div className="flex min-h-0 min-w-0 flex-col" style={{ flex: "4 1 0" }}>
 									{renderColumn(completedColumn)}
