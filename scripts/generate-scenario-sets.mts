@@ -354,12 +354,17 @@ function reviewTrack(card: CardPlan, options: { requestChangesFirst?: boolean } 
 		});
 	}
 	turns.push(approve, { behavior: { kind: "text", content: "Review submitted." } });
+	// Plain approve tracks CYCLE: the runtime resumes `<taskId>::review` across review rounds with its prior
+	// transcript, so a linear [approve, text] ladder answers text-only (no verdict!) on every round ≥2 and the
+	// card freezes in Review (live-found 2026-07-10 — a skipped round-1 finalize made round 2 hit turn index 1).
+	// Bounce tracks keep the validated linear ladder (their request_changes→approve sequence is round-ordered).
+	const cycle = !options.requestChangesFirst;
 	return {
 		id: `perfect-review-${card.id}`,
 		requestClass: "review",
 		userMessageIncludes: `the card "${card.title}"`,
 		turns,
-		repeatLastTurn: true,
+		...(cycle ? { cycleTurns: true } : { repeatLastTurn: true }),
 		provenance: "generated baseline (generate-scenario-sets.mts)",
 	};
 }

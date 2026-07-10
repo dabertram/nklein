@@ -148,6 +148,12 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 					return false;
 				}
 				const count = assistantTurnCount(request);
+				// Cyclic conditioning (`cycleTurns`): turn k answers every count ≡ k (mod turns.length) — for
+				// sessions the runtime RESUMES with prior transcript (review rounds), where the linear clamp
+				// would answer the closing text forever (no verdict ever again — live-found 2026-07-10).
+				if (track.cycleTurns) {
+					return count >= baseCount && (count - baseCount) % track.turns.length === index;
+				}
 				// The final turn absorbs every later per-session round when the track repeats.
 				return track.repeatLastTurn && index === lastIndex ? count >= baseCount + index : count === baseCount + index;
 			},

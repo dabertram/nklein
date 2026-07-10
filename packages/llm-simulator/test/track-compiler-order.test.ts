@@ -62,6 +62,40 @@ describe("compileScenarioScript specificity ordering", () => {
 		expect(response).toContain("A fallback.");
 	});
 
+	it("cycleTurns re-emits the tool turn on resumed sessions (review rounds)", () => {
+		const script: ScenarioScript = {
+			name: "cycle",
+			seed: 1,
+			tracks: [
+				{
+					id: "review-cycle",
+					requestClass: "any",
+					userMessageIncludes: "reviewer for",
+					turns: [
+						{ behavior: { kind: "text", content: "VERDICT-TURN" } },
+						{ behavior: { kind: "text", content: "CLOSING-TEXT" } },
+					],
+					cycleTurns: true,
+				},
+			],
+		};
+		const fixtures = compileScenarioScript(script);
+		const withAssistants = (count: number) => ({
+			messages: [
+				{ role: "user", content: "You are the reviewer for this card." },
+				...Array.from({ length: count }, () => ({ role: "assistant", content: "prior turn" })),
+			],
+		});
+		const responseAt = (count: number) => {
+			const index = firstMatch(fixtures, withAssistants(count) as never);
+			return JSON.stringify(fixtures[index]?.response ?? "");
+		};
+		expect(responseAt(0)).toContain("VERDICT-TURN"); // round 1
+		expect(responseAt(1)).toContain("CLOSING-TEXT");
+		expect(responseAt(2)).toContain("VERDICT-TURN"); // round 2 on the RESUMED session
+		expect(responseAt(5)).toContain("CLOSING-TEXT");
+	});
+
 	it("keeps authoring order within the same specificity tier", () => {
 		const sameTier: ScenarioScript = {
 			name: "tier",

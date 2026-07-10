@@ -2104,6 +2104,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								}
 								rescueDispatched.add(stalledReviewTaskId);
 								idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, rescueDispatched);
+								// The rescue must stay SELF-healing: a dispatched review can itself wedge silently under
+								// cross-project endpoint contention (live-seen 2026-07-10 — no outcome, no capacity
+								// warning). Expire the dedup entry after the review budget so a still-verdict-less card
+								// gets another attempt instead of a permanent one-shot.
+								const rescueRetryTimer = setTimeout(
+									() => {
+										idleReviewDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(stalledReviewTaskId);
+									},
+									12 * 60 * 1000,
+								);
+								rescueRetryTimer.unref?.();
 								deps.warn(
 									`Board-liveness watchdog: ${stalledReviewTaskIds.length} verdict-less review card(s) with no live session for ${scope.workspacePath} — dispatching the stalled review for ${stalledReviewTaskId}.`,
 								);

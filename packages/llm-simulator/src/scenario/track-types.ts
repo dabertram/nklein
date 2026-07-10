@@ -71,6 +71,15 @@ export interface ScenarioTrack {
 	turns: ScenarioTurn[];
 	repeatLastTurn?: boolean;
 	/**
+	 * Condition turns CYCLICALLY on the per-session assistant count (`count % turns.length`) instead of the
+	 * linear clamp. For sessions the runtime RESUMES with their prior transcript intact — a review session keeps
+	 * its `<taskId>::review` id across review rounds — a linear [tool, closing-text] track answers text-only
+	 * forever after round 1 (live-found 2026-07-10: every round-2+ review request got the closing text, so no
+	 * verdict ever landed and the card froze in Review). Cycling re-emits the tool turn each cycle. Takes
+	 * precedence over `repeatLastTurn`.
+	 */
+	cycleTurns?: boolean;
+	/**
 	 * Pin the track's FIRST turn to a specific per-session assistant-message count instead of 0 — used by
 	 * distilled single-turn tracks (aimock's recorded `match.turnIndex` is exactly this count).
 	 */

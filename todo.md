@@ -11082,6 +11082,22 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (startable-unstarted sweep) / operator instead of reading as queued-forever. 9 queue tests (incl. the new
       exhaustion case) + 8869 fast tests green.
 
+- [ ] **CROSS-PROJECT endpoint contention: a review that loses the endpoint race can wedge SILENTLY
+      (2026-07-10 evening, reproduced twice on the simulated multi-project stack; solo runs pass).** Evidence:
+      merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
+      known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
+      settled with no submit_review — even though a direct probe of the live simulator answered that exact
+      request with a verdict), delivery held (open_pr tier), card left verdict-less in Review, 22 dependents
+      blocked. The new watchdog stalled-review rescue then dispatched a third review that HUNG with no outcome
+      line, no error, and no "waiting for capacity" warning while project 10's ~30 cards saturated the shared
+      endpoint — the rescue promise never settled (suspects, unproven: the ::review sandbox prepare queue, the
+      per-task review-workspace mutex, or the admission poll's evaluate path). MITIGATED (same day): the rescue
+      dedup entry now expires after the 12-min review budget so the watchdog re-dispatches instead of one-shot;
+      the underlying silent hang + the merged-run-only `no_verdict` still need a focused root-cause session
+      (instrument runSecondOpinionReviewForTask's phases with warn-level progress stamps; reproduce with
+      NKLEIN_SIM_STACK_PROJECTS=05,10 pace=instant — solo 05 via NKLEIN_SIMFLOW_SCENARIO=05 PASSES).
+      Cross-refs §5.AW (endpoint serialization), the §12 fleet items, and the multi-project roadmap.
+
 ## 13. LLM simulator + mocked full-flow e2e layer (David 2026-07-10 — ACTIVE NEXT STEP)
 - [ ] **"LLM simulator": a sophisticated local LLM response simulator + a new e2e test layer that walks COMPLETE
       dev-test-project flows through the full !Klein runtime + UI with 100% mocked LLM responses.** Motivation: both
@@ -11192,6 +11208,23 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       installs; generated sets keep REAL green acceptance via node:test).
       NEXT: the Fable UI deep dive driven by simulated workflows (goal step 2) — persistent simulator+runtime+
       web-ui stack, then work the todo backlog top-to-bottom (goal step 3).)*
+      *(◐ 2026-07-10 evening — **UI DEEP DIVE ROUND 1 (Fable) — the stack found 3 product bugs + 2 simulator
+      truths; all fixed + committed (26de24df, cb7a0692, + the review-cycle batch).** Product: (1) programmatic
+      card moves DEADLOCKED — `transition: none` killed the drop `transitionend` @hello-pangea/dnd completes on;
+      a stranded fixed-position clone + a permanently-set in-flight flag wedged the board (fix: ~0 duration +
+      watchdogs); (2) busy-board conflict spam — the session→lane mirror moves several cards per commit but
+      conflict recovery replayed only ONE op (fix: pure-move batches of any size rebase silently); (3) chat feed
+      cried wolf on healthy boards — the post-done teardown (`awaiting_review→interrupted`) and ended sessions'
+      aging heartbeats read as "❌ failed"/"run may be dead" (fix: failure notifies require a LIVE session dying;
+      attention derivation only for running/queued; ticker skips the teardown). Plus the STALLED-REVIEW freeze:
+      a review dropped while a sibling project held the endpoint never retried and blocked every dependent —
+      the board-liveness watchdog now dispatches verdict-less reviews on an idle board (live-verified rescue).
+      Simulator truths: (11) **review tracks must `cycleTurns`** — the runtime RESUMES `<taskId>::review` with
+      its transcript across rounds, so a linear [approve, text] ladder answers text-only (no verdict!) from
+      round 2 on (new compiler option + guard test; sets regenerated); (12) merged multi-set scripts need
+      most-specific-first compilation or one set's catch-all swallows another's decompose (fixed in the
+      compiler; dev stack now also fails loudly on an occupied runtime port). Board readability: hover-revealed
+      card actions + 232px lane floor (titles went 73px→full-width).)*
 - [x] **"Ready" lane between Planning and In Progress (David 2026-07-10 — protected).** DONE 2026-07-10. Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY

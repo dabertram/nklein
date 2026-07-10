@@ -189,7 +189,9 @@ const script: ScenarioScript = {
 				// forever burns review rounds (5 observed) before delivery.
 				{ behavior: { kind: "text" as const, content: "Review submitted: approved." } },
 			],
-			repeatLastTurn: true,
+			// Cycle (not repeat-last): the ::review session resumes with its transcript across rounds — a linear
+			// ladder would answer text-only (no verdict) on any round ≥2 (live-found 2026-07-10).
+			cycleTurns: true,
 		})),
 		{
 			id: "perfect-any-fallback",

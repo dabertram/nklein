@@ -86,11 +86,26 @@ describe("checked-in scenario sets", () => {
 					).toBe(false);
 				}
 
-				// Review ladders end with a text turn (the runner re-prompts until a non-tool turn) and repeat.
+				// Review ladders end with a text turn (the runner re-prompts until a non-tool turn) and stay
+				// answerable on EVERY round: plain approve tracks must CYCLE (the ::review session resumes with
+				// its transcript across rounds — wire truth 11, live-found 2026-07-10: a linear ladder answered
+				// text-only on round ≥2 and the card froze verdict-less in Review); bounce ladders keep the
+				// round-ordered linear repeat.
 				for (const track of script.tracks.filter((track) => track.requestClass === "review")) {
 					const last = track.turns[track.turns.length - 1];
 					expect(last?.behavior.kind).toBe("text");
-					expect(track.repeatLastTurn).toBe(true);
+					const hasBounce = track.turns.some(
+						(turn) =>
+							turn.behavior.kind === "tool_calls" &&
+							turn.behavior.calls.some(
+								(call) => (call.arguments as { verdict?: string }).verdict === "request_changes",
+							),
+					);
+					if (hasBounce) {
+						expect(track.repeatLastTurn, `${track.id}: bounce ladders repeat their last turn`).toBe(true);
+					} else {
+						expect(track.cycleTurns, `${track.id}: plain review tracks must cycle (wire truth 11)`).toBe(true);
+					}
 				}
 
 				// Every set carries an any-class fallback so nothing strict-misses.
