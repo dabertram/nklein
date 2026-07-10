@@ -6241,10 +6241,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         per-machine/endpoint concurrency-cap editor is live in the ConcurrencyEditor (defaults + override). **Still owed:**
         the richer pool LISTING (machine label · resident models · live busy/free) — a read surface fed by `lms ps --json`
         grouped by `deviceIdentifier` + `lms link status` (per the LM-Link research).
-  - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
+  - [~] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
         hard on the m5) with no cross-pool deadlock + clean teardown.
   - **named starter rosters (ref [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md) "Swarm rosters"):**
-    - [x] wire **Roster Q** (quality): m5max=`Qwen3-Coder-Next` UD-Q4_K_M (architect/reviewer), m4mini=`Qwen2.5-Coder-14B` (mid coder), legion=`Qwen2.5-Coder-7B` (fast worker) / `Qwen3-8B` alt. *(✅ 2026-07-09 — `model-lab roster-load <rosterId> [ctx]` now resolves the effective user-or-example roster, preflights fit against per-machine budgets, maps roster machines to LM Link devices via `~/.nklein/swarm-rosters.json` real names or `NKLEIN_ROSTER_MACHINE_MAP`, guarded-loads every primary assignment on its target device, restores the previous preferred device through `loadModelExclusive`, and verifies each model is resident before printing `ROSTER READY`. Built-in example classes intentionally require a local map before any load occurs.)*
+            **SIMULATED PLUMBING VERIFIED + SINGLE-ENDPOINT NEGATIVE CONTROL (2026-07-10):** `NKLEIN_SIMFLOW_POOLS=1
+        npx tsx scripts/verify-simulated-flow.mts` runs a 5-card flow with a FAKE `lms` CLI (NKLEIN_LMS_BIN) reporting
+        two machines (coder-a local, coder-b + reviewer on sim-machine-2), NKLEIN_PER_MACHINE_MAX_CONCURRENCY=1 and
+        NKLEIN_QUEUE_AWARE_FREE_FIRST=1 active — completes 5/5 with the machine map consumed end-to-end. It ALSO
+        empirically confirms the C5 finding: on ONE endpoint origin every worker lands on the primary coder (×8/×0)
+        because !Klein serializes per endpoint — cross-machine FAN-OUT is unverifiable single-endpoint by design.
+        Remaining for the live fleet (or a simulator follow-up that registers a second endpoint through the custom-
+        provider path — a plain second providers.json entry does NOT register; the run wouldn't start): ≥2 real
+        endpoints, wide DAG, easy cards landing on secondaries with overlapping turn windows.
+  - [x] wire **Roster Q** (quality): m5max=`Qwen3-Coder-Next` UD-Q4_K_M (architect/reviewer), m4mini=`Qwen2.5-Coder-14B` (mid coder), legion=`Qwen2.5-Coder-7B` (fast worker) / `Qwen3-8B` alt. *(✅ 2026-07-09 — `model-lab roster-load <rosterId> [ctx]` now resolves the effective user-or-example roster, preflights fit against per-machine budgets, maps roster machines to LM Link devices via `~/.nklein/swarm-rosters.json` real names or `NKLEIN_ROSTER_MACHINE_MAP`, guarded-loads every primary assignment on its target device, restores the previous preferred device through `loadModelExclusive`, and verifies each model is resident before printing `ROSTER READY`. Built-in example classes intentionally require a local map before any load occurs.)*
     - [x] wire **Roster M** (absolute-min): m5max-or-m4mini=`Qwen3-8B` (architect), m4mini-or-legion=`Qwen2.5-Coder-7B` (coder), legion=`Qwen2.5-Coder-3B` (micro-worker) — leans on the §5.AA ladder; treat ceilings as provisional. *(✅ 2026-07-09 — same `model-lab roster-load` orchestration path; the command is roster-id generic and loads whichever effective roster is selected.)*
     - [~] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
           **PRESET DATA DONE (2026-06-29):** [src/core/swarm-roster.ts](src/core/swarm-roster.ts) encodes ROSTER_Q +

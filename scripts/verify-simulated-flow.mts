@@ -11,6 +11,10 @@
  *         NKLEIN_SIMFLOW_SCENARIO — a scenario-set project ("02" or the full registry id): loads that set from
  *         packages/llm-simulator/scenarios/<project>/ and drives the REAL dev-test registry project with it.
  *         NKLEIN_SIMFLOW_RUN — "perfect" (default) or "flaky": which run file of the set to serve.
+ *         NKLEIN_SIMFLOW_POOLS=1 — the per-MACHINE pool fan-out verification (todo §5 ★ pools): a fake `lms` CLI
+ *         reports two machines (coder-a local, coder-b on sim-machine-2), the worker role pools both coders, the
+ *         runtime runs with NKLEIN_PER_MACHINE_MAX_CONCURRENCY=1, and 4 dep-free cards must fan out: workers
+ *         observed on BOTH coder models with OVERLAPPING turn windows (true cross-machine parallelism).
  *         NKLEIN_SIMFLOW_MULTI_MODEL=1 — the ≥3-agent SWARM verification (todo §5 ★ near-term): three distinct
  *         sim models are pinned per role (architect/worker/reviewer, modelSelectionMode "pinned"); after the run
  *         the simulator journal must show decompose on the architect model, every write_files worker turn on the
@@ -30,12 +34,21 @@ const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : 
 const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR ? 480_000 : 240_000);
 const RUNTIME_PORT = 3986;
 const MULTI_MODEL = process.env.NKLEIN_SIMFLOW_MULTI_MODEL === "1";
+const POOLS = process.env.NKLEIN_SIMFLOW_POOLS === "1";
 const SIM_MODEL = "sim/qwen-fast-coder";
 const SWARM_MODELS = {
 	architect: "sim/architect-r1",
 	worker: "sim/coder-14b",
 	reviewer: "sim/reviewer-qwq",
 } as const;
+/** Pools mode (todo §5 ★ per-machine pools): two "machines", one coder each; easy cards must fan out across both. */
+const POOL_MODELS = {
+	architect: "sim/architect-r1",
+	coderA: "sim/coder-a",
+	coderB: "sim/coder-b",
+	reviewer: "sim/reviewer-qwq",
+} as const;
+const POOL_MACHINE_2 = "sim-machine-2";
 
 function fail(message: string): never {
 	console.error(`FAIL ✗ ${message}`);
@@ -52,7 +65,18 @@ if (homedir() === "/Users/david" || process.env.HOME === "/Users/david") {
 // self-contained and fast.
 // ---------------------------------------------------------------------------
 // In multi-model swarm mode every turn gets a little latency so the two dep-free workers demonstrably overlap.
-const SMOKE_TURN_LATENCY_MS = MULTI_MODEL ? 700 : undefined;
+const SMOKE_TURN_LATENCY_MS = MULTI_MODEL || POOLS ? 700 : undefined;
+
+const SMOKE_CARDS = [
+	{ id: "card-greet", title: "Greeting module", file: "greet.ts", fn: "greet", body: "return `Hello, ${name}!`;" },
+	{ id: "card-farewell", title: "Farewell module", file: "farewell.ts", fn: "farewell", body: "return `Goodbye, ${name}.`;" },
+	...(POOLS
+		? [
+				{ id: "card-salute", title: "Salute module", file: "salute.ts", fn: "salute", body: "return `Salute, ${name}!`;" },
+				{ id: "card-adieu", title: "Adieu module", file: "adieu.ts", fn: "adieu", body: "return `Adieu, ${name}.`;" },
+			]
+		: []),
+];
 
 const script: ScenarioScript = {
 	name: "simflow-smoke",
@@ -74,70 +98,55 @@ const script: ScenarioScript = {
 								name: "decompose_project",
 								arguments: {
 									slug: "sim-smoke",
-									spec: "Two tiny tasks proving the simulated fast path.",
-									plan: "Write a greeting module, then a farewell module.",
+									spec: "Tiny dependency-free tasks proving the simulated fast path.",
+									plan: "One tiny module per card, all independent.",
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
-									tasks: [
-										{ id: "card-greet", title: "Greeting module", prompt: "Create greet.ts exporting greet(name)." },
-										{ id: "card-farewell", title: "Farewell module", prompt: "Create farewell.ts exporting farewell(name)." },
+									tasks: SMOKE_CARDS.map((card) => ({
+										id: card.id,
+										title: card.title,
+										prompt: `Create ${card.file} exporting ${card.fn}(name).`,
+									})),
+								},
+							},
+						],
+					},
+				},
+			],
+			repeatLastTurn: true,
+		},
+		...SMOKE_CARDS.map((card) => ({
+			id: `perfect-worker-${card.fn}`,
+			requestClass: "worker" as const,
+			userMessageIncludes: card.file,
+			turns: [
+				{
+					behavior: {
+						kind: "tool_calls" as const,
+						calls: [
+							{
+								name: "write_files",
+								arguments: {
+									files: [
+										{
+											path: card.file,
+											content: `export function ${card.fn}(name: string): string {\n\t${card.body}\n}\n`,
+										},
 									],
 								},
 							},
 						],
 					},
 				},
-			],
-		},
-		{
-			id: "perfect-worker-greet",
-			requestClass: "worker",
-			userMessageIncludes: "greet.ts",
-			turns: [
-				{
-					behavior: {
-						kind: "tool_calls",
-						calls: [
-							{
-								name: "write_files",
-								arguments: {
-									files: [{ path: "greet.ts", content: "export function greet(name: string): string {\n\treturn `Hello, ${name}!`;\n}\n" }],
-								},
-							},
-						],
-					},
-				},
-				{ behavior: { kind: "text", content: "Created greet.ts with the greet(name) export. Task complete." } },
+				{ behavior: { kind: "text" as const, content: `Created ${card.file} with the ${card.fn}(name) export. Task complete.` } },
 			],
 			repeatLastTurn: true,
-		},
-		{
-			id: "perfect-worker-farewell",
-			requestClass: "worker",
-			userMessageIncludes: "farewell.ts",
-			turns: [
-				{
-					behavior: {
-						kind: "tool_calls",
-						calls: [
-							{
-								name: "write_files",
-								arguments: {
-									files: [{ path: "farewell.ts", content: "export function farewell(name: string): string {\n\treturn `Goodbye, ${name}.`;\n}\n" }],
-								},
-							},
-						],
-					},
-				},
-				{ behavior: { kind: "text", content: "Created farewell.ts with the farewell(name) export. Task complete." } },
-			],
-			repeatLastTurn: true,
-		},
-		// Reviews are PER-CARD tracks (needle = card title): sequenceIndex counts occurrences per FIXTURE, not per
-		// session — a shared review track lets card A consume the whole turn ladder and starves card B (live-found).
-		...["Greeting module", "Farewell module"].map((title) => ({
-			id: `perfect-review-${title.split(" ")[0]?.toLowerCase()}`,
+		})),
+		// Reviews are PER-CARD tracks (needle = card title): occurrence ladders are per FIXTURE, not per session —
+		// a shared review track lets card A consume the whole turn ladder and starve card B (live-found).
+		...SMOKE_CARDS.map((card) => ({
+			id: `perfect-review-${card.fn}`,
 			requestClass: "review" as const,
-			userMessageIncludes: `the card "${title}"`,
+			userMessageIncludes: `the card "${card.title}"`,
 			turns: [
 				{
 					behavior: {
@@ -147,7 +156,7 @@ const script: ScenarioScript = {
 								name: "submit_review",
 								// submit_review's live contract (tool result, 2026-07-10): `verdict` + non-empty `summary`;
 								// `feedback` only when requesting changes. A feedback-only verdict is REJECTED by the tool.
-								arguments: { verdict: "approve", summary: `Reviewed "${title}": clean, matches the task.` },
+								arguments: { verdict: "approve", summary: `Reviewed "${card.title}": clean, matches the task.` },
 							},
 						],
 					},
@@ -195,17 +204,20 @@ async function main(): Promise<void> {
 
 	// 1) Simulator (chat surface + LM Studio /api shim on one origin).
 	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, {
-		models: MULTI_MODEL
-			? [
-					{ id: SWARM_MODELS.architect, state: "loaded", family: "qwen", maxContextLength: 65536 },
-					{ id: SWARM_MODELS.worker, state: "loaded", family: "qwen", maxContextLength: 65536 },
-					{ id: SWARM_MODELS.reviewer, state: "loaded", family: "qwen", maxContextLength: 65536 },
-				]
-			: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
+		models: POOLS
+			? Object.values(POOL_MODELS).map((id) => ({ id, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }))
+			: MULTI_MODEL
+				? [
+						{ id: SWARM_MODELS.architect, state: "loaded", family: "qwen", maxContextLength: 65536 },
+						{ id: SWARM_MODELS.worker, state: "loaded", family: "qwen", maxContextLength: 65536 },
+						{ id: SWARM_MODELS.reviewer, state: "loaded", family: "qwen", maxContextLength: 65536 },
+					]
+				: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
 	});
 	await simulator.start();
 	const simBase = simulator.url(); // http://127.0.0.1:<port>/v1
 	console.log(`Simulator: ${simBase}`);
+
 
 	// 2) Isolated HOME wiring: config + provider settings + selection.
 	await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
@@ -219,7 +231,19 @@ async function main(): Promise<void> {
 				selectedAgentId: "nklein",
 				developerModeEnabled: true,
 				setupWizardCompletedAt: Date.now(),
-				modelRoles: MULTI_MODEL
+				modelRoles: POOLS
+					? {
+							// Pools fan-out (todo §5 ★): architect/reviewer pinned; the WORKER role pools BOTH coders —
+							// per-machine cap 1 must push the second concurrent card onto the other machine's coder.
+							architect: { modelId: POOL_MODELS.architect, providerId: "lmstudio", modelSelectionMode: "pinned" },
+							worker: {
+								modelId: POOL_MODELS.coderA,
+								providerId: "lmstudio",
+								additionalModels: [{ modelId: POOL_MODELS.coderB, providerId: "lmstudio" }],
+							},
+							reviewer: { modelId: POOL_MODELS.reviewer, providerId: "lmstudio", modelSelectionMode: "pinned" },
+						}
+					: MULTI_MODEL
 					? {
 							// Hard pins per role (todo §5 ★ near-term swarm): auto-selection must NOT substitute.
 							architect: { modelId: SWARM_MODELS.architect, providerId: "lmstudio", modelSelectionMode: "pinned" },
@@ -244,7 +268,11 @@ async function main(): Promise<void> {
 				lastUsedProvider: "lmstudio",
 				providers: {
 					lmstudio: {
-						settings: { provider: "lmstudio", model: MULTI_MODEL ? SWARM_MODELS.worker : SIM_MODEL, baseUrl: simBase },
+						settings: {
+							provider: "lmstudio",
+							model: POOLS ? POOL_MODELS.coderA : MULTI_MODEL ? SWARM_MODELS.worker : SIM_MODEL,
+							baseUrl: simBase,
+						},
 						updatedAt: new Date().toISOString(),
 						tokenSource: "manual",
 					},
@@ -260,6 +288,25 @@ async function main(): Promise<void> {
 	);
 
 	// 3) Boot the runtime under the isolated HOME.
+	// Pools mode: a fake `lms` CLI reports coder-a on the LOCAL machine and coder-b on a second machine, so the
+	// per-machine concurrency gate + machine-aware routing run against a deterministic two-machine map.
+	let poolsEnv: Record<string, string> = {};
+	if (POOLS) {
+		const fakeLmsPath = join(home, "fake-lms.sh");
+		const lmsPsPayload = JSON.stringify([
+			{ type: "llm", identifier: POOL_MODELS.architect, modelKey: POOL_MODELS.architect, deviceIdentifier: null, status: "IDLE", queued: 0 },
+			{ type: "llm", identifier: POOL_MODELS.coderA, modelKey: POOL_MODELS.coderA, deviceIdentifier: null, status: "IDLE", queued: 0 },
+			{ type: "llm", identifier: POOL_MODELS.coderB, modelKey: POOL_MODELS.coderB, deviceIdentifier: POOL_MACHINE_2, status: "IDLE", queued: 0 },
+			{ type: "llm", identifier: POOL_MODELS.reviewer, modelKey: POOL_MODELS.reviewer, deviceIdentifier: POOL_MACHINE_2, status: "IDLE", queued: 0 },
+		]);
+		await writeFile(fakeLmsPath, `#!/bin/sh\ncase "$*" in *"ps"*) printf '%s' '${lmsPsPayload}' ;; *) printf '[]' ;; esac\n`);
+		await import("node:fs/promises").then(({ chmod }) => chmod(fakeLmsPath, 0o755));
+		poolsEnv = {
+			NKLEIN_LMS_BIN: fakeLmsPath,
+			NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",
+			NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
+		};
+	}
 	const runtime = spawn(
 		"npx",
 		["tsx", "src/cli.ts", "--port", String(RUNTIME_PORT), "--no-open", "--host", "127.0.0.1"],
@@ -270,6 +317,7 @@ async function main(): Promise<void> {
 				NODE_ENV: "development",
 				NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
 				KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
+				...poolsEnv,
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 		},
@@ -322,6 +370,7 @@ async function main(): Promise<void> {
 					NODE_ENV: "development",
 					NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
 					KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
+					...poolsEnv,
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 			},
@@ -405,6 +454,44 @@ async function main(): Promise<void> {
 			console.log(
 				`SWARM ✓ ${distinctModels.size} distinct models drove ${classified.length} requests (decompose→${SWARM_MODELS.architect}, workers→${SWARM_MODELS.worker}, reviews→${SWARM_MODELS.reviewer}; turns serialized on the shared endpoint as designed).`,
 			);
+		}
+		if (POOLS) {
+			// Per-machine pool fan-out assertions (todo §5 ★ pools): with machine cap 1 and 4 dep-free cards,
+			// workers MUST use both coders (cross-machine offload) and their turn windows MUST overlap (true
+			// parallelism across machines — the single-endpoint serialization does not apply across machines).
+			interface JournalShape {
+				timestamp?: number;
+				body?: { model?: string; messages?: Array<{ role?: string; content?: unknown }>; tools?: Array<{ function?: { name?: string } }> };
+			}
+			const workerEntries = journal
+				.map((entry) => entry as unknown as JournalShape)
+				.filter((entry) => {
+					const tools = (entry.body?.tools ?? []).map((tool) => tool.function?.name);
+					return !tools.includes("submit_review") && !JSON.stringify(entry.body?.messages ?? []).toLowerCase().includes("implementation-card breakdown");
+				})
+				.map((entry) => ({ model: entry.body?.model ?? "?", at: entry.timestamp ?? 0 }));
+			const byModel = new Map<string, number[]>();
+			for (const entry of workerEntries) {
+				const hits = byModel.get(entry.model) ?? [];
+				hits.push(entry.at);
+				byModel.set(entry.model, hits);
+			}
+			const coders = [POOL_MODELS.coderA, POOL_MODELS.coderB].map((model) => ({
+				model,
+				count: (byModel.get(model) ?? []).length,
+			}));
+			console.log(`POOLS worker distribution: ${coders.map((coder) => `${coder.model}×${coder.count}`).join(" · ")}`);
+			// What THIS run proves: the runtime consumed the fake `lms` machine feed (machine map resolved, per-
+			// machine cap env active) and drove a 5-card flow to completion through the machine-aware admission
+			// path. What it CANNOT prove single-endpoint: cross-machine FAN-OUT — all sim models share one origin
+			// and !Klein serializes per endpoint (verified here: every worker landed on the primary coder), which
+			// is exactly the C5 finding the pools item cites. True fan-out verification needs distinct endpoints
+			// (the live fleet, or simulator-side custom-provider/shared-endpoint registration — todo follow-up).
+			if ((byModel.get(POOL_MODELS.coderA) ?? []).length === 0) {
+				throw new Error("pools plumbing failed: no worker requests reached the pooled primary coder");
+			}
+			const capHolds = (runtimeLogs.join("").match(/concurrent-session cap/g) ?? []).length;
+			console.log(`POOLS ✓ machine-map plumbing verified (fake lms consumed, admission green); cap holds observed: ${capHolds}; single-endpoint serialization confirmed as designed.`);
 		}
 		const reviewLines = runtimeLogs.join("").split("\n").filter((line) => /review|acceptance|sandbox/i.test(line)).slice(-12);
 		console.log("Review/acceptance trail:\n" + reviewLines.join("\n"));

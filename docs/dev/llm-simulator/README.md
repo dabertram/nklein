@@ -17,6 +17,7 @@ LLM compute. Research trail: [existing-solutions.md](existing-solutions.md) (bui
 | Drive a real dev-test project with its generated set | `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=02 npx tsx scripts/verify-simulated-flow.mts` |
 | Same, flaky variant (catalog failure injections + recovery) | `… NKLEIN_SIMFLOW_RUN=flaky …` |
 | ≥3-model swarm role-routing verification (todo §5 ★) | `… NKLEIN_SIMFLOW_MULTI_MODEL=1 …` |
+| Per-machine pools plumbing (fake `lms` two-machine feed) | `… NKLEIN_SIMFLOW_POOLS=1 …` |
 | Regenerate the lower-20 scenario sets from the specs | `npx tsx scripts/generate-scenario-sets.mts [NN…]` |
 | Capture real-LLM traffic (reflection loop, §13d) | `npx tsx scripts/run-record-proxy.mts --upstream http://127.0.0.1:1234 --out captures/<name>` |
 | Distill a capture into scenario tracks | `npx tsx scripts/distill-capture.mts captures/<name>` |
