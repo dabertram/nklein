@@ -182,7 +182,10 @@ export function GitHistoryView({
 				display: "flex",
 				flex: "1 1 0",
 				minHeight: 0,
-				overflow: "hidden",
+				// Scroll instead of crush: below the three-pane minimum (refs + commits + diff floor) the row
+				// scrolls horizontally — the diff panel's minWidth keeps the payload readable (2026-07-10).
+				overflowX: "auto",
+				overflowY: "hidden",
 				background: "var(--color-surface-0)",
 			}}
 		>

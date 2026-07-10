@@ -10,6 +10,7 @@ import {
 } from "@/components/shared/diff-renderer";
 import { ResizeHandle } from "@/resize/resize-handle";
 import { useGitCommitDiffLayout } from "@/resize/use-git-commit-diff-layout";
+import { MIN_GIT_DIFF_PANEL_WIDTH } from "@/resize/use-git-history-layout";
 import { useResizeDrag } from "@/resize/use-resize-drag";
 import type { RuntimeGitCommitDiffFile, RuntimeWorkspaceFileChange } from "@/runtime/types";
 import { isBinaryFilePath } from "@/utils/is-binary-file-path";
@@ -217,7 +218,7 @@ export function GitCommitDiffPanel({
 				style={{
 					display: "flex",
 					flex: "1.6 1 0",
-					minWidth: 0,
+					minWidth: MIN_GIT_DIFF_PANEL_WIDTH,
 					minHeight: 0,
 					background: "var(--color-surface-0)",
 				}}
@@ -242,7 +243,7 @@ export function GitCommitDiffPanel({
 				style={{
 					display: "flex",
 					flex: "1.6 1 0",
-					minWidth: 0,
+					minWidth: MIN_GIT_DIFF_PANEL_WIDTH,
 					minHeight: 0,
 					background: "var(--color-surface-0)",
 				}}
@@ -295,7 +296,7 @@ export function GitCommitDiffPanel({
 				style={{
 					display: "flex",
 					flex: "1.6 1 0",
-					minWidth: 0,
+					minWidth: MIN_GIT_DIFF_PANEL_WIDTH,
 					minHeight: 0,
 					background: "var(--color-surface-0)",
 				}}
@@ -320,7 +321,13 @@ export function GitCommitDiffPanel({
 	return (
 		<div
 			ref={diffLayoutRef}
-			style={{ display: "flex", flex: "1.6 1 0", minWidth: 0, minHeight: 0, background: "var(--color-surface-0)" }}
+			style={{
+				display: "flex",
+				flex: "1.6 1 0",
+				minWidth: MIN_GIT_DIFF_PANEL_WIDTH,
+				minHeight: 0,
+				background: "var(--color-surface-0)",
+			}}
 		>
 			<div
 				style={{
