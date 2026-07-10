@@ -272,17 +272,32 @@ export async function fetchLmsPsSnapshot(run: LmsRunner): Promise<LmsPsSnapshot>
 // runner default) disables caching entirely, so tests and fakes see every call.
 let cachedPsSnapshot: { at: number; models: LmsPsModel[] } | null = null;
 
+/** Test-only: drop the shared `lms ps` snapshot so cache tests start cold and stay order-independent. */
+export function resetLmsPsModelsCacheForTests(): void {
+	cachedPsSnapshot = null;
+}
+
 /**
  * TTL-cached {@link fetchLmsPsModels} — reuses a recent `lms ps` snapshot within the shared
  * `modelDiscoveryCacheTtlMs` window so a task start (and a whole auto-start wave) pays for at most ONE subprocess.
  * NOTE: the cache is keyed globally (one `lms` CLI per host), not per-runner — pass a custom runner only in tests
  * (where the TTL is 0 and the cache is inert).
+ *
+ * `ttlOverrideMs` lets a hot loop request a TIGHTER freshness window than the discovery default without giving up
+ * the shared snapshot: the model-turn admission waiters poll every ~3s and previously each fetched UNCACHED —
+ * ~12 waiting cards ≈ 4 catalog hits/second against LM Studio (live-found by David 2026-07-10). With the override,
+ * all concurrent waiters share ONE fetch per poll window. TTL 0 (tests) still disables caching entirely.
  */
-export async function fetchLmsPsModelsCached(run: LmsRunner): Promise<LmsPsModel[]> {
-	const ttl = modelDiscoveryCacheTtlMs();
-	if (ttl <= 0) {
+export async function fetchLmsPsModelsCached(run: LmsRunner, ttlOverrideMs?: number): Promise<LmsPsModel[]> {
+	const baseTtl = modelDiscoveryCacheTtlMs();
+	if (baseTtl <= 0) {
+		// TTL 0 (test default) disables caching entirely — overrides never re-enable it.
 		return fetchLmsPsModels(run);
 	}
+	const ttl =
+		typeof ttlOverrideMs === "number" && Number.isFinite(ttlOverrideMs) && ttlOverrideMs > 0
+			? Math.min(ttlOverrideMs, baseTtl)
+			: baseTtl;
 	const now = Date.now();
 	if (cachedPsSnapshot && now - cachedPsSnapshot.at <= ttl) {
 		return cachedPsSnapshot.models;

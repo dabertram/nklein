@@ -5,6 +5,7 @@ import {
 	composeFleetRows,
 	type FleetGroup,
 	resolveFleetLineage,
+	summarizeIdleFleetRows,
 	toEndpointLabel,
 } from "@/components/fleet-strip-model";
 import type { RuntimeNKleinModelRegistryEntry, RuntimeTaskSessionSummary } from "@/runtime/types";
@@ -341,5 +342,43 @@ describe("compactFleetActivityText", () => {
 		expect(compactFleetActivityText(`${"x".repeat(120)}`)).toHaveLength(80);
 		// Pure-JSON activity falls back to a raw prefix instead of an empty line.
 		expect(compactFleetActivityText('{"ok":true}').length).toBeGreaterThan(0);
+	});
+});
+
+describe("loaded vs available states (David 2026-07-10: unloaded models must not read as idle)", () => {
+	const entry = (key: string) => makeEntry({ key, modelId: key });
+
+	it("marks registry models NOT in the lms-ps machine map as 'available', loaded ones as 'idle'", () => {
+		const groups = composeFleetRows({
+			registryModels: [entry("loaded-model"), entry("catalog-only-model")],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+			machineByModelId: { "loaded-model": "local" },
+		});
+		const rows = groups.flatMap((group) => group.rows);
+		expect(rows.find((row) => row.servedId === "loaded-model")?.state).toBe("idle");
+		expect(rows.find((row) => row.servedId === "catalog-only-model")?.state).toBe("available");
+	});
+
+	it("keeps the plain 'idle' reading when the machine map is absent/empty (cannot distinguish)", () => {
+		const groups = composeFleetRows({
+			registryModels: [entry("some-model")],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+		});
+		expect(groups.flatMap((g) => g.rows)[0]?.state).toBe("idle");
+	});
+
+	it("summarizes idle and available separately with the lineage mix", () => {
+		const rows = composeFleetRows({
+			registryModels: [entry("qwen-a"), entry("qwen-b"), entry("deepseek-c")],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+			machineByModelId: { "qwen-a": "local" },
+		}).flatMap((g) => g.rows);
+		const summary = summarizeIdleFleetRows(rows);
+		expect(summary).toContain("1 idle");
+		expect(summary).toContain("2 available");
+		expect(summary).toContain("qwen ×2");
 	});
 });

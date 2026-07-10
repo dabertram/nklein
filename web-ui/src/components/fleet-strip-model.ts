@@ -62,8 +62,11 @@ export interface FleetRow {
 	drivingCardTitle: string | null;
 	/** True when a matching `::spec` (A/B speculative) session is attached to this model. */
 	isSpec: boolean;
-	/** "running" when a non-spec session is driving it; "idle" otherwise. */
-	state: "running" | "idle";
+	/**
+	 * "running": a non-spec session drives it now. "idle": LOADED in LM Studio but not working. "available": known
+	 * to the registry but NOT loaded anywhere — it was wrong to call these "idle" (David 2026-07-10).
+	 */
+	state: "running" | "idle" | "available";
 	/** Rounded decode tok/s EWMA when the model has speed samples, else null. */
 	tokensPerSecond: number | null;
 	/** §5.AQ warmth: the shell kind this model last assembled ("worker"/"review"/…), when fresh; null otherwise. */
@@ -232,6 +235,13 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 		// Warmth is keyed by the SERVED id (the warmth ledger uses launch-config keys); only fresh entries show.
 		const warmth = input.warmthByModelId?.[entry.key] ?? input.warmthByModelId?.[entry.modelId] ?? null;
 		const warmKind = warmth && nowMs - warmth.at <= WARMTH_FRESH_MS ? warmth.kind : null;
+		// LOADED = present in the lms-ps machine map. When the feed is absent/empty we cannot distinguish and keep
+		// the old "idle" reading rather than wrongly demoting everything to "available".
+		const loadedKeys = input.machineByModelId ? Object.keys(input.machineByModelId) : [];
+		const isLoaded =
+			loadedKeys.length === 0 ||
+			input.machineByModelId?.[entry.key] !== undefined ||
+			input.machineByModelId?.[entry.modelId] !== undefined;
 		const row: FleetRow = {
 			modelId: entry.modelId,
 			servedId: entry.key,
@@ -240,7 +250,7 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 			drivingTaskId,
 			drivingCardTitle: drivingTaskId ? (cardTitleByTaskId.get(drivingTaskId) ?? null) : null,
 			isSpec: spec !== null,
-			state: driver ? "running" : "idle",
+			state: driver ? "running" : isLoaded ? "idle" : "available",
 			tokensPerSecond: tokensPerSecondFor(entry),
 			warmKind,
 			// The live snippet comes straight from the driver's latest hook activity — the same stream the card-level
@@ -284,11 +294,14 @@ export function isActiveFleetRow(row: FleetRow): boolean {
 }
 
 /**
- * One-line summary for a group's hidden idle rows, e.g. "8 idle · qwen ×4 · deepseek ×2 · phi ×1 · mistral ×1".
- * The strip is a glance surface — a wall of identical "idle" rows carries no information, but the lineage MIX does
- * (family diversity is a §5.AB routing signal), so the condensed line keeps exactly that.
+ * One-line summary for a group's hidden non-active rows, e.g. "2 idle · 16 available · qwen ×11 · deepseek ×3".
+ * "idle" = loaded but not working; "available" = known but NOT loaded (they must not masquerade as idle — David
+ * 2026-07-10). The strip is a glance surface — a wall of identical rows carries no information, but the lineage
+ * MIX does (family diversity is a §5.AB routing signal), so the condensed line keeps exactly that.
  */
 export function summarizeIdleFleetRows(rows: readonly FleetRow[]): string {
+	const idleCount = rows.filter((row) => row.state === "idle").length;
+	const availableCount = rows.length - idleCount;
 	const counts = new Map<FleetLineage, number>();
 	for (const row of rows) {
 		counts.set(row.lineage, (counts.get(row.lineage) ?? 0) + 1);
@@ -296,5 +309,8 @@ export function summarizeIdleFleetRows(rows: readonly FleetRow[]): string {
 	const parts = [...counts.entries()]
 		.sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
 		.map(([lineage, count]) => `${lineage} ×${count}`);
-	return `${rows.length} idle · ${parts.join(" · ")}`;
+	const head = [idleCount > 0 ? `${idleCount} idle` : null, availableCount > 0 ? `${availableCount} available` : null]
+		.filter(Boolean)
+		.join(" · ");
+	return `${head} · ${parts.join(" · ")}`;
 }

@@ -8,7 +8,7 @@ import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
-import { createDefaultLmsRunner, fetchLmsPsModels, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors, mergeLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import {
 	fetchLoadedModelIdsCached,
@@ -605,7 +605,7 @@ export async function handleStartTaskSession(
 		// `isModelFree` = own-sessions only (byte-identical).
 		const busyModelIds = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
 			? new Set(
-					(await fetchLmsPsModels(createDefaultLmsRunner()))
+					(await fetchLmsPsModelsCached(createDefaultLmsRunner()))
 						.filter((model) => model.queued > 0 || (model.status !== null && model.status !== "idle"))
 						.map((model) => model.identifier),
 				)

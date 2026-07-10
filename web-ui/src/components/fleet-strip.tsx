@@ -90,7 +90,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 					)}
 					title={row.drivingCardTitle ?? undefined}
 				>
-					{row.state === "running" ? (row.drivingCardTitle ?? row.drivingTaskId ?? "running") : "idle"}
+					{row.state === "running" ? (row.drivingCardTitle ?? row.drivingTaskId ?? "running") : row.state}
 					{row.isSpec ? (
 						<span className="ml-1.5 rounded border border-dashed border-accent-2/50 px-1 text-[9px] text-accent-2">
 							A/B spec

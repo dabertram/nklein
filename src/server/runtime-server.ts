@@ -42,7 +42,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
-import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -588,7 +588,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		| { ok: false; reason: string; retryAfterMs: number | null }
 	> => {
 		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
-		const freshPsModels = await fetchLmsPsModels(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS));
+		// Shared snapshot at poll granularity: N waiting cards previously EACH fetched uncached every ~3s —
+		// the LM Studio catalog-hammering storm (David 2026-07-10). One fetch per poll window serves all waiters.
+		const freshPsModels = await fetchLmsPsModelsCached(
+			createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS),
+			MODEL_TURN_ADMISSION_POLL_MS,
+		);
 		if (freshPsModels.length > 0) {
 			lastNonEmptyModelTurnPsModels = freshPsModels;
 		}
