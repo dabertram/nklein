@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (match, player, team, unit, map tile, terrain, vision state). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (match, player, team, unit, map tile, terrain, vision). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Deterministic simulation loop that accepts player commands, validates them",
-											"prompt": "Deterministic simulation loop that accepts player commands, validates them. Implement the foundation for: Deterministic simulation loop that accepts player commands, validates them, applies effects, and emits a replay event log. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/deterministic-simulation-loop-that-accep.mjs and test/deterministic-simulation-loop-that-accep.test.mjs.",
+											"title": "Deterministic simulation loop that accepts player",
+											"prompt": "Deterministic simulation loop that accepts player. Implement the foundation for: Deterministic simulation loop that accepts player commands, validates them, applies effects, and emits a replay event log. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/deterministic-simulation-loop-that-accep.mjs and test/deterministic-simulation-loop-that-accep.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Grid map engine with terrain costs, blocking, cover, elevation",
-											"prompt": "Grid map engine with terrain costs, blocking, cover, elevation. Implement the foundation for: Grid map engine with terrain costs, blocking, cover, elevation, line of sight, zones of control, and dynamic hazards. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/grid-map-engine-with-terrain-costs-block.mjs and test/grid-map-engine-with-terrain-costs-block.test.mjs.",
+											"title": "Grid map engine with terrain costs, blocking, cover",
+											"prompt": "Grid map engine with terrain costs, blocking, cover. Implement the foundation for: Grid map engine with terrain costs, blocking, cover, elevation, line of sight, zones of control, and dynamic hazards. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/grid-map-engine-with-terrain-costs-block.mjs and test/grid-map-engine-with-terrain-costs-block.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Ability system supporting targeted attacks, area effects, buffs, debuffs",
-											"prompt": "Ability system supporting targeted attacks, area effects, buffs, debuffs. Implement the foundation for: Ability system supporting targeted attacks, area effects, buffs, debuffs, interrupts, cooldowns, resources, status stacking, and resistances. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ability-system-supporting-targeted-attac.mjs and test/ability-system-supporting-targeted-attac.test.mjs.",
+											"title": "Ability system supporting targeted attacks, area effects",
+											"prompt": "Ability system supporting targeted attacks, area effects. Implement the foundation for: Ability system supporting targeted attacks, area effects, buffs, debuffs, interrupts, cooldowns, resources, status stacking, and resistances. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ability-system-supporting-targeted-attac.mjs and test/ability-system-supporting-targeted-attac.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Fog-of-war projection that creates per-player visible state without leaking",
-											"prompt": "Fog-of-war projection that creates per-player visible state without leaking. Implement the foundation for: Fog-of-war projection that creates per-player visible state without leaking hidden units or future random outcomes. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fog-of-war-projection-that-creates-per-p.mjs and test/fog-of-war-projection-that-creates-per-p.test.mjs.",
+											"title": "Fog-of-war projection that creates per-player visible",
+											"prompt": "Fog-of-war projection that creates per-player visible. Implement the foundation for: Fog-of-war projection that creates per-player visible state without leaking hidden units or future random outcomes. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fog-of-war-projection-that-creates-per-p.mjs and test/fog-of-war-projection-that-creates-per-p.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Seeded random number handling with replay verification and desync",
-											"prompt": "Seeded random number handling with replay verification and desync. Implement the foundation for: Seeded random number handling with replay verification and desync detection. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seeded-random-number-handling-with-repla.mjs and test/seeded-random-number-handling-with-repla.test.mjs.",
+											"title": "Seeded random number handling with replay verification and",
+											"prompt": "Seeded random number handling with replay verification and. Implement the foundation for: Seeded random number handling with replay verification and desync detection. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seeded-random-number-handling-with-repla.mjs and test/seeded-random-number-handling-with-repla.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "AI skirmish harness for deterministic smoke tests and balance",
-											"prompt": "AI skirmish harness for deterministic smoke tests and balance. Implement the foundation for: AI skirmish harness for deterministic smoke tests and balance fixture scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ai-skirmish-harness-for-deterministic-sm.mjs and test/ai-skirmish-harness-for-deterministic-sm.test.mjs.",
+											"title": "AI skirmish harness for deterministic smoke tests and",
+											"prompt": "AI skirmish harness for deterministic smoke tests and. Implement the foundation for: AI skirmish harness for deterministic smoke tests and balance fixture scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ai-skirmish-harness-for-deterministic-sm.mjs and test/ai-skirmish-harness-for-deterministic-sm.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed scenario with stealth units, overwatch, area denial, status",
-											"prompt": "Seed scenario with stealth units, overwatch, area denial, status. Implement the foundation for: Seed scenario with stealth units, overwatch, area denial, status interactions, and simultaneous objective pressure. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-stealth-units-overwat.mjs and test/seed-scenario-with-stealth-units-overwat.test.mjs.",
+											"title": "Seed scenario with stealth units, overwatch, area denial",
+											"prompt": "Seed scenario with stealth units, overwatch, area denial. Implement the foundation for: Seed scenario with stealth units, overwatch, area denial, status interactions, and simultaneous objective pressure. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-stealth-units-overwat.mjs and test/seed-scenario-with-stealth-units-overwat.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -765,7 +765,7 @@
 									"files": [
 										{
 											"path": "src/deterministic-simulation-loop-that-accep.mjs",
-											"content": "/**\n * Deterministic simulation loop that accepts player commands, validates them\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationLoopThatAccepInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationLoopThatAccepFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationLoopThatAccepFinding[] }} DeterministicSimulationLoopThatAccepResult\n */\n\n/**\n * Evaluate one input against the deterministic simulation loop that accepts player commands, validates them policy.\n * @param {DeterministicSimulationLoopThatAccepInput} input\n * @returns {DeterministicSimulationLoopThatAccepResult}\n */\nexport function evaluateDeterministicSimulationLoopThatAccep(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-loop-that-accep/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Deterministic simulation loop that accepts player\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationLoopThatAccepInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationLoopThatAccepFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationLoopThatAccepFinding[] }} DeterministicSimulationLoopThatAccepResult\n */\n\n/**\n * Evaluate one input against the deterministic simulation loop that accepts player policy.\n * @param {DeterministicSimulationLoopThatAccepInput} input\n * @returns {DeterministicSimulationLoopThatAccepResult}\n */\nexport function evaluateDeterministicSimulationLoopThatAccep(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-loop-that-accep/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-loop-that-accep/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/deterministic-simulation-loop-that-accep.test.mjs",
@@ -795,7 +795,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Deterministic simulation loop that accepts player commands, validates them\": src/deterministic-simulation-loop-that-accep.mjs, test/deterministic-simulation-loop-that-accep.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Deterministic simulation loop that accepts player\": src/deterministic-simulation-loop-that-accep.mjs, test/deterministic-simulation-loop-that-accep.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -805,7 +805,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Deterministic simulation loop that accepts player commands, validates them\"",
+			"userMessageIncludes": "the card \"Deterministic simulation loop that accepts player\"",
 			"turns": [
 				{
 					"behavior": {
@@ -815,7 +815,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Deterministic simulation loop that accepts player commands, validates them\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Deterministic simulation loop that accepts player\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -861,7 +861,7 @@
 									"files": [
 										{
 											"path": "src/grid-map-engine-with-terrain-costs-block.mjs",
-											"content": "/**\n * Grid map engine with terrain costs, blocking, cover, elevation\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GridMapEngineWithTerrainCostsBlockInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GridMapEngineWithTerrainCostsBlockFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GridMapEngineWithTerrainCostsBlockFinding[] }} GridMapEngineWithTerrainCostsBlockResult\n */\n\n/**\n * Evaluate one input against the grid map engine with terrain costs, blocking, cover, elevation policy.\n * @param {GridMapEngineWithTerrainCostsBlockInput} input\n * @returns {GridMapEngineWithTerrainCostsBlockResult}\n */\nexport function evaluateGridMapEngineWithTerrainCostsBlock(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"grid-map-engine-with-terrain-costs-block/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Grid map engine with terrain costs, blocking, cover\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GridMapEngineWithTerrainCostsBlockInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GridMapEngineWithTerrainCostsBlockFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GridMapEngineWithTerrainCostsBlockFinding[] }} GridMapEngineWithTerrainCostsBlockResult\n */\n\n/**\n * Evaluate one input against the grid map engine with terrain costs, blocking, cover policy.\n * @param {GridMapEngineWithTerrainCostsBlockInput} input\n * @returns {GridMapEngineWithTerrainCostsBlockResult}\n */\nexport function evaluateGridMapEngineWithTerrainCostsBlock(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"grid-map-engine-with-terrain-costs-block/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"grid-map-engine-with-terrain-costs-block/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/grid-map-engine-with-terrain-costs-block.test.mjs",
@@ -891,7 +891,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Grid map engine with terrain costs, blocking, cover, elevation\": src/grid-map-engine-with-terrain-costs-block.mjs, test/grid-map-engine-with-terrain-costs-block.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Grid map engine with terrain costs, blocking, cover\": src/grid-map-engine-with-terrain-costs-block.mjs, test/grid-map-engine-with-terrain-costs-block.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -901,7 +901,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Grid map engine with terrain costs, blocking, cover, elevation\"",
+			"userMessageIncludes": "the card \"Grid map engine with terrain costs, blocking, cover\"",
 			"turns": [
 				{
 					"behavior": {
@@ -911,7 +911,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Grid map engine with terrain costs, blocking, cover, elevation\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Grid map engine with terrain costs, blocking, cover\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -957,7 +957,7 @@
 									"files": [
 										{
 											"path": "src/ability-system-supporting-targeted-attac.mjs",
-											"content": "/**\n * Ability system supporting targeted attacks, area effects, buffs, debuffs\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AbilitySystemSupportingTargetedAttacInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AbilitySystemSupportingTargetedAttacFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AbilitySystemSupportingTargetedAttacFinding[] }} AbilitySystemSupportingTargetedAttacResult\n */\n\n/**\n * Evaluate one input against the ability system supporting targeted attacks, area effects, buffs, debuffs policy.\n * @param {AbilitySystemSupportingTargetedAttacInput} input\n * @returns {AbilitySystemSupportingTargetedAttacResult}\n */\nexport function evaluateAbilitySystemSupportingTargetedAttac(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ability-system-supporting-targeted-attac/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Ability system supporting targeted attacks, area effects\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AbilitySystemSupportingTargetedAttacInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AbilitySystemSupportingTargetedAttacFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AbilitySystemSupportingTargetedAttacFinding[] }} AbilitySystemSupportingTargetedAttacResult\n */\n\n/**\n * Evaluate one input against the ability system supporting targeted attacks, area effects policy.\n * @param {AbilitySystemSupportingTargetedAttacInput} input\n * @returns {AbilitySystemSupportingTargetedAttacResult}\n */\nexport function evaluateAbilitySystemSupportingTargetedAttac(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ability-system-supporting-targeted-attac/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ability-system-supporting-targeted-attac/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/ability-system-supporting-targeted-attac.test.mjs",
@@ -987,7 +987,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Ability system supporting targeted attacks, area effects, buffs, debuffs\": src/ability-system-supporting-targeted-attac.mjs, test/ability-system-supporting-targeted-attac.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Ability system supporting targeted attacks, area effects\": src/ability-system-supporting-targeted-attac.mjs, test/ability-system-supporting-targeted-attac.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -997,7 +997,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Ability system supporting targeted attacks, area effects, buffs, debuffs\"",
+			"userMessageIncludes": "the card \"Ability system supporting targeted attacks, area effects\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1007,7 +1007,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Ability system supporting targeted attacks, area effects, buffs, debuffs\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Ability system supporting targeted attacks, area effects\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1053,7 +1053,7 @@
 									"files": [
 										{
 											"path": "src/fog-of-war-projection-that-creates-per-p.mjs",
-											"content": "/**\n * Fog-of-war projection that creates per-player visible state without leaking\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FogOfWarProjectionThatCreatesPerPInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FogOfWarProjectionThatCreatesPerPFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FogOfWarProjectionThatCreatesPerPFinding[] }} FogOfWarProjectionThatCreatesPerPResult\n */\n\n/**\n * Evaluate one input against the fog-of-war projection that creates per-player visible state without leaking policy.\n * @param {FogOfWarProjectionThatCreatesPerPInput} input\n * @returns {FogOfWarProjectionThatCreatesPerPResult}\n */\nexport function evaluateFogOfWarProjectionThatCreatesPerP(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fog-of-war-projection-that-creates-per-p/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Fog-of-war projection that creates per-player visible\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FogOfWarProjectionThatCreatesPerPInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FogOfWarProjectionThatCreatesPerPFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FogOfWarProjectionThatCreatesPerPFinding[] }} FogOfWarProjectionThatCreatesPerPResult\n */\n\n/**\n * Evaluate one input against the fog-of-war projection that creates per-player visible policy.\n * @param {FogOfWarProjectionThatCreatesPerPInput} input\n * @returns {FogOfWarProjectionThatCreatesPerPResult}\n */\nexport function evaluateFogOfWarProjectionThatCreatesPerP(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fog-of-war-projection-that-creates-per-p/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fog-of-war-projection-that-creates-per-p/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/fog-of-war-projection-that-creates-per-p.test.mjs",
@@ -1083,7 +1083,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Fog-of-war projection that creates per-player visible state without leaking\": src/fog-of-war-projection-that-creates-per-p.mjs, test/fog-of-war-projection-that-creates-per-p.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Fog-of-war projection that creates per-player visible\": src/fog-of-war-projection-that-creates-per-p.mjs, test/fog-of-war-projection-that-creates-per-p.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1093,7 +1093,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Fog-of-war projection that creates per-player visible state without leaking\"",
+			"userMessageIncludes": "the card \"Fog-of-war projection that creates per-player visible\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1103,7 +1103,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Fog-of-war projection that creates per-player visible state without leaking\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Fog-of-war projection that creates per-player visible\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1149,7 +1149,7 @@
 									"files": [
 										{
 											"path": "src/seeded-random-number-handling-with-repla.mjs",
-											"content": "/**\n * Seeded random number handling with replay verification and desync\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeededRandomNumberHandlingWithReplaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeededRandomNumberHandlingWithReplaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeededRandomNumberHandlingWithReplaFinding[] }} SeededRandomNumberHandlingWithReplaResult\n */\n\n/**\n * Evaluate one input against the seeded random number handling with replay verification and desync policy.\n * @param {SeededRandomNumberHandlingWithReplaInput} input\n * @returns {SeededRandomNumberHandlingWithReplaResult}\n */\nexport function evaluateSeededRandomNumberHandlingWithRepla(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seeded-random-number-handling-with-repla/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seeded random number handling with replay verification and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeededRandomNumberHandlingWithReplaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeededRandomNumberHandlingWithReplaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeededRandomNumberHandlingWithReplaFinding[] }} SeededRandomNumberHandlingWithReplaResult\n */\n\n/**\n * Evaluate one input against the seeded random number handling with replay verification and policy.\n * @param {SeededRandomNumberHandlingWithReplaInput} input\n * @returns {SeededRandomNumberHandlingWithReplaResult}\n */\nexport function evaluateSeededRandomNumberHandlingWithRepla(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seeded-random-number-handling-with-repla/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seeded-random-number-handling-with-repla/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seeded-random-number-handling-with-repla.test.mjs",
@@ -1179,7 +1179,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seeded random number handling with replay verification and desync\": src/seeded-random-number-handling-with-repla.mjs, test/seeded-random-number-handling-with-repla.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seeded random number handling with replay verification and\": src/seeded-random-number-handling-with-repla.mjs, test/seeded-random-number-handling-with-repla.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1189,7 +1189,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seeded random number handling with replay verification and desync\"",
+			"userMessageIncludes": "the card \"Seeded random number handling with replay verification and\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1199,7 +1199,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seeded random number handling with replay verification and desync\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seeded random number handling with replay verification and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1245,7 +1245,7 @@
 									"files": [
 										{
 											"path": "src/ai-skirmish-harness-for-deterministic-sm.mjs",
-											"content": "/**\n * AI skirmish harness for deterministic smoke tests and balance\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AiSkirmishHarnessForDeterministicSmInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AiSkirmishHarnessForDeterministicSmFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AiSkirmishHarnessForDeterministicSmFinding[] }} AiSkirmishHarnessForDeterministicSmResult\n */\n\n/**\n * Evaluate one input against the ai skirmish harness for deterministic smoke tests and balance policy.\n * @param {AiSkirmishHarnessForDeterministicSmInput} input\n * @returns {AiSkirmishHarnessForDeterministicSmResult}\n */\nexport function evaluateAiSkirmishHarnessForDeterministicSm(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ai-skirmish-harness-for-deterministic-sm/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * AI skirmish harness for deterministic smoke tests and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AiSkirmishHarnessForDeterministicSmInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AiSkirmishHarnessForDeterministicSmFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AiSkirmishHarnessForDeterministicSmFinding[] }} AiSkirmishHarnessForDeterministicSmResult\n */\n\n/**\n * Evaluate one input against the ai skirmish harness for deterministic smoke tests and policy.\n * @param {AiSkirmishHarnessForDeterministicSmInput} input\n * @returns {AiSkirmishHarnessForDeterministicSmResult}\n */\nexport function evaluateAiSkirmishHarnessForDeterministicSm(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ai-skirmish-harness-for-deterministic-sm/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ai-skirmish-harness-for-deterministic-sm/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/ai-skirmish-harness-for-deterministic-sm.test.mjs",
@@ -1275,7 +1275,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"AI skirmish harness for deterministic smoke tests and balance\": src/ai-skirmish-harness-for-deterministic-sm.mjs, test/ai-skirmish-harness-for-deterministic-sm.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"AI skirmish harness for deterministic smoke tests and\": src/ai-skirmish-harness-for-deterministic-sm.mjs, test/ai-skirmish-harness-for-deterministic-sm.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1285,7 +1285,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"AI skirmish harness for deterministic smoke tests and balance\"",
+			"userMessageIncludes": "the card \"AI skirmish harness for deterministic smoke tests and\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1295,7 +1295,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"AI skirmish harness for deterministic smoke tests and balance\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"AI skirmish harness for deterministic smoke tests and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1341,7 +1341,7 @@
 									"files": [
 										{
 											"path": "src/seed-scenario-with-stealth-units-overwat.mjs",
-											"content": "/**\n * Seed scenario with stealth units, overwatch, area denial, status\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithStealthUnitsOverwatInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithStealthUnitsOverwatFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithStealthUnitsOverwatFinding[] }} SeedScenarioWithStealthUnitsOverwatResult\n */\n\n/**\n * Evaluate one input against the seed scenario with stealth units, overwatch, area denial, status policy.\n * @param {SeedScenarioWithStealthUnitsOverwatInput} input\n * @returns {SeedScenarioWithStealthUnitsOverwatResult}\n */\nexport function evaluateSeedScenarioWithStealthUnitsOverwat(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-stealth-units-overwat/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed scenario with stealth units, overwatch, area denial\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithStealthUnitsOverwatInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithStealthUnitsOverwatFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithStealthUnitsOverwatFinding[] }} SeedScenarioWithStealthUnitsOverwatResult\n */\n\n/**\n * Evaluate one input against the seed scenario with stealth units, overwatch, area denial policy.\n * @param {SeedScenarioWithStealthUnitsOverwatInput} input\n * @returns {SeedScenarioWithStealthUnitsOverwatResult}\n */\nexport function evaluateSeedScenarioWithStealthUnitsOverwat(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-stealth-units-overwat/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-stealth-units-overwat/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-scenario-with-stealth-units-overwat.test.mjs",
@@ -1371,7 +1371,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed scenario with stealth units, overwatch, area denial, status\": src/seed-scenario-with-stealth-units-overwat.mjs, test/seed-scenario-with-stealth-units-overwat.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed scenario with stealth units, overwatch, area denial\": src/seed-scenario-with-stealth-units-overwat.mjs, test/seed-scenario-with-stealth-units-overwat.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				},
 				{
@@ -1395,7 +1395,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Addressed the review feedback on \"Seed scenario with stealth units, overwatch, area denial, status\" and re-ran the tests. Task complete."
+						"content": "Addressed the review feedback on \"Seed scenario with stealth units, overwatch, area denial\" and re-ran the tests. Task complete."
 					}
 				}
 			],
@@ -1405,7 +1405,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed scenario with stealth units, overwatch, area denial, status\"",
+			"userMessageIncludes": "the card \"Seed scenario with stealth units, overwatch, area denial\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1415,8 +1415,8 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "request_changes",
-									"summary": "\"Seed scenario with stealth units, overwatch, area denial, status\" is close but ships a gap the card explicitly owns.",
-									"feedback": "The evaluate module for \"Seed scenario with stealth units, overwatch, area denial, status\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
+									"summary": "\"Seed scenario with stealth units, overwatch, area denial\" is close but ships a gap the card explicitly owns.",
+									"feedback": "The evaluate module for \"Seed scenario with stealth units, overwatch, area denial\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
 								}
 							}
 						]
@@ -1430,7 +1430,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed scenario with stealth units, overwatch, area denial, status\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed scenario with stealth units, overwatch, area denial\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

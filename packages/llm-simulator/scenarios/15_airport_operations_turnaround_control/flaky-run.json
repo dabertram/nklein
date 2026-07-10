@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (flight, aircraft, airline, gate, stand, belt, crew, equipment, turnaround). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (flight, aircraft, airline, gate, stand, belt, crew). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Gate and stand assignment engine with aircraft size, domestic/international",
-											"prompt": "Gate and stand assignment engine with aircraft size, domestic/international. Implement the foundation for: Gate and stand assignment engine with aircraft size, domestic/international status, tow requirements, connection banks, maintenance holds, and gate conflicts. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/gate-and-stand-assignment-engine-with-ai.mjs and test/gate-and-stand-assignment-engine-with-ai.test.mjs.",
+											"title": "Gate and stand assignment engine with aircraft size",
+											"prompt": "Gate and stand assignment engine with aircraft size. Implement the foundation for: Gate and stand assignment engine with aircraft size, domestic/international status, tow requirements, connection banks, maintenance holds, and gate conflicts. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/gate-and-stand-assignment-engine-with-ai.mjs and test/gate-and-stand-assignment-engine-with-ai.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Gate and stand assignment engine with aircraft size, domestic/international — core engine",
-											"prompt": "Gate and stand assignment engine with aircraft size, domestic/international — core engine. Extend the gate and stand assignment engine with aircraft size, domestic/international module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/gate-and-stand-assignment-engine-with-ai-2.mjs and test/gate-and-stand-assignment-engine-with-ai-2.test.mjs.",
+											"title": "Gate and stand assignment engine with aircraft size — core engine",
+											"prompt": "Gate and stand assignment engine with aircraft size — core engine. Extend the gate and stand assignment engine with aircraft size module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/gate-and-stand-assignment-engine-with-ai-2.mjs and test/gate-and-stand-assignment-engine-with-ai-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,8 +81,23 @@
 										},
 										{
 											"id": "s04",
-											"title": "Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning",
-											"prompt": "Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning. Implement the foundation for: Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning, catering, fueling, boarding, baggage, pushback, and doors closed. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/turnaround-milestone-tracker-for-blocks.mjs and test/turnaround-milestone-tracker-for-blocks.test.mjs.",
+											"title": "Gate and stand assignment engine with aircraft size — edge cases",
+											"prompt": "Gate and stand assignment engine with aircraft size — edge cases. Extend the gate and stand assignment engine with aircraft size module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/gate-and-stand-assignment-engine-with-ai-3.mjs and test/gate-and-stand-assignment-engine-with-ai-3.test.mjs.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/gate-and-stand-assignment-engine-with-ai-3.mjs",
+												"test/gate-and-stand-assignment-engine-with-ai-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Turnaround milestone tracker for blocks-on, chocks",
+											"prompt": "Turnaround milestone tracker for blocks-on, chocks. Implement the foundation for: Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning, catering, fueling, boarding, baggage, pushback, and doors closed. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/turnaround-milestone-tracker-for-blocks.mjs and test/turnaround-milestone-tracker-for-blocks.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -95,9 +110,39 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Baggage belt planner with arrival waves, belt capacity, transfer",
-											"prompt": "Baggage belt planner with arrival waves, belt capacity, transfer. Implement the foundation for: Baggage belt planner with arrival waves, belt capacity, transfer bags, oversize handling, and failed equipment. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/baggage-belt-planner-with-arrival-waves.mjs and test/baggage-belt-planner-with-arrival-waves.test.mjs.",
+											"id": "s06",
+											"title": "Turnaround milestone tracker for blocks-on, chocks — core engine",
+											"prompt": "Turnaround milestone tracker for blocks-on, chocks — core engine. Extend the turnaround milestone tracker for blocks-on, chocks module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/turnaround-milestone-tracker-for-blocks-2.mjs and test/turnaround-milestone-tracker-for-blocks-2.test.mjs.",
+											"dependsOn": [
+												"s05"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/turnaround-milestone-tracker-for-blocks-2.mjs",
+												"test/turnaround-milestone-tracker-for-blocks-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Turnaround milestone tracker for blocks-on, chocks — edge cases",
+											"prompt": "Turnaround milestone tracker for blocks-on, chocks — edge cases. Extend the turnaround milestone tracker for blocks-on, chocks module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/turnaround-milestone-tracker-for-blocks-3.mjs and test/turnaround-milestone-tracker-for-blocks-3.test.mjs.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/turnaround-milestone-tracker-for-blocks-3.mjs",
+												"test/turnaround-milestone-tracker-for-blocks-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Baggage belt planner with arrival waves, belt capacity",
+											"prompt": "Baggage belt planner with arrival waves, belt capacity. Implement the foundation for: Baggage belt planner with arrival waves, belt capacity, transfer bags, oversize handling, and failed equipment. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/baggage-belt-planner-with-arrival-waves.mjs and test/baggage-belt-planner-with-arrival-waves.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,61 +155,16 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "Baggage belt planner with arrival waves, belt capacity, transfer — core engine",
-											"prompt": "Baggage belt planner with arrival waves, belt capacity, transfer — core engine. Extend the baggage belt planner with arrival waves, belt capacity, transfer module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/baggage-belt-planner-with-arrival-waves-2.mjs and test/baggage-belt-planner-with-arrival-waves-2.test.mjs.",
+											"id": "s09",
+											"title": "Baggage belt planner with arrival waves, belt capacity — core engine",
+											"prompt": "Baggage belt planner with arrival waves, belt capacity — core engine. Extend the baggage belt planner with arrival waves, belt capacity module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/baggage-belt-planner-with-arrival-waves-2.mjs and test/baggage-belt-planner-with-arrival-waves-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s08"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/baggage-belt-planner-with-arrival-waves-2.mjs",
 												"test/baggage-belt-planner-with-arrival-waves-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s07",
-											"title": "Ground-crew rostering and equipment allocation for pushback tugs, belt",
-											"prompt": "Ground-crew rostering and equipment allocation for pushback tugs, belt. Implement the foundation for: Ground-crew rostering and equipment allocation for pushback tugs, belt loaders, fuel trucks, cleaners, and deicing trucks. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ground-crew-rostering-and-equipment-allo.mjs and test/ground-crew-rostering-and-equipment-allo.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/ground-crew-rostering-and-equipment-allo.mjs",
-												"test/ground-crew-rostering-and-equipment-allo.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
-											"title": "Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine",
-											"prompt": "Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine. Extend the ground-crew rostering and equipment allocation for pushback tugs, belt module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/ground-crew-rostering-and-equipment-allo-2.mjs and test/ground-crew-rostering-and-equipment-allo-2.test.mjs.",
-											"dependsOn": [
-												"s07"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/ground-crew-rostering-and-equipment-allo-2.mjs",
-												"test/ground-crew-rostering-and-equipment-allo-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s09",
-											"title": "Disruption manager for late inbound aircraft, weather ground stop",
-											"prompt": "Disruption manager for late inbound aircraft, weather ground stop. Implement the foundation for: Disruption manager for late inbound aircraft, weather ground stop, gate closure, equipment failure, and crew shortage. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/disruption-manager-for-late-inbound-airc.mjs and test/disruption-manager-for-late-inbound-airc.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/disruption-manager-for-late-inbound-airc.mjs",
-												"test/disruption-manager-for-late-inbound-airc.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/gate-and-stand-assignment-engine-with-ai.mjs",
-											"content": "/**\n * Gate and stand assignment engine with aircraft size, domestic/international\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GateAndStandAssignmentEngineWithAiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GateAndStandAssignmentEngineWithAiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GateAndStandAssignmentEngineWithAiFinding[] }} GateAndStandAssignmentEngineWithAiResult\n */\n\n/**\n * Evaluate one input against the gate and stand assignment engine with aircraft size, domestic/international policy.\n * @param {GateAndStandAssignmentEngineWithAiInput} input\n * @returns {GateAndStandAssignmentEngineWithAiResult}\n */\nexport function evaluateGateAndStandAssignmentEngineWithAi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"gate-and-stand-assignment-engine-with-ai/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Gate and stand assignment engine with aircraft size\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GateAndStandAssignmentEngineWithAiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GateAndStandAssignmentEngineWithAiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GateAndStandAssignmentEngineWithAiFinding[] }} GateAndStandAssignmentEngineWithAiResult\n */\n\n/**\n * Evaluate one input against the gate and stand assignment engine with aircraft size policy.\n * @param {GateAndStandAssignmentEngineWithAiInput} input\n * @returns {GateAndStandAssignmentEngineWithAiResult}\n */\nexport function evaluateGateAndStandAssignmentEngineWithAi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"gate-and-stand-assignment-engine-with-ai/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/gate-and-stand-assignment-engine-with-ai.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Gate and stand assignment engine with aircraft size, domestic/international\": src/gate-and-stand-assignment-engine-with-ai.mjs, test/gate-and-stand-assignment-engine-with-ai.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Gate and stand assignment engine with aircraft size\": src/gate-and-stand-assignment-engine-with-ai.mjs, test/gate-and-stand-assignment-engine-with-ai.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Gate and stand assignment engine with aircraft size, domestic/international\"",
+			"userMessageIncludes": "the card \"Gate and stand assignment engine with aircraft size\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Gate and stand assignment engine with aircraft size, domestic/international\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Gate and stand assignment engine with aircraft size\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -510,7 +510,7 @@
 									"files": [
 										{
 											"path": "src/gate-and-stand-assignment-engine-with-ai-2.mjs",
-											"content": "/**\n * Gate and stand assignment engine with aircraft size, domestic/international — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GateAndStandAssignmentEngineWithAi2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GateAndStandAssignmentEngineWithAi2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GateAndStandAssignmentEngineWithAi2Finding[] }} GateAndStandAssignmentEngineWithAi2Result\n */\n\n/**\n * Evaluate one input against the gate and stand assignment engine with aircraft size, domestic/international — core engine policy.\n * @param {GateAndStandAssignmentEngineWithAi2Input} input\n * @returns {GateAndStandAssignmentEngineWithAi2Result}\n */\nexport function evaluateGateAndStandAssignmentEngineWithAi2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"gate-and-stand-assignment-engine-with-ai-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Gate and stand assignment engine with aircraft size — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GateAndStandAssignmentEngineWithAi2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GateAndStandAssignmentEngineWithAi2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GateAndStandAssignmentEngineWithAi2Finding[] }} GateAndStandAssignmentEngineWithAi2Result\n */\n\n/**\n * Evaluate one input against the gate and stand assignment engine with aircraft size — core engine policy.\n * @param {GateAndStandAssignmentEngineWithAi2Input} input\n * @returns {GateAndStandAssignmentEngineWithAi2Result}\n */\nexport function evaluateGateAndStandAssignmentEngineWithAi2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"gate-and-stand-assignment-engine-with-ai-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/gate-and-stand-assignment-engine-with-ai-2.test.mjs",
@@ -540,7 +540,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Gate and stand assignment engine with aircraft size, domestic/international — core engine\": src/gate-and-stand-assignment-engine-with-ai-2.mjs, test/gate-and-stand-assignment-engine-with-ai-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Gate and stand assignment engine with aircraft size — core engine\": src/gate-and-stand-assignment-engine-with-ai-2.mjs, test/gate-and-stand-assignment-engine-with-ai-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -550,7 +550,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Gate and stand assignment engine with aircraft size, domestic/international — core engine\"",
+			"userMessageIncludes": "the card \"Gate and stand assignment engine with aircraft size — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -560,7 +560,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Gate and stand assignment engine with aircraft size, domestic/international — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Gate and stand assignment engine with aircraft size — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -579,7 +579,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/turnaround-milestone-tracker-for-blocks.mjs",
+			"userMessageIncludes": "Files for THIS card: src/gate-and-stand-assignment-engine-with-ai-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -605,8 +605,111 @@
 								"arguments": {
 									"files": [
 										{
+											"path": "src/gate-and-stand-assignment-engine-with-ai-3.mjs",
+											"content": "/**\n * Gate and stand assignment engine with aircraft size — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GateAndStandAssignmentEngineWithAi3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GateAndStandAssignmentEngineWithAi3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GateAndStandAssignmentEngineWithAi3Finding[] }} GateAndStandAssignmentEngineWithAi3Result\n */\n\n/**\n * Evaluate one input against the gate and stand assignment engine with aircraft size — edge cases policy.\n * @param {GateAndStandAssignmentEngineWithAi3Input} input\n * @returns {GateAndStandAssignmentEngineWithAi3Result}\n */\nexport function evaluateGateAndStandAssignmentEngineWithAi3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"gate-and-stand-assignment-engine-with-ai-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"gate-and-stand-assignment-engine-with-ai-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/gate-and-stand-assignment-engine-with-ai-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateGateAndStandAssignmentEngineWithAi3 } from \"../src/gate-and-stand-assignment-engine-with-ai-3.mjs\";\n\ntest(\"gate-and-stand-assignment-engine-with-ai-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateGateAndStandAssignmentEngineWithAi3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"gate-and-stand-assignment-engine-with-ai-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateGateAndStandAssignmentEngineWithAi3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Gate and stand assignment engine with aircraft size — edge cases\": src/gate-and-stand-assignment-engine-with-ai-3.mjs, test/gate-and-stand-assignment-engine-with-ai-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s04",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Gate and stand assignment engine with aircraft size — edge cases\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Gate and stand assignment engine with aircraft size — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s05",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/turnaround-milestone-tracker-for-blocks.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "",
+						"reasoning": "Thinking through \"Turnaround milestone tracker for blocks-on, chocks\" step by step before writing files…"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
 											"path": "src/turnaround-milestone-tracker-for-blocks.mjs",
-											"content": "/**\n * Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TurnaroundMilestoneTrackerForBlocksInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TurnaroundMilestoneTrackerForBlocksFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TurnaroundMilestoneTrackerForBlocksFinding[] }} TurnaroundMilestoneTrackerForBlocksResult\n */\n\n/**\n * Evaluate one input against the turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning policy.\n * @param {TurnaroundMilestoneTrackerForBlocksInput} input\n * @returns {TurnaroundMilestoneTrackerForBlocksResult}\n */\nexport function evaluateTurnaroundMilestoneTrackerForBlocks(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"turnaround-milestone-tracker-for-blocks/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Turnaround milestone tracker for blocks-on, chocks\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TurnaroundMilestoneTrackerForBlocksInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TurnaroundMilestoneTrackerForBlocksFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TurnaroundMilestoneTrackerForBlocksFinding[] }} TurnaroundMilestoneTrackerForBlocksResult\n */\n\n/**\n * Evaluate one input against the turnaround milestone tracker for blocks-on, chocks policy.\n * @param {TurnaroundMilestoneTrackerForBlocksInput} input\n * @returns {TurnaroundMilestoneTrackerForBlocksResult}\n */\nexport function evaluateTurnaroundMilestoneTrackerForBlocks(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"turnaround-milestone-tracker-for-blocks/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/turnaround-milestone-tracker-for-blocks.test.mjs",
@@ -636,110 +739,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning\": src/turnaround-milestone-tracker-for-blocks.mjs, test/turnaround-milestone-tracker-for-blocks.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s04",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Turnaround milestone tracker for blocks-on, chocks, bridge, deplaning, cleaning\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s05",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/baggage-belt-planner-with-arrival-waves.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "",
-						"reasoning": "Thinking through \"Baggage belt planner with arrival waves, belt capacity, transfer\" step by step before writing files…"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/baggage-belt-planner-with-arrival-waves.mjs",
-											"content": "/**\n * Baggage belt planner with arrival waves, belt capacity, transfer\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BaggageBeltPlannerWithArrivalWavesInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BaggageBeltPlannerWithArrivalWavesFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BaggageBeltPlannerWithArrivalWavesFinding[] }} BaggageBeltPlannerWithArrivalWavesResult\n */\n\n/**\n * Evaluate one input against the baggage belt planner with arrival waves, belt capacity, transfer policy.\n * @param {BaggageBeltPlannerWithArrivalWavesInput} input\n * @returns {BaggageBeltPlannerWithArrivalWavesResult}\n */\nexport function evaluateBaggageBeltPlannerWithArrivalWaves(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"baggage-belt-planner-with-arrival-waves/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/baggage-belt-planner-with-arrival-waves.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateBaggageBeltPlannerWithArrivalWaves } from \"../src/baggage-belt-planner-with-arrival-waves.mjs\";\n\ntest(\"baggage-belt-planner-with-arrival-waves: accepts a clean input with evidence\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"baggage-belt-planner-with-arrival-waves: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Baggage belt planner with arrival waves, belt capacity, transfer\": src/baggage-belt-planner-with-arrival-waves.mjs, test/baggage-belt-planner-with-arrival-waves.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Turnaround milestone tracker for blocks-on, chocks\": src/turnaround-milestone-tracker-for-blocks.mjs, test/turnaround-milestone-tracker-for-blocks.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -749,7 +749,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Baggage belt planner with arrival waves, belt capacity, transfer\"",
+			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks\"",
 			"turns": [
 				{
 					"behavior": {
@@ -759,7 +759,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Baggage belt planner with arrival waves, belt capacity, transfer\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Turnaround milestone tracker for blocks-on, chocks\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -778,7 +778,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/baggage-belt-planner-with-arrival-waves-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/turnaround-milestone-tracker-for-blocks-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -804,12 +804,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/baggage-belt-planner-with-arrival-waves-2.mjs",
-											"content": "/**\n * Baggage belt planner with arrival waves, belt capacity, transfer — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BaggageBeltPlannerWithArrivalWaves2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BaggageBeltPlannerWithArrivalWaves2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BaggageBeltPlannerWithArrivalWaves2Finding[] }} BaggageBeltPlannerWithArrivalWaves2Result\n */\n\n/**\n * Evaluate one input against the baggage belt planner with arrival waves, belt capacity, transfer — core engine policy.\n * @param {BaggageBeltPlannerWithArrivalWaves2Input} input\n * @returns {BaggageBeltPlannerWithArrivalWaves2Result}\n */\nexport function evaluateBaggageBeltPlannerWithArrivalWaves2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"baggage-belt-planner-with-arrival-waves-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/turnaround-milestone-tracker-for-blocks-2.mjs",
+											"content": "/**\n * Turnaround milestone tracker for blocks-on, chocks — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TurnaroundMilestoneTrackerForBlocks2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TurnaroundMilestoneTrackerForBlocks2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TurnaroundMilestoneTrackerForBlocks2Finding[] }} TurnaroundMilestoneTrackerForBlocks2Result\n */\n\n/**\n * Evaluate one input against the turnaround milestone tracker for blocks-on, chocks — core engine policy.\n * @param {TurnaroundMilestoneTrackerForBlocks2Input} input\n * @returns {TurnaroundMilestoneTrackerForBlocks2Result}\n */\nexport function evaluateTurnaroundMilestoneTrackerForBlocks2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"turnaround-milestone-tracker-for-blocks-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/baggage-belt-planner-with-arrival-waves-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateBaggageBeltPlannerWithArrivalWaves2 } from \"../src/baggage-belt-planner-with-arrival-waves-2.mjs\";\n\ntest(\"baggage-belt-planner-with-arrival-waves-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"baggage-belt-planner-with-arrival-waves-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/turnaround-milestone-tracker-for-blocks-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTurnaroundMilestoneTrackerForBlocks2 } from \"../src/turnaround-milestone-tracker-for-blocks-2.mjs\";\n\ntest(\"turnaround-milestone-tracker-for-blocks-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTurnaroundMilestoneTrackerForBlocks2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"turnaround-milestone-tracker-for-blocks-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTurnaroundMilestoneTrackerForBlocks2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -835,7 +835,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Baggage belt planner with arrival waves, belt capacity, transfer — core engine\": src/baggage-belt-planner-with-arrival-waves-2.mjs, test/baggage-belt-planner-with-arrival-waves-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Turnaround milestone tracker for blocks-on, chocks — core engine\": src/turnaround-milestone-tracker-for-blocks-2.mjs, test/turnaround-milestone-tracker-for-blocks-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -845,7 +845,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Baggage belt planner with arrival waves, belt capacity, transfer — core engine\"",
+			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -855,7 +855,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Baggage belt planner with arrival waves, belt capacity, transfer — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Turnaround milestone tracker for blocks-on, chocks — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -874,7 +874,7 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/ground-crew-rostering-and-equipment-allo.mjs",
+			"userMessageIncludes": "Files for THIS card: src/turnaround-milestone-tracker-for-blocks-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -906,12 +906,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/ground-crew-rostering-and-equipment-allo.mjs",
-											"content": "/**\n * Ground-crew rostering and equipment allocation for pushback tugs, belt\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GroundCrewRosteringAndEquipmentAlloInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GroundCrewRosteringAndEquipmentAlloFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GroundCrewRosteringAndEquipmentAlloFinding[] }} GroundCrewRosteringAndEquipmentAlloResult\n */\n\n/**\n * Evaluate one input against the ground-crew rostering and equipment allocation for pushback tugs, belt policy.\n * @param {GroundCrewRosteringAndEquipmentAlloInput} input\n * @returns {GroundCrewRosteringAndEquipmentAlloResult}\n */\nexport function evaluateGroundCrewRosteringAndEquipmentAllo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ground-crew-rostering-and-equipment-allo/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/turnaround-milestone-tracker-for-blocks-3.mjs",
+											"content": "/**\n * Turnaround milestone tracker for blocks-on, chocks — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TurnaroundMilestoneTrackerForBlocks3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TurnaroundMilestoneTrackerForBlocks3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TurnaroundMilestoneTrackerForBlocks3Finding[] }} TurnaroundMilestoneTrackerForBlocks3Result\n */\n\n/**\n * Evaluate one input against the turnaround milestone tracker for blocks-on, chocks — edge cases policy.\n * @param {TurnaroundMilestoneTrackerForBlocks3Input} input\n * @returns {TurnaroundMilestoneTrackerForBlocks3Result}\n */\nexport function evaluateTurnaroundMilestoneTrackerForBlocks3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"turnaround-milestone-tracker-for-blocks-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"turnaround-milestone-tracker-for-blocks-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/ground-crew-rostering-and-equipment-allo.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateGroundCrewRosteringAndEquipmentAllo } from \"../src/ground-crew-rostering-and-equipment-allo.mjs\";\n\ntest(\"ground-crew-rostering-and-equipment-allo: accepts a clean input with evidence\", () => {\n\tconst result = evaluateGroundCrewRosteringAndEquipmentAllo({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"ground-crew-rostering-and-equipment-allo: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateGroundCrewRosteringAndEquipmentAllo({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/turnaround-milestone-tracker-for-blocks-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTurnaroundMilestoneTrackerForBlocks3 } from \"../src/turnaround-milestone-tracker-for-blocks-3.mjs\";\n\ntest(\"turnaround-milestone-tracker-for-blocks-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTurnaroundMilestoneTrackerForBlocks3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"turnaround-milestone-tracker-for-blocks-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTurnaroundMilestoneTrackerForBlocks3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -937,7 +937,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Ground-crew rostering and equipment allocation for pushback tugs, belt\": src/ground-crew-rostering-and-equipment-allo.mjs, test/ground-crew-rostering-and-equipment-allo.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Turnaround milestone tracker for blocks-on, chocks — edge cases\": src/turnaround-milestone-tracker-for-blocks-3.mjs, test/turnaround-milestone-tracker-for-blocks-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -947,7 +947,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Ground-crew rostering and equipment allocation for pushback tugs, belt\"",
+			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks — edge cases\"",
 			"turns": [
 				{
 					"behavior": {
@@ -957,7 +957,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Ground-crew rostering and equipment allocation for pushback tugs, belt\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Turnaround milestone tracker for blocks-on, chocks — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -976,7 +976,7 @@
 		{
 			"id": "flaky-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/ground-crew-rostering-and-equipment-allo-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/baggage-belt-planner-with-arrival-waves.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -985,7 +985,7 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": "[{\"path\":\"src/ground-crew-rostering-and-equipment-allo-2.mjs\",\"content\":\"export const truncated = "
+									"files": "[{\"path\":\"src/baggage-belt-planner-with-arrival-waves.mjs\",\"content\":\"export const truncated = "
 								}
 							}
 						]
@@ -1015,12 +1015,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/ground-crew-rostering-and-equipment-allo-2.mjs",
-											"content": "/**\n * Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GroundCrewRosteringAndEquipmentAllo2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GroundCrewRosteringAndEquipmentAllo2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GroundCrewRosteringAndEquipmentAllo2Finding[] }} GroundCrewRosteringAndEquipmentAllo2Result\n */\n\n/**\n * Evaluate one input against the ground-crew rostering and equipment allocation for pushback tugs, belt — core engine policy.\n * @param {GroundCrewRosteringAndEquipmentAllo2Input} input\n * @returns {GroundCrewRosteringAndEquipmentAllo2Result}\n */\nexport function evaluateGroundCrewRosteringAndEquipmentAllo2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ground-crew-rostering-and-equipment-allo-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ground-crew-rostering-and-equipment-allo-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/baggage-belt-planner-with-arrival-waves.mjs",
+											"content": "/**\n * Baggage belt planner with arrival waves, belt capacity\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BaggageBeltPlannerWithArrivalWavesInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BaggageBeltPlannerWithArrivalWavesFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BaggageBeltPlannerWithArrivalWavesFinding[] }} BaggageBeltPlannerWithArrivalWavesResult\n */\n\n/**\n * Evaluate one input against the baggage belt planner with arrival waves, belt capacity policy.\n * @param {BaggageBeltPlannerWithArrivalWavesInput} input\n * @returns {BaggageBeltPlannerWithArrivalWavesResult}\n */\nexport function evaluateBaggageBeltPlannerWithArrivalWaves(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"baggage-belt-planner-with-arrival-waves/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/ground-crew-rostering-and-equipment-allo-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateGroundCrewRosteringAndEquipmentAllo2 } from \"../src/ground-crew-rostering-and-equipment-allo-2.mjs\";\n\ntest(\"ground-crew-rostering-and-equipment-allo-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateGroundCrewRosteringAndEquipmentAllo2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"ground-crew-rostering-and-equipment-allo-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateGroundCrewRosteringAndEquipmentAllo2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/baggage-belt-planner-with-arrival-waves.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateBaggageBeltPlannerWithArrivalWaves } from \"../src/baggage-belt-planner-with-arrival-waves.mjs\";\n\ntest(\"baggage-belt-planner-with-arrival-waves: accepts a clean input with evidence\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"baggage-belt-planner-with-arrival-waves: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1046,7 +1046,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine\": src/ground-crew-rostering-and-equipment-allo-2.mjs, test/ground-crew-rostering-and-equipment-allo-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Baggage belt planner with arrival waves, belt capacity\": src/baggage-belt-planner-with-arrival-waves.mjs, test/baggage-belt-planner-with-arrival-waves.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1056,7 +1056,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine\"",
+			"userMessageIncludes": "the card \"Baggage belt planner with arrival waves, belt capacity\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1066,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Ground-crew rostering and equipment allocation for pushback tugs, belt — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Baggage belt planner with arrival waves, belt capacity\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/disruption-manager-for-late-inbound-airc.mjs",
+			"userMessageIncludes": "Files for THIS card: src/baggage-belt-planner-with-arrival-waves-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1111,12 +1111,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/disruption-manager-for-late-inbound-airc.mjs",
-											"content": "/**\n * Disruption manager for late inbound aircraft, weather ground stop\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DisruptionManagerForLateInboundAircInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DisruptionManagerForLateInboundAircFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DisruptionManagerForLateInboundAircFinding[] }} DisruptionManagerForLateInboundAircResult\n */\n\n/**\n * Evaluate one input against the disruption manager for late inbound aircraft, weather ground stop policy.\n * @param {DisruptionManagerForLateInboundAircInput} input\n * @returns {DisruptionManagerForLateInboundAircResult}\n */\nexport function evaluateDisruptionManagerForLateInboundAirc(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"disruption-manager-for-late-inbound-airc/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"disruption-manager-for-late-inbound-airc/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"disruption-manager-for-late-inbound-airc/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"disruption-manager-for-late-inbound-airc/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/baggage-belt-planner-with-arrival-waves-2.mjs",
+											"content": "/**\n * Baggage belt planner with arrival waves, belt capacity — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BaggageBeltPlannerWithArrivalWaves2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BaggageBeltPlannerWithArrivalWaves2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BaggageBeltPlannerWithArrivalWaves2Finding[] }} BaggageBeltPlannerWithArrivalWaves2Result\n */\n\n/**\n * Evaluate one input against the baggage belt planner with arrival waves, belt capacity — core engine policy.\n * @param {BaggageBeltPlannerWithArrivalWaves2Input} input\n * @returns {BaggageBeltPlannerWithArrivalWaves2Result}\n */\nexport function evaluateBaggageBeltPlannerWithArrivalWaves2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"baggage-belt-planner-with-arrival-waves-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"baggage-belt-planner-with-arrival-waves-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/disruption-manager-for-late-inbound-airc.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDisruptionManagerForLateInboundAirc } from \"../src/disruption-manager-for-late-inbound-airc.mjs\";\n\ntest(\"disruption-manager-for-late-inbound-airc: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDisruptionManagerForLateInboundAirc({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"disruption-manager-for-late-inbound-airc: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDisruptionManagerForLateInboundAirc({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/baggage-belt-planner-with-arrival-waves-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateBaggageBeltPlannerWithArrivalWaves2 } from \"../src/baggage-belt-planner-with-arrival-waves-2.mjs\";\n\ntest(\"baggage-belt-planner-with-arrival-waves-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"baggage-belt-planner-with-arrival-waves-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateBaggageBeltPlannerWithArrivalWaves2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1142,7 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Disruption manager for late inbound aircraft, weather ground stop\": src/disruption-manager-for-late-inbound-airc.mjs, test/disruption-manager-for-late-inbound-airc.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Baggage belt planner with arrival waves, belt capacity — core engine\": src/baggage-belt-planner-with-arrival-waves-2.mjs, test/baggage-belt-planner-with-arrival-waves-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Disruption manager for late inbound aircraft, weather ground stop\"",
+			"userMessageIncludes": "the card \"Baggage belt planner with arrival waves, belt capacity — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Disruption manager for late inbound aircraft, weather ground stop\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Baggage belt planner with arrival waves, belt capacity — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

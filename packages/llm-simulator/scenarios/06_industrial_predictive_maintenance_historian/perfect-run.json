@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (plant, line, asset, component, sensor tag, reading, alarm, failure). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (plant, line, asset, component, sensor tag, reading, alarm). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Historian ingestion for mixed-rate numeric and categorical tags with",
-											"prompt": "Historian ingestion for mixed-rate numeric and categorical tags with. Implement the foundation for: Historian ingestion for mixed-rate numeric and categorical tags with unit metadata, quality flags, and late arrivals. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/historian-ingestion-for-mixed-rate-numer.mjs and test/historian-ingestion-for-mixed-rate-numer.test.mjs.",
+											"title": "Historian ingestion for mixed-rate numeric and categorical",
+											"prompt": "Historian ingestion for mixed-rate numeric and categorical. Implement the foundation for: Historian ingestion for mixed-rate numeric and categorical tags with unit metadata, quality flags, and late arrivals. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/historian-ingestion-for-mixed-rate-numer.mjs and test/historian-ingestion-for-mixed-rate-numer.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Condition monitoring checks for vibration RMS, temperature drift, pressure",
-											"prompt": "Condition monitoring checks for vibration RMS, temperature drift, pressure. Implement the foundation for: Condition monitoring checks for vibration RMS, temperature drift, pressure deviation, cycle count, operating envelope, and alarm floods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/condition-monitoring-checks-for-vibratio.mjs and test/condition-monitoring-checks-for-vibratio.test.mjs.",
+											"title": "Condition monitoring checks for vibration RMS, temperature",
+											"prompt": "Condition monitoring checks for vibration RMS, temperature. Implement the foundation for: Condition monitoring checks for vibration RMS, temperature drift, pressure deviation, cycle count, operating envelope, and alarm floods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/condition-monitoring-checks-for-vibratio.mjs and test/condition-monitoring-checks-for-vibratio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Failure-mode library linking symptoms, thresholds, recommended inspections, required parts",
-											"prompt": "Failure-mode library linking symptoms, thresholds, recommended inspections, required parts. Implement the foundation for: Failure-mode library linking symptoms, thresholds, recommended inspections, required parts, and production impact. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/failure-mode-library-linking-symptoms-th.mjs and test/failure-mode-library-linking-symptoms-th.test.mjs.",
+											"title": "Failure-mode library linking symptoms, thresholds",
+											"prompt": "Failure-mode library linking symptoms, thresholds. Implement the foundation for: Failure-mode library linking symptoms, thresholds, recommended inspections, required parts, and production impact. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/failure-mode-library-linking-symptoms-th.mjs and test/failure-mode-library-linking-symptoms-th.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Work-order prioritization based on risk, safety class, production schedule",
-											"prompt": "Work-order prioritization based on risk, safety class, production schedule. Implement the foundation for: Work-order prioritization based on risk, safety class, production schedule, spare availability, and maintenance windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/work-order-prioritization-based-on-risk.mjs and test/work-order-prioritization-based-on-risk.test.mjs.",
+											"title": "Work-order prioritization based on risk, safety class",
+											"prompt": "Work-order prioritization based on risk, safety class. Implement the foundation for: Work-order prioritization based on risk, safety class, production schedule, spare availability, and maintenance windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/work-order-prioritization-based-on-risk.mjs and test/work-order-prioritization-based-on-risk.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance",
-											"prompt": "Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance. Implement the foundation for: Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance actions, and downtime. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/root-cause-timeline-that-aligns-telemetr.mjs and test/root-cause-timeline-that-aligns-telemetr.test.mjs.",
+											"title": "Root-cause timeline that aligns telemetry, alarms",
+											"prompt": "Root-cause timeline that aligns telemetry, alarms. Implement the foundation for: Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance actions, and downtime. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/root-cause-timeline-that-aligns-telemetr.mjs and test/root-cause-timeline-that-aligns-telemetr.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Simulation fixtures for a pump bearing failure, compressor leak",
-											"prompt": "Simulation fixtures for a pump bearing failure, compressor leak. Implement the foundation for: Simulation fixtures for a pump bearing failure, compressor leak, conveyor misalignment, and false-positive sensor fault. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/simulation-fixtures-for-a-pump-bearing-f.mjs and test/simulation-fixtures-for-a-pump-bearing-f.test.mjs.",
+											"title": "Simulation fixtures for a pump bearing failure, compressor",
+											"prompt": "Simulation fixtures for a pump bearing failure, compressor. Implement the foundation for: Simulation fixtures for a pump bearing failure, compressor leak, conveyor misalignment, and false-positive sensor fault. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/simulation-fixtures-for-a-pump-bearing-f.mjs and test/simulation-fixtures-for-a-pump-bearing-f.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -645,7 +645,7 @@
 									"files": [
 										{
 											"path": "src/historian-ingestion-for-mixed-rate-numer.mjs",
-											"content": "/**\n * Historian ingestion for mixed-rate numeric and categorical tags with\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} HistorianIngestionForMixedRateNumerInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} HistorianIngestionForMixedRateNumerFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: HistorianIngestionForMixedRateNumerFinding[] }} HistorianIngestionForMixedRateNumerResult\n */\n\n/**\n * Evaluate one input against the historian ingestion for mixed-rate numeric and categorical tags with policy.\n * @param {HistorianIngestionForMixedRateNumerInput} input\n * @returns {HistorianIngestionForMixedRateNumerResult}\n */\nexport function evaluateHistorianIngestionForMixedRateNumer(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"historian-ingestion-for-mixed-rate-numer/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Historian ingestion for mixed-rate numeric and categorical\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} HistorianIngestionForMixedRateNumerInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} HistorianIngestionForMixedRateNumerFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: HistorianIngestionForMixedRateNumerFinding[] }} HistorianIngestionForMixedRateNumerResult\n */\n\n/**\n * Evaluate one input against the historian ingestion for mixed-rate numeric and categorical policy.\n * @param {HistorianIngestionForMixedRateNumerInput} input\n * @returns {HistorianIngestionForMixedRateNumerResult}\n */\nexport function evaluateHistorianIngestionForMixedRateNumer(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"historian-ingestion-for-mixed-rate-numer/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"historian-ingestion-for-mixed-rate-numer/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/historian-ingestion-for-mixed-rate-numer.test.mjs",
@@ -675,7 +675,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Historian ingestion for mixed-rate numeric and categorical tags with\": src/historian-ingestion-for-mixed-rate-numer.mjs, test/historian-ingestion-for-mixed-rate-numer.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Historian ingestion for mixed-rate numeric and categorical\": src/historian-ingestion-for-mixed-rate-numer.mjs, test/historian-ingestion-for-mixed-rate-numer.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -685,7 +685,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Historian ingestion for mixed-rate numeric and categorical tags with\"",
+			"userMessageIncludes": "the card \"Historian ingestion for mixed-rate numeric and categorical\"",
 			"turns": [
 				{
 					"behavior": {
@@ -695,7 +695,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Historian ingestion for mixed-rate numeric and categorical tags with\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Historian ingestion for mixed-rate numeric and categorical\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -741,7 +741,7 @@
 									"files": [
 										{
 											"path": "src/condition-monitoring-checks-for-vibratio.mjs",
-											"content": "/**\n * Condition monitoring checks for vibration RMS, temperature drift, pressure\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ConditionMonitoringChecksForVibratioInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ConditionMonitoringChecksForVibratioFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ConditionMonitoringChecksForVibratioFinding[] }} ConditionMonitoringChecksForVibratioResult\n */\n\n/**\n * Evaluate one input against the condition monitoring checks for vibration rms, temperature drift, pressure policy.\n * @param {ConditionMonitoringChecksForVibratioInput} input\n * @returns {ConditionMonitoringChecksForVibratioResult}\n */\nexport function evaluateConditionMonitoringChecksForVibratio(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"condition-monitoring-checks-for-vibratio/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Condition monitoring checks for vibration RMS, temperature\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ConditionMonitoringChecksForVibratioInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ConditionMonitoringChecksForVibratioFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ConditionMonitoringChecksForVibratioFinding[] }} ConditionMonitoringChecksForVibratioResult\n */\n\n/**\n * Evaluate one input against the condition monitoring checks for vibration rms, temperature policy.\n * @param {ConditionMonitoringChecksForVibratioInput} input\n * @returns {ConditionMonitoringChecksForVibratioResult}\n */\nexport function evaluateConditionMonitoringChecksForVibratio(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"condition-monitoring-checks-for-vibratio/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"condition-monitoring-checks-for-vibratio/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/condition-monitoring-checks-for-vibratio.test.mjs",
@@ -771,7 +771,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Condition monitoring checks for vibration RMS, temperature drift, pressure\": src/condition-monitoring-checks-for-vibratio.mjs, test/condition-monitoring-checks-for-vibratio.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Condition monitoring checks for vibration RMS, temperature\": src/condition-monitoring-checks-for-vibratio.mjs, test/condition-monitoring-checks-for-vibratio.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -781,7 +781,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Condition monitoring checks for vibration RMS, temperature drift, pressure\"",
+			"userMessageIncludes": "the card \"Condition monitoring checks for vibration RMS, temperature\"",
 			"turns": [
 				{
 					"behavior": {
@@ -791,7 +791,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Condition monitoring checks for vibration RMS, temperature drift, pressure\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Condition monitoring checks for vibration RMS, temperature\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -837,7 +837,7 @@
 									"files": [
 										{
 											"path": "src/failure-mode-library-linking-symptoms-th.mjs",
-											"content": "/**\n * Failure-mode library linking symptoms, thresholds, recommended inspections, required parts\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FailureModeLibraryLinkingSymptomsThInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FailureModeLibraryLinkingSymptomsThFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FailureModeLibraryLinkingSymptomsThFinding[] }} FailureModeLibraryLinkingSymptomsThResult\n */\n\n/**\n * Evaluate one input against the failure-mode library linking symptoms, thresholds, recommended inspections, required parts policy.\n * @param {FailureModeLibraryLinkingSymptomsThInput} input\n * @returns {FailureModeLibraryLinkingSymptomsThResult}\n */\nexport function evaluateFailureModeLibraryLinkingSymptomsTh(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"failure-mode-library-linking-symptoms-th/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Failure-mode library linking symptoms, thresholds\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FailureModeLibraryLinkingSymptomsThInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FailureModeLibraryLinkingSymptomsThFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FailureModeLibraryLinkingSymptomsThFinding[] }} FailureModeLibraryLinkingSymptomsThResult\n */\n\n/**\n * Evaluate one input against the failure-mode library linking symptoms, thresholds policy.\n * @param {FailureModeLibraryLinkingSymptomsThInput} input\n * @returns {FailureModeLibraryLinkingSymptomsThResult}\n */\nexport function evaluateFailureModeLibraryLinkingSymptomsTh(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"failure-mode-library-linking-symptoms-th/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"failure-mode-library-linking-symptoms-th/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/failure-mode-library-linking-symptoms-th.test.mjs",
@@ -867,7 +867,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Failure-mode library linking symptoms, thresholds, recommended inspections, required parts\": src/failure-mode-library-linking-symptoms-th.mjs, test/failure-mode-library-linking-symptoms-th.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Failure-mode library linking symptoms, thresholds\": src/failure-mode-library-linking-symptoms-th.mjs, test/failure-mode-library-linking-symptoms-th.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -877,7 +877,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Failure-mode library linking symptoms, thresholds, recommended inspections, required parts\"",
+			"userMessageIncludes": "the card \"Failure-mode library linking symptoms, thresholds\"",
 			"turns": [
 				{
 					"behavior": {
@@ -887,7 +887,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Failure-mode library linking symptoms, thresholds, recommended inspections, required parts\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Failure-mode library linking symptoms, thresholds\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -933,7 +933,7 @@
 									"files": [
 										{
 											"path": "src/work-order-prioritization-based-on-risk.mjs",
-											"content": "/**\n * Work-order prioritization based on risk, safety class, production schedule\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} WorkOrderPrioritizationBasedOnRiskInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} WorkOrderPrioritizationBasedOnRiskFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: WorkOrderPrioritizationBasedOnRiskFinding[] }} WorkOrderPrioritizationBasedOnRiskResult\n */\n\n/**\n * Evaluate one input against the work-order prioritization based on risk, safety class, production schedule policy.\n * @param {WorkOrderPrioritizationBasedOnRiskInput} input\n * @returns {WorkOrderPrioritizationBasedOnRiskResult}\n */\nexport function evaluateWorkOrderPrioritizationBasedOnRisk(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"work-order-prioritization-based-on-risk/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Work-order prioritization based on risk, safety class\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} WorkOrderPrioritizationBasedOnRiskInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} WorkOrderPrioritizationBasedOnRiskFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: WorkOrderPrioritizationBasedOnRiskFinding[] }} WorkOrderPrioritizationBasedOnRiskResult\n */\n\n/**\n * Evaluate one input against the work-order prioritization based on risk, safety class policy.\n * @param {WorkOrderPrioritizationBasedOnRiskInput} input\n * @returns {WorkOrderPrioritizationBasedOnRiskResult}\n */\nexport function evaluateWorkOrderPrioritizationBasedOnRisk(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"work-order-prioritization-based-on-risk/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"work-order-prioritization-based-on-risk/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/work-order-prioritization-based-on-risk.test.mjs",
@@ -963,7 +963,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Work-order prioritization based on risk, safety class, production schedule\": src/work-order-prioritization-based-on-risk.mjs, test/work-order-prioritization-based-on-risk.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Work-order prioritization based on risk, safety class\": src/work-order-prioritization-based-on-risk.mjs, test/work-order-prioritization-based-on-risk.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -973,7 +973,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Work-order prioritization based on risk, safety class, production schedule\"",
+			"userMessageIncludes": "the card \"Work-order prioritization based on risk, safety class\"",
 			"turns": [
 				{
 					"behavior": {
@@ -983,7 +983,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Work-order prioritization based on risk, safety class, production schedule\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Work-order prioritization based on risk, safety class\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1029,7 +1029,7 @@
 									"files": [
 										{
 											"path": "src/root-cause-timeline-that-aligns-telemetr.mjs",
-											"content": "/**\n * Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RootCauseTimelineThatAlignsTelemetrInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RootCauseTimelineThatAlignsTelemetrFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RootCauseTimelineThatAlignsTelemetrFinding[] }} RootCauseTimelineThatAlignsTelemetrResult\n */\n\n/**\n * Evaluate one input against the root-cause timeline that aligns telemetry, alarms, operator notes, maintenance policy.\n * @param {RootCauseTimelineThatAlignsTelemetrInput} input\n * @returns {RootCauseTimelineThatAlignsTelemetrResult}\n */\nexport function evaluateRootCauseTimelineThatAlignsTelemetr(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"root-cause-timeline-that-aligns-telemetr/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Root-cause timeline that aligns telemetry, alarms\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RootCauseTimelineThatAlignsTelemetrInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RootCauseTimelineThatAlignsTelemetrFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RootCauseTimelineThatAlignsTelemetrFinding[] }} RootCauseTimelineThatAlignsTelemetrResult\n */\n\n/**\n * Evaluate one input against the root-cause timeline that aligns telemetry, alarms policy.\n * @param {RootCauseTimelineThatAlignsTelemetrInput} input\n * @returns {RootCauseTimelineThatAlignsTelemetrResult}\n */\nexport function evaluateRootCauseTimelineThatAlignsTelemetr(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"root-cause-timeline-that-aligns-telemetr/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"root-cause-timeline-that-aligns-telemetr/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/root-cause-timeline-that-aligns-telemetr.test.mjs",
@@ -1059,7 +1059,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance\": src/root-cause-timeline-that-aligns-telemetr.mjs, test/root-cause-timeline-that-aligns-telemetr.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Root-cause timeline that aligns telemetry, alarms\": src/root-cause-timeline-that-aligns-telemetr.mjs, test/root-cause-timeline-that-aligns-telemetr.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1069,7 +1069,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance\"",
+			"userMessageIncludes": "the card \"Root-cause timeline that aligns telemetry, alarms\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1079,7 +1079,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Root-cause timeline that aligns telemetry, alarms\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1125,7 +1125,7 @@
 									"files": [
 										{
 											"path": "src/simulation-fixtures-for-a-pump-bearing-f.mjs",
-											"content": "/**\n * Simulation fixtures for a pump bearing failure, compressor leak\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SimulationFixturesForAPumpBearingFInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SimulationFixturesForAPumpBearingFFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SimulationFixturesForAPumpBearingFFinding[] }} SimulationFixturesForAPumpBearingFResult\n */\n\n/**\n * Evaluate one input against the simulation fixtures for a pump bearing failure, compressor leak policy.\n * @param {SimulationFixturesForAPumpBearingFInput} input\n * @returns {SimulationFixturesForAPumpBearingFResult}\n */\nexport function evaluateSimulationFixturesForAPumpBearingF(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"simulation-fixtures-for-a-pump-bearing-f/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Simulation fixtures for a pump bearing failure, compressor\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SimulationFixturesForAPumpBearingFInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SimulationFixturesForAPumpBearingFFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SimulationFixturesForAPumpBearingFFinding[] }} SimulationFixturesForAPumpBearingFResult\n */\n\n/**\n * Evaluate one input against the simulation fixtures for a pump bearing failure, compressor policy.\n * @param {SimulationFixturesForAPumpBearingFInput} input\n * @returns {SimulationFixturesForAPumpBearingFResult}\n */\nexport function evaluateSimulationFixturesForAPumpBearingF(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"simulation-fixtures-for-a-pump-bearing-f/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"simulation-fixtures-for-a-pump-bearing-f/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/simulation-fixtures-for-a-pump-bearing-f.test.mjs",
@@ -1155,7 +1155,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Simulation fixtures for a pump bearing failure, compressor leak\": src/simulation-fixtures-for-a-pump-bearing-f.mjs, test/simulation-fixtures-for-a-pump-bearing-f.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Simulation fixtures for a pump bearing failure, compressor\": src/simulation-fixtures-for-a-pump-bearing-f.mjs, test/simulation-fixtures-for-a-pump-bearing-f.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1165,7 +1165,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Simulation fixtures for a pump bearing failure, compressor leak\"",
+			"userMessageIncludes": "the card \"Simulation fixtures for a pump bearing failure, compressor\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1175,7 +1175,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Simulation fixtures for a pump bearing failure, compressor leak\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Simulation fixtures for a pump bearing failure, compressor\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

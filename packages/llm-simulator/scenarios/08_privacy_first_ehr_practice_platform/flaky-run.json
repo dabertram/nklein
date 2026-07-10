@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Scheduling engine with provider availability, room constraints, visit type",
-											"prompt": "Scheduling engine with provider availability, room constraints, visit type. Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scheduling-engine-with-provider-availabi.mjs and test/scheduling-engine-with-provider-availabi.test.mjs.",
+											"title": "Scheduling engine with provider availability, room",
+											"prompt": "Scheduling engine with provider availability, room. Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scheduling-engine-with-provider-availabi.mjs and test/scheduling-engine-with-provider-availabi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Encounter note workflow with structured sections, versioning, amendments, signatures",
-											"prompt": "Encounter note workflow with structured sections, versioning, amendments, signatures. Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/encounter-note-workflow-with-structured.mjs and test/encounter-note-workflow-with-structured.test.mjs.",
+											"title": "Encounter note workflow with structured sections",
+											"prompt": "Encounter note workflow with structured sections. Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/encounter-note-workflow-with-structured.mjs and test/encounter-note-workflow-with-structured.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "FHIR-inspired resource mapping layer that can import and export",
-											"prompt": "FHIR-inspired resource mapping layer that can import and export. Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fhir-inspired-resource-mapping-layer-tha.mjs and test/fhir-inspired-resource-mapping-layer-tha.test.mjs.",
+											"title": "FHIR-inspired resource mapping layer that can import and",
+											"prompt": "FHIR-inspired resource mapping layer that can import and. Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fhir-inspired-resource-mapping-layer-tha.mjs and test/fhir-inspired-resource-mapping-layer-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Consent and role-based access policy that filters sensitive notes",
-											"prompt": "Consent and role-based access policy that filters sensitive notes. Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/consent-and-role-based-access-policy-tha.mjs and test/consent-and-role-based-access-policy-tha.test.mjs.",
+											"title": "Consent and role-based access policy that filters",
+											"prompt": "Consent and role-based access policy that filters. Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/consent-and-role-based-access-policy-tha.mjs and test/consent-and-role-based-access-policy-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Care plan tracker with goals, interventions, due dates, barriers",
-											"prompt": "Care plan tracker with goals, interventions, due dates, barriers. Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/care-plan-tracker-with-goals-interventio.mjs and test/care-plan-tracker-with-goals-interventio.test.mjs.",
+											"title": "Care plan tracker with goals, interventions, due dates",
+											"prompt": "Care plan tracker with goals, interventions, due dates. Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/care-plan-tracker-with-goals-interventio.mjs and test/care-plan-tracker-with-goals-interventio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed clinic with overlapping appointments, sensitive notes, amended encounters",
-											"prompt": "Seed clinic with overlapping appointments, sensitive notes, amended encounters. Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-clinic-with-overlapping-appointment.mjs and test/seed-clinic-with-overlapping-appointment.test.mjs.",
+											"title": "Seed clinic with overlapping appointments, sensitive",
+											"prompt": "Seed clinic with overlapping appointments, sensitive. Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-clinic-with-overlapping-appointment.mjs and test/seed-clinic-with-overlapping-appointment.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/scheduling-engine-with-provider-availabi.mjs",
-											"content": "/**\n * Scheduling engine with provider availability, room constraints, visit type\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SchedulingEngineWithProviderAvailabiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SchedulingEngineWithProviderAvailabiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SchedulingEngineWithProviderAvailabiFinding[] }} SchedulingEngineWithProviderAvailabiResult\n */\n\n/**\n * Evaluate one input against the scheduling engine with provider availability, room constraints, visit type policy.\n * @param {SchedulingEngineWithProviderAvailabiInput} input\n * @returns {SchedulingEngineWithProviderAvailabiResult}\n */\nexport function evaluateSchedulingEngineWithProviderAvailabi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scheduling-engine-with-provider-availabi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Scheduling engine with provider availability, room\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SchedulingEngineWithProviderAvailabiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SchedulingEngineWithProviderAvailabiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SchedulingEngineWithProviderAvailabiFinding[] }} SchedulingEngineWithProviderAvailabiResult\n */\n\n/**\n * Evaluate one input against the scheduling engine with provider availability, room policy.\n * @param {SchedulingEngineWithProviderAvailabiInput} input\n * @returns {SchedulingEngineWithProviderAvailabiResult}\n */\nexport function evaluateSchedulingEngineWithProviderAvailabi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scheduling-engine-with-provider-availabi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scheduling-engine-with-provider-availabi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/scheduling-engine-with-provider-availabi.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Scheduling engine with provider availability, room constraints, visit type\": src/scheduling-engine-with-provider-availabi.mjs, test/scheduling-engine-with-provider-availabi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Scheduling engine with provider availability, room\": src/scheduling-engine-with-provider-availabi.mjs, test/scheduling-engine-with-provider-availabi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Scheduling engine with provider availability, room constraints, visit type\"",
+			"userMessageIncludes": "the card \"Scheduling engine with provider availability, room\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Scheduling engine with provider availability, room constraints, visit type\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Scheduling engine with provider availability, room\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -510,7 +510,7 @@
 									"files": [
 										{
 											"path": "src/encounter-note-workflow-with-structured.mjs",
-											"content": "/**\n * Encounter note workflow with structured sections, versioning, amendments, signatures\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EncounterNoteWorkflowWithStructuredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EncounterNoteWorkflowWithStructuredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EncounterNoteWorkflowWithStructuredFinding[] }} EncounterNoteWorkflowWithStructuredResult\n */\n\n/**\n * Evaluate one input against the encounter note workflow with structured sections, versioning, amendments, signatures policy.\n * @param {EncounterNoteWorkflowWithStructuredInput} input\n * @returns {EncounterNoteWorkflowWithStructuredResult}\n */\nexport function evaluateEncounterNoteWorkflowWithStructured(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"encounter-note-workflow-with-structured/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Encounter note workflow with structured sections\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EncounterNoteWorkflowWithStructuredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EncounterNoteWorkflowWithStructuredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EncounterNoteWorkflowWithStructuredFinding[] }} EncounterNoteWorkflowWithStructuredResult\n */\n\n/**\n * Evaluate one input against the encounter note workflow with structured sections policy.\n * @param {EncounterNoteWorkflowWithStructuredInput} input\n * @returns {EncounterNoteWorkflowWithStructuredResult}\n */\nexport function evaluateEncounterNoteWorkflowWithStructured(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"encounter-note-workflow-with-structured/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"encounter-note-workflow-with-structured/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/encounter-note-workflow-with-structured.test.mjs",
@@ -540,7 +540,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Encounter note workflow with structured sections, versioning, amendments, signatures\": src/encounter-note-workflow-with-structured.mjs, test/encounter-note-workflow-with-structured.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Encounter note workflow with structured sections\": src/encounter-note-workflow-with-structured.mjs, test/encounter-note-workflow-with-structured.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -550,7 +550,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Encounter note workflow with structured sections, versioning, amendments, signatures\"",
+			"userMessageIncludes": "the card \"Encounter note workflow with structured sections\"",
 			"turns": [
 				{
 					"behavior": {
@@ -560,7 +560,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Encounter note workflow with structured sections, versioning, amendments, signatures\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Encounter note workflow with structured sections\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -606,7 +606,7 @@
 									"files": [
 										{
 											"path": "src/fhir-inspired-resource-mapping-layer-tha.mjs",
-											"content": "/**\n * FHIR-inspired resource mapping layer that can import and export\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FhirInspiredResourceMappingLayerThaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FhirInspiredResourceMappingLayerThaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FhirInspiredResourceMappingLayerThaFinding[] }} FhirInspiredResourceMappingLayerThaResult\n */\n\n/**\n * Evaluate one input against the fhir-inspired resource mapping layer that can import and export policy.\n * @param {FhirInspiredResourceMappingLayerThaInput} input\n * @returns {FhirInspiredResourceMappingLayerThaResult}\n */\nexport function evaluateFhirInspiredResourceMappingLayerTha(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fhir-inspired-resource-mapping-layer-tha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * FHIR-inspired resource mapping layer that can import and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FhirInspiredResourceMappingLayerThaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FhirInspiredResourceMappingLayerThaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FhirInspiredResourceMappingLayerThaFinding[] }} FhirInspiredResourceMappingLayerThaResult\n */\n\n/**\n * Evaluate one input against the fhir-inspired resource mapping layer that can import and policy.\n * @param {FhirInspiredResourceMappingLayerThaInput} input\n * @returns {FhirInspiredResourceMappingLayerThaResult}\n */\nexport function evaluateFhirInspiredResourceMappingLayerTha(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fhir-inspired-resource-mapping-layer-tha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fhir-inspired-resource-mapping-layer-tha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/fhir-inspired-resource-mapping-layer-tha.test.mjs",
@@ -636,7 +636,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"FHIR-inspired resource mapping layer that can import and export\": src/fhir-inspired-resource-mapping-layer-tha.mjs, test/fhir-inspired-resource-mapping-layer-tha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"FHIR-inspired resource mapping layer that can import and\": src/fhir-inspired-resource-mapping-layer-tha.mjs, test/fhir-inspired-resource-mapping-layer-tha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -646,7 +646,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"FHIR-inspired resource mapping layer that can import and export\"",
+			"userMessageIncludes": "the card \"FHIR-inspired resource mapping layer that can import and\"",
 			"turns": [
 				{
 					"behavior": {
@@ -656,7 +656,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"FHIR-inspired resource mapping layer that can import and export\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"FHIR-inspired resource mapping layer that can import and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -702,7 +702,7 @@
 									"files": [
 										{
 											"path": "src/consent-and-role-based-access-policy-tha.mjs",
-											"content": "/**\n * Consent and role-based access policy that filters sensitive notes\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ConsentAndRoleBasedAccessPolicyThaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ConsentAndRoleBasedAccessPolicyThaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ConsentAndRoleBasedAccessPolicyThaFinding[] }} ConsentAndRoleBasedAccessPolicyThaResult\n */\n\n/**\n * Evaluate one input against the consent and role-based access policy that filters sensitive notes policy.\n * @param {ConsentAndRoleBasedAccessPolicyThaInput} input\n * @returns {ConsentAndRoleBasedAccessPolicyThaResult}\n */\nexport function evaluateConsentAndRoleBasedAccessPolicyTha(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"consent-and-role-based-access-policy-tha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Consent and role-based access policy that filters\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ConsentAndRoleBasedAccessPolicyThaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ConsentAndRoleBasedAccessPolicyThaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ConsentAndRoleBasedAccessPolicyThaFinding[] }} ConsentAndRoleBasedAccessPolicyThaResult\n */\n\n/**\n * Evaluate one input against the consent and role-based access policy that filters policy.\n * @param {ConsentAndRoleBasedAccessPolicyThaInput} input\n * @returns {ConsentAndRoleBasedAccessPolicyThaResult}\n */\nexport function evaluateConsentAndRoleBasedAccessPolicyTha(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"consent-and-role-based-access-policy-tha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"consent-and-role-based-access-policy-tha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/consent-and-role-based-access-policy-tha.test.mjs",
@@ -732,7 +732,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Consent and role-based access policy that filters sensitive notes\": src/consent-and-role-based-access-policy-tha.mjs, test/consent-and-role-based-access-policy-tha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Consent and role-based access policy that filters\": src/consent-and-role-based-access-policy-tha.mjs, test/consent-and-role-based-access-policy-tha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -742,7 +742,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Consent and role-based access policy that filters sensitive notes\"",
+			"userMessageIncludes": "the card \"Consent and role-based access policy that filters\"",
 			"turns": [
 				{
 					"behavior": {
@@ -752,7 +752,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Consent and role-based access policy that filters sensitive notes\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Consent and role-based access policy that filters\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -907,7 +907,7 @@
 									"files": [
 										{
 											"path": "src/care-plan-tracker-with-goals-interventio.mjs",
-											"content": "/**\n * Care plan tracker with goals, interventions, due dates, barriers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CarePlanTrackerWithGoalsInterventioInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CarePlanTrackerWithGoalsInterventioFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CarePlanTrackerWithGoalsInterventioFinding[] }} CarePlanTrackerWithGoalsInterventioResult\n */\n\n/**\n * Evaluate one input against the care plan tracker with goals, interventions, due dates, barriers policy.\n * @param {CarePlanTrackerWithGoalsInterventioInput} input\n * @returns {CarePlanTrackerWithGoalsInterventioResult}\n */\nexport function evaluateCarePlanTrackerWithGoalsInterventio(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"care-plan-tracker-with-goals-interventio/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Care plan tracker with goals, interventions, due dates\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CarePlanTrackerWithGoalsInterventioInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CarePlanTrackerWithGoalsInterventioFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CarePlanTrackerWithGoalsInterventioFinding[] }} CarePlanTrackerWithGoalsInterventioResult\n */\n\n/**\n * Evaluate one input against the care plan tracker with goals, interventions, due dates policy.\n * @param {CarePlanTrackerWithGoalsInterventioInput} input\n * @returns {CarePlanTrackerWithGoalsInterventioResult}\n */\nexport function evaluateCarePlanTrackerWithGoalsInterventio(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"care-plan-tracker-with-goals-interventio/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"care-plan-tracker-with-goals-interventio/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/care-plan-tracker-with-goals-interventio.test.mjs",
@@ -937,7 +937,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Care plan tracker with goals, interventions, due dates, barriers\": src/care-plan-tracker-with-goals-interventio.mjs, test/care-plan-tracker-with-goals-interventio.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Care plan tracker with goals, interventions, due dates\": src/care-plan-tracker-with-goals-interventio.mjs, test/care-plan-tracker-with-goals-interventio.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -947,7 +947,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Care plan tracker with goals, interventions, due dates, barriers\"",
+			"userMessageIncludes": "the card \"Care plan tracker with goals, interventions, due dates\"",
 			"turns": [
 				{
 					"behavior": {
@@ -957,7 +957,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Care plan tracker with goals, interventions, due dates, barriers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Care plan tracker with goals, interventions, due dates\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1016,7 +1016,7 @@
 									"files": [
 										{
 											"path": "src/seed-clinic-with-overlapping-appointment.mjs",
-											"content": "/**\n * Seed clinic with overlapping appointments, sensitive notes, amended encounters\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedClinicWithOverlappingAppointmentInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedClinicWithOverlappingAppointmentFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedClinicWithOverlappingAppointmentFinding[] }} SeedClinicWithOverlappingAppointmentResult\n */\n\n/**\n * Evaluate one input against the seed clinic with overlapping appointments, sensitive notes, amended encounters policy.\n * @param {SeedClinicWithOverlappingAppointmentInput} input\n * @returns {SeedClinicWithOverlappingAppointmentResult}\n */\nexport function evaluateSeedClinicWithOverlappingAppointment(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-clinic-with-overlapping-appointment/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed clinic with overlapping appointments, sensitive\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedClinicWithOverlappingAppointmentInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedClinicWithOverlappingAppointmentFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedClinicWithOverlappingAppointmentFinding[] }} SeedClinicWithOverlappingAppointmentResult\n */\n\n/**\n * Evaluate one input against the seed clinic with overlapping appointments, sensitive policy.\n * @param {SeedClinicWithOverlappingAppointmentInput} input\n * @returns {SeedClinicWithOverlappingAppointmentResult}\n */\nexport function evaluateSeedClinicWithOverlappingAppointment(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-clinic-with-overlapping-appointment/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-clinic-with-overlapping-appointment/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-clinic-with-overlapping-appointment.test.mjs",
@@ -1046,7 +1046,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed clinic with overlapping appointments, sensitive notes, amended encounters\": src/seed-clinic-with-overlapping-appointment.mjs, test/seed-clinic-with-overlapping-appointment.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed clinic with overlapping appointments, sensitive\": src/seed-clinic-with-overlapping-appointment.mjs, test/seed-clinic-with-overlapping-appointment.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1056,7 +1056,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed clinic with overlapping appointments, sensitive notes, amended encounters\"",
+			"userMessageIncludes": "the card \"Seed clinic with overlapping appointments, sensitive\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1066,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed clinic with overlapping appointments, sensitive notes, amended encounters\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed clinic with overlapping appointments, sensitive\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

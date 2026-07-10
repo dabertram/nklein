@@ -4,29 +4,44 @@
  * class + failure-catalog id → grow the deterministic mock library. Pure over the parsed fixture entries — I/O
  * (reading the fixture files) lives in the caller/CLI so this stays trivially testable.
  *
- * Failure-mode classification here is deliberately CONSERVATIVE: it recognizes the mechanically-detectable
- * catalog ids (empty content, reasoning-only, http error, truncated tool-JSON, stringified args) and leaves the
- * rest as `perfect-*`/`observed-*` for a human to reclassify. Over-labeling would poison the library.
+ * SHAPE (dist-verified against @copilotkit/aimock 1.35.1 recorder.js): a recorded fixture does NOT retain the
+ * full request — only `match { userMessage (LAST user text), model, turnIndex (assistant-message count),
+ * hasToolResult, context? }` plus `metadata { systemHash, toolsHash }` and the response. So classification here
+ * runs on the userMessage text alone (tool-list signals are unavailable — only a hash survives), and distilled
+ * tracks pin themselves to the recorded turnIndex via `atAssistantCount` (the compiler's per-session
+ * transcript-shape conditioning uses the same count).
+ *
+ * Failure-mode classification is deliberately CONSERVATIVE: it recognizes the mechanically-detectable catalog
+ * ids (empty content, reasoning-only, http error, truncated tool-JSON) and leaves the rest as
+ * `perfect-observed` for a human to reclassify. Over-labeling would poison the library.
  */
 
-import { classifyRequest, type ClassifierRequestShape, DEFAULT_REQUEST_CLASS_MARKERS } from "../aimock/request-classifier.js";
+import { classifyRequest, DEFAULT_REQUEST_CLASS_MARKERS, type RequestClassMarkers } from "../aimock/request-classifier.js";
 import type { RequestClass, ScenarioTrack, TurnBehavior } from "../scenario/track-types.js";
 
-/** A captured request/response pair as read from the aimock fixture library (subset we consume). */
-export interface CapturedInteraction {
-	request: ClassifierRequestShape & { messages?: Array<{ role?: string; content?: unknown }> };
-	response: {
+/** One recorded fixture entry as aimock persists it (subset we consume; files hold one entry or {fixtures:[…]}). */
+export interface RecordedFixtureEntry {
+	match?: {
+		userMessage?: string;
+		model?: string;
+		/** Assistant-message count of the recorded request — the per-session turn index. */
+		turnIndex?: number;
+		hasToolResult?: boolean;
+		context?: string;
+	};
+	response?: {
 		status?: number;
 		content?: string | null;
 		reasoning?: string | null;
 		toolCalls?: Array<{ name: string; arguments: unknown }>;
 		finishReason?: string;
 	};
+	metadata?: { systemHash?: string; toolsHash?: string };
 }
 
 /** The failure-catalog id a captured interaction most conservatively maps to (or a `perfect`/`observed` bucket). */
-export function classifyObservedFailure(interaction: CapturedInteraction): string {
-	const { response } = interaction;
+export function classifyObservedFailure(entry: RecordedFixtureEntry): string {
+	const response = entry.response ?? {};
 	if (typeof response.status === "number" && response.status >= 400) {
 		return `t-${response.status}`;
 	}
@@ -56,16 +71,18 @@ export function classifyObservedFailure(interaction: CapturedInteraction): strin
 	return "perfect-observed";
 }
 
-function firstUserMessage(request: CapturedInteraction["request"]): string | undefined {
-	const user = (request.messages ?? []).find((message) => message.role === "user");
-	if (!user || typeof user.content !== "string") {
-		return undefined;
-	}
-	// A short, stable slice keys the track without over-fitting to the full prompt.
-	return user.content.trim().split("\n")[0]?.slice(0, 60);
+/** Classify the request class from the recorded userMessage text (the only request signal that survives capture). */
+export function classifyRecordedClass(
+	entry: RecordedFixtureEntry,
+	markers: RequestClassMarkers = DEFAULT_REQUEST_CLASS_MARKERS,
+): RequestClass {
+	return classifyRequest(
+		{ messages: [{ role: "user", content: entry.match?.userMessage ?? "" }] },
+		markers,
+	);
 }
 
-function responseToBehavior(response: CapturedInteraction["response"]): TurnBehavior {
+function responseToBehavior(response: NonNullable<RecordedFixtureEntry["response"]>): TurnBehavior {
 	if (typeof response.status === "number" && response.status >= 400) {
 		return { kind: "http_error", status: response.status as never, message: "captured upstream error" };
 	}
@@ -97,24 +114,46 @@ function safeParse(value: string): Record<string, unknown> {
 	}
 }
 
+/** A short, stable slice of the recorded userMessage keys the track without over-fitting to the full prompt. */
+function needleFromUserMessage(entry: RecordedFixtureEntry): string | undefined {
+	const text = entry.match?.userMessage?.trim();
+	if (!text) {
+		return undefined;
+	}
+	return text.split("\n")[0]?.slice(0, 60)?.trim() || undefined;
+}
+
 /**
- * Distill one captured interaction into a scenario track. `index` disambiguates ids when many interactions share
- * a request class + failure id in one campaign.
+ * Distill one captured fixture into a scenario track pinned to its recorded per-session turn. `index`
+ * disambiguates ids when many captures share a request class + failure id in one campaign.
  */
-export function distillInteraction(interaction: CapturedInteraction, index: number): ScenarioTrack {
-	const requestClass: RequestClass = classifyRequest(interaction.request, DEFAULT_REQUEST_CLASS_MARKERS);
-	const failureId = classifyObservedFailure(interaction);
-	const userMessageIncludes = firstUserMessage(interaction.request);
+export function distillInteraction(entry: RecordedFixtureEntry, index: number): ScenarioTrack {
+	const requestClass = classifyRecordedClass(entry);
+	const failureId = classifyObservedFailure(entry);
+	const userMessageIncludes = needleFromUserMessage(entry);
+	const turnIndex = entry.match?.turnIndex;
 	return {
 		id: `${failureId}:${requestClass}:${index}`,
 		requestClass,
 		...(userMessageIncludes ? { userMessageIncludes } : {}),
-		turns: [{ behavior: responseToBehavior(interaction.response) }],
-		provenance: `distilled from real capture (${failureId})`,
+		...(typeof turnIndex === "number" && turnIndex > 0 ? { atAssistantCount: turnIndex } : {}),
+		turns: [{ behavior: responseToBehavior(entry.response ?? {}) }],
+		provenance: `distilled from real capture (${failureId}${entry.match?.model ? `, ${entry.match.model}` : ""})`,
 	};
 }
 
-/** Distill a whole campaign of captured interactions into tracks. */
-export function distillCampaign(interactions: readonly CapturedInteraction[]): ScenarioTrack[] {
-	return interactions.map((interaction, index) => distillInteraction(interaction, index));
+/** Distill a whole campaign of captured fixtures into tracks. */
+export function distillCampaign(entries: readonly RecordedFixtureEntry[]): ScenarioTrack[] {
+	return entries.map((entry, index) => distillInteraction(entry, index));
+}
+
+/** Flatten a parsed capture FILE (either one fixture entry or `{fixtures:[…]}`) into entries. */
+export function entriesFromCaptureFile(parsed: unknown): RecordedFixtureEntry[] {
+	if (parsed && typeof parsed === "object" && Array.isArray((parsed as { fixtures?: unknown }).fixtures)) {
+		return (parsed as { fixtures: RecordedFixtureEntry[] }).fixtures;
+	}
+	if (parsed && typeof parsed === "object" && "response" in (parsed as Record<string, unknown>)) {
+		return [parsed as RecordedFixtureEntry];
+	}
+	return [];
 }

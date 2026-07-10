@@ -5,7 +5,7 @@
  * folds those recordings into scenario tracks (keyed by the failure catalog), so the mock library grows with
  * everything real usage surfaces — no !Klein code change, no workflow disruption.
  *
- * aimock does the recording (its `record` config, proxyOnly = pure passthrough capture); this is the thin,
+ * aimock does the recording (its `record` config; NOTE proxyOnly=true would DISABLE saving); this is the thin,
  * !Klein-free factory + the on-disk shape the distiller reads.
  */
 
@@ -19,8 +19,9 @@ export interface RecordProxyOptions {
 	/** Directory the captured fixtures are written to (one library per capture campaign). */
 	fixturePath: string;
 	/**
-	 * Pure passthrough (default true): proxy every request to upstream and save it, never answer from memory —
-	 * so the captured trace reflects real model behavior exactly, including failures.
+	 * IMPORTANT aimock semantics (dist-verified 1.35.1): `proxyOnly: true` means proxy WITHOUT SAVING fixtures
+	 * — the opposite of a capture campaign. Capture (default false here) proxies every request upstream AND
+	 * persists each interaction as a fixture file; answers always come from upstream either way.
 	 */
 	proxyOnly?: boolean;
 	/** Keep the exact dated model id ("qwen2.5-coder-14b@q4") instead of a canonical alias. Default true (local ids matter). */
@@ -46,7 +47,7 @@ export function createRecordProxy(options: RecordProxyOptions): RecordProxyHandl
 		record: {
 			providers: { openai: options.upstreamOpenAiUrl },
 			fixturePath: options.fixturePath,
-			proxyOnly: options.proxyOnly ?? true,
+			proxyOnly: options.proxyOnly ?? false,
 			recordFullModelVersion: options.recordFullModelVersion ?? true,
 		},
 	});

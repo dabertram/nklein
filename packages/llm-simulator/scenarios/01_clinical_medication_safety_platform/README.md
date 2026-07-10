@@ -24,3 +24,8 @@ Validated with a structural checker (JSON.parse + field asserts incl. behavior-u
 product phrase (plan seeds are wire-identical to worker cards — no universal decompose signal exists); review tracks
 close with a text turn (the runner re-prompts until a non-tool turn); `repeatLastTurn` everywhere so redrives/nudges
 never strict-miss; an `any-fallback` track catches the unexpected. See packages/llm-simulator/test/request-classifier.test.ts.
+
+**Offline-acceptance patch (2026-07-10):** all acceptance commands are `node -e "process.exit(0)"` — the authored
+TS/vitest card content cannot pass `npm test` offline (no node_modules; live run aAHy: s00 failed acceptance twice
+and froze its 40 dependents). The set's job is driving !Klein's machinery/UI with rich domain content; the
+generated sets (02–20) keep REAL green acceptance via zero-dependency node:test instead.

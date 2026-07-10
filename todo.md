@@ -11040,6 +11040,21 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       tracks must be PER-CARD; close every tool track with a TEXT turn or the runner burns rounds re-prompting.
       NEXT: script-based scenario-set GENERATOR for projects 02–20 + run scenario-01's perfect/flaky sets through
       the harness against the real project-01 workspace.)*
+      *(◐ 2026-07-10 later — **GENERATOR + LOWER-20 SETS LANDED; PROJECT-02 SET DRAINS A REAL RUNTIME 19/19.**
+      scripts/generate-scenario-sets.mts emits perfect+flaky sets for 02–20 (tier-ramped 18–50 cards, zero-dep
+      ESM/node:test card content so `npm test` acceptance is green offline); `dev test-project --preset` accepts
+      any registry id; the harness gained scenario mode (NKLEIN_SIMFLOW_SCENARIO=NN [--RUN=flaky]) + a STRICT
+      perfect-run drain gate. Three more hard-won truths from live runs (all guarded in scenario-sets.test.ts):
+      (8) NEEDLE EXCLUSIVITY — !Klein embeds the decompose spec into every card prompt AND the context focus
+      brief enumerates merged workspace paths, so worker needles must be per-card phrases ("Files for THIS card:
+      src/<slug>.mjs"), never titles/bullets/bare paths; (9) aimock sequenceIndex is GLOBAL per fixture — turns
+      are now conditioned on the request's own transcript shape (assistant-count == per-session turn index),
+      restart-idempotent by construction; (10) PRODUCT BUG FOUND+FIXED by the simulator: the deferred-retry
+      trailing timer was silently swallowed by the terminal-retry sweep debounce → ready cards froze in Planning
+      with an idle fleet (one confirmed mechanism behind §12 "fleet under-utilization"); timer-fired sweeps now
+      bypass the debounce and swallowed sweeps re-arm the timer (terminal-retry-sweep-policy.test.ts).
+      NEXT: live-validate set 01 (hand-authored) + a flaky run + the 50-card set 19; then the record→distill
+      capture docs; then the Fable UI deep dive on simulated workflows.)*
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY

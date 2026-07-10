@@ -27,4 +27,4 @@ export { createLmStudioShim, type SimulatedModel } from "./aimock/lmstudio-shim.
 export { createRecordProxy } from "./reflection/record-proxy.js";
 export type { RecordProxyHandle, RecordProxyOptions } from "./reflection/record-proxy.js";
 export { classifyObservedFailure, distillCampaign, distillInteraction } from "./reflection/distill.js";
-export type { CapturedInteraction } from "./reflection/distill.js";
+export type { RecordedFixtureEntry } from "./reflection/distill.js";

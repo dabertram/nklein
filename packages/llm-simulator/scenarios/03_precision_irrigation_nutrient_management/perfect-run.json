@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (farm, field, block, crop, soil zone, irrigation line, sensor). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (farm, field, block, crop, soil zone, irrigation line). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Daily soil-water balance calculation using crop coefficient, reference evapotranspiration",
-											"prompt": "Daily soil-water balance calculation using crop coefficient, reference evapotranspiration. Implement the foundation for: Daily soil-water balance calculation using crop coefficient, reference evapotranspiration, rainfall, irrigation, root depth, and allowable depletion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-soil-water-balance-calculation-usi.mjs and test/daily-soil-water-balance-calculation-usi.test.mjs.",
+											"title": "Daily soil-water balance calculation using crop",
+											"prompt": "Daily soil-water balance calculation using crop. Implement the foundation for: Daily soil-water balance calculation using crop coefficient, reference evapotranspiration, rainfall, irrigation, root depth, and allowable depletion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-soil-water-balance-calculation-usi.mjs and test/daily-soil-water-balance-calculation-usi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Sensor ingestion pipeline with plausibility checks for stuck probes",
-											"prompt": "Sensor ingestion pipeline with plausibility checks for stuck probes. Implement the foundation for: Sensor ingestion pipeline with plausibility checks for stuck probes, impossible jumps, missing intervals, and unit conversion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sensor-ingestion-pipeline-with-plausibil.mjs and test/sensor-ingestion-pipeline-with-plausibil.test.mjs.",
+											"title": "Sensor ingestion pipeline with plausibility checks for",
+											"prompt": "Sensor ingestion pipeline with plausibility checks for. Implement the foundation for: Sensor ingestion pipeline with plausibility checks for stuck probes, impossible jumps, missing intervals, and unit conversion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sensor-ingestion-pipeline-with-plausibil.mjs and test/sensor-ingestion-pipeline-with-plausibil.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Irrigation recommendation engine that can explain recommended runtime, deficit",
-											"prompt": "Irrigation recommendation engine that can explain recommended runtime, deficit. Implement the foundation for: Irrigation recommendation engine that can explain recommended runtime, deficit, forecast rain risk, and pump capacity constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/irrigation-recommendation-engine-that-ca.mjs and test/irrigation-recommendation-engine-that-ca.test.mjs.",
+											"title": "Irrigation recommendation engine that can explain",
+											"prompt": "Irrigation recommendation engine that can explain. Implement the foundation for: Irrigation recommendation engine that can explain recommended runtime, deficit, forecast rain risk, and pump capacity constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/irrigation-recommendation-engine-that-ca.mjs and test/irrigation-recommendation-engine-that-ca.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration",
-											"prompt": "Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration. Implement the foundation for: Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration, irrigation compatibility, and seasonal limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fertigation-plan-that-tracks-nitrogen-ph.mjs and test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs.",
+											"title": "Fertigation plan that tracks nitrogen, phosphorus",
+											"prompt": "Fertigation plan that tracks nitrogen, phosphorus. Implement the foundation for: Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration, irrigation compatibility, and seasonal limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fertigation-plan-that-tracks-nitrogen-ph.mjs and test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks",
-											"prompt": "Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Implement the foundation for: Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/zone-comparison-views-for-under-watered.mjs and test/zone-comparison-views-for-under-watered.test.mjs.",
+											"title": "Zone comparison views for under-watered, over-watered, and",
+											"prompt": "Zone comparison views for under-watered, over-watered, and. Implement the foundation for: Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/zone-comparison-views-for-under-watered.mjs and test/zone-comparison-views-for-under-watered.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Scenario planner for heatwave, pump outage, and restricted water",
-											"prompt": "Scenario planner for heatwave, pump outage, and restricted water. Implement the foundation for: Scenario planner for heatwave, pump outage, and restricted water allocation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scenario-planner-for-heatwave-pump-outag.mjs and test/scenario-planner-for-heatwave-pump-outag.test.mjs.",
+											"title": "Scenario planner for heatwave, pump outage, and restricted",
+											"prompt": "Scenario planner for heatwave, pump outage, and restricted. Implement the foundation for: Scenario planner for heatwave, pump outage, and restricted water allocation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scenario-planner-for-heatwave-pump-outag.mjs and test/scenario-planner-for-heatwave-pump-outag.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed data for orchards or vineyards with heterogeneous soils",
-											"prompt": "Seed data for orchards or vineyards with heterogeneous soils. Implement the foundation for: Seed data for orchards or vineyards with heterogeneous soils and partial sensor failures. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-data-for-orchards-or-vineyards-with.mjs and test/seed-data-for-orchards-or-vineyards-with.test.mjs.",
+											"title": "Seed data for orchards or vineyards with heterogeneous",
+											"prompt": "Seed data for orchards or vineyards with heterogeneous. Implement the foundation for: Seed data for orchards or vineyards with heterogeneous soils and partial sensor failures. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-data-for-orchards-or-vineyards-with.mjs and test/seed-data-for-orchards-or-vineyards-with.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -555,7 +555,7 @@
 									"files": [
 										{
 											"path": "src/daily-soil-water-balance-calculation-usi.mjs",
-											"content": "/**\n * Daily soil-water balance calculation using crop coefficient, reference evapotranspiration\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DailySoilWaterBalanceCalculationUsiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DailySoilWaterBalanceCalculationUsiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DailySoilWaterBalanceCalculationUsiFinding[] }} DailySoilWaterBalanceCalculationUsiResult\n */\n\n/**\n * Evaluate one input against the daily soil-water balance calculation using crop coefficient, reference evapotranspiration policy.\n * @param {DailySoilWaterBalanceCalculationUsiInput} input\n * @returns {DailySoilWaterBalanceCalculationUsiResult}\n */\nexport function evaluateDailySoilWaterBalanceCalculationUsi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"daily-soil-water-balance-calculation-usi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Daily soil-water balance calculation using crop\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DailySoilWaterBalanceCalculationUsiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DailySoilWaterBalanceCalculationUsiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DailySoilWaterBalanceCalculationUsiFinding[] }} DailySoilWaterBalanceCalculationUsiResult\n */\n\n/**\n * Evaluate one input against the daily soil-water balance calculation using crop policy.\n * @param {DailySoilWaterBalanceCalculationUsiInput} input\n * @returns {DailySoilWaterBalanceCalculationUsiResult}\n */\nexport function evaluateDailySoilWaterBalanceCalculationUsi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"daily-soil-water-balance-calculation-usi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"daily-soil-water-balance-calculation-usi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/daily-soil-water-balance-calculation-usi.test.mjs",
@@ -585,7 +585,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Daily soil-water balance calculation using crop coefficient, reference evapotranspiration\": src/daily-soil-water-balance-calculation-usi.mjs, test/daily-soil-water-balance-calculation-usi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Daily soil-water balance calculation using crop\": src/daily-soil-water-balance-calculation-usi.mjs, test/daily-soil-water-balance-calculation-usi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -595,7 +595,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Daily soil-water balance calculation using crop coefficient, reference evapotranspiration\"",
+			"userMessageIncludes": "the card \"Daily soil-water balance calculation using crop\"",
 			"turns": [
 				{
 					"behavior": {
@@ -605,7 +605,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Daily soil-water balance calculation using crop coefficient, reference evapotranspiration\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Daily soil-water balance calculation using crop\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -651,7 +651,7 @@
 									"files": [
 										{
 											"path": "src/sensor-ingestion-pipeline-with-plausibil.mjs",
-											"content": "/**\n * Sensor ingestion pipeline with plausibility checks for stuck probes\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SensorIngestionPipelineWithPlausibilInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SensorIngestionPipelineWithPlausibilFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SensorIngestionPipelineWithPlausibilFinding[] }} SensorIngestionPipelineWithPlausibilResult\n */\n\n/**\n * Evaluate one input against the sensor ingestion pipeline with plausibility checks for stuck probes policy.\n * @param {SensorIngestionPipelineWithPlausibilInput} input\n * @returns {SensorIngestionPipelineWithPlausibilResult}\n */\nexport function evaluateSensorIngestionPipelineWithPlausibil(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sensor-ingestion-pipeline-with-plausibil/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Sensor ingestion pipeline with plausibility checks for\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SensorIngestionPipelineWithPlausibilInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SensorIngestionPipelineWithPlausibilFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SensorIngestionPipelineWithPlausibilFinding[] }} SensorIngestionPipelineWithPlausibilResult\n */\n\n/**\n * Evaluate one input against the sensor ingestion pipeline with plausibility checks for policy.\n * @param {SensorIngestionPipelineWithPlausibilInput} input\n * @returns {SensorIngestionPipelineWithPlausibilResult}\n */\nexport function evaluateSensorIngestionPipelineWithPlausibil(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sensor-ingestion-pipeline-with-plausibil/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sensor-ingestion-pipeline-with-plausibil/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/sensor-ingestion-pipeline-with-plausibil.test.mjs",
@@ -681,7 +681,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Sensor ingestion pipeline with plausibility checks for stuck probes\": src/sensor-ingestion-pipeline-with-plausibil.mjs, test/sensor-ingestion-pipeline-with-plausibil.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Sensor ingestion pipeline with plausibility checks for\": src/sensor-ingestion-pipeline-with-plausibil.mjs, test/sensor-ingestion-pipeline-with-plausibil.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -691,7 +691,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Sensor ingestion pipeline with plausibility checks for stuck probes\"",
+			"userMessageIncludes": "the card \"Sensor ingestion pipeline with plausibility checks for\"",
 			"turns": [
 				{
 					"behavior": {
@@ -701,7 +701,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Sensor ingestion pipeline with plausibility checks for stuck probes\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Sensor ingestion pipeline with plausibility checks for\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -747,7 +747,7 @@
 									"files": [
 										{
 											"path": "src/irrigation-recommendation-engine-that-ca.mjs",
-											"content": "/**\n * Irrigation recommendation engine that can explain recommended runtime, deficit\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IrrigationRecommendationEngineThatCaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IrrigationRecommendationEngineThatCaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IrrigationRecommendationEngineThatCaFinding[] }} IrrigationRecommendationEngineThatCaResult\n */\n\n/**\n * Evaluate one input against the irrigation recommendation engine that can explain recommended runtime, deficit policy.\n * @param {IrrigationRecommendationEngineThatCaInput} input\n * @returns {IrrigationRecommendationEngineThatCaResult}\n */\nexport function evaluateIrrigationRecommendationEngineThatCa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"irrigation-recommendation-engine-that-ca/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Irrigation recommendation engine that can explain\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IrrigationRecommendationEngineThatCaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IrrigationRecommendationEngineThatCaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IrrigationRecommendationEngineThatCaFinding[] }} IrrigationRecommendationEngineThatCaResult\n */\n\n/**\n * Evaluate one input against the irrigation recommendation engine that can explain policy.\n * @param {IrrigationRecommendationEngineThatCaInput} input\n * @returns {IrrigationRecommendationEngineThatCaResult}\n */\nexport function evaluateIrrigationRecommendationEngineThatCa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"irrigation-recommendation-engine-that-ca/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"irrigation-recommendation-engine-that-ca/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/irrigation-recommendation-engine-that-ca.test.mjs",
@@ -777,7 +777,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Irrigation recommendation engine that can explain recommended runtime, deficit\": src/irrigation-recommendation-engine-that-ca.mjs, test/irrigation-recommendation-engine-that-ca.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Irrigation recommendation engine that can explain\": src/irrigation-recommendation-engine-that-ca.mjs, test/irrigation-recommendation-engine-that-ca.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -787,7 +787,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Irrigation recommendation engine that can explain recommended runtime, deficit\"",
+			"userMessageIncludes": "the card \"Irrigation recommendation engine that can explain\"",
 			"turns": [
 				{
 					"behavior": {
@@ -797,7 +797,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Irrigation recommendation engine that can explain recommended runtime, deficit\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Irrigation recommendation engine that can explain\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -843,7 +843,7 @@
 									"files": [
 										{
 											"path": "src/fertigation-plan-that-tracks-nitrogen-ph.mjs",
-											"content": "/**\n * Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FertigationPlanThatTracksNitrogenPhInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FertigationPlanThatTracksNitrogenPhFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FertigationPlanThatTracksNitrogenPhFinding[] }} FertigationPlanThatTracksNitrogenPhResult\n */\n\n/**\n * Evaluate one input against the fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration policy.\n * @param {FertigationPlanThatTracksNitrogenPhInput} input\n * @returns {FertigationPlanThatTracksNitrogenPhResult}\n */\nexport function evaluateFertigationPlanThatTracksNitrogenPh(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fertigation-plan-that-tracks-nitrogen-ph/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Fertigation plan that tracks nitrogen, phosphorus\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FertigationPlanThatTracksNitrogenPhInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FertigationPlanThatTracksNitrogenPhFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FertigationPlanThatTracksNitrogenPhFinding[] }} FertigationPlanThatTracksNitrogenPhResult\n */\n\n/**\n * Evaluate one input against the fertigation plan that tracks nitrogen, phosphorus policy.\n * @param {FertigationPlanThatTracksNitrogenPhInput} input\n * @returns {FertigationPlanThatTracksNitrogenPhResult}\n */\nexport function evaluateFertigationPlanThatTracksNitrogenPh(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"fertigation-plan-that-tracks-nitrogen-ph/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"fertigation-plan-that-tracks-nitrogen-ph/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs",
@@ -873,7 +873,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration\": src/fertigation-plan-that-tracks-nitrogen-ph.mjs, test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Fertigation plan that tracks nitrogen, phosphorus\": src/fertigation-plan-that-tracks-nitrogen-ph.mjs, test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -883,7 +883,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration\"",
+			"userMessageIncludes": "the card \"Fertigation plan that tracks nitrogen, phosphorus\"",
 			"turns": [
 				{
 					"behavior": {
@@ -893,7 +893,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Fertigation plan that tracks nitrogen, phosphorus\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -939,7 +939,7 @@
 									"files": [
 										{
 											"path": "src/zone-comparison-views-for-under-watered.mjs",
-											"content": "/**\n * Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ZoneComparisonViewsForUnderWateredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ZoneComparisonViewsForUnderWateredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ZoneComparisonViewsForUnderWateredFinding[] }} ZoneComparisonViewsForUnderWateredResult\n */\n\n/**\n * Evaluate one input against the zone comparison views for under-watered, over-watered, and sensor-unreliable blocks policy.\n * @param {ZoneComparisonViewsForUnderWateredInput} input\n * @returns {ZoneComparisonViewsForUnderWateredResult}\n */\nexport function evaluateZoneComparisonViewsForUnderWatered(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"zone-comparison-views-for-under-watered/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Zone comparison views for under-watered, over-watered, and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ZoneComparisonViewsForUnderWateredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ZoneComparisonViewsForUnderWateredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ZoneComparisonViewsForUnderWateredFinding[] }} ZoneComparisonViewsForUnderWateredResult\n */\n\n/**\n * Evaluate one input against the zone comparison views for under-watered, over-watered, and policy.\n * @param {ZoneComparisonViewsForUnderWateredInput} input\n * @returns {ZoneComparisonViewsForUnderWateredResult}\n */\nexport function evaluateZoneComparisonViewsForUnderWatered(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"zone-comparison-views-for-under-watered/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"zone-comparison-views-for-under-watered/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/zone-comparison-views-for-under-watered.test.mjs",
@@ -969,7 +969,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks\": src/zone-comparison-views-for-under-watered.mjs, test/zone-comparison-views-for-under-watered.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Zone comparison views for under-watered, over-watered, and\": src/zone-comparison-views-for-under-watered.mjs, test/zone-comparison-views-for-under-watered.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -979,7 +979,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks\"",
+			"userMessageIncludes": "the card \"Zone comparison views for under-watered, over-watered, and\"",
 			"turns": [
 				{
 					"behavior": {
@@ -989,7 +989,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Zone comparison views for under-watered, over-watered, and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1035,7 +1035,7 @@
 									"files": [
 										{
 											"path": "src/scenario-planner-for-heatwave-pump-outag.mjs",
-											"content": "/**\n * Scenario planner for heatwave, pump outage, and restricted water\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ScenarioPlannerForHeatwavePumpOutagInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ScenarioPlannerForHeatwavePumpOutagFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ScenarioPlannerForHeatwavePumpOutagFinding[] }} ScenarioPlannerForHeatwavePumpOutagResult\n */\n\n/**\n * Evaluate one input against the scenario planner for heatwave, pump outage, and restricted water policy.\n * @param {ScenarioPlannerForHeatwavePumpOutagInput} input\n * @returns {ScenarioPlannerForHeatwavePumpOutagResult}\n */\nexport function evaluateScenarioPlannerForHeatwavePumpOutag(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scenario-planner-for-heatwave-pump-outag/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Scenario planner for heatwave, pump outage, and restricted\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ScenarioPlannerForHeatwavePumpOutagInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ScenarioPlannerForHeatwavePumpOutagFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ScenarioPlannerForHeatwavePumpOutagFinding[] }} ScenarioPlannerForHeatwavePumpOutagResult\n */\n\n/**\n * Evaluate one input against the scenario planner for heatwave, pump outage, and restricted policy.\n * @param {ScenarioPlannerForHeatwavePumpOutagInput} input\n * @returns {ScenarioPlannerForHeatwavePumpOutagResult}\n */\nexport function evaluateScenarioPlannerForHeatwavePumpOutag(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scenario-planner-for-heatwave-pump-outag/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scenario-planner-for-heatwave-pump-outag/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/scenario-planner-for-heatwave-pump-outag.test.mjs",
@@ -1065,7 +1065,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Scenario planner for heatwave, pump outage, and restricted water\": src/scenario-planner-for-heatwave-pump-outag.mjs, test/scenario-planner-for-heatwave-pump-outag.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Scenario planner for heatwave, pump outage, and restricted\": src/scenario-planner-for-heatwave-pump-outag.mjs, test/scenario-planner-for-heatwave-pump-outag.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1075,7 +1075,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Scenario planner for heatwave, pump outage, and restricted water\"",
+			"userMessageIncludes": "the card \"Scenario planner for heatwave, pump outage, and restricted\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Scenario planner for heatwave, pump outage, and restricted water\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Scenario planner for heatwave, pump outage, and restricted\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1131,7 +1131,7 @@
 									"files": [
 										{
 											"path": "src/seed-data-for-orchards-or-vineyards-with.mjs",
-											"content": "/**\n * Seed data for orchards or vineyards with heterogeneous soils\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedDataForOrchardsOrVineyardsWithInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedDataForOrchardsOrVineyardsWithFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedDataForOrchardsOrVineyardsWithFinding[] }} SeedDataForOrchardsOrVineyardsWithResult\n */\n\n/**\n * Evaluate one input against the seed data for orchards or vineyards with heterogeneous soils policy.\n * @param {SeedDataForOrchardsOrVineyardsWithInput} input\n * @returns {SeedDataForOrchardsOrVineyardsWithResult}\n */\nexport function evaluateSeedDataForOrchardsOrVineyardsWith(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-data-for-orchards-or-vineyards-with/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed data for orchards or vineyards with heterogeneous\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedDataForOrchardsOrVineyardsWithInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedDataForOrchardsOrVineyardsWithFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedDataForOrchardsOrVineyardsWithFinding[] }} SeedDataForOrchardsOrVineyardsWithResult\n */\n\n/**\n * Evaluate one input against the seed data for orchards or vineyards with heterogeneous policy.\n * @param {SeedDataForOrchardsOrVineyardsWithInput} input\n * @returns {SeedDataForOrchardsOrVineyardsWithResult}\n */\nexport function evaluateSeedDataForOrchardsOrVineyardsWith(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-data-for-orchards-or-vineyards-with/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-data-for-orchards-or-vineyards-with/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-data-for-orchards-or-vineyards-with.test.mjs",
@@ -1161,7 +1161,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed data for orchards or vineyards with heterogeneous soils\": src/seed-data-for-orchards-or-vineyards-with.mjs, test/seed-data-for-orchards-or-vineyards-with.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed data for orchards or vineyards with heterogeneous\": src/seed-data-for-orchards-or-vineyards-with.mjs, test/seed-data-for-orchards-or-vineyards-with.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				},
 				{
@@ -1185,7 +1185,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Addressed the review feedback on \"Seed data for orchards or vineyards with heterogeneous soils\" and re-ran the tests. Task complete."
+						"content": "Addressed the review feedback on \"Seed data for orchards or vineyards with heterogeneous\" and re-ran the tests. Task complete."
 					}
 				}
 			],
@@ -1195,7 +1195,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed data for orchards or vineyards with heterogeneous soils\"",
+			"userMessageIncludes": "the card \"Seed data for orchards or vineyards with heterogeneous\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1205,8 +1205,8 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "request_changes",
-									"summary": "\"Seed data for orchards or vineyards with heterogeneous soils\" is close but ships a gap the card explicitly owns.",
-									"feedback": "The evaluate module for \"Seed data for orchards or vineyards with heterogeneous soils\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
+									"summary": "\"Seed data for orchards or vineyards with heterogeneous\" is close but ships a gap the card explicitly owns.",
+									"feedback": "The evaluate module for \"Seed data for orchards or vineyards with heterogeneous\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
 								}
 							}
 						]
@@ -1220,7 +1220,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed data for orchards or vineyards with heterogeneous soils\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed data for orchards or vineyards with heterogeneous\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

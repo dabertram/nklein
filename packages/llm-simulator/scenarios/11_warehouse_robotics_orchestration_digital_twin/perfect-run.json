@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (warehouse map, node, aisle, zone, robot, charger, tote, sku). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (warehouse map, node, aisle, zone, robot, charger, tote). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Task allocation engine that assigns robots based on location",
-											"prompt": "Task allocation engine that assigns robots based on location. Implement the foundation for: Task allocation engine that assigns robots based on location, battery, payload, priority, zone permissions, order wave, and charger availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/task-allocation-engine-that-assigns-robo.mjs and test/task-allocation-engine-that-assigns-robo.test.mjs.",
+											"title": "Task allocation engine that assigns robots based on",
+											"prompt": "Task allocation engine that assigns robots based on. Implement the foundation for: Task allocation engine that assigns robots based on location, battery, payload, priority, zone permissions, order wave, and charger availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/task-allocation-engine-that-assigns-robo.mjs and test/task-allocation-engine-that-assigns-robo.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Traffic manager with path reservations, one-way aisles, intersection locks",
-											"prompt": "Traffic manager with path reservations, one-way aisles, intersection locks. Implement the foundation for: Traffic manager with path reservations, one-way aisles, intersection locks, deadlock detection, and replanning. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/traffic-manager-with-path-reservations-o.mjs and test/traffic-manager-with-path-reservations-o.test.mjs.",
+											"title": "Traffic manager with path reservations, one-way aisles",
+											"prompt": "Traffic manager with path reservations, one-way aisles. Implement the foundation for: Traffic manager with path reservations, one-way aisles, intersection locks, deadlock detection, and replanning. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/traffic-manager-with-path-reservations-o.mjs and test/traffic-manager-with-path-reservations-o.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Digital twin simulation that replays robot telemetry, task state",
-											"prompt": "Digital twin simulation that replays robot telemetry, task state. Implement the foundation for: Digital twin simulation that replays robot telemetry, task state, inventory movement, and exception events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/digital-twin-simulation-that-replays-rob.mjs and test/digital-twin-simulation-that-replays-rob.test.mjs.",
+											"title": "Digital twin simulation that replays robot telemetry, task",
+											"prompt": "Digital twin simulation that replays robot telemetry, task. Implement the foundation for: Digital twin simulation that replays robot telemetry, task state, inventory movement, and exception events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/digital-twin-simulation-that-replays-rob.mjs and test/digital-twin-simulation-that-replays-rob.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Inventory movement ledger connecting physical totes, SKU quantities, source/destination",
-											"prompt": "Inventory movement ledger connecting physical totes, SKU quantities, source/destination. Implement the foundation for: Inventory movement ledger connecting physical totes, SKU quantities, source/destination, scan evidence, and exception correction. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inventory-movement-ledger-connecting-phy.mjs and test/inventory-movement-ledger-connecting-phy.test.mjs.",
+											"title": "Inventory movement ledger connecting physical totes, SKU",
+											"prompt": "Inventory movement ledger connecting physical totes, SKU. Implement the foundation for: Inventory movement ledger connecting physical totes, SKU quantities, source/destination, scan evidence, and exception correction. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inventory-movement-ledger-connecting-phy.mjs and test/inventory-movement-ledger-connecting-phy.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Safety-zone policy for human-only areas, maintenance lockout, emergency stop",
-											"prompt": "Safety-zone policy for human-only areas, maintenance lockout, emergency stop. Implement the foundation for: Safety-zone policy for human-only areas, maintenance lockout, emergency stop, speed-limited zones, and blocked aisles. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/safety-zone-policy-for-human-only-areas.mjs and test/safety-zone-policy-for-human-only-areas.test.mjs.",
+											"title": "Safety-zone policy for human-only areas, maintenance",
+											"prompt": "Safety-zone policy for human-only areas, maintenance. Implement the foundation for: Safety-zone policy for human-only areas, maintenance lockout, emergency stop, speed-limited zones, and blocked aisles. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/safety-zone-policy-for-human-only-areas.mjs and test/safety-zone-policy-for-human-only-areas.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Battery and charger scheduler with queueing, opportunity charging, and",
-											"prompt": "Battery and charger scheduler with queueing, opportunity charging, and. Implement the foundation for: Battery and charger scheduler with queueing, opportunity charging, and degraded robot behavior. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/battery-and-charger-scheduler-with-queue.mjs and test/battery-and-charger-scheduler-with-queue.test.mjs.",
+											"title": "Battery and charger scheduler with queueing, opportunity",
+											"prompt": "Battery and charger scheduler with queueing, opportunity. Implement the foundation for: Battery and charger scheduler with queueing, opportunity charging, and degraded robot behavior. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/battery-and-charger-scheduler-with-queue.mjs and test/battery-and-charger-scheduler-with-queue.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed scenario with rush orders, blocked aisle, low-battery robot",
-											"prompt": "Seed scenario with rush orders, blocked aisle, low-battery robot. Implement the foundation for: Seed scenario with rush orders, blocked aisle, low-battery robot, lost tote, and deadlock-prone crossing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-rush-orders-blocked-a.mjs and test/seed-scenario-with-rush-orders-blocked-a.test.mjs.",
+											"title": "Seed scenario with rush orders, blocked aisle, low-battery",
+											"prompt": "Seed scenario with rush orders, blocked aisle, low-battery. Implement the foundation for: Seed scenario with rush orders, blocked aisle, low-battery robot, lost tote, and deadlock-prone crossing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-rush-orders-blocked-a.mjs and test/seed-scenario-with-rush-orders-blocked-a.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -795,7 +795,7 @@
 									"files": [
 										{
 											"path": "src/task-allocation-engine-that-assigns-robo.mjs",
-											"content": "/**\n * Task allocation engine that assigns robots based on location\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TaskAllocationEngineThatAssignsRoboInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TaskAllocationEngineThatAssignsRoboFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TaskAllocationEngineThatAssignsRoboFinding[] }} TaskAllocationEngineThatAssignsRoboResult\n */\n\n/**\n * Evaluate one input against the task allocation engine that assigns robots based on location policy.\n * @param {TaskAllocationEngineThatAssignsRoboInput} input\n * @returns {TaskAllocationEngineThatAssignsRoboResult}\n */\nexport function evaluateTaskAllocationEngineThatAssignsRobo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"task-allocation-engine-that-assigns-robo/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Task allocation engine that assigns robots based on\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TaskAllocationEngineThatAssignsRoboInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TaskAllocationEngineThatAssignsRoboFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TaskAllocationEngineThatAssignsRoboFinding[] }} TaskAllocationEngineThatAssignsRoboResult\n */\n\n/**\n * Evaluate one input against the task allocation engine that assigns robots based on policy.\n * @param {TaskAllocationEngineThatAssignsRoboInput} input\n * @returns {TaskAllocationEngineThatAssignsRoboResult}\n */\nexport function evaluateTaskAllocationEngineThatAssignsRobo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"task-allocation-engine-that-assigns-robo/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"task-allocation-engine-that-assigns-robo/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/task-allocation-engine-that-assigns-robo.test.mjs",
@@ -825,7 +825,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Task allocation engine that assigns robots based on location\": src/task-allocation-engine-that-assigns-robo.mjs, test/task-allocation-engine-that-assigns-robo.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Task allocation engine that assigns robots based on\": src/task-allocation-engine-that-assigns-robo.mjs, test/task-allocation-engine-that-assigns-robo.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -835,7 +835,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Task allocation engine that assigns robots based on location\"",
+			"userMessageIncludes": "the card \"Task allocation engine that assigns robots based on\"",
 			"turns": [
 				{
 					"behavior": {
@@ -845,7 +845,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Task allocation engine that assigns robots based on location\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Task allocation engine that assigns robots based on\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -891,7 +891,7 @@
 									"files": [
 										{
 											"path": "src/traffic-manager-with-path-reservations-o.mjs",
-											"content": "/**\n * Traffic manager with path reservations, one-way aisles, intersection locks\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TrafficManagerWithPathReservationsOInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TrafficManagerWithPathReservationsOFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TrafficManagerWithPathReservationsOFinding[] }} TrafficManagerWithPathReservationsOResult\n */\n\n/**\n * Evaluate one input against the traffic manager with path reservations, one-way aisles, intersection locks policy.\n * @param {TrafficManagerWithPathReservationsOInput} input\n * @returns {TrafficManagerWithPathReservationsOResult}\n */\nexport function evaluateTrafficManagerWithPathReservationsO(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"traffic-manager-with-path-reservations-o/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Traffic manager with path reservations, one-way aisles\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TrafficManagerWithPathReservationsOInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TrafficManagerWithPathReservationsOFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TrafficManagerWithPathReservationsOFinding[] }} TrafficManagerWithPathReservationsOResult\n */\n\n/**\n * Evaluate one input against the traffic manager with path reservations, one-way aisles policy.\n * @param {TrafficManagerWithPathReservationsOInput} input\n * @returns {TrafficManagerWithPathReservationsOResult}\n */\nexport function evaluateTrafficManagerWithPathReservationsO(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"traffic-manager-with-path-reservations-o/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"traffic-manager-with-path-reservations-o/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/traffic-manager-with-path-reservations-o.test.mjs",
@@ -921,7 +921,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Traffic manager with path reservations, one-way aisles, intersection locks\": src/traffic-manager-with-path-reservations-o.mjs, test/traffic-manager-with-path-reservations-o.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Traffic manager with path reservations, one-way aisles\": src/traffic-manager-with-path-reservations-o.mjs, test/traffic-manager-with-path-reservations-o.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -931,7 +931,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Traffic manager with path reservations, one-way aisles, intersection locks\"",
+			"userMessageIncludes": "the card \"Traffic manager with path reservations, one-way aisles\"",
 			"turns": [
 				{
 					"behavior": {
@@ -941,7 +941,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Traffic manager with path reservations, one-way aisles, intersection locks\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Traffic manager with path reservations, one-way aisles\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -987,7 +987,7 @@
 									"files": [
 										{
 											"path": "src/digital-twin-simulation-that-replays-rob.mjs",
-											"content": "/**\n * Digital twin simulation that replays robot telemetry, task state\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DigitalTwinSimulationThatReplaysRobInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DigitalTwinSimulationThatReplaysRobFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DigitalTwinSimulationThatReplaysRobFinding[] }} DigitalTwinSimulationThatReplaysRobResult\n */\n\n/**\n * Evaluate one input against the digital twin simulation that replays robot telemetry, task state policy.\n * @param {DigitalTwinSimulationThatReplaysRobInput} input\n * @returns {DigitalTwinSimulationThatReplaysRobResult}\n */\nexport function evaluateDigitalTwinSimulationThatReplaysRob(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"digital-twin-simulation-that-replays-rob/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Digital twin simulation that replays robot telemetry, task\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DigitalTwinSimulationThatReplaysRobInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DigitalTwinSimulationThatReplaysRobFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DigitalTwinSimulationThatReplaysRobFinding[] }} DigitalTwinSimulationThatReplaysRobResult\n */\n\n/**\n * Evaluate one input against the digital twin simulation that replays robot telemetry, task policy.\n * @param {DigitalTwinSimulationThatReplaysRobInput} input\n * @returns {DigitalTwinSimulationThatReplaysRobResult}\n */\nexport function evaluateDigitalTwinSimulationThatReplaysRob(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"digital-twin-simulation-that-replays-rob/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"digital-twin-simulation-that-replays-rob/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/digital-twin-simulation-that-replays-rob.test.mjs",
@@ -1017,7 +1017,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Digital twin simulation that replays robot telemetry, task state\": src/digital-twin-simulation-that-replays-rob.mjs, test/digital-twin-simulation-that-replays-rob.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Digital twin simulation that replays robot telemetry, task\": src/digital-twin-simulation-that-replays-rob.mjs, test/digital-twin-simulation-that-replays-rob.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1027,7 +1027,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Digital twin simulation that replays robot telemetry, task state\"",
+			"userMessageIncludes": "the card \"Digital twin simulation that replays robot telemetry, task\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1037,7 +1037,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Digital twin simulation that replays robot telemetry, task state\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Digital twin simulation that replays robot telemetry, task\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1083,7 +1083,7 @@
 									"files": [
 										{
 											"path": "src/inventory-movement-ledger-connecting-phy.mjs",
-											"content": "/**\n * Inventory movement ledger connecting physical totes, SKU quantities, source/destination\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} InventoryMovementLedgerConnectingPhyInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} InventoryMovementLedgerConnectingPhyFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: InventoryMovementLedgerConnectingPhyFinding[] }} InventoryMovementLedgerConnectingPhyResult\n */\n\n/**\n * Evaluate one input against the inventory movement ledger connecting physical totes, sku quantities, source/destination policy.\n * @param {InventoryMovementLedgerConnectingPhyInput} input\n * @returns {InventoryMovementLedgerConnectingPhyResult}\n */\nexport function evaluateInventoryMovementLedgerConnectingPhy(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"inventory-movement-ledger-connecting-phy/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Inventory movement ledger connecting physical totes, SKU\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} InventoryMovementLedgerConnectingPhyInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} InventoryMovementLedgerConnectingPhyFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: InventoryMovementLedgerConnectingPhyFinding[] }} InventoryMovementLedgerConnectingPhyResult\n */\n\n/**\n * Evaluate one input against the inventory movement ledger connecting physical totes, sku policy.\n * @param {InventoryMovementLedgerConnectingPhyInput} input\n * @returns {InventoryMovementLedgerConnectingPhyResult}\n */\nexport function evaluateInventoryMovementLedgerConnectingPhy(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"inventory-movement-ledger-connecting-phy/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"inventory-movement-ledger-connecting-phy/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/inventory-movement-ledger-connecting-phy.test.mjs",
@@ -1113,7 +1113,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Inventory movement ledger connecting physical totes, SKU quantities, source/destination\": src/inventory-movement-ledger-connecting-phy.mjs, test/inventory-movement-ledger-connecting-phy.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Inventory movement ledger connecting physical totes, SKU\": src/inventory-movement-ledger-connecting-phy.mjs, test/inventory-movement-ledger-connecting-phy.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1123,7 +1123,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Inventory movement ledger connecting physical totes, SKU quantities, source/destination\"",
+			"userMessageIncludes": "the card \"Inventory movement ledger connecting physical totes, SKU\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1133,7 +1133,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Inventory movement ledger connecting physical totes, SKU quantities, source/destination\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Inventory movement ledger connecting physical totes, SKU\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1179,7 +1179,7 @@
 									"files": [
 										{
 											"path": "src/safety-zone-policy-for-human-only-areas.mjs",
-											"content": "/**\n * Safety-zone policy for human-only areas, maintenance lockout, emergency stop\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SafetyZonePolicyForHumanOnlyAreasInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SafetyZonePolicyForHumanOnlyAreasFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SafetyZonePolicyForHumanOnlyAreasFinding[] }} SafetyZonePolicyForHumanOnlyAreasResult\n */\n\n/**\n * Evaluate one input against the safety-zone policy for human-only areas, maintenance lockout, emergency stop policy.\n * @param {SafetyZonePolicyForHumanOnlyAreasInput} input\n * @returns {SafetyZonePolicyForHumanOnlyAreasResult}\n */\nexport function evaluateSafetyZonePolicyForHumanOnlyAreas(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"safety-zone-policy-for-human-only-areas/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Safety-zone policy for human-only areas, maintenance\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SafetyZonePolicyForHumanOnlyAreasInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SafetyZonePolicyForHumanOnlyAreasFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SafetyZonePolicyForHumanOnlyAreasFinding[] }} SafetyZonePolicyForHumanOnlyAreasResult\n */\n\n/**\n * Evaluate one input against the safety-zone policy for human-only areas, maintenance policy.\n * @param {SafetyZonePolicyForHumanOnlyAreasInput} input\n * @returns {SafetyZonePolicyForHumanOnlyAreasResult}\n */\nexport function evaluateSafetyZonePolicyForHumanOnlyAreas(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"safety-zone-policy-for-human-only-areas/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"safety-zone-policy-for-human-only-areas/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/safety-zone-policy-for-human-only-areas.test.mjs",
@@ -1209,7 +1209,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Safety-zone policy for human-only areas, maintenance lockout, emergency stop\": src/safety-zone-policy-for-human-only-areas.mjs, test/safety-zone-policy-for-human-only-areas.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Safety-zone policy for human-only areas, maintenance\": src/safety-zone-policy-for-human-only-areas.mjs, test/safety-zone-policy-for-human-only-areas.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1219,7 +1219,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Safety-zone policy for human-only areas, maintenance lockout, emergency stop\"",
+			"userMessageIncludes": "the card \"Safety-zone policy for human-only areas, maintenance\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1229,7 +1229,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Safety-zone policy for human-only areas, maintenance lockout, emergency stop\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Safety-zone policy for human-only areas, maintenance\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1275,7 +1275,7 @@
 									"files": [
 										{
 											"path": "src/battery-and-charger-scheduler-with-queue.mjs",
-											"content": "/**\n * Battery and charger scheduler with queueing, opportunity charging, and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BatteryAndChargerSchedulerWithQueueInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BatteryAndChargerSchedulerWithQueueFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BatteryAndChargerSchedulerWithQueueFinding[] }} BatteryAndChargerSchedulerWithQueueResult\n */\n\n/**\n * Evaluate one input against the battery and charger scheduler with queueing, opportunity charging, and policy.\n * @param {BatteryAndChargerSchedulerWithQueueInput} input\n * @returns {BatteryAndChargerSchedulerWithQueueResult}\n */\nexport function evaluateBatteryAndChargerSchedulerWithQueue(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"battery-and-charger-scheduler-with-queue/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Battery and charger scheduler with queueing, opportunity\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BatteryAndChargerSchedulerWithQueueInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BatteryAndChargerSchedulerWithQueueFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BatteryAndChargerSchedulerWithQueueFinding[] }} BatteryAndChargerSchedulerWithQueueResult\n */\n\n/**\n * Evaluate one input against the battery and charger scheduler with queueing, opportunity policy.\n * @param {BatteryAndChargerSchedulerWithQueueInput} input\n * @returns {BatteryAndChargerSchedulerWithQueueResult}\n */\nexport function evaluateBatteryAndChargerSchedulerWithQueue(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"battery-and-charger-scheduler-with-queue/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"battery-and-charger-scheduler-with-queue/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/battery-and-charger-scheduler-with-queue.test.mjs",
@@ -1305,7 +1305,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Battery and charger scheduler with queueing, opportunity charging, and\": src/battery-and-charger-scheduler-with-queue.mjs, test/battery-and-charger-scheduler-with-queue.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Battery and charger scheduler with queueing, opportunity\": src/battery-and-charger-scheduler-with-queue.mjs, test/battery-and-charger-scheduler-with-queue.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1315,7 +1315,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Battery and charger scheduler with queueing, opportunity charging, and\"",
+			"userMessageIncludes": "the card \"Battery and charger scheduler with queueing, opportunity\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1325,7 +1325,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Battery and charger scheduler with queueing, opportunity charging, and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Battery and charger scheduler with queueing, opportunity\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1371,7 +1371,7 @@
 									"files": [
 										{
 											"path": "src/seed-scenario-with-rush-orders-blocked-a.mjs",
-											"content": "/**\n * Seed scenario with rush orders, blocked aisle, low-battery robot\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithRushOrdersBlockedAInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithRushOrdersBlockedAFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithRushOrdersBlockedAFinding[] }} SeedScenarioWithRushOrdersBlockedAResult\n */\n\n/**\n * Evaluate one input against the seed scenario with rush orders, blocked aisle, low-battery robot policy.\n * @param {SeedScenarioWithRushOrdersBlockedAInput} input\n * @returns {SeedScenarioWithRushOrdersBlockedAResult}\n */\nexport function evaluateSeedScenarioWithRushOrdersBlockedA(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-rush-orders-blocked-a/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed scenario with rush orders, blocked aisle, low-battery\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithRushOrdersBlockedAInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithRushOrdersBlockedAFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithRushOrdersBlockedAFinding[] }} SeedScenarioWithRushOrdersBlockedAResult\n */\n\n/**\n * Evaluate one input against the seed scenario with rush orders, blocked aisle, low-battery policy.\n * @param {SeedScenarioWithRushOrdersBlockedAInput} input\n * @returns {SeedScenarioWithRushOrdersBlockedAResult}\n */\nexport function evaluateSeedScenarioWithRushOrdersBlockedA(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-rush-orders-blocked-a/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-rush-orders-blocked-a/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-scenario-with-rush-orders-blocked-a.test.mjs",
@@ -1401,7 +1401,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed scenario with rush orders, blocked aisle, low-battery robot\": src/seed-scenario-with-rush-orders-blocked-a.mjs, test/seed-scenario-with-rush-orders-blocked-a.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed scenario with rush orders, blocked aisle, low-battery\": src/seed-scenario-with-rush-orders-blocked-a.mjs, test/seed-scenario-with-rush-orders-blocked-a.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1411,7 +1411,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed scenario with rush orders, blocked aisle, low-battery robot\"",
+			"userMessageIncludes": "the card \"Seed scenario with rush orders, blocked aisle, low-battery\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1421,7 +1421,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed scenario with rush orders, blocked aisle, low-battery robot\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed scenario with rush orders, blocked aisle, low-battery\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

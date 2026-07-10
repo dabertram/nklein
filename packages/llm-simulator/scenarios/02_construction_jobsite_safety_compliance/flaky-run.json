@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (sites, contractors, crews, workers, equipment, zones, permits, inspections, observations). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (sites, contractors, crews, workers, equipment, zones). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Daily pre-task planning workflow with hazard identification, controls, sign-off",
-											"prompt": "Daily pre-task planning workflow with hazard identification, controls, sign-off. Implement the foundation for: Daily pre-task planning workflow with hazard identification, controls, sign-off, and missed-signature escalation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-pre-task-planning-workflow-with-ha.mjs and test/daily-pre-task-planning-workflow-with-ha.test.mjs.",
+											"title": "Daily pre-task planning workflow with hazard",
+											"prompt": "Daily pre-task planning workflow with hazard. Implement the foundation for: Daily pre-task planning workflow with hazard identification, controls, sign-off, and missed-signature escalation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-pre-task-planning-workflow-with-ha.mjs and test/daily-pre-task-planning-workflow-with-ha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Permit lifecycle for hot work, confined space, energized work",
-											"prompt": "Permit lifecycle for hot work, confined space, energized work. Implement the foundation for: Permit lifecycle for hot work, confined space, energized work, excavation, crane lift, and roof work. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/permit-lifecycle-for-hot-work-confined-s.mjs and test/permit-lifecycle-for-hot-work-confined-s.test.mjs.",
+											"title": "Permit lifecycle for hot work, confined space, energized",
+											"prompt": "Permit lifecycle for hot work, confined space, energized. Implement the foundation for: Permit lifecycle for hot work, confined space, energized work, excavation, crane lift, and roof work. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/permit-lifecycle-for-hot-work-confined-s.mjs and test/permit-lifecycle-for-hot-work-confined-s.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Inspection engine with versioned checklists, failed item severity, required",
-											"prompt": "Inspection engine with versioned checklists, failed item severity, required. Implement the foundation for: Inspection engine with versioned checklists, failed item severity, required evidence, and due dates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inspection-engine-with-versioned-checkli.mjs and test/inspection-engine-with-versioned-checkli.test.mjs.",
+											"title": "Inspection engine with versioned checklists, failed item",
+											"prompt": "Inspection engine with versioned checklists, failed item. Implement the foundation for: Inspection engine with versioned checklists, failed item severity, required evidence, and due dates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inspection-engine-with-versioned-checkli.mjs and test/inspection-engine-with-versioned-checkli.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Incident timeline builder that links witnesses, photos, equipment, weather",
-											"prompt": "Incident timeline builder that links witnesses, photos, equipment, weather. Implement the foundation for: Incident timeline builder that links witnesses, photos, equipment, weather, permit state, and corrective actions. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/incident-timeline-builder-that-links-wit.mjs and test/incident-timeline-builder-that-links-wit.test.mjs.",
+											"title": "Incident timeline builder that links witnesses, photos",
+											"prompt": "Incident timeline builder that links witnesses, photos. Implement the foundation for: Incident timeline builder that links witnesses, photos, equipment, weather, permit state, and corrective actions. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/incident-timeline-builder-that-links-wit.mjs and test/incident-timeline-builder-that-links-wit.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Dashboard that prioritizes imminent permit expirations, high-risk zones, open",
-											"prompt": "Dashboard that prioritizes imminent permit expirations, high-risk zones, open. Implement the foundation for: Dashboard that prioritizes imminent permit expirations, high-risk zones, open corrective actions, and repeat offenders. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/dashboard-that-prioritizes-imminent-perm.mjs and test/dashboard-that-prioritizes-imminent-perm.test.mjs.",
+											"title": "Dashboard that prioritizes imminent permit expirations",
+											"prompt": "Dashboard that prioritizes imminent permit expirations. Implement the foundation for: Dashboard that prioritizes imminent permit expirations, high-risk zones, open corrective actions, and repeat offenders. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/dashboard-that-prioritizes-imminent-perm.mjs and test/dashboard-that-prioritizes-imminent-perm.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed scenario with two sites, subcontractor handoffs, an excavation",
-											"prompt": "Seed scenario with two sites, subcontractor handoffs, an excavation. Implement the foundation for: Seed scenario with two sites, subcontractor handoffs, an excavation permit conflict, and a near-miss investigation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-two-sites-subcontract.mjs and test/seed-scenario-with-two-sites-subcontract.test.mjs.",
+											"title": "Seed scenario with two sites, subcontractor handoffs, an",
+											"prompt": "Seed scenario with two sites, subcontractor handoffs, an. Implement the foundation for: Seed scenario with two sites, subcontractor handoffs, an excavation permit conflict, and a near-miss investigation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-two-sites-subcontract.mjs and test/seed-scenario-with-two-sites-subcontract.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/daily-pre-task-planning-workflow-with-ha.mjs",
-											"content": "/**\n * Daily pre-task planning workflow with hazard identification, controls, sign-off\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DailyPreTaskPlanningWorkflowWithHaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DailyPreTaskPlanningWorkflowWithHaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DailyPreTaskPlanningWorkflowWithHaFinding[] }} DailyPreTaskPlanningWorkflowWithHaResult\n */\n\n/**\n * Evaluate one input against the daily pre-task planning workflow with hazard identification, controls, sign-off policy.\n * @param {DailyPreTaskPlanningWorkflowWithHaInput} input\n * @returns {DailyPreTaskPlanningWorkflowWithHaResult}\n */\nexport function evaluateDailyPreTaskPlanningWorkflowWithHa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"daily-pre-task-planning-workflow-with-ha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Daily pre-task planning workflow with hazard\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DailyPreTaskPlanningWorkflowWithHaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DailyPreTaskPlanningWorkflowWithHaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DailyPreTaskPlanningWorkflowWithHaFinding[] }} DailyPreTaskPlanningWorkflowWithHaResult\n */\n\n/**\n * Evaluate one input against the daily pre-task planning workflow with hazard policy.\n * @param {DailyPreTaskPlanningWorkflowWithHaInput} input\n * @returns {DailyPreTaskPlanningWorkflowWithHaResult}\n */\nexport function evaluateDailyPreTaskPlanningWorkflowWithHa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"daily-pre-task-planning-workflow-with-ha/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"daily-pre-task-planning-workflow-with-ha/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/daily-pre-task-planning-workflow-with-ha.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Daily pre-task planning workflow with hazard identification, controls, sign-off\": src/daily-pre-task-planning-workflow-with-ha.mjs, test/daily-pre-task-planning-workflow-with-ha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Daily pre-task planning workflow with hazard\": src/daily-pre-task-planning-workflow-with-ha.mjs, test/daily-pre-task-planning-workflow-with-ha.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Daily pre-task planning workflow with hazard identification, controls, sign-off\"",
+			"userMessageIncludes": "the card \"Daily pre-task planning workflow with hazard\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Daily pre-task planning workflow with hazard identification, controls, sign-off\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Daily pre-task planning workflow with hazard\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -510,7 +510,7 @@
 									"files": [
 										{
 											"path": "src/permit-lifecycle-for-hot-work-confined-s.mjs",
-											"content": "/**\n * Permit lifecycle for hot work, confined space, energized work\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PermitLifecycleForHotWorkConfinedSInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PermitLifecycleForHotWorkConfinedSFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PermitLifecycleForHotWorkConfinedSFinding[] }} PermitLifecycleForHotWorkConfinedSResult\n */\n\n/**\n * Evaluate one input against the permit lifecycle for hot work, confined space, energized work policy.\n * @param {PermitLifecycleForHotWorkConfinedSInput} input\n * @returns {PermitLifecycleForHotWorkConfinedSResult}\n */\nexport function evaluatePermitLifecycleForHotWorkConfinedS(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"permit-lifecycle-for-hot-work-confined-s/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Permit lifecycle for hot work, confined space, energized\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PermitLifecycleForHotWorkConfinedSInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PermitLifecycleForHotWorkConfinedSFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PermitLifecycleForHotWorkConfinedSFinding[] }} PermitLifecycleForHotWorkConfinedSResult\n */\n\n/**\n * Evaluate one input against the permit lifecycle for hot work, confined space, energized policy.\n * @param {PermitLifecycleForHotWorkConfinedSInput} input\n * @returns {PermitLifecycleForHotWorkConfinedSResult}\n */\nexport function evaluatePermitLifecycleForHotWorkConfinedS(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"permit-lifecycle-for-hot-work-confined-s/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"permit-lifecycle-for-hot-work-confined-s/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/permit-lifecycle-for-hot-work-confined-s.test.mjs",
@@ -540,7 +540,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Permit lifecycle for hot work, confined space, energized work\": src/permit-lifecycle-for-hot-work-confined-s.mjs, test/permit-lifecycle-for-hot-work-confined-s.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Permit lifecycle for hot work, confined space, energized\": src/permit-lifecycle-for-hot-work-confined-s.mjs, test/permit-lifecycle-for-hot-work-confined-s.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -550,7 +550,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Permit lifecycle for hot work, confined space, energized work\"",
+			"userMessageIncludes": "the card \"Permit lifecycle for hot work, confined space, energized\"",
 			"turns": [
 				{
 					"behavior": {
@@ -560,7 +560,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Permit lifecycle for hot work, confined space, energized work\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Permit lifecycle for hot work, confined space, energized\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -585,7 +585,7 @@
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Inspection engine with versioned checklists, failed item severity, required\" step by step before writing files…"
+						"reasoning": "Thinking through \"Inspection engine with versioned checklists, failed item\" step by step before writing files…"
 					}
 				},
 				{
@@ -613,7 +613,7 @@
 									"files": [
 										{
 											"path": "src/inspection-engine-with-versioned-checkli.mjs",
-											"content": "/**\n * Inspection engine with versioned checklists, failed item severity, required\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} InspectionEngineWithVersionedCheckliInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} InspectionEngineWithVersionedCheckliFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: InspectionEngineWithVersionedCheckliFinding[] }} InspectionEngineWithVersionedCheckliResult\n */\n\n/**\n * Evaluate one input against the inspection engine with versioned checklists, failed item severity, required policy.\n * @param {InspectionEngineWithVersionedCheckliInput} input\n * @returns {InspectionEngineWithVersionedCheckliResult}\n */\nexport function evaluateInspectionEngineWithVersionedCheckli(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"inspection-engine-with-versioned-checkli/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Inspection engine with versioned checklists, failed item\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} InspectionEngineWithVersionedCheckliInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} InspectionEngineWithVersionedCheckliFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: InspectionEngineWithVersionedCheckliFinding[] }} InspectionEngineWithVersionedCheckliResult\n */\n\n/**\n * Evaluate one input against the inspection engine with versioned checklists, failed item policy.\n * @param {InspectionEngineWithVersionedCheckliInput} input\n * @returns {InspectionEngineWithVersionedCheckliResult}\n */\nexport function evaluateInspectionEngineWithVersionedCheckli(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"inspection-engine-with-versioned-checkli/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"inspection-engine-with-versioned-checkli/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/inspection-engine-with-versioned-checkli.test.mjs",
@@ -643,7 +643,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Inspection engine with versioned checklists, failed item severity, required\": src/inspection-engine-with-versioned-checkli.mjs, test/inspection-engine-with-versioned-checkli.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Inspection engine with versioned checklists, failed item\": src/inspection-engine-with-versioned-checkli.mjs, test/inspection-engine-with-versioned-checkli.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -653,7 +653,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Inspection engine with versioned checklists, failed item severity, required\"",
+			"userMessageIncludes": "the card \"Inspection engine with versioned checklists, failed item\"",
 			"turns": [
 				{
 					"behavior": {
@@ -663,7 +663,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Inspection engine with versioned checklists, failed item severity, required\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Inspection engine with versioned checklists, failed item\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -824,7 +824,7 @@
 									"files": [
 										{
 											"path": "src/incident-timeline-builder-that-links-wit.mjs",
-											"content": "/**\n * Incident timeline builder that links witnesses, photos, equipment, weather\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IncidentTimelineBuilderThatLinksWitInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IncidentTimelineBuilderThatLinksWitFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IncidentTimelineBuilderThatLinksWitFinding[] }} IncidentTimelineBuilderThatLinksWitResult\n */\n\n/**\n * Evaluate one input against the incident timeline builder that links witnesses, photos, equipment, weather policy.\n * @param {IncidentTimelineBuilderThatLinksWitInput} input\n * @returns {IncidentTimelineBuilderThatLinksWitResult}\n */\nexport function evaluateIncidentTimelineBuilderThatLinksWit(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"incident-timeline-builder-that-links-wit/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Incident timeline builder that links witnesses, photos\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IncidentTimelineBuilderThatLinksWitInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IncidentTimelineBuilderThatLinksWitFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IncidentTimelineBuilderThatLinksWitFinding[] }} IncidentTimelineBuilderThatLinksWitResult\n */\n\n/**\n * Evaluate one input against the incident timeline builder that links witnesses, photos policy.\n * @param {IncidentTimelineBuilderThatLinksWitInput} input\n * @returns {IncidentTimelineBuilderThatLinksWitResult}\n */\nexport function evaluateIncidentTimelineBuilderThatLinksWit(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"incident-timeline-builder-that-links-wit/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"incident-timeline-builder-that-links-wit/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/incident-timeline-builder-that-links-wit.test.mjs",
@@ -854,7 +854,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Incident timeline builder that links witnesses, photos, equipment, weather\": src/incident-timeline-builder-that-links-wit.mjs, test/incident-timeline-builder-that-links-wit.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Incident timeline builder that links witnesses, photos\": src/incident-timeline-builder-that-links-wit.mjs, test/incident-timeline-builder-that-links-wit.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -864,7 +864,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Incident timeline builder that links witnesses, photos, equipment, weather\"",
+			"userMessageIncludes": "the card \"Incident timeline builder that links witnesses, photos\"",
 			"turns": [
 				{
 					"behavior": {
@@ -874,7 +874,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Incident timeline builder that links witnesses, photos, equipment, weather\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Incident timeline builder that links witnesses, photos\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -920,7 +920,7 @@
 									"files": [
 										{
 											"path": "src/dashboard-that-prioritizes-imminent-perm.mjs",
-											"content": "/**\n * Dashboard that prioritizes imminent permit expirations, high-risk zones, open\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DashboardThatPrioritizesImminentPermInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DashboardThatPrioritizesImminentPermFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DashboardThatPrioritizesImminentPermFinding[] }} DashboardThatPrioritizesImminentPermResult\n */\n\n/**\n * Evaluate one input against the dashboard that prioritizes imminent permit expirations, high-risk zones, open policy.\n * @param {DashboardThatPrioritizesImminentPermInput} input\n * @returns {DashboardThatPrioritizesImminentPermResult}\n */\nexport function evaluateDashboardThatPrioritizesImminentPerm(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"dashboard-that-prioritizes-imminent-perm/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Dashboard that prioritizes imminent permit expirations\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DashboardThatPrioritizesImminentPermInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DashboardThatPrioritizesImminentPermFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DashboardThatPrioritizesImminentPermFinding[] }} DashboardThatPrioritizesImminentPermResult\n */\n\n/**\n * Evaluate one input against the dashboard that prioritizes imminent permit expirations policy.\n * @param {DashboardThatPrioritizesImminentPermInput} input\n * @returns {DashboardThatPrioritizesImminentPermResult}\n */\nexport function evaluateDashboardThatPrioritizesImminentPerm(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"dashboard-that-prioritizes-imminent-perm/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"dashboard-that-prioritizes-imminent-perm/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/dashboard-that-prioritizes-imminent-perm.test.mjs",
@@ -950,7 +950,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Dashboard that prioritizes imminent permit expirations, high-risk zones, open\": src/dashboard-that-prioritizes-imminent-perm.mjs, test/dashboard-that-prioritizes-imminent-perm.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Dashboard that prioritizes imminent permit expirations\": src/dashboard-that-prioritizes-imminent-perm.mjs, test/dashboard-that-prioritizes-imminent-perm.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -960,7 +960,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Dashboard that prioritizes imminent permit expirations, high-risk zones, open\"",
+			"userMessageIncludes": "the card \"Dashboard that prioritizes imminent permit expirations\"",
 			"turns": [
 				{
 					"behavior": {
@@ -970,7 +970,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Dashboard that prioritizes imminent permit expirations, high-risk zones, open\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Dashboard that prioritizes imminent permit expirations\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1016,7 +1016,7 @@
 									"files": [
 										{
 											"path": "src/seed-scenario-with-two-sites-subcontract.mjs",
-											"content": "/**\n * Seed scenario with two sites, subcontractor handoffs, an excavation\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithTwoSitesSubcontractInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithTwoSitesSubcontractFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithTwoSitesSubcontractFinding[] }} SeedScenarioWithTwoSitesSubcontractResult\n */\n\n/**\n * Evaluate one input against the seed scenario with two sites, subcontractor handoffs, an excavation policy.\n * @param {SeedScenarioWithTwoSitesSubcontractInput} input\n * @returns {SeedScenarioWithTwoSitesSubcontractResult}\n */\nexport function evaluateSeedScenarioWithTwoSitesSubcontract(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-two-sites-subcontract/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed scenario with two sites, subcontractor handoffs, an\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedScenarioWithTwoSitesSubcontractInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedScenarioWithTwoSitesSubcontractFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedScenarioWithTwoSitesSubcontractFinding[] }} SeedScenarioWithTwoSitesSubcontractResult\n */\n\n/**\n * Evaluate one input against the seed scenario with two sites, subcontractor handoffs, an policy.\n * @param {SeedScenarioWithTwoSitesSubcontractInput} input\n * @returns {SeedScenarioWithTwoSitesSubcontractResult}\n */\nexport function evaluateSeedScenarioWithTwoSitesSubcontract(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-scenario-with-two-sites-subcontract/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-scenario-with-two-sites-subcontract/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-scenario-with-two-sites-subcontract.test.mjs",
@@ -1046,7 +1046,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed scenario with two sites, subcontractor handoffs, an excavation\": src/seed-scenario-with-two-sites-subcontract.mjs, test/seed-scenario-with-two-sites-subcontract.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed scenario with two sites, subcontractor handoffs, an\": src/seed-scenario-with-two-sites-subcontract.mjs, test/seed-scenario-with-two-sites-subcontract.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1056,7 +1056,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed scenario with two sites, subcontractor handoffs, an excavation\"",
+			"userMessageIncludes": "the card \"Seed scenario with two sites, subcontractor handoffs, an\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1066,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed scenario with two sites, subcontractor handoffs, an excavation\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed scenario with two sites, subcontractor handoffs, an\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

@@ -70,6 +70,11 @@ export interface ScenarioTrack {
 	/** The scripted turns, in order. `repeatLastTurn` keeps replaying the final turn (loops!). */
 	turns: ScenarioTurn[];
 	repeatLastTurn?: boolean;
+	/**
+	 * Pin the track's FIRST turn to a specific per-session assistant-message count instead of 0 — used by
+	 * distilled single-turn tracks (aimock's recorded `match.turnIndex` is exactly this count).
+	 */
+	atAssistantCount?: number;
 	/** Human note: what real-world observation this track encodes (the reflection-loop provenance). */
 	provenance?: string;
 }

@@ -101,8 +101,13 @@ function decomposeNeedle(userPrompt: string): string {
 function condenseTitle(bullet: string): string {
 	// First clause, parentheticals stripped, capped for card-title use.
 	const clause = ((bullet.split(/[.;:]/)[0] as string) ?? "").replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
-	const words = clause.split(/\s+/).slice(0, 9).join(" ");
-	return (words.charAt(0).toUpperCase() + words.slice(1)).replace(/[,\s]+$/, "");
+	// Word-capped AND char-capped: !Klein clamps board titles at 80 chars (task-title.ts) and the REVIEW seed
+	// quotes the CLAMPED title — a generated title that exceeds the clamp can never match its review needle.
+	let words = clause.split(/\s+/).slice(0, 9);
+	while (words.length > 3 && words.join(" ").length > 58) {
+		words = words.slice(0, -1);
+	}
+	return (words.join(" ").charAt(0).toUpperCase() + words.join(" ").slice(1)).replace(/[,\s]+$/, "");
 }
 
 /** Reject junk concepts (spec meta-lines like "~14–18 cards, build THIS first"). */
@@ -197,7 +202,7 @@ function synthesizeCards(project: ProjectInput): CardPlan[] {
 	const featureBullets = scope.slice(1);
 	const remainingAfterCore = target - cards.length - 1; // reserve the final integration card
 	const perBullet = Math.max(1, Math.floor(remainingAfterCore / Math.max(featureBullets.length + seams.length, 1)));
-	const stageNames = ["core engine", "edge cases and property-style tests", "projection and reporting seam"] as const;
+	const stageNames = ["core engine", "edge cases", "reporting seam"] as const;
 
 	const expandConcept = (concept: string, budget: number) => {
 		const baseTitle = condenseTitle(concept);

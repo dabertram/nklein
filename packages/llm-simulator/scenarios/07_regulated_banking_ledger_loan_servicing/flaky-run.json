@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (customer, account, ledger journal, ledger entry, loan, amortization schedule). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (customer, account, ledger journal, ledger entry, loan). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Immutable double-entry ledger with balanced journals, effective dates, posting",
-											"prompt": "Immutable double-entry ledger with balanced journals, effective dates, posting. Implement the foundation for: Immutable double-entry ledger with balanced journals, effective dates, posting dates, reversals, and correction entries. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/immutable-double-entry-ledger-with-balan.mjs and test/immutable-double-entry-ledger-with-balan.test.mjs.",
+											"title": "Immutable double-entry ledger with balanced journals",
+											"prompt": "Immutable double-entry ledger with balanced journals. Implement the foundation for: Immutable double-entry ledger with balanced journals, effective dates, posting dates, reversals, and correction entries. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/immutable-double-entry-ledger-with-balan.mjs and test/immutable-double-entry-ledger-with-balan.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,38 @@
 										},
 										{
 											"id": "s03",
-											"title": "Loan amortization engine supporting fixed-rate loans, extra principal, late",
-											"prompt": "Loan amortization engine supporting fixed-rate loans, extra principal, late. Implement the foundation for: Loan amortization engine supporting fixed-rate loans, extra principal, late payment, fee assessment, grace periods, and payoff quotes. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/loan-amortization-engine-supporting-fixe.mjs and test/loan-amortization-engine-supporting-fixe.test.mjs.",
+											"title": "Immutable double-entry ledger with balanced journals — core engine",
+											"prompt": "Immutable double-entry ledger with balanced journals — core engine. Extend the immutable double-entry ledger with balanced journals module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/immutable-double-entry-ledger-with-balan-2.mjs and test/immutable-double-entry-ledger-with-balan-2.test.mjs.",
+											"dependsOn": [
+												"s02"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/immutable-double-entry-ledger-with-balan-2.mjs",
+												"test/immutable-double-entry-ledger-with-balan-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s04",
+											"title": "Immutable double-entry ledger with balanced journals — edge cases",
+											"prompt": "Immutable double-entry ledger with balanced journals — edge cases. Extend the immutable double-entry ledger with balanced journals module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/immutable-double-entry-ledger-with-balan-3.mjs and test/immutable-double-entry-ledger-with-balan-3.test.mjs.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/immutable-double-entry-ledger-with-balan-3.mjs",
+												"test/immutable-double-entry-ledger-with-balan-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Loan amortization engine supporting fixed-rate loans",
+											"prompt": "Loan amortization engine supporting fixed-rate loans. Implement the foundation for: Loan amortization engine supporting fixed-rate loans, extra principal, late payment, fee assessment, grace periods, and payoff quotes. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/loan-amortization-engine-supporting-fixe.mjs and test/loan-amortization-engine-supporting-fixe.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -80,11 +110,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s04",
-											"title": "Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine",
-											"prompt": "Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine. Extend the loan amortization engine supporting fixed-rate loans, extra principal, late module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/loan-amortization-engine-supporting-fixe-2.mjs and test/loan-amortization-engine-supporting-fixe-2.test.mjs.",
+											"id": "s06",
+											"title": "Loan amortization engine supporting fixed-rate loans — core engine",
+											"prompt": "Loan amortization engine supporting fixed-rate loans — core engine. Extend the loan amortization engine supporting fixed-rate loans module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/loan-amortization-engine-supporting-fixe-2.mjs and test/loan-amortization-engine-supporting-fixe-2.test.mjs.",
 											"dependsOn": [
-												"s03"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -95,9 +125,24 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Payment allocation policy that applies funds to fees, interest",
-											"prompt": "Payment allocation policy that applies funds to fees, interest. Implement the foundation for: Payment allocation policy that applies funds to fees, interest, principal, escrow, or suspense according to configurable rules. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/payment-allocation-policy-that-applies-f.mjs and test/payment-allocation-policy-that-applies-f.test.mjs.",
+											"id": "s07",
+											"title": "Loan amortization engine supporting fixed-rate loans — edge cases",
+											"prompt": "Loan amortization engine supporting fixed-rate loans — edge cases. Extend the loan amortization engine supporting fixed-rate loans module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/loan-amortization-engine-supporting-fixe-3.mjs and test/loan-amortization-engine-supporting-fixe-3.test.mjs.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/loan-amortization-engine-supporting-fixe-3.mjs",
+												"test/loan-amortization-engine-supporting-fixe-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Payment allocation policy that applies funds to fees",
+											"prompt": "Payment allocation policy that applies funds to fees. Implement the foundation for: Payment allocation policy that applies funds to fees, interest, principal, escrow, or suspense according to configurable rules. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/payment-allocation-policy-that-applies-f.mjs and test/payment-allocation-policy-that-applies-f.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,61 +155,16 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "Payment allocation policy that applies funds to fees, interest — core engine",
-											"prompt": "Payment allocation policy that applies funds to fees, interest — core engine. Extend the payment allocation policy that applies funds to fees, interest module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/payment-allocation-policy-that-applies-f-2.mjs and test/payment-allocation-policy-that-applies-f-2.test.mjs.",
+											"id": "s09",
+											"title": "Payment allocation policy that applies funds to fees — core engine",
+											"prompt": "Payment allocation policy that applies funds to fees — core engine. Extend the payment allocation policy that applies funds to fees module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/payment-allocation-policy-that-applies-f-2.mjs and test/payment-allocation-policy-that-applies-f-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s08"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/payment-allocation-policy-that-applies-f-2.mjs",
 												"test/payment-allocation-policy-that-applies-f-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s07",
-											"title": "Statement generation with opening balance, activity, interest, fees, minimum",
-											"prompt": "Statement generation with opening balance, activity, interest, fees, minimum. Implement the foundation for: Statement generation with opening balance, activity, interest, fees, minimum due, and disclosure placeholders from deterministic fixtures. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/statement-generation-with-opening-balanc.mjs and test/statement-generation-with-opening-balanc.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/statement-generation-with-opening-balanc.mjs",
-												"test/statement-generation-with-opening-balanc.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
-											"title": "Statement generation with opening balance, activity, interest, fees, minimum — core engine",
-											"prompt": "Statement generation with opening balance, activity, interest, fees, minimum — core engine. Extend the statement generation with opening balance, activity, interest, fees, minimum module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/statement-generation-with-opening-balanc-2.mjs and test/statement-generation-with-opening-balanc-2.test.mjs.",
-											"dependsOn": [
-												"s07"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/statement-generation-with-opening-balanc-2.mjs",
-												"test/statement-generation-with-opening-balanc-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s09",
-											"title": "Bank-file reconciliation workflow that matches expected postings, detects duplicates",
-											"prompt": "Bank-file reconciliation workflow that matches expected postings, detects duplicates. Implement the foundation for: Bank-file reconciliation workflow that matches expected postings, detects duplicates, stale items, amount mismatches, and manual review cases. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/bank-file-reconciliation-workflow-that-m.mjs and test/bank-file-reconciliation-workflow-that-m.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/bank-file-reconciliation-workflow-that-m.mjs",
-												"test/bank-file-reconciliation-workflow-that-m.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/immutable-double-entry-ledger-with-balan.mjs",
-											"content": "/**\n * Immutable double-entry ledger with balanced journals, effective dates, posting\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ImmutableDoubleEntryLedgerWithBalanInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ImmutableDoubleEntryLedgerWithBalanFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ImmutableDoubleEntryLedgerWithBalanFinding[] }} ImmutableDoubleEntryLedgerWithBalanResult\n */\n\n/**\n * Evaluate one input against the immutable double-entry ledger with balanced journals, effective dates, posting policy.\n * @param {ImmutableDoubleEntryLedgerWithBalanInput} input\n * @returns {ImmutableDoubleEntryLedgerWithBalanResult}\n */\nexport function evaluateImmutableDoubleEntryLedgerWithBalan(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"immutable-double-entry-ledger-with-balan/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Immutable double-entry ledger with balanced journals\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ImmutableDoubleEntryLedgerWithBalanInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ImmutableDoubleEntryLedgerWithBalanFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ImmutableDoubleEntryLedgerWithBalanFinding[] }} ImmutableDoubleEntryLedgerWithBalanResult\n */\n\n/**\n * Evaluate one input against the immutable double-entry ledger with balanced journals policy.\n * @param {ImmutableDoubleEntryLedgerWithBalanInput} input\n * @returns {ImmutableDoubleEntryLedgerWithBalanResult}\n */\nexport function evaluateImmutableDoubleEntryLedgerWithBalan(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"immutable-double-entry-ledger-with-balan/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/immutable-double-entry-ledger-with-balan.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Immutable double-entry ledger with balanced journals, effective dates, posting\": src/immutable-double-entry-ledger-with-balan.mjs, test/immutable-double-entry-ledger-with-balan.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Immutable double-entry ledger with balanced journals\": src/immutable-double-entry-ledger-with-balan.mjs, test/immutable-double-entry-ledger-with-balan.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Immutable double-entry ledger with balanced journals, effective dates, posting\"",
+			"userMessageIncludes": "the card \"Immutable double-entry ledger with balanced journals\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Immutable double-entry ledger with balanced journals, effective dates, posting\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Immutable double-entry ledger with balanced journals\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -478,7 +478,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/loan-amortization-engine-supporting-fixe.mjs",
+			"userMessageIncludes": "Files for THIS card: src/immutable-double-entry-ledger-with-balan-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -504,12 +504,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/loan-amortization-engine-supporting-fixe.mjs",
-											"content": "/**\n * Loan amortization engine supporting fixed-rate loans, extra principal, late\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LoanAmortizationEngineSupportingFixeInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LoanAmortizationEngineSupportingFixeFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LoanAmortizationEngineSupportingFixeFinding[] }} LoanAmortizationEngineSupportingFixeResult\n */\n\n/**\n * Evaluate one input against the loan amortization engine supporting fixed-rate loans, extra principal, late policy.\n * @param {LoanAmortizationEngineSupportingFixeInput} input\n * @returns {LoanAmortizationEngineSupportingFixeResult}\n */\nexport function evaluateLoanAmortizationEngineSupportingFixe(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"loan-amortization-engine-supporting-fixe/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/immutable-double-entry-ledger-with-balan-2.mjs",
+											"content": "/**\n * Immutable double-entry ledger with balanced journals — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ImmutableDoubleEntryLedgerWithBalan2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ImmutableDoubleEntryLedgerWithBalan2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ImmutableDoubleEntryLedgerWithBalan2Finding[] }} ImmutableDoubleEntryLedgerWithBalan2Result\n */\n\n/**\n * Evaluate one input against the immutable double-entry ledger with balanced journals — core engine policy.\n * @param {ImmutableDoubleEntryLedgerWithBalan2Input} input\n * @returns {ImmutableDoubleEntryLedgerWithBalan2Result}\n */\nexport function evaluateImmutableDoubleEntryLedgerWithBalan2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"immutable-double-entry-ledger-with-balan-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/loan-amortization-engine-supporting-fixe.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateLoanAmortizationEngineSupportingFixe } from \"../src/loan-amortization-engine-supporting-fixe.mjs\";\n\ntest(\"loan-amortization-engine-supporting-fixe: accepts a clean input with evidence\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"loan-amortization-engine-supporting-fixe: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/immutable-double-entry-ledger-with-balan-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateImmutableDoubleEntryLedgerWithBalan2 } from \"../src/immutable-double-entry-ledger-with-balan-2.mjs\";\n\ntest(\"immutable-double-entry-ledger-with-balan-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateImmutableDoubleEntryLedgerWithBalan2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"immutable-double-entry-ledger-with-balan-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateImmutableDoubleEntryLedgerWithBalan2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -535,7 +535,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Loan amortization engine supporting fixed-rate loans, extra principal, late\": src/loan-amortization-engine-supporting-fixe.mjs, test/loan-amortization-engine-supporting-fixe.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Immutable double-entry ledger with balanced journals — core engine\": src/immutable-double-entry-ledger-with-balan-2.mjs, test/immutable-double-entry-ledger-with-balan-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -545,7 +545,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Loan amortization engine supporting fixed-rate loans, extra principal, late\"",
+			"userMessageIncludes": "the card \"Immutable double-entry ledger with balanced journals — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -555,7 +555,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Loan amortization engine supporting fixed-rate loans, extra principal, late\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Immutable double-entry ledger with balanced journals — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -574,7 +574,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/loan-amortization-engine-supporting-fixe-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/immutable-double-entry-ledger-with-balan-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -600,12 +600,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/loan-amortization-engine-supporting-fixe-2.mjs",
-											"content": "/**\n * Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LoanAmortizationEngineSupportingFixe2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LoanAmortizationEngineSupportingFixe2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LoanAmortizationEngineSupportingFixe2Finding[] }} LoanAmortizationEngineSupportingFixe2Result\n */\n\n/**\n * Evaluate one input against the loan amortization engine supporting fixed-rate loans, extra principal, late — core engine policy.\n * @param {LoanAmortizationEngineSupportingFixe2Input} input\n * @returns {LoanAmortizationEngineSupportingFixe2Result}\n */\nexport function evaluateLoanAmortizationEngineSupportingFixe2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"loan-amortization-engine-supporting-fixe-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/immutable-double-entry-ledger-with-balan-3.mjs",
+											"content": "/**\n * Immutable double-entry ledger with balanced journals — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ImmutableDoubleEntryLedgerWithBalan3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ImmutableDoubleEntryLedgerWithBalan3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ImmutableDoubleEntryLedgerWithBalan3Finding[] }} ImmutableDoubleEntryLedgerWithBalan3Result\n */\n\n/**\n * Evaluate one input against the immutable double-entry ledger with balanced journals — edge cases policy.\n * @param {ImmutableDoubleEntryLedgerWithBalan3Input} input\n * @returns {ImmutableDoubleEntryLedgerWithBalan3Result}\n */\nexport function evaluateImmutableDoubleEntryLedgerWithBalan3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"immutable-double-entry-ledger-with-balan-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"immutable-double-entry-ledger-with-balan-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/loan-amortization-engine-supporting-fixe-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateLoanAmortizationEngineSupportingFixe2 } from \"../src/loan-amortization-engine-supporting-fixe-2.mjs\";\n\ntest(\"loan-amortization-engine-supporting-fixe-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"loan-amortization-engine-supporting-fixe-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/immutable-double-entry-ledger-with-balan-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateImmutableDoubleEntryLedgerWithBalan3 } from \"../src/immutable-double-entry-ledger-with-balan-3.mjs\";\n\ntest(\"immutable-double-entry-ledger-with-balan-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateImmutableDoubleEntryLedgerWithBalan3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"immutable-double-entry-ledger-with-balan-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateImmutableDoubleEntryLedgerWithBalan3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -631,7 +631,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine\": src/loan-amortization-engine-supporting-fixe-2.mjs, test/loan-amortization-engine-supporting-fixe-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Immutable double-entry ledger with balanced journals — edge cases\": src/immutable-double-entry-ledger-with-balan-3.mjs, test/immutable-double-entry-ledger-with-balan-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -641,7 +641,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine\"",
+			"userMessageIncludes": "the card \"Immutable double-entry ledger with balanced journals — edge cases\"",
 			"turns": [
 				{
 					"behavior": {
@@ -651,7 +651,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Loan amortization engine supporting fixed-rate loans, extra principal, late — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Immutable double-entry ledger with balanced journals — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -670,7 +670,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/payment-allocation-policy-that-applies-f.mjs",
+			"userMessageIncludes": "Files for THIS card: src/loan-amortization-engine-supporting-fixe.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -701,12 +701,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/payment-allocation-policy-that-applies-f.mjs",
-											"content": "/**\n * Payment allocation policy that applies funds to fees, interest\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PaymentAllocationPolicyThatAppliesFInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PaymentAllocationPolicyThatAppliesFFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PaymentAllocationPolicyThatAppliesFFinding[] }} PaymentAllocationPolicyThatAppliesFResult\n */\n\n/**\n * Evaluate one input against the payment allocation policy that applies funds to fees, interest policy.\n * @param {PaymentAllocationPolicyThatAppliesFInput} input\n * @returns {PaymentAllocationPolicyThatAppliesFResult}\n */\nexport function evaluatePaymentAllocationPolicyThatAppliesF(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"payment-allocation-policy-that-applies-f/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/loan-amortization-engine-supporting-fixe.mjs",
+											"content": "/**\n * Loan amortization engine supporting fixed-rate loans\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LoanAmortizationEngineSupportingFixeInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LoanAmortizationEngineSupportingFixeFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LoanAmortizationEngineSupportingFixeFinding[] }} LoanAmortizationEngineSupportingFixeResult\n */\n\n/**\n * Evaluate one input against the loan amortization engine supporting fixed-rate loans policy.\n * @param {LoanAmortizationEngineSupportingFixeInput} input\n * @returns {LoanAmortizationEngineSupportingFixeResult}\n */\nexport function evaluateLoanAmortizationEngineSupportingFixe(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"loan-amortization-engine-supporting-fixe/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/payment-allocation-policy-that-applies-f.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluatePaymentAllocationPolicyThatAppliesF } from \"../src/payment-allocation-policy-that-applies-f.mjs\";\n\ntest(\"payment-allocation-policy-that-applies-f: accepts a clean input with evidence\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"payment-allocation-policy-that-applies-f: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/loan-amortization-engine-supporting-fixe.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateLoanAmortizationEngineSupportingFixe } from \"../src/loan-amortization-engine-supporting-fixe.mjs\";\n\ntest(\"loan-amortization-engine-supporting-fixe: accepts a clean input with evidence\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"loan-amortization-engine-supporting-fixe: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -732,7 +732,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Payment allocation policy that applies funds to fees, interest\": src/payment-allocation-policy-that-applies-f.mjs, test/payment-allocation-policy-that-applies-f.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Loan amortization engine supporting fixed-rate loans\": src/loan-amortization-engine-supporting-fixe.mjs, test/loan-amortization-engine-supporting-fixe.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -742,7 +742,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Payment allocation policy that applies funds to fees, interest\"",
+			"userMessageIncludes": "the card \"Loan amortization engine supporting fixed-rate loans\"",
 			"turns": [
 				{
 					"behavior": {
@@ -752,7 +752,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Payment allocation policy that applies funds to fees, interest\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Loan amortization engine supporting fixed-rate loans\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -771,7 +771,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/payment-allocation-policy-that-applies-f-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/loan-amortization-engine-supporting-fixe-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -797,12 +797,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/payment-allocation-policy-that-applies-f-2.mjs",
-											"content": "/**\n * Payment allocation policy that applies funds to fees, interest — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PaymentAllocationPolicyThatAppliesF2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PaymentAllocationPolicyThatAppliesF2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PaymentAllocationPolicyThatAppliesF2Finding[] }} PaymentAllocationPolicyThatAppliesF2Result\n */\n\n/**\n * Evaluate one input against the payment allocation policy that applies funds to fees, interest — core engine policy.\n * @param {PaymentAllocationPolicyThatAppliesF2Input} input\n * @returns {PaymentAllocationPolicyThatAppliesF2Result}\n */\nexport function evaluatePaymentAllocationPolicyThatAppliesF2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"payment-allocation-policy-that-applies-f-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/loan-amortization-engine-supporting-fixe-2.mjs",
+											"content": "/**\n * Loan amortization engine supporting fixed-rate loans — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LoanAmortizationEngineSupportingFixe2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LoanAmortizationEngineSupportingFixe2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LoanAmortizationEngineSupportingFixe2Finding[] }} LoanAmortizationEngineSupportingFixe2Result\n */\n\n/**\n * Evaluate one input against the loan amortization engine supporting fixed-rate loans — core engine policy.\n * @param {LoanAmortizationEngineSupportingFixe2Input} input\n * @returns {LoanAmortizationEngineSupportingFixe2Result}\n */\nexport function evaluateLoanAmortizationEngineSupportingFixe2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"loan-amortization-engine-supporting-fixe-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/payment-allocation-policy-that-applies-f-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluatePaymentAllocationPolicyThatAppliesF2 } from \"../src/payment-allocation-policy-that-applies-f-2.mjs\";\n\ntest(\"payment-allocation-policy-that-applies-f-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"payment-allocation-policy-that-applies-f-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/loan-amortization-engine-supporting-fixe-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateLoanAmortizationEngineSupportingFixe2 } from \"../src/loan-amortization-engine-supporting-fixe-2.mjs\";\n\ntest(\"loan-amortization-engine-supporting-fixe-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"loan-amortization-engine-supporting-fixe-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -828,7 +828,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Payment allocation policy that applies funds to fees, interest — core engine\": src/payment-allocation-policy-that-applies-f-2.mjs, test/payment-allocation-policy-that-applies-f-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Loan amortization engine supporting fixed-rate loans — core engine\": src/loan-amortization-engine-supporting-fixe-2.mjs, test/loan-amortization-engine-supporting-fixe-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -838,7 +838,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Payment allocation policy that applies funds to fees, interest — core engine\"",
+			"userMessageIncludes": "the card \"Loan amortization engine supporting fixed-rate loans — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -848,7 +848,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Payment allocation policy that applies funds to fees, interest — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Loan amortization engine supporting fixed-rate loans — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -867,13 +867,13 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/statement-generation-with-opening-balanc.mjs",
+			"userMessageIncludes": "Files for THIS card: src/loan-amortization-engine-supporting-fixe-3.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Statement generation with opening balance, activity, interest, fees, minimum\" step by step before writing files…"
+						"reasoning": "Thinking through \"Loan amortization engine supporting fixed-rate loans — edge cases\" step by step before writing files…"
 					}
 				},
 				{
@@ -900,12 +900,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/statement-generation-with-opening-balanc.mjs",
-											"content": "/**\n * Statement generation with opening balance, activity, interest, fees, minimum\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StatementGenerationWithOpeningBalancInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StatementGenerationWithOpeningBalancFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StatementGenerationWithOpeningBalancFinding[] }} StatementGenerationWithOpeningBalancResult\n */\n\n/**\n * Evaluate one input against the statement generation with opening balance, activity, interest, fees, minimum policy.\n * @param {StatementGenerationWithOpeningBalancInput} input\n * @returns {StatementGenerationWithOpeningBalancResult}\n */\nexport function evaluateStatementGenerationWithOpeningBalanc(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"statement-generation-with-opening-balanc/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/loan-amortization-engine-supporting-fixe-3.mjs",
+											"content": "/**\n * Loan amortization engine supporting fixed-rate loans — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LoanAmortizationEngineSupportingFixe3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LoanAmortizationEngineSupportingFixe3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LoanAmortizationEngineSupportingFixe3Finding[] }} LoanAmortizationEngineSupportingFixe3Result\n */\n\n/**\n * Evaluate one input against the loan amortization engine supporting fixed-rate loans — edge cases policy.\n * @param {LoanAmortizationEngineSupportingFixe3Input} input\n * @returns {LoanAmortizationEngineSupportingFixe3Result}\n */\nexport function evaluateLoanAmortizationEngineSupportingFixe3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"loan-amortization-engine-supporting-fixe-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"loan-amortization-engine-supporting-fixe-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/statement-generation-with-opening-balanc.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateStatementGenerationWithOpeningBalanc } from \"../src/statement-generation-with-opening-balanc.mjs\";\n\ntest(\"statement-generation-with-opening-balanc: accepts a clean input with evidence\", () => {\n\tconst result = evaluateStatementGenerationWithOpeningBalanc({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"statement-generation-with-opening-balanc: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateStatementGenerationWithOpeningBalanc({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/loan-amortization-engine-supporting-fixe-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateLoanAmortizationEngineSupportingFixe3 } from \"../src/loan-amortization-engine-supporting-fixe-3.mjs\";\n\ntest(\"loan-amortization-engine-supporting-fixe-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"loan-amortization-engine-supporting-fixe-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateLoanAmortizationEngineSupportingFixe3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -931,7 +931,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Statement generation with opening balance, activity, interest, fees, minimum\": src/statement-generation-with-opening-balanc.mjs, test/statement-generation-with-opening-balanc.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Loan amortization engine supporting fixed-rate loans — edge cases\": src/loan-amortization-engine-supporting-fixe-3.mjs, test/loan-amortization-engine-supporting-fixe-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -941,7 +941,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Statement generation with opening balance, activity, interest, fees, minimum\"",
+			"userMessageIncludes": "the card \"Loan amortization engine supporting fixed-rate loans — edge cases\"",
 			"turns": [
 				{
 					"behavior": {
@@ -951,7 +951,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Statement generation with opening balance, activity, interest, fees, minimum\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Loan amortization engine supporting fixed-rate loans — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -970,7 +970,7 @@
 		{
 			"id": "flaky-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/statement-generation-with-opening-balanc-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/payment-allocation-policy-that-applies-f.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1002,12 +1002,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/statement-generation-with-opening-balanc-2.mjs",
-											"content": "/**\n * Statement generation with opening balance, activity, interest, fees, minimum — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StatementGenerationWithOpeningBalanc2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StatementGenerationWithOpeningBalanc2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StatementGenerationWithOpeningBalanc2Finding[] }} StatementGenerationWithOpeningBalanc2Result\n */\n\n/**\n * Evaluate one input against the statement generation with opening balance, activity, interest, fees, minimum — core engine policy.\n * @param {StatementGenerationWithOpeningBalanc2Input} input\n * @returns {StatementGenerationWithOpeningBalanc2Result}\n */\nexport function evaluateStatementGenerationWithOpeningBalanc2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"statement-generation-with-opening-balanc-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"statement-generation-with-opening-balanc-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/payment-allocation-policy-that-applies-f.mjs",
+											"content": "/**\n * Payment allocation policy that applies funds to fees\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PaymentAllocationPolicyThatAppliesFInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PaymentAllocationPolicyThatAppliesFFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PaymentAllocationPolicyThatAppliesFFinding[] }} PaymentAllocationPolicyThatAppliesFResult\n */\n\n/**\n * Evaluate one input against the payment allocation policy that applies funds to fees policy.\n * @param {PaymentAllocationPolicyThatAppliesFInput} input\n * @returns {PaymentAllocationPolicyThatAppliesFResult}\n */\nexport function evaluatePaymentAllocationPolicyThatAppliesF(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"payment-allocation-policy-that-applies-f/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/statement-generation-with-opening-balanc-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateStatementGenerationWithOpeningBalanc2 } from \"../src/statement-generation-with-opening-balanc-2.mjs\";\n\ntest(\"statement-generation-with-opening-balanc-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateStatementGenerationWithOpeningBalanc2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"statement-generation-with-opening-balanc-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateStatementGenerationWithOpeningBalanc2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/payment-allocation-policy-that-applies-f.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluatePaymentAllocationPolicyThatAppliesF } from \"../src/payment-allocation-policy-that-applies-f.mjs\";\n\ntest(\"payment-allocation-policy-that-applies-f: accepts a clean input with evidence\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"payment-allocation-policy-that-applies-f: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1033,7 +1033,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Statement generation with opening balance, activity, interest, fees, minimum — core engine\": src/statement-generation-with-opening-balanc-2.mjs, test/statement-generation-with-opening-balanc-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Payment allocation policy that applies funds to fees\": src/payment-allocation-policy-that-applies-f.mjs, test/payment-allocation-policy-that-applies-f.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1043,7 +1043,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Statement generation with opening balance, activity, interest, fees, minimum — core engine\"",
+			"userMessageIncludes": "the card \"Payment allocation policy that applies funds to fees\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1053,7 +1053,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Statement generation with opening balance, activity, interest, fees, minimum — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Payment allocation policy that applies funds to fees\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1072,7 +1072,7 @@
 		{
 			"id": "flaky-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/bank-file-reconciliation-workflow-that-m.mjs",
+			"userMessageIncludes": "Files for THIS card: src/payment-allocation-policy-that-applies-f-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1081,7 +1081,7 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": "[{\"path\":\"src/bank-file-reconciliation-workflow-that-m.mjs\",\"content\":\"export const truncated = "
+									"files": "[{\"path\":\"src/payment-allocation-policy-that-applies-f-2.mjs\",\"content\":\"export const truncated = "
 								}
 							}
 						]
@@ -1111,12 +1111,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/bank-file-reconciliation-workflow-that-m.mjs",
-											"content": "/**\n * Bank-file reconciliation workflow that matches expected postings, detects duplicates\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} BankFileReconciliationWorkflowThatMInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} BankFileReconciliationWorkflowThatMFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: BankFileReconciliationWorkflowThatMFinding[] }} BankFileReconciliationWorkflowThatMResult\n */\n\n/**\n * Evaluate one input against the bank-file reconciliation workflow that matches expected postings, detects duplicates policy.\n * @param {BankFileReconciliationWorkflowThatMInput} input\n * @returns {BankFileReconciliationWorkflowThatMResult}\n */\nexport function evaluateBankFileReconciliationWorkflowThatM(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"bank-file-reconciliation-workflow-that-m/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"bank-file-reconciliation-workflow-that-m/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"bank-file-reconciliation-workflow-that-m/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"bank-file-reconciliation-workflow-that-m/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/payment-allocation-policy-that-applies-f-2.mjs",
+											"content": "/**\n * Payment allocation policy that applies funds to fees — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PaymentAllocationPolicyThatAppliesF2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PaymentAllocationPolicyThatAppliesF2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PaymentAllocationPolicyThatAppliesF2Finding[] }} PaymentAllocationPolicyThatAppliesF2Result\n */\n\n/**\n * Evaluate one input against the payment allocation policy that applies funds to fees — core engine policy.\n * @param {PaymentAllocationPolicyThatAppliesF2Input} input\n * @returns {PaymentAllocationPolicyThatAppliesF2Result}\n */\nexport function evaluatePaymentAllocationPolicyThatAppliesF2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"payment-allocation-policy-that-applies-f-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"payment-allocation-policy-that-applies-f-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/bank-file-reconciliation-workflow-that-m.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateBankFileReconciliationWorkflowThatM } from \"../src/bank-file-reconciliation-workflow-that-m.mjs\";\n\ntest(\"bank-file-reconciliation-workflow-that-m: accepts a clean input with evidence\", () => {\n\tconst result = evaluateBankFileReconciliationWorkflowThatM({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"bank-file-reconciliation-workflow-that-m: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateBankFileReconciliationWorkflowThatM({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/payment-allocation-policy-that-applies-f-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluatePaymentAllocationPolicyThatAppliesF2 } from \"../src/payment-allocation-policy-that-applies-f-2.mjs\";\n\ntest(\"payment-allocation-policy-that-applies-f-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"payment-allocation-policy-that-applies-f-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluatePaymentAllocationPolicyThatAppliesF2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1142,7 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Bank-file reconciliation workflow that matches expected postings, detects duplicates\": src/bank-file-reconciliation-workflow-that-m.mjs, test/bank-file-reconciliation-workflow-that-m.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Payment allocation policy that applies funds to fees — core engine\": src/payment-allocation-policy-that-applies-f-2.mjs, test/payment-allocation-policy-that-applies-f-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Bank-file reconciliation workflow that matches expected postings, detects duplicates\"",
+			"userMessageIncludes": "the card \"Payment allocation policy that applies funds to fees — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Bank-file reconciliation workflow that matches expected postings, detects duplicates\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Payment allocation policy that applies funds to fees — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

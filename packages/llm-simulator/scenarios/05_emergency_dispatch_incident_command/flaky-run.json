@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (incident, caller, location, hazard, agency, unit, crew, station, assignment). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (incident, caller, location, hazard, agency, unit, crew). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Call intake workflow that captures uncertainty, caller updates, priority",
-											"prompt": "Call intake workflow that captures uncertainty, caller updates, priority. Implement the foundation for: Call intake workflow that captures uncertainty, caller updates, priority changes, and dispatch recommendations. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/call-intake-workflow-that-captures-uncer.mjs and test/call-intake-workflow-that-captures-uncer.test.mjs.",
+											"title": "Call intake workflow that captures uncertainty, caller",
+											"prompt": "Call intake workflow that captures uncertainty, caller. Implement the foundation for: Call intake workflow that captures uncertainty, caller updates, priority changes, and dispatch recommendations. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/call-intake-workflow-that-captures-uncer.mjs and test/call-intake-workflow-that-captures-uncer.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Call intake workflow that captures uncertainty, caller updates, priority — core engine",
-											"prompt": "Call intake workflow that captures uncertainty, caller updates, priority — core engine. Extend the call intake workflow that captures uncertainty, caller updates, priority module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/call-intake-workflow-that-captures-uncer-2.mjs and test/call-intake-workflow-that-captures-uncer-2.test.mjs.",
+											"title": "Call intake workflow that captures uncertainty, caller — core engine",
+											"prompt": "Call intake workflow that captures uncertainty, caller — core engine. Extend the call intake workflow that captures uncertainty, caller module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/call-intake-workflow-that-captures-uncer-2.mjs and test/call-intake-workflow-that-captures-uncer-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,8 +81,23 @@
 										},
 										{
 											"id": "s04",
-											"title": "Unit status state machine covering available, dispatched, en route",
-											"prompt": "Unit status state machine covering available, dispatched, en route. Implement the foundation for: Unit status state machine covering available, dispatched, en route, staged, on scene, transporting, at destination, out of service, and clear. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/unit-status-state-machine-covering-avail.mjs and test/unit-status-state-machine-covering-avail.test.mjs.",
+											"title": "Call intake workflow that captures uncertainty, caller — edge cases",
+											"prompt": "Call intake workflow that captures uncertainty, caller — edge cases. Extend the call intake workflow that captures uncertainty, caller module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/call-intake-workflow-that-captures-uncer-3.mjs and test/call-intake-workflow-that-captures-uncer-3.test.mjs.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/call-intake-workflow-that-captures-uncer-3.mjs",
+												"test/call-intake-workflow-that-captures-uncer-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Unit status state machine covering available, dispatched",
+											"prompt": "Unit status state machine covering available, dispatched. Implement the foundation for: Unit status state machine covering available, dispatched, en route, staged, on scene, transporting, at destination, out of service, and clear. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/unit-status-state-machine-covering-avail.mjs and test/unit-status-state-machine-covering-avail.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -95,11 +110,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Unit status state machine covering available, dispatched, en route — core engine",
-											"prompt": "Unit status state machine covering available, dispatched, en route — core engine. Extend the unit status state machine covering available, dispatched, en route module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/unit-status-state-machine-covering-avail-2.mjs and test/unit-status-state-machine-covering-avail-2.test.mjs.",
+											"id": "s06",
+											"title": "Unit status state machine covering available, dispatched — core engine",
+											"prompt": "Unit status state machine covering available, dispatched — core engine. Extend the unit status state machine covering available, dispatched module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/unit-status-state-machine-covering-avail-2.mjs and test/unit-status-state-machine-covering-avail-2.test.mjs.",
 											"dependsOn": [
-												"s04"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -110,9 +125,24 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "Incident command board with objectives, divisions/groups, safety notes, evacuation",
-											"prompt": "Incident command board with objectives, divisions/groups, safety notes, evacuation. Implement the foundation for: Incident command board with objectives, divisions/groups, safety notes, evacuation zones, accountability, and resource staging. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/incident-command-board-with-objectives-d.mjs and test/incident-command-board-with-objectives-d.test.mjs.",
+											"id": "s07",
+											"title": "Unit status state machine covering available, dispatched — edge cases",
+											"prompt": "Unit status state machine covering available, dispatched — edge cases. Extend the unit status state machine covering available, dispatched module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/unit-status-state-machine-covering-avail-3.mjs and test/unit-status-state-machine-covering-avail-3.test.mjs.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/unit-status-state-machine-covering-avail-3.mjs",
+												"test/unit-status-state-machine-covering-avail-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Incident command board with objectives, divisions/groups",
+											"prompt": "Incident command board with objectives, divisions/groups. Implement the foundation for: Incident command board with objectives, divisions/groups, safety notes, evacuation zones, accountability, and resource staging. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/incident-command-board-with-objectives-d.mjs and test/incident-command-board-with-objectives-d.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -125,46 +155,16 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
-											"title": "Routing and coverage approximation using deterministic fixtures, not external",
-											"prompt": "Routing and coverage approximation using deterministic fixtures, not external. Implement the foundation for: Routing and coverage approximation using deterministic fixtures, not external maps. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/routing-and-coverage-approximation-using.mjs and test/routing-and-coverage-approximation-using.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/routing-and-coverage-approximation-using.mjs",
-												"test/routing-and-coverage-approximation-using.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
-											"title": "Mutual aid workflow with requested, accepted, assigned, released, and",
-											"prompt": "Mutual aid workflow with requested, accepted, assigned, released, and. Implement the foundation for: Mutual aid workflow with requested, accepted, assigned, released, and declined states. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/mutual-aid-workflow-with-requested-accep.mjs and test/mutual-aid-workflow-with-requested-accep.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/mutual-aid-workflow-with-requested-accep.mjs",
-												"test/mutual-aid-workflow-with-requested-accep.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
 											"id": "s09",
-											"title": "Mutual aid workflow with requested, accepted, assigned, released, and — core engine",
-											"prompt": "Mutual aid workflow with requested, accepted, assigned, released, and — core engine. Extend the mutual aid workflow with requested, accepted, assigned, released, and module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/mutual-aid-workflow-with-requested-accep-2.mjs and test/mutual-aid-workflow-with-requested-accep-2.test.mjs.",
+											"title": "Incident command board with objectives, divisions/groups — core engine",
+											"prompt": "Incident command board with objectives, divisions/groups — core engine. Extend the incident command board with objectives, divisions/groups module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/incident-command-board-with-objectives-d-2.mjs and test/incident-command-board-with-objectives-d-2.test.mjs.",
 											"dependsOn": [
 												"s08"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
-												"src/mutual-aid-workflow-with-requested-accep-2.mjs",
-												"test/mutual-aid-workflow-with-requested-accep-2.test.mjs"
+												"src/incident-command-board-with-objectives-d-2.mjs",
+												"test/incident-command-board-with-objectives-d-2.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/call-intake-workflow-that-captures-uncer.mjs",
-											"content": "/**\n * Call intake workflow that captures uncertainty, caller updates, priority\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CallIntakeWorkflowThatCapturesUncerInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CallIntakeWorkflowThatCapturesUncerFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CallIntakeWorkflowThatCapturesUncerFinding[] }} CallIntakeWorkflowThatCapturesUncerResult\n */\n\n/**\n * Evaluate one input against the call intake workflow that captures uncertainty, caller updates, priority policy.\n * @param {CallIntakeWorkflowThatCapturesUncerInput} input\n * @returns {CallIntakeWorkflowThatCapturesUncerResult}\n */\nexport function evaluateCallIntakeWorkflowThatCapturesUncer(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"call-intake-workflow-that-captures-uncer/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Call intake workflow that captures uncertainty, caller\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CallIntakeWorkflowThatCapturesUncerInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CallIntakeWorkflowThatCapturesUncerFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CallIntakeWorkflowThatCapturesUncerFinding[] }} CallIntakeWorkflowThatCapturesUncerResult\n */\n\n/**\n * Evaluate one input against the call intake workflow that captures uncertainty, caller policy.\n * @param {CallIntakeWorkflowThatCapturesUncerInput} input\n * @returns {CallIntakeWorkflowThatCapturesUncerResult}\n */\nexport function evaluateCallIntakeWorkflowThatCapturesUncer(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"call-intake-workflow-that-captures-uncer/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/call-intake-workflow-that-captures-uncer.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Call intake workflow that captures uncertainty, caller updates, priority\": src/call-intake-workflow-that-captures-uncer.mjs, test/call-intake-workflow-that-captures-uncer.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Call intake workflow that captures uncertainty, caller\": src/call-intake-workflow-that-captures-uncer.mjs, test/call-intake-workflow-that-captures-uncer.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Call intake workflow that captures uncertainty, caller updates, priority\"",
+			"userMessageIncludes": "the card \"Call intake workflow that captures uncertainty, caller\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Call intake workflow that captures uncertainty, caller updates, priority\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Call intake workflow that captures uncertainty, caller\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -510,7 +510,7 @@
 									"files": [
 										{
 											"path": "src/call-intake-workflow-that-captures-uncer-2.mjs",
-											"content": "/**\n * Call intake workflow that captures uncertainty, caller updates, priority — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CallIntakeWorkflowThatCapturesUncer2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CallIntakeWorkflowThatCapturesUncer2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CallIntakeWorkflowThatCapturesUncer2Finding[] }} CallIntakeWorkflowThatCapturesUncer2Result\n */\n\n/**\n * Evaluate one input against the call intake workflow that captures uncertainty, caller updates, priority — core engine policy.\n * @param {CallIntakeWorkflowThatCapturesUncer2Input} input\n * @returns {CallIntakeWorkflowThatCapturesUncer2Result}\n */\nexport function evaluateCallIntakeWorkflowThatCapturesUncer2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"call-intake-workflow-that-captures-uncer-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Call intake workflow that captures uncertainty, caller — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CallIntakeWorkflowThatCapturesUncer2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CallIntakeWorkflowThatCapturesUncer2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CallIntakeWorkflowThatCapturesUncer2Finding[] }} CallIntakeWorkflowThatCapturesUncer2Result\n */\n\n/**\n * Evaluate one input against the call intake workflow that captures uncertainty, caller — core engine policy.\n * @param {CallIntakeWorkflowThatCapturesUncer2Input} input\n * @returns {CallIntakeWorkflowThatCapturesUncer2Result}\n */\nexport function evaluateCallIntakeWorkflowThatCapturesUncer2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"call-intake-workflow-that-captures-uncer-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/call-intake-workflow-that-captures-uncer-2.test.mjs",
@@ -540,7 +540,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Call intake workflow that captures uncertainty, caller updates, priority — core engine\": src/call-intake-workflow-that-captures-uncer-2.mjs, test/call-intake-workflow-that-captures-uncer-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Call intake workflow that captures uncertainty, caller — core engine\": src/call-intake-workflow-that-captures-uncer-2.mjs, test/call-intake-workflow-that-captures-uncer-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -550,7 +550,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Call intake workflow that captures uncertainty, caller updates, priority — core engine\"",
+			"userMessageIncludes": "the card \"Call intake workflow that captures uncertainty, caller — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -560,7 +560,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Call intake workflow that captures uncertainty, caller updates, priority — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Call intake workflow that captures uncertainty, caller — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -579,13 +579,13 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/unit-status-state-machine-covering-avail.mjs",
+			"userMessageIncludes": "Files for THIS card: src/call-intake-workflow-that-captures-uncer-3.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Unit status state machine covering available, dispatched, en route\" step by step before writing files…"
+						"reasoning": "Thinking through \"Call intake workflow that captures uncertainty, caller — edge cases\" step by step before writing files…"
 					}
 				},
 				{
@@ -612,12 +612,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/unit-status-state-machine-covering-avail.mjs",
-											"content": "/**\n * Unit status state machine covering available, dispatched, en route\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UnitStatusStateMachineCoveringAvailInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UnitStatusStateMachineCoveringAvailFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UnitStatusStateMachineCoveringAvailFinding[] }} UnitStatusStateMachineCoveringAvailResult\n */\n\n/**\n * Evaluate one input against the unit status state machine covering available, dispatched, en route policy.\n * @param {UnitStatusStateMachineCoveringAvailInput} input\n * @returns {UnitStatusStateMachineCoveringAvailResult}\n */\nexport function evaluateUnitStatusStateMachineCoveringAvail(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"unit-status-state-machine-covering-avail/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/call-intake-workflow-that-captures-uncer-3.mjs",
+											"content": "/**\n * Call intake workflow that captures uncertainty, caller — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CallIntakeWorkflowThatCapturesUncer3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CallIntakeWorkflowThatCapturesUncer3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CallIntakeWorkflowThatCapturesUncer3Finding[] }} CallIntakeWorkflowThatCapturesUncer3Result\n */\n\n/**\n * Evaluate one input against the call intake workflow that captures uncertainty, caller — edge cases policy.\n * @param {CallIntakeWorkflowThatCapturesUncer3Input} input\n * @returns {CallIntakeWorkflowThatCapturesUncer3Result}\n */\nexport function evaluateCallIntakeWorkflowThatCapturesUncer3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"call-intake-workflow-that-captures-uncer-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"call-intake-workflow-that-captures-uncer-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/unit-status-state-machine-covering-avail.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateUnitStatusStateMachineCoveringAvail } from \"../src/unit-status-state-machine-covering-avail.mjs\";\n\ntest(\"unit-status-state-machine-covering-avail: accepts a clean input with evidence\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"unit-status-state-machine-covering-avail: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/call-intake-workflow-that-captures-uncer-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCallIntakeWorkflowThatCapturesUncer3 } from \"../src/call-intake-workflow-that-captures-uncer-3.mjs\";\n\ntest(\"call-intake-workflow-that-captures-uncer-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCallIntakeWorkflowThatCapturesUncer3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"call-intake-workflow-that-captures-uncer-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCallIntakeWorkflowThatCapturesUncer3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -643,7 +643,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Unit status state machine covering available, dispatched, en route\": src/unit-status-state-machine-covering-avail.mjs, test/unit-status-state-machine-covering-avail.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Call intake workflow that captures uncertainty, caller — edge cases\": src/call-intake-workflow-that-captures-uncer-3.mjs, test/call-intake-workflow-that-captures-uncer-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -653,7 +653,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Unit status state machine covering available, dispatched, en route\"",
+			"userMessageIncludes": "the card \"Call intake workflow that captures uncertainty, caller — edge cases\"",
 			"turns": [
 				{
 					"behavior": {
@@ -663,7 +663,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Unit status state machine covering available, dispatched, en route\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Call intake workflow that captures uncertainty, caller — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -682,7 +682,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/unit-status-state-machine-covering-avail-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/unit-status-state-machine-covering-avail.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -714,8 +714,117 @@
 								"arguments": {
 									"files": [
 										{
+											"path": "src/unit-status-state-machine-covering-avail.mjs",
+											"content": "/**\n * Unit status state machine covering available, dispatched\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UnitStatusStateMachineCoveringAvailInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UnitStatusStateMachineCoveringAvailFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UnitStatusStateMachineCoveringAvailFinding[] }} UnitStatusStateMachineCoveringAvailResult\n */\n\n/**\n * Evaluate one input against the unit status state machine covering available, dispatched policy.\n * @param {UnitStatusStateMachineCoveringAvailInput} input\n * @returns {UnitStatusStateMachineCoveringAvailResult}\n */\nexport function evaluateUnitStatusStateMachineCoveringAvail(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"unit-status-state-machine-covering-avail/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/unit-status-state-machine-covering-avail.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateUnitStatusStateMachineCoveringAvail } from \"../src/unit-status-state-machine-covering-avail.mjs\";\n\ntest(\"unit-status-state-machine-covering-avail: accepts a clean input with evidence\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"unit-status-state-machine-covering-avail: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Unit status state machine covering available, dispatched\": src/unit-status-state-machine-covering-avail.mjs, test/unit-status-state-machine-covering-avail.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Unit status state machine covering available, dispatched\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Unit status state machine covering available, dispatched\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/unit-status-state-machine-covering-avail-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/unit-status-state-machine-covering-avail-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
 											"path": "src/unit-status-state-machine-covering-avail-2.mjs",
-											"content": "/**\n * Unit status state machine covering available, dispatched, en route — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UnitStatusStateMachineCoveringAvail2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UnitStatusStateMachineCoveringAvail2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UnitStatusStateMachineCoveringAvail2Finding[] }} UnitStatusStateMachineCoveringAvail2Result\n */\n\n/**\n * Evaluate one input against the unit status state machine covering available, dispatched, en route — core engine policy.\n * @param {UnitStatusStateMachineCoveringAvail2Input} input\n * @returns {UnitStatusStateMachineCoveringAvail2Result}\n */\nexport function evaluateUnitStatusStateMachineCoveringAvail2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"unit-status-state-machine-covering-avail-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Unit status state machine covering available, dispatched — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UnitStatusStateMachineCoveringAvail2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UnitStatusStateMachineCoveringAvail2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UnitStatusStateMachineCoveringAvail2Finding[] }} UnitStatusStateMachineCoveringAvail2Result\n */\n\n/**\n * Evaluate one input against the unit status state machine covering available, dispatched — core engine policy.\n * @param {UnitStatusStateMachineCoveringAvail2Input} input\n * @returns {UnitStatusStateMachineCoveringAvail2Result}\n */\nexport function evaluateUnitStatusStateMachineCoveringAvail2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"unit-status-state-machine-covering-avail-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/unit-status-state-machine-covering-avail-2.test.mjs",
@@ -745,17 +854,17 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Unit status state machine covering available, dispatched, en route — core engine\": src/unit-status-state-machine-covering-avail-2.mjs, test/unit-status-state-machine-covering-avail-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Unit status state machine covering available, dispatched — core engine\": src/unit-status-state-machine-covering-avail-2.mjs, test/unit-status-state-machine-covering-avail-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Unit status state machine covering available, dispatched, en route — core engine\"",
+			"userMessageIncludes": "the card \"Unit status state machine covering available, dispatched — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -765,7 +874,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Unit status state machine covering available, dispatched, en route — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Unit status state machine covering available, dispatched — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -782,10 +891,25 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s06",
+			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/incident-command-board-with-objectives-d.mjs",
+			"userMessageIncludes": "Files for THIS card: src/unit-status-state-machine-covering-avail-3.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -793,12 +917,80 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": "[{\"path\":\"src/incident-command-board-with-objectives-d.mjs\",\"content\":\"export const truncated = "
+									"files": [
+										{
+											"path": "src/unit-status-state-machine-covering-avail-3.mjs",
+											"content": "/**\n * Unit status state machine covering available, dispatched — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UnitStatusStateMachineCoveringAvail3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UnitStatusStateMachineCoveringAvail3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UnitStatusStateMachineCoveringAvail3Finding[] }} UnitStatusStateMachineCoveringAvail3Result\n */\n\n/**\n * Evaluate one input against the unit status state machine covering available, dispatched — edge cases policy.\n * @param {UnitStatusStateMachineCoveringAvail3Input} input\n * @returns {UnitStatusStateMachineCoveringAvail3Result}\n */\nexport function evaluateUnitStatusStateMachineCoveringAvail3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"unit-status-state-machine-covering-avail-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"unit-status-state-machine-covering-avail-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/unit-status-state-machine-covering-avail-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateUnitStatusStateMachineCoveringAvail3 } from \"../src/unit-status-state-machine-covering-avail-3.mjs\";\n\ntest(\"unit-status-state-machine-covering-avail-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"unit-status-state-machine-covering-avail-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateUnitStatusStateMachineCoveringAvail3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
 								}
 							}
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Unit status state machine covering available, dispatched — edge cases\": src/unit-status-state-machine-covering-avail-3.mjs, test/unit-status-state-machine-covering-avail-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Unit status state machine covering available, dispatched — edge cases\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Unit status state machine covering available, dispatched — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/incident-command-board-with-objectives-d.mjs",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -824,7 +1016,7 @@
 									"files": [
 										{
 											"path": "src/incident-command-board-with-objectives-d.mjs",
-											"content": "/**\n * Incident command board with objectives, divisions/groups, safety notes, evacuation\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IncidentCommandBoardWithObjectivesDInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IncidentCommandBoardWithObjectivesDFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IncidentCommandBoardWithObjectivesDFinding[] }} IncidentCommandBoardWithObjectivesDResult\n */\n\n/**\n * Evaluate one input against the incident command board with objectives, divisions/groups, safety notes, evacuation policy.\n * @param {IncidentCommandBoardWithObjectivesDInput} input\n * @returns {IncidentCommandBoardWithObjectivesDResult}\n */\nexport function evaluateIncidentCommandBoardWithObjectivesD(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"incident-command-board-with-objectives-d/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Incident command board with objectives, divisions/groups\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IncidentCommandBoardWithObjectivesDInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IncidentCommandBoardWithObjectivesDFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IncidentCommandBoardWithObjectivesDFinding[] }} IncidentCommandBoardWithObjectivesDResult\n */\n\n/**\n * Evaluate one input against the incident command board with objectives, divisions/groups policy.\n * @param {IncidentCommandBoardWithObjectivesDInput} input\n * @returns {IncidentCommandBoardWithObjectivesDResult}\n */\nexport function evaluateIncidentCommandBoardWithObjectivesD(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"incident-command-board-with-objectives-d/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/incident-command-board-with-objectives-d.test.mjs",
@@ -854,199 +1046,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Incident command board with objectives, divisions/groups, safety notes, evacuation\": src/incident-command-board-with-objectives-d.mjs, test/incident-command-board-with-objectives-d.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s06",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Incident command board with objectives, divisions/groups, safety notes, evacuation\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Incident command board with objectives, divisions/groups, safety notes, evacuation\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s07",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/routing-and-coverage-approximation-using.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/routing-and-coverage-approximation-using.mjs",
-											"content": "/**\n * Routing and coverage approximation using deterministic fixtures, not external\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RoutingAndCoverageApproximationUsingInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RoutingAndCoverageApproximationUsingFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RoutingAndCoverageApproximationUsingFinding[] }} RoutingAndCoverageApproximationUsingResult\n */\n\n/**\n * Evaluate one input against the routing and coverage approximation using deterministic fixtures, not external policy.\n * @param {RoutingAndCoverageApproximationUsingInput} input\n * @returns {RoutingAndCoverageApproximationUsingResult}\n */\nexport function evaluateRoutingAndCoverageApproximationUsing(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"routing-and-coverage-approximation-using/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"routing-and-coverage-approximation-using/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"routing-and-coverage-approximation-using/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"routing-and-coverage-approximation-using/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/routing-and-coverage-approximation-using.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRoutingAndCoverageApproximationUsing } from \"../src/routing-and-coverage-approximation-using.mjs\";\n\ntest(\"routing-and-coverage-approximation-using: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRoutingAndCoverageApproximationUsing({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"routing-and-coverage-approximation-using: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRoutingAndCoverageApproximationUsing({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Routing and coverage approximation using deterministic fixtures, not external\": src/routing-and-coverage-approximation-using.mjs, test/routing-and-coverage-approximation-using.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Routing and coverage approximation using deterministic fixtures, not external\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Routing and coverage approximation using deterministic fixtures, not external\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/mutual-aid-workflow-with-requested-accep.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/mutual-aid-workflow-with-requested-accep.mjs",
-											"content": "/**\n * Mutual aid workflow with requested, accepted, assigned, released, and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MutualAidWorkflowWithRequestedAccepInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MutualAidWorkflowWithRequestedAccepFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MutualAidWorkflowWithRequestedAccepFinding[] }} MutualAidWorkflowWithRequestedAccepResult\n */\n\n/**\n * Evaluate one input against the mutual aid workflow with requested, accepted, assigned, released, and policy.\n * @param {MutualAidWorkflowWithRequestedAccepInput} input\n * @returns {MutualAidWorkflowWithRequestedAccepResult}\n */\nexport function evaluateMutualAidWorkflowWithRequestedAccep(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"mutual-aid-workflow-with-requested-accep/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/mutual-aid-workflow-with-requested-accep.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMutualAidWorkflowWithRequestedAccep } from \"../src/mutual-aid-workflow-with-requested-accep.mjs\";\n\ntest(\"mutual-aid-workflow-with-requested-accep: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMutualAidWorkflowWithRequestedAccep({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"mutual-aid-workflow-with-requested-accep: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMutualAidWorkflowWithRequestedAccep({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Mutual aid workflow with requested, accepted, assigned, released, and\": src/mutual-aid-workflow-with-requested-accep.mjs, test/mutual-aid-workflow-with-requested-accep.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Incident command board with objectives, divisions/groups\": src/incident-command-board-with-objectives-d.mjs, test/incident-command-board-with-objectives-d.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1056,7 +1056,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Mutual aid workflow with requested, accepted, assigned, released, and\"",
+			"userMessageIncludes": "the card \"Incident command board with objectives, divisions/groups\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1066,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Mutual aid workflow with requested, accepted, assigned, released, and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Incident command board with objectives, divisions/groups\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/mutual-aid-workflow-with-requested-accep-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/incident-command-board-with-objectives-d-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1111,12 +1111,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/mutual-aid-workflow-with-requested-accep-2.mjs",
-											"content": "/**\n * Mutual aid workflow with requested, accepted, assigned, released, and — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MutualAidWorkflowWithRequestedAccep2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MutualAidWorkflowWithRequestedAccep2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MutualAidWorkflowWithRequestedAccep2Finding[] }} MutualAidWorkflowWithRequestedAccep2Result\n */\n\n/**\n * Evaluate one input against the mutual aid workflow with requested, accepted, assigned, released, and — core engine policy.\n * @param {MutualAidWorkflowWithRequestedAccep2Input} input\n * @returns {MutualAidWorkflowWithRequestedAccep2Result}\n */\nexport function evaluateMutualAidWorkflowWithRequestedAccep2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"mutual-aid-workflow-with-requested-accep-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"mutual-aid-workflow-with-requested-accep-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/incident-command-board-with-objectives-d-2.mjs",
+											"content": "/**\n * Incident command board with objectives, divisions/groups — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IncidentCommandBoardWithObjectivesD2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IncidentCommandBoardWithObjectivesD2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IncidentCommandBoardWithObjectivesD2Finding[] }} IncidentCommandBoardWithObjectivesD2Result\n */\n\n/**\n * Evaluate one input against the incident command board with objectives, divisions/groups — core engine policy.\n * @param {IncidentCommandBoardWithObjectivesD2Input} input\n * @returns {IncidentCommandBoardWithObjectivesD2Result}\n */\nexport function evaluateIncidentCommandBoardWithObjectivesD2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"incident-command-board-with-objectives-d-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"incident-command-board-with-objectives-d-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/mutual-aid-workflow-with-requested-accep-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMutualAidWorkflowWithRequestedAccep2 } from \"../src/mutual-aid-workflow-with-requested-accep-2.mjs\";\n\ntest(\"mutual-aid-workflow-with-requested-accep-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMutualAidWorkflowWithRequestedAccep2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"mutual-aid-workflow-with-requested-accep-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMutualAidWorkflowWithRequestedAccep2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/incident-command-board-with-objectives-d-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateIncidentCommandBoardWithObjectivesD2 } from \"../src/incident-command-board-with-objectives-d-2.mjs\";\n\ntest(\"incident-command-board-with-objectives-d-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateIncidentCommandBoardWithObjectivesD2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"incident-command-board-with-objectives-d-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateIncidentCommandBoardWithObjectivesD2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1142,7 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Mutual aid workflow with requested, accepted, assigned, released, and — core engine\": src/mutual-aid-workflow-with-requested-accep-2.mjs, test/mutual-aid-workflow-with-requested-accep-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Incident command board with objectives, divisions/groups — core engine\": src/incident-command-board-with-objectives-d-2.mjs, test/incident-command-board-with-objectives-d-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Mutual aid workflow with requested, accepted, assigned, released, and — core engine\"",
+			"userMessageIncludes": "the card \"Incident command board with objectives, divisions/groups — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Mutual aid workflow with requested, accepted, assigned, released, and — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Incident command board with objectives, divisions/groups — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

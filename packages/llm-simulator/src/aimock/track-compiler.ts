@@ -138,6 +138,9 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 			(message) => message.role === "assistant",
 		).length;
 	const lastIndex = track.turns.length - 1;
+	// Distilled tracks pin turn 0 to the RECORDED assistant count (aimock's match.turnIndex); scripted tracks
+	// start at 0. Either way, turn k answers the session round with (base + k) assistant messages.
+	const baseCount = track.atAssistantCount ?? 0;
 	const fixtures: Fixture[] = track.turns.map((turn, index) => ({
 		match: {
 			predicate: (request) => {
@@ -146,7 +149,7 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 				}
 				const count = assistantTurnCount(request);
 				// The final turn absorbs every later per-session round when the track repeats.
-				return track.repeatLastTurn && index === lastIndex ? count >= index : count === index;
+				return track.repeatLastTurn && index === lastIndex ? count >= baseCount + index : count === baseCount + index;
 			},
 		},
 		response: behaviorToResponse(turn),

@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A frozen-board dispatch stall is fixed — found by the LLM simulator in minutes** (todo §13/§12). Driving a
+  20-card simulated project through a real runtime reproduced a stall real-model runs had only hinted at: the
+  deferred-retry trailing timer could be silently swallowed by the terminal-retry sweep debounce, leaving ready
+  cards frozen in Planning with an idle fleet. Timer-fired sweeps now bypass the debounce and a swallowed sweep
+  re-arms the trailing timer. Scenario mock sets now exist for all lower-20 dev-test projects (generated,
+  tier-ramped up to 50 cards, offline-green acceptance), and the project-02 set drains a real runtime 19/19 to
+  Completed under a strict harness gate.
 - **The simulated fast path is live: a full !Klein flow now runs end-to-end with zero LLM compute** (todo §13).
   `npm run test:simulated-flows` boots a real runtime against the new `packages/llm-simulator` (scenario tracks +
   seeded RNG compiled onto @copilotkit/aimock, with an LM Studio catalog shim) and drives a seeded project from

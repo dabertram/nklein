@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (cluster, node, partition, replica, log entry, term, transaction, table). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (cluster, node, partition, replica, log entry, term). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Deterministic simulation harness for node clocks, network partitions, message",
-											"prompt": "Deterministic simulation harness for node clocks, network partitions, message. Implement the foundation for: Deterministic simulation harness for node clocks, network partitions, message delay, crash/restart, disk persistence fixtures, and recovery. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/deterministic-simulation-harness-for-nod.mjs and test/deterministic-simulation-harness-for-nod.test.mjs.",
+											"title": "Deterministic simulation harness for node clocks, network",
+											"prompt": "Deterministic simulation harness for node clocks, network. Implement the foundation for: Deterministic simulation harness for node clocks, network partitions, message delay, crash/restart, disk persistence fixtures, and recovery. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/deterministic-simulation-harness-for-nod.mjs and test/deterministic-simulation-harness-for-nod.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,38 @@
 										},
 										{
 											"id": "s03",
-											"title": "Replicated log module with leader election, append entries, commit",
-											"prompt": "Replicated log module with leader election, append entries, commit. Implement the foundation for: Replicated log module with leader election, append entries, commit index, snapshot placeholder, stale leader rejection, and membership change constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/replicated-log-module-with-leader-electi.mjs and test/replicated-log-module-with-leader-electi.test.mjs.",
+											"title": "Deterministic simulation harness for node clocks, network — core engine",
+											"prompt": "Deterministic simulation harness for node clocks, network — core engine. Extend the deterministic simulation harness for node clocks, network module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/deterministic-simulation-harness-for-nod-2.mjs and test/deterministic-simulation-harness-for-nod-2.test.mjs.",
+											"dependsOn": [
+												"s02"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/deterministic-simulation-harness-for-nod-2.mjs",
+												"test/deterministic-simulation-harness-for-nod-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s04",
+											"title": "Deterministic simulation harness for node clocks, network — edge cases",
+											"prompt": "Deterministic simulation harness for node clocks, network — edge cases. Extend the deterministic simulation harness for node clocks, network module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/deterministic-simulation-harness-for-nod-3.mjs and test/deterministic-simulation-harness-for-nod-3.test.mjs.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/deterministic-simulation-harness-for-nod-3.mjs",
+												"test/deterministic-simulation-harness-for-nod-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Replicated log module with leader election, append",
+											"prompt": "Replicated log module with leader election, append. Implement the foundation for: Replicated log module with leader election, append entries, commit index, snapshot placeholder, stale leader rejection, and membership change constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/replicated-log-module-with-leader-electi.mjs and test/replicated-log-module-with-leader-electi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -80,11 +110,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s04",
-											"title": "Replicated log module with leader election, append entries, commit — core engine",
-											"prompt": "Replicated log module with leader election, append entries, commit — core engine. Extend the replicated log module with leader election, append entries, commit module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/replicated-log-module-with-leader-electi-2.mjs and test/replicated-log-module-with-leader-electi-2.test.mjs.",
+											"id": "s06",
+											"title": "Replicated log module with leader election, append — core engine",
+											"prompt": "Replicated log module with leader election, append — core engine. Extend the replicated log module with leader election, append module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/replicated-log-module-with-leader-electi-2.mjs and test/replicated-log-module-with-leader-electi-2.test.mjs.",
 											"dependsOn": [
-												"s03"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -95,9 +125,24 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Storage engine for typed rows, primary keys, secondary indexes",
-											"prompt": "Storage engine for typed rows, primary keys, secondary indexes. Implement the foundation for: Storage engine for typed rows, primary keys, secondary indexes, MVCC-like versions, write-ahead-log fixtures, and snapshot reads. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/storage-engine-for-typed-rows-primary-ke.mjs and test/storage-engine-for-typed-rows-primary-ke.test.mjs.",
+											"id": "s07",
+											"title": "Replicated log module with leader election, append — edge cases",
+											"prompt": "Replicated log module with leader election, append — edge cases. Extend the replicated log module with leader election, append module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/replicated-log-module-with-leader-electi-3.mjs and test/replicated-log-module-with-leader-electi-3.test.mjs.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/replicated-log-module-with-leader-electi-3.mjs",
+												"test/replicated-log-module-with-leader-electi-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Storage engine for typed rows, primary keys, secondary",
+											"prompt": "Storage engine for typed rows, primary keys, secondary. Implement the foundation for: Storage engine for typed rows, primary keys, secondary indexes, MVCC-like versions, write-ahead-log fixtures, and snapshot reads. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/storage-engine-for-typed-rows-primary-ke.mjs and test/storage-engine-for-typed-rows-primary-ke.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,61 +155,16 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "Storage engine for typed rows, primary keys, secondary indexes — core engine",
-											"prompt": "Storage engine for typed rows, primary keys, secondary indexes — core engine. Extend the storage engine for typed rows, primary keys, secondary indexes module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/storage-engine-for-typed-rows-primary-ke-2.mjs and test/storage-engine-for-typed-rows-primary-ke-2.test.mjs.",
+											"id": "s09",
+											"title": "Storage engine for typed rows, primary keys, secondary — core engine",
+											"prompt": "Storage engine for typed rows, primary keys, secondary — core engine. Extend the storage engine for typed rows, primary keys, secondary module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/storage-engine-for-typed-rows-primary-ke-2.mjs and test/storage-engine-for-typed-rows-primary-ke-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s08"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/storage-engine-for-typed-rows-primary-ke-2.mjs",
 												"test/storage-engine-for-typed-rows-primary-ke-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s07",
-											"title": "SQL-like parser and query planner for a constrained language",
-											"prompt": "SQL-like parser and query planner for a constrained language. Implement the foundation for: SQL-like parser and query planner for a constrained language with select, project, filter, join, aggregate, order, limit, and index selection. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sql-like-parser-and-query-planner-for-a.mjs and test/sql-like-parser-and-query-planner-for-a.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/sql-like-parser-and-query-planner-for-a.mjs",
-												"test/sql-like-parser-and-query-planner-for-a.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
-											"title": "SQL-like parser and query planner for a constrained language — core engine",
-											"prompt": "SQL-like parser and query planner for a constrained language — core engine. Extend the sql-like parser and query planner for a constrained language module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/sql-like-parser-and-query-planner-for-a-2.mjs and test/sql-like-parser-and-query-planner-for-a-2.test.mjs.",
-											"dependsOn": [
-												"s07"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/sql-like-parser-and-query-planner-for-a-2.mjs",
-												"test/sql-like-parser-and-query-planner-for-a-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s09",
-											"title": "Stream processor that consumes append logs, maintains materialized views",
-											"prompt": "Stream processor that consumes append logs, maintains materialized views. Implement the foundation for: Stream processor that consumes append logs, maintains materialized views, handles watermarks, late events, exactly-once-like idempotence, and checkpoint recovery. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/stream-processor-that-consumes-append-lo.mjs and test/stream-processor-that-consumes-append-lo.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/stream-processor-that-consumes-append-lo.mjs",
-												"test/stream-processor-that-consumes-append-lo.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -414,7 +414,7 @@
 									"files": [
 										{
 											"path": "src/deterministic-simulation-harness-for-nod.mjs",
-											"content": "/**\n * Deterministic simulation harness for node clocks, network partitions, message\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationHarnessForNodInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationHarnessForNodFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationHarnessForNodFinding[] }} DeterministicSimulationHarnessForNodResult\n */\n\n/**\n * Evaluate one input against the deterministic simulation harness for node clocks, network partitions, message policy.\n * @param {DeterministicSimulationHarnessForNodInput} input\n * @returns {DeterministicSimulationHarnessForNodResult}\n */\nexport function evaluateDeterministicSimulationHarnessForNod(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-harness-for-nod/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Deterministic simulation harness for node clocks, network\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationHarnessForNodInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationHarnessForNodFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationHarnessForNodFinding[] }} DeterministicSimulationHarnessForNodResult\n */\n\n/**\n * Evaluate one input against the deterministic simulation harness for node clocks, network policy.\n * @param {DeterministicSimulationHarnessForNodInput} input\n * @returns {DeterministicSimulationHarnessForNodResult}\n */\nexport function evaluateDeterministicSimulationHarnessForNod(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-harness-for-nod/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/deterministic-simulation-harness-for-nod.test.mjs",
@@ -444,7 +444,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Deterministic simulation harness for node clocks, network partitions, message\": src/deterministic-simulation-harness-for-nod.mjs, test/deterministic-simulation-harness-for-nod.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Deterministic simulation harness for node clocks, network\": src/deterministic-simulation-harness-for-nod.mjs, test/deterministic-simulation-harness-for-nod.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -454,7 +454,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Deterministic simulation harness for node clocks, network partitions, message\"",
+			"userMessageIncludes": "the card \"Deterministic simulation harness for node clocks, network\"",
 			"turns": [
 				{
 					"behavior": {
@@ -464,7 +464,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Deterministic simulation harness for node clocks, network partitions, message\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Deterministic simulation harness for node clocks, network\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -483,13 +483,13 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/replicated-log-module-with-leader-electi.mjs",
+			"userMessageIncludes": "Files for THIS card: src/deterministic-simulation-harness-for-nod-2.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Replicated log module with leader election, append entries, commit\" step by step before writing files…"
+						"reasoning": "Thinking through \"Deterministic simulation harness for node clocks, network — core engine\" step by step before writing files…"
 					}
 				},
 				{
@@ -516,12 +516,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/replicated-log-module-with-leader-electi.mjs",
-											"content": "/**\n * Replicated log module with leader election, append entries, commit\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReplicatedLogModuleWithLeaderElectiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReplicatedLogModuleWithLeaderElectiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReplicatedLogModuleWithLeaderElectiFinding[] }} ReplicatedLogModuleWithLeaderElectiResult\n */\n\n/**\n * Evaluate one input against the replicated log module with leader election, append entries, commit policy.\n * @param {ReplicatedLogModuleWithLeaderElectiInput} input\n * @returns {ReplicatedLogModuleWithLeaderElectiResult}\n */\nexport function evaluateReplicatedLogModuleWithLeaderElecti(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"replicated-log-module-with-leader-electi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/deterministic-simulation-harness-for-nod-2.mjs",
+											"content": "/**\n * Deterministic simulation harness for node clocks, network — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationHarnessForNod2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationHarnessForNod2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationHarnessForNod2Finding[] }} DeterministicSimulationHarnessForNod2Result\n */\n\n/**\n * Evaluate one input against the deterministic simulation harness for node clocks, network — core engine policy.\n * @param {DeterministicSimulationHarnessForNod2Input} input\n * @returns {DeterministicSimulationHarnessForNod2Result}\n */\nexport function evaluateDeterministicSimulationHarnessForNod2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-harness-for-nod-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/replicated-log-module-with-leader-electi.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateReplicatedLogModuleWithLeaderElecti } from \"../src/replicated-log-module-with-leader-electi.mjs\";\n\ntest(\"replicated-log-module-with-leader-electi: accepts a clean input with evidence\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"replicated-log-module-with-leader-electi: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/deterministic-simulation-harness-for-nod-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDeterministicSimulationHarnessForNod2 } from \"../src/deterministic-simulation-harness-for-nod-2.mjs\";\n\ntest(\"deterministic-simulation-harness-for-nod-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDeterministicSimulationHarnessForNod2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"deterministic-simulation-harness-for-nod-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDeterministicSimulationHarnessForNod2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -547,7 +547,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Replicated log module with leader election, append entries, commit\": src/replicated-log-module-with-leader-electi.mjs, test/replicated-log-module-with-leader-electi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Deterministic simulation harness for node clocks, network — core engine\": src/deterministic-simulation-harness-for-nod-2.mjs, test/deterministic-simulation-harness-for-nod-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -557,7 +557,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Replicated log module with leader election, append entries, commit\"",
+			"userMessageIncludes": "the card \"Deterministic simulation harness for node clocks, network — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -567,7 +567,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Replicated log module with leader election, append entries, commit\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Deterministic simulation harness for node clocks, network — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -586,7 +586,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/replicated-log-module-with-leader-electi-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/deterministic-simulation-harness-for-nod-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -618,8 +618,213 @@
 								"arguments": {
 									"files": [
 										{
+											"path": "src/deterministic-simulation-harness-for-nod-3.mjs",
+											"content": "/**\n * Deterministic simulation harness for node clocks, network — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterministicSimulationHarnessForNod3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterministicSimulationHarnessForNod3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterministicSimulationHarnessForNod3Finding[] }} DeterministicSimulationHarnessForNod3Result\n */\n\n/**\n * Evaluate one input against the deterministic simulation harness for node clocks, network — edge cases policy.\n * @param {DeterministicSimulationHarnessForNod3Input} input\n * @returns {DeterministicSimulationHarnessForNod3Result}\n */\nexport function evaluateDeterministicSimulationHarnessForNod3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"deterministic-simulation-harness-for-nod-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"deterministic-simulation-harness-for-nod-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/deterministic-simulation-harness-for-nod-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDeterministicSimulationHarnessForNod3 } from \"../src/deterministic-simulation-harness-for-nod-3.mjs\";\n\ntest(\"deterministic-simulation-harness-for-nod-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDeterministicSimulationHarnessForNod3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"deterministic-simulation-harness-for-nod-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDeterministicSimulationHarnessForNod3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Deterministic simulation harness for node clocks, network — edge cases\": src/deterministic-simulation-harness-for-nod-3.mjs, test/deterministic-simulation-harness-for-nod-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s04",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Deterministic simulation harness for node clocks, network — edge cases\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Deterministic simulation harness for node clocks, network — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s05",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/replicated-log-module-with-leader-electi.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/replicated-log-module-with-leader-electi.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/replicated-log-module-with-leader-electi.mjs",
+											"content": "/**\n * Replicated log module with leader election, append\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReplicatedLogModuleWithLeaderElectiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReplicatedLogModuleWithLeaderElectiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReplicatedLogModuleWithLeaderElectiFinding[] }} ReplicatedLogModuleWithLeaderElectiResult\n */\n\n/**\n * Evaluate one input against the replicated log module with leader election, append policy.\n * @param {ReplicatedLogModuleWithLeaderElectiInput} input\n * @returns {ReplicatedLogModuleWithLeaderElectiResult}\n */\nexport function evaluateReplicatedLogModuleWithLeaderElecti(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"replicated-log-module-with-leader-electi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/replicated-log-module-with-leader-electi.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateReplicatedLogModuleWithLeaderElecti } from \"../src/replicated-log-module-with-leader-electi.mjs\";\n\ntest(\"replicated-log-module-with-leader-electi: accepts a clean input with evidence\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"replicated-log-module-with-leader-electi: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Replicated log module with leader election, append\": src/replicated-log-module-with-leader-electi.mjs, test/replicated-log-module-with-leader-electi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Replicated log module with leader election, append\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Replicated log module with leader election, append\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/replicated-log-module-with-leader-electi-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
 											"path": "src/replicated-log-module-with-leader-electi-2.mjs",
-											"content": "/**\n * Replicated log module with leader election, append entries, commit — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReplicatedLogModuleWithLeaderElecti2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReplicatedLogModuleWithLeaderElecti2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReplicatedLogModuleWithLeaderElecti2Finding[] }} ReplicatedLogModuleWithLeaderElecti2Result\n */\n\n/**\n * Evaluate one input against the replicated log module with leader election, append entries, commit — core engine policy.\n * @param {ReplicatedLogModuleWithLeaderElecti2Input} input\n * @returns {ReplicatedLogModuleWithLeaderElecti2Result}\n */\nexport function evaluateReplicatedLogModuleWithLeaderElecti2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"replicated-log-module-with-leader-electi-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Replicated log module with leader election, append — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReplicatedLogModuleWithLeaderElecti2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReplicatedLogModuleWithLeaderElecti2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReplicatedLogModuleWithLeaderElecti2Finding[] }} ReplicatedLogModuleWithLeaderElecti2Result\n */\n\n/**\n * Evaluate one input against the replicated log module with leader election, append — core engine policy.\n * @param {ReplicatedLogModuleWithLeaderElecti2Input} input\n * @returns {ReplicatedLogModuleWithLeaderElecti2Result}\n */\nexport function evaluateReplicatedLogModuleWithLeaderElecti2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"replicated-log-module-with-leader-electi-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/replicated-log-module-with-leader-electi-2.test.mjs",
@@ -649,17 +854,17 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Replicated log module with leader election, append entries, commit — core engine\": src/replicated-log-module-with-leader-electi-2.mjs, test/replicated-log-module-with-leader-electi-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Replicated log module with leader election, append — core engine\": src/replicated-log-module-with-leader-electi-2.mjs, test/replicated-log-module-with-leader-electi-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s04",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Replicated log module with leader election, append entries, commit — core engine\"",
+			"userMessageIncludes": "the card \"Replicated log module with leader election, append — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -669,7 +874,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Replicated log module with leader election, append entries, commit — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Replicated log module with leader election, append — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -686,10 +891,25 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s05",
+			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/storage-engine-for-typed-rows-primary-ke.mjs",
+			"userMessageIncludes": "Files for THIS card: src/replicated-log-module-with-leader-electi-3.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -697,12 +917,80 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": "[{\"path\":\"src/storage-engine-for-typed-rows-primary-ke.mjs\",\"content\":\"export const truncated = "
+									"files": [
+										{
+											"path": "src/replicated-log-module-with-leader-electi-3.mjs",
+											"content": "/**\n * Replicated log module with leader election, append — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReplicatedLogModuleWithLeaderElecti3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReplicatedLogModuleWithLeaderElecti3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReplicatedLogModuleWithLeaderElecti3Finding[] }} ReplicatedLogModuleWithLeaderElecti3Result\n */\n\n/**\n * Evaluate one input against the replicated log module with leader election, append — edge cases policy.\n * @param {ReplicatedLogModuleWithLeaderElecti3Input} input\n * @returns {ReplicatedLogModuleWithLeaderElecti3Result}\n */\nexport function evaluateReplicatedLogModuleWithLeaderElecti3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"replicated-log-module-with-leader-electi-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"replicated-log-module-with-leader-electi-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/replicated-log-module-with-leader-electi-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateReplicatedLogModuleWithLeaderElecti3 } from \"../src/replicated-log-module-with-leader-electi-3.mjs\";\n\ntest(\"replicated-log-module-with-leader-electi-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"replicated-log-module-with-leader-electi-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateReplicatedLogModuleWithLeaderElecti3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
 								}
 							}
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Replicated log module with leader election, append — edge cases\": src/replicated-log-module-with-leader-electi-3.mjs, test/replicated-log-module-with-leader-electi-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Replicated log module with leader election, append — edge cases\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Replicated log module with leader election, append — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/storage-engine-for-typed-rows-primary-ke.mjs",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -728,7 +1016,7 @@
 									"files": [
 										{
 											"path": "src/storage-engine-for-typed-rows-primary-ke.mjs",
-											"content": "/**\n * Storage engine for typed rows, primary keys, secondary indexes\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StorageEngineForTypedRowsPrimaryKeInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StorageEngineForTypedRowsPrimaryKeFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StorageEngineForTypedRowsPrimaryKeFinding[] }} StorageEngineForTypedRowsPrimaryKeResult\n */\n\n/**\n * Evaluate one input against the storage engine for typed rows, primary keys, secondary indexes policy.\n * @param {StorageEngineForTypedRowsPrimaryKeInput} input\n * @returns {StorageEngineForTypedRowsPrimaryKeResult}\n */\nexport function evaluateStorageEngineForTypedRowsPrimaryKe(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"storage-engine-for-typed-rows-primary-ke/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Storage engine for typed rows, primary keys, secondary\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StorageEngineForTypedRowsPrimaryKeInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StorageEngineForTypedRowsPrimaryKeFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StorageEngineForTypedRowsPrimaryKeFinding[] }} StorageEngineForTypedRowsPrimaryKeResult\n */\n\n/**\n * Evaluate one input against the storage engine for typed rows, primary keys, secondary policy.\n * @param {StorageEngineForTypedRowsPrimaryKeInput} input\n * @returns {StorageEngineForTypedRowsPrimaryKeResult}\n */\nexport function evaluateStorageEngineForTypedRowsPrimaryKe(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"storage-engine-for-typed-rows-primary-ke/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/storage-engine-for-typed-rows-primary-ke.test.mjs",
@@ -758,17 +1046,17 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Storage engine for typed rows, primary keys, secondary indexes\": src/storage-engine-for-typed-rows-primary-ke.mjs, test/storage-engine-for-typed-rows-primary-ke.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Storage engine for typed rows, primary keys, secondary\": src/storage-engine-for-typed-rows-primary-ke.mjs, test/storage-engine-for-typed-rows-primary-ke.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Storage engine for typed rows, primary keys, secondary indexes\"",
+			"userMessageIncludes": "the card \"Storage engine for typed rows, primary keys, secondary\"",
 			"turns": [
 				{
 					"behavior": {
@@ -778,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Storage engine for typed rows, primary keys, secondary indexes\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Storage engine for typed rows, primary keys, secondary\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -795,7 +1083,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s06",
+			"id": "perfect-worker-s09",
 			"requestClass": "worker",
 			"userMessageIncludes": "Files for THIS card: src/storage-engine-for-typed-rows-primary-ke-2.mjs",
 			"turns": [
@@ -824,7 +1112,7 @@
 									"files": [
 										{
 											"path": "src/storage-engine-for-typed-rows-primary-ke-2.mjs",
-											"content": "/**\n * Storage engine for typed rows, primary keys, secondary indexes — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StorageEngineForTypedRowsPrimaryKe2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StorageEngineForTypedRowsPrimaryKe2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StorageEngineForTypedRowsPrimaryKe2Finding[] }} StorageEngineForTypedRowsPrimaryKe2Result\n */\n\n/**\n * Evaluate one input against the storage engine for typed rows, primary keys, secondary indexes — core engine policy.\n * @param {StorageEngineForTypedRowsPrimaryKe2Input} input\n * @returns {StorageEngineForTypedRowsPrimaryKe2Result}\n */\nexport function evaluateStorageEngineForTypedRowsPrimaryKe2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"storage-engine-for-typed-rows-primary-ke-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Storage engine for typed rows, primary keys, secondary — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StorageEngineForTypedRowsPrimaryKe2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StorageEngineForTypedRowsPrimaryKe2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StorageEngineForTypedRowsPrimaryKe2Finding[] }} StorageEngineForTypedRowsPrimaryKe2Result\n */\n\n/**\n * Evaluate one input against the storage engine for typed rows, primary keys, secondary — core engine policy.\n * @param {StorageEngineForTypedRowsPrimaryKe2Input} input\n * @returns {StorageEngineForTypedRowsPrimaryKe2Result}\n */\nexport function evaluateStorageEngineForTypedRowsPrimaryKe2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"storage-engine-for-typed-rows-primary-ke-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"storage-engine-for-typed-rows-primary-ke-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/storage-engine-for-typed-rows-primary-ke-2.test.mjs",
@@ -854,295 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Storage engine for typed rows, primary keys, secondary indexes — core engine\": src/storage-engine-for-typed-rows-primary-ke-2.mjs, test/storage-engine-for-typed-rows-primary-ke-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s06",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Storage engine for typed rows, primary keys, secondary indexes — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Storage engine for typed rows, primary keys, secondary indexes — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s07",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/sql-like-parser-and-query-planner-for-a.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/sql-like-parser-and-query-planner-for-a.mjs",
-											"content": "/**\n * SQL-like parser and query planner for a constrained language\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SqlLikeParserAndQueryPlannerForAInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SqlLikeParserAndQueryPlannerForAFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SqlLikeParserAndQueryPlannerForAFinding[] }} SqlLikeParserAndQueryPlannerForAResult\n */\n\n/**\n * Evaluate one input against the sql-like parser and query planner for a constrained language policy.\n * @param {SqlLikeParserAndQueryPlannerForAInput} input\n * @returns {SqlLikeParserAndQueryPlannerForAResult}\n */\nexport function evaluateSqlLikeParserAndQueryPlannerForA(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sql-like-parser-and-query-planner-for-a/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/sql-like-parser-and-query-planner-for-a.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateSqlLikeParserAndQueryPlannerForA } from \"../src/sql-like-parser-and-query-planner-for-a.mjs\";\n\ntest(\"sql-like-parser-and-query-planner-for-a: accepts a clean input with evidence\", () => {\n\tconst result = evaluateSqlLikeParserAndQueryPlannerForA({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"sql-like-parser-and-query-planner-for-a: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateSqlLikeParserAndQueryPlannerForA({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"SQL-like parser and query planner for a constrained language\": src/sql-like-parser-and-query-planner-for-a.mjs, test/sql-like-parser-and-query-planner-for-a.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"SQL-like parser and query planner for a constrained language\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"SQL-like parser and query planner for a constrained language\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/sql-like-parser-and-query-planner-for-a-2.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/sql-like-parser-and-query-planner-for-a-2.mjs",
-											"content": "/**\n * SQL-like parser and query planner for a constrained language — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SqlLikeParserAndQueryPlannerForA2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SqlLikeParserAndQueryPlannerForA2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SqlLikeParserAndQueryPlannerForA2Finding[] }} SqlLikeParserAndQueryPlannerForA2Result\n */\n\n/**\n * Evaluate one input against the sql-like parser and query planner for a constrained language — core engine policy.\n * @param {SqlLikeParserAndQueryPlannerForA2Input} input\n * @returns {SqlLikeParserAndQueryPlannerForA2Result}\n */\nexport function evaluateSqlLikeParserAndQueryPlannerForA2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sql-like-parser-and-query-planner-for-a-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sql-like-parser-and-query-planner-for-a-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/sql-like-parser-and-query-planner-for-a-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateSqlLikeParserAndQueryPlannerForA2 } from \"../src/sql-like-parser-and-query-planner-for-a-2.mjs\";\n\ntest(\"sql-like-parser-and-query-planner-for-a-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateSqlLikeParserAndQueryPlannerForA2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"sql-like-parser-and-query-planner-for-a-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateSqlLikeParserAndQueryPlannerForA2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"SQL-like parser and query planner for a constrained language — core engine\": src/sql-like-parser-and-query-planner-for-a-2.mjs, test/sql-like-parser-and-query-planner-for-a-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s08",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"SQL-like parser and query planner for a constrained language — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"SQL-like parser and query planner for a constrained language — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s09",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/stream-processor-that-consumes-append-lo.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/stream-processor-that-consumes-append-lo.mjs",
-											"content": "/**\n * Stream processor that consumes append logs, maintains materialized views\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} StreamProcessorThatConsumesAppendLoInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} StreamProcessorThatConsumesAppendLoFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: StreamProcessorThatConsumesAppendLoFinding[] }} StreamProcessorThatConsumesAppendLoResult\n */\n\n/**\n * Evaluate one input against the stream processor that consumes append logs, maintains materialized views policy.\n * @param {StreamProcessorThatConsumesAppendLoInput} input\n * @returns {StreamProcessorThatConsumesAppendLoResult}\n */\nexport function evaluateStreamProcessorThatConsumesAppendLo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"stream-processor-that-consumes-append-lo/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"stream-processor-that-consumes-append-lo/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"stream-processor-that-consumes-append-lo/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"stream-processor-that-consumes-append-lo/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/stream-processor-that-consumes-append-lo.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateStreamProcessorThatConsumesAppendLo } from \"../src/stream-processor-that-consumes-append-lo.mjs\";\n\ntest(\"stream-processor-that-consumes-append-lo: accepts a clean input with evidence\", () => {\n\tconst result = evaluateStreamProcessorThatConsumesAppendLo({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"stream-processor-that-consumes-append-lo: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateStreamProcessorThatConsumesAppendLo({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Stream processor that consumes append logs, maintains materialized views\": src/stream-processor-that-consumes-append-lo.mjs, test/stream-processor-that-consumes-append-lo.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Storage engine for typed rows, primary keys, secondary — core engine\": src/storage-engine-for-typed-rows-primary-ke-2.mjs, test/storage-engine-for-typed-rows-primary-ke-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Stream processor that consumes append logs, maintains materialized views\"",
+			"userMessageIncludes": "the card \"Storage engine for typed rows, primary keys, secondary — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Stream processor that consumes append logs, maintains materialized views\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Storage engine for typed rows, primary keys, secondary — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

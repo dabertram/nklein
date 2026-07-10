@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (supplier, ingredient, lot, batch, recipe, production run, equipment, sanitation). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (supplier, ingredient, lot, batch, recipe, production run). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Lot genealogy graph that supports forward trace, backward trace",
-											"prompt": "Lot genealogy graph that supports forward trace, backward trace. Implement the foundation for: Lot genealogy graph that supports forward trace, backward trace, partial consumption, rework, and co-mingled batches. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/lot-genealogy-graph-that-supports-forwar.mjs and test/lot-genealogy-graph-that-supports-forwar.test.mjs.",
+											"title": "Lot genealogy graph that supports forward trace, backward",
+											"prompt": "Lot genealogy graph that supports forward trace, backward. Implement the foundation for: Lot genealogy graph that supports forward trace, backward trace, partial consumption, rework, and co-mingled batches. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/lot-genealogy-graph-that-supports-forwar.mjs and test/lot-genealogy-graph-that-supports-forwar.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Allergen matrix that detects undeclared allergen risk across recipes",
-											"prompt": "Allergen matrix that detects undeclared allergen risk across recipes. Implement the foundation for: Allergen matrix that detects undeclared allergen risk across recipes, shared equipment, rework, and label selection. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/allergen-matrix-that-detects-undeclared.mjs and test/allergen-matrix-that-detects-undeclared.test.mjs.",
+											"title": "Allergen matrix that detects undeclared allergen risk",
+											"prompt": "Allergen matrix that detects undeclared allergen risk. Implement the foundation for: Allergen matrix that detects undeclared allergen risk across recipes, shared equipment, rework, and label selection. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/allergen-matrix-that-detects-undeclared.mjs and test/allergen-matrix-that-detects-undeclared.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -81,8 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Critical control point workflow with monitoring readings, limits, corrective",
-											"prompt": "Critical control point workflow with monitoring readings, limits, corrective. Implement the foundation for: Critical control point workflow with monitoring readings, limits, corrective actions, verification, and release holds. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/critical-control-point-workflow-with-mon.mjs and test/critical-control-point-workflow-with-mon.test.mjs.",
+											"title": "Critical control point workflow with monitoring readings",
+											"prompt": "Critical control point workflow with monitoring readings. Implement the foundation for: Critical control point workflow with monitoring readings, limits, corrective actions, verification, and release holds. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/critical-control-point-workflow-with-mon.mjs and test/critical-control-point-workflow-with-mon.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -96,8 +96,8 @@
 										},
 										{
 											"id": "s05",
-											"title": "Recall simulator that identifies affected finished goods, customers, inventory",
-											"prompt": "Recall simulator that identifies affected finished goods, customers, inventory. Implement the foundation for: Recall simulator that identifies affected finished goods, customers, inventory, and open shipments from a contaminated supplier lot. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/recall-simulator-that-identifies-affecte.mjs and test/recall-simulator-that-identifies-affecte.test.mjs.",
+											"title": "Recall simulator that identifies affected finished goods",
+											"prompt": "Recall simulator that identifies affected finished goods. Implement the foundation for: Recall simulator that identifies affected finished goods, customers, inventory, and open shipments from a contaminated supplier lot. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/recall-simulator-that-identifies-affecte.mjs and test/recall-simulator-that-identifies-affecte.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -111,8 +111,8 @@
 										},
 										{
 											"id": "s06",
-											"title": "Label validation against recipe allergens, claims, net quantity, and",
-											"prompt": "Label validation against recipe allergens, claims, net quantity, and. Implement the foundation for: Label validation against recipe allergens, claims, net quantity, and versioned approval state. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/label-validation-against-recipe-allergen.mjs and test/label-validation-against-recipe-allergen.test.mjs.",
+											"title": "Label validation against recipe allergens, claims, net",
+											"prompt": "Label validation against recipe allergens, claims, net. Implement the foundation for: Label validation against recipe allergens, claims, net quantity, and versioned approval state. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/label-validation-against-recipe-allergen.mjs and test/label-validation-against-recipe-allergen.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -126,8 +126,8 @@
 										},
 										{
 											"id": "s07",
-											"title": "Sanitation scheduling and line-clearance checks before allergen changeovers",
-											"prompt": "Sanitation scheduling and line-clearance checks before allergen changeovers. Implement the foundation for: Sanitation scheduling and line-clearance checks before allergen changeovers. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sanitation-scheduling-and-line-clearance.mjs and test/sanitation-scheduling-and-line-clearance.test.mjs.",
+											"title": "Sanitation scheduling and line-clearance checks before",
+											"prompt": "Sanitation scheduling and line-clearance checks before. Implement the foundation for: Sanitation scheduling and line-clearance checks before allergen changeovers. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sanitation-scheduling-and-line-clearance.mjs and test/sanitation-scheduling-and-line-clearance.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -141,8 +141,8 @@
 										},
 										{
 											"id": "s08",
-											"title": "Seed incident involving a supplier lot contaminant, rework, mislabeled",
-											"prompt": "Seed incident involving a supplier lot contaminant, rework, mislabeled. Implement the foundation for: Seed incident involving a supplier lot contaminant, rework, mislabeled packaging, and mixed shipment state. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-incident-involving-a-supplier-lot-c.mjs and test/seed-incident-involving-a-supplier-lot-c.test.mjs.",
+											"title": "Seed incident involving a supplier lot contaminant",
+											"prompt": "Seed incident involving a supplier lot contaminant. Implement the foundation for: Seed incident involving a supplier lot contaminant, rework, mislabeled packaging, and mixed shipment state. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-incident-involving-a-supplier-lot-c.mjs and test/seed-incident-involving-a-supplier-lot-c.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -585,7 +585,7 @@
 									"files": [
 										{
 											"path": "src/lot-genealogy-graph-that-supports-forwar.mjs",
-											"content": "/**\n * Lot genealogy graph that supports forward trace, backward trace\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LotGenealogyGraphThatSupportsForwarInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LotGenealogyGraphThatSupportsForwarFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LotGenealogyGraphThatSupportsForwarFinding[] }} LotGenealogyGraphThatSupportsForwarResult\n */\n\n/**\n * Evaluate one input against the lot genealogy graph that supports forward trace, backward trace policy.\n * @param {LotGenealogyGraphThatSupportsForwarInput} input\n * @returns {LotGenealogyGraphThatSupportsForwarResult}\n */\nexport function evaluateLotGenealogyGraphThatSupportsForwar(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"lot-genealogy-graph-that-supports-forwar/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Lot genealogy graph that supports forward trace, backward\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LotGenealogyGraphThatSupportsForwarInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LotGenealogyGraphThatSupportsForwarFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LotGenealogyGraphThatSupportsForwarFinding[] }} LotGenealogyGraphThatSupportsForwarResult\n */\n\n/**\n * Evaluate one input against the lot genealogy graph that supports forward trace, backward policy.\n * @param {LotGenealogyGraphThatSupportsForwarInput} input\n * @returns {LotGenealogyGraphThatSupportsForwarResult}\n */\nexport function evaluateLotGenealogyGraphThatSupportsForwar(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"lot-genealogy-graph-that-supports-forwar/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"lot-genealogy-graph-that-supports-forwar/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/lot-genealogy-graph-that-supports-forwar.test.mjs",
@@ -615,7 +615,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Lot genealogy graph that supports forward trace, backward trace\": src/lot-genealogy-graph-that-supports-forwar.mjs, test/lot-genealogy-graph-that-supports-forwar.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Lot genealogy graph that supports forward trace, backward\": src/lot-genealogy-graph-that-supports-forwar.mjs, test/lot-genealogy-graph-that-supports-forwar.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -625,7 +625,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Lot genealogy graph that supports forward trace, backward trace\"",
+			"userMessageIncludes": "the card \"Lot genealogy graph that supports forward trace, backward\"",
 			"turns": [
 				{
 					"behavior": {
@@ -635,7 +635,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Lot genealogy graph that supports forward trace, backward trace\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Lot genealogy graph that supports forward trace, backward\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -681,7 +681,7 @@
 									"files": [
 										{
 											"path": "src/allergen-matrix-that-detects-undeclared.mjs",
-											"content": "/**\n * Allergen matrix that detects undeclared allergen risk across recipes\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AllergenMatrixThatDetectsUndeclaredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AllergenMatrixThatDetectsUndeclaredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AllergenMatrixThatDetectsUndeclaredFinding[] }} AllergenMatrixThatDetectsUndeclaredResult\n */\n\n/**\n * Evaluate one input against the allergen matrix that detects undeclared allergen risk across recipes policy.\n * @param {AllergenMatrixThatDetectsUndeclaredInput} input\n * @returns {AllergenMatrixThatDetectsUndeclaredResult}\n */\nexport function evaluateAllergenMatrixThatDetectsUndeclared(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"allergen-matrix-that-detects-undeclared/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Allergen matrix that detects undeclared allergen risk\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AllergenMatrixThatDetectsUndeclaredInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AllergenMatrixThatDetectsUndeclaredFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AllergenMatrixThatDetectsUndeclaredFinding[] }} AllergenMatrixThatDetectsUndeclaredResult\n */\n\n/**\n * Evaluate one input against the allergen matrix that detects undeclared allergen risk policy.\n * @param {AllergenMatrixThatDetectsUndeclaredInput} input\n * @returns {AllergenMatrixThatDetectsUndeclaredResult}\n */\nexport function evaluateAllergenMatrixThatDetectsUndeclared(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"allergen-matrix-that-detects-undeclared/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"allergen-matrix-that-detects-undeclared/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/allergen-matrix-that-detects-undeclared.test.mjs",
@@ -711,7 +711,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Allergen matrix that detects undeclared allergen risk across recipes\": src/allergen-matrix-that-detects-undeclared.mjs, test/allergen-matrix-that-detects-undeclared.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Allergen matrix that detects undeclared allergen risk\": src/allergen-matrix-that-detects-undeclared.mjs, test/allergen-matrix-that-detects-undeclared.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -721,7 +721,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Allergen matrix that detects undeclared allergen risk across recipes\"",
+			"userMessageIncludes": "the card \"Allergen matrix that detects undeclared allergen risk\"",
 			"turns": [
 				{
 					"behavior": {
@@ -731,7 +731,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Allergen matrix that detects undeclared allergen risk across recipes\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Allergen matrix that detects undeclared allergen risk\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -777,7 +777,7 @@
 									"files": [
 										{
 											"path": "src/critical-control-point-workflow-with-mon.mjs",
-											"content": "/**\n * Critical control point workflow with monitoring readings, limits, corrective\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CriticalControlPointWorkflowWithMonInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CriticalControlPointWorkflowWithMonFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CriticalControlPointWorkflowWithMonFinding[] }} CriticalControlPointWorkflowWithMonResult\n */\n\n/**\n * Evaluate one input against the critical control point workflow with monitoring readings, limits, corrective policy.\n * @param {CriticalControlPointWorkflowWithMonInput} input\n * @returns {CriticalControlPointWorkflowWithMonResult}\n */\nexport function evaluateCriticalControlPointWorkflowWithMon(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"critical-control-point-workflow-with-mon/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Critical control point workflow with monitoring readings\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CriticalControlPointWorkflowWithMonInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CriticalControlPointWorkflowWithMonFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CriticalControlPointWorkflowWithMonFinding[] }} CriticalControlPointWorkflowWithMonResult\n */\n\n/**\n * Evaluate one input against the critical control point workflow with monitoring readings policy.\n * @param {CriticalControlPointWorkflowWithMonInput} input\n * @returns {CriticalControlPointWorkflowWithMonResult}\n */\nexport function evaluateCriticalControlPointWorkflowWithMon(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"critical-control-point-workflow-with-mon/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"critical-control-point-workflow-with-mon/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/critical-control-point-workflow-with-mon.test.mjs",
@@ -807,7 +807,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Critical control point workflow with monitoring readings, limits, corrective\": src/critical-control-point-workflow-with-mon.mjs, test/critical-control-point-workflow-with-mon.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Critical control point workflow with monitoring readings\": src/critical-control-point-workflow-with-mon.mjs, test/critical-control-point-workflow-with-mon.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -817,7 +817,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Critical control point workflow with monitoring readings, limits, corrective\"",
+			"userMessageIncludes": "the card \"Critical control point workflow with monitoring readings\"",
 			"turns": [
 				{
 					"behavior": {
@@ -827,7 +827,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Critical control point workflow with monitoring readings, limits, corrective\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Critical control point workflow with monitoring readings\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -873,7 +873,7 @@
 									"files": [
 										{
 											"path": "src/recall-simulator-that-identifies-affecte.mjs",
-											"content": "/**\n * Recall simulator that identifies affected finished goods, customers, inventory\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RecallSimulatorThatIdentifiesAffecteInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RecallSimulatorThatIdentifiesAffecteFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RecallSimulatorThatIdentifiesAffecteFinding[] }} RecallSimulatorThatIdentifiesAffecteResult\n */\n\n/**\n * Evaluate one input against the recall simulator that identifies affected finished goods, customers, inventory policy.\n * @param {RecallSimulatorThatIdentifiesAffecteInput} input\n * @returns {RecallSimulatorThatIdentifiesAffecteResult}\n */\nexport function evaluateRecallSimulatorThatIdentifiesAffecte(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"recall-simulator-that-identifies-affecte/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Recall simulator that identifies affected finished goods\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RecallSimulatorThatIdentifiesAffecteInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RecallSimulatorThatIdentifiesAffecteFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RecallSimulatorThatIdentifiesAffecteFinding[] }} RecallSimulatorThatIdentifiesAffecteResult\n */\n\n/**\n * Evaluate one input against the recall simulator that identifies affected finished goods policy.\n * @param {RecallSimulatorThatIdentifiesAffecteInput} input\n * @returns {RecallSimulatorThatIdentifiesAffecteResult}\n */\nexport function evaluateRecallSimulatorThatIdentifiesAffecte(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"recall-simulator-that-identifies-affecte/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"recall-simulator-that-identifies-affecte/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/recall-simulator-that-identifies-affecte.test.mjs",
@@ -903,7 +903,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Recall simulator that identifies affected finished goods, customers, inventory\": src/recall-simulator-that-identifies-affecte.mjs, test/recall-simulator-that-identifies-affecte.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Recall simulator that identifies affected finished goods\": src/recall-simulator-that-identifies-affecte.mjs, test/recall-simulator-that-identifies-affecte.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -913,7 +913,7 @@
 		{
 			"id": "perfect-review-s05",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Recall simulator that identifies affected finished goods, customers, inventory\"",
+			"userMessageIncludes": "the card \"Recall simulator that identifies affected finished goods\"",
 			"turns": [
 				{
 					"behavior": {
@@ -923,7 +923,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Recall simulator that identifies affected finished goods, customers, inventory\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Recall simulator that identifies affected finished goods\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -969,7 +969,7 @@
 									"files": [
 										{
 											"path": "src/label-validation-against-recipe-allergen.mjs",
-											"content": "/**\n * Label validation against recipe allergens, claims, net quantity, and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LabelValidationAgainstRecipeAllergenInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LabelValidationAgainstRecipeAllergenFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LabelValidationAgainstRecipeAllergenFinding[] }} LabelValidationAgainstRecipeAllergenResult\n */\n\n/**\n * Evaluate one input against the label validation against recipe allergens, claims, net quantity, and policy.\n * @param {LabelValidationAgainstRecipeAllergenInput} input\n * @returns {LabelValidationAgainstRecipeAllergenResult}\n */\nexport function evaluateLabelValidationAgainstRecipeAllergen(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"label-validation-against-recipe-allergen/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Label validation against recipe allergens, claims, net\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} LabelValidationAgainstRecipeAllergenInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} LabelValidationAgainstRecipeAllergenFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: LabelValidationAgainstRecipeAllergenFinding[] }} LabelValidationAgainstRecipeAllergenResult\n */\n\n/**\n * Evaluate one input against the label validation against recipe allergens, claims, net policy.\n * @param {LabelValidationAgainstRecipeAllergenInput} input\n * @returns {LabelValidationAgainstRecipeAllergenResult}\n */\nexport function evaluateLabelValidationAgainstRecipeAllergen(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"label-validation-against-recipe-allergen/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"label-validation-against-recipe-allergen/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/label-validation-against-recipe-allergen.test.mjs",
@@ -999,7 +999,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Label validation against recipe allergens, claims, net quantity, and\": src/label-validation-against-recipe-allergen.mjs, test/label-validation-against-recipe-allergen.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Label validation against recipe allergens, claims, net\": src/label-validation-against-recipe-allergen.mjs, test/label-validation-against-recipe-allergen.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				},
 				{
@@ -1023,7 +1023,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Addressed the review feedback on \"Label validation against recipe allergens, claims, net quantity, and\" and re-ran the tests. Task complete."
+						"content": "Addressed the review feedback on \"Label validation against recipe allergens, claims, net\" and re-ran the tests. Task complete."
 					}
 				}
 			],
@@ -1033,7 +1033,7 @@
 		{
 			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Label validation against recipe allergens, claims, net quantity, and\"",
+			"userMessageIncludes": "the card \"Label validation against recipe allergens, claims, net\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1043,8 +1043,8 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "request_changes",
-									"summary": "\"Label validation against recipe allergens, claims, net quantity, and\" is close but ships a gap the card explicitly owns.",
-									"feedback": "The evaluate module for \"Label validation against recipe allergens, claims, net quantity, and\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
+									"summary": "\"Label validation against recipe allergens, claims, net\" is close but ships a gap the card explicitly owns.",
+									"feedback": "The evaluate module for \"Label validation against recipe allergens, claims, net\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
 								}
 							}
 						]
@@ -1058,7 +1058,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Label validation against recipe allergens, claims, net quantity, and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Label validation against recipe allergens, claims, net\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1104,7 +1104,7 @@
 									"files": [
 										{
 											"path": "src/sanitation-scheduling-and-line-clearance.mjs",
-											"content": "/**\n * Sanitation scheduling and line-clearance checks before allergen changeovers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SanitationSchedulingAndLineClearanceInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SanitationSchedulingAndLineClearanceFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SanitationSchedulingAndLineClearanceFinding[] }} SanitationSchedulingAndLineClearanceResult\n */\n\n/**\n * Evaluate one input against the sanitation scheduling and line-clearance checks before allergen changeovers policy.\n * @param {SanitationSchedulingAndLineClearanceInput} input\n * @returns {SanitationSchedulingAndLineClearanceResult}\n */\nexport function evaluateSanitationSchedulingAndLineClearance(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sanitation-scheduling-and-line-clearance/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Sanitation scheduling and line-clearance checks before\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SanitationSchedulingAndLineClearanceInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SanitationSchedulingAndLineClearanceFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SanitationSchedulingAndLineClearanceFinding[] }} SanitationSchedulingAndLineClearanceResult\n */\n\n/**\n * Evaluate one input against the sanitation scheduling and line-clearance checks before policy.\n * @param {SanitationSchedulingAndLineClearanceInput} input\n * @returns {SanitationSchedulingAndLineClearanceResult}\n */\nexport function evaluateSanitationSchedulingAndLineClearance(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"sanitation-scheduling-and-line-clearance/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"sanitation-scheduling-and-line-clearance/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/sanitation-scheduling-and-line-clearance.test.mjs",
@@ -1134,7 +1134,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Sanitation scheduling and line-clearance checks before allergen changeovers\": src/sanitation-scheduling-and-line-clearance.mjs, test/sanitation-scheduling-and-line-clearance.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Sanitation scheduling and line-clearance checks before\": src/sanitation-scheduling-and-line-clearance.mjs, test/sanitation-scheduling-and-line-clearance.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1144,7 +1144,7 @@
 		{
 			"id": "perfect-review-s07",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Sanitation scheduling and line-clearance checks before allergen changeovers\"",
+			"userMessageIncludes": "the card \"Sanitation scheduling and line-clearance checks before\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1154,7 +1154,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Sanitation scheduling and line-clearance checks before allergen changeovers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Sanitation scheduling and line-clearance checks before\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1200,7 +1200,7 @@
 									"files": [
 										{
 											"path": "src/seed-incident-involving-a-supplier-lot-c.mjs",
-											"content": "/**\n * Seed incident involving a supplier lot contaminant, rework, mislabeled\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedIncidentInvolvingASupplierLotCInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedIncidentInvolvingASupplierLotCFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedIncidentInvolvingASupplierLotCFinding[] }} SeedIncidentInvolvingASupplierLotCResult\n */\n\n/**\n * Evaluate one input against the seed incident involving a supplier lot contaminant, rework, mislabeled policy.\n * @param {SeedIncidentInvolvingASupplierLotCInput} input\n * @returns {SeedIncidentInvolvingASupplierLotCResult}\n */\nexport function evaluateSeedIncidentInvolvingASupplierLotC(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-incident-involving-a-supplier-lot-c/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Seed incident involving a supplier lot contaminant\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} SeedIncidentInvolvingASupplierLotCInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} SeedIncidentInvolvingASupplierLotCFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: SeedIncidentInvolvingASupplierLotCFinding[] }} SeedIncidentInvolvingASupplierLotCResult\n */\n\n/**\n * Evaluate one input against the seed incident involving a supplier lot contaminant policy.\n * @param {SeedIncidentInvolvingASupplierLotCInput} input\n * @returns {SeedIncidentInvolvingASupplierLotCResult}\n */\nexport function evaluateSeedIncidentInvolvingASupplierLotC(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"seed-incident-involving-a-supplier-lot-c/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"seed-incident-involving-a-supplier-lot-c/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/seed-incident-involving-a-supplier-lot-c.test.mjs",
@@ -1230,7 +1230,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Seed incident involving a supplier lot contaminant, rework, mislabeled\": src/seed-incident-involving-a-supplier-lot-c.mjs, test/seed-incident-involving-a-supplier-lot-c.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Seed incident involving a supplier lot contaminant\": src/seed-incident-involving-a-supplier-lot-c.mjs, test/seed-incident-involving-a-supplier-lot-c.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1240,7 +1240,7 @@
 		{
 			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed incident involving a supplier lot contaminant, rework, mislabeled\"",
+			"userMessageIncludes": "the card \"Seed incident involving a supplier lot contaminant\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1250,7 +1250,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Seed incident involving a supplier lot contaminant, rework, mislabeled\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Seed incident involving a supplier lot contaminant\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

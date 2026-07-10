@@ -752,6 +752,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 				const liveNKleinSessions =
 					nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId)?.listSummaries() ?? [];
+				// Double-dispatch guard (live-found 2026-07-10, simulated project-19 run): a STARTED card sits in the
+				// Planning entry lane, so the column check above does not stop repeat auto-starts — each retry then
+				// re-queued the card behind the busy endpoint and the queue ran it AGAIN after the first session
+				// finished (two full worker sessions, second produced an empty duplicate patch → not_reviewable).
+				// An already-active session for the card means there is nothing to start.
+				const activeSessionForTask = liveNKleinSessions.find(
+					(summary) =>
+						summary.taskId === taskId &&
+						(summary.state === "running" || summary.state === "queued" || summary.state === "awaiting_review"),
+				);
+				if (activeSessionForTask) {
+					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					continue;
+				}
 				const sessions = {
 					...state.sessions,
 					...Object.fromEntries(liveNKleinSessions.map((summary) => [summary.taskId, summary])),

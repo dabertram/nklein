@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (organization, user, group, project, repository, branch, commit metadata, merge). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (organization, user, group, project, repository, branch). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,8 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "Repository abstraction that can ingest deterministic commit graphs and",
-											"prompt": "Repository abstraction that can ingest deterministic commit graphs and. Implement the foundation for: Repository abstraction that can ingest deterministic commit graphs and branch refs from fixtures without implementing the full Git protocol immediately. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/repository-abstraction-that-can-ingest-d.mjs and test/repository-abstraction-that-can-ingest-d.test.mjs.",
+											"title": "Repository abstraction that can ingest deterministic",
+											"prompt": "Repository abstraction that can ingest deterministic. Implement the foundation for: Repository abstraction that can ingest deterministic commit graphs and branch refs from fixtures without implementing the full Git protocol immediately. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/repository-abstraction-that-can-ingest-d.mjs and test/repository-abstraction-that-can-ingest-d.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,8 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Repository abstraction that can ingest deterministic commit graphs and — core engine",
-											"prompt": "Repository abstraction that can ingest deterministic commit graphs and — core engine. Extend the repository abstraction that can ingest deterministic commit graphs and module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/repository-abstraction-that-can-ingest-d-2.mjs and test/repository-abstraction-that-can-ingest-d-2.test.mjs.",
+											"title": "Repository abstraction that can ingest deterministic — core engine",
+											"prompt": "Repository abstraction that can ingest deterministic — core engine. Extend the repository abstraction that can ingest deterministic module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/repository-abstraction-that-can-ingest-d-2.mjs and test/repository-abstraction-that-can-ingest-d-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,8 +81,23 @@
 										},
 										{
 											"id": "s04",
-											"title": "Merge request workflow with draft state, discussion threads, approvals",
-											"prompt": "Merge request workflow with draft state, discussion threads, approvals. Implement the foundation for: Merge request workflow with draft state, discussion threads, approvals, required reviewers, branch protection, conflict status, and merge train queue. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/merge-request-workflow-with-draft-state.mjs and test/merge-request-workflow-with-draft-state.test.mjs.",
+											"title": "Repository abstraction that can ingest deterministic — edge cases",
+											"prompt": "Repository abstraction that can ingest deterministic — edge cases. Extend the repository abstraction that can ingest deterministic module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/repository-abstraction-that-can-ingest-d-3.mjs and test/repository-abstraction-that-can-ingest-d-3.test.mjs.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/repository-abstraction-that-can-ingest-d-3.mjs",
+												"test/repository-abstraction-that-can-ingest-d-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Merge request workflow with draft state, discussion",
+											"prompt": "Merge request workflow with draft state, discussion. Implement the foundation for: Merge request workflow with draft state, discussion threads, approvals, required reviewers, branch protection, conflict status, and merge train queue. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/merge-request-workflow-with-draft-state.mjs and test/merge-request-workflow-with-draft-state.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -95,11 +110,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Merge request workflow with draft state, discussion threads, approvals — core engine",
-											"prompt": "Merge request workflow with draft state, discussion threads, approvals — core engine. Extend the merge request workflow with draft state, discussion threads, approvals module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/merge-request-workflow-with-draft-state-2.mjs and test/merge-request-workflow-with-draft-state-2.test.mjs.",
+											"id": "s06",
+											"title": "Merge request workflow with draft state, discussion — core engine",
+											"prompt": "Merge request workflow with draft state, discussion — core engine. Extend the merge request workflow with draft state, discussion module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/merge-request-workflow-with-draft-state-2.mjs and test/merge-request-workflow-with-draft-state-2.test.mjs.",
 											"dependsOn": [
-												"s04"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -110,9 +125,24 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "CI pipeline compiler for a constrained YAML-like fixture format",
-											"prompt": "CI pipeline compiler for a constrained YAML-like fixture format. Implement the foundation for: CI pipeline compiler for a constrained YAML-like fixture format with stages, jobs, needs, variables, artifacts, cache keys, environments, and manual gates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y.mjs and test/ci-pipeline-compiler-for-a-constrained-y.test.mjs.",
+											"id": "s07",
+											"title": "Merge request workflow with draft state, discussion — edge cases",
+											"prompt": "Merge request workflow with draft state, discussion — edge cases. Extend the merge request workflow with draft state, discussion module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/merge-request-workflow-with-draft-state-3.mjs and test/merge-request-workflow-with-draft-state-3.test.mjs.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/merge-request-workflow-with-draft-state-3.mjs",
+												"test/merge-request-workflow-with-draft-state-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "CI pipeline compiler for a constrained YAML-like fixture",
+											"prompt": "CI pipeline compiler for a constrained YAML-like fixture. Implement the foundation for: CI pipeline compiler for a constrained YAML-like fixture format with stages, jobs, needs, variables, artifacts, cache keys, environments, and manual gates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y.mjs and test/ci-pipeline-compiler-for-a-constrained-y.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -125,46 +155,16 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
-											"title": "CI pipeline compiler for a constrained YAML-like fixture format — core engine",
-											"prompt": "CI pipeline compiler for a constrained YAML-like fixture format — core engine. Extend the ci pipeline compiler for a constrained yaml-like fixture format module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y-2.mjs and test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs.",
-											"dependsOn": [
-												"s06"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
-												"test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
-											"title": "Runner scheduler that matches jobs to tags, capacity, isolation",
-											"prompt": "Runner scheduler that matches jobs to tags, capacity, isolation. Implement the foundation for: Runner scheduler that matches jobs to tags, capacity, isolation level, secrets policy, and concurrency limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta.mjs and test/runner-scheduler-that-matches-jobs-to-ta.test.mjs.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/runner-scheduler-that-matches-jobs-to-ta.mjs",
-												"test/runner-scheduler-that-matches-jobs-to-ta.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
 											"id": "s09",
-											"title": "Runner scheduler that matches jobs to tags, capacity, isolation — core engine",
-											"prompt": "Runner scheduler that matches jobs to tags, capacity, isolation — core engine. Extend the runner scheduler that matches jobs to tags, capacity, isolation module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta-2.mjs and test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs.",
+											"title": "CI pipeline compiler for a constrained YAML-like fixture — core engine",
+											"prompt": "CI pipeline compiler for a constrained YAML-like fixture — core engine. Extend the ci pipeline compiler for a constrained yaml-like fixture module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y-2.mjs and test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs.",
 											"dependsOn": [
 												"s08"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
-												"src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
-												"test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs"
+												"src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
+												"test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -409,7 +409,7 @@
 									"files": [
 										{
 											"path": "src/repository-abstraction-that-can-ingest-d.mjs",
-											"content": "/**\n * Repository abstraction that can ingest deterministic commit graphs and\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestDInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestDFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestDFinding[] }} RepositoryAbstractionThatCanIngestDResult\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic commit graphs and policy.\n * @param {RepositoryAbstractionThatCanIngestDInput} input\n * @returns {RepositoryAbstractionThatCanIngestDResult}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Repository abstraction that can ingest deterministic\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestDInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestDFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestDFinding[] }} RepositoryAbstractionThatCanIngestDResult\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic policy.\n * @param {RepositoryAbstractionThatCanIngestDInput} input\n * @returns {RepositoryAbstractionThatCanIngestDResult}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/repository-abstraction-that-can-ingest-d.test.mjs",
@@ -439,7 +439,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Repository abstraction that can ingest deterministic commit graphs and\": src/repository-abstraction-that-can-ingest-d.mjs, test/repository-abstraction-that-can-ingest-d.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Repository abstraction that can ingest deterministic\": src/repository-abstraction-that-can-ingest-d.mjs, test/repository-abstraction-that-can-ingest-d.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -449,7 +449,7 @@
 		{
 			"id": "perfect-review-s02",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic commit graphs and\"",
+			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic\"",
 			"turns": [
 				{
 					"behavior": {
@@ -459,7 +459,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Repository abstraction that can ingest deterministic commit graphs and\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Repository abstraction that can ingest deterministic\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -510,7 +510,7 @@
 									"files": [
 										{
 											"path": "src/repository-abstraction-that-can-ingest-d-2.mjs",
-											"content": "/**\n * Repository abstraction that can ingest deterministic commit graphs and — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestD2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestD2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestD2Finding[] }} RepositoryAbstractionThatCanIngestD2Result\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic commit graphs and — core engine policy.\n * @param {RepositoryAbstractionThatCanIngestD2Input} input\n * @returns {RepositoryAbstractionThatCanIngestD2Result}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Repository abstraction that can ingest deterministic — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestD2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestD2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestD2Finding[] }} RepositoryAbstractionThatCanIngestD2Result\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic — core engine policy.\n * @param {RepositoryAbstractionThatCanIngestD2Input} input\n * @returns {RepositoryAbstractionThatCanIngestD2Result}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/repository-abstraction-that-can-ingest-d-2.test.mjs",
@@ -540,7 +540,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Repository abstraction that can ingest deterministic commit graphs and — core engine\": src/repository-abstraction-that-can-ingest-d-2.mjs, test/repository-abstraction-that-can-ingest-d-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Repository abstraction that can ingest deterministic — core engine\": src/repository-abstraction-that-can-ingest-d-2.mjs, test/repository-abstraction-that-can-ingest-d-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -550,7 +550,7 @@
 		{
 			"id": "perfect-review-s03",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic commit graphs and — core engine\"",
+			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -560,7 +560,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Repository abstraction that can ingest deterministic commit graphs and — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Repository abstraction that can ingest deterministic — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -579,13 +579,13 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/merge-request-workflow-with-draft-state.mjs",
+			"userMessageIncludes": "Files for THIS card: src/repository-abstraction-that-can-ingest-d-3.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Merge request workflow with draft state, discussion threads, approvals\" step by step before writing files…"
+						"reasoning": "Thinking through \"Repository abstraction that can ingest deterministic — edge cases\" step by step before writing files…"
 					}
 				},
 				{
@@ -612,12 +612,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/merge-request-workflow-with-draft-state.mjs",
-											"content": "/**\n * Merge request workflow with draft state, discussion threads, approvals\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftStateInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftStateFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftStateFinding[] }} MergeRequestWorkflowWithDraftStateResult\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion threads, approvals policy.\n * @param {MergeRequestWorkflowWithDraftStateInput} input\n * @returns {MergeRequestWorkflowWithDraftStateResult}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/repository-abstraction-that-can-ingest-d-3.mjs",
+											"content": "/**\n * Repository abstraction that can ingest deterministic — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestD3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestD3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestD3Finding[] }} RepositoryAbstractionThatCanIngestD3Result\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic — edge cases policy.\n * @param {RepositoryAbstractionThatCanIngestD3Input} input\n * @returns {RepositoryAbstractionThatCanIngestD3Result}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/merge-request-workflow-with-draft-state.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMergeRequestWorkflowWithDraftState } from \"../src/merge-request-workflow-with-draft-state.mjs\";\n\ntest(\"merge-request-workflow-with-draft-state: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"merge-request-workflow-with-draft-state: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/repository-abstraction-that-can-ingest-d-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRepositoryAbstractionThatCanIngestD3 } from \"../src/repository-abstraction-that-can-ingest-d-3.mjs\";\n\ntest(\"repository-abstraction-that-can-ingest-d-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRepositoryAbstractionThatCanIngestD3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"repository-abstraction-that-can-ingest-d-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRepositoryAbstractionThatCanIngestD3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -643,7 +643,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Merge request workflow with draft state, discussion threads, approvals\": src/merge-request-workflow-with-draft-state.mjs, test/merge-request-workflow-with-draft-state.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Repository abstraction that can ingest deterministic — edge cases\": src/repository-abstraction-that-can-ingest-d-3.mjs, test/repository-abstraction-that-can-ingest-d-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -653,7 +653,7 @@
 		{
 			"id": "perfect-review-s04",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion threads, approvals\"",
+			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic — edge cases\"",
 			"turns": [
 				{
 					"behavior": {
@@ -663,7 +663,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Merge request workflow with draft state, discussion threads, approvals\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Repository abstraction that can ingest deterministic — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -682,7 +682,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/merge-request-workflow-with-draft-state-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/merge-request-workflow-with-draft-state.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -714,8 +714,117 @@
 								"arguments": {
 									"files": [
 										{
+											"path": "src/merge-request-workflow-with-draft-state.mjs",
+											"content": "/**\n * Merge request workflow with draft state, discussion\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftStateInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftStateFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftStateFinding[] }} MergeRequestWorkflowWithDraftStateResult\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion policy.\n * @param {MergeRequestWorkflowWithDraftStateInput} input\n * @returns {MergeRequestWorkflowWithDraftStateResult}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/merge-request-workflow-with-draft-state.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMergeRequestWorkflowWithDraftState } from \"../src/merge-request-workflow-with-draft-state.mjs\";\n\ntest(\"merge-request-workflow-with-draft-state: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"merge-request-workflow-with-draft-state: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Merge request workflow with draft state, discussion\": src/merge-request-workflow-with-draft-state.mjs, test/merge-request-workflow-with-draft-state.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Merge request workflow with draft state, discussion\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/merge-request-workflow-with-draft-state-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/merge-request-workflow-with-draft-state-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
 											"path": "src/merge-request-workflow-with-draft-state-2.mjs",
-											"content": "/**\n * Merge request workflow with draft state, discussion threads, approvals — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftState2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftState2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftState2Finding[] }} MergeRequestWorkflowWithDraftState2Result\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion threads, approvals — core engine policy.\n * @param {MergeRequestWorkflowWithDraftState2Input} input\n * @returns {MergeRequestWorkflowWithDraftState2Result}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Merge request workflow with draft state, discussion — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftState2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftState2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftState2Finding[] }} MergeRequestWorkflowWithDraftState2Result\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion — core engine policy.\n * @param {MergeRequestWorkflowWithDraftState2Input} input\n * @returns {MergeRequestWorkflowWithDraftState2Result}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/merge-request-workflow-with-draft-state-2.test.mjs",
@@ -745,17 +854,17 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Merge request workflow with draft state, discussion threads, approvals — core engine\": src/merge-request-workflow-with-draft-state-2.mjs, test/merge-request-workflow-with-draft-state-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Merge request workflow with draft state, discussion — core engine\": src/merge-request-workflow-with-draft-state-2.mjs, test/merge-request-workflow-with-draft-state-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion threads, approvals — core engine\"",
+			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -765,7 +874,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Merge request workflow with draft state, discussion threads, approvals — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Merge request workflow with draft state, discussion — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -782,10 +891,25 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s06",
+			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y.mjs",
+			"userMessageIncludes": "Files for THIS card: src/merge-request-workflow-with-draft-state-3.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -793,12 +917,80 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": "[{\"path\":\"src/ci-pipeline-compiler-for-a-constrained-y.mjs\",\"content\":\"export const truncated = "
+									"files": [
+										{
+											"path": "src/merge-request-workflow-with-draft-state-3.mjs",
+											"content": "/**\n * Merge request workflow with draft state, discussion — edge cases\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftState3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftState3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftState3Finding[] }} MergeRequestWorkflowWithDraftState3Result\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion — edge cases policy.\n * @param {MergeRequestWorkflowWithDraftState3Input} input\n * @returns {MergeRequestWorkflowWithDraftState3Result}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/merge-request-workflow-with-draft-state-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMergeRequestWorkflowWithDraftState3 } from \"../src/merge-request-workflow-with-draft-state-3.mjs\";\n\ntest(\"merge-request-workflow-with-draft-state-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"merge-request-workflow-with-draft-state-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
 								}
 							}
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Merge request workflow with draft state, discussion — edge cases\": src/merge-request-workflow-with-draft-state-3.mjs, test/merge-request-workflow-with-draft-state-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion — edge cases\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Merge request workflow with draft state, discussion — edge cases\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y.mjs",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -824,7 +1016,7 @@
 									"files": [
 										{
 											"path": "src/ci-pipeline-compiler-for-a-constrained-y.mjs",
-											"content": "/**\n * CI pipeline compiler for a constrained YAML-like fixture format\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CiPipelineCompilerForAConstrainedYInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CiPipelineCompilerForAConstrainedYFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CiPipelineCompilerForAConstrainedYFinding[] }} CiPipelineCompilerForAConstrainedYResult\n */\n\n/**\n * Evaluate one input against the ci pipeline compiler for a constrained yaml-like fixture format policy.\n * @param {CiPipelineCompilerForAConstrainedYInput} input\n * @returns {CiPipelineCompilerForAConstrainedYResult}\n */\nexport function evaluateCiPipelineCompilerForAConstrainedY(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ci-pipeline-compiler-for-a-constrained-y/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * CI pipeline compiler for a constrained YAML-like fixture\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CiPipelineCompilerForAConstrainedYInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CiPipelineCompilerForAConstrainedYFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CiPipelineCompilerForAConstrainedYFinding[] }} CiPipelineCompilerForAConstrainedYResult\n */\n\n/**\n * Evaluate one input against the ci pipeline compiler for a constrained yaml-like fixture policy.\n * @param {CiPipelineCompilerForAConstrainedYInput} input\n * @returns {CiPipelineCompilerForAConstrainedYResult}\n */\nexport function evaluateCiPipelineCompilerForAConstrainedY(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ci-pipeline-compiler-for-a-constrained-y/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/ci-pipeline-compiler-for-a-constrained-y.test.mjs",
@@ -854,17 +1046,17 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"CI pipeline compiler for a constrained YAML-like fixture format\": src/ci-pipeline-compiler-for-a-constrained-y.mjs, test/ci-pipeline-compiler-for-a-constrained-y.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"CI pipeline compiler for a constrained YAML-like fixture\": src/ci-pipeline-compiler-for-a-constrained-y.mjs, test/ci-pipeline-compiler-for-a-constrained-y.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "perfect-review-s08",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture format\"",
+			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture\"",
 			"turns": [
 				{
 					"behavior": {
@@ -874,7 +1066,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"CI pipeline compiler for a constrained YAML-like fixture format\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"CI pipeline compiler for a constrained YAML-like fixture\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -891,7 +1083,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s07",
+			"id": "perfect-worker-s09",
 			"requestClass": "worker",
 			"userMessageIncludes": "Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
 			"turns": [
@@ -920,7 +1112,7 @@
 									"files": [
 										{
 											"path": "src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
-											"content": "/**\n * CI pipeline compiler for a constrained YAML-like fixture format — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CiPipelineCompilerForAConstrainedY2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CiPipelineCompilerForAConstrainedY2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CiPipelineCompilerForAConstrainedY2Finding[] }} CiPipelineCompilerForAConstrainedY2Result\n */\n\n/**\n * Evaluate one input against the ci pipeline compiler for a constrained yaml-like fixture format — core engine policy.\n * @param {CiPipelineCompilerForAConstrainedY2Input} input\n * @returns {CiPipelineCompilerForAConstrainedY2Result}\n */\nexport function evaluateCiPipelineCompilerForAConstrainedY2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ci-pipeline-compiler-for-a-constrained-y-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * CI pipeline compiler for a constrained YAML-like fixture — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CiPipelineCompilerForAConstrainedY2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CiPipelineCompilerForAConstrainedY2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CiPipelineCompilerForAConstrainedY2Finding[] }} CiPipelineCompilerForAConstrainedY2Result\n */\n\n/**\n * Evaluate one input against the ci pipeline compiler for a constrained yaml-like fixture — core engine policy.\n * @param {CiPipelineCompilerForAConstrainedY2Input} input\n * @returns {CiPipelineCompilerForAConstrainedY2Result}\n */\nexport function evaluateCiPipelineCompilerForAConstrainedY2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"ci-pipeline-compiler-for-a-constrained-y-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"ci-pipeline-compiler-for-a-constrained-y-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs",
@@ -950,199 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"CI pipeline compiler for a constrained YAML-like fixture format — core engine\": src/ci-pipeline-compiler-for-a-constrained-y-2.mjs, test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture format — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"CI pipeline compiler for a constrained YAML-like fixture format — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/runner-scheduler-that-matches-jobs-to-ta.mjs",
-											"content": "/**\n * Runner scheduler that matches jobs to tags, capacity, isolation\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RunnerSchedulerThatMatchesJobsToTaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RunnerSchedulerThatMatchesJobsToTaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RunnerSchedulerThatMatchesJobsToTaFinding[] }} RunnerSchedulerThatMatchesJobsToTaResult\n */\n\n/**\n * Evaluate one input against the runner scheduler that matches jobs to tags, capacity, isolation policy.\n * @param {RunnerSchedulerThatMatchesJobsToTaInput} input\n * @returns {RunnerSchedulerThatMatchesJobsToTaResult}\n */\nexport function evaluateRunnerSchedulerThatMatchesJobsToTa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"runner-scheduler-that-matches-jobs-to-ta/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/runner-scheduler-that-matches-jobs-to-ta.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRunnerSchedulerThatMatchesJobsToTa } from \"../src/runner-scheduler-that-matches-jobs-to-ta.mjs\";\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Runner scheduler that matches jobs to tags, capacity, isolation\": src/runner-scheduler-that-matches-jobs-to-ta.mjs, test/runner-scheduler-that-matches-jobs-to-ta.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s08",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Runner scheduler that matches jobs to tags, capacity, isolation\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Runner scheduler that matches jobs to tags, capacity, isolation\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s09",
-			"requestClass": "worker",
-			"userMessageIncludes": "Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
-											"content": "/**\n * Runner scheduler that matches jobs to tags, capacity, isolation — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RunnerSchedulerThatMatchesJobsToTa2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RunnerSchedulerThatMatchesJobsToTa2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RunnerSchedulerThatMatchesJobsToTa2Finding[] }} RunnerSchedulerThatMatchesJobsToTa2Result\n */\n\n/**\n * Evaluate one input against the runner scheduler that matches jobs to tags, capacity, isolation — core engine policy.\n * @param {RunnerSchedulerThatMatchesJobsToTa2Input} input\n * @returns {RunnerSchedulerThatMatchesJobsToTa2Result}\n */\nexport function evaluateRunnerSchedulerThatMatchesJobsToTa2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"runner-scheduler-that-matches-jobs-to-ta-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRunnerSchedulerThatMatchesJobsToTa2 } from \"../src/runner-scheduler-that-matches-jobs-to-ta-2.mjs\";\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\": src/runner-scheduler-that-matches-jobs-to-ta-2.mjs, test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"CI pipeline compiler for a constrained YAML-like fixture — core engine\": src/ci-pipeline-compiler-for-a-constrained-y-2.mjs, test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\"",
+			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture — core engine\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"CI pipeline compiler for a constrained YAML-like fixture — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
