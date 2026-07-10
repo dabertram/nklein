@@ -1281,6 +1281,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					// The reviewer's turns just freed the endpoint. A DELIVERED review drains via the completion path
+					// below, but a bounced/parked/skipped one does NOT complete the card — so a sibling card queued
+					// behind the busy review endpoint would wait out its full exponential backoff (fleet
+					// under-utilization mechanism #2, todo 11007). Force-drain now so the freed slot is reused at once.
+					drainQueuedTaskStarts(scope, { force: true });
 					// §5.AW arbitration: when the reviewer compared candidates A/B and preferred the SPECULATIVE
 					// one, every delivery step below (acceptance evidence, protected-path scan, the merge itself)
 					// must target the ::spec result branch while all board bookkeeping stays on the card id. The
@@ -1764,6 +1769,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const scheduledTaskStartQueue: RuntimeTaskStartQueue = {
 		enqueue(input) {
 			const queued = taskStartQueue.enqueue(input);
+			if (queued.exhausted) {
+				// Endpoint-busy re-queue exhausted (todo 11007): DON'T re-arm a drain — the entry is already dropped.
+				// The card stops reading as queued-forever; the board-liveness watchdog picks it up as a
+				// startable-unstarted card (or leaves it for the operator if the endpoint is genuinely dead).
+				deps.warn(
+					`Task ${input.request.taskId} exhausted its endpoint-busy retry budget (${queued.attempts} attempts) for ${input.workspaceScope.workspacePath}; dropped from the start queue for the liveness watchdog to re-evaluate.`,
+				);
+				return queued;
+			}
 			scheduleQueuedTaskStartDrain(
 				queued.workspaceScope,
 				Math.max(0, queued.nextAttemptAt - (input.now ?? Date.now())),
@@ -2248,10 +2262,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								warn: deps.warn,
 								onRedecomposeCardSpawned: (redecomposeTaskId) =>
 									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
-							}).catch((error) => {
-								const message = error instanceof Error ? error.message : String(error);
-								deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
-							});
+							})
+								.catch((error) => {
+									const message = error instanceof Error ? error.message : String(error);
+									deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
+								})
+								.finally(() => {
+									// The opportunistic review freed the endpoint — reuse the slot immediately (todo 11007).
+									drainQueuedTaskStarts(scope, { force: true });
+								});
 						} catch {
 							// Opportunistic — must never crash the runtime.
 						}

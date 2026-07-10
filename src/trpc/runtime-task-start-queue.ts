@@ -10,7 +10,16 @@ export interface QueuedRuntimeTaskStart {
 	nextAttemptAt: number;
 	attempts: number;
 	lastError: string | null;
+	/**
+	 * Set true on the entry RETURNED by `enqueue` when it has exhausted `maxAttempts` — it is NOT stored back in the
+	 * queue (endless endpoint-busy re-queue is bounded; todo 11007 ask #2). The caller drops it so the card stops
+	 * reading as queued-forever and falls to the board-liveness watchdog / operator instead. Never persisted.
+	 */
+	exhausted?: boolean;
 }
+
+/** Bound on endpoint-busy re-queue attempts before a start is dropped as exhausted (with the 30s backoff cap, ~25min). */
+export const DEFAULT_MAX_QUEUED_START_ATTEMPTS = 50;
 
 export interface RuntimeTaskStartQueue {
 	enqueue(input: {
@@ -53,7 +62,10 @@ function createQueueKey(workspaceId: string, taskId: string): string {
 export function createRuntimeTaskStartQueue(options?: {
 	/** Fired with a fresh snapshot after every mutation that changes the queue — for durable persistence. */
 	onChange?: (entries: QueuedRuntimeTaskStart[]) => void;
+	/** Endpoint-busy re-queue attempts before a start is dropped as exhausted. Default {@link DEFAULT_MAX_QUEUED_START_ATTEMPTS}. */
+	maxAttempts?: number;
 }): RuntimeTaskStartQueue {
+	const maxAttempts = Math.max(1, Math.trunc(options?.maxAttempts ?? DEFAULT_MAX_QUEUED_START_ATTEMPTS));
 	const queuedByKey = new Map<string, QueuedRuntimeTaskStart>();
 	const buildSnapshot = (): QueuedRuntimeTaskStart[] =>
 		[...queuedByKey.values()].map((queued) => ({
@@ -76,6 +88,24 @@ export function createRuntimeTaskStartQueue(options?: {
 			// full start pipeline dozens of times per second against a still-busy endpoint (live run20). Completion
 			// events force-drain past this pacing, so a freed slot is still picked up immediately.
 			const attemptsSoFar = existing?.attempts ?? 0;
+			const nextAttempts = attemptsSoFar + 1;
+			// Bound the endpoint-busy re-queue (todo 11007 ask #2): past maxAttempts, DROP the entry instead of
+			// re-storing it, and return it flagged `exhausted` so the caller stops re-queueing and hands the card
+			// to the board-liveness watchdog / operator. Otherwise a permanently-busy endpoint queues a card forever.
+			if (nextAttempts > maxAttempts) {
+				if (queuedByKey.delete(key)) {
+					emitChange();
+				}
+				return {
+					workspaceScope: cloneWorkspaceScope(input.workspaceScope),
+					input: cloneQueuedRequest(input.request),
+					queuedAt: existing?.queuedAt ?? now,
+					nextAttemptAt: now,
+					attempts: nextAttempts,
+					lastError: input.error ?? existing?.lastError ?? null,
+					exhausted: true,
+				};
+			}
 			const fallbackDelayMs = Math.min(2_000 * 2 ** attemptsSoFar, 30_000);
 			const delayMs =
 				typeof input.delayMs === "number" && Number.isFinite(input.delayMs) && input.delayMs > 0
@@ -86,7 +116,7 @@ export function createRuntimeTaskStartQueue(options?: {
 				input: cloneQueuedRequest(input.request),
 				queuedAt: existing?.queuedAt ?? now,
 				nextAttemptAt: now + delayMs,
-				attempts: (existing?.attempts ?? 0) + 1,
+				attempts: nextAttempts,
 				lastError: input.error ?? existing?.lastError ?? null,
 			};
 			queuedByKey.set(key, queued);

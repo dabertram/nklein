@@ -203,4 +203,24 @@ describe("enqueue paced backoff (run20 live finding)", () => {
 		}
 		expect(last.nextAttemptAt).toBe(80_000);
 	});
+
+	it("drops a start as exhausted after maxAttempts endpoint-busy re-queues (todo 11007)", () => {
+		const queue = createRuntimeTaskStartQueue({ maxAttempts: 3 });
+		const workspaceScope = { workspaceId: "ws", workspacePath: "/repo/ws" };
+		const request = { taskId: "busy-card", prompt: "go", baseRef: "main" };
+		let last = queue.enqueue({ workspaceScope, request, now: 1_000 });
+		expect(last.attempts).toBe(1);
+		expect(last.exhausted).toBeFalsy();
+		last = queue.enqueue({ workspaceScope, request, now: 2_000 });
+		expect(last.attempts).toBe(2);
+		last = queue.enqueue({ workspaceScope, request, now: 3_000 });
+		expect(last.attempts).toBe(3);
+		expect(last.exhausted).toBeFalsy();
+		expect(queue.size("ws")).toBe(1);
+		// The 4th enqueue exceeds maxAttempts(3): the entry is dropped and flagged exhausted.
+		last = queue.enqueue({ workspaceScope, request, now: 4_000 });
+		expect(last.exhausted).toBe(true);
+		expect(last.attempts).toBe(4);
+		expect(queue.size("ws")).toBe(0);
+	});
 });

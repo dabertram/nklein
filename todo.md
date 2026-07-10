@@ -11019,13 +11019,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
       from the lm-link work? role pinning to the configured-but-absent legion worker?). This serializes the swarm.
 
-- [ ] **Endpoint-busy queue: cut the retry backoff short on session completion (fleet under-utilization mechanism #2,
-      live-found 2026-07-10 on the simulated stack).** With one model serving a cascade, a queued auto-start
-      ("queued behind a busy endpoint (retry in ~23s)") waits out its FULL backoff even after the busy session
-      finished — observed as recurring 0-running windows (~20s idle gaps) between cards on a 41-card simulated
-      project. Wire the queued-start drain to session-completion/review-completion events (force drain, like the
-      decompose-completion path already does) or shorten/adaptive-backoff. Also confirm a queued session whose
-      retries exhaust transitions to a terminal state (it reads as "alive" to the watchdog + sweeps while queued).
+- [x] **Endpoint-busy queue: cut the retry backoff short on session completion (fleet under-utilization mechanism #2)** —
+      FIXED (2026-07-10). Investigation corrected the original observation: WORKER turn-releases already force-drain
+      the queue (runtime-server admission gate `finally`), and the ~20s gaps I filed were the watchable-pacing
+      latency, not a backoff bug. The REAL gaps were two: (1) a REVIEW that ends bounced/parked/skipped freed the
+      endpoint but did NOT drain (only the delivered-review completion path did) — added a force-drain right after
+      every `runSecondOpinionReviewForTask` (both the completion-flow call site and the opportunistic idle-review
+      one), so a sibling card queued behind a busy reviewer starts at once; (2) the start queue re-queued an
+      endpoint-busy start FOREVER (exponential backoff, 30s cap, no attempt bound) — added
+      `DEFAULT_MAX_QUEUED_START_ATTEMPTS=50`: past the bound `enqueue` DROPS the entry and returns it flagged
+      `exhausted`, the caller stops re-arming a drain + warns, and the card falls to the board-liveness watchdog
+      (startable-unstarted sweep) / operator instead of reading as queued-forever. 9 queue tests (incl. the new
+      exhaustion case) + 8869 fast tests green.
 
 ## 13. LLM simulator + mocked full-flow e2e layer (David 2026-07-10 — ACTIVE NEXT STEP)
 - [ ] **"LLM simulator": a sophisticated local LLM response simulator + a new e2e test layer that walks COMPLETE
