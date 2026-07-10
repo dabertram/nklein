@@ -160,14 +160,39 @@ export function ActivityMapView({
 						<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--color-accent-2)" fillOpacity="0.5" />
 					</marker>
 				</defs>
-				{clusterGeometry.map(({ cluster, cx, cy, haloRadius }) => {
-					// Anchor the caption to the halo's top-left, but CLAMP it into the canvas: a big halo (up to 230px
+				{(() => {
+					// Anchor each caption to its halo's top-left, but CLAMP it into the canvas: a big halo (up to 230px
 					// radius) reaches above y=0, and an un-clamped caption rendered off-screen — the whole cluster went
 					// nameless (live-found 2026-07-10, the 18-card stream's title sat at y≈-8). Keep both lines together.
-					const labelX = Math.max(8, cx - haloRadius * 0.7);
-					const labelY = Math.max(14, cy - haloRadius - 8);
-					return (
+					const captions = clusterGeometry.map((geometry) => ({
+						...geometry,
+						labelX: Math.max(8, geometry.cx - geometry.haloRadius * 0.7),
+						labelY: Math.max(14, geometry.cy - geometry.haloRadius - 8),
+					}));
+					// Collision guard: on a narrow canvas SEVERAL halos overflow the top, so their captions all clamp
+					// onto the same line and overprint (live-found 2026-07-10 at ~800px: "…SAFETY AND COMB" ran into
+					// "UNPLANNED"). Bound each caption to end before the next caption sharing its line, else the edge.
+					const CAPTION_CHAR_PX = 7.2; // ≈ 11px uppercase + tracking-wider
+					const fitted = captions.map((caption) => {
+						const nextOnLine = captions
+							.filter(
+								(other) =>
+									other !== caption &&
+									other.labelX > caption.labelX &&
+									Math.abs(other.labelY - caption.labelY) < 30,
+							)
+							.reduce((closest, other) => Math.min(closest, other.labelX), width - 8);
+						const maxChars = Math.max(6, Math.floor((nextOnLine - caption.labelX - 10) / CAPTION_CHAR_PX));
+						const label =
+							caption.cluster.label.length > maxChars
+								? `${caption.cluster.label.slice(0, Math.max(1, maxChars - 1))}…`
+								: caption.cluster.label;
+						return { ...caption, fittedLabel: label };
+					});
+					return fitted.map(({ cluster, cx, cy, haloRadius, labelX, labelY, fittedLabel }) => (
 						<g key={cluster.id} onClick={() => onZoomToStream(cluster.id)} className="cursor-pointer">
+							{/* Full stream name on hover — the caption may be truncated to its slot. */}
+							<title>{cluster.label}</title>
 							<circle
 								cx={cx}
 								cy={cy}
@@ -180,15 +205,15 @@ export function ActivityMapView({
 								y={labelY}
 								className="fill-text-tertiary text-[11px] font-semibold uppercase tracking-wider"
 							>
-								{cluster.label}
+								{fittedLabel}
 							</text>
 							<text x={labelX} y={labelY + 15} className="fill-text-tertiary text-[10px]">
 								{cluster.runningCount > 0 ? `${cluster.runningCount} running · ` : ""}
 								{cluster.bubbles.length} card{cluster.bubbles.length === 1 ? "" : "s"}
 							</text>
 						</g>
-					);
-				})}
+					));
+				})()}
 				{map.edges.map((edge) => {
 					// EXECUTION-ORDER flow (David 2026-07-10): `fromCardId` DEPENDS ON `toCardId`, so the arrow runs
 					// blocker → dependent — it points at what runs next (time flow), not at the dependency target.
