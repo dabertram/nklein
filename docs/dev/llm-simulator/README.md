@@ -19,6 +19,7 @@ LLM compute. Research trail: [existing-solutions.md](existing-solutions.md) (bui
 | ≥3-model swarm role-routing verification (todo §5 ★) | `… NKLEIN_SIMFLOW_MULTI_MODEL=1 …` |
 | Per-machine pools plumbing (fake `lms` two-machine feed) | `… NKLEIN_SIMFLOW_POOLS=1 …` |
 | Eval-harness repeated-run loop (corpus answer keys as fixtures) | `npx tsx scripts/verify-simulated-eval.mts` |
+| "Evaluate connected models" mutation end-to-end (2 loaded models) | `HOME=$(mktemp -d /tmp/nklein-evalcm-XXXX) npx tsx scripts/verify-evaluate-connected-models.mts` |
 | Regenerate the lower-20 scenario sets from the specs | `npx tsx scripts/generate-scenario-sets.mts [NN…]` |
 | Capture real-LLM traffic (reflection loop, §13d) | `npx tsx scripts/run-record-proxy.mts --upstream http://127.0.0.1:1234 --out captures/<name>` |
 | Distill a capture into scenario tracks | `npx tsx scripts/distill-capture.mts captures/<name>` |

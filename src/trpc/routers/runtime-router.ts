@@ -11,6 +11,7 @@ import {
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
+	runtimeEvaluateConnectedModelsResponseSchema,
 	runtimeExpandNKleinPlanTaskRequestSchema,
 	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
@@ -432,6 +433,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		runNKleinSmokeEval: t.procedure.output(runtimeNKleinSmokeEvalResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.runtimeApi.runNKleinSmokeEval(ctx.workspaceScope);
 		}),
+		// §5.AB "Evaluate connected models" (todo 6544): eval every loaded model + persist fitness.
+		evaluateConnectedModels: t.procedure
+			.output(runtimeEvaluateConnectedModelsResponseSchema)
+			.mutation(async ({ ctx }) => ctx.runtimeApi.evaluateConnectedModels()),
 		collectTaskEvidence: t.procedure
 			.input(runtimeTaskEvidenceRequestSchema)
 			.output(runtimeTaskEvidenceResponseSchema)

@@ -111,6 +111,39 @@ export const runtimeNKleinSmokeEvalResponseSchema = z.object({
 });
 export type RuntimeNKleinSmokeEvalResponse = z.infer<typeof runtimeNKleinSmokeEvalResponseSchema>;
 
+// §5.AB "Evaluate connected models" (todo 6544) — the on-demand Settings trigger runs the eval corpus against
+// every ALREADY-LOADED model (no loading ⇒ no host overload) and persists per-cell fitness. One summary per model.
+export const runtimeModelEvalSummarySchema = z.object({
+	modelId: z.string(),
+	/** The structured-output strategy the evaluator used ("native_tool_call" | "content_json"). */
+	strategy: z.string(),
+	/** Mean 0..1 over SCORED attempts. */
+	meanScore: z.number(),
+	scoredAttempts: z.number().int().nonnegative(),
+	totalAttempts: z.number().int().nonnegative(),
+	byRole: z.array(
+		z.object({
+			role: z.string(),
+			qualityScore: z.number(),
+			reliability: z.number(),
+			maxDifficultyCleared: z.number(),
+			samples: z.number().int().nonnegative(),
+		}),
+	),
+});
+export type RuntimeModelEvalSummary = z.infer<typeof runtimeModelEvalSummarySchema>;
+
+export const runtimeEvaluateConnectedModelsResponseSchema = z.object({
+	evaluatedAt: z.number(),
+	/** The local chat endpoint the loaded models were reached through (null if none configured). */
+	endpoint: z.string().nullable(),
+	repeats: z.number().int().positive(),
+	models: z.array(runtimeModelEvalSummarySchema),
+	/** Set when nothing ran (no loaded models / unreachable endpoint) — surfaced to the user verbatim. */
+	skippedReason: z.string().nullable(),
+});
+export type RuntimeEvaluateConnectedModelsResponse = z.infer<typeof runtimeEvaluateConnectedModelsResponseSchema>;
+
 export const runtimeTaskEvidenceRequestSchema = z.object({
 	taskId: z.string().min(1),
 });

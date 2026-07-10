@@ -6,6 +6,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
+	RuntimeEvaluateConnectedModelsResponse,
 	RuntimeFitnessTableResponse,
 	RuntimeFleetStatusResponse,
 	RuntimeKleinCorePyHealthResponse,
@@ -56,6 +57,14 @@ export async function fetchFitnessTable(workspaceId: string | null): Promise<Run
 export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getFleetStatus.query();
+}
+
+/** §5.AB "Evaluate connected models" (todo 6544): eval every loaded model against the corpus + persist fitness. */
+export async function evaluateConnectedModels(
+	workspaceId: string | null,
+): Promise<RuntimeEvaluateConnectedModelsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.evaluateConnectedModels.mutate();
 }
 
 /** W3.4 mailbox badge: pending mailbox-note counts for the board's cards (non-zero entries only). */

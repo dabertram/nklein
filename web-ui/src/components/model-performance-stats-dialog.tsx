@@ -1,9 +1,10 @@
-import { BarChart3, RefreshCw } from "lucide-react";
+import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
+	evaluateConnectedModels,
 	fetchFitnessTable,
 	fetchKnowledgeToolUsageStats,
 	fetchModelBehaviorProfiles,
@@ -11,6 +12,7 @@ import {
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeDecompositionKnowledgeUsageAggregate,
+	RuntimeEvaluateConnectedModelsResponse,
 	RuntimeFitnessTableResponse,
 	RuntimeKnowledgeToolUsageAggregate,
 	RuntimeKnowledgeToolUsageObservation,
@@ -238,6 +240,9 @@ export function ModelPerformanceStatsDialog({
 	const [fitnessSort, setFitnessSort] = useState<"successRate" | "sampleCount">("successRate");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
+	// §5.AB "Evaluate connected models" (todo 6544): on-demand eval of every LOADED model + fitness persist.
+	const [evalRunning, setEvalRunning] = useState(false);
+	const [evalResult, setEvalResult] = useState<RuntimeEvaluateConnectedModelsResponse | null>(null);
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
@@ -259,6 +264,21 @@ export function ModelPerformanceStatsDialog({
 			setLoading(false);
 		}
 	}, [workspaceId]);
+
+	const runEval = useCallback(async () => {
+		setEvalRunning(true);
+		setError(null);
+		try {
+			const result = await evaluateConnectedModels(workspaceId);
+			setEvalResult(result);
+			// Fold the freshly-persisted fitness back into the browser so the tables reflect the new evidence.
+			await refresh();
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : String(cause));
+		} finally {
+			setEvalRunning(false);
+		}
+	}, [workspaceId, refresh]);
 
 	useEffect(() => {
 		if (open) {
@@ -340,19 +360,62 @@ export function ModelPerformanceStatsDialog({
 					<div className="text-[13px] text-text-secondary">
 						Observed runs and knowledge-tool usage by role, model, project, and !Klein version.
 					</div>
-					<Button
-						variant="ghost"
-						size="sm"
-						icon={loading ? <Spinner size={14} /> : <RefreshCw size={14} />}
-						onClick={() => void refresh()}
-						disabled={loading}
-					>
-						Refresh
-					</Button>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={evalRunning ? <Spinner size={14} /> : <FlaskConical size={14} />}
+							onClick={() => void runEval()}
+							disabled={evalRunning || loading}
+							title="Run the eval corpus against every currently-loaded model and record fitness. Never loads a model."
+						>
+							{evalRunning ? "Evaluating…" : "Evaluate connected models"}
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={loading ? <Spinner size={14} /> : <RefreshCw size={14} />}
+							onClick={() => void refresh()}
+							disabled={loading}
+						>
+							Refresh
+						</Button>
+					</div>
 				</div>
 				{error ? (
 					<div className="mb-3 rounded-md border border-status-red/50 bg-status-red/10 px-3 py-2 text-[13px] text-status-red">
 						{error}
+					</div>
+				) : null}
+				{evalResult ? (
+					<div className="mb-3 rounded-md border border-border bg-surface-2 px-3 py-2 text-[12.5px]">
+						{evalResult.skippedReason ? (
+							<div className="text-status-gold">{evalResult.skippedReason}</div>
+						) : (
+							<>
+								<div className="mb-1.5 font-medium text-text-primary">
+									Evaluated {evalResult.models.length} loaded model
+									{evalResult.models.length === 1 ? "" : "s"} · fitness recorded
+								</div>
+								<div className="flex flex-col gap-1">
+									{evalResult.models.map((model) => (
+										<div key={model.modelId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+											<span className="font-mono text-text-primary">{model.modelId}</span>
+											<span className="text-text-tertiary">({model.strategy})</span>
+											<span className="text-text-secondary">
+												mean {model.meanScore.toFixed(2)} over {model.scoredAttempts}/{model.totalAttempts}{" "}
+												cells
+											</span>
+											{model.byRole.map((role) => (
+												<span key={role.role} className="text-text-tertiary">
+													· {role.role} q{role.qualityScore.toFixed(2)}/r{role.reliability.toFixed(2)}
+												</span>
+											))}
+										</div>
+									))}
+								</div>
+							</>
+						)}
 					</div>
 				) : null}
 				<div className="grid gap-3 md:grid-cols-4">

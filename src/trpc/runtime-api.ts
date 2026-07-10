@@ -49,10 +49,17 @@ import {
 	preferredPromptVariantFamily,
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
+import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
+import {
+	evalDifficultyToFitnessTier,
+	type ModelEvalChat,
+	type ModelEvalChatChoice,
+	runModelEval,
+} from "../nklein-agent/model-eval-runner";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
@@ -75,7 +82,7 @@ import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
-import { readFitnessTable } from "../telemetry/fitness-table-store";
+import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
@@ -819,6 +826,71 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				modelId,
 				endpoint: launchConfig.baseUrl ?? null,
 			};
+		},
+		evaluateConnectedModels: async () => {
+			// §5.AB "Evaluate connected models" (todo 6544): eval every ALREADY-LOADED model against the corpus and
+			// persist per-cell fitness. Deliberately scoped to LOADED models only — never loads anything, so the
+			// on-demand trigger can't overload the host (the deep, load-cycling sweep stays the CLI `verify-all-models`).
+			const endpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const repeats = 1; // on-demand = a fast single pass; the CLI sweep owns the N× stability run.
+			const loadedIds = await fetchLoadedModelIdsCached(endpoint).catch(() => [] as string[]);
+			if (loadedIds.length === 0) {
+				return {
+					evaluatedAt: Date.now(),
+					endpoint,
+					repeats,
+					models: [],
+					skippedReason: "No loaded models found on the local endpoint — load a model in LM Studio first.",
+				};
+			}
+			const chatBase = endpoint.replace(/\/+$/, "");
+			const chatUrl = `${chatBase.endsWith("/v1") ? chatBase : `${chatBase}/v1`}/chat/completions`;
+			const models: RuntimeModelEvalSummary[] = [];
+			for (const modelId of loadedIds) {
+				const chat: ModelEvalChat = async (messages, extra) => {
+					try {
+						const res = await fetch(chatUrl, {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify({ model: modelId, messages, temperature: 0, max_tokens: 2500, ...extra }),
+						});
+						const json = (await res.json()) as { choices?: ModelEvalChatChoice[]; error?: unknown };
+						return json.error ? null : (json.choices?.[0] ?? null);
+					} catch {
+						return null;
+					}
+				};
+				const result = await runModelEval({ modelId, repeats }, { chat });
+				for (const cell of result.cells) {
+					if (cell.score === null) {
+						continue;
+					}
+					await recordTaskFitnessOutcome(
+						{ modelKey: modelId, role: cell.role, difficultyTier: evalDifficultyToFitnessTier(cell.difficulty) },
+						{
+							success: cell.score >= 0.6,
+							wallTimeMs: cell.latencyMs,
+							failureMode: cell.score >= 0.6 ? undefined : "eval_below_bar",
+						},
+						{ now: Date.now() },
+					).catch(() => undefined);
+				}
+				models.push({
+					modelId,
+					strategy: result.strategy,
+					meanScore: result.meanScore,
+					scoredAttempts: result.scoredAttempts,
+					totalAttempts: result.totalAttempts,
+					byRole: Object.entries(result.fitnessByRole).map(([role, rec]) => ({
+						role,
+						qualityScore: rec.qualityScore,
+						reliability: rec.reliability,
+						maxDifficultyCleared: rec.maxDifficultyCleared,
+						samples: rec.samples,
+					})),
+				});
+			}
+			return { evaluatedAt: Date.now(), endpoint, repeats, models, skippedReason: null };
 		},
 		collectTaskEvidence: async (workspaceScope, input): Promise<RuntimeTaskEvidenceResponse> => {
 			return await handleCollectTaskEvidence(workspaceScope, input, {

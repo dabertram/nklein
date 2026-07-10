@@ -18,6 +18,7 @@ import type {
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListRequest,
 	RuntimeDirectoryListResponse,
+	RuntimeEvaluateConnectedModelsResponse,
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
@@ -381,6 +382,8 @@ export interface RuntimeTrpcContext {
 			input: RuntimeNKleinDogfoodBacklogRequest,
 		) => Promise<RuntimeNKleinDogfoodBacklogResponse>;
 		runNKleinSmokeEval: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinSmokeEvalResponse>;
+		/** §5.AB "Evaluate connected models" (todo 6544): eval every LOADED model against the corpus + persist fitness. */
+		evaluateConnectedModels: () => Promise<RuntimeEvaluateConnectedModelsResponse>;
 		collectTaskEvidence: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeTaskEvidenceRequest,

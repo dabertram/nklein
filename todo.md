@@ -6541,7 +6541,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         deterministic scorers, the bullets above) + the repeated-run loop feeding these `ModelEvalRun`s.
   - [x] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store. *(the aggregator now PRODUCES the *(SHIPPED: fitness-table-store writes at outcome seam)*
         records — this leaf is the persistence/store write of its output.)*
-  - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
+  - [x] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback. **DONE (2026-07-10):**
+        full vertical slice — the eval executor was EXTRACTED from `scripts/eval-harness.mts` into
+        [src/nklein-agent/model-eval-runner.ts] (`runModelEval`, injectable `chat`; the CLI is now a thin wrapper,
+        so CLI + runtime share ONE code path, no drift; 4 unit tests). New tRPC mutation `evaluateConnectedModels`
+        ([runtime-api.ts] + contract [nklein-ops-api-contract.ts] + [runtime-router.ts]) enumerates every LOADED
+        model via `fetchLoadedModelIdsCached` (NEVER loads — so the on-demand trigger can't overload the host;
+        the deep load-cycling sweep stays the CLI `verify-all-models`), evals each against the corpus, persists
+        per-cell fitness, and returns per-model summaries. Settings "Model Performance" dialog gained an
+        **"Evaluate connected models"** button (FlaskConical icon) with a spinner + a results panel (per-model
+        mean + per-role quality/reliability), which refreshes the fitness tables after persisting. Verified
+        END-TO-END at memory speed: `npx tsx scripts/verify-evaluate-connected-models.mts` boots a REAL runtime
+        against a corpus-fixture simulator advertising 2 loaded models, calls the mutation, and asserts both were
+        enumerated + scored 1.0 + fitness persisted — zero LLM compute. 8849 backend + 989 web-ui tests green.
 - [x] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:** *(SHIPPED: fitness-table-schema + store + wiring)*
   - [x] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes). *(2026-07-05: fitness-table-schema.ts — zod fitnessRowSchema (model×role×difficulty key + sample/success counts, retryBudget, failureModes[], rolling perf) + fitnessCellKey + fitnessSuccessRate; 6 tests. Storage/migrations + wiring are the next leaves.)*
   - [x] Implement storage layer + schema migrations for the global fitness store. **DONE 2026-07-05:** `src/telemetry/fitness-table-store.ts` — keyed JSON blob (`<runtimeHome>/fitness-table.json`, `{version,rows}`), ATOMIC writes (temp+rename), defensive read (missing/corrupt ⇒ empty; per-row zod re-validation), forward migration by default-filling re-parse (versioned for future breaking steps). read/readRow/write/upsert + 6 tests. Write/read wiring = the next two leaves.
