@@ -836,7 +836,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deferredRetryTimerByWorkspaceId.delete(scope.workspaceId);
 								const timerService = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 								if (timerService) {
-									retryWaitingCardsAfterTerminal(scope, timerService);
+									// timerFired: the trailing sweep must not be re-swallowed by the debounce (#26).
+									retryWaitingCardsAfterTerminal(scope, timerService, undefined, { timerFired: true });
 								}
 							}, DEFERRED_RETRY_TIMER_MS),
 						);
@@ -914,6 +915,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		scope: RuntimeTrpcWorkspaceScope,
 		service: NKleinTaskSessionService,
 		terminalTaskId?: string,
+		options?: { timerFired?: boolean },
 	): void => {
 		const now = Date.now();
 		const last = lastTerminalRetrySweepAtByWorkspaceId.get(scope.workspaceId) ?? 0;
@@ -928,8 +930,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				lastSweepAt: last,
 				debounceMs: TERMINAL_RETRY_SWEEP_DEBOUNCE_MS,
 				redrivePending,
+				timerFired: options?.timerFired === true,
 			})
 		) {
+			// A swallowed sweep must not strand deferred work: with a non-empty deferred set and no trailing
+			// timer armed, this debounce window could be the LAST event before the board freezes (live-found
+			// 2026-07-10, simulated project-02 run). Arm the one-shot timer to sweep after the window closes.
+			const deferredPending = (deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
+			if (deferredPending && !deferredRetryTimerByWorkspaceId.has(scope.workspaceId)) {
+				deferredRetryTimerByWorkspaceId.set(
+					scope.workspaceId,
+					setTimeout(() => {
+						deferredRetryTimerByWorkspaceId.delete(scope.workspaceId);
+						const timerService = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+						if (timerService) {
+							retryWaitingCardsAfterTerminal(scope, timerService, undefined, { timerFired: true });
+						}
+					}, DEFERRED_RETRY_TIMER_MS),
+				);
+			}
 			return;
 		}
 		lastTerminalRetrySweepAtByWorkspaceId.set(scope.workspaceId, now);

@@ -79,22 +79,33 @@ describe("createSimulatorServer (aimock transport integration)", () => {
 			expect(typeof call.function.arguments).toBe("string");
 			expect(JSON.parse(call.function.arguments).tasks[0].id).toBe("card-1");
 
-			// Worker turn 1 → read_files; turn 2 (same match, next occurrence) → completion text with reasoning;
-			// turn 3+ repeats the last turn.
-			const workerRequest = {
-				model: "sim",
-				messages: [
-					{ role: "system", content: "Follow the efficiency rules of the kanban." },
-					{ role: "user", content: "Work the card: First" },
-				],
-			};
-			const turn1 = await (await post(base, workerRequest)).json();
+			// Multi-turn conditioning follows the TRANSCRIPT SHAPE (assistant-message count = per-session turn
+			// index), exactly like a real agent loop that appends each response before re-asking. A restarted
+			// session (fresh transcript) deterministically starts back at turn 1 — restart-idempotent by design.
+			const seedMessages = [
+				{ role: "system", content: "Follow the efficiency rules of the kanban." },
+				{ role: "user", content: "Work the card: First" },
+			];
+			const turn1 = await (await post(base, { model: "sim", messages: seedMessages })).json();
 			expect(turn1.choices[0].message.tool_calls[0].function.name).toBe("read_files");
-			const turn2 = await (await post(base, workerRequest)).json();
+			const grownMessages = [
+				...seedMessages,
+				{ role: "assistant", content: null, tool_calls: turn1.choices[0].message.tool_calls },
+				{ role: "tool", content: "file contents here" },
+			];
+			const turn2 = await (await post(base, { model: "sim", messages: grownMessages })).json();
 			expect(turn2.choices[0].message.content).toBe("Done with First.");
 			expect(turn2.choices[0].message.reasoning_content).toBe("thought about it");
-			const turn3 = await (await post(base, workerRequest)).json();
+			const turn3 = await (
+				await post(base, {
+					model: "sim",
+					messages: [...grownMessages, { role: "assistant", content: "Done with First." }, { role: "user", content: "and now?" }],
+				})
+			).json();
 			expect(turn3.choices[0].message.content).toBe("Done with First.");
+			// A RESTARTED session (fresh transcript) re-serves turn 1 instead of resuming mid-ladder.
+			const restarted = await (await post(base, { model: "sim", messages: seedMessages })).json();
+			expect(restarted.choices[0].message.tool_calls[0].function.name).toBe("read_files");
 
 			// Transport failure track: 429 with Retry-After.
 			const rated = await post(base, {

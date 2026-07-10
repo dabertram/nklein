@@ -37,14 +37,14 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (drone, payload, battery, mission, waypoint, geofence, airspace volume, operator). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (drone, payload, battery, mission, waypoint, geofence, airspace volume, operator). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/domain.mjs",
-												"test/domain.test.mjs"
+												"src/core-domain-model-and-stable-identifiers.mjs",
+												"test/core-domain-model-and-stable-identifiers.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -852,7 +852,7 @@
 		{
 			"id": "perfect-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/domain.mjs",
+			"userMessageIncludes": "Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -878,12 +878,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/domain.mjs",
-											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainFinding[] }} DomainResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {DomainInput} input\n * @returns {DomainResult}\n */\nexport function evaluateDomain(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/core-domain-model-and-stable-identifiers.mjs",
+											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CoreDomainModelAndStableIdentifiersInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CoreDomainModelAndStableIdentifiersFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CoreDomainModelAndStableIdentifiersFinding[] }} CoreDomainModelAndStableIdentifiersResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {CoreDomainModelAndStableIdentifiersInput} input\n * @returns {CoreDomainModelAndStableIdentifiersResult}\n */\nexport function evaluateCoreDomainModelAndStableIdentifiers(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"core-domain-model-and-stable-identifiers/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/domain.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomain } from \"../src/domain.mjs\";\n\ntest(\"domain: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomain({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomain({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/core-domain-model-and-stable-identifiers.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCoreDomainModelAndStableIdentifiers } from \"../src/core-domain-model-and-stable-identifiers.mjs\";\n\ntest(\"core-domain-model-and-stable-identifiers: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"core-domain-model-and-stable-identifiers: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -909,7 +909,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Core domain model and stable identifiers\": src/domain.mjs, test/domain.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Core domain model and stable identifiers\": src/core-domain-model-and-stable-identifiers.mjs, test/core-domain-model-and-stable-identifiers.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -948,7 +948,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/mission-planner-for-survey-grids-corrido.mjs",
+			"userMessageIncludes": "Files for THIS card: src/mission-planner-for-survey-grids-corrido.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1044,7 +1044,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/flight-feasibility-engine-using-battery.mjs",
+			"userMessageIncludes": "Files for THIS card: src/flight-feasibility-engine-using-battery.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1140,7 +1140,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/flight-feasibility-engine-using-battery-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/flight-feasibility-engine-using-battery-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1236,7 +1236,7 @@
 		{
 			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/telemetry-simulator-that-replays-positio.mjs",
+			"userMessageIncludes": "Files for THIS card: src/telemetry-simulator-that-replays-positio.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1332,7 +1332,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/telemetry-simulator-that-replays-positio-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/telemetry-simulator-that-replays-positio-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1428,7 +1428,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/contingency-manager-for-lost-link-low-ba.mjs",
+			"userMessageIncludes": "Files for THIS card: src/contingency-manager-for-lost-link-low-ba.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1524,7 +1524,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/contingency-manager-for-lost-link-low-ba-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/contingency-manager-for-lost-link-low-ba-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1620,7 +1620,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/utm-style-approval-workflow-with-mission.mjs",
+			"userMessageIncludes": "Files for THIS card: src/utm-style-approval-workflow-with-mission.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1716,7 +1716,7 @@
 		{
 			"id": "perfect-worker-s10",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/utm-style-approval-workflow-with-mission-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/utm-style-approval-workflow-with-mission-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1812,7 +1812,7 @@
 		{
 			"id": "perfect-worker-s11",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/seed-mission-involving-bridge-inspection.mjs",
+			"userMessageIncludes": "Files for THIS card: src/seed-mission-involving-bridge-inspection.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1908,7 +1908,7 @@
 		{
 			"id": "perfect-worker-s12",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/seed-mission-involving-bridge-inspection-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/seed-mission-involving-bridge-inspection-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2004,7 +2004,7 @@
 		{
 			"id": "perfect-worker-s13",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-meta-test-core-engine.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-meta-test-core-engine.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2100,7 +2100,7 @@
 		{
 			"id": "perfect-worker-s14",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-deterministic-simulation-kernel.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-deterministic-simulation-kernel.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2196,7 +2196,7 @@
 		{
 			"id": "perfect-worker-s15",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-deterministic-simulation-kernel-core.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-deterministic-simulation-kernel-core.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2292,7 +2292,7 @@
 		{
 			"id": "perfect-worker-s16",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-utm-u-space-data-model-conformance-s.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-utm-u-space-data-model-conformance-s.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2388,7 +2388,7 @@
 		{
 			"id": "perfect-worker-s17",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-utm-u-space-data-model-conformance-s-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-utm-u-space-data-model-conformance-s-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2484,7 +2484,7 @@
 		{
 			"id": "perfect-worker-s18",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/strategic-deconfliction-in-4d.mjs",
+			"userMessageIncludes": "Files for THIS card: src/strategic-deconfliction-in-4d.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2580,7 +2580,7 @@
 		{
 			"id": "perfect-worker-s19",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/strategic-deconfliction-in-4d-core-engin.mjs",
+			"userMessageIncludes": "Files for THIS card: src/strategic-deconfliction-in-4d-core-engin.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2676,7 +2676,7 @@
 		{
 			"id": "perfect-worker-s20",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/hard-constraints-before-optimization.mjs",
+			"userMessageIncludes": "Files for THIS card: src/hard-constraints-before-optimization.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2772,7 +2772,7 @@
 		{
 			"id": "perfect-worker-s21",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/hard-constraints-before-optimization-cor.mjs",
+			"userMessageIncludes": "Files for THIS card: src/hard-constraints-before-optimization-cor.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2868,7 +2868,7 @@
 		{
 			"id": "perfect-worker-s22",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-off-nominal-lifecycle.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-off-nominal-lifecycle.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2964,7 +2964,7 @@
 		{
 			"id": "perfect-worker-s23",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-off-nominal-lifecycle-core-engine.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-off-nominal-lifecycle-core-engine.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3060,7 +3060,7 @@
 		{
 			"id": "perfect-worker-s24",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/mission-planning-swarm-task-allocation.mjs",
+			"userMessageIncludes": "Files for THIS card: src/mission-planning-swarm-task-allocation.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3156,7 +3156,7 @@
 		{
 			"id": "perfect-worker-s25",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/mission-planning-swarm-task-allocation-c.mjs",
+			"userMessageIncludes": "Files for THIS card: src/mission-planning-swarm-task-allocation-c.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3252,7 +3252,7 @@
 		{
 			"id": "perfect-worker-s26",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-adversarial-failure-fixture-pack.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-adversarial-failure-fixture-pack.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3348,7 +3348,7 @@
 		{
 			"id": "perfect-worker-s27",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-adversarial-failure-fixture-pack-cor.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-adversarial-failure-fixture-pack-cor.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3444,7 +3444,7 @@
 		{
 			"id": "perfect-worker-s28",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/mission-coverage-explainability-reports.mjs",
+			"userMessageIncludes": "Files for THIS card: src/mission-coverage-explainability-reports.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3540,7 +3540,7 @@
 		{
 			"id": "perfect-worker-s29",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/mission-coverage-explainability-reports-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/mission-coverage-explainability-reports-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3636,7 +3636,7 @@
 		{
 			"id": "perfect-worker-s30",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/global-invariants-core-engine.mjs",
+			"userMessageIncludes": "Files for THIS card: src/global-invariants-core-engine.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3732,7 +3732,7 @@
 		{
 			"id": "perfect-worker-s31",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/build-this-first-20-26-of-the-44-48-card.mjs",
+			"userMessageIncludes": "Files for THIS card: src/build-this-first-20-26-of-the-44-48-card.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3828,7 +3828,7 @@
 		{
 			"id": "perfect-worker-s32",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/build-this-first-20-26-of-the-44-48-card-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/build-this-first-20-26-of-the-44-48-card-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3924,7 +3924,7 @@
 		{
 			"id": "perfect-worker-s33",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/domain-knowledge-debt-to-track.mjs",
+			"userMessageIncludes": "Files for THIS card: src/domain-knowledge-debt-to-track.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4020,7 +4020,7 @@
 		{
 			"id": "perfect-worker-s34",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/domain-knowledge-debt-to-track-core-engi.mjs",
+			"userMessageIncludes": "Files for THIS card: src/domain-knowledge-debt-to-track-core-engi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4116,7 +4116,7 @@
 		{
 			"id": "perfect-worker-s35",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/why-this-is-a-great-klein-challenge.mjs",
+			"userMessageIncludes": "Files for THIS card: src/why-this-is-a-great-klein-challenge.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4212,7 +4212,7 @@
 		{
 			"id": "perfect-worker-s36",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/why-this-is-a-great-klein-challenge-core.mjs",
+			"userMessageIncludes": "Files for THIS card: src/why-this-is-a-great-klein-challenge-core.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4308,7 +4308,7 @@
 		{
 			"id": "perfect-worker-s37",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-1.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-1.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4404,7 +4404,7 @@
 		{
 			"id": "perfect-worker-s38",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-2.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4500,7 +4500,7 @@
 		{
 			"id": "perfect-worker-s39",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-3.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4596,7 +4596,7 @@
 		{
 			"id": "perfect-worker-s40",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-4.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-4.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4692,7 +4692,7 @@
 		{
 			"id": "perfect-worker-s41",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-5.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-5.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4788,7 +4788,7 @@
 		{
 			"id": "perfect-worker-s42",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-6.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-6.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4884,7 +4884,7 @@
 		{
 			"id": "perfect-worker-s43",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-7.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-7.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -4980,7 +4980,7 @@
 		{
 			"id": "perfect-worker-s44",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-8.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-8.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -5076,7 +5076,7 @@
 		{
 			"id": "perfect-worker-s45",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-9.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-9.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -5172,7 +5172,7 @@
 		{
 			"id": "perfect-worker-s46",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/determinism-hardening-pass-10.mjs",
+			"userMessageIncludes": "Files for THIS card: src/determinism-hardening-pass-10.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -5268,7 +5268,7 @@
 		{
 			"id": "perfect-worker-s47",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/flagship-integration-test-and-foundation.mjs",
+			"userMessageIncludes": "Files for THIS card: src/flagship-integration-test-and-foundation.mjs",
 			"turns": [
 				{
 					"behavior": {

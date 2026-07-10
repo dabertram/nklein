@@ -3,9 +3,14 @@
  * JSON (keyed by the failure catalog, carrying reflection-loop provenance); aimock is the transport that serves
  * them (HTTP + SSE + latency physics + chaos). If the transport ever changes, only this file follows.
  *
- * Multi-turn scripting uses aimock's `sequenceIndex` (Nth occurrence of the same match): turn k compiles to a
- * fixture with sequenceIndex k; `repeatLastTurn` appends an UN-indexed twin of the final turn that catches every
- * later occurrence (aimock skips sequence-indexed fixtures whose occurrence already passed).
+ * Multi-turn scripting conditions each turn on the REQUEST'S OWN TRANSCRIPT SHAPE: the number of assistant
+ * messages already in the conversation IS the per-session turn index (0 assistants → turn 0, k → turn k;
+ * `repeatLastTurn` matches every count ≥ the final index). This replaced aimock's `sequenceIndex` (live-found,
+ * project-02 runs 2026-07-10): occurrence counting is GLOBAL per fixture, so concurrent sessions and !Klein's
+ * redrives/restarts desynchronized ladders — a restarted worker resumed mid-ladder and never wrote its files.
+ * Transcript-shape conditioning is per-session by construction and restart-idempotent (a fresh session starts
+ * back at turn 0). Caveat: it assumes the harness does not prune ASSISTANT messages out of short transcripts
+ * (!Klein summarizes file chunks, not assistant turns; ladders here are ≤6 turns).
  */
 
 import type { Fixture } from "@copilotkit/aimock";
@@ -119,26 +124,34 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 	// OpenAI content-part ARRAYS ([{type:"text",text:…}]) and aimock's matcher only reads string content
 	// (live-found bringing up the fast path, 2026-07-10 — real worker requests silently missed their tracks).
 	const needle = track.userMessageIncludes?.toLowerCase();
-	const match: Fixture["match"] = {
-		predicate: (request) => {
-			const shaped = request as Parameters<typeof classifyRequest>[0] & {
-				messages?: Array<{ role?: string; content?: unknown }>;
-			};
-			if (needle && !userText(shaped).toLowerCase().includes(needle)) {
-				return false;
-			}
-			return track.requestClass === "any" || classifyRequest(shaped, markers) === track.requestClass;
-		},
+	const matchesTrack = (request: unknown): boolean => {
+		const shaped = request as Parameters<typeof classifyRequest>[0] & {
+			messages?: Array<{ role?: string; content?: unknown }>;
+		};
+		if (needle && !userText(shaped).toLowerCase().includes(needle)) {
+			return false;
+		}
+		return track.requestClass === "any" || classifyRequest(shaped, markers) === track.requestClass;
 	};
+	const assistantTurnCount = (request: unknown): number =>
+		((request as { messages?: Array<{ role?: string }> }).messages ?? []).filter(
+			(message) => message.role === "assistant",
+		).length;
+	const lastIndex = track.turns.length - 1;
 	const fixtures: Fixture[] = track.turns.map((turn, index) => ({
-		match: { ...match, sequenceIndex: index },
+		match: {
+			predicate: (request) => {
+				if (!matchesTrack(request)) {
+					return false;
+				}
+				const count = assistantTurnCount(request);
+				// The final turn absorbs every later per-session round when the track repeats.
+				return track.repeatLastTurn && index === lastIndex ? count >= index : count === index;
+			},
+		},
 		response: behaviorToResponse(turn),
 		...behaviorToFixtureOptions(turn),
 	}));
-	if (track.repeatLastTurn && track.turns.length > 0) {
-		const last = track.turns[track.turns.length - 1] as ScenarioTurn;
-		fixtures.push({ match, response: behaviorToResponse(last), ...behaviorToFixtureOptions(last) });
-	}
 	return fixtures;
 }
 

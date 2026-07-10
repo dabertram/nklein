@@ -37,14 +37,14 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
+											"prompt": "Core domain model and stable identifiers. Create the core domain module: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/domain.mjs",
-												"test/domain.test.mjs"
+												"src/core-domain-model-and-stable-identifiers.mjs",
+												"test/core-domain-model-and-stable-identifiers.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/domain.mjs",
+			"userMessageIncludes": "Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -312,12 +312,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/domain.mjs",
-											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainFinding[] }} DomainResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {DomainInput} input\n * @returns {DomainResult}\n */\nexport function evaluateDomain(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/core-domain-model-and-stable-identifiers.mjs",
+											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CoreDomainModelAndStableIdentifiersInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CoreDomainModelAndStableIdentifiersFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CoreDomainModelAndStableIdentifiersFinding[] }} CoreDomainModelAndStableIdentifiersResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {CoreDomainModelAndStableIdentifiersInput} input\n * @returns {CoreDomainModelAndStableIdentifiersResult}\n */\nexport function evaluateCoreDomainModelAndStableIdentifiers(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"core-domain-model-and-stable-identifiers/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"core-domain-model-and-stable-identifiers/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/domain.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomain } from \"../src/domain.mjs\";\n\ntest(\"domain: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomain({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomain({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/core-domain-model-and-stable-identifiers.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCoreDomainModelAndStableIdentifiers } from \"../src/core-domain-model-and-stable-identifiers.mjs\";\n\ntest(\"core-domain-model-and-stable-identifiers: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"core-domain-model-and-stable-identifiers: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -343,7 +343,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Core domain model and stable identifiers\": src/domain.mjs, test/domain.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Core domain model and stable identifiers\": src/core-domain-model-and-stable-identifiers.mjs, test/core-domain-model-and-stable-identifiers.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/scheduling-engine-with-provider-availabi.mjs",
+			"userMessageIncludes": "Files for THIS card: src/scheduling-engine-with-provider-availabi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/encounter-note-workflow-with-structured.mjs",
+			"userMessageIncludes": "Files for THIS card: src/encounter-note-workflow-with-structured.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,7 +579,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/fhir-inspired-resource-mapping-layer-tha.mjs",
+			"userMessageIncludes": "Files for THIS card: src/fhir-inspired-resource-mapping-layer-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -675,7 +675,7 @@
 		{
 			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/consent-and-role-based-access-policy-tha.mjs",
+			"userMessageIncludes": "Files for THIS card: src/consent-and-role-based-access-policy-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -771,7 +771,7 @@
 		{
 			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/results-inbox-for-lab-or-imaging-results.mjs",
+			"userMessageIncludes": "Files for THIS card: src/results-inbox-for-lab-or-imaging-results.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -874,7 +874,7 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/care-plan-tracker-with-goals-interventio.mjs",
+			"userMessageIncludes": "Files for THIS card: src/care-plan-tracker-with-goals-interventio.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -976,7 +976,7 @@
 		{
 			"id": "flaky-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/seed-clinic-with-overlapping-appointment.mjs",
+			"userMessageIncludes": "Files for THIS card: src/seed-clinic-with-overlapping-appointment.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "src/the-hardest-technical-seams.mjs",
+			"userMessageIncludes": "Files for THIS card: src/the-hardest-technical-seams.mjs",
 			"turns": [
 				{
 					"behavior": {

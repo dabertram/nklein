@@ -33,3 +33,23 @@ describe("shouldRunTerminalRetrySweep", () => {
 		).toBe(true);
 	});
 });
+
+describe("shouldRunTerminalRetrySweep — trailing timer (#26, live-found 2026-07-10)", () => {
+	it("lets the one-shot deferred-retry timer bypass the debounce window", () => {
+		expect(
+			shouldRunTerminalRetrySweep({
+				now: 1_000,
+				lastSweepAt: 999,
+				debounceMs: 5_000,
+				redrivePending: false,
+				timerFired: true,
+			}),
+		).toBe(true);
+	});
+
+	it("keeps debouncing ordinary sweeps when the timer flag is absent", () => {
+		expect(
+			shouldRunTerminalRetrySweep({ now: 1_000, lastSweepAt: 999, debounceMs: 5_000, redrivePending: false }),
+		).toBe(false);
+	});
+});

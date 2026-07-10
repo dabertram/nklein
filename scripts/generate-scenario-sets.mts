@@ -188,12 +188,10 @@ function synthesizeCards(project: ProjectInput): CardPlan[] {
 	const domainBullet = scope[0] ?? "core domain entities with stable ids and audit history";
 	const domain = push(
 		"Core domain model and stable identifiers",
-		`Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (${condenseTitle(domainBullet).toLowerCase()}). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.`,
+		`Create the core domain module: JSDoc-typed factories and validators for the core entities (${condenseTitle(domainBullet).toLowerCase()}). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add node:test coverage for id stability, audit append-only behavior, and validator rejection of malformed input.`,
 		[scaffold.id],
 		30,
 	);
-	domain.filesLikelyTouched = ["src/domain.mjs", "test/domain.test.mjs"];
-	domain.moduleSlug = "domain";
 
 	// Expand each remaining scope bullet into a model→engine(→edge-cases) chain, sized to hit the target count.
 	const featureBullets = scope.slice(1);
@@ -306,9 +304,11 @@ function workerTrack(project: ProjectInput, card: CardPlan, options: { fixup?: b
 	return {
 		id: `perfect-worker-${card.id}`,
 		requestClass: "worker",
-		// The module path — NOT the title: titles ride along in every card prompt via the embedded spec. The
-		// scaffold card writes no module, so it keys on its authored title phrase (also absent from any spec).
-		userMessageIncludes: card.id === "s00" ? "zero-dependency node test wiring" : `src/${card.moduleSlug}.mjs`,
+		// The per-card "Files for THIS card:" phrase — NOT the title (titles ride along in every prompt via the
+		// embedded spec) and NOT the bare module path (!Klein's context focus brief ENUMERATES workspace paths,
+		// so after a card merges, its path appears in every later session — live cross-match, run g4m2). The
+		// scaffold card writes no module, so it keys on its authored title phrase (absent from any spec/brief).
+		userMessageIncludes: card.id === "s00" ? "zero-dependency node test wiring" : `Files for THIS card: src/${card.moduleSlug}.mjs`,
 		turns,
 		repeatLastTurn: true,
 		provenance: "generated baseline (generate-scenario-sets.mts)",
