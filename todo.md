@@ -7353,7 +7353,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the cadence turn, and lastReanchorTurn advances — the multi-turn restatement contract, deterministic.)*
   - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models). ⏱ FLEET-RUN
         *(the flag flip + drift measurement across the roster is model-time; rides the sweep phase)*
-- [ ] **Observation-driven context-size recommendations for slow processing.** *(Raised 2026-07-09, user: suggest
+- [~] **Observation-driven context-size recommendations for slow processing.** *(Raised 2026-07-09, user: suggest
       context-size limits from observed slow processing, while keeping low-spec hardware enablement as the leading
       vision.)* Collect per-host/per-model prompt tokens, requested window, actual prompt/generation timing, active wait,
       stall/no-progress signals, success/failure, and task outcome. Use those observations to recommend task/role/context
@@ -7363,6 +7363,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       overnight/long-running mode before calling the task impossible. Surface "recommended max context for this
       host/model/role" with user override, add deterministic tests for the recommendation logic, and add a live validation
       note showing slow-processing evidence changes the suggestion.
+      **PURE RECOMMENDER + LIVE-EVIDENCE VALIDATION DONE (2026-07-10):** [src/core/context-size-recommender.ts]
+      `recommendContextCap(observations, policy)` — distinct from the quality-knee estimator (that fits the
+      ACCURACY plateau; this fits the SLOW-PROCESSING knee for a slow host). Bins per-(host,model,role) timing
+      observations `{contextTokens, wallTimeMs, activeWaitMs?, stalled?, success}` into context LEVELS, then
+      recommends the LARGEST comfortable level (fast enough, not stall-prone, succeeding); no cap when every level
+      is comfortable; and — crucially — when even the smallest context is slow it recommends that size PLUS
+      ADAPTATIONS (compact/summarize, phased retrieval, more decomposition, queue/long-running) and NEVER excludes
+      the host. 8 deterministic tests, incl. a LIVE-EVIDENCE case built from the 2026-07-10 real qwen3-8b capture
+      (fast small tool-use ~3-5s vs a review prompt that hit the 30s wall ⇒ caps at the fast level) — the required
+      "slow-processing evidence changes the suggestion" note, from real telemetry. REMAINING (scoped like the
+      sibling quality-knee wiring): PERSIST the per-turn timing+stall+context scatter (profiles keep only aggregates
+      today) so the recommendation can be computed, then surface "recommended max context for this host/model/role"
+      with user override in the Model Performance dialog next to the quality knee.
 - [~] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:** *(the
       quality-knee ESTIMATOR pure core [~] + the web Settings surfacing [x] are done; the remaining children are the
       prompt-assembly wiring (behind §5.Z re-verify) + eval-sweep probes + the small-model quality test, all fleet/live-
