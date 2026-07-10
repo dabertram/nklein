@@ -11043,8 +11043,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       new command with an `open` fallback so existing tray handlers stay compatible. Focused desktop tests cover clickable
       vs passive updater rows and compact labels. Remaining now: actual migration transforms + rollback command, in-app
       update details/action UI, real signed/notarized release assets, and packaged smoke.)*
-- [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
-      *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
+- [x] ~~signal/whatsapp chat "bridge"/connector~~ **DROPPED (user decision 2026-07-11):** the messenger bridge
+      is removed from the backlog — the web/desktop chat surfaces are sufficient, and the bridge would have
+      required a prime-directive-#1 egress exception (routing chat through a third-party messenger network).
+      If ever revisited, the 2026-07-07 integration note (git history of this entry) has the scope sketch.
+## 10b. MARATHON DECISIONS (user, 2026-07-11 — batch-clarified at marathon start; all FINAL)
+- **Scope of "backlog to 0": ALL THREE task files** — todo.md, polishing.md, AND further-todo.md are to be worked
+  to zero open items (the §5.P Python port included when reached, bottom of the order as designated).
+- **Messenger bridge: DROPPED** (see the struck item below in §10).
+- **§11 full-catalog sweep: RUN AT LOW POWER** unattended when reached (last item) — slow is accepted.
+- **§10 desktop packaged smoke: macOS NOW; Windows/Linux are hardware-gated deferred leaves** (not counted
+  against "backlog 0"; legion5pro remote-drive not requested).
+
 ## 11. LATER — deferred to last (user 2026-07-08)
 - [ ] **Full-catalog model sweep — DEFERRED to one of the LAST tasks (user 2026-07-08: "stop sweeping for now, work
       through the backlog, put sweeping as one of the last tasks").** The eval-harness + chat-agent-e2e sweep
