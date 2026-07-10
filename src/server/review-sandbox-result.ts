@@ -15,6 +15,11 @@ export function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | 
 	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_empty";
 }
 
+/** True once the current awaiting-review handoff has finished writing its patch onto the result branch. */
+export function isCapturedSandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
+	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_captured";
+}
+
 export interface ReviewSandboxResultProbe {
 	/** The current session summary for a task (in-memory read). */
 	getSummary: (taskId: string) => RuntimeTaskSessionSummary | null;
@@ -42,14 +47,19 @@ export async function resolveReviewSandboxResult(
 		if (delayMs > 0) {
 			await sleep(delayMs);
 		}
-		if (isEmptySandboxPatchSummary(probe.getSummary(input.taskId))) {
+		const summary = probe.getSummary(input.taskId);
+		if (isEmptySandboxPatchSummary(summary)) {
 			return "empty_patch";
 		}
 		const resultCommit = await probe.resolveResultCommit({
 			repoPath: input.repoPath,
 			taskId: input.taskId,
 		});
-		if (resultCommit) {
+		// A bounced worker reuses the same result-branch ref. On its NEXT handoff that ref already resolves while the
+		// new sandbox capture is still running; accepting it immediately reviews the previous round's artifact. While
+		// the session is awaiting review, require the current capture marker. Null/non-review summaries are startup or
+		// reconciliation probes where the existing durable branch is the best available evidence and remains valid.
+		if (resultCommit && (summary?.state !== "awaiting_review" || isCapturedSandboxPatchSummary(summary))) {
 			return "result_branch";
 		}
 	}

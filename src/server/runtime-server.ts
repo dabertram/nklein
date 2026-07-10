@@ -455,9 +455,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// A concurrency-limit deferral therefore also arms a one-shot TIMER sweep (clears the debounce window).
 	const deferredRetryTimerByWorkspaceId = new Map<string, ReturnType<typeof setTimeout>>();
 	// #29 (user directive: "improve detection of stall"): a RUNTIME-level board-liveness watchdog. Every tick,
-	// if NO session is alive but actionable work exists (startable-unstarted cards or a non-empty deferred set),
-	// the board is FROZEN — self-heal by sweeping, and say so loudly. Legitimately-idle boards (everything
-	// terminal or held for the operator) never trip it.
+	// if actionable work exists without its own live session (startable-unstarted cards or a non-empty deferred set),
+	// the board has stranded work — self-heal by sweeping, and say so loudly. A live card excludes only itself;
+	// legitimately-idle boards (everything terminal or held for the operator) never trip it.
 	const boardLivenessWatchdogByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
 	// 30s (was 60s): run36 gave the watchdog exactly ONE tick inside the harness's 90s dead-stall window — a
 	// single swallowed error meant no rescue. Halving the tick doubles the chances and the sweep is cheap.
@@ -780,7 +780,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				const activeSessionForTask = liveNKleinSessions.find(
 					(summary) =>
 						summary.taskId === taskId &&
-						(summary.state === "running" || summary.state === "queued" || summary.state === "awaiting_review"),
+						(summary.state === "running" ||
+							summary.state === "queued" ||
+							summary.state === "paused" ||
+							summary.state === "awaiting_review"),
 				);
 				if (activeSessionForTask) {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
@@ -880,10 +883,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						continue;
 					}
 					deps.warn(
-						`Could not auto-start linked task ${task.id} for ${scope.workspacePath}: ${
-							started.error ?? "unknown error"
-						}`,
+						`Could not auto-start linked task ${task.id} for ${scope.workspacePath} (${started.errorCode ?? "unknown_code"}): ${started.error ?? "unknown error"}`,
 					);
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Auto-start failed before a session was created for ${task.id}: ${started.error ?? "unknown error"}`,
+						taskId: task.id,
+						workspacePath: scope.workspacePath,
+						metadata: {
+							category: "auto_start_failed",
+							errorCode: started.errorCode ?? "unknown_code",
+						},
+					});
 					continue;
 				}
 				if (started.queued) {
@@ -912,6 +924,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Could not auto-start linked task ${taskId} for ${scope.workspacePath}: ${message}`);
+				recordSelfObservation({
+					signal: "runtime_error",
+					severity: "warning",
+					message: `Auto-start threw before a session was created for ${taskId}: ${message}`,
+					taskId,
+					workspacePath: scope.workspacePath,
+					metadata: { category: "auto_start_exception" },
+				});
 			}
 		}
 	};
@@ -999,6 +1019,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							(summary) =>
 								summary.state === "running" ||
 								summary.state === "queued" ||
+								summary.state === "paused" ||
 								summary.state === "awaiting_review",
 						)
 						.map((summary) => summary.taskId),
@@ -1275,28 +1296,42 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		autoReviewFinalizationInFlightTaskIds.add(inFlightKey);
 		void (async () => {
 			try {
-				await retryWorkspaceStateLock(async () => {
+				// Retry only the individual workspace-state reads/writes below. Retrying this WHOLE callback after a
+				// transient lock conflict replays non-idempotent reviewer, acceptance, and merge effects. Under a busy
+				// board that produced approve → merge → completion-lock-conflict → second review; the resumed review
+				// could return no_verdict and strand already-merged work in Review.
+				await (async () => {
 					let shouldAutoComplete = false;
-					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-						const record = latestState.board.columns
-							.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
-							.find((candidate) => candidate.card.id === taskId);
-						const action = decideAutoReviewCardAction(record);
-						shouldAutoComplete = action.shouldAutoComplete;
-						if (!action.moveToReview) {
-							return { board: latestState.board, save: false, value: null };
-						}
-						const movement = moveTaskToColumn(latestState.board, taskId, "review");
-						return {
-							board: movement.board,
-							save: movement.moved,
-							value: null,
-						};
-					});
+					await retryWorkspaceStateLock(() =>
+						mutateWorkspaceState(scope.workspacePath, (latestState) => {
+							const record = latestState.board.columns
+								.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
+								.find((candidate) => candidate.card.id === taskId);
+							const action = decideAutoReviewCardAction(record);
+							shouldAutoComplete = action.shouldAutoComplete;
+							if (!action.moveToReview) {
+								return { board: latestState.board, save: false, value: null };
+							}
+							const movement = moveTaskToColumn(latestState.board, taskId, "review");
+							return {
+								board: movement.board,
+								save: movement.moved,
+								value: null,
+							};
+						}),
+					);
 					if (!shouldAutoComplete) {
 						return;
 					}
-					const reviewState = await loadWorkspaceState(scope.workspacePath);
+					const loadedReviewState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
+					// The session's round-2 capture and the review finalizer are triggered by the same summary edge. A late
+					// live-state write can transiently project the card back into In Progress after the authoritative move
+					// above. This callback already proved the card is auto-reviewable; normalize its immutable review snapshot
+					// so the runner cannot reject the handoff as `not_reviewable`. Persisted delivery still uses locked mutations.
+					const reviewState = {
+						...loadedReviewState,
+						board: moveTaskToColumn(loadedReviewState.board, taskId, "review").board,
+					};
 					const sandboxResult = await resolveReviewSandboxResult(
 						{ repoPath: scope.workspacePath, taskId },
 						{ getSummary: (id) => service.getSummary(id), resolveResultCommit: resolveTaskResultBranchCommit },
@@ -1312,6 +1347,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						workspacePath: scope.workspacePath,
 						taskId,
 						service,
+						// Use the normalized authoritative snapshot above; re-reading during the handoff/capture race can see the
+						// transient In Progress bounce lane and reject the legitimate round-2 review as `not_reviewable`.
+						loadWorkspaceState: async () => reviewState,
 						warn: deps.warn,
 						onRedecomposeCardSpawned: (redecomposeTaskId) =>
 							autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
@@ -1474,10 +1512,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Empty-patch card ${taskId}: re-driving the worker once before holding (no file changes were captured).`,
 							);
-							await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-								const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
-								return { board: movement.board, save: movement.moved, value: null };
-							});
+							await retryWorkspaceStateLock(() =>
+								mutateWorkspaceState(scope.workspacePath, (latestState) => {
+									const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+									return { board: movement.board, save: movement.moved, value: null };
+								}),
+							);
 							const scopeNote =
 								Array.isArray(deliveryCard?.filesLikelyTouched) && deliveryCard.filesLikelyTouched.length > 0
 									? ` This card's declared file scope (writes outside it are blocked): ${deliveryCard.filesLikelyTouched.join(", ")}.`
@@ -1564,10 +1604,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
 								);
-								await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-									const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
-									return { board: movement.board, save: movement.moved, value: null };
-								});
+								await retryWorkspaceStateLock(() =>
+									mutateWorkspaceState(scope.workspacePath, (latestState) => {
+										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+										return { board: movement.board, save: movement.moved, value: null };
+									}),
+								);
 								const failureHead = (acceptance.output ?? "").slice(0, 700);
 								await service
 									.sendTaskSessionInput(
@@ -1664,16 +1706,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					}
 					let readyTaskIds: string[] = [];
 					let completedBoard: RuntimeBoardData | null = null;
-					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-						const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
-						readyTaskIds = completed.readyTaskIds;
-						completedBoard = completed.board;
-						return {
-							board: completed.board,
-							save: completed.moved,
-							value: null,
-						};
-					});
+					await retryWorkspaceStateLock(() =>
+						mutateWorkspaceState(scope.workspacePath, (latestState) => {
+							const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
+							readyTaskIds = completed.readyTaskIds;
+							completedBoard = completed.board;
+							return {
+								board: completed.board,
+								save: completed.moved,
+								value: null,
+							};
+						}),
+					);
 					// §5.0.5 plan-level integration gate: if this delivery completed a decomposition's LAST card, run
 					// the plan's project-level acceptance on the fully-merged tree (fire-and-forget + per-slug debounced
 					// inside — must not delay releasing dependents below).
@@ -1692,7 +1736,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// this completion released — a card can become startable outside the release/defer paths (edge
 					// reorientation, missed plan roots) and previously fell through every crack. autoStartTaskIds
 					// re-checks lane/overlap/concurrency per card, so the superset is safe.
-					const sweepState = await loadWorkspaceState(scope.workspacePath).catch(() => null);
+					const sweepState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath)).catch(
+						() => null,
+					);
 					const activeSessionTaskIds = new Set(
 						service
 							.listSummaries()
@@ -1700,6 +1746,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								(summary) =>
 									summary.state === "running" ||
 									summary.state === "queued" ||
+									summary.state === "paused" ||
 									summary.state === "awaiting_review",
 							)
 							.map((summary) => summary.taskId),
@@ -1714,14 +1761,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						...deferredOverlapTaskIds,
 						...sweepTaskIds,
 					]);
-				});
+				})();
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Could not finalize auto-review task ${taskId} for ${scope.workspacePath}: ${message}`);
 			} finally {
 				autoReviewFinalizationInFlightTaskIds.delete(inFlightKey);
 				if (autoReviewFinalizationRerunRequestedKeys.delete(inFlightKey)) {
-					finalizeHeadlessAutoReviewTask(scope, service, taskId);
+					// Duplicate awaiting-review summaries can queue a rerun while round 1 is still settling. If that
+					// round BOUNCED the card, onBounce has already moved it back to In Progress and started the worker
+					// fixup. Replaying finalization now races ahead of the worker and reviews the unchanged old artifact.
+					// A genuinely completed fast redrive has transitioned back into an actionable review summary, so
+					// correlating the queued rerun with the latest session state preserves that case and drops only stale work.
+					const latestSummary = service.getSummary(taskId);
+					if (latestSummary && isReviewableNKleinSummary(latestSummary)) {
+						finalizeHeadlessAutoReviewTask(scope, service, taskId);
+					}
 				}
 			}
 		})();
@@ -1984,6 +2039,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							(summary) =>
 								summary.state === "running" ||
 								summary.state === "queued" ||
+								summary.state === "paused" ||
 								summary.state === "awaiting_review",
 						)
 						.map((summary) => summary.taskId),
@@ -2052,23 +2108,37 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				setInterval(() => {
 					void (async () => {
 						try {
-							const anySessionAlive = trackedService.listSummaries().some(
-								(summary) =>
-									// §5.AW: a speculative mirror is auxiliary by definition — it must never
-									// mask a frozen board (real cards waiting while only a ::spec runs).
-									!isSpeculativeMirrorTaskId(summary.taskId) &&
-									(summary.state === "running" ||
-										summary.state === "queued" ||
-										summary.state === "paused" ||
-										summary.state === "awaiting_review"),
-							);
-							if (anySessionAlive) {
-								return;
-							}
 							if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
 								return; // swarm stopped by the operator — idle is intentional, not a stall
 							}
 							const state = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
+							// A live card excludes only ITSELF from rescue. The old board-wide `anySessionAlive` veto let a
+							// stale paused/awaiting-review source, a derived session, or one unrelated running card mask a
+							// dependency-free Planning root forever. Board membership + the ready sweep provide the proper
+							// correlation: absent/terminal/synthetic summaries cannot suppress real waiting cards.
+							const activeSessionTaskIds = new Set(
+								trackedService
+									.listSummaries()
+									.filter(
+										(summary) =>
+											summary.state === "running" ||
+											summary.state === "queued" ||
+											summary.state === "paused" ||
+											summary.state === "awaiting_review",
+									)
+									.map((summary) => summary.taskId),
+							);
+							// Secondary reviewers run outside the task-session service, so their card is absent from
+							// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
+							// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
+							// verdict (live-found in the watchable project-05 bounce run).
+							const activelyHandledTaskIds = new Set(activeSessionTaskIds);
+							const finalizationKeyPrefix = `${scope.workspaceId}:`;
+							for (const finalizationKey of autoReviewFinalizationInFlightTaskIds) {
+								if (finalizationKey.startsWith(finalizationKeyPrefix)) {
+									activelyHandledTaskIds.add(finalizationKey.slice(finalizationKeyPrefix.length));
+								}
+							}
 							// §5.BD rescue: an interrupted worker card still IN PROGRESS with a result branch is the
 							// salvage the capture-path rebounds sometimes miss (docker-409 stop-path capture errors,
 							// runs 36/38) — rebind it into review so the machinery judges the work. Scope this to the
@@ -2097,7 +2167,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									);
 								}
 							}
-							const startable = listStartableUnstartedTaskIds(state.board, new Set<string>());
+							const startable = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
 							// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
 							// concurrency-deferral retry (run36: only the overlap set was checked).
 							const deferredCount =
@@ -2113,7 +2183,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 								const stalledReviewTaskIds = findStalledReviewTaskIds(
 									state.board,
-									new Set<string>(),
+									activelyHandledTaskIds,
 									rescueDispatched,
 								);
 								const stalledReviewTaskId = stalledReviewTaskIds[0];
@@ -2167,7 +2237,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return;
 							}
 							deps.warn(
-								`Board-liveness watchdog: no session alive but ${startable.length} startable + ${deferredCount} deferred card(s) exist for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+								`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
 							);
 							recordSelfObservation({
 								signal: "custom",

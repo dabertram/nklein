@@ -90,10 +90,66 @@ describe("compileScenarioScript specificity ordering", () => {
 			const index = firstMatch(fixtures, withAssistants(count) as never);
 			return JSON.stringify(fixtures[index]?.response ?? "");
 		};
-		expect(responseAt(0)).toContain("VERDICT-TURN"); // round 1
+		expect(responseAt(0)).toContain("VERDICT-TURN");
 		expect(responseAt(1)).toContain("CLOSING-TEXT");
-		expect(responseAt(2)).toContain("VERDICT-TURN"); // round 2 on the RESUMED session
+		expect(responseAt(2)).toContain("VERDICT-TURN");
 		expect(responseAt(5)).toContain("CLOSING-TEXT");
+	});
+
+	it("uses a round-1-specific bounce track before the generic approval fallback", () => {
+		const verdictTurn = (verdict: "approve" | "request_changes") => ({
+			behavior: {
+				kind: "tool_calls" as const,
+				calls: [
+					{
+						name: "submit_review",
+						arguments: {
+							verdict,
+							summary: verdict,
+							...(verdict === "request_changes" ? { feedback: "fix it" } : {}),
+						},
+					},
+				],
+			},
+		});
+		const closing = { behavior: { kind: "text" as const, content: "REVIEW-CLOSED" } };
+		const script: ScenarioScript = {
+			name: "round-keyed-review-bounce",
+			seed: 1,
+			tracks: [
+				{
+					id: "round-1-changes",
+					requestClass: "any",
+					userMessageIncludes: 'the card "Alpha" (review round 1)',
+					turns: [verdictTurn("request_changes"), closing],
+					cycleTurns: true,
+				},
+				{
+					id: "later-round-approval",
+					requestClass: "any",
+					userMessageIncludes: 'the card "Alpha"',
+					turns: [verdictTurn("approve"), closing],
+					cycleTurns: true,
+				},
+			],
+		};
+		const fixtures = compileScenarioScript(script);
+		const responseAt = (round: number, assistantCount: number) => {
+			const requestForRound = {
+				messages: [
+					{ role: "user", content: `You are the reviewer for the card "Alpha" (review round ${round}).` },
+					...Array.from({ length: assistantCount }, () => ({ role: "assistant", content: "prior turn" })),
+				],
+			};
+			const index = firstMatch(fixtures, requestForRound as never);
+			return JSON.stringify(fixtures[index]?.response ?? "");
+		};
+
+		expect(responseAt(1, 0)).toContain("request_changes");
+		expect(responseAt(1, 1)).toContain("REVIEW-CLOSED");
+		expect(responseAt(2, 0)).toContain("approve");
+		expect(responseAt(2, 1)).toContain("REVIEW-CLOSED");
+		expect(responseAt(2, 2)).toContain("approve");
 	});
 
 	it("keeps authoring order within the same specificity tier", () => {

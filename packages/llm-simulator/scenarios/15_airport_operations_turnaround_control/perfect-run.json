@@ -1457,9 +1457,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s07",
+			"id": "bounce-review-s07-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks — edge cases\"",
+			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1476,6 +1476,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Turnaround milestone tracker for blocks-on, chocks — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1497,7 +1512,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2840,9 +2855,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s21",
+			"id": "bounce-review-s21-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed day-of-operations scenario with snow delay, gate — core engine\"",
+			"userMessageIncludes": "the card \"Seed day-of-operations scenario with snow delay, gate — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2859,6 +2874,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s21",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Seed day-of-operations scenario with snow delay, gate — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2880,7 +2910,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

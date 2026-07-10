@@ -4181,9 +4181,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s36",
+			"id": "bounce-review-s36-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 14\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 14\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -4200,6 +4200,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s36",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 14\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -4221,7 +4236,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

@@ -1601,9 +1601,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s11",
+			"id": "bounce-review-s11-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Statement generation with opening balance, activity\"",
+			"userMessageIncludes": "the card \"Statement generation with opening balance, activity\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1620,6 +1620,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s11",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Statement generation with opening balance, activity\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1641,7 +1656,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2024,9 +2039,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s15",
+			"id": "bounce-review-s15-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Bank-file reconciliation workflow that matches expected — core engine\"",
+			"userMessageIncludes": "the card \"Bank-file reconciliation workflow that matches expected — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2043,6 +2058,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s15",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Bank-file reconciliation workflow that matches expected — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2064,7 +2094,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2255,9 +2285,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s17",
+			"id": "bounce-review-s17-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Compliance holds for KYC review, suspicious activity\"",
+			"userMessageIncludes": "the card \"Compliance holds for KYC review, suspicious activity\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2274,6 +2304,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s17",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Compliance holds for KYC review, suspicious activity\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2295,7 +2340,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

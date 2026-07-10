@@ -3277,9 +3277,9 @@
    "cycleTurns": true
   },
   {
-   "id": "perfect-review-s03-changes-then-approve",
+   "id": "bounce-review-s03-round-1",
    "requestClass": "review",
-   "userMessageIncludes": "Unit-safe dose and quantity arithmetic",
+   "userMessageIncludes": "the card \"Unit-safe dose and quantity arithmetic\" (review round 1)",
    "turns": [
     {
      "behavior": {
@@ -3297,6 +3297,21 @@
       ]
      }
     },
+    {
+     "behavior": {
+      "kind": "text",
+      "content": "Review submitted."
+     }
+    }
+   ],
+   "cycleTurns": true,
+   "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
+  },
+  {
+   "id": "perfect-review-s03",
+   "requestClass": "review",
+   "userMessageIncludes": "the card \"Unit-safe dose and quantity arithmetic\"",
+   "turns": [
     {
      "behavior": {
       "kind": "tool_calls",
@@ -3320,7 +3335,7 @@
      }
     }
    ],
-   "repeatLastTurn": true,
+   "cycleTurns": true,
    "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
   },
   {
@@ -3665,9 +3680,9 @@
    "cycleTurns": true
   },
   {
-   "id": "perfect-review-s15-changes-then-approve",
+   "id": "bounce-review-s15-round-1",
    "requestClass": "review",
-   "userMessageIncludes": "evaluateRules facade over the five rules",
+   "userMessageIncludes": "the card \"evaluateRules facade over the five rules\" (review round 1)",
    "turns": [
     {
      "behavior": {
@@ -3685,6 +3700,21 @@
       ]
      }
     },
+    {
+     "behavior": {
+      "kind": "text",
+      "content": "Review submitted."
+     }
+    }
+   ],
+   "cycleTurns": true,
+   "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
+  },
+  {
+   "id": "perfect-review-s15",
+   "requestClass": "review",
+   "userMessageIncludes": "the card \"evaluateRules facade over the five rules\"",
+   "turns": [
     {
      "behavior": {
       "kind": "tool_calls",
@@ -3708,7 +3738,7 @@
      }
     }
    ],
-   "repeatLastTurn": true,
+   "cycleTurns": true,
    "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
   },
   {
@@ -3836,9 +3866,9 @@
    "cycleTurns": true
   },
   {
-   "id": "perfect-review-s20-changes-then-approve",
+   "id": "bounce-review-s20-round-1",
    "requestClass": "review",
-   "userMessageIncludes": "Reconciliation workflow with source provenance",
+   "userMessageIncludes": "the card \"Reconciliation workflow with source provenance\" (review round 1)",
    "turns": [
     {
      "behavior": {
@@ -3856,6 +3886,21 @@
       ]
      }
     },
+    {
+     "behavior": {
+      "kind": "text",
+      "content": "Review submitted."
+     }
+    }
+   ],
+   "cycleTurns": true,
+   "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
+  },
+  {
+   "id": "perfect-review-s20",
+   "requestClass": "review",
+   "userMessageIncludes": "the card \"Reconciliation workflow with source provenance\"",
+   "turns": [
     {
      "behavior": {
       "kind": "tool_calls",
@@ -3879,7 +3924,7 @@
      }
     }
    ],
-   "repeatLastTurn": true,
+   "cycleTurns": true,
    "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
   },
   {
@@ -4100,9 +4145,9 @@
    "cycleTurns": true
   },
   {
-   "id": "perfect-review-s28-changes-then-approve",
+   "id": "bounce-review-s28-round-1",
    "requestClass": "review",
-   "userMessageIncludes": "Plain-language patient summary with denylist",
+   "userMessageIncludes": "the card \"Plain-language patient summary with denylist\" (review round 1)",
    "turns": [
     {
      "behavior": {
@@ -4120,6 +4165,21 @@
       ]
      }
     },
+    {
+     "behavior": {
+      "kind": "text",
+      "content": "Review submitted."
+     }
+    }
+   ],
+   "cycleTurns": true,
+   "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
+  },
+  {
+   "id": "perfect-review-s28",
+   "requestClass": "review",
+   "userMessageIncludes": "the card \"Plain-language patient summary with denylist\"",
+   "turns": [
     {
      "behavior": {
       "kind": "tool_calls",
@@ -4143,7 +4203,7 @@
      }
     }
    ],
-   "repeatLastTurn": true,
+   "cycleTurns": true,
    "provenance": "Authored request_changes->approve baseline (Claude design-time spec, 2026-07-10); critique mirrors a spec pitfall."
   },
   {

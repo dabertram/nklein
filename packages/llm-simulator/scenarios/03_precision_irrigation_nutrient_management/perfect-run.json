@@ -1193,9 +1193,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "bounce-review-s08-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed data for orchards or vineyards with heterogeneous\"",
+			"userMessageIncludes": "the card \"Seed data for orchards or vineyards with heterogeneous\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1212,6 +1212,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Seed data for orchards or vineyards with heterogeneous\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1233,7 +1248,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -1520,9 +1535,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s11",
+			"id": "bounce-review-s11-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Adversarial / failure / edge-case fixture pack\"",
+			"userMessageIncludes": "the card \"Adversarial / failure / edge-case fixture pack\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1539,6 +1554,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s11",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Adversarial / failure / edge-case fixture pack\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1560,7 +1590,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2039,9 +2069,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s16",
+			"id": "bounce-review-s16-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 1\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 1\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2058,6 +2088,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s16",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 1\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2079,7 +2124,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

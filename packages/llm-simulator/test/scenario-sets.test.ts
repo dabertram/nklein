@@ -86,14 +86,14 @@ describe("checked-in scenario sets", () => {
 					).toBe(false);
 				}
 
-				// Review ladders end with a text turn (the runner re-prompts until a non-tool turn) and stay
-				// answerable on EVERY round: plain approve tracks must CYCLE (the ::review session resumes with
-				// its transcript across rounds — wire truth 11, live-found 2026-07-10: a linear ladder answered
-				// text-only on round ≥2 and the card froze verdict-less in Review); bounce ladders keep the
-				// round-ordered linear repeat.
-				for (const track of script.tracks.filter((track) => track.requestClass === "review")) {
+				// Review ladders end with text because submit_review is not a terminal SDK tool. Every ladder cycles for
+				// retained-transcript safety. A bounce uses a round-1-specific request-changes track plus a generic approval
+				// companion because the auxiliary reviewer transcript resets between rounds.
+				const reviewTracks = script.tracks.filter((track) => track.requestClass === "review");
+				for (const track of reviewTracks) {
 					const last = track.turns[track.turns.length - 1];
 					expect(last?.behavior.kind).toBe("text");
+					expect(track.cycleTurns, `${track.id}: review tool→text ladders must cycle`).toBe(true);
 					const hasBounce = track.turns.some(
 						(turn) =>
 							turn.behavior.kind === "tool_calls" &&
@@ -102,9 +102,21 @@ describe("checked-in scenario sets", () => {
 							),
 					);
 					if (hasBounce) {
-						expect(track.repeatLastTurn, `${track.id}: bounce ladders repeat their last turn`).toBe(true);
-					} else {
-						expect(track.cycleTurns, `${track.id}: plain review tracks must cycle (wire truth 11)`).toBe(true);
+						expect(track.userMessageIncludes).toMatch(/\(review round 1\)$/);
+						const genericNeedle = track.userMessageIncludes?.replace(/ \(review round 1\)$/, "");
+						const approvalCompanion = reviewTracks.find(
+							(candidate) =>
+								candidate !== track &&
+								candidate.userMessageIncludes === genericNeedle &&
+								candidate.turns.some(
+									(turn) =>
+										turn.behavior.kind === "tool_calls" &&
+										turn.behavior.calls.some(
+											(call) => (call.arguments as { verdict?: string }).verdict === "approve",
+										),
+								),
+						);
+						expect(approvalCompanion, `${track.id}: missing generic round-2+ approval companion`).toBeDefined();
 					}
 				}
 

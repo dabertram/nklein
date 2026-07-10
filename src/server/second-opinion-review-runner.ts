@@ -33,6 +33,7 @@ import {
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/task-result-branches";
+import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 
 /** Suffix the service uses for the isolated reviewer session id; guards against reviewing a review. */
 const REVIEW_SESSION_TASK_SUFFIX = "::review";
@@ -210,7 +211,7 @@ export async function runSecondOpinionReviewForTask(
 	const now = input.now ?? Date.now;
 
 	const config = await loadConfig(input.workspacePath);
-	const state = await loadState(input.workspacePath);
+	const state = await retryWorkspaceStateLock(() => loadState(input.workspacePath));
 	const located = state.board.columns
 		.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
 		.find((entry) => entry.card.id === input.taskId);
@@ -326,10 +327,12 @@ export async function runSecondOpinionReviewForTask(
 	};
 
 	const persistReview = async (review: RuntimeCardReview, targetColumnId?: string): Promise<void> => {
-		await mutate(input.workspacePath, (current) => ({
-			board: applyCardReviewToBoard(current.board, input.taskId, review, targetColumnId, now),
-			value: null,
-		}));
+		await retryWorkspaceStateLock(() =>
+			mutate(input.workspacePath, (current) => ({
+				board: applyCardReviewToBoard(current.board, input.taskId, review, targetColumnId, now),
+				value: null,
+			})),
+		);
 	};
 
 	// §5.AW: the primary handed off — a speculative mirror still running has LOST the race. Cancel it now so
@@ -409,7 +412,7 @@ export async function runSecondOpinionReviewForTask(
 			input.warn?.(`Test-driven gate: bouncing ${input.taskId} — ${gate.reason}`);
 		}
 	}
-	stampPhase("review-session start");
+	stampPhase("review-resolution start");
 	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
@@ -515,39 +518,41 @@ export async function runSecondOpinionReviewForTask(
 				// this is the productive escape for the score-clamp-class cards that defeated all three model tiers.
 				if (escalatedWorkerTaskIds.has(input.taskId)) {
 					const redecomposeTaskId = `redecompose-${input.taskId}`;
-					const spawned = await mutate(input.workspacePath, (current) => {
-						const exists = current.board.columns.some((column) =>
-							column.cards.some((boardCard) => boardCard.id === redecomposeTaskId),
-						);
-						if (exists) {
-							return { board: current.board, save: false, value: null };
-						}
-						const created = addTaskToColumn(
-							current.board,
-							"backlog",
-							{
-								taskId: redecomposeTaskId,
-								title: `Decompose: ${card.title ?? card.id}`,
-								prompt: [
-									`The card "${card.title ?? card.id}" proved too hard as ONE unit — a bounced worker, a diverse escalation, and the review ladder all failed to complete it. Split its objective into SMALLER, independently-verifiable cards using the decompose_project tool (do NOT implement it directly).`,
-									`Original objective:
+					const spawned = await retryWorkspaceStateLock(() =>
+						mutate(input.workspacePath, (current) => {
+							const exists = current.board.columns.some((column) =>
+								column.cards.some((boardCard) => boardCard.id === redecomposeTaskId),
+							);
+							if (exists) {
+								return { board: current.board, save: false, value: null };
+							}
+							const created = addTaskToColumn(
+								current.board,
+								"backlog",
+								{
+									taskId: redecomposeTaskId,
+									title: `Decompose: ${card.title ?? card.id}`,
+									prompt: [
+										`The card "${card.title ?? card.id}" proved too hard as ONE unit — a bounced worker, a diverse escalation, and the review ladder all failed to complete it. Split its objective into SMALLER, independently-verifiable cards using the decompose_project tool (do NOT implement it directly).`,
+										`Original objective:
 ${card.prompt}`,
-									review.lastFeedback
-										? `Reviewer feedback the workers could not address:
+										review.lastFeedback
+											? `Reviewer feedback the workers could not address:
 ${review.lastFeedback}`
-										: "",
-									`Keep each new card small enough for a single focused session, declare tight file scopes, and give every card an objective acceptance check.`,
-								]
-									.filter(Boolean)
-									.join("\n\n"),
-								baseRef: card.baseRef,
-								startInPlanMode: true,
-								autoReviewEnabled: card.autoReviewEnabled ?? true,
-							},
-							() => globalThis.crypto.randomUUID(),
-						);
-						return { board: created.board, value: redecomposeTaskId };
-					});
+											: "",
+										`Keep each new card small enough for a single focused session, declare tight file scopes, and give every card an objective acceptance check.`,
+									]
+										.filter(Boolean)
+										.join("\n\n"),
+									baseRef: card.baseRef,
+									startInPlanMode: true,
+									autoReviewEnabled: card.autoReviewEnabled ?? true,
+								},
+								() => globalThis.crypto.randomUUID(),
+							);
+							return { board: created.board, value: redecomposeTaskId };
+						}),
+					);
 					if (spawned.value) {
 						input.warn?.(
 							`Parked card ${input.taskId} exhausted the escalation ladder — spawned re-decompose card ${redecomposeTaskId} (the architect will split the objective).`,
@@ -558,6 +563,10 @@ ${review.lastFeedback}`
 			},
 		},
 	});
-	stampPhase(`review-session done (${reviewResult.type})`);
+	stampPhase(
+		reviewResult.type === "delivered" && reviewResult.reusedApproval
+			? `review-resolution done (delivered; durable approval reused, round ${reviewResult.round})`
+			: `review-resolution done (${reviewResult.type})`,
+	);
 	return reviewResult;
 }

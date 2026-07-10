@@ -67,6 +67,26 @@ describe("classifyRequest against live !Klein wire shapes", () => {
 		).toBe("review");
 	});
 
+	it("keeps a bounced worker in the worker class when its feedback quotes the second-opinion reviewer", () => {
+		expect(
+			classifyRequest({
+				messages: [
+					{ role: "system", content: GENERIC_SYSTEM },
+					{
+						role: "user",
+						content: "Leaf scope: complete only this card's explicit objective. Acceptance check: npm test",
+					},
+					{ role: "assistant", content: "Task complete." },
+					{
+						role: "user",
+						content: "The second-opinion reviewer requested changes (review round 1). Fix the missing assertion.",
+					},
+				],
+				tools: REGISTRY_TOOLS,
+			}),
+		).toBe("worker");
+	});
+
 	it("classifies a PLAN seed as worker — decompose is indistinguishable on the wire, so decompose tracks must carry userMessageIncludes", () => {
 		// The plan seed carries the same Leaf-scope scaffold + the same tool registry as a worker card. There is
 		// NO universal decompose signal; scenario decompose tracks key on their own project's seed prompt.

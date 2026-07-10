@@ -3083,9 +3083,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s23",
+			"id": "bounce-review-s23-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed cluster scenario with partitioned network, stale\"",
+			"userMessageIncludes": "the card \"Seed cluster scenario with partitioned network, stale\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -3102,6 +3102,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s23",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Seed cluster scenario with partitioned network, stale\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -3123,7 +3138,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -3602,9 +3617,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s28",
+			"id": "bounce-review-s28-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 3\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 3\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -3621,6 +3636,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s28",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 3\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -3642,7 +3672,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -5657,9 +5687,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s49",
+			"id": "bounce-review-s49-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Flagship integration test and foundation README\"",
+			"userMessageIncludes": "the card \"Flagship integration test and foundation README\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -5676,6 +5706,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s49",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Flagship integration test and foundation README\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -5697,7 +5742,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeBoardData, RuntimeCardReview } from "../../../src/core/api-contract";
-import type { ReviewSubmissionInput } from "../../../src/core/review-orchestration";
+import { fingerprintReviewArtifact, type ReviewSubmissionInput } from "../../../src/core/review-orchestration";
 import {
 	applyCardReviewToBoard,
 	buildReviewBoardContext,
@@ -9,7 +9,10 @@ import {
 
 const COLUMN_IDS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 
-function boardWithCardInReview(options?: { preexistingRedecompose?: boolean }): RuntimeBoardData {
+function boardWithCardInReview(options?: {
+	preexistingRedecompose?: boolean;
+	review?: RuntimeCardReview;
+}): RuntimeBoardData {
 	return {
 		columns: COLUMN_IDS.map((id) => ({
 			id,
@@ -23,23 +26,25 @@ function boardWithCardInReview(options?: { preexistingRedecompose?: boolean }): 
 								prompt: "Implement login.",
 								startInPlanMode: false,
 								baseRef: "main",
-								...(options?.preexistingRedecompose
-									? {
-											review: {
-												status: "changes_requested" as const,
-												round: 1,
-												history: [],
-												lastVerdict: "request_changes" as const,
-												lastSummary: "Escalated",
-												lastFeedback: "Split it",
-												lastInsight: null,
-												signOff: null,
-												parkedReason: null,
-												escalated: true,
-												updatedAt: 2,
-											},
-										}
-									: {}),
+								...(options?.review
+									? { review: options.review }
+									: options?.preexistingRedecompose
+										? {
+												review: {
+													status: "changes_requested" as const,
+													round: 1,
+													history: [],
+													lastVerdict: "request_changes" as const,
+													lastSummary: "Escalated",
+													lastFeedback: "Split it",
+													lastInsight: null,
+													signOff: null,
+													parkedReason: null,
+													escalated: true,
+													updatedAt: 2,
+												},
+											}
+										: {}),
 								createdAt: 1,
 								updatedAt: 2,
 							},
@@ -70,8 +75,12 @@ function makeDeps(overrides: {
 	reviewerPinned?: boolean;
 	preexistingRedecompose?: boolean;
 	reviewLensesEnabled?: boolean;
+	review?: RuntimeCardReview;
 }) {
-	const board = boardWithCardInReview({ preexistingRedecompose: overrides.preexistingRedecompose });
+	const board = boardWithCardInReview({
+		preexistingRedecompose: overrides.preexistingRedecompose,
+		review: overrides.review,
+	});
 	const reviewerRole = {
 		providerId: "lmstudio",
 		modelId: "reviewer-model",
@@ -248,6 +257,57 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(deps.sendTaskSessionInput).not.toHaveBeenCalled();
 		// Auto reviewer config does not hard-pin the reviewer; the service picks a diverse reviewer.
 		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(expect.objectContaining({ reviewer: null }));
+	});
+
+	it("reuses an unchanged durable approval without launching or persisting another review round", async () => {
+		const diff = "diff --git a/login.ts b/login.ts\n+code";
+		const review: RuntimeCardReview = {
+			status: "approved",
+			round: 1,
+			history: [
+				{
+					round: 1,
+					verdict: "approve",
+					feedbackFingerprint: null,
+					workFingerprint: fingerprintReviewArtifact(diff),
+				},
+			],
+			lastVerdict: "approve",
+			lastSummary: "Good",
+			lastFeedback: null,
+			lastInsight: null,
+			signOff: "Approved login implementation.",
+			parkedReason: null,
+			preferredCandidate: "primary",
+			updatedAt: 2,
+		};
+		const deps = makeDeps({ diff, review, submission: null });
+		const warn = vi.fn();
+
+		await expect(
+			runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service(deps),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+				warn,
+			}),
+		).resolves.toEqual({
+			type: "delivered",
+			round: 1,
+			signOff: "Approved login implementation.",
+			preferred: "primary",
+			reusedApproval: true,
+		});
+		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(deps.mutateWorkspaceState).not.toHaveBeenCalled();
+		expect(deps.sendTaskSessionInput).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalledWith(
+			"[review-phase] task-1: review-resolution done (delivered; durable approval reused, round 1)",
+		);
 	});
 
 	it("§5.AB panel (opt-in NKLEIN_REVIEW_PANEL): runs N base-family-diverse judges and combines majority → delivered", async () => {

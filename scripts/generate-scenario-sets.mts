@@ -320,7 +320,7 @@ function workerTrack(project: ProjectInput, card: CardPlan, options: { fixup?: b
 	};
 }
 
-function reviewTrack(card: CardPlan, options: { requestChangesFirst?: boolean } = {}): ScenarioTrack {
+function reviewTracks(card: CardPlan, options: { requestChangesFirst?: boolean } = {}): ScenarioTrack[] {
 	const approve: ScenarioTurn = {
 		behavior: {
 			kind: "tool_calls",
@@ -335,38 +335,48 @@ function reviewTrack(card: CardPlan, options: { requestChangesFirst?: boolean } 
 			],
 		},
 	};
-	const turns: ScenarioTurn[] = [];
-	if (options.requestChangesFirst) {
-		turns.push({
-			behavior: {
-				kind: "tool_calls",
-				calls: [
-					{
-						name: "submit_review",
-						arguments: {
-							verdict: "request_changes",
-							summary: `"${card.title}" is close but ships a gap the card explicitly owns.`,
-							feedback: `The evaluate module for "${card.title}" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command.`,
-						},
-					},
-				],
-			},
-		});
-	}
-	turns.push(approve, { behavior: { kind: "text", content: "Review submitted." } });
-	// Plain approve tracks CYCLE: the runtime resumes `<taskId>::review` across review rounds with its prior
-	// transcript, so a linear [approve, text] ladder answers text-only (no verdict!) on every round ≥2 and the
-	// card freezes in Review (live-found 2026-07-10 — a skipped round-1 finalize made round 2 hit turn index 1).
-	// Bounce tracks keep the validated linear ladder (their request_changes→approve sequence is round-ordered).
-	const cycle = !options.requestChangesFirst;
-	return {
+	const closing: ScenarioTurn = { behavior: { kind: "text", content: "Review submitted." } };
+	const approvalTrack: ScenarioTrack = {
 		id: `perfect-review-${card.id}`,
 		requestClass: "review",
 		userMessageIncludes: `the card "${card.title}"`,
-		turns,
-		...(cycle ? { cycleTurns: true } : { repeatLastTurn: true }),
+		turns: [approve, closing],
+		cycleTurns: true,
 		provenance: "generated baseline (generate-scenario-sets.mts)",
 	};
+	if (!options.requestChangesFirst) {
+		return [approvalTrack];
+	}
+	const requestChanges: ScenarioTurn = {
+		behavior: {
+			kind: "tool_calls",
+			calls: [
+				{
+					name: "submit_review",
+					arguments: {
+						verdict: "request_changes",
+						summary: `"${card.title}" is close but ships a gap the card explicitly owns.`,
+						feedback: `The evaluate module for "${card.title}" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command.`,
+					},
+				},
+			],
+		},
+	};
+	// Auxiliary reviewer state is torn down after every round, so round 2 starts at assistant count zero. A single
+	// transcript ladder cannot encode request_changes→approve. Put the round-1-specific track first (stable same-tier
+	// ordering makes it win), then fall back to the generic approval track for round 2+. Every track closes with text
+	// because submit_review is not a terminal SDK tool. cycleTurns also keeps an accidentally retained transcript safe.
+	return [
+		{
+			id: `bounce-review-${card.id}-round-1`,
+			requestClass: "review",
+			userMessageIncludes: `the card "${card.title}" (review round 1)`,
+			turns: [requestChanges, closing],
+			cycleTurns: true,
+			provenance: "generated baseline (generate-scenario-sets.mts)",
+		},
+		approvalTrack,
+	];
 }
 
 function decomposeTrack(project: ProjectInput, cards: CardPlan[]): ScenarioTrack {
@@ -449,7 +459,7 @@ function perfectScript(project: ProjectInput, cards: CardPlan[], seed: number): 
 		// A seeded ~8% of cards take one request_changes→approve review ladder so the bounce path stays exercised.
 		const bounce = card.id !== "s00" && rng.chance(0.08);
 		tracks.push(workerTrack(project, card, { fixup: bounce }));
-		tracks.push(reviewTrack(card, { requestChangesFirst: bounce }));
+		tracks.push(...reviewTracks(card, { requestChangesFirst: bounce }));
 	}
 	tracks.push(chatTrack(project), fallbackTrack());
 	return { name: `${project.id} perfect run`, seed, tracks };
@@ -499,7 +509,7 @@ function flakyScript(project: ProjectInput, cards: CardPlan[], seed: number): Sc
 			base.provenance = `generated flaky baseline — ${failure} then recovery (failure-catalog.md)`;
 		}
 		tracks.push(base);
-		tracks.push(reviewTrack(card));
+		tracks.push(...reviewTracks(card));
 	}
 	tracks.push(chatTrack(project), fallbackTrack());
 	return { name: `${project.id} flaky run`, seed, tracks };
@@ -549,7 +559,7 @@ GENERATED baseline (scripts/generate-scenario-sets.mts, 2026-07-10) conforming t
 - **perfect-run.json** — 1 decompose (${cards.length} dependency-linked cards from the spec's foundation scope + hardest-seam sections), per-card worker tracks (read → write real zero-dependency ESM modules + node:test files → run \`${project.acceptanceCommand}\` → text), per-card review tracks (submit_review approve with summary; a seeded ~8% bounce once with request_changes), 1 chat, any-fallback.
 - **flaky-run.json** — decompose reduced to ${FLAKY_CARD_COUNT} cards; ${flakyTrackCount} failure tracks (catalog ids in each track's provenance) with scripted recovery; control workers; per-card reviews; any-fallback.
 
-Wire truths encoded (see packages/llm-simulator/test/request-classifier.test.ts): decompose is class **any** keyed on the seed-only product phrase; worker/review tracks are per-card (sequenceIndex is per-fixture); submit_review carries non-empty \`summary\`; every ladder closes with a text turn + repeatLastTurn.
+	Wire truths encoded (see packages/llm-simulator/test/request-classifier.test.ts): decompose is class **any** keyed on the seed-only product phrase; worker/review tracks are per-card (sequenceIndex is per-fixture); submit_review carries non-empty \`summary\`; every tool ladder closes with text. Review bounces use a round-1-specific request-changes track followed by a generic approval track because auxiliary reviewer state resets between rounds.
 
 Generated card content is deliberately dependency-free ESM JavaScript verified by \`node --test\`, so acceptance is green offline with no install step.
 `;

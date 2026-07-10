@@ -1403,9 +1403,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "bounce-review-s08-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed scenario with stealth units, overwatch, area denial\"",
+			"userMessageIncludes": "the card \"Seed scenario with stealth units, overwatch, area denial\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1422,6 +1422,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Seed scenario with stealth units, overwatch, area denial\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1443,7 +1458,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

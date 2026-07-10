@@ -42,7 +42,14 @@ export type NKleinSecondOpinionReviewOutcome =
 	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "card_not_found" | "no_verdict" }
 	| { type: "blocked"; reason: "pinned_reviewer_unavailable"; message: string }
 	/** §5.AW: `preferred` is set only when the review was an A/B arbitration (a speculative candidate existed). */
-	| { type: "delivered"; round: number; signOff: string; preferred?: "primary" | "speculative" | null }
+	| {
+			type: "delivered";
+			round: number;
+			signOff: string;
+			preferred?: "primary" | "speculative" | null;
+			/** True when unchanged work reused its persisted approval without launching another reviewer session. */
+			reusedApproval?: boolean;
+	  }
 	| { type: "bounced"; round: number }
 	/** W4.2: the stuck card was re-driven on a stronger/different-lineage worker (one escalation per card). */
 	| { type: "escalated"; round: number }
@@ -151,6 +158,33 @@ export async function runNKleinSecondOpinionReview(
 		return { type: "skipped", reason: input.enabled ? "not_reviewable" : "disabled" };
 	}
 
+	// A review approval is durable delivery evidence for the exact work artifact it judged. Runtime finalization can
+	// be requested again while the first delivery is still settling (summary churn, restart reconciliation, or a
+	// transient workspace-state lock retry). Re-running the reviewer for unchanged, already-approved work wastes a
+	// model turn and can turn a valid sign-off into a later `no_verdict` hold. Reuse only a fully self-consistent
+	// approval record; carried-forward sign-offs on changes-requested/parked cards and old/corrupt records fail closed.
+	// A deterministic pre-review verdict deliberately supersedes the old approval (for example test-driven mode).
+	const workFingerprint = fingerprintReviewArtifact(diff || "(no file changes)");
+	const persistedReview = card.review;
+	const latestReviewRecord = persistedReview?.history.at(-1);
+	if (
+		input.preReviewVerdict == null &&
+		persistedReview?.status === "approved" &&
+		persistedReview.lastVerdict === "approve" &&
+		persistedReview.signOff?.trim() &&
+		persistedReview.round === latestReviewRecord?.round &&
+		latestReviewRecord.verdict === "approve" &&
+		latestReviewRecord.workFingerprint === workFingerprint
+	) {
+		return {
+			type: "delivered",
+			round: persistedReview.round,
+			signOff: persistedReview.signOff,
+			preferred: persistedReview.preferredCandidate ?? null,
+			reusedApproval: true,
+		};
+	}
+
 	const history = card.review?.history ?? [];
 	const round = history.length + 1;
 	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
@@ -179,7 +213,6 @@ export async function runNKleinSecondOpinionReview(
 
 	// A no-change result still gets a stable work fingerprint so the stall / identical-loop guards engage when a
 	// card keeps coming back with nothing done (a common bad-planning symptom), rather than bouncing to the cap.
-	const workFingerprint = fingerprintReviewArtifact(diff || "(no file changes)");
 	const transition = resolveReviewTransition({
 		submission,
 		round,

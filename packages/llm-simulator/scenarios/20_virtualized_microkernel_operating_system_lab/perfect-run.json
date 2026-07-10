@@ -767,9 +767,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s02",
+			"id": "bounce-review-s02-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction\"",
+			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -786,6 +786,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s02",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -807,7 +822,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -1286,9 +1301,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s07",
+			"id": "bounce-review-s07-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based — edge cases\"",
+			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1305,6 +1320,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1326,7 +1356,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

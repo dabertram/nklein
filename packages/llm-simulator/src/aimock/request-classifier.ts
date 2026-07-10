@@ -3,8 +3,8 @@
  * scenario tracks answer it. Classification is DATA-driven (marker strings, overridable) + structural signals
  * (offered tools), so this package stays free of !Klein imports while recognizing !Klein's prompt shells.
  *
- * Structural signals beat text markers: a request OFFERING the `decompose_project` tool is a decompose turn no
- * matter how the system prompt is worded; review/acceptance/chat fall back to system-message markers.
+ * The class-exclusive `submit_review` tool beats text. Otherwise the preserved worker scaffold beats quoted review
+ * feedback in a redriven worker transcript; remaining text markers precede non-exclusive tool fallbacks.
  */
 
 import type { RequestClass } from "../scenario/track-types.js";
@@ -29,8 +29,8 @@ export interface RequestClassMarkers {
 /**
  * Defaults tuned to !Klein's shells (verified against a live request journal, 2026-07-10): the SYSTEM prompt is
  * identical across classes and the FULL tool registry (incl. decompose_project) rides along on worker sessions —
- * so text scaffolds are checked FIRST and tool names act only as the structural fallback. `submit_review` is the
- * one tool that is genuinely class-exclusive (reviewer sessions).
+ * so worker text scaffolds beat non-exclusive tool names. `submit_review` is the one genuinely class-exclusive tool
+ * and is checked first; this also prevents a quoted `Leaf scope` card prompt inside the review seed from winning.
  */
 export const DEFAULT_REQUEST_CLASS_MARKERS: RequestClassMarkers = {
 	toolNameMarkers: {
@@ -61,18 +61,29 @@ export function classifyRequest(
 	request: ClassifierRequestShape,
 	markers: RequestClassMarkers = DEFAULT_REQUEST_CLASS_MARKERS,
 ): RequestClass {
-	// TEXT scaffolds first — tool lists are NOT class-exclusive in !Klein (workers carry decompose_project too).
-	const text = markerText(request);
-	for (const marker of markers.systemMarkers) {
-		if (text.includes(marker.includes)) {
-			return marker.requestClass;
-		}
-	}
-	for (const tool of request.tools ?? []) {
+	const toolClasses = (request.tools ?? []).map((tool) => {
 		const name = tool.function?.name;
-		const byTool = name ? markers.toolNameMarkers[name] : undefined;
-		if (byTool) {
-			return byTool;
+		return name ? markers.toolNameMarkers[name] : undefined;
+	});
+	// Review feedback is appended to the SAME worker transcript on a bounce. Its text says "second-opinion reviewer",
+	// but the redriven worker does not offer submit_review. Conversely every real reviewer does offer it, making the
+	// structural marker authoritative and immune to quoted worker scaffolds inside the review brief.
+	if (toolClasses.includes("review")) {
+		return "review";
+	}
+	const text = markerText(request);
+	const matchingTextMarkers = markers.systemMarkers.filter((marker) => text.includes(marker.includes));
+	const workerMarker = matchingTextMarkers.find((marker) => marker.requestClass === "worker");
+	if (workerMarker) {
+		return workerMarker.requestClass;
+	}
+	const firstTextMarker = matchingTextMarkers[0];
+	if (firstTextMarker) {
+		return firstTextMarker.requestClass;
+	}
+	for (const toolClass of toolClasses) {
+		if (toolClass) {
+			return toolClass;
 		}
 	}
 	return "chat";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeCardReview } from "../../../src/core/api-contract";
-import type { ReviewSubmissionInput } from "../../../src/core/review-orchestration";
+import { fingerprintReviewArtifact, type ReviewSubmissionInput } from "../../../src/core/review-orchestration";
 import {
 	type RunNKleinSecondOpinionReviewInput,
 	runNKleinSecondOpinionReview,
@@ -150,6 +150,134 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect(review.signOff).toContain("Solid");
 		expect(review.signOff).toContain("Clean tests");
 		expect(deps.onBounce).not.toHaveBeenCalled();
+	});
+
+	it("reuses a durable approval for the unchanged work artifact without launching another reviewer", async () => {
+		const diff = "diff --git a/x b/x\n+code";
+		const card: SecondOpinionReviewCard = {
+			id: "task-1",
+			title: "Add login",
+			prompt: "Implement login.",
+			review: {
+				status: "approved",
+				round: 1,
+				history: [
+					{
+						round: 1,
+						verdict: "approve",
+						feedbackFingerprint: null,
+						workFingerprint: fingerprintReviewArtifact(diff),
+					},
+				],
+				lastVerdict: "approve",
+				lastSummary: "Looks good",
+				lastFeedback: null,
+				lastInsight: null,
+				signOff: "Approved unchanged login work.",
+				parkedReason: null,
+				preferredCandidate: "primary",
+				updatedAt: 1,
+			},
+		};
+		const deps = makeDeps({ card, diff, submission: null });
+
+		await expect(runNKleinSecondOpinionReview({ ...base, deps })).resolves.toEqual({
+			type: "delivered",
+			round: 1,
+			signOff: "Approved unchanged login work.",
+			preferred: "primary",
+			reusedApproval: true,
+		});
+		expect(deps.runReviewSession).not.toHaveBeenCalled();
+		expect(deps.onDeliver).not.toHaveBeenCalled();
+		expect(deps.onBounce).not.toHaveBeenCalled();
+		expect(deps.onPark).not.toHaveBeenCalled();
+	});
+
+	it("reviews again when the work changed after a durable approval", async () => {
+		const reviewedDiff = "diff --git a/x b/x\n+old";
+		const changedDiff = "diff --git a/x b/x\n+new";
+		const card: SecondOpinionReviewCard = {
+			id: "task-1",
+			title: "Add login",
+			prompt: "Implement login.",
+			review: {
+				status: "approved",
+				round: 1,
+				history: [
+					{
+						round: 1,
+						verdict: "approve",
+						feedbackFingerprint: null,
+						workFingerprint: fingerprintReviewArtifact(reviewedDiff),
+					},
+				],
+				lastVerdict: "approve",
+				lastSummary: "Looks good",
+				lastFeedback: null,
+				lastInsight: null,
+				signOff: "Approved old login work.",
+				parkedReason: null,
+				updatedAt: 1,
+			},
+		};
+		const deps = makeDeps({
+			card,
+			diff: changedDiff,
+			submission: { verdict: "approve", summary: "New work is sound", feedback: null, insight: null },
+		});
+
+		await expect(runNKleinSecondOpinionReview({ ...base, deps })).resolves.toMatchObject({
+			type: "delivered",
+			round: 2,
+		});
+		expect(deps.runReviewSession).toHaveBeenCalledTimes(1);
+		expect(firstArg<{ review: RuntimeCardReview }>(deps.onDeliver).review.history).toHaveLength(2);
+	});
+
+	it("lets an explicit pre-review verdict supersede an unchanged durable approval", async () => {
+		const diff = "diff --git a/x b/x\n+code";
+		const card: SecondOpinionReviewCard = {
+			id: "task-1",
+			title: "Add login",
+			prompt: "Implement login.",
+			review: {
+				status: "approved",
+				round: 1,
+				history: [
+					{
+						round: 1,
+						verdict: "approve",
+						feedbackFingerprint: null,
+						workFingerprint: fingerprintReviewArtifact(diff),
+					},
+				],
+				lastVerdict: "approve",
+				lastSummary: "Looks good",
+				lastFeedback: null,
+				lastInsight: null,
+				signOff: "Approved old login work.",
+				parkedReason: null,
+				updatedAt: 1,
+			},
+		};
+		const deps = makeDeps({ card, diff, submission: null });
+
+		await expect(
+			runNKleinSecondOpinionReview({
+				...base,
+				deps,
+				preReviewVerdict: {
+					verdict: "request_changes",
+					summary: "Tests required",
+					feedback: "Add a regression test",
+					insight: null,
+				},
+			}),
+		).resolves.toMatchObject({ type: "parked", round: 2 });
+		expect(deps.runReviewSession).not.toHaveBeenCalled();
+		expect(deps.onDeliver).not.toHaveBeenCalled();
+		expect(deps.onPark).toHaveBeenCalledTimes(1);
 	});
 
 	it("bounces on request_changes, passing the worker prompt and changes_requested status", async () => {

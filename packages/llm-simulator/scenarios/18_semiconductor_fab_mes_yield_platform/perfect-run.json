@@ -971,9 +971,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s01",
+			"id": "bounce-review-s01-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Core domain model and stable identifiers\"",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -990,6 +990,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s01",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1011,7 +1026,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -1202,9 +1217,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s03",
+			"id": "bounce-review-s03-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Route engine supporting rework, split lots, merge lots — core engine\"",
+			"userMessageIncludes": "the card \"Route engine supporting rework, split lots, merge lots — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1221,6 +1236,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s03",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Route engine supporting rework, split lots, merge lots — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1242,7 +1272,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -1913,9 +1943,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s10",
+			"id": "bounce-review-s10-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"SPC evaluation using deterministic fixtures for control — edge cases\"",
+			"userMessageIncludes": "the card \"SPC evaluation using deterministic fixtures for control — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1932,6 +1962,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s10",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"SPC evaluation using deterministic fixtures for control — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1953,7 +1998,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2144,9 +2189,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s12",
+			"id": "bounce-review-s12-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Genealogy graph connecting wafers, lots, process runs — core engine\"",
+			"userMessageIncludes": "the card \"Genealogy graph connecting wafers, lots, process runs — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2163,6 +2208,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s12",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Genealogy graph connecting wafers, lots, process runs — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2184,7 +2244,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -2855,9 +2915,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s19",
+			"id": "bounce-review-s19-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Yield excursion workflow that scopes impacted wafers — edge cases\"",
+			"userMessageIncludes": "the card \"Yield excursion workflow that scopes impacted wafers — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2874,6 +2934,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s19",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Yield excursion workflow that scopes impacted wafers — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2895,7 +2970,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -4622,9 +4697,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s37",
+			"id": "bounce-review-s37-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Rigorous acceptance criteria — edge cases\"",
+			"userMessageIncludes": "the card \"Rigorous acceptance criteria — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -4641,6 +4716,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s37",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Rigorous acceptance criteria — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -4662,7 +4752,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -4949,9 +5039,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s40",
+			"id": "bounce-review-s40-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Domain knowledge-debt to track — edge cases\"",
+			"userMessageIncludes": "the card \"Domain knowledge-debt to track — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -4968,6 +5058,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s40",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Domain knowledge-debt to track — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -4989,7 +5094,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -5276,9 +5381,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s43",
+			"id": "bounce-review-s43-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Why this is a great !Klein challenge — edge cases\"",
+			"userMessageIncludes": "the card \"Why this is a great !Klein challenge — edge cases\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -5295,6 +5400,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s43",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Why this is a great !Klein challenge — edge cases\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -5316,7 +5436,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

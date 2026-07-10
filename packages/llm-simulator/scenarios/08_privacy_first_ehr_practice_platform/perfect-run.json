@@ -2015,9 +2015,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s15",
+			"id": "bounce-review-s15-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Why this is a great !Klein challenge\"",
+			"userMessageIncludes": "the card \"Why this is a great !Klein challenge\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2034,6 +2034,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s15",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Why this is a great !Klein challenge\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2055,7 +2070,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

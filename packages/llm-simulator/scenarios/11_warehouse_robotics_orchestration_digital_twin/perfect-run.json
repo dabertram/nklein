@@ -2777,9 +2777,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s22",
+			"id": "bounce-review-s22-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 5\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 5\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2796,6 +2796,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s22",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 5\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2817,7 +2832,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -3008,9 +3023,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s24",
+			"id": "bounce-review-s24-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 7\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 7\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -3027,6 +3042,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s24",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 7\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -3048,7 +3078,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

@@ -2693,9 +2693,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s23",
+			"id": "bounce-review-s23-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Flagship integration test and foundation README\"",
+			"userMessageIncludes": "the card \"Flagship integration test and foundation README\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2712,6 +2712,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s23",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Flagship integration test and foundation README\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2733,7 +2748,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

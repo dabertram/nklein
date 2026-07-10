@@ -1031,9 +1031,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "bounce-review-s06-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Label validation against recipe allergens, claims, net\"",
+			"userMessageIncludes": "the card \"Label validation against recipe allergens, claims, net\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1050,6 +1050,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s06",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Label validation against recipe allergens, claims, net\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1071,7 +1086,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -1454,9 +1469,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s10",
+			"id": "bounce-review-s10-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism & testability strategy\"",
+			"userMessageIncludes": "the card \"Determinism & testability strategy\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1473,6 +1488,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s10",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism & testability strategy\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1494,7 +1524,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

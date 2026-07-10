@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { isEmptySandboxPatchSummary, resolveReviewSandboxResult } from "../../../src/server/review-sandbox-result";
+import {
+	isCapturedSandboxPatchSummary,
+	isEmptySandboxPatchSummary,
+	resolveReviewSandboxResult,
+} from "../../../src/server/review-sandbox-result";
 
 const emptyPatchSummary = {
 	latestHookActivity: { hookEventName: "sandbox_patch_empty" },
@@ -8,6 +12,16 @@ const emptyPatchSummary = {
 
 const busySummary = {
 	latestHookActivity: { hookEventName: "post_tool_use" },
+} as unknown as RuntimeTaskSessionSummary;
+
+const pendingReviewCaptureSummary = {
+	state: "awaiting_review",
+	latestHookActivity: { hookEventName: "agent_end" },
+} as unknown as RuntimeTaskSessionSummary;
+
+const capturedPatchSummary = {
+	state: "awaiting_review",
+	latestHookActivity: { hookEventName: "sandbox_patch_captured" },
 } as unknown as RuntimeTaskSessionSummary;
 
 const noopSleep = () => Promise.resolve();
@@ -18,6 +32,14 @@ describe("isEmptySandboxPatchSummary (§5.U extraction)", () => {
 		expect(isEmptySandboxPatchSummary(emptyPatchSummary)).toBe(true);
 		expect(isEmptySandboxPatchSummary(busySummary)).toBe(false);
 		expect(isEmptySandboxPatchSummary(null)).toBe(false);
+	});
+});
+
+describe("isCapturedSandboxPatchSummary", () => {
+	it("recognizes only the current handoff's captured-patch marker", () => {
+		expect(isCapturedSandboxPatchSummary(capturedPatchSummary)).toBe(true);
+		expect(isCapturedSandboxPatchSummary(pendingReviewCaptureSummary)).toBe(false);
+		expect(isCapturedSandboxPatchSummary(null)).toBe(false);
 	});
 });
 
@@ -60,6 +82,22 @@ describe("resolveReviewSandboxResult (§5.U extraction)", () => {
 		});
 		expect(result).toBe("result_branch");
 		// Immediate pass + 2 sleeps before the 3rd (successful) probe.
+		expect(sleep).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not accept an old result branch until the current bounced-worker handoff finishes capture", async () => {
+		const sleep = vi.fn(noopSleep);
+		let summaryCalls = 0;
+		const result = await resolveReviewSandboxResult(input, {
+			getSummary: () => {
+				summaryCalls += 1;
+				return summaryCalls >= 3 ? capturedPatchSummary : pendingReviewCaptureSummary;
+			},
+			resolveResultCommit: () => Promise.resolve("existing-round-1-branch"),
+			sleep,
+			delaysMs: [1, 2, 3],
+		});
+		expect(result).toBe("result_branch");
 		expect(sleep).toHaveBeenCalledTimes(2);
 	});
 

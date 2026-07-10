@@ -2195,9 +2195,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s15",
+			"id": "bounce-review-s15-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Seed manufacturer with multiple facilities, bad meter — core engine\"",
+			"userMessageIncludes": "the card \"Seed manufacturer with multiple facilities, bad meter — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -2214,6 +2214,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s15",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Seed manufacturer with multiple facilities, bad meter — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2235,7 +2250,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -3386,9 +3401,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s27",
+			"id": "bounce-review-s27-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Domain knowledge-debt to track\"",
+			"userMessageIncludes": "the card \"Domain knowledge-debt to track\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -3405,6 +3420,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s27",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Domain knowledge-debt to track\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -3426,7 +3456,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -4577,9 +4607,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s39",
+			"id": "bounce-review-s39-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 9\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 9\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -4596,6 +4626,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s39",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 9\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -4617,7 +4662,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

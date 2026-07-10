@@ -1379,9 +1379,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "bounce-review-s09-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Quality-propagating, late-correcting feature windows\"",
+			"userMessageIncludes": "the card \"Quality-propagating, late-correcting feature windows\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1398,6 +1398,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Quality-propagating, late-correcting feature windows\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1419,7 +1434,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

@@ -1391,9 +1391,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "bounce-review-s06-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Hanging protocol engine that selects layout, prior\"",
+			"userMessageIncludes": "the card \"Hanging protocol engine that selects layout, prior\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -1410,6 +1410,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s06",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Hanging protocol engine that selects layout, prior\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1431,7 +1446,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -3350,9 +3365,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s26",
+			"id": "bounce-review-s26-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Build THIS first, ~42–46 cards) — core engine\"",
+			"userMessageIncludes": "the card \"Build THIS first, ~42–46 cards) — core engine\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -3369,6 +3384,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s26",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Build THIS first, ~42–46 cards) — core engine\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -3390,7 +3420,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
@@ -4061,9 +4091,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s33",
+			"id": "bounce-review-s33-round-1",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Determinism hardening pass 3\"",
+			"userMessageIncludes": "the card \"Determinism hardening pass 3\" (review round 1)",
 			"turns": [
 				{
 					"behavior": {
@@ -4080,6 +4110,21 @@
 						]
 					}
 				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s33",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 3\"",
+			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -4101,7 +4146,7 @@
 					}
 				}
 			],
-			"repeatLastTurn": true,
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
