@@ -11167,7 +11167,16 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       timeout; a paused board is the operator's call, not a pool freeze). 14 acceptance-gate tests (incl. a fake-
       timer cap test proving no hang) + 19 review-runner tests + 8939 fast green. STILL OWED: run the instrumented
       stack (solo 05, watchable) to CONFIRM the phase stamps + queue log pinpoint any residual hang, and confirm
-      the pause-cap (or a further phase bound) fully drains 05. Evidence:
+      the pause-cap (or a further phase bound) fully drains 05.
+      **FIRST INSTRUMENTED RUN (2026-07-10 ~23:45, cut short by session end): a DIFFERENT stall shape surfaced —
+      the board froze in PLANNING (24 planning / 1 completed / 0 running / 0 review) ~35min after decompose, with
+      ZERO review-phase stamps and ZERO queue-stall logs (so neither the review pipeline nor the sandbox pool was
+      ever reached — the decomposed cards never STARTED).** Suspect the post-decompose auto-start / dispatch path
+      under watchable pacing (compare: the same set at instant pace + the harness drain both complete). Next
+      session: reproduce (solo 05, watchable), check the runtime log for auto-start attempts/defers right after
+      decompose-applied, and whether the board-liveness watchdog saw startable>0 (it should have swept within
+      30s — if it stayed silent, listStartableUnstartedTaskIds may be returning [] wrongly, e.g. all cards
+      dependency-blocked by a mis-inferred dep graph in THIS set's decompose track).** Evidence:
       merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
       known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
       settled with no submit_review — even though a direct probe of the live simulator answered that exact
