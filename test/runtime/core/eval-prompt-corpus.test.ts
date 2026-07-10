@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildContextProbeInput,
 	EVAL_CORPUS_VERSION,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
@@ -8,6 +9,7 @@ import {
 	evalPromptSchema,
 	evalPromptsByDifficulty,
 	evalPromptsByRole,
+	scoreContextProbeAnswer,
 	scoreEvalAnswer,
 } from "../../../src/core/eval-prompt-corpus";
 import { scoreValidDag } from "../../../src/core/prompt-family-scorers";
@@ -33,6 +35,7 @@ describe("eval-prompt-corpus", () => {
 			implement: "worker",
 			review: "reviewer",
 			tool_use: "worker",
+			context_probe: "worker",
 		};
 		for (const prompt of EVAL_PROMPT_CORPUS) {
 			expect(prompt.role).toBe(expected[prompt.family]);
@@ -158,6 +161,32 @@ describe("eval-corpus versioning", () => {
 
 	it("fingerprint is order-sensitive but total over the empty corpus", () => {
 		expect(evalCorpusFingerprint([])).toMatch(/^v\d+-[0-9a-f]{8}$/);
+	});
+
+	it("context probes: deterministic haystack, needle buried at depth, size scales with contextTokens (§5.AD)", () => {
+		const probes = EVAL_PROMPT_CORPUS.filter((prompt) => prompt.family === "context_probe");
+		expect(probes.length).toBeGreaterThanOrEqual(3);
+		let previousLength = 0;
+		for (const probe of [...probes].sort((a, b) => a.contextTokens - b.contextTokens)) {
+			const input = buildContextProbeInput(probe);
+			// Deterministic: repeats measure the model, never the probe.
+			expect(buildContextProbeInput(probe)).toBe(input);
+			// The needle is present exactly once, never at the very start or end (the question closes the input).
+			expect(input.split(probe.needle).length - 1).toBe(1);
+			expect(input.startsWith(probe.needle)).toBe(false);
+			expect(input.trimEnd().endsWith("log above.")).toBe(true);
+			// Bigger contextTokens ⇒ strictly bigger haystack (roughly ~4 chars/token).
+			expect(input.length).toBeGreaterThan(previousLength);
+			previousLength = input.length;
+			expect(input.length).toBeGreaterThan(probe.contextTokens * 2);
+			// Self-test: the needle text itself scores 1 against the probe's own answer key.
+			expect(scoreEvalAnswer(probe, { family: "context_probe", answerText: probe.needle })).toBe(1);
+		}
+	});
+
+	it("context-probe scorer: fragment match is case-insensitive, misses score 0", () => {
+		expect(scoreContextProbeAnswer("The site is in PORTO.", ["porto"])).toBe(1);
+		expect(scoreContextProbeAnswer("No idea, the log is noise.", ["porto"])).toBe(0);
 	});
 
 	it("every tool_use probe self-scores 1 (its expected call IS the answer key)", () => {

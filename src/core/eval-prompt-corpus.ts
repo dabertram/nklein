@@ -101,17 +101,39 @@ export const toolUseEvalPromptSchema = z.object({
 	expected: z.object({ name: z.string().min(1), args: z.record(z.string(), z.unknown()) }).nullable(),
 });
 
+/**
+ * Context-probe family (worker): RULER/NoLiMa-style needle retrieval at a GRADUATED context size (§5.AD — seeds
+ * the learned quality-effective-budget curve with `{contextTokens, quality}` points for models with no prior
+ * outcome data). The haystack is GENERATED deterministically at run time from this compact spec (the corpus stays
+ * small — see {@link buildContextProbeInput}); `prompt` is the QUESTION asked after the haystack.
+ */
+export const contextProbeEvalPromptSchema = z.object({
+	...evalCommonShape,
+	role: z.literal("worker"),
+	family: z.literal("context_probe"),
+	/** Approximate haystack size in tokens (filler surrounding the needle). */
+	contextTokens: z.number().int().positive(),
+	/** The needle sentence buried in the haystack. */
+	needle: z.string().min(1),
+	/** Fraction 0..1 of the way through the haystack where the needle is buried. */
+	needleDepth: z.number().min(0).max(1),
+	/** A correct reply must contain at least one of these fragments (case-insensitive). */
+	expectedFragments: z.array(z.string().min(1)).min(1),
+});
+
 export const evalPromptSchema = z.discriminatedUnion("family", [
 	decomposeEvalPromptSchema,
 	implementEvalPromptSchema,
 	reviewEvalPromptSchema,
 	toolUseEvalPromptSchema,
+	contextProbeEvalPromptSchema,
 ]);
 
 export type DecomposeEvalPrompt = z.infer<typeof decomposeEvalPromptSchema>;
 export type ImplementEvalPrompt = z.infer<typeof implementEvalPromptSchema>;
 export type ReviewEvalPrompt = z.infer<typeof reviewEvalPromptSchema>;
 export type ToolUseEvalPrompt = z.infer<typeof toolUseEvalPromptSchema>;
+export type ContextProbeEvalPrompt = z.infer<typeof contextProbeEvalPromptSchema>;
 export type EvalPrompt = z.infer<typeof evalPromptSchema>;
 export type EvalRole = EvalPrompt["role"];
 export type EvalScorerFamily = EvalPrompt["family"];
@@ -123,7 +145,8 @@ export type EvalAnswer =
 	| { family: "decompose"; graph: TaskGraph }
 	| { family: "implement"; passed: number; total: number }
 	| { family: "review"; caught: readonly string[] }
-	| { family: "tool_use"; called: ToolCallAttempt | null };
+	| { family: "tool_use"; called: ToolCallAttempt | null }
+	| { family: "context_probe"; answerText: string };
 
 /**
  * Grade a model's `answer` to `prompt` with the deterministic scorer for the prompt's family, returning a score in
@@ -145,7 +168,46 @@ export function scoreEvalAnswer(prompt: EvalPrompt, answer: EvalAnswer): number 
 			return scoreDefectCatchingReview(answer.caught, (prompt as ReviewEvalPrompt).seededDefects);
 		case "tool_use":
 			return scoreToolUseCall(answer.called, (prompt as ToolUseEvalPrompt).expected);
+		case "context_probe":
+			return scoreContextProbeAnswer(answer.answerText, (prompt as ContextProbeEvalPrompt).expectedFragments);
 	}
+}
+
+/** Context-probe scorer: 1 when the reply contains ANY expected fragment (case-insensitive), else 0. */
+export function scoreContextProbeAnswer(answerText: string, expectedFragments: readonly string[]): number {
+	const normalized = answerText.toLowerCase();
+	return expectedFragments.some((fragment) => normalized.includes(fragment.toLowerCase())) ? 1 : 0;
+}
+
+/** Filler sentences the haystack cycles through — varied so repetition-collapse can't trivially compress them. */
+const CONTEXT_PROBE_FILLER = [
+	"Log entry %N: routine telemetry heartbeat received, all subsystems reporting nominal readings.",
+	"Audit note %N: scheduled maintenance completed on the secondary cache without incident.",
+	"Status %N: background indexing progressed through another shard; no anomalies were flagged.",
+	"Record %N: the nightly backup rotation finished and checksums were verified successfully.",
+	"Trace %N: a periodic health check pinged every service endpoint and all responded in time.",
+] as const;
+
+/** Rough tokens-per-filler-sentence estimate (words × ~1.3); keeps the generated haystack near `contextTokens`. */
+const CONTEXT_PROBE_TOKENS_PER_SENTENCE = 16;
+
+/**
+ * Deterministically expand a context-probe spec into the full model input: `contextTokens` of numbered filler with
+ * the `needle` buried at `needleDepth`, followed by the question (`prompt.prompt`). Pure — same spec, same string —
+ * so repeats measure the MODEL's variance, never the probe's.
+ */
+export function buildContextProbeInput(prompt: ContextProbeEvalPrompt): string {
+	const sentenceCount = Math.max(4, Math.round(prompt.contextTokens / CONTEXT_PROBE_TOKENS_PER_SENTENCE));
+	const needleIndex = Math.min(sentenceCount - 1, Math.max(0, Math.round(sentenceCount * prompt.needleDepth)));
+	const lines: string[] = [];
+	for (let index = 0; index < sentenceCount; index += 1) {
+		if (index === needleIndex) {
+			lines.push(prompt.needle);
+		}
+		const template = CONTEXT_PROBE_FILLER[index % CONTEXT_PROBE_FILLER.length] as string;
+		lines.push(template.replace("%N", String(index + 1)));
+	}
+	return `Read the following operations log carefully. A question follows at the end.\n\n${lines.join("\n")}\n\nQuestion: ${prompt.prompt}\nAnswer concisely using only the log above.`;
 }
 
 // ── The corpus ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -446,11 +508,59 @@ const TOOL_USE_PROMPTS: readonly ToolUseEvalPrompt[] = [
 	},
 ];
 
+/**
+ * §5.AD RULER/NoLiMa-style long-context probes: the SAME needle-retrieval task at graduated context sizes, so a
+ * sweep yields `{contextTokens, quality}` points that seed a model's learned quality-effective budget when no live
+ * outcome data exists yet. Sizes stay well under the ≥32k context floor so every gated model can attempt all three.
+ */
+const CONTEXT_PROBE_PROMPTS: readonly ContextProbeEvalPrompt[] = [
+	{
+		id: "context-probe-2k",
+		role: "worker",
+		family: "context_probe",
+		difficulty: "easy",
+		prompt: "Which employee badge number was reported at the reception desk incident?",
+		guidance: "The needle states badge 7431 was handed in at reception. A correct answer names 7431.",
+		contextTokens: 2_000,
+		needle:
+			"Incident report: employee badge number 7431 was handed in at the reception desk after being found in the elevator.",
+		needleDepth: 0.45,
+		expectedFragments: ["7431"],
+	},
+	{
+		id: "context-probe-8k",
+		role: "worker",
+		family: "context_probe",
+		difficulty: "medium",
+		prompt: "What passphrase did the migration runbook assign to the staging vault?",
+		guidance: "The needle assigns the staging vault the passphrase 'amber-falcon-92'. A correct answer repeats it.",
+		contextTokens: 8_000,
+		needle:
+			"Migration runbook note: the staging vault passphrase was rotated to amber-falcon-92 effective immediately.",
+		needleDepth: 0.35,
+		expectedFragments: ["amber-falcon-92"],
+	},
+	{
+		id: "context-probe-24k",
+		role: "worker",
+		family: "context_probe",
+		difficulty: "hard",
+		prompt: "Which city hosts the tertiary disaster-recovery site mentioned in the log?",
+		guidance: "The needle places the tertiary disaster-recovery site in Porto. A correct answer names Porto.",
+		contextTokens: 24_000,
+		needle:
+			"Infrastructure memo: the tertiary disaster-recovery site was provisioned in Porto and joined replication today.",
+		needleDepth: 0.6,
+		expectedFragments: ["porto"],
+	},
+];
+
 export const EVAL_PROMPT_CORPUS: readonly EvalPrompt[] = [
 	...DECOMPOSE_PROMPTS,
 	...IMPLEMENT_PROMPTS,
 	...REVIEW_PROMPTS,
 	...TOOL_USE_PROMPTS,
+	...CONTEXT_PROBE_PROMPTS,
 ];
 
 // ── Selectors ───────────────────────────────────────────────────────────────────────────────────────────────────────

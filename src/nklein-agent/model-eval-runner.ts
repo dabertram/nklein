@@ -14,6 +14,8 @@
 import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../core/eval-answer-extraction.js";
 import { type EvalCellOutcome, foldEvalOutcomes } from "../core/eval-fitness-fold.js";
 import {
+	buildContextProbeInput,
+	type ContextProbeEvalPrompt,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
 	type ReviewEvalPrompt,
@@ -202,6 +204,22 @@ async function scoreReview(prompt: ReviewEvalPrompt, maxTokens: number, chat: Mo
 	return scoreEvalAnswer(prompt, extractReviewEvalAnswer(text, prompt.seededDefects));
 }
 
+/** §5.AD context probe: deterministic needle-in-haystack input; scored by fragment presence in the reply. */
+async function scoreContextProbe(
+	prompt: ContextProbeEvalPrompt,
+	maxTokens: number,
+	chat: ModelEvalChat,
+): Promise<number | null> {
+	const choice = await chat([{ role: "user", content: buildContextProbeInput(prompt) }], {
+		max_tokens: Math.min(maxTokens, 400),
+	});
+	const text = readText(choice);
+	if (text.trim().length === 0) {
+		return null;
+	}
+	return scoreEvalAnswer(prompt, { family: "context_probe", answerText: text });
+}
+
 /**
  * Run the full eval corpus against one model, N repeats per cell, and fold the results into stability judgments +
  * per-role fitness records. Pure over the injected `chat` + a `now()` clock. `implement` cells are skipped (their
@@ -239,7 +257,9 @@ export async function runModelEval(
 					? await scoreDecompose(prompt, config.modelId, maxTokens, deps.chat)
 					: prompt.family === "tool_use"
 						? await scoreToolUse(prompt as ToolUseEvalPrompt, maxTokens, deps.chat)
-						: await scoreReview(prompt as ReviewEvalPrompt, maxTokens, deps.chat);
+						: prompt.family === "context_probe"
+							? await scoreContextProbe(prompt as ContextProbeEvalPrompt, maxTokens, deps.chat)
+							: await scoreReview(prompt as ReviewEvalPrompt, maxTokens, deps.chat);
 			const latencyMs = Math.max(0, now() - start);
 			totalAttempts += 1;
 			const effectiveScore = score ?? 0;

@@ -12,6 +12,7 @@ function perfectChat(): ModelEvalChat {
 	const reviewById = new Map<string, ReviewEvalPrompt>();
 	const decomposeById = new Map<string, { nodes: string[]; edges: { from: string; to: string }[] }>();
 	const toolUseById = new Map<string, { name: string; args: Record<string, unknown> } | null>();
+	const contextProbeById = new Map<string, string>();
 	for (const row of EVAL_PROMPT_CORPUS) {
 		if (row.family === "review") {
 			reviewById.set(row.prompt.slice(0, 40), row);
@@ -19,6 +20,8 @@ function perfectChat(): ModelEvalChat {
 			decomposeById.set(row.prompt.slice(0, 40), row.reference);
 		} else if (row.family === "tool_use") {
 			toolUseById.set(row.prompt.slice(0, 40), row.expected);
+		} else if (row.family === "context_probe") {
+			contextProbeById.set(row.prompt.slice(0, 40), row.expectedFragments[0] ?? "");
 		}
 	}
 	return async (messages) => {
@@ -55,6 +58,11 @@ function perfectChat(): ModelEvalChat {
 				return { message: { content: findings.join("\n") } };
 			}
 		}
+		for (const [needle, fragment] of contextProbeById) {
+			if (userText.includes(needle)) {
+				return { message: { content: `The log states: ${fragment}.` } };
+			}
+		}
 		return null;
 	};
 }
@@ -80,9 +88,13 @@ describe("runModelEval", () => {
 		expect(settled.stability.length).toBeGreaterThan(0);
 		expect(settled.stability.every((cell) => cell.verdict === "settled_pass")).toBe(true);
 
-		const thin = await runModelEval({ modelId: "coder-test", repeats: 3 }, { chat, now: () => 1 });
-		// 3 < minSettledRuns(4) ⇒ every cell is still thin.
-		expect(thin.stability.every((cell) => cell.verdict === "thin")).toBe(true);
+		// Stability cells aggregate by (role, tier), so runs-per-cell = repeats × prompts-in-cell (the §5.AD
+		// context probes added a second worker prompt to some tiers). One repeat keeps every cell under
+		// minSettledRuns(4) ⇒ still thin.
+		const thin = await runModelEval({ modelId: "coder-test", repeats: 1 }, { chat, now: () => 1 });
+		expect(thin.stability.length).toBe(0); // repeats=1 ⇒ the runner skips the stability pass entirely
+		const thin2 = await runModelEval({ modelId: "coder-test", repeats: 2 }, { chat, now: () => 1 });
+		expect(thin2.stability.some((cell) => cell.verdict === "thin")).toBe(true);
 	});
 
 	it("counts a no-answer attempt as a failed run without crediting the mean", async () => {
