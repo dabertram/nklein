@@ -72,6 +72,8 @@
 		"test:integration": "vitest run test/integration",
 		"test:protected": "vitest run --config vitest.protected.config.ts",
 		"test:vendor": "node scripts/test-vendor.mjs",
+		"test:simulator": "vitest run --root packages/llm-simulator",
+		"test:simulated-flows": "sh -c 'HOME=$(mktemp -d /tmp/nklein-simflow-XXXXXX) npx tsx scripts/verify-simulated-flow.mts'",
 		"test:precommit": "npm run test:fast",
 		"test:watch": "vitest",
 		"verify:long-memory": "tsx scripts/verify-long-memory-eval.mts",

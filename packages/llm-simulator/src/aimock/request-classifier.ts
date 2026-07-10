@@ -26,9 +26,15 @@ export interface RequestClassMarkers {
 	systemMarkers: Array<{ includes: string; requestClass: RequestClass }>;
 }
 
-/** Defaults tuned to !Klein's shells; override per scenario when shells change. */
+/**
+ * Defaults tuned to !Klein's shells (verified against a live request journal, 2026-07-10): the SYSTEM prompt is
+ * identical across classes and the FULL tool registry (incl. decompose_project) rides along on worker sessions —
+ * so text scaffolds are checked FIRST and tool names act only as the structural fallback. `submit_review` is the
+ * one tool that is genuinely class-exclusive (reviewer sessions).
+ */
 export const DEFAULT_REQUEST_CLASS_MARKERS: RequestClassMarkers = {
 	toolNameMarkers: {
+		submit_review: "review",
 		decompose_project: "decompose",
 	},
 	systemMarkers: [
@@ -55,17 +61,18 @@ export function classifyRequest(
 	request: ClassifierRequestShape,
 	markers: RequestClassMarkers = DEFAULT_REQUEST_CLASS_MARKERS,
 ): RequestClass {
+	// TEXT scaffolds first — tool lists are NOT class-exclusive in !Klein (workers carry decompose_project too).
+	const text = markerText(request);
+	for (const marker of markers.systemMarkers) {
+		if (text.includes(marker.includes)) {
+			return marker.requestClass;
+		}
+	}
 	for (const tool of request.tools ?? []) {
 		const name = tool.function?.name;
 		const byTool = name ? markers.toolNameMarkers[name] : undefined;
 		if (byTool) {
 			return byTool;
-		}
-	}
-	const system = markerText(request);
-	for (const marker of markers.systemMarkers) {
-		if (system.includes(marker.includes)) {
-			return marker.requestClass;
 		}
 	}
 	return "chat";

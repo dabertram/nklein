@@ -41,7 +41,11 @@ const script: ScenarioScript = {
 	tracks: [
 		{
 			id: "perfect-decompose",
-			requestClass: "decompose",
+			// Class "any" + a seed-prompt needle: on the wire a plan seed is textually IDENTICAL to a worker card
+			// (same system shell, same Leaf-scope scaffold, same tool list — live journal 2026-07-10), so decompose
+			// tracks key on THEIR OWN project's seed prompt instead of a universal marker.
+			requestClass: "any",
+			userMessageIncludes: "implementation-card breakdown",
 			turns: [
 				{
 					behavior: {
@@ -109,24 +113,32 @@ const script: ScenarioScript = {
 			],
 			repeatLastTurn: true,
 		},
-		{
-			id: "perfect-review",
-			requestClass: "review",
+		// Reviews are PER-CARD tracks (needle = card title): sequenceIndex counts occurrences per FIXTURE, not per
+		// session — a shared review track lets card A consume the whole turn ladder and starves card B (live-found).
+		...["Greeting module", "Farewell module"].map((title) => ({
+			id: `perfect-review-${title.split(" ")[0]?.toLowerCase()}`,
+			requestClass: "review" as const,
+			userMessageIncludes: `the card "${title}"`,
 			turns: [
 				{
 					behavior: {
-						kind: "tool_calls",
+						kind: "tool_calls" as const,
 						calls: [
 							{
 								name: "submit_review",
-								arguments: { verdict: "approve", feedback: "Clean, matches the task. Valued sign-off." },
+								// submit_review's live contract (tool result, 2026-07-10): `verdict` + non-empty `summary`;
+								// `feedback` only when requesting changes. A feedback-only verdict is REJECTED by the tool.
+								arguments: { verdict: "approve", summary: `Reviewed "${title}": clean, matches the task.` },
 							},
 						],
 					},
 				},
+				// Close with TEXT: the runner keeps prompting until a non-tool turn, so repeating submit_review
+				// forever burns review rounds (5 observed) before delivery.
+				{ behavior: { kind: "text" as const, content: "Review submitted: approved." } },
 			],
 			repeatLastTurn: true,
-		},
+		})),
 		{
 			id: "perfect-any-fallback",
 			requestClass: "any",
@@ -267,6 +279,25 @@ async function main(): Promise<void> {
 		const seedExit: number = await new Promise((resolve) => seed.on("close", (code) => resolve(code ?? 1)));
 
 		console.log(`\nSeed monitor exited ${seedExit}.`);
+		// Definitive matcher debugging: what did the simulator actually receive per request?
+		const journal = simulator.mock.getRequests();
+		console.log(`\nSimulator journal: ${journal.length} request(s)`);
+		for (const [index, entry] of journal.entries()) {
+			const body = (entry as { body?: unknown }).body ?? (entry as { request?: unknown }).request ?? entry;
+			const parsed = typeof body === "string" ? JSON.parse(body) : (body as Record<string, unknown>);
+			const messages = (parsed?.messages ?? []) as Array<{ role?: string; content?: unknown }>;
+			const tools = ((parsed?.tools ?? []) as Array<{ function?: { name?: string } }>).map((t) => t.function?.name);
+			const shapes = messages.map((m) => `${m.role}:${typeof m.content === "string" ? "str" : Array.isArray(m.content) ? "parts" : typeof m.content}`);
+			const lastUser = [...messages].reverse().find((m) => m.role === "user");
+			const text = typeof lastUser?.content === "string" ? lastUser.content : JSON.stringify(lastUser?.content ?? "");
+			const system = messages.find((m) => m.role === "system");
+			const systemText = typeof system?.content === "string" ? system.content : JSON.stringify(system?.content ?? "");
+			const extraKeys = Object.keys(entry as Record<string, unknown>).join(",");
+			console.log(`— req ${index}: nTools=${tools.length} msgs=[${shapes.join(" ")}] keys={${extraKeys}}`);
+			console.log(`    system="${systemText.slice(0, 200).replaceAll("\n", " ")}"`);
+			console.log(`    lastUser="${text.slice(0, 110).replaceAll("\n", " ")}"`);
+		}
+		await writeFile(join(home, "journal.json"), JSON.stringify(journal, null, 1)).catch(() => undefined);
 		const catalogHits = (runtimeLogs.join("").match(/no_fixture_match/g) ?? []).length;
 		console.log(`Unmatched simulator requests observed in runtime logs: ${catalogHits}`);
 		if (seedExit !== 0) {

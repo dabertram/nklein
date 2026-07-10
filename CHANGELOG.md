@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The simulated fast path is live: a full !Klein flow now runs end-to-end with zero LLM compute** (todo §13).
+  `npm run test:simulated-flows` boots a real runtime against the new `packages/llm-simulator` (scenario tracks +
+  seeded RNG compiled onto @copilotkit/aimock, with an LM Studio catalog shim) and drives a seeded project from
+  decompose through worker edits, acceptance, second-opinion review, and delivery to Completed in seconds. Request
+  classification now follows !Klein's real wire shapes (identical system prompts across session classes; the
+  class-exclusive `submit_review` tool; per-project decompose needles), and `npm run test:simulator` guards those
+  truths with unit tests.
 - **The outer-loop phase controller now has a live tool-selection seam** (todo §5.AA). A new chat phase tool plan maps the
   current `RunPhase` through each tool's capability manifest, narrows both executable tools and model-visible schemas, and
   applies the phase's inner-loop tool budget. The runtime resolver exposes this behind an optional phase hook, so normal chat

@@ -11026,6 +11026,20 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       GENERATOR, then hand-polish); 04–20 via the generator.
       (g) THEN: drive UI + overall !Klein polishing on top of the generated aimock base (fast, deterministic,
       no LLM wait).
+      *(◐ 2026-07-10 — **"SIMULATION-BASED FAST PATH WORKS" (milestone 1 of the standing goal): GREEN.**
+      `npm run test:simulated-flows` boots a REAL runtime against `packages/llm-simulator` and drives a seeded
+      dev-test flow decompose → 2 worker cards → write_files → acceptance → submit_review approve → delivered →
+      completed:3 in ~9 simulator requests, zero unmatched, zero LLM compute (~7s wall). Package: 16/16 unit tests
+      (`npm run test:simulator`). Hard-won wire truths (encoded in request-classifier.test.ts — update markers if
+      shells change): system prompts are IDENTICAL generic text across classes; the FULL ~30-tool registry (incl.
+      decompose_project) rides along on every kanban session so tool presence ≠ decompose; review sessions have a
+      DIFFERENT 17-tool list incl. submit_review (the only class-exclusive tool); a PLAN seed is textually identical
+      to a worker card (same Leaf-scope scaffold) ⇒ NO universal decompose signal exists — decompose tracks must key
+      on their OWN project's seed prompt via userMessageIncludes; submit_review REQUIRES non-empty `summary`
+      (feedback-only verdicts bounce); aimock sequenceIndex counts per-FIXTURE occurrences, not per-session ⇒ review
+      tracks must be PER-CARD; close every tool track with a TEXT turn or the runner burns rounds re-prompting.
+      NEXT: script-based scenario-set GENERATOR for projects 02–20 + run scenario-01's perfect/flaky sets through
+      the harness against the real project-01 workspace.)*
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
