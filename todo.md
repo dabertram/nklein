@@ -11213,5 +11213,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       surface in ready, so they must NOT be excluded). Reverted to keep the harness green (19/19); 2a's tested core is
       committed and inert. NEXT: resolve the bounce (start-flow ready-transition), re-wire, re-verify ready
       populates AND fully drains via the harness (add `ready==0` to the strict drain gate).
+      **DEEPER STRUCTURAL FINDING (2026-07-10 — the real shape of the work, and the "probe of how well the
+      implementation is structured" David wanted):** the current lane model CONFLATES planning with running — a
+      started WORK card *parks in `planning` while it runs* (`RUNNING_CARD_ENTRY_LANE_BY_SOURCE` in
+      task-board-lane-reconcile.ts maps backlog→planning and review→in_progress, but planning→NOTHING, so a running
+      card stays in planning; `in_progress` today is mainly the resumed-from-review lane). The Ready lane therefore
+      isn't a simple column insert — it forces DISENTANGLING three states the board currently merges into "planning":
+      refining/decomposing (planning) vs dep-free-waiting (ready) vs actively-running (in_progress). The re-arch:
+      (a) `RUNNING_CARD_ENTRY_LANE_BY_SOURCE` gains `planning→in_progress` + `ready→in_progress` (a running card
+      leaves planning/ready for in_progress on the running transition); (b) the ready reconcile only promotes
+      NON-running dep-free cards; (c) audit every consumer that assumes "running work lives in planning" (the
+      ready-sweep's "started cards park in planning" comment, the fleet strip, counts, lean view). This is the
+      genuine multi-increment feature; do it on a dedicated runway with the simulator harness proving populate +
+      drain at each step. Increments 1 + 2a (committed, tested) are the safe foundation.
       **INCREMENT 3 (surfaces):** lean-view lane mapping (map `ready`→Queued or its own lane), board counts, drag
       rules, DAG/overview. Run a simulated project through the harness to prove ready populates + drains.
