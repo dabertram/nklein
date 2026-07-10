@@ -1163,7 +1163,8 @@ body.kb-dependency-link-mode {
 		padding-right: 4vw;
 	}
 
-	.kb-board > section {
+	.kb-board > section,
+	.kb-board > .kb-board-stack {
 		flex: 0 0 auto !important;
 		min-width: 280px;
 		width: 92vw;
