@@ -11029,13 +11029,19 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       the guidance as a mid-session nudge (mirror the empty-patch redrive nudge), route `escalate_model`/`park`
       through the existing §5.AG ladder + card mailbox; then a simulator looping-worker track (repeatLastTurn on a
       clarifying question, catalog id `a-same-question`) as the end-to-end regression.
-- [ ] **Whole-machine lag while LLM requests run (m5max, David 2026-07-10).** UI + entire machine lagged hard during
+- [~] **Whole-machine lag while LLM requests run (m5max, David 2026-07-10).** UI + entire machine lagged hard during
       ongoing LLM requests; resolved the moment models were unloaded + requests cancelled. Suspects: (a) the catalog
       polling storm (FIXED 2026-07-10 — `lms` CLI forks ~4×/s + /api/v0 hits contributed real CPU); (b) low-power mode +
-      big models saturating unified memory/CPU (system-level, expected); (c) !Klein-side render/stream churn during
-      SSE (investigate: React re-render rate during streaming, workspace-state broadcast frequency, subprocess forks).
-      TODO: profile !Klein's own CPU while a heavy request streams and fix whatever is ours; verify the storm fix
-      already reduced it.
+      big models saturating unified memory/CPU (system-level, expected); (c) !Klein-side render/stream churn during SSE.
+      **CODE-READ FINDINGS (2026-07-10):** the !Klein-side contributors (a)+(c) are already MITIGATED in code — the
+      catalog polling storm is fixed, and runtime-state-hub throttles the SSE path: task-session summaries batch at
+      `TASK_SESSION_STREAM_BATCH_MS=150` (≤~6.7 flushes/s, NOT per-token) and the heavy projects-payload rebuild
+      (board disk-read + health fs-scan) is COALESCED to one-per-window via `createCoalescingScheduler` (§5.AI
+      event-loop relief), so streaming does not spin the event loop per token. That the lag "resolved the moment
+      models were unloaded" points the RESIDUAL at (b) — system-level low-power + big-model unified-memory/CPU
+      saturation, which is expected and outside !Klein's control. REMAINING (needs a live model loaded): a CPU
+      profile of the !Klein process while a heavy request streams, to confirm no !Klein-side hotspot survives the
+      throttling — and a client-side React re-render-rate check during streaming.
 - [x] **Fleet under-utilization while cards wait** — INVESTIGATED → largely EXPECTED behavior on that topology
       (2026-07-10). Deep-chain is STRICTLY SERIAL (each card depends on the previous), and `listStartableUnstartedTaskIds`
       only returns dep-free cards, so exactly ONE card is ever startable at a time — "Running 1" with 11 waiting is
