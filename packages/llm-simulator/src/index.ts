@@ -17,3 +17,9 @@ export type {
 	ScenarioTurn,
 	TurnBehavior,
 } from "./scenario/track-types.js";
+
+export { classifyRequest, DEFAULT_REQUEST_CLASS_MARKERS } from "./aimock/request-classifier.js";
+export type { ClassifierRequestShape, RequestClassMarkers } from "./aimock/request-classifier.js";
+export { compileScenarioScript, compileTrack } from "./aimock/track-compiler.js";
+export { createSimulatorServer } from "./server.js";
+export type { SimulatorServer, SimulatorServerOptions } from "./server.js";
