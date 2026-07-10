@@ -160,28 +160,35 @@ export function ActivityMapView({
 						<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--color-accent-2)" fillOpacity="0.5" />
 					</marker>
 				</defs>
-				{clusterGeometry.map(({ cluster, cx, cy, haloRadius }) => (
-					<g key={cluster.id} onClick={() => onZoomToStream(cluster.id)} className="cursor-pointer">
-						<circle
-							cx={cx}
-							cy={cy}
-							r={haloRadius}
-							fill="var(--color-accent)"
-							opacity={0.03 + cluster.activity * 0.09}
-						/>
-						<text
-							x={cx - haloRadius * 0.7}
-							y={cy - haloRadius - 8}
-							className="fill-text-tertiary text-[11px] font-semibold uppercase tracking-wider"
-						>
-							{cluster.label}
-						</text>
-						<text x={cx - haloRadius * 0.7} y={cy - haloRadius + 7} className="fill-text-tertiary text-[10px]">
-							{cluster.runningCount > 0 ? `${cluster.runningCount} running · ` : ""}
-							{cluster.bubbles.length} card{cluster.bubbles.length === 1 ? "" : "s"}
-						</text>
-					</g>
-				))}
+				{clusterGeometry.map(({ cluster, cx, cy, haloRadius }) => {
+					// Anchor the caption to the halo's top-left, but CLAMP it into the canvas: a big halo (up to 230px
+					// radius) reaches above y=0, and an un-clamped caption rendered off-screen — the whole cluster went
+					// nameless (live-found 2026-07-10, the 18-card stream's title sat at y≈-8). Keep both lines together.
+					const labelX = Math.max(8, cx - haloRadius * 0.7);
+					const labelY = Math.max(14, cy - haloRadius - 8);
+					return (
+						<g key={cluster.id} onClick={() => onZoomToStream(cluster.id)} className="cursor-pointer">
+							<circle
+								cx={cx}
+								cy={cy}
+								r={haloRadius}
+								fill="var(--color-accent)"
+								opacity={0.03 + cluster.activity * 0.09}
+							/>
+							<text
+								x={labelX}
+								y={labelY}
+								className="fill-text-tertiary text-[11px] font-semibold uppercase tracking-wider"
+							>
+								{cluster.label}
+							</text>
+							<text x={labelX} y={labelY + 15} className="fill-text-tertiary text-[10px]">
+								{cluster.runningCount > 0 ? `${cluster.runningCount} running · ` : ""}
+								{cluster.bubbles.length} card{cluster.bubbles.length === 1 ? "" : "s"}
+							</text>
+						</g>
+					);
+				})}
 				{map.edges.map((edge) => {
 					// EXECUTION-ORDER flow (David 2026-07-10): `fromCardId` DEPENDS ON `toCardId`, so the arrow runs
 					// blocker → dependent — it points at what runs next (time flow), not at the dependency target.
