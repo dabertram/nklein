@@ -10980,7 +10980,7 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (test fixtures) show up as real rows in the fleet strip ("unknown ×3") and in the registry API. The registry
       store should never persist dev-test/fixture model entries — scrub on write or filter fixture ids from
       runtime.getNKleinModelRegistry. (UI now condenses them under the idle summary, but the DATA is wrong.)
-- [ ] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
+- [~] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
       endlessly on whether the task's test command for `*.js` is correct when the repo needs `*.ts` — a "solution
       outside allowed space" loop: the model keeps re-raising the same boundary question instead of progressing, because
       every path it wants is outside what the task/gates allow. Required: (1) DETECT the loop (same question/proposal/
@@ -10992,6 +10992,19 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       stronger/different-family model (§5.AG escalation) with the boundary as the prompt. Ties into §5.AG hard-stuck +
       the review ladder; the LLM simulator (§13) must include this exact scenario as a canned track so the mechanism is
       testable without live models.
+      **PURE MECHANISM DONE + TESTED (2026-07-10):** [src/core/agent-turn-loop.ts] delivers all three required
+      pieces as a pure, dependency-free core (14 unit tests, incl. the exact `*.js`-vs-`*.ts` scenario David hit):
+      (1) DETECT — `detectTurnLoop` fingerprints the trailing assistant turns (normalized text gist + tool-call
+      signature) and flags `repeat` (same question re-raised ≥3×) OR `oscillation` (A,B,A,B between two proposals);
+      (2) NAME — `extractContestedQuestion` pulls the recurring interrogative / conflict sentence (never a generic
+      "stuck"); (3) DECIDE — `decideTurnLoopResolution` applies the §5.AG ladder: auto-resolve from the authoritative
+      acceptance/spec context when the contested token appears there (guidance quotes the acceptance command as the
+      source of truth — exactly the qwen3.6 case), else route to an untried model (Layer 1), else park with the
+      SPECIFIC question (Layer 2). REMAINING (live-effecting wiring, scoped): call `detectTurnLoop` on the running
+      session's accumulated assistant turns (session service `entry.messages`), effect `auto_resolve` by injecting
+      the guidance as a mid-session nudge (mirror the empty-patch redrive nudge), route `escalate_model`/`park`
+      through the existing §5.AG ladder + card mailbox; then a simulator looping-worker track (repeatLastTurn on a
+      clarifying question, catalog id `a-same-question`) as the end-to-end regression.
 - [ ] **Whole-machine lag while LLM requests run (m5max, David 2026-07-10).** UI + entire machine lagged hard during
       ongoing LLM requests; resolved the moment models were unloaded + requests cancelled. Suspects: (a) the catalog
       polling storm (FIXED 2026-07-10 — `lms` CLI forks ~4×/s + /api/v0 hits contributed real CPU); (b) low-power mode +
