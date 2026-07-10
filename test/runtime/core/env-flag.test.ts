@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isEnabledByDefaultEnv, isTruthyEnv } from "../../../src/core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv, resolveDefaultOnFlag } from "../../../src/core/env-flag";
 
 describe("isTruthyEnv", () => {
 	it("is false for undefined / empty", () => {
@@ -37,6 +37,27 @@ describe("isEnabledByDefaultEnv", () => {
 	it("is ON for any other value (incl. the truthy tokens and junk)", () => {
 		for (const v of ["1", "true", "yes", "on", "enabled", "whatever"]) {
 			expect(isEnabledByDefaultEnv(v)).toBe(true);
+		}
+	});
+});
+
+describe("resolveDefaultOnFlag (§5.BB config||env for default-ON flags)", () => {
+	it("defers to the config bit when the env var is unset or blank", () => {
+		for (const env of [undefined, "", "   "]) {
+			expect(resolveDefaultOnFlag(true, env)).toBe(true);
+			expect(resolveDefaultOnFlag(false, env)).toBe(false);
+		}
+	});
+
+	it("lets an explicit env disable win over a config-on (the script escape hatch keeps working)", () => {
+		for (const env of ["0", "false", "no", "off", " OFF "]) {
+			expect(resolveDefaultOnFlag(true, env)).toBe(false);
+		}
+	});
+
+	it("lets an explicit env enable win over a config-off (the harness override keeps working)", () => {
+		for (const env of ["1", "true", "yes", "on"]) {
+			expect(resolveDefaultOnFlag(false, env)).toBe(true);
 		}
 	});
 });

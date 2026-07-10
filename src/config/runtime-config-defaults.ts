@@ -31,6 +31,17 @@ export const DEFAULT_SANDBOX_MCP_SERVERS_ENABLED = true;
  */
 export const DEFAULT_CAPABILITY_BROKER_ENABLED = true;
 export const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
+/** §5.AR basic-memory MCP (write-capable authored memory) — OFF BY DEFAULT; `NKLEIN_BASIC_MEMORY` still force-enables (§5.BB). */
+export const DEFAULT_BASIC_MEMORY_ENABLED = false;
+/**
+ * §5.AA chat adaptive truncation ladder — ON BY DEFAULT (decision-1 default-ON flip); the config bit mirrors that, and
+ * `NKLEIN_CHAT_ADAPTIVE_TRUNCATION` stays a two-way env escape hatch (`0` force-disables, truthy force-enables — §5.BB).
+ */
+export const DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED = true;
+/** §5.AN reasoning output-budget sizing on chat turns — OFF BY DEFAULT; `NKLEIN_REASONING_BUDGET` still force-enables (§5.BB). */
+export const DEFAULT_REASONING_BUDGET_ENABLED = false;
+/** §5.AW review-panel lenses (still gated on second-opinion review) — OFF BY DEFAULT; `NKLEIN_REVIEW_LENSES` still force-enables (§5.BB). */
+export const DEFAULT_REVIEW_LENSES_ENABLED = false;
 export const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 export const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 export const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;

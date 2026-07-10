@@ -7,6 +7,7 @@ import {
 	createChatAgentModel,
 	createChatModelDeps,
 	parseExtractedMemories,
+	setChatAdapterRuntimeFlags,
 } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
 import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
@@ -193,6 +194,84 @@ describe("createChatModelDeps", () => {
 			]);
 			expect(budgets).toEqual([1024, 2048]); // recovered at 2048
 			expect(summary).toBe("The full complete answer.");
+		});
+	});
+
+	describe("§5.BB settings-backed adapter flags (setChatAdapterRuntimeFlags, env still composes at read time)", () => {
+		const TRUNCATION_FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+		const REASONING_FLAG = "NKLEIN_REASONING_BUDGET";
+		let savedTruncationFlag: string | undefined;
+		let savedReasoningFlag: string | undefined;
+		beforeEach(() => {
+			savedTruncationFlag = process.env[TRUNCATION_FLAG];
+			savedReasoningFlag = process.env[REASONING_FLAG];
+			delete process.env[TRUNCATION_FLAG];
+			delete process.env[REASONING_FLAG];
+		});
+		afterEach(() => {
+			if (savedTruncationFlag === undefined) {
+				delete process.env[TRUNCATION_FLAG];
+			} else {
+				process.env[TRUNCATION_FLAG] = savedTruncationFlag;
+			}
+			if (savedReasoningFlag === undefined) {
+				delete process.env[REASONING_FLAG];
+			} else {
+				process.env[REASONING_FLAG] = savedReasoningFlag;
+			}
+			// Restore the module defaults (mirroring runtime-config-defaults) so other suites see the pristine state.
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: false });
+		});
+
+		const truncatingPlainClient = (budgets: (number | undefined)[]): ChatCompletionClient => ({
+			complete: async (request) => {
+				budgets.push(request.sampling?.maxTokens);
+				return { content: "The half-", finishReason: "length", raw: {} };
+			},
+		});
+
+		it("config adaptiveTruncation=false + env unset ⇒ single call (the Settings switch disables the ladder)", async () => {
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: false, reasoningBudgetEnabled: false });
+			const budgets: (number | undefined)[] = [];
+			const reply = await createChatModelDeps(truncatingPlainClient(budgets)).complete([
+				{ role: "user", content: "explain at length" },
+			]);
+			expect(budgets).toEqual([1024]);
+			expect(reply).toBe("The half-");
+		});
+
+		it("config adaptiveTruncation=false + env=1 ⇒ the ladder runs (env force-on wins for harnesses)", async () => {
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: false, reasoningBudgetEnabled: false });
+			process.env[TRUNCATION_FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			await createChatModelDeps(truncatingPlainClient(budgets)).complete([
+				{ role: "user", content: "explain at length" },
+			]);
+			expect(budgets).toEqual([1024, 2048, 4096, 8192]);
+		});
+
+		it("config adaptiveTruncation=true + env=0 ⇒ single call (the script disable escape hatch keeps working)", async () => {
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: false });
+			process.env[TRUNCATION_FLAG] = "0";
+			const budgets: (number | undefined)[] = [];
+			await createChatModelDeps(truncatingPlainClient(budgets)).complete([
+				{ role: "user", content: "explain at length" },
+			]);
+			expect(budgets).toEqual([1024]);
+		});
+
+		it("config reasoningBudget=true + env unset ⇒ a reasoning model gets the reserve total (Settings enables)", async () => {
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: true });
+			const { client, sampling } = fakeClient("ok");
+			await createChatModelDeps(client, { modelId: "qwen3.5-9b-mlx" }).complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: 1984 });
+		});
+
+		it("config reasoningBudget=false + env unset ⇒ byte-identical DEFAULT_SAMPLING (default OFF)", async () => {
+			setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: false });
+			const { client, sampling } = fakeClient("ok");
+			await createChatModelDeps(client, { modelId: "qwen3.5-9b-mlx" }).complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: 1024 });
 		});
 	});
 

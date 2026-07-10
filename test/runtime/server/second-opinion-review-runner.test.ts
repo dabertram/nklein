@@ -69,6 +69,7 @@ function makeDeps(overrides: {
 	maxRounds?: number;
 	reviewerPinned?: boolean;
 	preexistingRedecompose?: boolean;
+	reviewLensesEnabled?: boolean;
 }) {
 	const board = boardWithCardInReview({ preexistingRedecompose: overrides.preexistingRedecompose });
 	const reviewerRole = {
@@ -79,6 +80,7 @@ function makeDeps(overrides: {
 	const loadRuntimeConfig = vi.fn(async () => ({
 		secondOpinionReviewEnabled: overrides.enabled ?? true,
 		reviewMaxRounds: overrides.maxRounds ?? 20,
+		reviewLensesEnabled: overrides.reviewLensesEnabled ?? false,
 		modelRoles: { reviewer: reviewerRole },
 		effectiveModelRoles: { reviewer: reviewerRole },
 	})) as unknown as never;
@@ -292,6 +294,60 @@ describe("runSecondOpinionReviewForTask", () => {
 			expect(outcome.type).toBe("delivered");
 		} finally {
 			process.env.NKLEIN_REVIEW_PANEL = previous;
+		}
+	});
+
+	it("§5.BB review lenses: the persisted reviewLensesEnabled setting seeds the reviewer with lenses (no env needed)", async () => {
+		const previous = process.env.NKLEIN_REVIEW_LENSES;
+		delete process.env.NKLEIN_REVIEW_LENSES;
+		try {
+			const deps = makeDeps({ reviewLensesEnabled: true });
+			await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service(deps),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			const sessionInput = (deps.runSecondOpinionReviewSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+				seedPrompt: string;
+			};
+			expect(sessionInput.seedPrompt).toContain("## Review specifically through these lenses");
+		} finally {
+			if (previous === undefined) {
+				delete process.env.NKLEIN_REVIEW_LENSES;
+			} else {
+				process.env.NKLEIN_REVIEW_LENSES = previous;
+			}
+		}
+	});
+
+	it("§5.BB review lenses: default (setting off, env unset) keeps the seed prompt lens-free", async () => {
+		const previous = process.env.NKLEIN_REVIEW_LENSES;
+		delete process.env.NKLEIN_REVIEW_LENSES;
+		try {
+			const deps = makeDeps({});
+			await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service(deps),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			const sessionInput = (deps.runSecondOpinionReviewSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+				seedPrompt: string;
+			};
+			expect(sessionInput.seedPrompt).not.toContain("## Review specifically through these lenses");
+		} finally {
+			if (previous === undefined) {
+				delete process.env.NKLEIN_REVIEW_LENSES;
+			} else {
+				process.env.NKLEIN_REVIEW_LENSES = previous;
+			}
 		}
 	});
 

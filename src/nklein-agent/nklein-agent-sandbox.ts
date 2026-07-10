@@ -104,6 +104,12 @@ export interface AgentSandboxManagerOptions {
 	 * uniform, so the global preset governs egress for every container.
 	 */
 	networkPolicy?: SandboxNetworkPolicy;
+	/**
+	 * §5.AR/§5.BB basic-memory: enables the per-project writable store plan (config + notes mounted RW at container
+	 * start). Composed with the `NKLEIN_BASIC_MEMORY` env override at construction/set time (either enables); defaults
+	 * to false = fully read-only sandbox unless the env flag is set.
+	 */
+	basicMemoryEnabled?: boolean;
 	/** Extra read-write host bind mounts for explicitly approved sandbox-visible stores/paths. Empty by default. */
 	writableMounts?: readonly AgentSandboxWritableMount[];
 	execFile?: typeof execFile;
@@ -270,10 +276,12 @@ export class AgentSandboxManager {
 	private readonly containers = new Map<number, ContainerState>();
 	private readonly placements = new Map<string, TaskPlacement>();
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
-	// §5.AR basic-memory (OFF by default via NKLEIN_BASIC_MEMORY): per-project scoping plan keyed by projectKey. When
-	// enabled, each registered project gets a per-project writable store (config + notes) mounted RW at container start
-	// and seeded via `basic-memory project add`. Empty ⇒ no writable mounts ⇒ the sandbox stays fully read-only.
-	private readonly basicMemoryEnabled = isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
+	// §5.AR basic-memory (OFF by default; the `basicMemoryEnabled` runtime setting OR NKLEIN_BASIC_MEMORY enables —
+	// §5.BB): per-project scoping plan keyed by projectKey. When enabled, each registered project gets a per-project
+	// writable store (config + notes) mounted RW at container start and seeded via `basic-memory project add`. Empty ⇒
+	// no writable mounts ⇒ the sandbox stays fully read-only. Mutable so a live Settings change applies to projects
+	// registered AFTER it (mounts are baked at container start; already-running containers keep their posture).
+	private basicMemoryEnabled: boolean;
 	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
 	private readonly workspaceLifecycleTails = new Map<string, Promise<void>>();
@@ -287,10 +295,21 @@ export class AgentSandboxManager {
 		this.image = options.image ?? resolveAgentSandboxImageName();
 		this.poolConfig = normalizeAgentSandboxPoolConfig(options.poolConfig);
 		this.networkPolicy = options.networkPolicy ?? "none";
+		this.basicMemoryEnabled = (options.basicMemoryEnabled ?? false) || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
 		this.staticWritableMounts = [...(options.writableMounts ?? [])];
+	}
+
+	/**
+	 * §5.BB live-apply the basic-memory setting on a runtime-config change (same seam as {@link setNetworkPolicy},
+	 * without the container retirement: mounts are additive-opt-in, not an isolation tightening). The env override
+	 * still ORs in so `NKLEIN_BASIC_MEMORY=1` scripts keep working. Takes effect for projects registered after the
+	 * change; containers already running keep the mount set they started with until they age out.
+	 */
+	setBasicMemoryEnabled(enabled: boolean): void {
+		this.basicMemoryEnabled = enabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
 	}
 
 	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
@@ -751,7 +770,8 @@ export class AgentSandboxManager {
 		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
 		const mounts = [...this.projectMountsByKey.values()];
 		// §5.AR basic-memory (flag-gated): the per-project writable stores for the projects this container serves. Empty
-		// unless NKLEIN_BASIC_MEMORY is on ⇒ no writable mounts ⇒ the sandbox is byte-identical + fully read-only.
+		// unless basic-memory is enabled (the runtime setting or NKLEIN_BASIC_MEMORY, §5.BB) ⇒ no writable mounts ⇒ the
+		// sandbox is byte-identical + fully read-only.
 		const basicMemoryPlans = mounts
 			.map((mount) => this.basicMemoryPlanByKey.get(mount.projectKey))
 			.filter((plan): plan is BasicMemoryScopingPlan => plan !== undefined);

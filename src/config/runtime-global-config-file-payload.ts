@@ -52,7 +52,9 @@ import {
 	DEFAULT_AGENT_ID,
 	DEFAULT_AGENT_TIMEOUT_MODE,
 	DEFAULT_AGENT_TIMEOUT_PROFILE,
+	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
+	DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
@@ -61,7 +63,9 @@ import {
 	DEFAULT_LOST_HEARTBEAT_POLICY,
 	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
+	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -135,6 +139,10 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	basicMemoryEnabled?: boolean;
+	chatAdaptiveTruncationEnabled?: boolean;
+	reasoningBudgetEnabled?: boolean;
+	reviewLensesEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
@@ -198,6 +206,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
+	const basicMemoryEnabled = normalizeBoolean(config.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED);
+	const chatAdaptiveTruncationEnabled = normalizeBoolean(
+		config.chatAdaptiveTruncationEnabled,
+		DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+	);
+	const reasoningBudgetEnabled = normalizeBoolean(config.reasoningBudgetEnabled, DEFAULT_REASONING_BUDGET_ENABLED);
+	const reviewLensesEnabled = normalizeBoolean(config.reviewLensesEnabled, DEFAULT_REVIEW_LENSES_ENABLED);
 	const capabilityBrokerEnabled = normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED);
 	const modelStatsTrackingLevel = normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
@@ -402,6 +417,28 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"sandboxMcpServersEnabled",
 		sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+	);
+	assignChangedConfigField(payload, existing, "basicMemoryEnabled", basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"chatAdaptiveTruncationEnabled",
+		chatAdaptiveTruncationEnabled,
+		DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"reasoningBudgetEnabled",
+		reasoningBudgetEnabled,
+		DEFAULT_REASONING_BUDGET_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"reviewLensesEnabled",
+		reviewLensesEnabled,
+		DEFAULT_REVIEW_LENSES_ENABLED,
 	);
 	assignChangedConfigField(
 		payload,

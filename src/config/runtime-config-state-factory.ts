@@ -28,11 +28,15 @@ import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
+	DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
+	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
@@ -75,6 +79,11 @@ export interface RuntimeConfigStateFromValuesInput {
 	projectSetupWizardCompletedAt: number | null;
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
+	/** §5.BB env-flag promotions — optional on INPUT (fixtures/legacy states omit them); the factory fills the defaults. */
+	basicMemoryEnabled?: boolean;
+	chatAdaptiveTruncationEnabled?: boolean;
+	reasoningBudgetEnabled?: boolean;
+	reviewLensesEnabled?: boolean;
 	capabilityBrokerEnabled: boolean;
 	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	retrievalEgressEnabled: boolean;
@@ -143,6 +152,13 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(input.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		basicMemoryEnabled: normalizeBoolean(input.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+		chatAdaptiveTruncationEnabled: normalizeBoolean(
+			input.chatAdaptiveTruncationEnabled,
+			DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+		),
+		reasoningBudgetEnabled: normalizeBoolean(input.reasoningBudgetEnabled, DEFAULT_REASONING_BUDGET_ENABLED),
+		reviewLensesEnabled: normalizeBoolean(input.reviewLensesEnabled, DEFAULT_REVIEW_LENSES_ENABLED),
 		capabilityBrokerEnabled: normalizeBoolean(input.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 		modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(input.modelStatsTrackingLevel),
 		agentAutonomousModeEnabled: normalizeBoolean(

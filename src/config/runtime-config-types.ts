@@ -36,6 +36,14 @@ export interface RuntimeConfigState {
 	knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
 	sandboxMcpServersEnabled: boolean;
+	/** §5.AR/§5.BB basic-memory MCP (write-capable authored memory) — OFF BY DEFAULT; `NKLEIN_BASIC_MEMORY` still force-enables. */
+	basicMemoryEnabled: boolean;
+	/** §5.AA/§5.BB chat adaptive truncation ladder — ON BY DEFAULT; `NKLEIN_CHAT_ADAPTIVE_TRUNCATION` is a two-way env escape hatch. */
+	chatAdaptiveTruncationEnabled: boolean;
+	/** §5.AN/§5.BB reasoning output-budget sizing on chat turns — OFF BY DEFAULT; `NKLEIN_REASONING_BUDGET` still force-enables. */
+	reasoningBudgetEnabled: boolean;
+	/** §5.AW/§5.BB review-panel lenses (still gated on second-opinion review) — OFF BY DEFAULT; `NKLEIN_REVIEW_LENSES` still force-enables. */
+	reviewLensesEnabled: boolean;
 	capabilityBrokerEnabled: boolean;
 	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	/** §5.AC egress-gated online retrieval (web_search + browse_url) — OFF BY DEFAULT; false must keep every retrieval path dormant. */
@@ -123,6 +131,10 @@ export interface RuntimeConfigUpdateInput {
 	projectSetupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	basicMemoryEnabled?: boolean;
+	chatAdaptiveTruncationEnabled?: boolean;
+	reasoningBudgetEnabled?: boolean;
+	reviewLensesEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
@@ -188,6 +200,10 @@ export interface RuntimeGlobalConfigFileShape {
 	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	basicMemoryEnabled?: boolean;
+	chatAdaptiveTruncationEnabled?: boolean;
+	reasoningBudgetEnabled?: boolean;
+	reviewLensesEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;

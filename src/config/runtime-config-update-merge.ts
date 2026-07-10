@@ -17,12 +17,16 @@ import {
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
 import {
+	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
+	DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
+	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -89,6 +93,22 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.sandboxMcpServersEnabled,
 			current.sandboxMcpServersEnabled,
 			(value) => normalizeBoolean(value, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		),
+		basicMemoryEnabled: keepNormalizedValue(updates.basicMemoryEnabled, current.basicMemoryEnabled, (value) =>
+			normalizeBoolean(value, DEFAULT_BASIC_MEMORY_ENABLED),
+		),
+		chatAdaptiveTruncationEnabled: keepNormalizedValue(
+			updates.chatAdaptiveTruncationEnabled,
+			current.chatAdaptiveTruncationEnabled,
+			(value) => normalizeBoolean(value, DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED),
+		),
+		reasoningBudgetEnabled: keepNormalizedValue(
+			updates.reasoningBudgetEnabled,
+			current.reasoningBudgetEnabled,
+			(value) => normalizeBoolean(value, DEFAULT_REASONING_BUDGET_ENABLED),
+		),
+		reviewLensesEnabled: keepNormalizedValue(updates.reviewLensesEnabled, current.reviewLensesEnabled, (value) =>
+			normalizeBoolean(value, DEFAULT_REVIEW_LENSES_ENABLED),
 		),
 		capabilityBrokerEnabled: keepNormalizedValue(
 			updates.capabilityBrokerEnabled,

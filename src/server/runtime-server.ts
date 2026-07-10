@@ -5,6 +5,7 @@ import { createServer as createHttpsServer } from "node:https";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
+import { setChatAdapterRuntimeFlags } from "../chat/chat-local-llm-adapter";
 import {
 	createAgentSandboxChatWorkspaceProvider,
 	createSandboxWorkspaceReadTools,
@@ -217,6 +218,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();
 	const globalConfig = await loadGlobalRuntimeConfig();
+	// §5.BB: seed the chat adapter's runtime flags from the persisted settings (env overrides still compose at read
+	// time inside the adapter). Re-applied on every config save via the setActiveRuntimeConfig wrapper below.
+	setChatAdapterRuntimeFlags({
+		adaptiveTruncationEnabled: globalConfig.chatAdaptiveTruncationEnabled,
+		reasoningBudgetEnabled: globalConfig.reasoningBudgetEnabled,
+	});
 	// §5.AL / decision #1 (2026-07-07): load the user-editable model-catalog overlay so `lookupModelCapability` is
 	// data-driven — a user can add or override a model's verdict without a rebuild. Best-effort: a missing file is the
 	// normal case; malformed entries are skipped with a logged reason and never block startup.
@@ -351,6 +358,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				poolConfig,
 				// Chat read tools need no network; keep the enforcement sandbox stricter than general task runs.
 				networkPolicy: "none",
+				basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
 				writableMounts,
 			});
 			chatSandboxManagerByWorkspaceKey.set(key, manager);
@@ -1850,6 +1858,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				swarmGuardrails: effectiveSwarmGuardrails,
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
+				basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
 				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
 				modelStatsTrackingLevel: runtimeConfig.modelStatsTrackingLevel,
 				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
@@ -1859,6 +1868,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
+					basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
 				}),
 				onDecompositionApplied: async (event) => {
 					if (event.workspacePath !== scope.workspacePath) {
@@ -2529,6 +2539,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setSwarmGuardrails(effectiveSwarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
+			// §5.BB: re-apply the basic-memory switch (service bit + the sandbox manager's writable-store plan gate).
+			service.setBasicMemoryEnabled(runtimeConfig.basicMemoryEnabled);
 			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);
 			// §5.L: re-apply the per-role web-research capability gate on a live ruleset change (same drift class as the
 			// --network re-apply above — a cached service must not keep looser tool access after the operator tightens it).
@@ -2620,7 +2632,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		getActiveWorkspacePath: deps.workspaceRegistry.getActiveWorkspacePath,
 		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
 		loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
-		setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,
+		setActiveRuntimeConfig: (config) => {
+			deps.workspaceRegistry.setActiveRuntimeConfig(config);
+			// §5.BB: the chat adapter sits below the config plumbing (per-turn client factories), so re-apply its two
+			// settings-backed gates here — the ONE seam every config save flows through.
+			setChatAdapterRuntimeFlags({
+				adaptiveTruncationEnabled: config.chatAdaptiveTruncationEnabled,
+				reasoningBudgetEnabled: config.reasoningBudgetEnabled,
+			});
+		},
 		getScopedTerminalManager,
 		getScopedNKleinTaskSessionService,
 		getLoadedScopedNKleinTaskSessionService: (workspaceScope) =>
