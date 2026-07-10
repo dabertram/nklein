@@ -11004,6 +11004,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       keyed by failure-catalog ids) so mocks grow with everything we surface while working on !Klein. (c) Target:
       FULLEST possible mock coverage for the selected projects — this tool drives !Klein to maturity fast (both
       machines in low-power mode make real-LLM iteration slow).
+      **AMENDMENTS (David 2026-07-10, goal-extension — work until finished):** (d) PARALLEL CAPTURE: integrate aimock
+      as a PASSTHROUGH RECORD PROXY between !Klein and the real LM Studio/Ollama endpoints so real LLM responses +
+      behavior are collected automatically whenever real-LLM work runs later (the reflection loop's capture seam —
+      aimock proxy/record mode; !Klein just points its provider baseUrl at the proxy). (e) CLAUDE-AUTHORED FIRST:
+      Claude prepares the mock response sets as the design-time spec (flawless baselines for target workflows); real
+      collected local-LLM telemetry hardens them later (runtime reality). (f) SCALE: prepare EXTENSIVE mock response
+      sets for the EASIER/lower-complexity dev-test-projects — up to ~50 estimated cards per project for now.
+      (g) THEN: drive UI + overall !Klein polishing on top of the generated aimock base (fast, deterministic,
+      no LLM wait).
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
