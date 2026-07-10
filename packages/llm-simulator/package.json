@@ -1,0 +1,19 @@
+{
+	"name": "@nklein/llm-simulator",
+	"version": "0.0.1",
+	"private": true,
+	"description": "LLM response simulator for agentic-tool testing: scripted scenario tracks, model-family quirk profiles, seeded variance, failure injection — served over an OpenAI-compatible endpoint (aimock transport) + an LM Studio /api/v0 shim. Deliberately free of !Klein imports (separable product).",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@copilotkit/aimock": "^1.35.1"
+	},
+	"devDependencies": {
+		"typescript": "^5.6.0",
+		"vitest": "^4.1.0"
+	}
+}
