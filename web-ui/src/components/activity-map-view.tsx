@@ -107,7 +107,12 @@ export function ActivityMapView({
 		const cy = anchor.y * height;
 		const assignments = ringAssignments(cluster.bubbles.length);
 		const ringsTotal = assignments[0]?.rings ?? 1;
-		const haloRadius = Math.min(230, 64 + ringsTotal * 52 + cluster.bubbles.length * 2);
+		// Halo cap scales with the CANVAS, not just card count: a fixed 230px halo is wider than a phone viewport,
+		// so outer-ring bubbles rendered half off-canvas (live-found 2026-07-10 at 375px — the in-review bubble was
+		// clipped at the left edge). ~38% of the smaller canvas side keeps the ring inside every anchor position;
+		// desktop canvases stay above the fixed cap and are unchanged.
+		const canvasCap = Math.max(72, Math.min(width, height) * 0.38);
+		const haloRadius = Math.min(230, canvasCap, 64 + ringsTotal * 52 + cluster.bubbles.length * 2);
 		cluster.bubbles.forEach((bubble, bubbleIndex) => {
 			const slot = assignments[bubbleIndex] ?? { ring: 0, indexInRing: 0, ringSize: 1, rings: 1 };
 			// Radial fraction per ring: a lone ring sits mid-halo; multiple rings spread 0.30 → 0.72.
