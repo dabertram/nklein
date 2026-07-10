@@ -785,8 +785,17 @@ export function BoardCard({
 	const canCopyEvidence = !isTrashCard && Boolean(onCopyEvidence);
 	// The cancel-auto-action button only renders when the automatic action could actually fire soon — a live
 	// session, or the card already in the doing/review lanes. Twelve queued planning cards each wearing a
-	// full-width "Cancel Auto-commit" button was pure chrome noise (live-found 2026-07-10).
-	const automaticActionImminent = columnId === "in_progress" || columnId === "review" || sessionSummary !== undefined;
+	// full-width "Cancel Auto-commit" button was pure chrome noise (live-found 2026-07-10). LIVENESS, not
+	// presence: terminal summaries (interrupted teardown) linger in the sessions map, so a bare
+	// `sessionSummary !== undefined` kept a dead "Cancel Auto-commit" on every COMPLETED card forever
+	// (live-found 2026-07-11 on the mobile audit — the action already fired 27 minutes earlier).
+	const sessionCouldStillAct =
+		sessionSummary !== undefined &&
+		(sessionSummary.state === "running" ||
+			sessionSummary.state === "queued" ||
+			sessionSummary.state === "awaiting_review" ||
+			sessionSummary.state === "paused");
+	const automaticActionImminent = columnId === "in_progress" || columnId === "review" || sessionCouldStillAct;
 	const cancelAutomaticActionLabel =
 		!isTrashCard && card.autoReviewEnabled && automaticActionImminent
 			? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode)
