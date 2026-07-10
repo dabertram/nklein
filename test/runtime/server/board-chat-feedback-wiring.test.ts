@@ -111,7 +111,28 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 		expect(f.transitioned[0]?.overrides).not.toHaveProperty("heartbeatLost");
 	});
 
-	it("never derives a lost heartbeat for an ENDED session (interrupted teardown keeps its status verbatim)", () => {
+	it("strips the run-finished 'lost' stamp on terminal summaries (heartbeat semantics are live-only)", () => {
+		// The session service stamps heartbeatStatus "lost" on EVERY clean run-finish ("run over", not "run
+		// died") — passing it through made a healthy delivery surface a heartbeat-lost digest right after its
+		// "ready for review" (second live find 2026-07-10). Terminal states must carry NO heartbeat semantics.
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "awaiting_review",
+				reviewReason: "hook",
+				lastHeartbeatAt: NOW - 1_000,
+				heartbeatStatus: "lost", // the run-finished stamp
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBeNull();
+	});
+
+	it("never derives a lost heartbeat for an ENDED session (terminal states carry no heartbeat semantics)", () => {
 		// An ended session's heartbeat naturally ages — deriving attention from it flooded healthy boards with
 		// "heartbeat lost (the run may be dead)" digests for cards that had already delivered (2026-07-10).
 		const f = fakeBridge();
@@ -128,7 +149,7 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 			} as RuntimeTaskSessionSummary,
 			isInitial: false,
 		});
-		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBe("healthy");
+		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBeNull();
 		expect(f.transitioned[0]?.overrides).not.toHaveProperty("noProgressOrLoop");
 	});
 

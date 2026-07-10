@@ -196,7 +196,15 @@ export function createBoardChatFeedbackWiring(overrides?: {
 		// run may be dead)" digests for cards that had already delivered (live-found 2026-07-10, simulated board).
 		const expectsLiveRun = input.summary.state === "running" || input.summary.state === "queued";
 		const attention = expectsLiveRun ? deriveAttentionOverrides(input.summary, now()) : null;
-		const heartbeatStatus = attention?.heartbeatLost === true ? "lost" : (input.summary.heartbeatStatus ?? null);
+		// Non-live states carry NO heartbeat semantics at all: the session service stamps heartbeatStatus "lost"
+		// on EVERY clean run-finish (it means "the run is over", not "the run died"), so passing it through let a
+		// healthy delivery still surface a "heartbeat lost (the run may be dead)" digest right after its
+		// "ready for review" (second live find 2026-07-10 — the first fix only stopped the DERIVED loss).
+		const heartbeatStatus = expectsLiveRun
+			? attention?.heartbeatLost === true
+				? "lost"
+				: (input.summary.heartbeatStatus ?? null)
+			: null;
 		// §5.S/§5.AT: the card is BLOCKED on a question for the operator. The agent calls a user-attention tool
 		// (ask_followup_question / plan_mode_respond), which stamps `notificationType: "user_attention"` on the hook
 		// activity (nklein-event-adapter) — the dedicated marker. Surface it as a `needs_input` ASK (verbs: respond)
