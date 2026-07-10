@@ -57,6 +57,15 @@ wire truths below — run it before trusting an edited set.
    use the per-card `Files for THIS card: src/<slug>.mjs` phrase — never titles, spec bullets, or bare paths.
 7. **Close every tool ladder with a text turn** (the runner re-prompts until a non-tool turn) and set
    `repeatLastTurn` so nudges/redrives never strict-miss; per-card review tracks, `any`-class fallback per set.
+8. **Review tracks must `cycleTurns`, not `repeatLastTurn`** (wire truth 11, 2026-07-10): the runtime RESUMES the
+   `<taskId>::review` session with its prior transcript across review rounds, so a linear `[approve, text]` ladder
+   answers text-only (no verdict!) from round 2 on and the card freezes verdict-less in Review. `cycleTurns: true`
+   conditions turns on `count % turns.length` so the verdict re-emits every cycle. Bounce ladders
+   (request_changes→approve) keep the linear repeat — their sequence is round-ordered by design.
+9. **Merged multi-set scripts compile most-specific-first** (needle > class-scoped > catch-all; stable within a
+   tier) — otherwise one set's no-needle `any` fallback swallows another set's decompose request (live-found:
+   projects stranded in Planning under the dev stack's merged script). Encoded in `trackSpecificity`
+   (track-compiler.ts) + track-compiler-order.test.ts.
 
 ## Reflection loop (§13d)
 
@@ -77,3 +86,18 @@ text; failure id conservatively from the response — `t-<status>`, `c-empty-com
   silently swallowed by the terminal-retry sweep debounce → 11 dep-ready cards frozen with an idle fleet. Fixed
   (timer-fired sweeps bypass the debounce; swallowed sweeps re-arm the timer) — one confirmed mechanism behind
   the §12 "fleet under-utilization" observations.
+- **Programmatic card-move deadlock** (2026-07-10, UI dive on the live stack): `transition: none` on draggables
+  suppressed the drop `transitionend` @hello-pangea/dnd completes on — a stranded fixed-position clone wedged the
+  board. Fixed (≈0 duration + watchdogs).
+- **Chat feed cried wolf on healthy boards** (2026-07-10): the post-done teardown (`awaiting_review→interrupted`)
+  and ended sessions' aging heartbeats surfaced as "❌ failed"/"heartbeat lost" digests. Fixed (live-session gating).
+- **Stalled-review freeze** (2026-07-10, merged 05+10 stack): a review dropped while a sibling project held the
+  endpoint never retried; dependents blocked the whole board. Fixed (board-liveness watchdog dispatches
+  verdict-less reviews, self-retrying) — the residual silent-hang is logged in todo §12 for a focused pass.
+
+## Turn-loop regression mode (§12 a-same-question)
+
+`NKLEIN_SIMFLOW_TURNLOOP=1 npm run test:simulated-flows` — the greet worker re-raises the same clarifying
+question for 3 turns (each with a `read_files` call so the session stays alive); the runtime's TurnLoopGuard must
+cancel-then-nudge with the authoritative `Acceptance check:` answer and the board must fully drain. Asserted on
+the wire: the question recurred ≥3×, the nudge text reached the model, finalCounts drained.
