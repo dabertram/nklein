@@ -171,7 +171,10 @@ export function ProjectRow({
 			}}
 		>
 			<div className="flex-1 min-w-0">
+				{/* title tooltips: the name/path truncate with an ellipsis (project names here are long and often
+				    identical up to a suffix), so hovering must reveal the full value — matching the collapsed rail. */}
 				<div
+					title={project.name}
 					className={cn(
 						"font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm",
 						isCurrent ? "text-accent-fg" : "text-text-primary",
@@ -180,6 +183,7 @@ export function ProjectRow({
 					{project.name}
 				</div>
 				<div
+					title={project.path}
 					className={cn(
 						"font-mono text-[10px] whitespace-nowrap overflow-hidden text-ellipsis",
 						isCurrent ? "text-accent-fg/60" : "text-text-secondary",
