@@ -6491,6 +6491,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         into verify-all-models.mts (per-model structured mechanism via selectStructuredOutputStrategy + record to the §5.AB
         fitness store) + the `implement` family (needs code EXECUTION in a sandbox).
   - [~] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
+        **MACHINERY VERIFIED AT MEMORY SPEED (2026-07-10):** `npx tsx scripts/verify-simulated-eval.mts` runs the
+        REAL eval-harness against the LLM simulator with fixture tracks GENERATED FROM the corpus answer keys —
+        6 cells × 6 repeats (targetSettledRuns), every cell scores 1.0, every stability verdict `settled_pass`
+        (confidence 1.0), fitness folds quality/reliability/latency correctly, exit 0, zero LLM compute. The loop,
+        aggregation, stability and extraction plumbing are proven; what remains live-gated is only real per-model
+        evidence (the sweep across the roster). Note: cells need ≥minSettledRuns(4) repeats to leave "thin" — a
+        3-repeat sweep can NEVER settle a cell by policy.
         **PURE STABILITY-JUDGMENT CORE DONE (2026-07-01):** [src/core/model-eval-stability.ts](src/core/model-eval-stability.ts)
         — the missing "are the N repeats SETTLED or still FLAKY?" judgment on top of the aggregator. The repeated-run LOOP
         is effectful (runs the model N× — owed below); this pure core decides what those repeats MEAN. `scoreModelEvalStability`
