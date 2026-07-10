@@ -11175,11 +11175,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       is suspect #2; (d) a direct probe of the live simulator with a wedged card's review request answered
       submit_review correctly at count 0 ⇒ the sim is not the blocker; (e) the pre-freeze drain shows the known
       `skipped (not_reviewable)` → `skipped (no_verdict)` two-step on the same cards that later wedge — likely
-      the round that LEAKS the slot. NEXT (focused session): add warn-level progress stamps to
-      runSecondOpinionReviewForTask's phases (mutex acquire → pool prepare → launch resolve → first model call)
-      + a bounded timeout with slot release on every phase; make the pool's capacity queue LOG when an acquire
-      waits >30s; then reproduce via the dev stack (solo 05, watchable pace — NOT the instant harness, which
-      passes).
+      the round that LEAKS the slot. **RESOLVED — VALIDATION CONFIRMED (2026-07-11):** the fix chain landed across two sessions —
+      (1) the acceptance gate's pause-wait is bounded 60s with slot release (3892967e); (2) the GPT-5.6-Sol
+      session's root fixes (decbb772): the finalize no longer replays non-idempotent reviewer/acceptance/merge
+      effects on workspace-lock conflicts (the approve→merge→conflict→second-review→no_verdict strander), a
+      bounced worker's next handoff no longer reviews the PREVIOUS round's artifact (capture-marker required
+      while awaiting_review), and unchanged already-approved work reuses its sign-off instead of re-running the
+      reviewer; (3) phase stamps now cover the whole pipeline (runner phases + review core + session runner:
+      single-flight/reviewer-resolve/bracketed-run) and the sandbox pool logs acquires queued >30s. **LIVE
+      VALIDATION: the exact solo-05 watchable run that froze 3× on 2026-07-10 now drains 25/25 completed**
+      (6/6 review-resolutions concluded, zero queue stalls, zero wedges). The once-seen PLANNING FREEZE also
+      did not reproduce post-fixes (watch: if a planning freeze recurs, Sol's auto-start failure observations
+      [auto_start_failed/auto_start_exception] now make the drop visible).
       **INSTRUMENTATION + FIRST FIX LANDED (2026-07-10 late):** (1) AgentSandboxManager takes an injected `warn`
       and now LOGS a queued slot acquisition that stalls past 30s (pool size + queue depth) and again on settle —
       so a capacity stall pinpoints itself instead of a silent freeze; wired in runtime-server. (2)

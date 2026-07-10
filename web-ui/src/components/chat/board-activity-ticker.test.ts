@@ -50,16 +50,14 @@ describe("diffBoardActivity (§5.BB chat activity ticks)", () => {
 		const before = snapshot([column("in_progress", [card("a")])], { a: session("a", "queued") });
 		const after = snapshot([column("in_progress", [card("a", { blockedKind: "needs_decomposition" }), card("b")])], {
 			a: session("a", "running", "qwop4b-a"),
-			b: session("b", "failed"),
+			b: session("b", "failed"), // first appearance — silent by design (see note below)
 			// Synthetic sub-sessions (the card's judges) stay SILENT — they end interrupted by design (2026-07-10).
 			"b::review": session("b", "interrupted"),
 		});
 		const ticks = diffBoardActivity(before, after, 5000);
-		expect(ticks.map((tick) => tick.label)).toEqual([
-			"Card a blocked (needs_decomposition)",
-			"new card: Card b",
-			"session failed: Card b",
-		]);
+		// NOTE: session "b" first APPEARS already-failed — that no longer ticks (page-load hydration replayed
+		// historical terminals as fresh activity, 2026-07-11); only a session seen LIVE may tick its death.
+		expect(ticks.map((tick) => tick.label)).toEqual(["Card a blocked (needs_decomposition)", "new card: Card b"]);
 		// queued was already live ⇒ queued→running is NOT a second "model started"
 		expect(ticks.some((tick) => tick.kind === "session_started")).toBe(false);
 		const started = diffBoardActivity(
@@ -76,6 +74,14 @@ describe("diffBoardActivity (§5.BB chat activity ticks)", () => {
 				label: "model started on Card a (qwop4b-a)",
 			},
 		]);
+	});
+
+	it("stays quiet when a session FIRST APPEARS already terminal (page-load hydration must not replay history)", () => {
+		// The board snapshot hydrates before the sessions map on load — 23 historical "session interrupted"
+		// lines replayed as fresh activity (live-found 2026-07-11). First appearances never tick.
+		const before = snapshot([column("completed", [card("a")])], {});
+		const after = snapshot([column("completed", [card("a")])], { a: session("a", "interrupted") });
+		expect(diffBoardActivity(before, after, 6500)).toEqual([]);
 	});
 
 	it("stays quiet for the healthy post-done teardown (awaiting_review → interrupted)", () => {

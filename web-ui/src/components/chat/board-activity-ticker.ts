@@ -121,12 +121,13 @@ export function diffBoardActivity(
 			push("session_started", cardId, `model started on ${title}${model}`);
 			continue;
 		}
-		// `prior === undefined` still ticks: a session that first APPEARS failed/interrupted ran and died between
-		// polls — that's news, not noise. A session that was ALREADY past its clean terminal (awaiting_review etc.)
-		// is different: the swarm tears every delivered session down as `interrupted`, so ticking that lifecycle
-		// step spammed healthy boards with "session interrupted" right after "✓ completed" (live-found 2026-07-10).
-		// Only a LIVE (or unseen) session ending in failed/interrupted is worth a line.
-		if (current && prior?.state !== current.state && (prior === undefined || LIVE_SESSION_STATES.has(prior.state))) {
+		// Only a session we SAW live may tick its death. `prior === undefined` used to tick too ("appeared dead
+		// between polls = news") — but on page load the board snapshot hydrates BEFORE the sessions map, so every
+		// historical terminal session "first appeared" and replayed as fresh activity (live-found 2026-07-11:
+		// 23 spurious "session interrupted" lines stamped at load time — exactly the §5.BF replay concern). A
+		// genuinely-dying live session still ticks (running/queued -> failed/interrupted), and the SERVER digest
+		// independently reports real failures, so dropping the appear-as-terminal tick loses no real news.
+		if (current && prior !== undefined && prior.state !== current.state && LIVE_SESSION_STATES.has(prior.state)) {
 			const endedLabel = ENDED_SESSION_LABEL[current.state];
 			if (endedLabel) {
 				const cardId = baseTaskId(key, current);
