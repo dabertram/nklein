@@ -99,7 +99,19 @@ export function BoardDagView({
 					<X size={16} />
 				</button>
 			</div>
-			<div className="min-h-0 flex-1 overflow-hidden">
+			<div className="relative min-h-0 flex-1 overflow-hidden">
+				{graph.nodes.length > 0 && graph.edges.length === 0 ? (
+					// A board can have cards but no dependency EDGES — a flat decompose (common with weaker local
+					// models) or a genuinely parallel plan. Without this hint the vertical stack of nodes reads as a
+					// broken graph; say plainly there are no ordering constraints so the layout is expected. Anchored
+					// in the left gutter (nodes stack in a centered column) so it never overlaps a card.
+					<div className="pointer-events-none absolute left-6 top-1/2 z-10 max-w-[15rem] -translate-y-1/2">
+						<div className="rounded-lg border border-border bg-surface-2/90 px-3 py-2 text-[11.5px] leading-snug text-text-tertiary">
+							<span className="block font-medium text-text-secondary">No dependency edges</span>
+							These cards have no ordering constraints between them — they can run in any order.
+						</div>
+					</div>
+				) : null}
 				{graph.nodes.length === 0 ? (
 					<div className="flex h-full items-center justify-center text-sm text-text-tertiary">
 						No cards on the board yet.
