@@ -61,6 +61,7 @@ function board(card: { startInPlanMode: boolean; columnId: string }): RuntimeBoa
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: card.columnId === "backlog" ? [taskCard] : [] },
 			{ id: "planning", title: "Planning", cards: card.columnId === "planning" ? [taskCard] : [] },
+			{ id: "ready", title: "Ready", cards: card.columnId === "ready" ? [taskCard] : [] },
 			{ id: "in_progress", title: "In Progress", cards: card.columnId === "in_progress" ? [taskCard] : [] },
 			{ id: "review", title: "Review", cards: [] },
 			{ id: "completed", title: "Completed", cards: card.columnId === "completed" ? [taskCard] : [] },
@@ -113,6 +114,30 @@ describe("reconcileStartedTaskBoardLane", () => {
 		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
 		expect(changed).toBe(true);
 		expect(await columnOf("task-1")).toBe("planning");
+	});
+
+	it("moves a running work card from Ready to Planning — a parked dep-free card whose queued session became running (todo 11116)", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "ready" }) });
+		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
+		expect(changed).toBe(true);
+		expect(await columnOf("task-1")).toBe("planning");
+	});
+
+	it("moves a running plan-mode card from Ready to Planning too (decompose cards refine first, §5.B)", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: true, columnId: "ready" }) });
+		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
+		expect(changed).toBe(true);
+		expect(await columnOf("task-1")).toBe("planning");
+	});
+
+	it("leaves a Ready card put while its session is still queued (Ready = waiting for a slot, no live session)", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "ready" }) });
+		const changed = await reconcileStartedTaskBoardLane({
+			workspacePath: repoPath,
+			summary: summary({ state: "queued" }),
+		});
+		expect(changed).toBe(false);
+		expect(await columnOf("task-1")).toBe("ready");
 	});
 
 	it("never pulls a resumed card backward from In Progress to Planning", async () => {
