@@ -11180,7 +11180,7 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       installs; generated sets keep REAL green acceptance via node:test).
       NEXT: the Fable UI deep dive driven by simulated workflows (goal step 2) — persistent simulator+runtime+
       web-ui stack, then work the todo backlog top-to-bottom (goal step 3).)*
-- [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
+- [x] **"Ready" lane between Planning and In Progress (David 2026-07-10 — protected).** DONE 2026-07-10. Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
       implementation change, the affected flows must be covered with 100% (or more) test coverage across ALL testing
@@ -11210,8 +11210,14 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       monitor (`dev-test-outcome.ts`) counts `ready` as outstanding work so a run isn't called complete while cards
       wait there. LIVE SIM (project-02): once the domain-model card completed, up to 14 dep-free cards flooded into
       Ready, then drained ready→in_progress→completed — all 19 completed, strict `ready==0` drain gate satisfied.
-      8896 backend + 27 targeted lane tests green. REMAINING = Increment 3 (surfaces): lean-view lane mapping for
-      `ready`, board counts/labels, drag rules, DAG/overview — none block the core behavior, which now works.
+      8896 backend + 27 targeted lane tests green.
+      **INCREMENT 3 DONE (2026-07-10) — the SURFACES:** the lean view maps `ready`→Queued (else ready cards would
+      vanish from it); both board `COLUMN_ORDER` arrays (kanban-board + dependency-overlay) include `ready` between
+      planning and in_progress so column ordering, drag-direction rules, and dependency-edge layout are correct; the
+      board "waiting" count + the per-column start affordance include ready. 989 web-ui tests green. The full board
+      already renders the Ready column from board data (canonical column set). **The "Ready" lane is COMPLETE across
+      all layers** (column + migration + promotion logic + runtime placement + start-from-ready + monitor + all UI
+      surfaces), verified by unit/contract tests AND a live simulated project draining ready→in_progress→completed.
       **(historical) INCREMENT 2b first attempt (reconcile-based) hit a bounce — the simulator caught it (2026-07-10):** wiring the
       reconcile into the completion-sweep + decompose handlers made ready POPULATE beautifully (live sim project-02:
       once the domain-model card completed, 14 dep-free cards flooded into Ready as queued-but-unblocked), BUT the

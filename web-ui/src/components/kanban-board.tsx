@@ -57,7 +57,15 @@ import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/dra
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
 
-const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
+const BOARD_COLUMN_ORDER: BoardColumnId[] = [
+	"backlog",
+	"planning",
+	"ready",
+	"in_progress",
+	"review",
+	"completed",
+	"trash",
+];
 
 export type RequestProgrammaticCardMove = (move: ProgrammaticCardMoveInFlight) => boolean;
 
@@ -302,7 +310,7 @@ export function KanbanBoard({
 		const running = Object.values(taskSessions).filter((summary) => summary.state === "running").length;
 		const blocked = cards.filter((card) => card.blockedKind).length;
 		const waiting = data.columns
-			.filter((column) => column.id === "backlog" || column.id === "planning")
+			.filter((column) => column.id === "backlog" || column.id === "planning" || column.id === "ready")
 			.reduce((total, column) => total + column.cards.filter((card) => !card.blockedKind).length, 0);
 		// Tasks admitted to the sandbox pool's FIFO queue, waiting for a free container (todo §5.G — surface the
 		// explicit queue, not just a per-card state). Ordered by start time so the list reads as the wait order.
@@ -951,7 +959,9 @@ export function KanbanBoard({
 			column={column}
 			taskSessions={displayTaskSessions}
 			onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
-			onStartTask={column.id === "backlog" || column.id === "planning" ? onStartTask : undefined}
+			onStartTask={
+				column.id === "backlog" || column.id === "planning" || column.id === "ready" ? onStartTask : undefined
+			}
 			onPauseTask={currentProjectId ? handlePauseTask : undefined}
 			onResumeTask={currentProjectId ? handleResumeTask : undefined}
 			onReplayTask={onReplayTask}

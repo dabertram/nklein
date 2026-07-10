@@ -14,7 +14,9 @@ import type { BoardCard, BoardColumn } from "@/types";
 // entirely in planning, so the lean view rendered it as three empty lanes (David 2026-07-09: "lean view seems
 // incomplete").
 const LEAN_LANES: readonly { key: string; label: string; columnIds: readonly string[] }[] = [
-	{ key: "queued", label: "Queued", columnIds: ["backlog", "planning"] },
+	// `ready` (todo 11116) is the dep-free queued-but-unblocked state — it belongs with Queued in the lean rollup
+	// (the full board shows it as its own column); without this, ready cards would vanish from the lean view.
+	{ key: "queued", label: "Queued", columnIds: ["backlog", "planning", "ready"] },
 	{ key: "doing", label: "Doing", columnIds: ["in_progress"] },
 	{ key: "review", label: "Review", columnIds: ["review"] },
 	{ key: "done", label: "Done", columnIds: ["completed"] },

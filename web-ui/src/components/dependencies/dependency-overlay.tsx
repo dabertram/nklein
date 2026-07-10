@@ -57,7 +57,7 @@ interface AnchorPoint {
 
 const SOURCE_CONNECTOR_PADDING = 2;
 const TARGET_CONNECTOR_PADDING = 8;
-const COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
+const COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "ready", "in_progress", "review", "completed", "trash"];
 const SIDE_NORMALS: Record<AnchorSide, { x: number; y: number }> = {
 	left: { x: -1, y: 0 },
 	right: { x: 1, y: 0 },
