@@ -27,6 +27,8 @@ export interface DevTestBoardCounts {
 	completed: number;
 	review: number;
 	planning: number;
+	/** §5.B Ready lane (todo 11116): dep-free cards waiting for a slot. */
+	ready: number;
 	inProgress: number;
 	backlog: number;
 	failed: number;
@@ -64,6 +66,7 @@ export function countDevTestBoardColumns(board: DevTestBoardLike): DevTestBoardC
 		completed: byColumn.get("completed") ?? 0,
 		review: byColumn.get("review") ?? 0,
 		planning: byColumn.get("planning") ?? 0,
+		ready: byColumn.get("ready") ?? 0,
 		inProgress: byColumn.get("in_progress") ?? 0,
 		backlog: byColumn.get("backlog") ?? 0,
 		failed: 0,
@@ -72,7 +75,7 @@ export function countDevTestBoardColumns(board: DevTestBoardLike): DevTestBoardC
 }
 
 function countIncomplete(counts: DevTestBoardCounts): number {
-	return counts.review + counts.planning + counts.inProgress + counts.backlog + counts.failed;
+	return counts.review + counts.planning + counts.ready + counts.inProgress + counts.backlog + counts.failed;
 }
 
 export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunClassification {

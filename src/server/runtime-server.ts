@@ -71,6 +71,7 @@ import {
 } from "../core/synthetic-task-id";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
+	findBoardCardWithColumn,
 	getTaskColumnId,
 	moveTaskToColumn,
 	STARTED_CARD_ENTRY_LANE,
@@ -738,9 +739,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			try {
 				const state = await loadWorkspaceState(scope.workspacePath);
 				const sourceColumnId = getTaskColumnId(state.board, taskId);
-				if (sourceColumnId !== "backlog" && sourceColumnId !== "planning") {
-					// No longer a waiting card (started elsewhere, completed, trashed) — drop any deferred-overlap entry so
-					// the set doesn't retain ids that can never be auto-started again (it would no-op here every completion).
+				// backlog/planning = a waiting card; `ready` = a dep-free card parked after an earlier defer (todo 11116).
+				// Any other lane means it is no longer waiting (started elsewhere, completed, trashed).
+				if (sourceColumnId !== "backlog" && sourceColumnId !== "planning" && sourceColumnId !== "ready") {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
 					continue;
 				}
@@ -790,6 +791,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					deps.warn(
 						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}); deferred for retry on next completion.`,
 					);
+					await parkCardInReadyLane(scope, task.id); // queued-but-unblocked (waiting on a file lock) ⇒ Ready.
 					continue;
 				}
 				if (overlappingTask) {
@@ -838,6 +840,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						deps.warn(
 							`Auto-start of ${task.id} hit the concurrency limit; deferred for retry on the next completion.`,
 						);
+						await parkCardInReadyLane(scope, task.id); // dep-free but no slot ⇒ show in Ready.
 						// #26: also retry on a TIMER — the completion-event retry can race the releasing slot, and
 						// after the last completion no event ever fires again (run28 stranded its final card this way).
 						const existingTimer = deferredRetryTimerByWorkspaceId.get(scope.workspaceId);
@@ -872,6 +875,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							started.retryAfterMs ? ` (retry in ~${Math.round(started.retryAfterMs / 1000)}s)` : ""
 						}.`,
 					);
+					await parkCardInReadyLane(scope, task.id); // dep-free but endpoint busy ⇒ show in Ready.
 					continue;
 				}
 				const pinnedModelRecommendation = started.selectionReason?.match(/Pinned-model recommendation:.*$/u)?.[0];
@@ -1159,6 +1163,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// in which case `autoStartTaskIds` starts them exactly as before).
 		await ensureDurableRunForScope(scope);
 		await autoStartTaskIds(scope, event.rootTaskIds);
+	};
+	// §5.B Ready lane (todo 11116 increment 2): a dep-free card whose auto-start was DEFERRED (slot busy, endpoint
+	// busy, or file-overlap serialized) is "queued but unblocked" — park it in `ready` so that state is visible as
+	// its own column. Placement ties to the authoritative DEFER decision (not a reconcile), so there is no race with
+	// the start flow: a card that actually STARTS is moved to the planning entry-lane and promoted to in_progress
+	// instead, never here. Idempotent; best-effort (never blocks the sweep).
+	const parkCardInReadyLane = async (scope: RuntimeTrpcWorkspaceScope, taskId: string): Promise<void> => {
+		await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+			const record = findBoardCardWithColumn(latestState.board, taskId);
+			// Only park a card that is still pre-implementation (backlog/planning) — never pull one back from a later lane.
+			if (!record || (record.columnId !== "backlog" && record.columnId !== "planning")) {
+				return { board: latestState.board, save: false, value: null };
+			}
+			const movement = moveTaskToColumn(latestState.board, taskId, "ready");
+			return { board: movement.board, save: movement.moved, value: null };
+		}).catch((error) => {
+			deps.warn(`Ready-lane park failed for ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
+		});
 	};
 	const moveStartedQueuedTask = async (
 		scope: RuntimeTrpcWorkspaceScope,

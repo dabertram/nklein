@@ -500,7 +500,7 @@ async function main(): Promise<void> {
 			// mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
 			const counts = /"finalCounts":\s*{[^}]*}/.exec(seedOut)?.[0] ?? "";
 			const lane = (name: string): number => Number(new RegExp(`"${name}":\\s*(\\d+)`).exec(counts)?.[1] ?? "-1");
-			if (lane("review") !== 0 || lane("failed") !== 0 || lane("planning") !== 0 || lane("inProgress") !== 0 || lane("completed") < 1) {
+			if (lane("review") !== 0 || lane("failed") !== 0 || lane("planning") !== 0 || lane("ready") > 0 || lane("inProgress") !== 0 || lane("completed") < 1) {
 				// throw (not fail/process.exit) so the finally block still tears children down + dumps runtime.log.
 				throw new Error(`perfect-run left cards undrained (${counts})`);
 			}

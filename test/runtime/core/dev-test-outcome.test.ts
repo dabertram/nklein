@@ -6,7 +6,17 @@ import {
 } from "../../../src/core/dev-test-outcome";
 
 function counts(overrides: Partial<DevTestBoardCounts> = {}): DevTestBoardCounts {
-	return { completed: 0, review: 0, planning: 0, inProgress: 0, backlog: 0, failed: 0, trash: 0, ...overrides };
+	return {
+		completed: 0,
+		review: 0,
+		planning: 0,
+		ready: 0,
+		inProgress: 0,
+		backlog: 0,
+		failed: 0,
+		trash: 0,
+		...overrides,
+	};
 }
 
 describe("classifyDevTestRun", () => {

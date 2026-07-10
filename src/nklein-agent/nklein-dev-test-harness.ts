@@ -109,14 +109,15 @@ function isComplete(counts: DevTestBoardCounts): boolean {
 	// has materialized at the first poll) trivially satisfies "no incomplete cards" and the monitor would break early and
 	// report a false green. With this guard the monitor keeps polling until real work completes (or the run settles/times out).
 	return (
-		counts.completed > 0 && counts.review + counts.planning + counts.inProgress + counts.backlog + counts.failed === 0
+		counts.completed > 0 &&
+		counts.review + counts.planning + counts.ready + counts.inProgress + counts.backlog + counts.failed === 0
 	);
 }
 
 function readCounts(state: DevTestStateRead): DevTestBoardCounts {
 	const base = state.board
 		? countDevTestBoardColumns(state.board)
-		: { completed: 0, review: 0, planning: 0, inProgress: 0, backlog: 0, failed: 0, trash: 0 };
+		: { completed: 0, review: 0, planning: 0, ready: 0, inProgress: 0, backlog: 0, failed: 0, trash: 0 };
 	return { ...base, failed: state.failedCardCount ?? base.failed };
 }
 

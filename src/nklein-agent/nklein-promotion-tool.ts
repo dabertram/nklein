@@ -32,13 +32,16 @@ export interface NKleinCardPromotedEvent {
 export type NKleinCardPromotedHandler = (event: NKleinCardPromotedEvent) => Promise<void> | void;
 
 /**
- * Lanes a card can be promoted FROM: it is still pre-implementation (queued in Backlog, or refining in Planning).
- * `in_progress`/`review` mean the agent already started implementing (idempotent no-op); `completed`/`trash` are
- * terminal.
+ * Lanes a card can be promoted FROM: it is still pre-implementation (queued in Backlog, refining in Planning, or
+ * dep-free-but-waiting in Ready). `in_progress`/`review` mean the agent already started implementing (idempotent
+ * no-op); `completed`/`trash` are terminal.
  */
 const PRE_IMPLEMENTATION_COLUMNS: ReadonlySet<RuntimeBoardColumnId> = new Set<RuntimeBoardColumnId>([
 	"backlog",
 	"planning",
+	// §5.B Ready lane (todo 11116): a dep-free card that couldn't start yet parks in `ready`; when it does start
+	// implementing it promotes straight to in_progress from there, just like from planning.
+	"ready",
 ]);
 
 export type PromotionState = "promoted" | "already-implementing" | "planning-card" | "terminal" | "missing";

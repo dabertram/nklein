@@ -11201,7 +11201,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       dep-free session-less planning card → ready; started ready card → in_progress; re-blocked ready card →
       planning; backlog never auto-promoted. `listStartableUnstartedTaskIds` now also scans `ready` (backward-compat,
       inert until the runtime applies the reconcile).
-      **INCREMENT 2b ATTEMPTED + REVERTED — the simulator caught a real interaction bug (2026-07-10):** wiring the
+      **INCREMENT 2b DONE (2026-07-10) — ready POPULATES and fully DRAINS, verified live (harness PASS, exit 0):**
+      the clean design ties ready-placement to the AUTHORITATIVE defer decision (no reconcile race): `autoStartTaskIds`
+      parks a dep-free card in `ready` at each defer point (concurrency-limit, endpoint-busy queue, file-overlap
+      serialize); the source-lane guard + the sweep's `listStartableUnstartedTaskIds` now include `ready` so a parked
+      card gets retried; a card that actually STARTS is moved to the planning entry-lane and promoted to in_progress
+      (`promoteCardToImplementation` now accepts `ready` as a pre-implementation lane), never parked. The dev-test
+      monitor (`dev-test-outcome.ts`) counts `ready` as outstanding work so a run isn't called complete while cards
+      wait there. LIVE SIM (project-02): once the domain-model card completed, up to 14 dep-free cards flooded into
+      Ready, then drained ready→in_progress→completed — all 19 completed, strict `ready==0` drain gate satisfied.
+      8896 backend + 27 targeted lane tests green. REMAINING = Increment 3 (surfaces): lean-view lane mapping for
+      `ready`, board counts/labels, drag rules, DAG/overview — none block the core behavior, which now works.
+      **(historical) INCREMENT 2b first attempt (reconcile-based) hit a bounce — the simulator caught it (2026-07-10):** wiring the
       reconcile into the completion-sweep + decompose handlers made ready POPULATE beautifully (live sim project-02:
       once the domain-model card completed, 14 dep-free cards flooded into Ready as queued-but-unblocked), BUT the
       board then STALLED at 7/19 completed with ~12 cards STUCK in ready. ROOT CAUSE: the start flow moves a starting
