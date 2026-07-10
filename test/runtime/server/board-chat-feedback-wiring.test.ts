@@ -111,6 +111,27 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 		expect(f.transitioned[0]?.overrides).not.toHaveProperty("heartbeatLost");
 	});
 
+	it("never derives a lost heartbeat for an ENDED session (interrupted teardown keeps its status verbatim)", () => {
+		// An ended session's heartbeat naturally ages — deriving attention from it flooded healthy boards with
+		// "heartbeat lost (the run may be dead)" digests for cards that had already delivered (2026-07-10).
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "interrupted",
+				reviewReason: "interrupted",
+				lastHeartbeatAt: NOW - 500_000, // long past the lost window — but no live run expects beats
+				heartbeatStatus: "healthy",
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBe("healthy");
+		expect(f.transitioned[0]?.overrides).not.toHaveProperty("noProgressOrLoop");
+	});
+
 	it("leaves nextSummary.heartbeatStatus untouched when the heartbeat is still fresh", () => {
 		const f = fakeBridge();
 		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });

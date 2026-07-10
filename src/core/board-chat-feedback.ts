@@ -191,13 +191,18 @@ export function decideBoardChatFeedback(input: BoardChatFeedbackInput): BoardCha
 	}
 
 	// 2. NOTIFY-tier — a terminal outcome transition. Coalescible; deferred in quiet; suppressed mid-autonomous-run.
-	const notifyKind = newlyTrue(prev, next, isFailed)
-		? "failed"
-		: newlyTrue(prev, next, isDone)
-			? "done"
-			: newlyTrue(prev, next, (s) => s.heartbeatLost)
-				? "heartbeat_lost"
-				: null;
+	// "failed" only counts from a NOT-YET-DONE state: in the healthy swarm flow every completed worker session is
+	// torn down as `interrupted` AFTER its clean `awaiting_review` terminal, so without this guard every healthy
+	// card reported "✅ ready for review" and then "❌ failed" right behind it (live-found 2026-07-10 on a
+	// simulated board — 15/15 healthy sessions produced a failure digest).
+	const notifyKind =
+		newlyTrue(prev, next, isFailed) && !(prev && isDone(prev))
+			? "failed"
+			: newlyTrue(prev, next, isDone)
+				? "done"
+				: newlyTrue(prev, next, (s) => s.heartbeatLost)
+					? "heartbeat_lost"
+					: null;
 	if (notifyKind) {
 		const signalKey = `${taskId}:${notifyKind}`;
 		if (input.alreadySurfacedKeys.includes(signalKey)) {

@@ -56,6 +56,37 @@ export function findReviewCandidateTaskIds(
 }
 
 /**
+ * STALLED reviews (pure) — the board-liveness watchdog's review rescue: review-lane cards whose review NEVER
+ * landed (no recorded verdict on the card) and that have no live session driving them. Distinct from
+ * {@link findReviewCandidateTaskIds} (the opportunistic picker, which also re-reviews verdict-carrying holds):
+ * a verdict-less review card on an otherwise-idle board is a frozen pipeline, not an optimization opportunity —
+ * cross-project endpoint contention can drop the review finalize with nothing left to retry it (live-found
+ * 2026-07-10: a simulated project froze at 6 verdict-less review cards + 9 dep-blocked planning cards while a
+ * sibling project drained the shared endpoint).
+ */
+export function findStalledReviewTaskIds(
+	board: {
+		columns: readonly {
+			id: string;
+			cards: readonly { id: string; review?: { status?: string } | null }[];
+		}[];
+	},
+	activeSessionTaskIds: ReadonlySet<string>,
+	alreadyDispatched: ReadonlySet<string>,
+): string[] {
+	const reviewColumn = board.columns.find((column) => column.id === "review");
+	if (!reviewColumn) {
+		return [];
+	}
+	// NO persisted review state at all = the review never even started for this card. A card whose review ran
+	// (bounced/parked/held) carries a `review` object and is deliberately excluded — parked/held cards are the
+	// operator's decision, not a stall.
+	return reviewColumn.cards
+		.filter((card) => !card.review && !activeSessionTaskIds.has(card.id) && !alreadyDispatched.has(card.id))
+		.map((card) => card.id);
+}
+
+/**
  * The `memory_audit` picker (pure): note refs written/edited since their last audit that a strong idle model should
  * re-verify. `alreadyAudited` gives per-workspace idempotency (a ref whose current version was already audited is
  * skipped), so a tick never re-audits an unchanged note.

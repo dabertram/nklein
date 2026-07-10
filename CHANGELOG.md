@@ -2,6 +2,17 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The chat's board feed no longer cries wolf on healthy boards.** Every delivered card's session is torn down
+  as "interrupted" after its clean hand-off, and an ended session's heartbeat naturally goes quiet — the chat
+  digest and activity ticker narrated both as "❌ failed" and "heartbeat lost (the run may be dead)" right after
+  "✅ ready for review" (observed live: 15 of 15 healthy cards produced a failure line). Failure notices now fire
+  only when a genuinely LIVE session dies, and heartbeat-loss only for sessions that are supposed to be beating.
+- **A dropped review can no longer freeze a whole project.** When the shared endpoint was busy with a sibling
+  project at the moment a card reached Review, its review silently never ran — and with no session left alive,
+  nothing retried it while every dependent card stayed blocked (observed live: a project frozen at 6 verdict-less
+  review cards + 9 waiting dependents). The board-liveness watchdog now detects verdict-less review cards on an
+  idle board and dispatches their reviews itself, one per tick.
+
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard
   fingerprints each completed assistant turn and catches the same question re-raised (or two proposals bounced

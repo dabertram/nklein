@@ -49,7 +49,11 @@ import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
-import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
+import {
+	decideOpportunisticIdleWork,
+	findReviewCandidateTaskIds,
+	findStalledReviewTaskIds,
+} from "../core/opportunistic-idle-work";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import {
 	buildKanbanRuntimeUrl,
@@ -2082,7 +2086,56 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) +
 								(deferredRetryTimerByWorkspaceId.has(scope.workspaceId) ? 1 : 0);
 							if (startable.length === 0 && deferredCount === 0) {
-								return; // legitimately idle (everything terminal or held for the operator)
+								// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
+								// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
+								// endpoint was busy with a SIBLING project when the card reached review; nothing
+								// retries it, and its dependents block the whole board — live-found 2026-07-10).
+								// Dispatch ONE per tick (serialized like the idle-review path, shared dedup set).
+								const rescueDispatched =
+									idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+								const stalledReviewTaskIds = findStalledReviewTaskIds(
+									state.board,
+									new Set<string>(),
+									rescueDispatched,
+								);
+								const stalledReviewTaskId = stalledReviewTaskIds[0];
+								if (stalledReviewTaskId === undefined) {
+									return; // legitimately idle (everything terminal or held for the operator)
+								}
+								rescueDispatched.add(stalledReviewTaskId);
+								idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, rescueDispatched);
+								deps.warn(
+									`Board-liveness watchdog: ${stalledReviewTaskIds.length} verdict-less review card(s) with no live session for ${scope.workspacePath} — dispatching the stalled review for ${stalledReviewTaskId}.`,
+								);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Board-liveness watchdog fired: stalled-review rescue (${stalledReviewTaskIds.length} verdict-less review card(s)).`,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "board_liveness_watchdog",
+										stalledReviews: stalledReviewTaskIds.length,
+										taskId: stalledReviewTaskId,
+									},
+								});
+								void runSecondOpinionReviewForTask({
+									workspacePath: scope.workspacePath,
+									taskId: stalledReviewTaskId,
+									service: trackedService,
+									warn: deps.warn,
+									onRedecomposeCardSpawned: (redecomposeTaskId) =>
+										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+								})
+									.catch((error) => {
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(`Stalled-review rescue for ${stalledReviewTaskId} errored: ${message}`);
+									})
+									.finally(() => {
+										// The review freed the endpoint (and may have completed the card) — retry waiters.
+										drainQueuedTaskStarts(scope, { force: true });
+										retryWaitingCardsAfterTerminal(scope, trackedService);
+									});
+								return;
 							}
 							deps.warn(
 								`Board-liveness watchdog: no session alive but ${startable.length} startable + ${deferredCount} deferred card(s) exist for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,

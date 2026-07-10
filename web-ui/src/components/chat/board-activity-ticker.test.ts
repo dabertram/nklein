@@ -76,6 +76,20 @@ describe("diffBoardActivity (§5.BB chat activity ticks)", () => {
 		]);
 	});
 
+	it("stays quiet for the healthy post-done teardown (awaiting_review → interrupted)", () => {
+		// The swarm tears every delivered session down as `interrupted` after its clean terminal — ticking that
+		// spammed healthy boards with "session interrupted" right behind "✓ completed" (live-found 2026-07-10).
+		const before = snapshot([column("review", [card("a")])], { a: session("a", "awaiting_review") });
+		const after = snapshot([column("review", [card("a")])], { a: session("a", "interrupted") });
+		expect(diffBoardActivity(before, after, 7000)).toEqual([]);
+	});
+
+	it("still ticks a LIVE session dying (running → interrupted)", () => {
+		const before = snapshot([column("in_progress", [card("a")])], { a: session("a", "running") });
+		const after = snapshot([column("in_progress", [card("a")])], { a: session("a", "interrupted") });
+		expect(diffBoardActivity(before, after, 8000).map((tick) => tick.label)).toEqual(["session interrupted: Card a"]);
+	});
+
 	it("appendActivityTicks caps the feed from the front", () => {
 		const feed: ActivityTick[] = Array.from({ length: ACTIVITY_TICK_LIMIT }, (_, index) => ({
 			id: `t${index}`,

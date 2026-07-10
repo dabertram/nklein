@@ -145,6 +145,28 @@ describe("decideBoardChatFeedback — NOTIFY tier (terminal outcomes)", () => {
 		expect(decideBoardChatFeedback(input({ next: signals({ sessionState: "interrupted" }) })).reason).toBe("failed");
 	});
 
+	it("does NOT report 'failed' for the healthy post-done teardown (done → interrupted)", () => {
+		// The swarm tears every delivered session down as `interrupted` AFTER its clean awaiting_review terminal —
+		// that lifecycle step must not follow a "✅ ready for review" with a "❌ failed" (live-found 2026-07-10).
+		const v = decideBoardChatFeedback(
+			input({
+				prev: signals({ sessionState: "awaiting_review" }),
+				next: signals({ sessionState: "interrupted" }),
+			}),
+		);
+		expect(v.action).toBe("suppress");
+	});
+
+	it("still reports 'failed' when a LIVE session dies (running → interrupted)", () => {
+		const v = decideBoardChatFeedback(
+			input({
+				prev: signals({ sessionState: "running" }),
+				next: signals({ sessionState: "interrupted" }),
+			}),
+		);
+		expect(v.reason).toBe("failed");
+	});
+
 	it("surfaces a newly-lost heartbeat", () => {
 		const v = decideBoardChatFeedback(input({ next: signals({ heartbeatLost: true }) }));
 		expect(v.signalKey).toBe("task-1:heartbeat_lost");

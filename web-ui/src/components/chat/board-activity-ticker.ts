@@ -115,8 +115,11 @@ export function diffBoardActivity(
 			continue;
 		}
 		// `prior === undefined` still ticks: a session that first APPEARS failed/interrupted ran and died between
-		// polls — that's news, not noise.
-		if (current && prior?.state !== current.state) {
+		// polls — that's news, not noise. A session that was ALREADY past its clean terminal (awaiting_review etc.)
+		// is different: the swarm tears every delivered session down as `interrupted`, so ticking that lifecycle
+		// step spammed healthy boards with "session interrupted" right after "✓ completed" (live-found 2026-07-10).
+		// Only a LIVE (or unseen) session ending in failed/interrupted is worth a line.
+		if (current && prior?.state !== current.state && (prior === undefined || LIVE_SESSION_STATES.has(prior.state))) {
 			const endedLabel = ENDED_SESSION_LABEL[current.state];
 			if (endedLabel) {
 				const cardId = baseTaskId(key, current);

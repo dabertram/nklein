@@ -3,6 +3,7 @@ import {
 	decideOpportunisticIdleWork,
 	findMemoryAuditCandidates,
 	findReviewCandidateTaskIds,
+	findStalledReviewTaskIds,
 } from "../../../src/core/opportunistic-idle-work";
 
 const board = (reviewCardIds: string[]) => ({
@@ -79,6 +80,46 @@ describe("decideOpportunisticIdleWork", () => {
 		});
 		expect(decision.verdict.chosen).toBeNull();
 		expect(decision.memoryAuditNoteRef).toBeNull();
+	});
+});
+
+describe("findStalledReviewTaskIds (board-liveness watchdog review rescue)", () => {
+	const reviewBoard = (cards: Array<{ id: string; review?: { status: string } | null }>) => ({
+		columns: [
+			{ id: "in_progress", cards: [{ id: "running-1" }] },
+			{ id: "review", cards },
+			{ id: "completed", cards: [{ id: "done-1" }] },
+		],
+	});
+
+	it("finds verdict-less review cards (no persisted review state) with no live session", () => {
+		const stalled = findStalledReviewTaskIds(
+			reviewBoard([{ id: "never-reviewed" }, { id: "parked", review: { status: "parked" } }]),
+			new Set(),
+			new Set(),
+		);
+		expect(stalled).toEqual(["never-reviewed"]);
+	});
+
+	it("excludes cards with a live session and already-dispatched cards", () => {
+		const stalled = findStalledReviewTaskIds(
+			reviewBoard([{ id: "live" }, { id: "dispatched" }, { id: "frozen" }]),
+			new Set(["live"]),
+			new Set(["dispatched"]),
+		);
+		expect(stalled).toEqual(["frozen"]);
+	});
+
+	it("never treats a reviewed/held card as stalled (any persisted review state excludes it)", () => {
+		const stalled = findStalledReviewTaskIds(
+			reviewBoard([
+				{ id: "held", review: { status: "in_review" } },
+				{ id: "changes", review: { status: "changes_requested" } },
+			]),
+			new Set(),
+			new Set(),
+		);
+		expect(stalled).toEqual([]);
 	});
 });
 

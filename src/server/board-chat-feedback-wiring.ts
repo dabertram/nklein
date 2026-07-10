@@ -191,7 +191,11 @@ export function createBoardChatFeedbackWiring(overrides?: {
 		// transition is exactly the pre-change one (byte-identical default routing). The two override-channel signals
 		// (noProgressOrLoop / approachingBudgetCeiling) spread into `overrides`; a derived lost heartbeat is folded into
 		// `heartbeatStatus` (the channel the signal map reads for `heartbeatLost` — the overrides object has no such key).
-		const attention = deriveAttentionOverrides(input.summary, now());
+		// ONLY a session that is supposed to be alive (running/queued) can lose its heartbeat: an ended session's
+		// heartbeat naturally ages, and deriving attention from it flooded healthy boards with "heartbeat lost (the
+		// run may be dead)" digests for cards that had already delivered (live-found 2026-07-10, simulated board).
+		const expectsLiveRun = input.summary.state === "running" || input.summary.state === "queued";
+		const attention = expectsLiveRun ? deriveAttentionOverrides(input.summary, now()) : null;
 		const heartbeatStatus = attention?.heartbeatLost === true ? "lost" : (input.summary.heartbeatStatus ?? null);
 		// §5.S/§5.AT: the card is BLOCKED on a question for the operator. The agent calls a user-attention tool
 		// (ask_followup_question / plan_mode_respond), which stamps `notificationType: "user_attention"` on the hook
