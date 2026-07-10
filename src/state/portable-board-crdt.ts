@@ -217,6 +217,7 @@ export function boardToPortableBoardCrdt(board: RuntimeBoardData, replicaId: str
 const DEFAULT_COLUMN_ORDER: RuntimeBoardColumnId[] = [
 	"backlog",
 	"planning",
+	"ready",
 	"in_progress",
 	"review",
 	"completed",
@@ -226,6 +227,7 @@ const DEFAULT_COLUMN_ORDER: RuntimeBoardColumnId[] = [
 const COLUMN_TITLES: Record<RuntimeBoardColumnId, string> = {
 	backlog: "Backlog",
 	planning: "Planning",
+	ready: "Ready",
 	in_progress: "In Progress",
 	review: "Review",
 	completed: "Completed",

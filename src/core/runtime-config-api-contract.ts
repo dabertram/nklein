@@ -10,7 +10,15 @@ import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } fro
 export const runtimeAgentIdSchema = z.enum(["claude", "codex", "gemini", "opencode", "droid", "kiro", "nklein"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
-const runtimeBoardColumnIdEnum = z.enum(["backlog", "planning", "in_progress", "review", "completed", "trash"]);
+const runtimeBoardColumnIdEnum = z.enum([
+	"backlog",
+	"planning",
+	"ready",
+	"in_progress",
+	"review",
+	"completed",
+	"trash",
+]);
 export const runtimeBoardColumnIdSchema = z.preprocess(
 	(val) => (val === "done" ? "completed" : val),
 	runtimeBoardColumnIdEnum,

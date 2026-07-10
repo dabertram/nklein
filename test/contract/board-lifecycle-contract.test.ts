@@ -82,6 +82,15 @@ function makeBoard(options?: {
 		createdAt?: number;
 		updatedAt?: number;
 	}>;
+	readyCards?: Array<{
+		id: string;
+		title: string;
+		prompt: string;
+		startInPlanMode?: boolean;
+		baseRef?: string;
+		createdAt?: number;
+		updatedAt?: number;
+	}>;
 	inProgressCards?: Array<{
 		id: string;
 		title: string;
@@ -147,6 +156,7 @@ function makeBoard(options?: {
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: (options?.backlogCards ?? []).map(toCard) },
 			{ id: "planning", title: "Planning", cards: (options?.planningCards ?? []).map(toCard) },
+			{ id: "ready", title: "Ready", cards: (options?.readyCards ?? []).map(toCard) },
 			{ id: "in_progress", title: "In Progress", cards: (options?.inProgressCards ?? []).map(toCard) },
 			{ id: "review", title: "Review", cards: (options?.reviewCards ?? []).map(toCard) },
 			{ id: "completed", title: "Completed", cards: (options?.completedCards ?? []).map(toCard) },
@@ -740,19 +750,20 @@ describe.sequential("Suite 15 — 6-column board shape", () => {
 		cleanupDir(homeDir);
 	});
 
-	it("getState always returns the 6 canonical columns", async () => {
+	it("getState always returns the 7 canonical columns", async () => {
 		const state = await getState(server.baseUrl, workspaceId);
 		const ids = state.board.columns.map((c) => c.id);
 		expect(ids).toContain("backlog");
 		expect(ids).toContain("planning");
+		expect(ids).toContain("ready");
 		expect(ids).toContain("in_progress");
 		expect(ids).toContain("review");
 		expect(ids).toContain("completed");
 		expect(ids).toContain("trash");
-		expect(ids).toHaveLength(6);
+		expect(ids).toHaveLength(7);
 	});
 
-	it("saving a board with cards in all 6 columns preserves all cards on read-back", async () => {
+	it("saving a board with cards in all 7 columns preserves all cards on read-back", async () => {
 		const { revision } = await getState(server.baseUrl, workspaceId);
 		const now = Date.now();
 		const makeCard = (suffix: string) => ({
@@ -767,6 +778,7 @@ describe.sequential("Suite 15 — 6-column board shape", () => {
 		const board = makeBoard({
 			backlogCards: [makeCard("backlog")],
 			planningCards: [makeCard("planning")],
+			readyCards: [makeCard("ready")],
 			inProgressCards: [makeCard("inprog")],
 			reviewCards: [makeCard("review")],
 			completedCards: [makeCard("completed")],
@@ -778,7 +790,7 @@ describe.sequential("Suite 15 — 6-column board shape", () => {
 
 		const state = await getState(server.baseUrl, workspaceId);
 		const cardCount = state.board.columns.reduce((sum, col) => sum + col.cards.length, 0);
-		expect(cardCount).toBe(6);
+		expect(cardCount).toBe(7);
 
 		for (const col of state.board.columns) {
 			expect(col.cards).toHaveLength(1);

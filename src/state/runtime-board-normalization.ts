@@ -4,6 +4,7 @@ import type { RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contrac
 const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> = [
 	{ id: "backlog", title: "Backlog" },
 	{ id: "planning", title: "Planning" },
+	{ id: "ready", title: "Ready" },
 	{ id: "in_progress", title: "In Progress" },
 	{ id: "review", title: "Review" },
 	{ id: "completed", title: "Completed" },

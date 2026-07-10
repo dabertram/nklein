@@ -20,7 +20,7 @@ export type OperatorSessionState =
 	| "failed"
 	| "interrupted";
 
-export type OperatorColumnId = "backlog" | "planning" | "in_progress" | "review" | "completed" | "trash";
+export type OperatorColumnId = "backlog" | "planning" | "ready" | "in_progress" | "review" | "completed" | "trash";
 
 export interface OperatorTaskSignals {
 	sessionState: OperatorSessionState;

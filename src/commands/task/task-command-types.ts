@@ -5,7 +5,15 @@
  * (exactly one must be set). Kept separate so the command modules and `task.ts` share one source of truth.
  */
 
-export const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
+export const LIST_TASK_COLUMNS = [
+	"backlog",
+	"planning",
+	"ready",
+	"in_progress",
+	"review",
+	"completed",
+	"trash",
+] as const;
 
 export type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
 
