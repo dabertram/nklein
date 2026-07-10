@@ -8,6 +8,7 @@ import {
 
 function board(input: {
 	planning?: string[];
+	ready?: string[];
 	backlog?: string[];
 	completed?: string[];
 	deps?: Array<[from: string, to: string]>;
@@ -18,6 +19,7 @@ function board(input: {
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: toCards(input.backlog) },
 			{ id: "planning", title: "Planning", cards: toCards(input.planning) },
+			{ id: "ready", title: "Ready", cards: toCards(input.ready) },
 			{ id: "in_progress", title: "In Progress", cards: [] },
 			{ id: "review", title: "Review", cards: [] },
 			{ id: "completed", title: "Completed", cards: toCards(input.completed) },
@@ -68,6 +70,18 @@ describe("listStartableUnstartedTaskIds (the ready-sweep — runs 12/14/15 stall
 		expect(listStartableUnstartedTaskIds(board({}), new Set())).toEqual([]);
 		const blocked = board({ planning: ["a"], deps: [["a", "ghost-incomplete"]] });
 		expect(listStartableUnstartedTaskIds(blocked, new Set())).toEqual([]);
+	});
+
+	it("also starts dep-free cards parked in the READY lane (todo 11116 increment 2)", () => {
+		const b = board({ ready: ["queued-unblocked"], planning: ["being-refined"] });
+		const startable = listStartableUnstartedTaskIds(b, new Set());
+		expect(startable).toContain("queued-unblocked");
+		expect(startable).toContain("being-refined");
+	});
+
+	it("does not re-list a ready card that already has a live session", () => {
+		const b = board({ ready: ["running-now"] });
+		expect(listStartableUnstartedTaskIds(b, new Set(["running-now"]))).toEqual([]);
 	});
 });
 

@@ -25,12 +25,12 @@ export function listStartableUnstartedTaskIds(
 	const unmetDependencyCounts = countUnmetDependencies(board, laneByTaskId);
 	const startable: string[] = [];
 	for (const column of board.columns) {
-		if (column.id !== "backlog" && column.id !== "planning") {
+		if (column.id !== "backlog" && column.id !== "planning" && column.id !== "ready") {
 			continue;
 		}
 		for (const card of column.cards) {
 			if (activeSessionTaskIds.has(card.id)) {
-				continue; // already running (started cards park in planning)
+				continue; // already running (started cards park in planning; queued-unblocked cards park in ready)
 			}
 			if ((unmetDependencyCounts.get(card.id) ?? 0) > 0) {
 				continue; // still blocked
