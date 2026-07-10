@@ -591,6 +591,7 @@ describe("board dependency state", () => {
 		expect(normalized?.columns.map((column) => column.id)).toEqual([
 			"backlog",
 			"planning",
+			"ready",
 			"in_progress",
 			"review",
 			"completed",

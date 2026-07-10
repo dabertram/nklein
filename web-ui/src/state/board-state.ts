@@ -70,6 +70,7 @@ function normalizeColumnId(id: string): BoardColumnId | null {
 	if (
 		id === "backlog" ||
 		id === "planning" ||
+		id === "ready" ||
 		id === "in_progress" ||
 		id === "review" ||
 		id === "completed" ||
