@@ -58,6 +58,11 @@ export interface ModelEvalConfig {
 	passBar?: number;
 	/** Token budget per completion. */
 	maxTokens?: number;
+	/**
+	 * Restrict the run to these corpus prompt ids (§5.AB idle re-eval rail: one thin CELL per idle dispatch).
+	 * Omit to run the whole corpus.
+	 */
+	promptIds?: readonly string[];
 }
 
 export interface ModelEvalCellScore {
@@ -219,8 +224,12 @@ export async function runModelEval(
 	let scoredAttempts = 0;
 	let totalAttempts = 0;
 
+	const promptIdFilter = config.promptIds && config.promptIds.length > 0 ? new Set(config.promptIds) : null;
 	for (const prompt of EVAL_PROMPT_CORPUS) {
 		if (prompt.family === "implement") {
+			continue;
+		}
+		if (promptIdFilter && !promptIdFilter.has(prompt.id)) {
 			continue;
 		}
 		for (let attempt = 1; attempt <= repeats; attempt += 1) {

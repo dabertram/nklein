@@ -29,6 +29,11 @@ export interface OpportunisticIdleWorkInput {
 	 * picker has no candidate). A ref is anything the dispatch can resolve back to a note (e.g. `permalink`/path).
 	 */
 	memoryAuditNoteRefs?: readonly string[];
+	/**
+	 * Thin/shaky eval cells owed more runs (from {@link findThinEvalCells}) — the §5.AB re-eval budget the idle
+	 * rail spends settling the fitness evidence (empty ⇒ the `re_eval` picker has no candidate).
+	 */
+	reEvalCandidates?: readonly ReEvalCandidate[];
 }
 
 export interface OpportunisticIdleWorkDecision {
@@ -37,6 +42,8 @@ export interface OpportunisticIdleWorkDecision {
 	reviewTaskId: string | null;
 	/** When `verdict.chosen === "memory_audit"`, the specific note ref to audit (the first candidate); otherwise null. */
 	memoryAuditNoteRef: string | null;
+	/** When `verdict.chosen === "re_eval"`, the thinnest eval cell to re-run (the first candidate); otherwise null. */
+	reEvalCandidate: ReEvalCandidate | null;
 }
 
 /**
@@ -98,6 +105,73 @@ export function findMemoryAuditCandidates(
 	return recentlyWrittenNoteRefs.filter((ref) => !alreadyAudited.has(ref));
 }
 
+/** One re-eval unit of work: run the corpus prompts of ONE thin (model, role, difficulty) cell once. */
+export interface ReEvalCandidate {
+	modelId: string;
+	role: string;
+	difficulty: string;
+	/** The corpus prompt ids belonging to this cell (the dispatch's `promptIds` filter). */
+	promptIds: string[];
+	/** Dedup key `${modelId}::${role}::${difficulty}` (matches `fitnessCellKey`). */
+	cellKey: string;
+	/** Additional eval runs this cell needs to reach the settled floor — the rail's budget currency (§5.AB). */
+	runsOwed: number;
+}
+
+/** Below this many persisted samples an eval cell is `thin` — mirrors model-eval-stability's minSettledRuns. */
+export const RE_EVAL_MIN_SETTLED_RUNS = 4;
+
+/**
+ * The `re_eval` picker (pure) — §5.AB "wire runsOwed into the idle rail": for every LOADED model, find the
+ * eval cells (role × difficulty groups of the corpus) whose PERSISTED sample count is still below the settled
+ * floor, thinnest first. Each candidate is one bounded idle dispatch (run that cell's prompts once, persist);
+ * over idle time the store accumulates enough samples for the stability judge to leave `thin`. Only loaded
+ * models are considered — the rail must never load anything.
+ */
+export function findThinEvalCells(input: {
+	fitnessRows: readonly { modelKey: string; role: string; difficultyTier: string; sampleCount: number }[];
+	loadedModelIds: readonly string[];
+	corpusPrompts: readonly { id: string; role: string; difficulty: string }[];
+	alreadyDispatched: ReadonlySet<string>;
+	minSettledRuns?: number;
+}): ReEvalCandidate[] {
+	const minSettled = input.minSettledRuns ?? RE_EVAL_MIN_SETTLED_RUNS;
+	const cellGroups = new Map<string, { role: string; difficulty: string; promptIds: string[] }>();
+	for (const prompt of input.corpusPrompts) {
+		const groupKey = `${prompt.role}::${prompt.difficulty}`;
+		const group = cellGroups.get(groupKey) ?? { role: prompt.role, difficulty: prompt.difficulty, promptIds: [] };
+		group.promptIds.push(prompt.id);
+		cellGroups.set(groupKey, group);
+	}
+	const samplesByCellKey = new Map<string, number>();
+	for (const row of input.fitnessRows) {
+		samplesByCellKey.set(`${row.modelKey}::${row.role}::${row.difficultyTier}`, row.sampleCount);
+	}
+	const candidates: ReEvalCandidate[] = [];
+	for (const modelId of input.loadedModelIds) {
+		for (const group of cellGroups.values()) {
+			const cellKey = `${modelId}::${group.role}::${group.difficulty}`;
+			if (input.alreadyDispatched.has(cellKey)) {
+				continue;
+			}
+			const samples = samplesByCellKey.get(cellKey) ?? 0;
+			if (samples >= minSettled) {
+				continue;
+			}
+			candidates.push({
+				modelId,
+				role: group.role,
+				difficulty: group.difficulty,
+				promptIds: [...group.promptIds],
+				cellKey,
+				runsOwed: minSettled - samples,
+			});
+		}
+	}
+	// Thinnest first: spend the idle budget where the evidence is weakest.
+	return candidates.sort((a, b) => b.runsOwed - a.runsOwed || a.cellKey.localeCompare(b.cellKey));
+}
+
 /** Compose the ranker with the available pickers into a concrete idle-work decision. Pure. */
 export function decideOpportunisticIdleWork(input: OpportunisticIdleWorkInput): OpportunisticIdleWorkDecision {
 	const available: OpportunisticWorkKind[] = [];
@@ -108,10 +182,15 @@ export function decideOpportunisticIdleWork(input: OpportunisticIdleWorkInput): 
 	if (memoryAuditNoteRefs.length > 0) {
 		available.push("memory_audit");
 	}
+	const reEvalCandidates = input.reEvalCandidates ?? [];
+	if (reEvalCandidates.length > 0) {
+		available.push("re_eval");
+	}
 	const verdict = rankOpportunisticWork({ hasRealQueuedWork: input.hasRealQueuedWork, available });
 	return {
 		verdict,
 		reviewTaskId: verdict.chosen === "review" ? (input.reviewCandidateTaskIds[0] ?? null) : null,
 		memoryAuditNoteRef: verdict.chosen === "memory_audit" ? (memoryAuditNoteRefs[0] ?? null) : null,
+		reEvalCandidate: verdict.chosen === "re_eval" ? (reEvalCandidates[0] ?? null) : null,
 	};
 }

@@ -33,15 +33,21 @@ export type OpportunisticWorkKind =
 	| "deliberation_seed"
 	| "spec_mirror"
 	| "memory_audit"
+	| "re_eval"
 	| "context_prep";
 
-/** The approved priority order (highest-value first). */
+/**
+ * The approved priority order (highest-value first). `re_eval` (§5.AB: spend idle budget re-running thin/shaky
+ * eval cells so the fitness evidence settles) sits just above `context_prep`: it strengthens future ROUTING
+ * decisions but never outranks work that unblocks or prepares actual cards.
+ */
 export const OPPORTUNISTIC_PRIORITY: readonly OpportunisticWorkKind[] = [
 	"review",
 	"work_ahead",
 	"deliberation_seed",
 	"spec_mirror",
 	"memory_audit",
+	"re_eval",
 	"context_prep",
 ];
 

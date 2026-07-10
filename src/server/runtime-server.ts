@@ -39,6 +39,7 @@ import {
 	shouldHoldEmptyPatchResult,
 } from "../core/delivery-evidence";
 import { isTruthyEnv } from "../core/env-flag";
+import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
@@ -53,6 +54,7 @@ import {
 	decideOpportunisticIdleWork,
 	findReviewCandidateTaskIds,
 	findStalledReviewTaskIds,
+	findThinEvalCells,
 } from "../core/opportunistic-idle-work";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import {
@@ -84,6 +86,7 @@ import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
+import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
@@ -125,6 +128,7 @@ import {
 	initSharedRuntimeIdModelKeyMap,
 } from "../state/runtime-id-model-key-map-store";
 import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
@@ -476,6 +480,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// review the event path missed) — its per-workspace idempotency set stops re-reviewing the same card each tick.
 	const opportunisticIdleWorkTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	/** §5.AB idle re-eval rail: eval cellKeys with a dispatch IN FLIGHT (cleared on completion so thin cells top up). */
+	const idleReEvalDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const OPPORTUNISTIC_IDLE_WORK_TICK_MS = 60_000;
 	const DEFERRED_RETRY_TIMER_MS = 7_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
@@ -2393,32 +2399,121 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const boardState = await loadWorkspaceState(scope.workspacePath);
 							const dispatched = idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 							const reviewCandidateTaskIds = findReviewCandidateTaskIds(boardState.board, dispatched);
-							const decision = decideOpportunisticIdleWork({ hasRealQueuedWork, reviewCandidateTaskIds });
-							if (!decision.reviewTaskId) {
+							// §5.AB re-eval budget: thin eval cells of the LOADED models (never loads anything). Fed only
+							// when nothing higher-value is available — the ranker keeps re_eval just above context_prep.
+							const evalEndpoint = DEFAULT_LOCAL_MODEL_BASE_URL;
+							const loadedModelIds =
+								reviewCandidateTaskIds.length > 0
+									? []
+									: await fetchLoadedModelIdsCached(evalEndpoint).catch(() => [] as string[]);
+							const reEvalDispatched =
+								idleReEvalDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							const reEvalCandidates = findThinEvalCells({
+								fitnessRows: await readFitnessTable()
+									.then((table) => Object.values(table.rows))
+									.catch(() => []),
+								loadedModelIds,
+								corpusPrompts: EVAL_PROMPT_CORPUS.filter((prompt) => prompt.family !== "implement"),
+								alreadyDispatched: reEvalDispatched,
+							});
+							const decision = decideOpportunisticIdleWork({
+								hasRealQueuedWork,
+								reviewCandidateTaskIds,
+								reEvalCandidates,
+							});
+							if (decision.reviewTaskId) {
+								// Mark dispatched BEFORE the async review so a subsequent tick can never double-dispatch.
+								dispatched.add(decision.reviewTaskId);
+								idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, dispatched);
+								deps.warn(
+									`Opportunistic idle review: swarm idle, dispatching a review for ${decision.reviewTaskId}.`,
+								);
+								void runSecondOpinionReviewForTask({
+									workspacePath: scope.workspacePath,
+									taskId: decision.reviewTaskId,
+									service: trackedService,
+									warn: deps.warn,
+									onRedecomposeCardSpawned: (redecomposeTaskId) =>
+										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+								})
+									.catch((error) => {
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
+									})
+									.finally(() => {
+										// The opportunistic review freed the endpoint — reuse the slot immediately (todo 11007).
+										drainQueuedTaskStarts(scope, { force: true });
+									});
 								return;
 							}
-							// Mark dispatched BEFORE the async review so a subsequent tick can never double-dispatch.
-							dispatched.add(decision.reviewTaskId);
-							idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, dispatched);
+							const reEval = decision.reEvalCandidate;
+							if (!reEval) {
+								return;
+							}
+							// One thin cell per tick: run its corpus prompts ONCE on the loaded model + persist, so the
+							// §5.AB stability judge accumulates the runs it is owed without ever competing with real work.
+							reEvalDispatched.add(reEval.cellKey);
+							idleReEvalDispatchedByWorkspaceId.set(scope.workspaceId, reEvalDispatched);
 							deps.warn(
-								`Opportunistic idle review: swarm idle, dispatching a review for ${decision.reviewTaskId}.`,
+								`Opportunistic idle re-eval: swarm idle, running eval cell ${reEval.cellKey} (${reEval.promptIds.length} prompt(s), runsOwed=${reEval.runsOwed}).`,
 							);
-							void runSecondOpinionReviewForTask({
-								workspacePath: scope.workspacePath,
-								taskId: decision.reviewTaskId,
-								service: trackedService,
-								warn: deps.warn,
-								onRedecomposeCardSpawned: (redecomposeTaskId) =>
-									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
-							})
-								.catch((error) => {
+							const chatBase = evalEndpoint.replace(/\/+$/, "");
+							const chatUrl = `${chatBase.endsWith("/v1") ? chatBase : `${chatBase}/v1`}/chat/completions`;
+							void (async () => {
+								try {
+									const result = await runModelEval(
+										{ modelId: reEval.modelId, repeats: 1, promptIds: reEval.promptIds },
+										{
+											chat: async (messages, extra) => {
+												try {
+													const res = await fetch(chatUrl, {
+														method: "POST",
+														headers: { "content-type": "application/json" },
+														body: JSON.stringify({
+															model: reEval.modelId,
+															messages,
+															temperature: 0,
+															max_tokens: 2500,
+															...extra,
+														}),
+													});
+													const json = (await res.json()) as {
+														choices?: ModelEvalChatChoice[];
+														error?: unknown;
+													};
+													return json.error ? null : (json.choices?.[0] ?? null);
+												} catch {
+													return null;
+												}
+											},
+										},
+									);
+									for (const cell of result.cells) {
+										if (cell.score === null) {
+											continue;
+										}
+										await recordTaskFitnessOutcome(
+											{
+												modelKey: reEval.modelId,
+												role: cell.role,
+												difficultyTier: evalDifficultyToFitnessTier(cell.difficulty),
+											},
+											{
+												success: cell.score >= 0.6,
+												wallTimeMs: cell.latencyMs,
+												failureMode: cell.score >= 0.6 ? undefined : "eval_below_bar",
+											},
+											{ now: Date.now() },
+										).catch(() => undefined);
+									}
+								} catch (error) {
 									const message = error instanceof Error ? error.message : String(error);
-									deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
-								})
-								.finally(() => {
-									// The opportunistic review freed the endpoint — reuse the slot immediately (todo 11007).
-									drainQueuedTaskStarts(scope, { force: true });
-								});
+									deps.warn(`Opportunistic idle re-eval for ${reEval.cellKey} errored: ${message}`);
+								} finally {
+									// The cell may still be thin (needs ≥4 samples) — allow the NEXT tick to top it up.
+									idleReEvalDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(reEval.cellKey);
+								}
+							})();
 						} catch {
 							// Opportunistic — must never crash the runtime.
 						}

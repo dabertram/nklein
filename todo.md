@@ -6519,8 +6519,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `NKLEIN_EVAL_REPEATS`× (default 1), builds a `ModelEvalRun` per attempt (a no-answer run counts as a failed run so
         stability SEES the flakiness), and — when repeats>1 — prints the `scoreModelEvalStability` verdict per cell
         (`settled_pass|settled_fail|flaky|thin` + confidence/spread/runsOwed). So the effectful loop that FEEDS the pure
-        stability judge exists + is roster-drivable via `verify-all-models.mts eval-harness`. **Still owed:** wire `runsOwed`
-        into the §5.AI idle rail's re-eval budget (the rail spends idle time re-running the shaky cells the judge flags).
+        stability judge exists + is roster-drivable via `verify-all-models.mts eval-harness`. **IDLE RE-EVAL RAIL WIRED
+        (2026-07-10):** new opportunistic kind `re_eval` (ranked just above context_prep — never outranks card work) +
+        pure picker `findThinEvalCells` [opportunistic-idle-work.ts]: for every LOADED model, the eval cells (role ×
+        difficulty corpus groups) whose PERSISTED fitness sampleCount is below the settled floor (4), thinnest first,
+        each carrying its `runsOwed` + the cell's corpus promptIds. The idle tick (same NKLEIN_OPPORTUNISTIC_IDLE_WORK
+        gate, only when no review candidate exists) dispatches ONE cell per tick via `runModelEval` (new `promptIds`
+        cell filter; repeats=1) and persists through the same `recordTaskFitnessOutcome` seam as the on-demand trigger —
+        so over idle time thin cells accumulate the samples the stability judge is owed. In-flight dedup clears on
+        completion (cells top up across ticks). 7 new tests (picker + re_eval rung); 8916 fast green.
   - [~] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
         **PURE AGGREGATOR CORE DONE (2026-07-01):** [src/core/model-eval-aggregation.ts](src/core/model-eval-aggregation.ts)
         `aggregateModelEvalRuns` — folds the harness's graded, difficulty-tagged, REPEATED per-run results
