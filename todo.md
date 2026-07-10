@@ -11004,7 +11004,7 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       published id never matches — 5 tests). `handleGetNKleinModelRegistry` now filters fixture entries out of
       `snapshot.models` before building the response, so they never reach the registry API OR the board fleet strip
       (which reads this same response). The prune command remains for scrubbing an already-polluted persisted store.
-- [~] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
+- [x] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
       endlessly on whether the task's test command for `*.js` is correct when the repo needs `*.ts` — a "solution
       outside allowed space" loop: the model keeps re-raising the same boundary question instead of progressing, because
       every path it wants is outside what the task/gates allow. Required: (1) DETECT the loop (same question/proposal/
@@ -11024,11 +11024,23 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       "stuck"); (3) DECIDE — `decideTurnLoopResolution` applies the §5.AG ladder: auto-resolve from the authoritative
       acceptance/spec context when the contested token appears there (guidance quotes the acceptance command as the
       source of truth — exactly the qwen3.6 case), else route to an untried model (Layer 1), else park with the
-      SPECIFIC question (Layer 2). REMAINING (live-effecting wiring, scoped): call `detectTurnLoop` on the running
-      session's accumulated assistant turns (session service `entry.messages`), effect `auto_resolve` by injecting
-      the guidance as a mid-session nudge (mirror the empty-patch redrive nudge), route `escalate_model`/`park`
-      through the existing §5.AG ladder + card mailbox; then a simulator looping-worker track (repeatLastTurn on a
-      clarifying question, catalog id `a-same-question`) as the end-to-end regression.
+      SPECIFIC question (Layer 2).
+      **LIVE WIRING COMPLETE (2026-07-10):** [src/nklein-agent/turn-loop-guard.ts] — a collaborator (the
+      RepeatedToolCallGuard/stall-nudger pattern) called from `handleTaskEvent` on every settled assistant turn of a
+      running session (cheap: skips mid-stream via `activeAssistantMessageId`, derived/home sessions, and re-arms
+      only after 3 new completed turns per handling). Effects: `auto_resolve` = CANCEL-THEN-SEND (the stall-nudger
+      sequence — cancelTaskTurn, then the guidance as the re-prompt; a null cancel means the run ended by itself and
+      the nudge is DROPPED, never re-driving a finished session — live-found: a post-completion re-drive races the
+      review finalization into not_reviewable); `escalate_model` = the new `onTurnLoopEscalation` service option,
+      wired in runtime-server to the EXISTING §5.AG machinery (card-mailbox boundary note + card model override +
+      ledger transition + stop → terminal sweep redrive) with the lineage-diverse `pickDiverseEscalationModel` probe;
+      `park` = `parkTaskForAutonomyBudget` with the SPECIFIC contested question (needs-you surface). 14 guard unit
+      tests + a full e2e regression: `NKLEIN_SIMFLOW_TURNLOOP=1 npm run test:simulated-flows` (catalog id
+      a-same-question — a sim worker re-raises the same clarifying question 3 turns; asserted: the question recurred
+      on the wire, the guard's nudge quoting the authoritative acceptance command reached the model, and the board
+      fully drained). CORE FIX found by the regression: `decideTurnLoopResolution` now quote-normalizes the grounding
+      haystack (a backtick-quoted acceptance command could never ground against its own quote-stripped token — the
+      guard parked instead of auto-resolving).
 - [~] **Whole-machine lag while LLM requests run (m5max, David 2026-07-10).** UI + entire machine lagged hard during
       ongoing LLM requests; resolved the moment models were unloaded + requests cancelled. Suspects: (a) the catalog
       polling storm (FIXED 2026-07-10 — `lms` CLI forks ~4×/s + /api/v0 hits contributed real CPU); (b) low-power mode +

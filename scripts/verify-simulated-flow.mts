@@ -15,6 +15,11 @@
  *         reports two machines (coder-a local, coder-b on sim-machine-2), the worker role pools both coders, the
  *         runtime runs with NKLEIN_PER_MACHINE_MAX_CONCURRENCY=1, and 4 dep-free cards must fan out: workers
  *         observed on BOTH coder models with OVERLAPPING turn windows (true cross-machine parallelism).
+ *         NKLEIN_SIMFLOW_TURNLOOP=1 — the §12 turn-loop ladder regression (catalog id a-same-question): the greet
+ *         worker re-raises the SAME clarifying question for 3 turns (each with a read_files call so the session
+ *         stays alive) instead of progressing. The runtime's TurnLoopGuard must detect the repeat, ground the
+ *         contested token in the card's `Acceptance check:` line, and inject the auto-resolve nudge mid-session —
+ *         the run then completes normally. Asserted: the nudge text reached the model on the wire + full drain.
  *         NKLEIN_SIMFLOW_MULTI_MODEL=1 — the ≥3-agent SWARM verification (todo §5 ★ near-term): three distinct
  *         sim models are pinned per role (architect/worker/reviewer, modelSelectionMode "pinned"); after the run
  *         the simulator journal must show decompose on the architect model, every write_files worker turn on the
@@ -35,6 +40,12 @@ const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SE
 const RUNTIME_PORT = 3986;
 const MULTI_MODEL = process.env.NKLEIN_SIMFLOW_MULTI_MODEL === "1";
 const POOLS = process.env.NKLEIN_SIMFLOW_POOLS === "1";
+const TURNLOOP = process.env.NKLEIN_SIMFLOW_TURNLOOP === "1";
+/** §12 a-same-question: the boundary question the looping worker keeps re-raising. Its contested token (the
+ *  backticked acceptance command) is present in the card's `Acceptance check:` line, so the guard must ground it
+ *  there and auto-resolve with a nudge instead of parking. */
+const TURNLOOP_QUESTION =
+	'Before I write the file - the acceptance command `node -e "process.exit(0)"` looks trivial; should I instead set up vitest and target *.js test files, or keep the acceptance exactly as specified?';
 const SIM_MODEL = "sim/qwen-fast-coder";
 const SWARM_MODELS = {
 	architect: "sim/architect-r1",
@@ -115,10 +126,23 @@ const script: ScenarioScript = {
 			repeatLastTurn: true,
 		},
 		...SMOKE_CARDS.map((card) => ({
-			id: `perfect-worker-${card.fn}`,
+			id: TURNLOOP && card.fn === "greet" ? "a-same-question-worker-greet" : `perfect-worker-${card.fn}`,
 			requestClass: "worker" as const,
 			userMessageIncludes: card.file,
 			turns: [
+				// §12 a-same-question: the looping prelude — the SAME clarifying question re-raised for 3 turns,
+				// each alongside a read_files call so the agent session keeps running (pure text would end the run).
+				// The TurnLoopGuard must fire on turn 3, ground the backticked acceptance command in the card's
+				// `Acceptance check:` line, and inject the auto-resolve nudge; turn 4 then progresses normally.
+				...(TURNLOOP && card.fn === "greet"
+					? Array.from({ length: 3 }, () => ({
+							behavior: {
+								kind: "tool_calls" as const,
+								calls: [{ name: "read_files", arguments: { paths: [card.file] } }],
+								content: TURNLOOP_QUESTION,
+							},
+						}))
+					: []),
 				{
 					behavior: {
 						kind: "tool_calls" as const,
@@ -492,6 +516,29 @@ async function main(): Promise<void> {
 			}
 			const capHolds = (runtimeLogs.join("").match(/concurrent-session cap/g) ?? []).length;
 			console.log(`POOLS ✓ machine-map plumbing verified (fake lms consumed, admission green); cap holds observed: ${capHolds}; single-endpoint serialization confirmed as designed.`);
+		}
+		if (TURNLOOP) {
+			// §12 a-same-question assertions: (1) the looping question actually recurred on the wire (the worker's
+			// transcript carries it as ≥3 assistant turns in some request), and (2) the TurnLoopGuard's auto-resolve
+			// nudge — quoting the acceptance command as authoritative — reached the model as a user message.
+			const journalText = JSON.stringify(journal);
+			const loopRecurrences = journalText.split("looks trivial; should I instead set up vitest").length - 1;
+			if (loopRecurrences < 3) {
+				throw new Error(`turn-loop regression: expected the looping question ≥3× on the wire, saw ${loopRecurrences}`);
+			}
+			if (!journalText.includes("acceptance command is authoritative")) {
+				throw new Error("turn-loop regression: the auto-resolve nudge never reached the model on the wire");
+			}
+			// The looping card must have RECOVERED and completed — a park (attention hold) is exactly the
+			// pre-fix failure shape, so a lenient monitor exit alone is not enough here.
+			const counts = /"finalCounts":\s*{[^}]*}/.exec(seedOut)?.[0] ?? "";
+			const lane = (name: string): number => Number(new RegExp(`"${name}":\\s*(\\d+)`).exec(counts)?.[1] ?? "-1");
+			if (lane("completed") < 3 || lane("review") !== 0 || lane("failed") !== 0 || lane("inProgress") !== 0) {
+				throw new Error(`turn-loop regression: board did not fully drain after the nudge (${counts})`);
+			}
+			console.log(
+				`TURNLOOP ✓ a-same-question: question recurred (${loopRecurrences} wire hits), guard nudged with the authoritative acceptance command, and the flow completed.`,
+			);
 		}
 		const reviewLines = runtimeLogs.join("").split("\n").filter((line) => /review|acceptance|sandbox/i.test(line)).slice(-12);
 		console.log("Review/acceptance trail:\n" + reviewLines.join("\n"));

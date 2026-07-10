@@ -154,6 +154,8 @@ import {
 	type NKleinSdkSlashCommand,
 	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
+import type { TurnLoopEscalationEvent, TurnLoopGuardCallbacks } from "./turn-loop-guard";
+import { TurnLoopGuard } from "./turn-loop-guard";
 
 export type { KanbanContextPressurePolicy, KanbanContextSafetyBudgets } from "./nklein-context-budgets";
 export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } from "./nklein-context-budgets";
@@ -381,6 +383,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
+	private readonly turnLoopGuard: TurnLoopGuard;
 	private readonly activeToolTaskIds = new Set<string>();
 	private readonly sandboxState = new TaskSandboxStateStore();
 	private readonly sessionRuntime: NKleinSessionRuntime;
@@ -488,6 +491,30 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
 		this.autonomyBudgetWatchdog = new AutonomyBudgetWatchdog(this.buildWatchdogCallbacks());
+		this.turnLoopGuard = new TurnLoopGuard(this.buildTurnLoopGuardCallbacks(options.onTurnLoopEscalation));
+	}
+
+	private buildTurnLoopGuardCallbacks(
+		onTurnLoopEscalation: ((event: TurnLoopEscalationEvent) => void | Promise<void>) | undefined,
+	): TurnLoopGuardCallbacks {
+		return {
+			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
+			cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
+			sendTaskSessionInput: (taskId, text) => this.sendTaskSessionInput(taskId, text),
+			pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
+			parkTaskForAutonomyBudget: (input) => this.parkController.parkTaskForAutonomyBudget(input),
+			recordObservation: ({ taskId, message, metadata }) => {
+				this.recordObservationWithModel({
+					signal: "custom",
+					severity: "warning",
+					message,
+					taskId,
+					workspacePath: this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ?? null,
+					metadata,
+				});
+			},
+			...(onTurnLoopEscalation ? { onEscalateModel: onTurnLoopEscalation } : {}),
+		};
 	}
 
 	private buildGuardCallbacks(): RepeatedToolCallGuardCallbacks {
@@ -1266,6 +1293,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.providerIdStore.set(request.taskId, providerId);
 		this.autonomyBudgetWatchdog.resetTask(request.taskId);
 		this.repeatedToolCallGuard.resetTask(request.taskId);
+		this.turnLoopGuard.resetTask(request.taskId);
 		this.decompositionStallNudger.resetTask(request.taskId);
 		if (request.startInPlanMode && isExplicitDecompositionPrompt(request.prompt)) {
 			this.explicitDecompositionTaskIds.add(request.taskId);
@@ -2123,6 +2151,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
+		this.turnLoopGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
@@ -2144,6 +2173,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
+		this.turnLoopGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutController.deleteSettings(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -2506,6 +2536,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.decompositionStallNudger.dispose();
 		this.repeatedToolCallGuard.dispose();
+		this.turnLoopGuard.dispose();
 		this.autonomyBudgetWatchdog.dispose();
 		this.timeoutController.clearSettings();
 		await this.sessionRuntime.dispose();
@@ -2754,6 +2785,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
 		}
+		// §12 turn-loop ladder: with the turn's text settled (no active assistant stream), scan the trailing
+		// completed turns for a re-raised question/proposal loop. Cheap no-op mid-stream and below the window.
+		this.turnLoopGuard.check(taskId);
 		const hookEventName = entry.summary.latestHookActivity?.hookEventName;
 		if (entry.summary.state !== "running") {
 			this.clearTaskTimeout(taskId, "stream");

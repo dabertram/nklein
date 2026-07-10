@@ -30,6 +30,7 @@ import { buildSessionSkillFragments } from "./nklein-session-skill-fragments";
 import type { NKleinTaskMessage } from "./nklein-session-state";
 import type { NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import type { NKleinSdkPersistedMessage, NKleinSdkSlashCommand } from "./sdk-runtime-boundary.js";
+import type { TurnLoopEscalationEvent } from "./turn-loop-guard";
 
 export interface StartNKleinTaskSessionRequest {
 	taskId: string;
@@ -238,6 +239,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	onCardPromoted?: NKleinCardPromotedHandler;
 	/** Persist an agent's focus chain (todo §5.N) when it calls `update_focus_chain`. */
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
+	/**
+	 * §12 turn-loop ladder, escalate-model rung: a running agent confirmed LOOPING on a boundary it cannot resolve,
+	 * with a lineage-diverse loaded model available. The runtime effects the §5.AG routing (card-mailbox boundary
+	 * note + card model override + redrive); absent ⇒ the guard parks the task with the specific question instead.
+	 */
+	onTurnLoopEscalation?: (event: TurnLoopEscalationEvent) => void | Promise<void>;
 	/** Operator-configurable autonomous-run guardrail limits; defaults to DEFAULT_RUNTIME_SWARM_GUARDRAILS. */
 	swarmGuardrails?: RuntimeSwarmGuardrails;
 	/**

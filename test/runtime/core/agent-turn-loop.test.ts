@@ -96,6 +96,24 @@ describe("decideTurnLoopResolution", () => {
 		}
 	});
 
+	it("grounds a BACKTICK-QUOTED acceptance command despite quoting differences (a-same-question regression)", () => {
+		// The model quotes the command it questions; contestedTokens strips the quotes — the grounding haystack
+		// must shed quotes too, or a quoted acceptance command can never ground against its own token.
+		const quotedQuestion =
+			'The acceptance command `node -e "process.exit(0)"` looks trivial; should I instead set up vitest, or keep the acceptance exactly as specified?';
+		const quotedVerdict = detectTurnLoop([
+			{ text: quotedQuestion },
+			{ text: quotedQuestion },
+			{ text: quotedQuestion },
+		]);
+		const resolution = decideTurnLoopResolution({
+			verdict: quotedVerdict,
+			acceptanceCommand: 'node -e "process.exit(0)"',
+			specContext: "Create greet.ts exporting greet(name).",
+		});
+		expect(resolution.kind).toBe("auto_resolve");
+	});
+
 	it("escalates to an untried model when not auto-resolvable", () => {
 		const resolution = decideTurnLoopResolution({
 			verdict,

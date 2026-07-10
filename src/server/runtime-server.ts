@@ -114,6 +114,7 @@ import {
 } from "../security/passcode-manager";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import {
 	defaultRuntimeIdModelKeyMapPath,
@@ -1863,6 +1864,67 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 					void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(scope.workspaceId, scope.workspacePath);
+				},
+				onTurnLoopEscalation: async (event) => {
+					// §12 turn-loop ladder, escalate-model rung — route through the EXISTING §5.AG machinery:
+					// (1) the boundary question goes to the card MAILBOX (consumed as opening guidance on the next
+					// start), (2) the card's model override switches to the lineage-diverse pick (the same effect the
+					// terminal-redrive Layer-1 escalation applies), (3) a ledger transition records the decision,
+					// (4) the looping session is STOPPED — the standard terminal sweep then redrives the card (or the
+					// prior-work rebound routes captured work through review). No new recovery machinery.
+					// NOTE: no workspacePath filter here — the event's workspacePath is the AGENT-perceived cwd (the
+					// sandbox workdir under isolation, never the host path), and this service instance is already
+					// scoped to exactly one workspace, so filtering on it would silently drop every escalation.
+					try {
+						await appendCardMailboxNote({
+							taskId: event.taskId,
+							text:
+								`The previous model looped on a boundary it could not resolve: "${event.boundary}". ` +
+								"Settle this question FIRST from the task's spec/acceptance criteria (they are authoritative), then proceed — do not re-raise it.",
+							source: "chat",
+						});
+						await mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+							board: {
+								...latestState.board,
+								columns: latestState.board.columns.map((column) => ({
+									...column,
+									cards: column.cards.map((card) =>
+										card.id === event.taskId
+											? {
+													...card,
+													nkleinSettings: {
+														...(card.nkleinSettings ?? {}),
+														modelId: event.model.modelId,
+													},
+													updatedAt: Date.now(),
+												}
+											: card,
+									),
+								})),
+							},
+							value: null,
+						}));
+						void appendAgentLedgerEvent(
+							buildTransitionEvent({
+								workflowId: event.taskId,
+								taskId: event.taskId,
+								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+								from: "hard_stuck",
+								to: "redrive",
+								reason: "turn_loop",
+								controllerDecision: `layer1_model_switch:${event.model.modelId}`,
+							}),
+						).catch(() => {});
+						deps.warn(
+							`Turn-loop escalation: ${event.taskId} looped on "${event.boundary}" — switched its model to ${event.model.modelId} and stopping the session for a redrive.`,
+						);
+						const escalationService = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+						await escalationService?.stopTaskSession(event.taskId);
+					} catch (error) {
+						deps.warn(
+							`Turn-loop escalation failed for ${event.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+						);
+					}
 				},
 				onFocusChainUpdated: async (taskId, chain) => {
 					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.

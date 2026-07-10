@@ -143,6 +143,20 @@ export function detectTurnLoop(
 	return none;
 }
 
+/**
+ * The card/prompt convention: one `Acceptance check: <command>` line. Kept in sync with the impure mirror in
+ * nklein-agent/nklein-acceptance-gate.ts and the pure one in plan-integration-gate.ts — the wiring layer needs it
+ * HERE so the turn-loop resolution can pull the authoritative acceptance command straight from a session's start
+ * prompt without importing an impure module.
+ */
+const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
+
+/** Extract the card's embedded `Acceptance check:` command from its prompt text, or null when absent. */
+export function extractAcceptanceCheckCommand(promptText: string): string | null {
+	const command = promptText.match(ACCEPTANCE_CHECK_PATTERN)?.[1]?.trim();
+	return command && command.length > 0 ? command : null;
+}
+
 /** The next move once a turn loop is confirmed (pure; the caller effects it). */
 export type TurnLoopResolution =
 	/** No loop — keep running. */
@@ -206,7 +220,11 @@ export function decideTurnLoopResolution(input: TurnLoopResolutionInput): TurnLo
 	const question = verdict.contestedQuestion;
 	const acceptance = (input.acceptanceCommand ?? "").toLowerCase();
 	const spec = (input.specContext ?? "").toLowerCase();
-	const context = `${acceptance}\n${spec}`;
+	// Quote-normalize the grounding haystack: contestedTokens strips backticks/quotes from its tokens (a model
+	// quotes the command it is asking about), so the context must shed them too or a quoted acceptance command
+	// (`node -e "process.exit(0)"`) can never ground against its own token (live-found via the §12 a-same-question
+	// simulator regression — the guard parked instead of auto-resolving).
+	const context = `${acceptance}\n${spec}`.replace(/["'`]/g, "");
 
 	// (1) Auto-resolve: the contested token appears in the authoritative context ⇒ that context settles it.
 	if (question) {

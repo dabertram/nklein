@@ -2,6 +2,16 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
+  whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard
+  fingerprints each completed assistant turn and catches the same question re-raised (or two proposals bounced
+  between); when the contested point is answerable from the card's own `Acceptance check:`/spec context it cancels
+  the loop and re-prompts with that authoritative answer (one bounded nudge), otherwise it reroutes the card to a
+  lineage-diverse loaded model with the boundary question queued as mailbox guidance — and only as a last resort
+  parks the card asking the operator the *specific* question, never a generic "stuck". Regression-locked end to end
+  by a new simulator track (`NKLEIN_SIMFLOW_TURNLOOP=1`): the mock worker loops for three turns, the guard answers
+  from the acceptance line, and the whole board still drains with zero LLM compute.
+
 - **The board has a "Ready" lane between Planning and In Progress** (todo §5.B, protected feature). Dep-free cards
   that are only waiting for a free slot (concurrency cap, busy endpoint, or a file-overlap lock) now park in their
   own column instead of blending into Planning — the board finally distinguishes *refining*, *waiting for a slot*,
