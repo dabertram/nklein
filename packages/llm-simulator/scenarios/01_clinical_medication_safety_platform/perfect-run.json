@@ -4,8 +4,8 @@
 	"tracks": [
 		{
 			"id": "perfect-decompose",
-			"requestClass": "decompose",
-			"userMessageIncludes": "medication safety",
+			"requestClass": "any",
+			"userMessageIncludes": "real clinical medication safety and adherence platform, not a fake MVP",
 			"turns": [
 				{
 					"behavior": {
@@ -699,7 +699,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); 41-card graph derived from specification.md S01-S22 + breadth recipes."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); 41-card graph derived from specification.md S01-S22 + breadth recipes.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s00",
@@ -773,7 +774,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s01",
@@ -831,7 +833,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s02",
@@ -892,7 +895,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s03",
@@ -964,7 +968,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s04",
@@ -1017,7 +1022,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s05",
@@ -1090,7 +1096,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s06",
@@ -1144,7 +1151,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s07",
@@ -1202,7 +1210,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s08",
@@ -1260,7 +1269,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s09",
@@ -1314,7 +1324,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s10",
@@ -1372,7 +1383,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s11",
@@ -1430,7 +1442,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s12",
@@ -1504,7 +1517,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s13",
@@ -1562,7 +1576,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s14",
@@ -1620,7 +1635,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s15",
@@ -1694,7 +1710,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s16",
@@ -1752,7 +1769,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s17",
@@ -1825,7 +1843,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s18",
@@ -1891,7 +1910,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s19",
@@ -1944,7 +1964,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s20",
@@ -2017,7 +2038,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s21",
@@ -2070,7 +2092,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s22",
@@ -2128,7 +2151,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s23",
@@ -2182,7 +2206,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s24",
@@ -2240,7 +2265,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s25",
@@ -2293,7 +2319,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s26",
@@ -2352,7 +2379,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s27",
@@ -2406,7 +2434,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s28",
@@ -2480,7 +2509,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s29",
@@ -2533,7 +2563,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s30",
@@ -2587,7 +2618,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s31",
@@ -2640,7 +2672,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s32",
@@ -2710,7 +2743,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s33",
@@ -2782,7 +2816,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s34",
@@ -2836,7 +2871,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s35",
@@ -2890,7 +2926,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s36",
@@ -2948,7 +2985,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s37",
@@ -2986,7 +3024,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s38",
@@ -3043,7 +3082,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s39",
@@ -3101,7 +3141,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s40",
@@ -3139,7 +3180,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); no real-model observation yet.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-review-s00",
@@ -3160,6 +3202,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3186,6 +3234,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3210,6 +3264,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3252,6 +3312,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3276,6 +3342,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3302,6 +3374,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3326,6 +3404,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3352,6 +3436,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3376,6 +3466,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3402,6 +3498,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3426,6 +3528,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3452,6 +3560,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3476,6 +3590,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3502,6 +3622,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3526,6 +3652,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3568,6 +3700,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3592,6 +3730,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3618,6 +3762,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3643,6 +3793,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3667,6 +3823,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3709,6 +3871,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3733,6 +3901,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3759,6 +3933,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3783,6 +3963,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3809,6 +3995,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3833,6 +4025,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3859,6 +4057,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3883,6 +4087,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3925,6 +4135,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3949,6 +4165,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -3975,6 +4197,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -3999,6 +4227,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -4025,6 +4259,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -4049,6 +4289,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -4075,6 +4321,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -4099,6 +4351,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -4125,6 +4383,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -4149,6 +4413,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -4175,6 +4445,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -4200,6 +4476,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -4224,6 +4506,12 @@
 								}
 							}
 						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
 					}
 				}
 			],
@@ -4260,6 +4548,20 @@
 			],
 			"repeatLastTurn": true,
 			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10)."
+		},
+		{
+			"id": "any-fallback",
+			"requestClass": "any",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Acknowledged. Proceeding as instructed."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "wire-truth patch 2026-07-10 (fast-path bring-up)"
 		}
 	],
 	"chaosProbability": 0

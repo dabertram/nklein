@@ -1,0 +1,1210 @@
+{
+	"name": "13_cyber_range_soc_detection_platform flaky run",
+	"seed": 213,
+	"tracks": [
+		{
+			"id": "perfect-decompose",
+			"requestClass": "any",
+			"userMessageIncludes": "real cyber range and soc detection engineering platform, not a fake MVP",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "cyber-range-and-soc-detection-engineering-platform",
+									"title": "Cyber Range and SOC Detection Engineering Platform",
+									"spec": "# Cyber Range and SOC Detection Engineering Platform — foundation requirements\n\n- Tenant, asset, identity, log source, event, normalized entity, detection rule, alert, incident, timeline item, evidence, playbook, exercise, and purple-team finding models.\n- Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud audit, and process events with source-specific fields and loss tracking.\n- Detection rule engine supporting sequence, threshold, join, suppression, allowlist, severity mapping, and rule versioning over deterministic event streams.\n- Cyber-range scenario runner that emits scripted attack telemetry for phishing, credential theft, lateral movement, exfiltration, and noisy benign admin work.\n- Incident triage workflow with alert grouping, scope expansion, evidence tagging, containment actions, and post-incident lessons.\n- Coverage mapping against tactics, techniques, assets, log sources, and known blind spots.\n- False-positive management with suppression expiry, exception ownership, and regression tests.\n- Seed exercise with one true intrusion, one red herring, missing telemetry, and a detection regression.\n\nDeterministic tests only (node:test, zero dependencies); every finding carries evidence; no network in acceptance.",
+									"plan": "# Implementation plan\n\nBottom-up dependency order: scaffold, then the core domain model, then one deterministic evaluate module per foundation concern (model → engine → edge cases), closing with a flagship integration test + README. Every card ships its own node:test coverage; acceptance is `npm test` everywhere.",
+									"summary": "Build the Cyber Range and SOC Detection Engineering Platform foundation bottom-up: scaffold, typed domain model, deterministic evaluate modules per foundation concern, then a flagship integration test with an explainable evidence chain.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "s00",
+											"title": "Project scaffold: zero-dependency node test wiring",
+											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"dependsOn": [],
+											"complexity": 20,
+											"filesLikelyTouched": [
+												"package.json",
+												"README.md"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s01",
+											"title": "Core domain model and stable identifiers",
+											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (tenant, asset, identity, log source, event, normalized entity, detection). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"dependsOn": [
+												"s00"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/domain.mjs",
+												"test/domain.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s02",
+											"title": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud",
+											"prompt": "Implement the foundation for: Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud audit, and process events with source-specific fields and loss tracking. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/telemetry-normalization-pipeline-for-end.mjs",
+												"test/telemetry-normalization-pipeline-for-end.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s03",
+											"title": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine",
+											"prompt": "Extend the telemetry normalization pipeline for endpoint, authentication, dns, proxy, cloud module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s02"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/telemetry-normalization-pipeline-for-end-2.mjs",
+												"test/telemetry-normalization-pipeline-for-end-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s04",
+											"title": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests",
+											"prompt": "Extend the telemetry normalization pipeline for endpoint, authentication, dns, proxy, cloud module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/telemetry-normalization-pipeline-for-end-3.mjs",
+												"test/telemetry-normalization-pipeline-for-end-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist",
+											"prompt": "Implement the foundation for: Detection rule engine supporting sequence, threshold, join, suppression, allowlist, severity mapping, and rule versioning over deterministic event streams. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/detection-rule-engine-supporting-sequenc.mjs",
+												"test/detection-rule-engine-supporting-sequenc.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s06",
+											"title": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine",
+											"prompt": "Extend the detection rule engine supporting sequence, threshold, join, suppression, allowlist module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s05"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/detection-rule-engine-supporting-sequenc-2.mjs",
+												"test/detection-rule-engine-supporting-sequenc-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests",
+											"prompt": "Extend the detection rule engine supporting sequence, threshold, join, suppression, allowlist module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/detection-rule-engine-supporting-sequenc-3.mjs",
+												"test/detection-rule-engine-supporting-sequenc-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Cyber-range scenario runner that emits scripted attack telemetry for",
+											"prompt": "Implement the foundation for: Cyber-range scenario runner that emits scripted attack telemetry for phishing, credential theft, lateral movement, exfiltration, and noisy benign admin work. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/cyber-range-scenario-runner-that-emits-s.mjs",
+												"test/cyber-range-scenario-runner-that-emits-s.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Cyber-range scenario runner that emits scripted attack telemetry for — core engine",
+											"prompt": "Extend the cyber-range scenario runner that emits scripted attack telemetry for module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s08"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/cyber-range-scenario-runner-that-emits-s-2.mjs",
+												"test/cyber-range-scenario-runner-that-emits-s-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										}
+									]
+								}
+							}
+						]
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s00",
+			"requestClass": "worker",
+			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "package.json",
+											"content": "{\n\t\"name\": \"cyber-range-and-soc-detection-engineering-platform\",\n\t\"private\": true,\n\t\"type\": \"module\",\n\t\"scripts\": {\n\t\t\"test\": \"node --test\"\n\t}\n}\n"
+										},
+										{
+											"path": "README.md",
+											"content": "# Cyber Range and SOC Detection Engineering Platform\n\nDeterministic, dependency-free foundation (generated scenario baseline). Acceptance: `npm test` via node:test.\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Project scaffold: zero-dependency node test wiring\": package.json, README.md with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s00",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Project scaffold: zero-dependency node test wiring\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Project scaffold: zero-dependency node test wiring\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s01",
+			"requestClass": "worker",
+			"userMessageIncludes": "Core domain model and stable identifiers",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "http_error",
+						"status": 429,
+						"message": "simulated rate limit",
+						"retryAfterSeconds": 2
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/domain.mjs",
+											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainFinding[] }} DomainResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {DomainInput} input\n * @returns {DomainResult}\n */\nexport function evaluateDomain(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/domain.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomain } from \"../src/domain.mjs\";\n\ntest(\"domain: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomain({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomain({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Core domain model and stable identifiers\": src/domain.mjs, test/domain.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-429-rate then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s01",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Core domain model and stable identifiers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s02",
+			"requestClass": "worker",
+			"userMessageIncludes": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/telemetry-normalization-pipeline-for-end.mjs",
+											"content": "/**\n * Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TelemetryNormalizationPipelineForEndInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TelemetryNormalizationPipelineForEndFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TelemetryNormalizationPipelineForEndFinding[] }} TelemetryNormalizationPipelineForEndResult\n */\n\n/**\n * Evaluate one input against the telemetry normalization pipeline for endpoint, authentication, dns, proxy, cloud policy.\n * @param {TelemetryNormalizationPipelineForEndInput} input\n * @returns {TelemetryNormalizationPipelineForEndResult}\n */\nexport function evaluateTelemetryNormalizationPipelineForEnd(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"telemetry-normalization-pipeline-for-end/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/telemetry-normalization-pipeline-for-end.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTelemetryNormalizationPipelineForEnd } from \"../src/telemetry-normalization-pipeline-for-end.mjs\";\n\ntest(\"telemetry-normalization-pipeline-for-end: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"telemetry-normalization-pipeline-for-end: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud\": src/telemetry-normalization-pipeline-for-end.mjs, test/telemetry-normalization-pipeline-for-end.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s02",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s03",
+			"requestClass": "worker",
+			"userMessageIncludes": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "empty_completion"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/telemetry-normalization-pipeline-for-end-2.mjs",
+											"content": "/**\n * Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TelemetryNormalizationPipelineForEnd2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TelemetryNormalizationPipelineForEnd2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TelemetryNormalizationPipelineForEnd2Finding[] }} TelemetryNormalizationPipelineForEnd2Result\n */\n\n/**\n * Evaluate one input against the telemetry normalization pipeline for endpoint, authentication, dns, proxy, cloud — core engine policy.\n * @param {TelemetryNormalizationPipelineForEnd2Input} input\n * @returns {TelemetryNormalizationPipelineForEnd2Result}\n */\nexport function evaluateTelemetryNormalizationPipelineForEnd2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"telemetry-normalization-pipeline-for-end-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/telemetry-normalization-pipeline-for-end-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTelemetryNormalizationPipelineForEnd2 } from \"../src/telemetry-normalization-pipeline-for-end-2.mjs\";\n\ntest(\"telemetry-normalization-pipeline-for-end-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"telemetry-normalization-pipeline-for-end-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine\": src/telemetry-normalization-pipeline-for-end-2.mjs, test/telemetry-normalization-pipeline-for-end-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s03",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s04",
+			"requestClass": "worker",
+			"userMessageIncludes": "Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "",
+						"reasoning": "Thinking through \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests\" step by step before writing files…"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/telemetry-normalization-pipeline-for-end-3.mjs",
+											"content": "/**\n * Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TelemetryNormalizationPipelineForEnd3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TelemetryNormalizationPipelineForEnd3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TelemetryNormalizationPipelineForEnd3Finding[] }} TelemetryNormalizationPipelineForEnd3Result\n */\n\n/**\n * Evaluate one input against the telemetry normalization pipeline for endpoint, authentication, dns, proxy, cloud — edge cases and property-style tests policy.\n * @param {TelemetryNormalizationPipelineForEnd3Input} input\n * @returns {TelemetryNormalizationPipelineForEnd3Result}\n */\nexport function evaluateTelemetryNormalizationPipelineForEnd3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"telemetry-normalization-pipeline-for-end-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"telemetry-normalization-pipeline-for-end-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/telemetry-normalization-pipeline-for-end-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTelemetryNormalizationPipelineForEnd3 } from \"../src/telemetry-normalization-pipeline-for-end-3.mjs\";\n\ntest(\"telemetry-normalization-pipeline-for-end-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"telemetry-normalization-pipeline-for-end-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTelemetryNormalizationPipelineForEnd3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests\": src/telemetry-normalization-pipeline-for-end-3.mjs, test/telemetry-normalization-pipeline-for-end-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s04",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Telemetry normalization pipeline for endpoint, authentication, DNS, proxy, cloud — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s05",
+			"requestClass": "worker",
+			"userMessageIncludes": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 8000
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/detection-rule-engine-supporting-sequenc.mjs",
+											"content": "/**\n * Detection rule engine supporting sequence, threshold, join, suppression, allowlist\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DetectionRuleEngineSupportingSequencInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DetectionRuleEngineSupportingSequencFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DetectionRuleEngineSupportingSequencFinding[] }} DetectionRuleEngineSupportingSequencResult\n */\n\n/**\n * Evaluate one input against the detection rule engine supporting sequence, threshold, join, suppression, allowlist policy.\n * @param {DetectionRuleEngineSupportingSequencInput} input\n * @returns {DetectionRuleEngineSupportingSequencResult}\n */\nexport function evaluateDetectionRuleEngineSupportingSequenc(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"detection-rule-engine-supporting-sequenc/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/detection-rule-engine-supporting-sequenc.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDetectionRuleEngineSupportingSequenc } from \"../src/detection-rule-engine-supporting-sequenc.mjs\";\n\ntest(\"detection-rule-engine-supporting-sequenc: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"detection-rule-engine-supporting-sequenc: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist\": src/detection-rule-engine-supporting-sequenc.mjs, test/detection-rule-engine-supporting-sequenc.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/detection-rule-engine-supporting-sequenc-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/detection-rule-engine-supporting-sequenc-2.mjs",
+											"content": "/**\n * Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DetectionRuleEngineSupportingSequenc2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DetectionRuleEngineSupportingSequenc2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DetectionRuleEngineSupportingSequenc2Finding[] }} DetectionRuleEngineSupportingSequenc2Result\n */\n\n/**\n * Evaluate one input against the detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine policy.\n * @param {DetectionRuleEngineSupportingSequenc2Input} input\n * @returns {DetectionRuleEngineSupportingSequenc2Result}\n */\nexport function evaluateDetectionRuleEngineSupportingSequenc2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"detection-rule-engine-supporting-sequenc-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/detection-rule-engine-supporting-sequenc-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDetectionRuleEngineSupportingSequenc2 } from \"../src/detection-rule-engine-supporting-sequenc-2.mjs\";\n\ntest(\"detection-rule-engine-supporting-sequenc-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"detection-rule-engine-supporting-sequenc-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine\": src/detection-rule-engine-supporting-sequenc-2.mjs, test/detection-rule-engine-supporting-sequenc-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s06",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s07",
+			"requestClass": "worker",
+			"userMessageIncludes": "Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/detection-rule-engine-supporting-sequenc-3.mjs",
+											"content": "/**\n * Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DetectionRuleEngineSupportingSequenc3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DetectionRuleEngineSupportingSequenc3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DetectionRuleEngineSupportingSequenc3Finding[] }} DetectionRuleEngineSupportingSequenc3Result\n */\n\n/**\n * Evaluate one input against the detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests policy.\n * @param {DetectionRuleEngineSupportingSequenc3Input} input\n * @returns {DetectionRuleEngineSupportingSequenc3Result}\n */\nexport function evaluateDetectionRuleEngineSupportingSequenc3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"detection-rule-engine-supporting-sequenc-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"detection-rule-engine-supporting-sequenc-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/detection-rule-engine-supporting-sequenc-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDetectionRuleEngineSupportingSequenc3 } from \"../src/detection-rule-engine-supporting-sequenc-3.mjs\";\n\ntest(\"detection-rule-engine-supporting-sequenc-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"detection-rule-engine-supporting-sequenc-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDetectionRuleEngineSupportingSequenc3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests\": src/detection-rule-engine-supporting-sequenc-3.mjs, test/detection-rule-engine-supporting-sequenc-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Detection rule engine supporting sequence, threshold, join, suppression, allowlist — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Cyber-range scenario runner that emits scripted attack telemetry for",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/cyber-range-scenario-runner-that-emits-s.mjs",
+											"content": "/**\n * Cyber-range scenario runner that emits scripted attack telemetry for\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CyberRangeScenarioRunnerThatEmitsSInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CyberRangeScenarioRunnerThatEmitsSFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CyberRangeScenarioRunnerThatEmitsSFinding[] }} CyberRangeScenarioRunnerThatEmitsSResult\n */\n\n/**\n * Evaluate one input against the cyber-range scenario runner that emits scripted attack telemetry for policy.\n * @param {CyberRangeScenarioRunnerThatEmitsSInput} input\n * @returns {CyberRangeScenarioRunnerThatEmitsSResult}\n */\nexport function evaluateCyberRangeScenarioRunnerThatEmitsS(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"cyber-range-scenario-runner-that-emits-s/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/cyber-range-scenario-runner-that-emits-s.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCyberRangeScenarioRunnerThatEmitsS } from \"../src/cyber-range-scenario-runner-that-emits-s.mjs\";\n\ntest(\"cyber-range-scenario-runner-that-emits-s: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCyberRangeScenarioRunnerThatEmitsS({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"cyber-range-scenario-runner-that-emits-s: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCyberRangeScenarioRunnerThatEmitsS({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Cyber-range scenario runner that emits scripted attack telemetry for\": src/cyber-range-scenario-runner-that-emits-s.mjs, test/cyber-range-scenario-runner-that-emits-s.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Cyber-range scenario runner that emits scripted attack telemetry for\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Cyber-range scenario runner that emits scripted attack telemetry for\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "Cyber-range scenario runner that emits scripted attack telemetry for — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/cyber-range-scenario-runner-that-emits-s-2.mjs",
+											"content": "/**\n * Cyber-range scenario runner that emits scripted attack telemetry for — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} CyberRangeScenarioRunnerThatEmitsS2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} CyberRangeScenarioRunnerThatEmitsS2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: CyberRangeScenarioRunnerThatEmitsS2Finding[] }} CyberRangeScenarioRunnerThatEmitsS2Result\n */\n\n/**\n * Evaluate one input against the cyber-range scenario runner that emits scripted attack telemetry for — core engine policy.\n * @param {CyberRangeScenarioRunnerThatEmitsS2Input} input\n * @returns {CyberRangeScenarioRunnerThatEmitsS2Result}\n */\nexport function evaluateCyberRangeScenarioRunnerThatEmitsS2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"cyber-range-scenario-runner-that-emits-s-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"cyber-range-scenario-runner-that-emits-s-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/cyber-range-scenario-runner-that-emits-s-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCyberRangeScenarioRunnerThatEmitsS2 } from \"../src/cyber-range-scenario-runner-that-emits-s-2.mjs\";\n\ntest(\"cyber-range-scenario-runner-that-emits-s-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCyberRangeScenarioRunnerThatEmitsS2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"cyber-range-scenario-runner-that-emits-s-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCyberRangeScenarioRunnerThatEmitsS2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Cyber-range scenario runner that emits scripted attack telemetry for — core engine\": src/cyber-range-scenario-runner-that-emits-s-2.mjs, test/cyber-range-scenario-runner-that-emits-s-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Cyber-range scenario runner that emits scripted attack telemetry for — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Cyber-range scenario runner that emits scripted attack telemetry for — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "chat-status",
+			"requestClass": "chat",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "The Cyber Range and SOC Detection Engineering Platform foundation is progressing card by card: scaffold first, then the domain model, then one deterministic evaluate module per foundation concern. Ask about any specific card for details."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "any-fallback",
+			"requestClass": "any",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Acknowledged. Proceeding as instructed."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		}
+	]
+}

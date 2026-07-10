@@ -1,0 +1,1210 @@
+{
+	"name": "20_virtualized_microkernel_operating_system_lab flaky run",
+	"seed": 220,
+	"tracks": [
+		{
+			"id": "perfect-decompose",
+			"requestClass": "any",
+			"userMessageIncludes": "real virtualized microkernel operating system and hypervisor lab, not a fake MVP",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "virtualized-microkernel-operating-system-and-hypervisor-lab",
+									"title": "Virtualized Microkernel Operating System and Hypervisor Lab",
+									"spec": "# Virtualized Microkernel Operating System and Hypervisor Lab — foundation requirements\n\n- Virtual machine, CPU core, instruction, register file, memory page, device, interrupt, process, thread, capability, syscall, filesystem node, packet, debugger session, and trace models.\n- Tiny deterministic CPU emulator with fixed instruction set, registers, flags, memory access rules, traps, interrupts, privilege levels, and instruction trace output.\n- Microkernel model with address spaces, capability-based handles, message passing IPC, process/thread lifecycle, scheduler, timer ticks, and syscall dispatch.\n- Virtual memory subsystem with page tables, permissions, page faults, copy-on-write placeholder, shared memory, and memory-mapped device regions.\n- Userspace service model for init, filesystem server, network server, device manager, and shell-like command runner inside the VM.\n- Toy filesystem with block device abstraction, superblock, inode-like metadata, directory entries, file read/write, journaling-inspired recovery fixtures, and fsck checks.\n- Network device simulation with frames, ARP-like neighbor table, IP-like packets, UDP-like datagrams, packet loss fixtures, and service routing.\n- Debugger and observability tools for breakpoints, single-step, register/memory inspection, syscall trace, IPC graph, scheduler timeline, and crash dump.\n- Program loader and assembler-like fixture format for tiny user programs, kernel tests, fault injection, and golden boot traces.\n- Seed lab that boots init, mounts filesystem, starts services, sends IPC, runs a user program, handles page fault, writes a file, transmits a packet, and recovers from a simulated crash.\n\nDeterministic tests only (node:test, zero dependencies); every finding carries evidence; no network in acceptance.",
+									"plan": "# Implementation plan\n\nBottom-up dependency order: scaffold, then the core domain model, then one deterministic evaluate module per foundation concern (model → engine → edge cases), closing with a flagship integration test + README. Every card ships its own node:test coverage; acceptance is `npm test` everywhere.",
+									"summary": "Build the Virtualized Microkernel Operating System and Hypervisor Lab foundation bottom-up: scaffold, typed domain model, deterministic evaluate modules per foundation concern, then a flagship integration test with an explainable evidence chain.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "s00",
+											"title": "Project scaffold: zero-dependency node test wiring",
+											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"dependsOn": [],
+											"complexity": 20,
+											"filesLikelyTouched": [
+												"package.json",
+												"README.md"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s01",
+											"title": "Core domain model and stable identifiers",
+											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (virtual machine, cpu core, instruction, register file, memory page). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"dependsOn": [
+												"s00"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/domain.mjs",
+												"test/domain.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s02",
+											"title": "Tiny deterministic CPU emulator with fixed instruction set, registers",
+											"prompt": "Implement the foundation for: Tiny deterministic CPU emulator with fixed instruction set, registers, flags, memory access rules, traps, interrupts, privilege levels, and instruction trace output. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/tiny-deterministic-cpu-emulator-with-fix.mjs",
+												"test/tiny-deterministic-cpu-emulator-with-fix.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s03",
+											"title": "Tiny deterministic CPU emulator with fixed instruction set, registers — core engine",
+											"prompt": "Extend the tiny deterministic cpu emulator with fixed instruction set, registers module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s02"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/tiny-deterministic-cpu-emulator-with-fix-2.mjs",
+												"test/tiny-deterministic-cpu-emulator-with-fix-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s04",
+											"title": "Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests",
+											"prompt": "Extend the tiny deterministic cpu emulator with fixed instruction set, registers module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/tiny-deterministic-cpu-emulator-with-fix-3.mjs",
+												"test/tiny-deterministic-cpu-emulator-with-fix-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Microkernel model with address spaces, capability-based handles, message passing",
+											"prompt": "Implement the foundation for: Microkernel model with address spaces, capability-based handles, message passing IPC, process/thread lifecycle, scheduler, timer ticks, and syscall dispatch. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/microkernel-model-with-address-spaces-ca.mjs",
+												"test/microkernel-model-with-address-spaces-ca.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s06",
+											"title": "Microkernel model with address spaces, capability-based handles, message passing — core engine",
+											"prompt": "Extend the microkernel model with address spaces, capability-based handles, message passing module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s05"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/microkernel-model-with-address-spaces-ca-2.mjs",
+												"test/microkernel-model-with-address-spaces-ca-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests",
+											"prompt": "Extend the microkernel model with address spaces, capability-based handles, message passing module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/microkernel-model-with-address-spaces-ca-3.mjs",
+												"test/microkernel-model-with-address-spaces-ca-3.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Virtual memory subsystem with page tables, permissions, page faults",
+											"prompt": "Implement the foundation for: Virtual memory subsystem with page tables, permissions, page faults, copy-on-write placeholder, shared memory, and memory-mapped device regions. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/virtual-memory-subsystem-with-page-table.mjs",
+												"test/virtual-memory-subsystem-with-page-table.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Virtual memory subsystem with page tables, permissions, page faults — core engine",
+											"prompt": "Extend the virtual memory subsystem with page tables, permissions, page faults module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s08"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/virtual-memory-subsystem-with-page-table-2.mjs",
+												"test/virtual-memory-subsystem-with-page-table-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										}
+									]
+								}
+							}
+						]
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s00",
+			"requestClass": "worker",
+			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "package.json",
+											"content": "{\n\t\"name\": \"virtualized-microkernel-operating-system-and-hypervisor-lab\",\n\t\"private\": true,\n\t\"type\": \"module\",\n\t\"scripts\": {\n\t\t\"test\": \"node --test\"\n\t}\n}\n"
+										},
+										{
+											"path": "README.md",
+											"content": "# Virtualized Microkernel Operating System and Hypervisor Lab\n\nDeterministic, dependency-free foundation (generated scenario baseline). Acceptance: `npm test` via node:test.\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Project scaffold: zero-dependency node test wiring\": package.json, README.md with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s00",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Project scaffold: zero-dependency node test wiring\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Project scaffold: zero-dependency node test wiring\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s01",
+			"requestClass": "worker",
+			"userMessageIncludes": "Core domain model and stable identifiers",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "http_error",
+						"status": 429,
+						"message": "simulated rate limit",
+						"retryAfterSeconds": 2
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/domain.mjs",
+											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainFinding[] }} DomainResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {DomainInput} input\n * @returns {DomainResult}\n */\nexport function evaluateDomain(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/domain.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomain } from \"../src/domain.mjs\";\n\ntest(\"domain: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomain({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomain({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Core domain model and stable identifiers\": src/domain.mjs, test/domain.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-429-rate then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s01",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Core domain model and stable identifiers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s02",
+			"requestClass": "worker",
+			"userMessageIncludes": "Tiny deterministic CPU emulator with fixed instruction set, registers",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/tiny-deterministic-cpu-emulator-with-fix.mjs",
+											"content": "/**\n * Tiny deterministic CPU emulator with fixed instruction set, registers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TinyDeterministicCpuEmulatorWithFixInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TinyDeterministicCpuEmulatorWithFixFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TinyDeterministicCpuEmulatorWithFixFinding[] }} TinyDeterministicCpuEmulatorWithFixResult\n */\n\n/**\n * Evaluate one input against the tiny deterministic cpu emulator with fixed instruction set, registers policy.\n * @param {TinyDeterministicCpuEmulatorWithFixInput} input\n * @returns {TinyDeterministicCpuEmulatorWithFixResult}\n */\nexport function evaluateTinyDeterministicCpuEmulatorWithFix(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"tiny-deterministic-cpu-emulator-with-fix/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/tiny-deterministic-cpu-emulator-with-fix.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTinyDeterministicCpuEmulatorWithFix } from \"../src/tiny-deterministic-cpu-emulator-with-fix.mjs\";\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Tiny deterministic CPU emulator with fixed instruction set, registers\": src/tiny-deterministic-cpu-emulator-with-fix.mjs, test/tiny-deterministic-cpu-emulator-with-fix.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s02",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction set, registers\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Tiny deterministic CPU emulator with fixed instruction set, registers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s03",
+			"requestClass": "worker",
+			"userMessageIncludes": "Tiny deterministic CPU emulator with fixed instruction set, registers — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "empty_completion"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/tiny-deterministic-cpu-emulator-with-fix-2.mjs",
+											"content": "/**\n * Tiny deterministic CPU emulator with fixed instruction set, registers — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TinyDeterministicCpuEmulatorWithFix2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TinyDeterministicCpuEmulatorWithFix2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TinyDeterministicCpuEmulatorWithFix2Finding[] }} TinyDeterministicCpuEmulatorWithFix2Result\n */\n\n/**\n * Evaluate one input against the tiny deterministic cpu emulator with fixed instruction set, registers — core engine policy.\n * @param {TinyDeterministicCpuEmulatorWithFix2Input} input\n * @returns {TinyDeterministicCpuEmulatorWithFix2Result}\n */\nexport function evaluateTinyDeterministicCpuEmulatorWithFix2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"tiny-deterministic-cpu-emulator-with-fix-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/tiny-deterministic-cpu-emulator-with-fix-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTinyDeterministicCpuEmulatorWithFix2 } from \"../src/tiny-deterministic-cpu-emulator-with-fix-2.mjs\";\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Tiny deterministic CPU emulator with fixed instruction set, registers — core engine\": src/tiny-deterministic-cpu-emulator-with-fix-2.mjs, test/tiny-deterministic-cpu-emulator-with-fix-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s03",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction set, registers — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Tiny deterministic CPU emulator with fixed instruction set, registers — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s04",
+			"requestClass": "worker",
+			"userMessageIncludes": "Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/tiny-deterministic-cpu-emulator-with-fix-3.mjs",
+											"content": "/**\n * Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TinyDeterministicCpuEmulatorWithFix3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TinyDeterministicCpuEmulatorWithFix3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TinyDeterministicCpuEmulatorWithFix3Finding[] }} TinyDeterministicCpuEmulatorWithFix3Result\n */\n\n/**\n * Evaluate one input against the tiny deterministic cpu emulator with fixed instruction set, registers — edge cases and property-style tests policy.\n * @param {TinyDeterministicCpuEmulatorWithFix3Input} input\n * @returns {TinyDeterministicCpuEmulatorWithFix3Result}\n */\nexport function evaluateTinyDeterministicCpuEmulatorWithFix3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"tiny-deterministic-cpu-emulator-with-fix-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"tiny-deterministic-cpu-emulator-with-fix-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/tiny-deterministic-cpu-emulator-with-fix-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTinyDeterministicCpuEmulatorWithFix3 } from \"../src/tiny-deterministic-cpu-emulator-with-fix-3.mjs\";\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"tiny-deterministic-cpu-emulator-with-fix-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTinyDeterministicCpuEmulatorWithFix3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests\": src/tiny-deterministic-cpu-emulator-with-fix-3.mjs, test/tiny-deterministic-cpu-emulator-with-fix-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s04",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Tiny deterministic CPU emulator with fixed instruction set, registers — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s05",
+			"requestClass": "worker",
+			"userMessageIncludes": "Microkernel model with address spaces, capability-based handles, message passing",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "",
+						"reasoning": "Thinking through \"Microkernel model with address spaces, capability-based handles, message passing\" step by step before writing files…"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/microkernel-model-with-address-spaces-ca.mjs",
+											"content": "/**\n * Microkernel model with address spaces, capability-based handles, message passing\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MicrokernelModelWithAddressSpacesCaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MicrokernelModelWithAddressSpacesCaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MicrokernelModelWithAddressSpacesCaFinding[] }} MicrokernelModelWithAddressSpacesCaResult\n */\n\n/**\n * Evaluate one input against the microkernel model with address spaces, capability-based handles, message passing policy.\n * @param {MicrokernelModelWithAddressSpacesCaInput} input\n * @returns {MicrokernelModelWithAddressSpacesCaResult}\n */\nexport function evaluateMicrokernelModelWithAddressSpacesCa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"microkernel-model-with-address-spaces-ca/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/microkernel-model-with-address-spaces-ca.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMicrokernelModelWithAddressSpacesCa } from \"../src/microkernel-model-with-address-spaces-ca.mjs\";\n\ntest(\"microkernel-model-with-address-spaces-ca: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"microkernel-model-with-address-spaces-ca: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Microkernel model with address spaces, capability-based handles, message passing\": src/microkernel-model-with-address-spaces-ca.mjs, test/microkernel-model-with-address-spaces-ca.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based handles, message passing\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Microkernel model with address spaces, capability-based handles, message passing\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Microkernel model with address spaces, capability-based handles, message passing — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/microkernel-model-with-address-spaces-ca-2.mjs",
+											"content": "/**\n * Microkernel model with address spaces, capability-based handles, message passing — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MicrokernelModelWithAddressSpacesCa2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MicrokernelModelWithAddressSpacesCa2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MicrokernelModelWithAddressSpacesCa2Finding[] }} MicrokernelModelWithAddressSpacesCa2Result\n */\n\n/**\n * Evaluate one input against the microkernel model with address spaces, capability-based handles, message passing — core engine policy.\n * @param {MicrokernelModelWithAddressSpacesCa2Input} input\n * @returns {MicrokernelModelWithAddressSpacesCa2Result}\n */\nexport function evaluateMicrokernelModelWithAddressSpacesCa2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"microkernel-model-with-address-spaces-ca-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/microkernel-model-with-address-spaces-ca-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMicrokernelModelWithAddressSpacesCa2 } from \"../src/microkernel-model-with-address-spaces-ca-2.mjs\";\n\ntest(\"microkernel-model-with-address-spaces-ca-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"microkernel-model-with-address-spaces-ca-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Microkernel model with address spaces, capability-based handles, message passing — core engine\": src/microkernel-model-with-address-spaces-ca-2.mjs, test/microkernel-model-with-address-spaces-ca-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s06",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based handles, message passing — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Microkernel model with address spaces, capability-based handles, message passing — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s07",
+			"requestClass": "worker",
+			"userMessageIncludes": "Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 8000
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/microkernel-model-with-address-spaces-ca-3.mjs",
+											"content": "/**\n * Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MicrokernelModelWithAddressSpacesCa3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MicrokernelModelWithAddressSpacesCa3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MicrokernelModelWithAddressSpacesCa3Finding[] }} MicrokernelModelWithAddressSpacesCa3Result\n */\n\n/**\n * Evaluate one input against the microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests policy.\n * @param {MicrokernelModelWithAddressSpacesCa3Input} input\n * @returns {MicrokernelModelWithAddressSpacesCa3Result}\n */\nexport function evaluateMicrokernelModelWithAddressSpacesCa3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"microkernel-model-with-address-spaces-ca-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"microkernel-model-with-address-spaces-ca-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/microkernel-model-with-address-spaces-ca-3.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMicrokernelModelWithAddressSpacesCa3 } from \"../src/microkernel-model-with-address-spaces-ca-3.mjs\";\n\ntest(\"microkernel-model-with-address-spaces-ca-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"microkernel-model-with-address-spaces-ca-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMicrokernelModelWithAddressSpacesCa3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests\": src/microkernel-model-with-address-spaces-ca-3.mjs, test/microkernel-model-with-address-spaces-ca-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Microkernel model with address spaces, capability-based handles, message passing — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Virtual memory subsystem with page tables, permissions, page faults",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/virtual-memory-subsystem-with-page-table.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/virtual-memory-subsystem-with-page-table.mjs",
+											"content": "/**\n * Virtual memory subsystem with page tables, permissions, page faults\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} VirtualMemorySubsystemWithPageTableInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} VirtualMemorySubsystemWithPageTableFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: VirtualMemorySubsystemWithPageTableFinding[] }} VirtualMemorySubsystemWithPageTableResult\n */\n\n/**\n * Evaluate one input against the virtual memory subsystem with page tables, permissions, page faults policy.\n * @param {VirtualMemorySubsystemWithPageTableInput} input\n * @returns {VirtualMemorySubsystemWithPageTableResult}\n */\nexport function evaluateVirtualMemorySubsystemWithPageTable(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"virtual-memory-subsystem-with-page-table/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/virtual-memory-subsystem-with-page-table.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateVirtualMemorySubsystemWithPageTable } from \"../src/virtual-memory-subsystem-with-page-table.mjs\";\n\ntest(\"virtual-memory-subsystem-with-page-table: accepts a clean input with evidence\", () => {\n\tconst result = evaluateVirtualMemorySubsystemWithPageTable({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"virtual-memory-subsystem-with-page-table: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateVirtualMemorySubsystemWithPageTable({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Virtual memory subsystem with page tables, permissions, page faults\": src/virtual-memory-subsystem-with-page-table.mjs, test/virtual-memory-subsystem-with-page-table.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Virtual memory subsystem with page tables, permissions, page faults\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Virtual memory subsystem with page tables, permissions, page faults\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "Virtual memory subsystem with page tables, permissions, page faults — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/virtual-memory-subsystem-with-page-table-2.mjs",
+											"content": "/**\n * Virtual memory subsystem with page tables, permissions, page faults — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} VirtualMemorySubsystemWithPageTable2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} VirtualMemorySubsystemWithPageTable2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: VirtualMemorySubsystemWithPageTable2Finding[] }} VirtualMemorySubsystemWithPageTable2Result\n */\n\n/**\n * Evaluate one input against the virtual memory subsystem with page tables, permissions, page faults — core engine policy.\n * @param {VirtualMemorySubsystemWithPageTable2Input} input\n * @returns {VirtualMemorySubsystemWithPageTable2Result}\n */\nexport function evaluateVirtualMemorySubsystemWithPageTable2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"virtual-memory-subsystem-with-page-table-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"virtual-memory-subsystem-with-page-table-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/virtual-memory-subsystem-with-page-table-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateVirtualMemorySubsystemWithPageTable2 } from \"../src/virtual-memory-subsystem-with-page-table-2.mjs\";\n\ntest(\"virtual-memory-subsystem-with-page-table-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateVirtualMemorySubsystemWithPageTable2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"virtual-memory-subsystem-with-page-table-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateVirtualMemorySubsystemWithPageTable2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Virtual memory subsystem with page tables, permissions, page faults — core engine\": src/virtual-memory-subsystem-with-page-table-2.mjs, test/virtual-memory-subsystem-with-page-table-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Virtual memory subsystem with page tables, permissions, page faults — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Virtual memory subsystem with page tables, permissions, page faults — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "chat-status",
+			"requestClass": "chat",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "The Virtualized Microkernel Operating System and Hypervisor Lab foundation is progressing card by card: scaffold first, then the domain model, then one deterministic evaluate module per foundation concern. Ask about any specific card for details."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "any-fallback",
+			"requestClass": "any",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Acknowledged. Proceeding as instructed."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		}
+	]
+}

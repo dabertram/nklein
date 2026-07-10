@@ -1,0 +1,1210 @@
+{
+	"name": "14_carbon_accounting_energy_optimization flaky run",
+	"seed": 214,
+	"tracks": [
+		{
+			"id": "perfect-decompose",
+			"requestClass": "any",
+			"userMessageIncludes": "real carbon accounting and industrial energy optimization platform, not a fake MVP",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "carbon-accounting-and-industrial-energy-optimization-platfor",
+									"title": "Carbon Accounting and Industrial Energy Optimization Platform",
+									"spec": "# Carbon Accounting and Industrial Energy Optimization Platform — foundation requirements\n\n- Facility, meter, submeter, production line, product, energy source, tariff, emissions factor, activity data, reduction project, forecast, report, and audit evidence models.\n- Scope 1 and Scope 2 accounting engine with factor versions, location-based and market-based electricity, renewable certificates, and data-quality scoring.\n- Energy baseline model that normalizes consumption against production volume, weather degree days, operating hours, and shutdown periods.\n- Tariff calculator for time-of-use rates, demand charges, power factor penalties, contracted capacity, and demand-response events.\n- Optimization planner that proposes load shifting, peak shaving, battery dispatch, and production schedule adjustments under operational constraints.\n- Measurement and verification workflow for energy projects with baseline, implementation date, savings calculation, uncertainty, and audit notes.\n- Report generator with traceable totals by facility, source, scope, factor version, and evidence gaps.\n- Seed manufacturer with multiple facilities, bad meter data, solar certificates, demand charge spike, and production-driven energy variance.\n\nDeterministic tests only (node:test, zero dependencies); every finding carries evidence; no network in acceptance.",
+									"plan": "# Implementation plan\n\nBottom-up dependency order: scaffold, then the core domain model, then one deterministic evaluate module per foundation concern (model → engine → edge cases), closing with a flagship integration test + README. Every card ships its own node:test coverage; acceptance is `npm test` everywhere.",
+									"summary": "Build the Carbon Accounting and Industrial Energy Optimization Platform foundation bottom-up: scaffold, typed domain model, deterministic evaluate modules per foundation concern, then a flagship integration test with an explainable evidence chain.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "s00",
+											"title": "Project scaffold: zero-dependency node test wiring",
+											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"dependsOn": [],
+											"complexity": 20,
+											"filesLikelyTouched": [
+												"package.json",
+												"README.md"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s01",
+											"title": "Core domain model and stable identifiers",
+											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (facility, meter, submeter, production line, product, energy source, tariff). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"dependsOn": [
+												"s00"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/domain.mjs",
+												"test/domain.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s02",
+											"title": "Scope 1 and Scope 2 accounting engine with factor",
+											"prompt": "Implement the foundation for: Scope 1 and Scope 2 accounting engine with factor versions, location-based and market-based electricity, renewable certificates, and data-quality scoring. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/scope-1-and-scope-2-accounting-engine-wi.mjs",
+												"test/scope-1-and-scope-2-accounting-engine-wi.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s03",
+											"title": "Scope 1 and Scope 2 accounting engine with factor — core engine",
+											"prompt": "Extend the scope 1 and scope 2 accounting engine with factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s02"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/scope-1-and-scope-2-accounting-engine-wi-2.mjs",
+												"test/scope-1-and-scope-2-accounting-engine-wi-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s04",
+											"title": "Energy baseline model that normalizes consumption against production volume",
+											"prompt": "Implement the foundation for: Energy baseline model that normalizes consumption against production volume, weather degree days, operating hours, and shutdown periods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/energy-baseline-model-that-normalizes-co.mjs",
+												"test/energy-baseline-model-that-normalizes-co.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s05",
+											"title": "Energy baseline model that normalizes consumption against production volume — core engine",
+											"prompt": "Extend the energy baseline model that normalizes consumption against production volume module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s04"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/energy-baseline-model-that-normalizes-co-2.mjs",
+												"test/energy-baseline-model-that-normalizes-co-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s06",
+											"title": "Tariff calculator for time-of-use rates, demand charges, power factor",
+											"prompt": "Implement the foundation for: Tariff calculator for time-of-use rates, demand charges, power factor penalties, contracted capacity, and demand-response events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/tariff-calculator-for-time-of-use-rates.mjs",
+												"test/tariff-calculator-for-time-of-use-rates.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Tariff calculator for time-of-use rates, demand charges, power factor — core engine",
+											"prompt": "Extend the tariff calculator for time-of-use rates, demand charges, power factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s06"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/tariff-calculator-for-time-of-use-rates-2.mjs",
+												"test/tariff-calculator-for-time-of-use-rates-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Optimization planner that proposes load shifting, peak shaving, battery",
+											"prompt": "Implement the foundation for: Optimization planner that proposes load shifting, peak shaving, battery dispatch, and production schedule adjustments under operational constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/optimization-planner-that-proposes-load.mjs",
+												"test/optimization-planner-that-proposes-load.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Optimization planner that proposes load shifting, peak shaving, battery — core engine",
+											"prompt": "Extend the optimization planner that proposes load shifting, peak shaving, battery module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"dependsOn": [
+												"s08"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/optimization-planner-that-proposes-load-2.mjs",
+												"test/optimization-planner-that-proposes-load-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										}
+									]
+								}
+							}
+						]
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s00",
+			"requestClass": "worker",
+			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "package.json",
+											"content": "{\n\t\"name\": \"carbon-accounting-and-industrial-energy-optimization-platfor\",\n\t\"private\": true,\n\t\"type\": \"module\",\n\t\"scripts\": {\n\t\t\"test\": \"node --test\"\n\t}\n}\n"
+										},
+										{
+											"path": "README.md",
+											"content": "# Carbon Accounting and Industrial Energy Optimization Platform\n\nDeterministic, dependency-free foundation (generated scenario baseline). Acceptance: `npm test` via node:test.\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Project scaffold: zero-dependency node test wiring\": package.json, README.md with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s00",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Project scaffold: zero-dependency node test wiring\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Project scaffold: zero-dependency node test wiring\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s01",
+			"requestClass": "worker",
+			"userMessageIncludes": "Core domain model and stable identifiers",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "http_error",
+						"status": 429,
+						"message": "simulated rate limit",
+						"retryAfterSeconds": 2
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/domain.mjs",
+											"content": "/**\n * Core domain model and stable identifiers\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainFinding[] }} DomainResult\n */\n\n/**\n * Evaluate one input against the core domain model and stable identifiers policy.\n * @param {DomainInput} input\n * @returns {DomainResult}\n */\nexport function evaluateDomain(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/domain.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomain } from \"../src/domain.mjs\";\n\ntest(\"domain: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomain({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomain({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Core domain model and stable identifiers\": src/domain.mjs, test/domain.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-429-rate then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s01",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Core domain model and stable identifiers\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s02",
+			"requestClass": "worker",
+			"userMessageIncludes": "Scope 1 and Scope 2 accounting engine with factor",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "empty_completion"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/scope-1-and-scope-2-accounting-engine-wi.mjs",
+											"content": "/**\n * Scope 1 and Scope 2 accounting engine with factor\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} Scope1AndScope2AccountingEngineWiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} Scope1AndScope2AccountingEngineWiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: Scope1AndScope2AccountingEngineWiFinding[] }} Scope1AndScope2AccountingEngineWiResult\n */\n\n/**\n * Evaluate one input against the scope 1 and scope 2 accounting engine with factor policy.\n * @param {Scope1AndScope2AccountingEngineWiInput} input\n * @returns {Scope1AndScope2AccountingEngineWiResult}\n */\nexport function evaluateScope1AndScope2AccountingEngineWi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scope-1-and-scope-2-accounting-engine-wi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/scope-1-and-scope-2-accounting-engine-wi.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateScope1AndScope2AccountingEngineWi } from \"../src/scope-1-and-scope-2-accounting-engine-wi.mjs\";\n\ntest(\"scope-1-and-scope-2-accounting-engine-wi: accepts a clean input with evidence\", () => {\n\tconst result = evaluateScope1AndScope2AccountingEngineWi({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"scope-1-and-scope-2-accounting-engine-wi: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateScope1AndScope2AccountingEngineWi({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Scope 1 and Scope 2 accounting engine with factor\": src/scope-1-and-scope-2-accounting-engine-wi.mjs, test/scope-1-and-scope-2-accounting-engine-wi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s02",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Scope 1 and Scope 2 accounting engine with factor\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Scope 1 and Scope 2 accounting engine with factor\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s03",
+			"requestClass": "worker",
+			"userMessageIncludes": "Scope 1 and Scope 2 accounting engine with factor — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/scope-1-and-scope-2-accounting-engine-wi-2.mjs",
+											"content": "/**\n * Scope 1 and Scope 2 accounting engine with factor — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} Scope1AndScope2AccountingEngineWi2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} Scope1AndScope2AccountingEngineWi2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: Scope1AndScope2AccountingEngineWi2Finding[] }} Scope1AndScope2AccountingEngineWi2Result\n */\n\n/**\n * Evaluate one input against the scope 1 and scope 2 accounting engine with factor — core engine policy.\n * @param {Scope1AndScope2AccountingEngineWi2Input} input\n * @returns {Scope1AndScope2AccountingEngineWi2Result}\n */\nexport function evaluateScope1AndScope2AccountingEngineWi2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"scope-1-and-scope-2-accounting-engine-wi-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"scope-1-and-scope-2-accounting-engine-wi-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/scope-1-and-scope-2-accounting-engine-wi-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateScope1AndScope2AccountingEngineWi2 } from \"../src/scope-1-and-scope-2-accounting-engine-wi-2.mjs\";\n\ntest(\"scope-1-and-scope-2-accounting-engine-wi-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateScope1AndScope2AccountingEngineWi2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"scope-1-and-scope-2-accounting-engine-wi-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateScope1AndScope2AccountingEngineWi2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Scope 1 and Scope 2 accounting engine with factor — core engine\": src/scope-1-and-scope-2-accounting-engine-wi-2.mjs, test/scope-1-and-scope-2-accounting-engine-wi-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s03",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Scope 1 and Scope 2 accounting engine with factor — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Scope 1 and Scope 2 accounting engine with factor — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s04",
+			"requestClass": "worker",
+			"userMessageIncludes": "Energy baseline model that normalizes consumption against production volume",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/energy-baseline-model-that-normalizes-co.mjs",
+											"content": "/**\n * Energy baseline model that normalizes consumption against production volume\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EnergyBaselineModelThatNormalizesCoInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EnergyBaselineModelThatNormalizesCoFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EnergyBaselineModelThatNormalizesCoFinding[] }} EnergyBaselineModelThatNormalizesCoResult\n */\n\n/**\n * Evaluate one input against the energy baseline model that normalizes consumption against production volume policy.\n * @param {EnergyBaselineModelThatNormalizesCoInput} input\n * @returns {EnergyBaselineModelThatNormalizesCoResult}\n */\nexport function evaluateEnergyBaselineModelThatNormalizesCo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"energy-baseline-model-that-normalizes-co/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/energy-baseline-model-that-normalizes-co.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateEnergyBaselineModelThatNormalizesCo } from \"../src/energy-baseline-model-that-normalizes-co.mjs\";\n\ntest(\"energy-baseline-model-that-normalizes-co: accepts a clean input with evidence\", () => {\n\tconst result = evaluateEnergyBaselineModelThatNormalizesCo({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"energy-baseline-model-that-normalizes-co: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateEnergyBaselineModelThatNormalizesCo({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Energy baseline model that normalizes consumption against production volume\": src/energy-baseline-model-that-normalizes-co.mjs, test/energy-baseline-model-that-normalizes-co.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s04",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Energy baseline model that normalizes consumption against production volume\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Energy baseline model that normalizes consumption against production volume\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s05",
+			"requestClass": "worker",
+			"userMessageIncludes": "Energy baseline model that normalizes consumption against production volume — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "",
+						"reasoning": "Thinking through \"Energy baseline model that normalizes consumption against production volume — core engine\" step by step before writing files…"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/energy-baseline-model-that-normalizes-co-2.mjs",
+											"content": "/**\n * Energy baseline model that normalizes consumption against production volume — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EnergyBaselineModelThatNormalizesCo2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EnergyBaselineModelThatNormalizesCo2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EnergyBaselineModelThatNormalizesCo2Finding[] }} EnergyBaselineModelThatNormalizesCo2Result\n */\n\n/**\n * Evaluate one input against the energy baseline model that normalizes consumption against production volume — core engine policy.\n * @param {EnergyBaselineModelThatNormalizesCo2Input} input\n * @returns {EnergyBaselineModelThatNormalizesCo2Result}\n */\nexport function evaluateEnergyBaselineModelThatNormalizesCo2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"energy-baseline-model-that-normalizes-co-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"energy-baseline-model-that-normalizes-co-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/energy-baseline-model-that-normalizes-co-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateEnergyBaselineModelThatNormalizesCo2 } from \"../src/energy-baseline-model-that-normalizes-co-2.mjs\";\n\ntest(\"energy-baseline-model-that-normalizes-co-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateEnergyBaselineModelThatNormalizesCo2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"energy-baseline-model-that-normalizes-co-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateEnergyBaselineModelThatNormalizesCo2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Energy baseline model that normalizes consumption against production volume — core engine\": src/energy-baseline-model-that-normalizes-co-2.mjs, test/energy-baseline-model-that-normalizes-co-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s05",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Energy baseline model that normalizes consumption against production volume — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Energy baseline model that normalizes consumption against production volume — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s06",
+			"requestClass": "worker",
+			"userMessageIncludes": "Tariff calculator for time-of-use rates, demand charges, power factor",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 8000
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/tariff-calculator-for-time-of-use-rates.mjs",
+											"content": "/**\n * Tariff calculator for time-of-use rates, demand charges, power factor\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TariffCalculatorForTimeOfUseRatesInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TariffCalculatorForTimeOfUseRatesFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TariffCalculatorForTimeOfUseRatesFinding[] }} TariffCalculatorForTimeOfUseRatesResult\n */\n\n/**\n * Evaluate one input against the tariff calculator for time-of-use rates, demand charges, power factor policy.\n * @param {TariffCalculatorForTimeOfUseRatesInput} input\n * @returns {TariffCalculatorForTimeOfUseRatesResult}\n */\nexport function evaluateTariffCalculatorForTimeOfUseRates(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"tariff-calculator-for-time-of-use-rates/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/tariff-calculator-for-time-of-use-rates.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTariffCalculatorForTimeOfUseRates } from \"../src/tariff-calculator-for-time-of-use-rates.mjs\";\n\ntest(\"tariff-calculator-for-time-of-use-rates: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTariffCalculatorForTimeOfUseRates({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"tariff-calculator-for-time-of-use-rates: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTariffCalculatorForTimeOfUseRates({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Tariff calculator for time-of-use rates, demand charges, power factor\": src/tariff-calculator-for-time-of-use-rates.mjs, test/tariff-calculator-for-time-of-use-rates.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s06",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tariff calculator for time-of-use rates, demand charges, power factor\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Tariff calculator for time-of-use rates, demand charges, power factor\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s07",
+			"requestClass": "worker",
+			"userMessageIncludes": "Tariff calculator for time-of-use rates, demand charges, power factor — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/tariff-calculator-for-time-of-use-rates-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/tariff-calculator-for-time-of-use-rates-2.mjs",
+											"content": "/**\n * Tariff calculator for time-of-use rates, demand charges, power factor — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TariffCalculatorForTimeOfUseRates2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TariffCalculatorForTimeOfUseRates2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TariffCalculatorForTimeOfUseRates2Finding[] }} TariffCalculatorForTimeOfUseRates2Result\n */\n\n/**\n * Evaluate one input against the tariff calculator for time-of-use rates, demand charges, power factor — core engine policy.\n * @param {TariffCalculatorForTimeOfUseRates2Input} input\n * @returns {TariffCalculatorForTimeOfUseRates2Result}\n */\nexport function evaluateTariffCalculatorForTimeOfUseRates2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"tariff-calculator-for-time-of-use-rates-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"tariff-calculator-for-time-of-use-rates-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/tariff-calculator-for-time-of-use-rates-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTariffCalculatorForTimeOfUseRates2 } from \"../src/tariff-calculator-for-time-of-use-rates-2.mjs\";\n\ntest(\"tariff-calculator-for-time-of-use-rates-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTariffCalculatorForTimeOfUseRates2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"tariff-calculator-for-time-of-use-rates-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTariffCalculatorForTimeOfUseRates2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Tariff calculator for time-of-use rates, demand charges, power factor — core engine\": src/tariff-calculator-for-time-of-use-rates-2.mjs, test/tariff-calculator-for-time-of-use-rates-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Tariff calculator for time-of-use rates, demand charges, power factor — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Tariff calculator for time-of-use rates, demand charges, power factor — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "Optimization planner that proposes load shifting, peak shaving, battery",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/optimization-planner-that-proposes-load.mjs",
+											"content": "/**\n * Optimization planner that proposes load shifting, peak shaving, battery\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} OptimizationPlannerThatProposesLoadInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} OptimizationPlannerThatProposesLoadFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: OptimizationPlannerThatProposesLoadFinding[] }} OptimizationPlannerThatProposesLoadResult\n */\n\n/**\n * Evaluate one input against the optimization planner that proposes load shifting, peak shaving, battery policy.\n * @param {OptimizationPlannerThatProposesLoadInput} input\n * @returns {OptimizationPlannerThatProposesLoadResult}\n */\nexport function evaluateOptimizationPlannerThatProposesLoad(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"optimization-planner-that-proposes-load/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/optimization-planner-that-proposes-load.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateOptimizationPlannerThatProposesLoad } from \"../src/optimization-planner-that-proposes-load.mjs\";\n\ntest(\"optimization-planner-that-proposes-load: accepts a clean input with evidence\", () => {\n\tconst result = evaluateOptimizationPlannerThatProposesLoad({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"optimization-planner-that-proposes-load: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateOptimizationPlannerThatProposesLoad({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Optimization planner that proposes load shifting, peak shaving, battery\": src/optimization-planner-that-proposes-load.mjs, test/optimization-planner-that-proposes-load.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Optimization planner that proposes load shifting, peak shaving, battery\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Optimization planner that proposes load shifting, peak shaving, battery\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "Optimization planner that proposes load shifting, peak shaving, battery — core engine",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/optimization-planner-that-proposes-load-2.mjs",
+											"content": "/**\n * Optimization planner that proposes load shifting, peak shaving, battery — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} OptimizationPlannerThatProposesLoad2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} OptimizationPlannerThatProposesLoad2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: OptimizationPlannerThatProposesLoad2Finding[] }} OptimizationPlannerThatProposesLoad2Result\n */\n\n/**\n * Evaluate one input against the optimization planner that proposes load shifting, peak shaving, battery — core engine policy.\n * @param {OptimizationPlannerThatProposesLoad2Input} input\n * @returns {OptimizationPlannerThatProposesLoad2Result}\n */\nexport function evaluateOptimizationPlannerThatProposesLoad2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"optimization-planner-that-proposes-load-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"optimization-planner-that-proposes-load-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/optimization-planner-that-proposes-load-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateOptimizationPlannerThatProposesLoad2 } from \"../src/optimization-planner-that-proposes-load-2.mjs\";\n\ntest(\"optimization-planner-that-proposes-load-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateOptimizationPlannerThatProposesLoad2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"optimization-planner-that-proposes-load-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateOptimizationPlannerThatProposesLoad2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Optimization planner that proposes load shifting, peak shaving, battery — core engine\": src/optimization-planner-that-proposes-load-2.mjs, test/optimization-planner-that-proposes-load-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Optimization planner that proposes load shifting, peak shaving, battery — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Optimization planner that proposes load shifting, peak shaving, battery — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "chat-status",
+			"requestClass": "chat",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "The Carbon Accounting and Industrial Energy Optimization Platform foundation is progressing card by card: scaffold first, then the domain model, then one deterministic evaluate module per foundation concern. Ask about any specific card for details."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "any-fallback",
+			"requestClass": "any",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Acknowledged. Proceeding as instructed."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		}
+	]
+}

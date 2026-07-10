@@ -19,3 +19,8 @@ Tool shapes were confirmed from source: `decompose_project` args per `src/nklein
 **Assumptions to verify when the compiler/driver lands:** (1) the driver prefers the most specific `userMessageIncludes` match within a request class — worker/review tracks key on exact card titles (unique strings; the review seed prompt embeds the title); (2) `t-sse-stall-mid` is approximated with the `stall` behavior (TTFT-style dead stream) because the behavior union has no mid-stream-stall knob yet; (3) `c-trunc-tool-json` is expressed as a truncated string argument value, since `tool_calls.arguments` is parsed JSON by construction.
 
 Validated with a structural checker (JSON.parse + field asserts incl. behavior-union fields, unique ids, dep resolution, per-card worker/review coverage, complexity ≤ 75, filesLikelyTouched ≤ 3, failure-track shapes).
+
+**Wire-truth patch (2026-07-10, fast-path bring-up):** decompose is now requestClass `any` keyed on the seed-only
+product phrase (plan seeds are wire-identical to worker cards — no universal decompose signal exists); review tracks
+close with a text turn (the runner re-prompts until a non-tool turn); `repeatLastTurn` everywhere so redrives/nudges
+never strict-miss; an `any-fallback` track catches the unexpected. See packages/llm-simulator/test/request-classifier.test.ts.

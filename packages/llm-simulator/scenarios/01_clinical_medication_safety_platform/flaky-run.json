@@ -4,8 +4,8 @@
 	"tracks": [
 		{
 			"id": "perfect-decompose",
-			"requestClass": "decompose",
-			"userMessageIncludes": "medication safety",
+			"requestClass": "any",
+			"userMessageIncludes": "real clinical medication safety and adherence platform, not a fake MVP",
 			"turns": [
 				{
 					"behavior": {
@@ -207,7 +207,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path decompose reduced to the 10 reused worker cards so every decomposed card has a scripted worker track (deps trimmed to the subset)."
+			"provenance": "Authored happy-path decompose reduced to the 10 reused worker cards so every decomposed card has a scripted worker track (deps trimmed to the subset).",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "c-stringified-json",
@@ -250,7 +251,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog c-stringified-json: args as a JSON string (weak-model classic — already recovered in decompose); harness must detect string-parses-as-expected-type and unwrap one level."
+			"provenance": "failure-catalog c-stringified-json: args as a JSON string (weak-model classic — already recovered in decompose); harness must detect string-parses-as-expected-type and unwrap one level.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "c-trunc-tool-json",
@@ -321,7 +323,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog c-trunc-tool-json: tool args truncated by token limit (files value is an unparseable cut-off JSON string); harness must give DISTINCT 'output truncated' feedback, not a generic invalid-call bounce. Turn 3 is the recovered full write."
+			"provenance": "failure-catalog c-trunc-tool-json: tool args truncated by token limit (files value is an unparseable cut-off JSON string); harness must give DISTINCT 'output truncated' feedback, not a generic invalid-call bounce. Turn 3 is the recovered full write.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "c-reasoning-only",
@@ -371,7 +374,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog c-reasoning-only: content empty, answer in reasoning_content (R1/Gemma-style); harness must read the reasoning channel before declaring the turn empty, then re-prompt — turn 2 onward is the recovered flow."
+			"provenance": "failure-catalog c-reasoning-only: content empty, answer in reasoning_content (R1/Gemma-style); harness must read the reasoning channel before declaring the turn empty, then re-prompt — turn 2 onward is the recovered flow.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "a-same-question",
@@ -469,7 +473,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog t-429-rate: transient rate limit (+retry-after); harness must honor Retry-After (else backoff+jitter) and the failed call still counts. Turns 2+ are the normal card flow after the retry."
+			"provenance": "failure-catalog t-429-rate: transient rate limit (+retry-after); harness must honor Retry-After (else backoff+jitter) and the failed call still counts. Turns 2+ are the normal card flow after the retry.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "t-sse-stall-mid",
@@ -548,7 +553,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog t-sse-stall-mid: events stop with the connection open and no terminator — approximated with the `stall` behavior (TTFT-style dead stream) until the compiler grows a mid-stream stall knob; harness must abort on the inter-chunk idle timeout and retry. Turns 2+ are the recovered flow."
+			"provenance": "failure-catalog t-sse-stall-mid: events stop with the connection open and no terminator — approximated with the `stall` behavior (TTFT-style dead stream) until the compiler grows a mid-stream stall knob; harness must abort on the inter-chunk idle timeout and retry. Turns 2+ are the recovered flow.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "c-empty-completion",
@@ -611,7 +617,8 @@
 					}
 				}
 			],
-			"provenance": "failure-catalog c-empty-completion: 200 with empty/null content and no tools; harness must check the reasoning channel too, retry once with a nudge, and never persist an empty assistant turn. Turns 2+ are the recovered flow."
+			"provenance": "failure-catalog c-empty-completion: 200 with empty/null content and no tools; harness must check the reasoning channel too, retry once with a nudge, and never persist an empty assistant turn. Turns 2+ are the recovered flow.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s24",
@@ -669,7 +676,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s28",
@@ -743,7 +751,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-worker-s32",
@@ -813,7 +822,8 @@
 					}
 				}
 			],
-			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures.",
+			"repeatLastTurn": true
 		},
 		{
 			"id": "perfect-review-any",
@@ -834,6 +844,12 @@
 							}
 						]
 					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
 				}
 			],
 			"repeatLastTurn": true,
@@ -853,6 +869,20 @@
 			],
 			"repeatLastTurn": true,
 			"provenance": "Authored chat baseline for the flaky run."
+		},
+		{
+			"id": "any-fallback",
+			"requestClass": "any",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Acknowledged. Proceeding as instructed."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "wire-truth patch 2026-07-10 (fast-path bring-up)"
 		}
 	],
 	"chaosProbability": 0
