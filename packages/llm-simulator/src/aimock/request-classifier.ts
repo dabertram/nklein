@@ -17,7 +17,12 @@ export interface ClassifierRequestShape {
 export interface RequestClassMarkers {
 	/** Tool names whose presence in the offered tool list marks a class (checked first). */
 	toolNameMarkers: Record<string, RequestClass>;
-	/** Lowercased substrings matched against the concatenated system messages (first hit wins, in order). */
+	/**
+	 * Lowercased substrings matched against the concatenated SYSTEM + USER text (first hit wins, in order).
+	 * !Klein delivers role framing through both channels (e.g. the review seed "You are the second-opinion
+	 * reviewer…" is a USER message), so scanning only system messages missed real classes (live-found while
+	 * bringing up the simulated fast path, 2026-07-10).
+	 */
 	systemMarkers: Array<{ includes: string; requestClass: RequestClass }>;
 }
 
@@ -27,18 +32,20 @@ export const DEFAULT_REQUEST_CLASS_MARKERS: RequestClassMarkers = {
 		decompose_project: "decompose",
 	},
 	systemMarkers: [
+		{ includes: "second-opinion reviewer", requestClass: "review" },
 		{ includes: "second-opinion review", requestClass: "review" },
 		{ includes: "review the work", requestClass: "review" },
-		{ includes: "reviewer", requestClass: "review" },
-		{ includes: "acceptance", requestClass: "acceptance" },
+		// The worker card-prompt scaffold (live capture 2026-07-10): "Leaf scope: complete only this card's…".
+		{ includes: "leaf scope:", requestClass: "worker" },
+		{ includes: "acceptance check", requestClass: "worker" },
 		{ includes: "efficiency rules", requestClass: "worker" },
 		{ includes: "kanban", requestClass: "worker" },
 	],
 };
 
-function systemText(request: ClassifierRequestShape): string {
+function markerText(request: ClassifierRequestShape): string {
 	return (request.messages ?? [])
-		.filter((message) => message.role === "system")
+		.filter((message) => message.role === "system" || message.role === "user")
 		.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content ?? "")))
 		.join("\n")
 		.toLowerCase();
@@ -55,7 +62,7 @@ export function classifyRequest(
 			return byTool;
 		}
 	}
-	const system = systemText(request);
+	const system = markerText(request);
 	for (const marker of markers.systemMarkers) {
 		if (system.includes(marker.includes)) {
 			return marker.requestClass;

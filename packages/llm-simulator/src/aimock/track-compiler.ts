@@ -92,14 +92,43 @@ export interface CompileOptions {
 	markers?: RequestClassMarkers;
 }
 
+/** Flatten a message's content (plain string OR OpenAI content-part array) to text. */
+function contentToText(content: unknown): string {
+	if (typeof content === "string") {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text ?? "") : ""))
+			.join("\n");
+	}
+	return "";
+}
+
+function userText(request: { messages?: Array<{ role?: string; content?: unknown }> }): string {
+	return (request.messages ?? [])
+		.filter((message) => message.role === "user")
+		.map((message) => contentToText(message.content))
+		.join("\n");
+}
+
 /** Compile one track into its fixtures (one per turn + the optional repeat catch-all). */
 export function compileTrack(track: ScenarioTrack, options: CompileOptions = {}): Fixture[] {
 	const markers = options.markers ?? DEFAULT_REQUEST_CLASS_MARKERS;
+	// The userMessageIncludes check lives in OUR predicate, not aimock's `userMessage` matcher: !Klein sends
+	// OpenAI content-part ARRAYS ([{type:"text",text:…}]) and aimock's matcher only reads string content
+	// (live-found bringing up the fast path, 2026-07-10 — real worker requests silently missed their tracks).
+	const needle = track.userMessageIncludes?.toLowerCase();
 	const match: Fixture["match"] = {
-		...(track.userMessageIncludes ? { userMessage: track.userMessageIncludes } : {}),
-		predicate: (request) =>
-			track.requestClass === "any" ||
-			classifyRequest(request as Parameters<typeof classifyRequest>[0], markers) === track.requestClass,
+		predicate: (request) => {
+			const shaped = request as Parameters<typeof classifyRequest>[0] & {
+				messages?: Array<{ role?: string; content?: unknown }>;
+			};
+			if (needle && !userText(shaped).toLowerCase().includes(needle)) {
+				return false;
+			}
+			return track.requestClass === "any" || classifyRequest(shaped, markers) === track.requestClass;
+		},
 	};
 	const fixtures: Fixture[] = track.turns.map((turn, index) => ({
 		match: { ...match, sequenceIndex: index },

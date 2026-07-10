@@ -1,0 +1,859 @@
+{
+	"name": "01-clinical-medication-safety flaky run",
+	"seed": 102,
+	"tracks": [
+		{
+			"id": "perfect-decompose",
+			"requestClass": "decompose",
+			"userMessageIncludes": "medication safety",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "clinical-medication-safety-platform",
+									"title": "Clinical Medication Safety and Adherence Platform",
+									"spec": "# Clinical Medication Safety and Adherence Platform — requirements\n\nDecision support for small clinics, home-care nurses, and family caregivers. NOT diagnosis or prescribing.\n- Typed domain model (patient, medication-as-concept, schedule, prescriber, pharmacy, caregiver, adherence event) with stable branded ids and an append-only audit history.\n- Medication reconciliation comparing imported, patient-reported, and clinician-approved lists; every input keeps source provenance and lands in accepted/rejected/unmatched (totality — nothing vanishes). Unresolvable free text is a first-class BLOCKING unmatched state.\n- Concept normalization over an RxNorm-shaped fixture graph (text/brand/NDC -> SCD -> IN); combination products (MIN) decompose to ingredients before any rule runs.\n- Rule engine: duplicate active ingredient, therapeutic-class duplication, max daily dose (unit-safe, frequency-folded), allergy with side-chain-graded beta-lactam cross-reactivity, contraindication. Alerts are typed, severity-tiered (interruptive vs passive), evidence-bearing, suppressible within a severity ceiling (contraindicated is never suppressible).\n- Suppression memory with provenance (who/when/scope/reason) and expiry on an injected clock.\n- Adherence calendar (taken/missed/skipped-by-instruction/held-by-clinician/unknown) and refill-exhaustion forecast, both timezone-deterministic on an injected Clock; clinician holds extend supply.\n- Task queue (caregiver follow-up / clinician review / refill request / patient education) where every task traces to facts and rule evidence.\n- Plain-language patient summary that never leaks raw scores or clinical directives (denylist-enforced).\n- Deterministic seed data: five patients with conflicting histories + the adversarial E4 fixtures. npm test green with zero network.",
+									"plan": "# Implementation plan\n\nStrict dependency order; foundations before workflows, workflows before presentation.\n1. Scaffold + core types + injected Clock (s00-s02).\n2. Unit-safe dose arithmetic; RxNorm fixture graph; concept resolver with blocking unmatched state; versioned ReferencePack; append-only AuditLog (s03-s08).\n3. Shared rule contracts, then the five rules as separate pure modules, then the evaluateRules facade that filters to active items once (s09-s15).\n4. Suppression memory: ceiling, audit integration, expiry, fuzz invariant (s16-s19).\n5. Reconciliation with totality + property test (s20-s21).\n6. Adherence calendar + TZ determinism; refill forecast + held-medication scenario (s22-s25).\n7. Task queue + traceability; patient summary + denylist negatives (s26-s29).\n8. Seeded patients, adversarial fixtures, flagship integration test (s30-s32).\n9. Breadth per the spec recipes: class breadth (s33-s35), audit projections (s36), knowledge-debt ledger (s37), LASA rule (s38), FHIR-shaped import adapter (s39), README (s40).\nEvery card ships its own tests; npm test is the acceptance command everywhere; no Date.now(), no Math.random(), no network.",
+									"summary": "Build the safety spine first — types, clock, dose units, concept resolver, reference pack, audit log — then the five evidence-bearing rules and their facade, then suppression memory, reconciliation, adherence/refill projections, the task queue, and the guarded patient summary, finishing with seeded patients, adversarial fixtures, and a flagship integration test. Breadth cards extend classes, projections, LASA, and a FHIR-shaped import adapter.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "s03",
+											"title": "Unit-safe dose and quantity arithmetic",
+											"prompt": "Create src/core/dose.ts per S03: DoseUnit/FrequencyUnit/WeightUnit, Quantity, Weight, toKg (1 kg = 2.2 lb), frequencyToDailyMultiplier (as-needed -> null), dailyDoseMg folding frequency and weight, and UnitMismatchError. Any unit the function cannot handle must THROW UnitMismatchError, never coerce silently. test/dose.test.ts covers lb->kg, every-6h=4, 500mg qid=2000, 10mg/kg bid at 70kg=1400, missing-weight throw, and as-needed null.",
+											"dependsOn": [],
+											"complexity": 45,
+											"filesLikelyTouched": [
+												"src/core/dose.ts",
+												"test/dose.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false,
+											"knowledgeDebt": "mg/m2 BSA dosing and renal-interval adjustment are not modeled; a later card must add explicit, pharmacist-reviewed conversion hooks instead of widening this arithmetic."
+										},
+										{
+											"id": "s05",
+											"title": "MedicationConceptResolver with unmatched blocking state",
+											"prompt": "Create src/core/medication-concept-resolver.ts per S04: resolve(input) matches exact rxcui, then case-insensitive name, then substring; ambiguity or no match returns { unmatched: { inputText, reason, blocksReconciliation: true } } — never a silent drop. getIngredients decomposes MIN/SCD/SBD to IN-level rxcuis. Tests cover Tylenol -> SBD, case-insensitive SCD lookup, 'a water pill' -> unmatched, and MIN decomposition to both INs.",
+											"dependsOn": [],
+											"complexity": 55,
+											"filesLikelyTouched": [
+												"src/core/medication-concept-resolver.ts",
+												"test/medication-concept-resolver.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false,
+											"knowledgeDebt": "Real NDC mapping has obsolete/repackager ambiguity the fixture graph cannot express; the unmatched/ambiguous path is the extension point and its limits are recorded debt.",
+											"preconditions": [
+												"src/fixtures/rxnorm-graph.ts exports FIXTURE_RXNORM_GRAPH (s04 merged)"
+											],
+											"expectedOutputs": [
+												"MedicationConceptResolver.resolve(input: string): ResolutionResult",
+												"MedicationConceptResolver.getIngredients(rxcui): MedicationConceptId[]"
+											],
+											"acceptanceChecks": [
+												"'a water pill' resolves to unmatched with blocksReconciliation true",
+												"the Acetaminophen/Hydrocodone MIN decomposes to both ingredient INs"
+											],
+											"nonGoals": [
+												"No live RxNorm/NDC directory calls; the fixture graph is the only source"
+											]
+										},
+										{
+											"id": "s08",
+											"title": "Append-only AuditLog",
+											"prompt": "Create src/core/audit-log.ts per S06: AuditEventType union, AuditEvent, and class AuditLog with append (deterministic counter ids), getAll, getByPatient — returned arrays are copies so callers cannot mutate history. Tests assert sequential ids '1'/'2', insertion order, patient filtering, and immutability of the returned array.",
+											"dependsOn": [],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/core/audit-log.ts",
+												"test/audit-log.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s12",
+											"title": "Max-daily-dose rule with frequency folding",
+											"prompt": "Create src/core/rules/max-dose.ts: checkMaxDailyDose(facts, regimen, pack) computes each ACTIVE item's daily mg via dailyDoseMg (folding frequency, using facts.weightKg for weight-based units) and fires a serious 'max-dose' alert when a pack doseCeiling for a resolved ingredient is exceeded. UnitMismatchError must propagate, never be swallowed. Test: APAP 1500mg qid (6000/day) fires against the 4000 ceiling; 500mg bid does not; as-needed items are skipped.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/core/rules/max-dose.ts",
+												"test/max-dose.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s15",
+											"title": "evaluateRules facade over the five rules",
+											"prompt": "Create src/core/rule-engine.ts: evaluateRules(facts, regimen, pack) filters the regimen to status 'active' ONCE, then concatenates dup-ingredient, dup-class, max-dose, allergy, and contraindication results (pure function, no I/O). Held/stopped items must never reach any rule. test/rule-engine.test.ts re-runs the S07 acceptance table: SSRI duplication, APAP 6000 over-ceiling, amoxicillin exact allergy, cephalexin moderate cross-reactivity, aztreonam informational, contraindicated pair unsuppressible, held item silent, and evidence.length >= 1 on every alert.",
+											"dependsOn": [
+												"s12"
+											],
+											"complexity": 45,
+											"filesLikelyTouched": [
+												"src/core/rule-engine.ts",
+												"test/rule-engine.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false,
+											"acceptanceChecks": [
+												"held medications produce zero alerts across all five rules",
+												"every returned alert carries evidence.length >= 1"
+											]
+										},
+										{
+											"id": "s20",
+											"title": "Reconciliation workflow with source provenance",
+											"prompt": "Create src/core/reconciliation.ts per S09: MedicationSource, ReconciliationItem (conceptId nullable, inputText, source, provenance), Discrepancy, and pure reconcile(items, resolver, clinicianApprovedIds, clock) -> { accepted, rejected, unmatched, discrepancies }. TOTALITY is the law: every input lands in exactly one of accepted/rejected/unmatched with provenance preserved — resolver-unmatched items go to unmatched (blocking), never dropped. Classify conservative 'unintentional' when in doubt; clinician-approved items absent from imports classify 'intentional-documented'.",
+											"dependsOn": [
+												"s05",
+												"s08"
+											],
+											"complexity": 60,
+											"filesLikelyTouched": [
+												"src/core/reconciliation.ts",
+												"test/reconciliation.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s22",
+											"title": "Adherence calendar summary",
+											"prompt": "Create src/core/adherence-calendar.ts per S10: AdherenceEvent and summarizeAdherence(events, patientId, conceptId, periodStart, periodEnd) counting taken/missed/skippedByInstruction/heldByClinician/unknown over [periodStart, periodEnd) — pure counts, no percentages, no Date.now(). Tests: a 10-event set counts exactly, out-of-period events are excluded, and two identical calls are deeply equal.",
+											"dependsOn": [],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/core/adherence-calendar.ts",
+												"test/adherence-calendar.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s24",
+											"title": "Refill-exhaustion forecast on the injected clock",
+											"prompt": "Create src/core/refill-forecast.ts per S11: forecastRefill(conceptId, lastFillDate, remainingQuantityMg, dose, frequency, knownHoldDays, clock, weightKg?) -> RefillForecast. Hold days extend supply (adjustedRemaining = remaining + holdDays*dailyDose); projectedExhaustionDate anchors to lastFillDate; daysUntilExhaustion floors against clock.now(); isAtRisk <= 7 days; as-needed yields nulls and isAtRisk false. Tests: 100mg at 10mg/day clock at +5d => ~5 days left; +7 hold days shifts the date 7 days; as-needed returns nulls.",
+											"dependsOn": [
+												"s03"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/core/refill-forecast.ts",
+												"test/refill-forecast.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false,
+											"knowledgeDebt": "Renal/hepatic dose adjustment and partial fills are not modeled; the forecast assumes constant consumption between fills. Flagged for pharmacist review before production use."
+										},
+										{
+											"id": "s28",
+											"title": "Plain-language patient summary with denylist",
+											"prompt": "Create src/core/patient-summary.ts per S13: SUMMARY_DENYLIST (raw mg/score numerics; diagnose/treat/prescribe directive verbs) and generatePatientSummary(patientId, regimen, adherenceSummary, forecasts, openTasks, clock). Adherence note in plain dose-count English; refill reminders in DAYS only (never mg); only caregiver-follow-up and patient-education tasks surface to patients; every emitted string is checked against the denylist and a violation THROWS. Tests: adherence sentence present, at-risk reminder present, clinician-review tasks hidden, injected raw score throws.",
+											"dependsOn": [
+												"s22",
+												"s24"
+											],
+											"complexity": 50,
+											"filesLikelyTouched": [
+												"src/core/patient-summary.ts",
+												"test/patient-summary.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s32",
+											"title": "Flagship integration test over seeded patients",
+											"prompt": "Create test/integration.test.ts wiring S01-S31 together over PATIENT_FIXTURES: patient a fires dup-ingredient (MIN decomposition proof); b gets moderate for cephalexin and informational for aztreonam; c fires max-dose; d evaluates without UnitMismatchError; e's moderate DDI records an always-for-pair suppression and isSuppressed flips true while a contraindicated suppression attempt throws; every alert has evidence.length >= 1; reconciliation of 'a water pill' lands unmatched; the whole suite is identical across two consecutive runs with the same FixedClock.",
+											"dependsOn": [
+												"s15",
+												"s20",
+												"s24",
+												"s28"
+											],
+											"complexity": 65,
+											"filesLikelyTouched": [
+												"test/integration.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false,
+											"preconditions": [
+												"all rule cards, suppression, reconciliation, and fixtures merged (s15/s16/s20/s31)"
+											],
+											"acceptanceChecks": [
+												"all five patients produce their expected alert profile",
+												"suppression replay demotes the moderate DDI and refuses the contraindicated one",
+												"npm test green with zero network calls"
+											]
+										}
+									]
+								}
+							}
+						]
+					},
+					"streaming": {
+						"ttftMs": 1800,
+						"tokensPerSecond": 34
+					}
+				}
+			],
+			"provenance": "Authored happy-path decompose reduced to the 10 reused worker cards so every decomposed card has a scripted worker track (deps trimmed to the subset)."
+		},
+		{
+			"id": "c-stringified-json",
+			"requestClass": "worker",
+			"userMessageIncludes": "Unit-safe dose and quantity arithmetic",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/types.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/core/dose.ts\",\"content\":\"export type DoseUnit = 'mg' | 'mg/kg' | 'mg/kg/day' | 'mcg' | 'g';\\nexport type FrequencyUnit = 'daily' | 'twice-daily' | 'three-times-daily' | 'four-times-daily' | 'every-6h' | 'every-8h' | 'every-12h' | 'as-needed';\\nexport type WeightUnit = 'kg' | 'lb';\\nexport type Quantity = { value: number; unit: DoseUnit };\\nexport type Weight = { value: number; unit: WeightUnit };\\n\\nexport class UnitMismatchError extends Error {\\n\\tconstructor(message: string) {\\n\\t\\tsuper(message);\\n\\t\\tthis.name = 'UnitMismatchError';\\n\\t}\\n}\\n\\nexport function toKg(w: Weight): Weight {\\n\\treturn w.unit === 'lb' ? { value: w.value / 2.2, unit: 'kg' } : { ...w };\\n}\\n\\nconst DAILY_MULTIPLIER: Record<FrequencyUnit, number | null> = {\\n\\tdaily: 1,\\n\\t'twice-daily': 2,\\n\\t'three-times-daily': 3,\\n\\t'four-times-daily': 4,\\n\\t'every-6h': 4,\\n\\t'every-8h': 3,\\n\\t'every-12h': 2,\\n\\t'as-needed': null,\\n};\\n\\nexport function frequencyToDailyMultiplier(f: FrequencyUnit): number | null {\\n\\treturn DAILY_MULTIPLIER[f];\\n}\\n\\nexport function dailyDoseMg(dose: Quantity, freq: FrequencyUnit, weightKg?: number): number | null {\\n\\tconst multiplier = frequencyToDailyMultiplier(freq);\\n\\tif (multiplier === null) return null;\\n\\tswitch (dose.unit) {\\n\\t\\tcase 'mg':\\n\\t\\t\\treturn dose.value * multiplier;\\n\\t\\tcase 'mcg':\\n\\t\\t\\treturn (dose.value * multiplier) / 1000;\\n\\t\\tcase 'g':\\n\\t\\t\\treturn dose.value * multiplier * 1000;\\n\\t\\tcase 'mg/kg':\\n\\t\\t\\tif (weightKg === undefined) throw new UnitMismatchError('weight required for mg/kg dosing');\\n\\t\\t\\treturn dose.value * weightKg * multiplier;\\n\\t\\tcase 'mg/kg/day':\\n\\t\\t\\tif (weightKg === undefined) throw new UnitMismatchError('weight required for mg/kg/day dosing');\\n\\t\\t\\treturn dose.value * weightKg;\\n\\t\\tdefault:\\n\\t\\t\\tthrow new UnitMismatchError('unsupported dose unit: ' + String(dose.unit));\\n\\t}\\n}\\n\"},{\"path\":\"test/dose.test.ts\",\"content\":\"import { describe, expect, it } from 'vitest';\\nimport { dailyDoseMg, frequencyToDailyMultiplier, toKg, UnitMismatchError } from '../src/core/dose.js';\\n\\ndescribe('dose arithmetic', () => {\\n\\tit('converts lb to kg at 2.2 lb per kg', () => {\\n\\t\\texpect(toKg({ value: 220, unit: 'lb' }).value).toBeCloseTo(100, 2);\\n\\t});\\n\\tit('folds frequency into a daily multiplier', () => {\\n\\t\\texpect(frequencyToDailyMultiplier('every-6h')).toBe(4);\\n\\t});\\n\\tit('computes plain-mg and weight-based daily doses', () => {\\n\\t\\texpect(dailyDoseMg({ value: 500, unit: 'mg' }, 'four-times-daily')).toBe(2000);\\n\\t\\texpect(dailyDoseMg({ value: 10, unit: 'mg/kg' }, 'twice-daily', 70)).toBe(1400);\\n\\t});\\n\\tit('throws UnitMismatchError when weight is required but missing', () => {\\n\\t\\texpect(() => dailyDoseMg({ value: 10, unit: 'mg/kg' }, 'twice-daily')).toThrow(UnitMismatchError);\\n\\t});\\n\\tit('throws UnitMismatchError for unsupported units instead of coercing', () => {\\n\\t\\texpect(() => dailyDoseMg({ value: 1, unit: 'iu' as never }, 'daily')).toThrow(UnitMismatchError);\\n\\t});\\n\\tit('returns null for as-needed schedules', () => {\\n\\t\\texpect(dailyDoseMg({ value: 5, unit: 'mg' }, 'as-needed')).toBeNull();\\n\\t});\\n});\\n\"}]"
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s03 done: dose.ts implements toKg, frequencyToDailyMultiplier, and dailyDoseMg with an explicit UnitMismatchError default branch — no silent cross-unit coercion. Six deterministic assertions pass under npm test.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog c-stringified-json: args as a JSON string (weak-model classic — already recovered in decompose); harness must detect string-parses-as-expected-type and unwrap one level."
+		},
+		{
+			"id": "c-trunc-tool-json",
+			"requestClass": "worker",
+			"userMessageIncludes": "MedicationConceptResolver with unmatched blocking state",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/types.ts",
+										"src/fixtures/rxnorm-graph.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/core/medication-concept-resolver.ts\",\"content\":\"import type { MedicationConceptId, RxNormNode } from './types.js';\\n\\nexport type ResolvedConcept = { rxcui: MedicationConceptId; termType: RxNormNode['termType']; name: string; ingredients: MedicationConceptId[] };\\nexport type UnmatchedConcept = { inputText: string; reason: 'not-found' | 'ambiguous'; blocksReconciliation: true };\\nexport type ResolutionResult = { matched: ResolvedConcept } | { unmatched: UnmatchedConcept };\\n\\nexport class MedicationConceptResolver {\\n\\tconstructor(private readonly graph: RxNormNode[]) {}\\n\\n\\tresolve(input: string): ResolutionResult {\\n\\t\\tconst needle = input.trim().toLowerCase();\\n\\t\\tconst exact = this.graph.find((n) => (n.rxcui as unknown as string) === input.trim());\\n\\t\\tconst byName = exact ?? this.graph.find((n) => n.name.toLowerCase() === needle);\\n\\t\\tif (byName) return { matched: this.toResolved(byName) };\\n\\t\\tconst partial = this.graph.filter((n) => n.name.toLowerCase().includes(needle));\\n\\t\\tif (partial.length === 1) return { matched: this.toResolved(partial[0]!) };\\n\\t\\tif (partial.le"
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/medication-concept-resolver.ts",
+											"content": "import type { MedicationConceptId, RxNormNode } from './types.js';\n\nexport type ResolvedConcept = { rxcui: MedicationConceptId; termType: RxNormNode['termType']; name: string; ingredients: MedicationConceptId[] };\nexport type UnmatchedConcept = { inputText: string; reason: 'not-found' | 'ambiguous'; blocksReconciliation: true };\nexport type ResolutionResult = { matched: ResolvedConcept } | { unmatched: UnmatchedConcept };\n\nexport class MedicationConceptResolver {\n\tconstructor(private readonly graph: RxNormNode[]) {}\n\n\tresolve(input: string): ResolutionResult {\n\t\tconst needle = input.trim().toLowerCase();\n\t\tconst exact = this.graph.find((n) => (n.rxcui as unknown as string) === input.trim());\n\t\tconst byName = exact ?? this.graph.find((n) => n.name.toLowerCase() === needle);\n\t\tif (byName) return { matched: this.toResolved(byName) };\n\t\tconst partial = this.graph.filter((n) => n.name.toLowerCase().includes(needle));\n\t\tif (partial.length === 1) return { matched: this.toResolved(partial[0]!) };\n\t\tif (partial.length > 1) return { unmatched: { inputText: input, reason: 'ambiguous', blocksReconciliation: true } };\n\t\treturn { unmatched: { inputText: input, reason: 'not-found', blocksReconciliation: true } };\n\t}\n\n\tgetIngredients(rxcui: MedicationConceptId): MedicationConceptId[] {\n\t\tconst node = this.graph.find((n) => n.rxcui === rxcui);\n\t\tif (!node) return [];\n\t\tif (node.termType === 'IN') return [node.rxcui];\n\t\tconst direct = node.ingredients ?? [];\n\t\tif (direct.length > 0) return direct.flatMap((i) => this.getIngredients(i));\n\t\treturn node.parentRxcuis.flatMap((p) => this.getIngredients(p));\n\t}\n\n\tprivate toResolved(node: RxNormNode): ResolvedConcept {\n\t\treturn { rxcui: node.rxcui, termType: node.termType, name: node.name, ingredients: this.getIngredients(node.rxcui) };\n\t}\n}\n"
+										},
+										{
+											"path": "test/medication-concept-resolver.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { MedicationConceptResolver } from '../src/core/medication-concept-resolver.js';\nimport { FIXTURE_RXNORM_GRAPH } from '../src/fixtures/rxnorm-graph.js';\n\nconst resolver = new MedicationConceptResolver(FIXTURE_RXNORM_GRAPH);\n\ndescribe('MedicationConceptResolver', () => {\n\tit('resolves a brand name to its SBD', () => {\n\t\tconst r = resolver.resolve('Tylenol 500 MG Oral Tablet');\n\t\texpect('matched' in r && r.matched.termType).toBe('SBD');\n\t});\n\tit('resolves case-insensitively to the SCD', () => {\n\t\tconst r = resolver.resolve('fluoxetine 20 mg oral capsule');\n\t\texpect('matched' in r && r.matched.termType).toBe('SCD');\n\t});\n\tit('returns a blocking unmatched state for free text', () => {\n\t\tconst r = resolver.resolve('a water pill');\n\t\texpect('unmatched' in r && r.unmatched.blocksReconciliation).toBe(true);\n\t});\n\tit('decomposes the combo MIN into both ingredient INs', () => {\n\t\tconst min = FIXTURE_RXNORM_GRAPH.find((n) => n.termType === 'MIN')!;\n\t\tconst ins = resolver.getIngredients(min.rxcui).map(String).sort();\n\t\texpect(ins).toEqual(['rx-apap-in', 'rx-hyd-in']);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s05 done: the resolver normalizes rxcui/name/substring inputs, returns a first-class blocking unmatched state for free text and ambiguity, and getIngredients walks MIN/SCD/SBD nodes down to IN level. Four acceptance tests green.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog c-trunc-tool-json: tool args truncated by token limit (files value is an unparseable cut-off JSON string); harness must give DISTINCT 'output truncated' feedback, not a generic invalid-call bounce. Turn 3 is the recovered full write."
+		},
+		{
+			"id": "c-reasoning-only",
+			"requestClass": "worker",
+			"userMessageIncludes": "Append-only AuditLog",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "",
+						"reasoning": "The card needs an append-only AuditLog with counter ids. I should create src/core/audit-log.ts with append/getAll/getByPatient returning defensive copies, plus the test. Let me write both files now.",
+						"finishReason": "stop"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/audit-log.ts",
+											"content": "import type { PatientId } from './types.js';\n\nexport type AuditEventType = 'reconciliation-decision' | 'alert-fired' | 'alert-suppressed' | 'task-created' | 'adherence-recorded';\n\nexport type AuditEvent = {\n\tid: string;\n\ttype: AuditEventType;\n\toccurredAt: Date;\n\tpatientId: PatientId;\n\tactorId: string;\n\tpayload: Record<string, unknown>;\n};\n\nexport class AuditLog {\n\tprivate readonly events: AuditEvent[] = [];\n\tprivate counter = 0;\n\n\tappend(event: Omit<AuditEvent, 'id'>): AuditEvent {\n\t\tconst stored: AuditEvent = { ...event, id: String(++this.counter) };\n\t\tthis.events.push(stored);\n\t\treturn stored;\n\t}\n\n\tgetAll(): readonly AuditEvent[] {\n\t\treturn [...this.events];\n\t}\n\n\tgetByPatient(patientId: PatientId): readonly AuditEvent[] {\n\t\treturn this.events.filter((e) => e.patientId === patientId);\n\t}\n}\n"
+										},
+										{
+											"path": "test/audit-log.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { AuditLog } from '../src/core/audit-log.js';\nimport type { PatientId } from '../src/core/types.js';\n\nconst pidA = 'p-001' as unknown as PatientId;\nconst pidB = 'p-002' as unknown as PatientId;\nconst at = new Date('2025-01-15T08:00:00Z');\n\ndescribe('AuditLog', () => {\n\tit('assigns deterministic sequential ids and preserves order', () => {\n\t\tconst log = new AuditLog();\n\t\tconst a = log.append({ type: 'alert-fired', occurredAt: at, patientId: pidA, actorId: 'engine', payload: {} });\n\t\tconst b = log.append({ type: 'task-created', occurredAt: at, patientId: pidB, actorId: 'engine', payload: {} });\n\t\texpect([a.id, b.id]).toEqual(['1', '2']);\n\t\texpect(log.getAll().map((e) => e.id)).toEqual(['1', '2']);\n\t});\n\tit('filters by patient and returns defensive copies', () => {\n\t\tconst log = new AuditLog();\n\t\tlog.append({ type: 'alert-fired', occurredAt: at, patientId: pidA, actorId: 'engine', payload: {} });\n\t\tconst all = log.getAll() as unknown as unknown[];\n\t\tall.pop();\n\t\texpect(log.getAll()).toHaveLength(1);\n\t\texpect(log.getByPatient(pidB)).toHaveLength(0);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s08 done: AuditLog appends with counter-derived ids, never mutates or deletes, and hands out defensive copies. Order, filtering, and immutability are all asserted.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog c-reasoning-only: content empty, answer in reasoning_content (R1/Gemma-style); harness must read the reasoning channel before declaring the turn empty, then re-prompt — turn 2 onward is the recovered flow."
+		},
+		{
+			"id": "a-same-question",
+			"requestClass": "worker",
+			"userMessageIncludes": "Max-daily-dose rule with frequency folding",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Before I implement the max-daily-dose rule: should the ceiling comparison use strict greater-than or greater-than-or-equal against maxDailyMg? Please confirm which comparison you want.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "failure-catalog a-same-question: re-asks the same clarifying question forever; harness must fingerprint the repeated near-identical question, answer once, then force-proceed or halt."
+		},
+		{
+			"id": "t-429-rate",
+			"requestClass": "worker",
+			"userMessageIncludes": "evaluateRules facade over the five rules",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "http_error",
+						"status": 429,
+						"message": "Rate limit exceeded. Please retry after the indicated delay.",
+						"retryAfterSeconds": 15
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/rules/dup-ingredient.ts",
+										"src/core/rules/max-dose.ts",
+										"src/core/rule-types.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/rule-engine.ts",
+											"content": "import { checkAllergy } from './rules/allergy.js';\nimport { checkClassDuplication } from './rules/dup-class.js';\nimport { checkContraindication } from './rules/contraindication.js';\nimport { checkDuplicateIngredient } from './rules/dup-ingredient.js';\nimport { checkMaxDailyDose } from './rules/max-dose.js';\nimport type { Alert, PatientFacts, RegimenItem } from './rule-types.js';\nimport type { ReferencePack } from './types.js';\n\nexport function evaluateRules(facts: PatientFacts, regimen: RegimenItem[], pack: ReferencePack): Alert[] {\n\tconst active = regimen.filter((item) => item.status === 'active');\n\treturn [\n\t\t...checkDuplicateIngredient(active, pack),\n\t\t...checkClassDuplication(active, pack),\n\t\t...checkMaxDailyDose(facts, active, pack),\n\t\t...checkAllergy(facts, active, pack),\n\t\t...checkContraindication(active, pack),\n\t];\n}\n"
+										},
+										{
+											"path": "test/rule-engine.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { evaluateRules } from '../src/core/rule-engine.js';\nimport { FIXTURE_REFERENCE_PACK } from '../src/fixtures/reference-pack.js';\nimport type { MedicationConceptId, PatientId } from '../src/core/types.js';\nimport type { PatientFacts, RegimenItem } from '../src/core/rule-types.js';\n\nconst id = (v: string) => v as unknown as MedicationConceptId;\nconst facts: PatientFacts = { patientId: 'p-001' as unknown as PatientId, allergyIngredients: [], allergyClasses: [] };\nconst item = (concept: string, ing: string, status: RegimenItem['status'] = 'active'): RegimenItem => ({ conceptId: id(concept), resolvedIngredients: [id(ing)], dose: { value: 20, unit: 'mg' }, frequency: 'daily', status });\n\ndescribe('evaluateRules facade', () => {\n\tit('fires the contraindicated pair and keeps evidence total', () => {\n\t\tconst alerts = evaluateRules(facts, [item('rx-flx-scd', 'rx-flx-in'), item('rx-linezolid-scd', 'rx-linezolid-in')], FIXTURE_REFERENCE_PACK);\n\t\texpect(alerts.some((a) => a.severity === 'contraindicated' && !a.suppressible)).toBe(true);\n\t\texpect(alerts.every((a) => a.evidence.length >= 1)).toBe(true);\n\t});\n\tit('never lets held items reach a rule', () => {\n\t\tconst alerts = evaluateRules(facts, [item('rx-flx-scd', 'rx-flx-in', 'held'), item('rx-linezolid-scd', 'rx-linezolid-in', 'held')], FIXTURE_REFERENCE_PACK);\n\t\texpect(alerts).toHaveLength(0);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s15 done: evaluateRules filters to active items once, then runs all five rules and concatenates their evidence-bearing alerts. Held regimens produce zero alerts; evidence totality holds on every path.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog t-429-rate: transient rate limit (+retry-after); harness must honor Retry-After (else backoff+jitter) and the failed call still counts. Turns 2+ are the normal card flow after the retry."
+		},
+		{
+			"id": "t-sse-stall-mid",
+			"requestClass": "worker",
+			"userMessageIncludes": "Reconciliation workflow with source provenance",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 90000
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/medication-concept-resolver.ts",
+										"src/core/types.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/reconciliation.ts",
+											"content": "import type { Clock } from './clock.js';\nimport type { MedicationConceptResolver } from './medication-concept-resolver.js';\nimport type { DiscrepancyClass, MedicationConceptId } from './types.js';\n\nexport type MedicationSource = 'imported' | 'patient-reported' | 'clinician-approved';\nexport type ReconciliationItem = {\n\tconceptId: MedicationConceptId | null;\n\tinputText: string;\n\tsource: MedicationSource;\n\tprovenance: { importedAt: Date; importedBy: string };\n};\nexport type Discrepancy = { item: ReconciliationItem; classification: DiscrepancyClass; reason?: string };\nexport type ReconciliationOutput = {\n\taccepted: ReconciliationItem[];\n\trejected: ReconciliationItem[];\n\tunmatched: ReconciliationItem[];\n\tdiscrepancies: Discrepancy[];\n};\n\nexport function reconcile(items: ReconciliationItem[], resolver: MedicationConceptResolver, clinicianApprovedIds: MedicationConceptId[], clock: Clock): ReconciliationOutput {\n\tvoid clock;\n\tconst output: ReconciliationOutput = { accepted: [], rejected: [], unmatched: [], discrepancies: [] };\n\tconst approved = new Set(clinicianApprovedIds.map(String));\n\tfor (const item of items) {\n\t\tconst resolution = resolver.resolve(item.inputText);\n\t\tif ('unmatched' in resolution) {\n\t\t\toutput.unmatched.push({ ...item, conceptId: null });\n\t\t\tcontinue;\n\t\t}\n\t\tconst resolved = { ...item, conceptId: resolution.matched.rxcui };\n\t\tif (approved.has(String(resolution.matched.rxcui))) {\n\t\t\toutput.accepted.push(resolved);\n\t\t\tif (item.source === 'clinician-approved') {\n\t\t\t\toutput.discrepancies.push({ item: resolved, classification: 'intentional-documented', reason: 'clinician-approved without import source' });\n\t\t\t}\n\t\t} else {\n\t\t\toutput.rejected.push(resolved);\n\t\t\toutput.discrepancies.push({ item: resolved, classification: 'unintentional', reason: 'present in ' + item.source + ' but absent from clinician-approved regimen' });\n\t\t}\n\t}\n\treturn output;\n}\n"
+										},
+										{
+											"path": "test/reconciliation.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { FixedClock } from '../src/core/fixed-clock.js';\nimport { MedicationConceptResolver } from '../src/core/medication-concept-resolver.js';\nimport { reconcile, type ReconciliationItem } from '../src/core/reconciliation.js';\nimport { FIXTURE_RXNORM_GRAPH } from '../src/fixtures/rxnorm-graph.js';\nimport type { MedicationConceptId } from '../src/core/types.js';\n\nconst resolver = new MedicationConceptResolver(FIXTURE_RXNORM_GRAPH);\nconst clock = new FixedClock(new Date('2025-01-15T08:00:00Z'));\nconst provenance = { importedAt: new Date('2025-01-14T00:00:00Z'), importedBy: 'import-job-7' };\nconst item = (inputText: string, source: ReconciliationItem['source']): ReconciliationItem => ({ conceptId: null, inputText, source, provenance });\nconst approved = ['rx-flx-scd'].map((v) => v as unknown as MedicationConceptId);\n\ndescribe('reconcile', () => {\n\tit('routes every input to exactly one bucket (totality)', () => {\n\t\tconst inputs = [item('Fluoxetine 20 MG Oral Capsule', 'imported'), item('Tylenol 500 MG Oral Tablet', 'imported'), item('a water pill', 'patient-reported')];\n\t\tconst out = reconcile(inputs, resolver, approved, clock);\n\t\texpect(out.accepted.length + out.rejected.length + out.unmatched.length).toBe(inputs.length);\n\t});\n\tit('keeps free text as blocking unmatched with provenance', () => {\n\t\tconst out = reconcile([item('a water pill', 'patient-reported')], resolver, approved, clock);\n\t\texpect(out.unmatched).toHaveLength(1);\n\t\texpect(out.unmatched[0]!.provenance.importedBy).toBe('import-job-7');\n\t});\n\tit('classifies unapproved imports as unintentional discrepancies', () => {\n\t\tconst out = reconcile([item('Tylenol 500 MG Oral Tablet', 'imported')], resolver, approved, clock);\n\t\texpect(out.rejected).toHaveLength(1);\n\t\texpect(out.discrepancies[0]!.classification).toBe('unintentional');\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s20 done: reconcile() resolves every input through the concept resolver, keeps totality (accepted + rejected + unmatched == inputs), preserves provenance on all paths including blocking unmatched free text, and classifies discrepancies conservatively.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog t-sse-stall-mid: events stop with the connection open and no terminator — approximated with the `stall` behavior (TTFT-style dead stream) until the compiler grows a mid-stream stall knob; harness must abort on the inter-chunk idle timeout and retry. Turns 2+ are the recovered flow."
+		},
+		{
+			"id": "c-empty-completion",
+			"requestClass": "worker",
+			"userMessageIncludes": "Adherence calendar summary",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "empty_completion"
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/types.ts",
+										"src/core/clock.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/adherence-calendar.ts",
+											"content": "import type { AdherenceState, MedicationConceptId, PatientId } from './types.js';\n\nexport type AdherenceEvent = {\n\tpatientId: PatientId;\n\tconceptId: MedicationConceptId;\n\tscheduledAt: Date;\n\tstate: AdherenceState;\n\trecordedAt: Date;\n\trecordedBy: string;\n};\n\nexport type AdherenceSummary = {\n\tpatientId: PatientId;\n\tconceptId: MedicationConceptId;\n\tperiodStart: Date;\n\tperiodEnd: Date;\n\ttaken: number;\n\tmissed: number;\n\tskippedByInstruction: number;\n\theldByClinician: number;\n\tunknown: number;\n\ttotal: number;\n};\n\nexport function summarizeAdherence(events: AdherenceEvent[], patientId: PatientId, conceptId: MedicationConceptId, periodStart: Date, periodEnd: Date): AdherenceSummary {\n\tconst inPeriod = events.filter((e) => e.patientId === patientId && e.conceptId === conceptId && e.scheduledAt.getTime() >= periodStart.getTime() && e.scheduledAt.getTime() < periodEnd.getTime());\n\tconst count = (state: AdherenceState): number => inPeriod.filter((e) => e.state === state).length;\n\treturn {\n\t\tpatientId,\n\t\tconceptId,\n\t\tperiodStart,\n\t\tperiodEnd,\n\t\ttaken: count('taken'),\n\t\tmissed: count('missed'),\n\t\tskippedByInstruction: count('skipped-by-instruction'),\n\t\theldByClinician: count('held-by-clinician'),\n\t\tunknown: count('unknown'),\n\t\ttotal: inPeriod.length,\n\t};\n}\n"
+										},
+										{
+											"path": "test/adherence-calendar.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { summarizeAdherence, type AdherenceEvent } from '../src/core/adherence-calendar.js';\nimport type { AdherenceState, MedicationConceptId, PatientId } from '../src/core/types.js';\n\nconst pid = 'p-001' as unknown as PatientId;\nconst cid = 'rx-flx-scd' as unknown as MedicationConceptId;\nconst start = new Date('2025-01-06T00:00:00Z');\nconst end = new Date('2025-01-13T00:00:00Z');\nconst event = (day: number, state: AdherenceState): AdherenceEvent => ({ patientId: pid, conceptId: cid, scheduledAt: new Date(Date.UTC(2025, 0, day, 8)), state, recordedAt: new Date(Date.UTC(2025, 0, day, 9)), recordedBy: 'caregiver-1' });\nconst events = [event(6, 'taken'), event(7, 'taken'), event(8, 'taken'), event(9, 'taken'), event(10, 'missed'), event(11, 'missed'), event(12, 'missed'), event(6, 'held-by-clinician'), event(7, 'held-by-clinician'), event(8, 'unknown'), event(20, 'taken')];\n\ndescribe('summarizeAdherence', () => {\n\tit('counts states over the half-open period', () => {\n\t\tconst summary = summarizeAdherence(events, pid, cid, start, end);\n\t\texpect(summary.taken).toBe(4);\n\t\texpect(summary.missed).toBe(3);\n\t\texpect(summary.heldByClinician).toBe(2);\n\t\texpect(summary.unknown).toBe(1);\n\t\texpect(summary.total).toBe(10);\n\t});\n\tit('is deterministic across identical calls', () => {\n\t\texpect(summarizeAdherence(events, pid, cid, start, end)).toEqual(summarizeAdherence(events, pid, cid, start, end));\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s22 done: summarizeAdherence filters to patient+concept over a half-open UTC period and returns pure integer counts (the Jan-20 event is excluded). Identical calls return deeply-equal summaries.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "failure-catalog c-empty-completion: 200 with empty/null content and no tools; harness must check the reasoning channel too, retry once with a nudge, and never persist an empty assistant turn. Turns 2+ are the recovered flow."
+		},
+		{
+			"id": "perfect-worker-s24",
+			"requestClass": "worker",
+			"userMessageIncludes": "Refill-exhaustion forecast on the injected clock",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/dose.ts",
+										"src/core/clock.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/refill-forecast.ts",
+											"content": "import type { Clock } from './clock.js';\nimport { dailyDoseMg, type FrequencyUnit, type Quantity } from './dose.js';\nimport type { MedicationConceptId } from './types.js';\n\nexport type RefillForecast = {\n\tconceptId: MedicationConceptId;\n\tlastFillDate: Date;\n\tremainingQuantityMg: number;\n\tdailyDoseMg: number | null;\n\tknownHoldDays: number;\n\tprojectedExhaustionDate: Date | null;\n\tdaysUntilExhaustion: number | null;\n\tisAtRisk: boolean;\n};\n\nconst DAY_MS = 86400000;\n\nexport function forecastRefill(conceptId: MedicationConceptId, lastFillDate: Date, remainingQuantityMg: number, dose: Quantity, frequency: FrequencyUnit, knownHoldDays: number, clock: Clock, weightKg?: number): RefillForecast {\n\tconst perDay = dailyDoseMg(dose, frequency, weightKg);\n\tif (perDay === null || perDay <= 0) {\n\t\treturn { conceptId, lastFillDate, remainingQuantityMg, dailyDoseMg: perDay, knownHoldDays, projectedExhaustionDate: null, daysUntilExhaustion: null, isAtRisk: false };\n\t}\n\tconst adjustedRemainingMg = remainingQuantityMg + knownHoldDays * perDay;\n\tconst daysOfSupply = adjustedRemainingMg / perDay;\n\tconst projectedExhaustionDate = new Date(lastFillDate.getTime() + daysOfSupply * DAY_MS);\n\tconst daysUntilExhaustion = Math.floor((projectedExhaustionDate.getTime() - clock.now().getTime()) / DAY_MS);\n\treturn { conceptId, lastFillDate, remainingQuantityMg, dailyDoseMg: perDay, knownHoldDays, projectedExhaustionDate, daysUntilExhaustion, isAtRisk: daysUntilExhaustion <= 7 };\n}\n"
+										},
+										{
+											"path": "test/refill-forecast.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { FixedClock } from '../src/core/fixed-clock.js';\nimport { forecastRefill } from '../src/core/refill-forecast.js';\nimport type { MedicationConceptId } from '../src/core/types.js';\n\nconst cid = 'rx-flx-scd' as unknown as MedicationConceptId;\nconst fill = new Date('2025-01-10T00:00:00Z');\nconst clockAtPlus5 = new FixedClock(new Date('2025-01-15T00:00:00Z'));\n\ndescribe('forecastRefill', () => {\n\tit('projects days remaining from remaining quantity and daily dose', () => {\n\t\tconst f = forecastRefill(cid, fill, 100, { value: 10, unit: 'mg' }, 'daily', 0, clockAtPlus5);\n\t\texpect(f.dailyDoseMg).toBe(10);\n\t\texpect(f.daysUntilExhaustion).toBe(5);\n\t\texpect(f.isAtRisk).toBe(true);\n\t});\n\tit('shifts the exhaustion date by clinician hold days', () => {\n\t\tconst base = forecastRefill(cid, fill, 100, { value: 10, unit: 'mg' }, 'daily', 0, clockAtPlus5);\n\t\tconst held = forecastRefill(cid, fill, 100, { value: 10, unit: 'mg' }, 'daily', 7, clockAtPlus5);\n\t\texpect(held.projectedExhaustionDate!.getTime() - base.projectedExhaustionDate!.getTime()).toBe(7 * 86400000);\n\t\texpect(held.isAtRisk).toBe(false);\n\t});\n\tit('returns nulls and no risk for as-needed schedules', () => {\n\t\tconst f = forecastRefill(cid, fill, 100, { value: 10, unit: 'mg' }, 'as-needed', 0, clockAtPlus5);\n\t\texpect(f.projectedExhaustionDate).toBeNull();\n\t\texpect(f.daysUntilExhaustion).toBeNull();\n\t\texpect(f.isAtRisk).toBe(false);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s24 done: forecastRefill computes supply from unit-safe daily dose, extends it by clinician hold days, floors days-until-exhaustion against the injected clock, and treats as-needed as unforecastable. Three acceptance tests green.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+		},
+		{
+			"id": "perfect-worker-s28",
+			"requestClass": "worker",
+			"userMessageIncludes": "Plain-language patient summary with denylist",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/core/adherence-calendar.ts",
+										"src/core/task-queue.ts",
+										"src/core/refill-forecast.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/core/patient-summary.ts",
+											"content": "import type { AdherenceSummary } from './adherence-calendar.js';\nimport type { Clock } from './clock.js';\nimport type { RefillForecast } from './refill-forecast.js';\nimport type { RegimenItem } from './rule-types.js';\nimport type { SafetyTask } from './task-queue.js';\nimport type { PatientId } from './types.js';\n\nexport const SUMMARY_DENYLIST: RegExp[] = [\n\t/\\b\\d+(\\.\\d+)?\\s*(mg|mcg|g|score|risk|level)\\b/i,\n\t/\\b(diagnos|treat|prescri|administer)\\w*\\b/i,\n];\n\nexport type PatientSummary = {\n\tpatientId: PatientId;\n\tgeneratedAt: Date;\n\tactiveCount: number;\n\tadherenceNote: string;\n\trefillReminders: string[];\n\ttasks: string[];\n};\n\nfunction assertAllowed(text: string): string {\n\tfor (const pattern of SUMMARY_DENYLIST) {\n\t\tif (pattern.test(text)) throw new Error('summary contains prohibited content: ' + text);\n\t}\n\treturn text;\n}\n\nexport function generatePatientSummary(patientId: PatientId, regimen: RegimenItem[], adherence: AdherenceSummary, forecasts: RefillForecast[], openTasks: SafetyTask[], clock: Clock): PatientSummary {\n\tconst adherenceNote = assertAllowed('You took ' + adherence.taken + ' of ' + adherence.total + ' scheduled doses in this period.');\n\tconst refillReminders = forecasts.filter((f) => f.isAtRisk && f.daysUntilExhaustion !== null).map((f) => assertAllowed('One of your medicines may run low in about ' + f.daysUntilExhaustion + ' days. Please contact your pharmacy.'));\n\tconst tasks = openTasks.filter((t) => t.type === 'caregiver-follow-up' || t.type === 'patient-education').map((t) => assertAllowed(t.description));\n\treturn {\n\t\tpatientId,\n\t\tgeneratedAt: clock.now(),\n\t\tactiveCount: regimen.filter((r) => r.status === 'active').length,\n\t\tadherenceNote,\n\t\trefillReminders,\n\t\ttasks,\n\t};\n}\n"
+										},
+										{
+											"path": "test/patient-summary.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { FixedClock } from '../src/core/fixed-clock.js';\nimport { forecastRefill } from '../src/core/refill-forecast.js';\nimport { generatePatientSummary } from '../src/core/patient-summary.js';\nimport type { AdherenceSummary } from '../src/core/adherence-calendar.js';\nimport type { SafetyTask } from '../src/core/task-queue.js';\nimport type { MedicationConceptId, PatientId } from '../src/core/types.js';\n\nconst clock = new FixedClock(new Date('2025-01-15T08:00:00Z'));\nconst pid = 'p-005' as unknown as PatientId;\nconst cid = 'rx-flx-scd' as unknown as MedicationConceptId;\nconst adherence: AdherenceSummary = { patientId: pid, conceptId: cid, periodStart: new Date('2025-01-06T00:00:00Z'), periodEnd: new Date('2025-01-13T00:00:00Z'), taken: 4, missed: 6, skippedByInstruction: 0, heldByClinician: 0, unknown: 0, total: 10 };\nconst atRisk = forecastRefill(cid, new Date('2025-01-10T00:00:00Z'), 30, { value: 10, unit: 'mg' }, 'daily', 0, clock);\nconst clinicianTask: SafetyTask = { id: 'task-1', type: 'clinician-review', patientId: pid, createdAt: clock.now(), description: 'Escalate to prescriber.', traceToFacts: ['rx-apap-in'] };\n\ndescribe('generatePatientSummary', () => {\n\tit('speaks in plain dose counts and day counts', () => {\n\t\tconst summary = generatePatientSummary(pid, [], adherence, [atRisk], [], clock);\n\t\texpect(summary.adherenceNote).toContain('4 of 10');\n\t\texpect(summary.refillReminders[0]).toContain('days');\n\t});\n\tit('hides clinician-review tasks from patients', () => {\n\t\tconst summary = generatePatientSummary(pid, [], adherence, [], [clinicianTask], clock);\n\t\texpect(summary.tasks).toHaveLength(0);\n\t});\n\tit('throws when a task description leaks a raw score', () => {\n\t\tconst leaky: SafetyTask = { ...clinicianTask, type: 'patient-education', description: 'Your interaction risk score is 7.4' };\n\t\texpect(() => generatePatientSummary(pid, [], adherence, [], [leaky], clock)).toThrow(/prohibited/);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s28 done: the patient summary speaks only in dose counts and day counts, filters clinician-review tasks out of patient view, and self-checks every emitted string against SUMMARY_DENYLIST — a leaked raw score throws instead of shipping.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+		},
+		{
+			"id": "perfect-worker-s32",
+			"requestClass": "worker",
+			"userMessageIncludes": "Flagship integration test over seeded patients",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"src/fixtures/patients.ts",
+										"src/core/rule-engine.ts",
+										"src/core/suppression-store.ts"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "test/integration.test.ts",
+											"content": "import { describe, expect, it } from 'vitest';\nimport { FixedClock } from '../src/core/fixed-clock.js';\nimport { evaluateRules } from '../src/core/rule-engine.js';\nimport { MedicationConceptResolver } from '../src/core/medication-concept-resolver.js';\nimport { reconcile } from '../src/core/reconciliation.js';\nimport { SuppressionCeilingError, SuppressionStore } from '../src/core/suppression-store.js';\nimport { FIXTURE_REFERENCE_PACK } from '../src/fixtures/reference-pack.js';\nimport { FIXTURE_RXNORM_GRAPH } from '../src/fixtures/rxnorm-graph.js';\nimport { PATIENT_FIXTURES } from '../src/fixtures/patients.js';\n\nconst clock = new FixedClock(new Date('2025-01-15T08:00:00Z'));\nconst pack = FIXTURE_REFERENCE_PACK;\n\ndescribe('flagship integration over the five seeded patients', () => {\n\tit('patient a: dup-ingredient fires only via MIN decomposition', () => {\n\t\tconst alerts = evaluateRules(PATIENT_FIXTURES.a.facts, PATIENT_FIXTURES.a.regimen, pack);\n\t\texpect(alerts.some((a) => String(a.ruleId) === 'dup-ingredient')).toBe(true);\n\t});\n\tit('patient b: cephalexin moderate, aztreonam informational', () => {\n\t\tconst alerts = evaluateRules(PATIENT_FIXTURES.b.facts, PATIENT_FIXTURES.b.regimen, pack);\n\t\tconst severities = alerts.filter((a) => String(a.ruleId) === 'allergy').map((a) => a.severity).sort();\n\t\texpect(severities).toEqual(['informational', 'moderate']);\n\t});\n\tit('patient c: max-dose fires serious', () => {\n\t\tconst alerts = evaluateRules(PATIENT_FIXTURES.c.facts, PATIENT_FIXTURES.c.regimen, pack);\n\t\texpect(alerts.some((a) => String(a.ruleId) === 'max-dose' && a.severity === 'serious')).toBe(true);\n\t});\n\tit('patient d: lb-derived weight evaluates without unit errors', () => {\n\t\texpect(() => evaluateRules(PATIENT_FIXTURES.d.facts, PATIENT_FIXTURES.d.regimen, pack)).not.toThrow();\n\t});\n\tit('patient e: suppression replay demotes but the ceiling holds', () => {\n\t\tconst alerts = evaluateRules(PATIENT_FIXTURES.e.facts, PATIENT_FIXTURES.e.regimen, pack);\n\t\tconst moderateOrSerious = alerts.find((a) => a.suppressible);\n\t\tconst contraindicated = { ...alerts[0]!, severity: 'contraindicated' as const, suppressible: false };\n\t\tconst store = new SuppressionStore();\n\t\tstore.record(moderateOrSerious!, 'always-for-pair', 'dr-lee', 'known tolerated pair', undefined, clock);\n\t\texpect(store.isSuppressed(moderateOrSerious!, PATIENT_FIXTURES.e.facts.patientId, clock)).toBe(true);\n\t\texpect(() => store.record(contraindicated, 'always-for-pair', 'dr-lee', 'attempt', undefined, clock)).toThrow(SuppressionCeilingError);\n\t});\n\tit('evidence totality and free-text blocking hold everywhere', () => {\n\t\tfor (const key of ['a', 'b', 'c', 'd', 'e'] as const) {\n\t\t\tconst alerts = evaluateRules(PATIENT_FIXTURES[key].facts, PATIENT_FIXTURES[key].regimen, pack);\n\t\t\texpect(alerts.every((a) => a.evidence.length >= 1)).toBe(true);\n\t\t}\n\t\tconst resolver = new MedicationConceptResolver(FIXTURE_RXNORM_GRAPH);\n\t\tconst out = reconcile([{ conceptId: null, inputText: 'a water pill', source: 'patient-reported', provenance: { importedAt: new Date('2025-01-14T00:00:00Z'), importedBy: 'intake' } }], resolver, [], clock);\n\t\texpect(out.unmatched).toHaveLength(1);\n\t});\n});\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Writing the card's implementation and tests."
+					},
+					"streaming": {
+						"ttftMs": 900,
+						"tokensPerSecond": 28
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "s32 done: the flagship suite proves all five patient profiles, the suppression replay with its ceiling, evidence totality, and free-text blocking in one deterministic run on the FixedClock. npm test green, zero network.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"provenance": "Authored happy-path baseline (Claude design-time spec, 2026-07-10); control track amid injected failures."
+		},
+		{
+			"id": "perfect-review-any",
+			"requestClass": "review",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed the delivered card: implementation matches the objective and the tests are deterministic. Approving.",
+									"feedback": null,
+									"insight": null
+								}
+							}
+						]
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "Authored happy-path catch-all reviewer for the flaky run (failures live in the worker tracks)."
+		},
+		{
+			"id": "perfect-chat-any",
+			"requestClass": "chat",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Flaky-run status: ten foundation cards are in flight; several workers are exhibiting transport and content failures (rate limiting, stalled streams, truncated tool JSON, reasoning-only turns) that the harness is expected to absorb. The scripted recoveries land the same files as the perfect run.",
+						"finishReason": "stop"
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "Authored chat baseline for the flaky run."
+		}
+	],
+	"chaosProbability": 0
+}

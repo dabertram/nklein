@@ -11019,8 +11019,11 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       behavior are collected automatically whenever real-LLM work runs later (the reflection loop's capture seam —
       aimock proxy/record mode; !Klein just points its provider baseUrl at the proxy). (e) CLAUDE-AUTHORED FIRST:
       Claude prepares the mock response sets as the design-time spec (flawless baselines for target workflows); real
-      collected local-LLM telemetry hardens them later (runtime reality). (f) SCALE: prepare EXTENSIVE mock response
-      sets for the EASIER/lower-complexity dev-test-projects — up to ~50 estimated cards per project for now.
+      collected local-LLM telemetry hardens them later (runtime reality). (f) SCALE (UPDATED David 2026-07-10): prepare EXTENSIVE mock response
+      sets for the LOWER 20 dev-test-projects (tiers 1/20…20/20 — not just 3) — up to ~50 estimated cards per
+      project — and then USE them to drive !Klein to maturity. Status: 01 done (agent-authored, 85 tracks/41 cards,
+      validated); 02+03 in flight (agents hit the session limit mid-work — regenerate via the script-based set
+      GENERATOR, then hand-polish); 04–20 via the generator.
       (g) THEN: drive UI + overall !Klein polishing on top of the generated aimock base (fast, deterministic,
       no LLM wait).
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
