@@ -11292,6 +11292,11 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       installs; generated sets keep REAL green acceptance via node:test).
       NEXT: the Fable UI deep dive driven by simulated workflows (goal step 2) — persistent simulator+runtime+
       web-ui stack, then work the todo backlog top-to-bottom (goal step 3).)*
+      *(◐ 2026-07-10 late — **LIVE-DRAIN COVERAGE now spans 01/02/03/05/10/19** (strict `ready==0` drain gate,
+      exit 0, outcome "completed", zero unmatched requests): 01 hand-authored 41-card, 02/03/05/10 generated,
+      19 the largest 50-card. Scenario 03 (precision-irrigation) drained clean on the isolated harness this pass.
+      The remaining generated sets (04, 06-09, 11-18, 20) are guarded by scenario-sets.test.ts (compile + all 11
+      wire truths) but not each individually live-drained — the ones exercised cover every flow class.)*
       *(◐ 2026-07-10 evening — **UI DEEP DIVE ROUND 1 (Fable) — the stack found 3 product bugs + 2 simulator
       truths; all fixed + committed (26de24df, cb7a0692, + the review-cycle batch).** Product: (1) programmatic
       card moves DEADLOCKED — `transition: none` killed the drop `transitionend` @hello-pangea/dnd completes on;
