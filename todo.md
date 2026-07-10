@@ -10945,6 +10945,13 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       stronger/different-family model (§5.AG escalation) with the boundary as the prompt. Ties into §5.AG hard-stuck +
       the review ladder; the LLM simulator (§13) must include this exact scenario as a canned track so the mechanism is
       testable without live models.
+- [ ] **Whole-machine lag while LLM requests run (m5max, David 2026-07-10).** UI + entire machine lagged hard during
+      ongoing LLM requests; resolved the moment models were unloaded + requests cancelled. Suspects: (a) the catalog
+      polling storm (FIXED 2026-07-10 — `lms` CLI forks ~4×/s + /api/v0 hits contributed real CPU); (b) low-power mode +
+      big models saturating unified memory/CPU (system-level, expected); (c) !Klein-side render/stream churn during
+      SSE (investigate: React re-render rate during streaming, workspace-state broadcast frequency, subprocess forks).
+      TODO: profile !Klein's own CPU while a heavy request streams and fix whatever is ours; verify the storm fix
+      already reduced it.
 - [ ] **Fleet under-utilization while cards wait:** deep-chain board had 12 cards WAITING with `qwen/qwen3-coder-next`
       (44GB local) IDLE the whole time — only devstral drove work (Running 1, Cap 3). Investigate worker-role
       candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
@@ -10985,6 +10992,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (complete cited catalog: 35 transport + 28 content + 18 agent-loop modes with expected harness behavior,
       grounded in MAST/TRAIL/LiteLLM-mapping/OpenHands-StuckDetector taxonomies). NEXT: the aimock spike →
       build-vs-buy.md verdict → scaffold packages/llm-simulator.)*
+      **PRIORITY + SCOPE (David 2026-07-10, supersedes ordering):** the mock-based e2e layer is NOW THE MAIN TRACK
+      (the full-UI deep dive is POSTPONED until this layer "covers everything extensively"). Requirements: (a) SELECT a
+      FEW dev-test-projects that together cover all of !Klein's features/flows sufficiently (decompose/DAG, worker
+      edits, review ladder incl. bounce/escalate/park, acceptance, auto-commit/PR, merge, chat steering, needs-you,
+      blocked/deps, redecompose recovery — candidates: complex_dag [DAG+deps], mid_task [worker+review+acceptance],
+      many_small [parallelism/admission], deep_chain [strict ordering], + small-model-smoke [fast sanity]); these
+      projects get PREPARED RESPONSES/guidance scripts per scenario track. (b) REFLECTION LOOP (must-have): every
+      test/observation from REAL LLM usage must be foldable into the synthesized mocks — a record-real → distill →
+      mock-library mechanism (aimock record&replay is the capture seam; our scenario layer stores distilled tracks
+      keyed by failure-catalog ids) so mocks grow with everything we surface while working on !Klein. (c) Target:
+      FULLEST possible mock coverage for the selected projects — this tool drives !Klein to maturity fast (both
+      machines in low-power mode make real-LLM iteration slow).
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY
