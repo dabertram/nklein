@@ -396,7 +396,7 @@ export function NKleinChatMessageItem({
 	}
 	const label = message.role === "status" ? "Status" : "System";
 	return (
-		<div className="relative max-w-[85%] rounded-md border border-border bg-surface-3/70 py-2 pr-12 pl-3 text-sm whitespace-pre-wrap break-all text-text-secondary">
+		<div className="relative max-w-[85%] rounded-md border border-border bg-surface-3/70 py-2 pr-12 pl-3 text-sm whitespace-pre-wrap break-words text-text-secondary">
 			{timestamp}
 			<div className="mb-1 text-xs uppercase tracking-wide text-text-tertiary">{label}</div>
 			{message.content}
