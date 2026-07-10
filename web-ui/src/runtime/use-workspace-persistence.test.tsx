@@ -219,6 +219,76 @@ describe("useWorkspacePersistence", () => {
 		expect(onWorkspaceRevisionChange).toHaveBeenCalledWith(3);
 	});
 
+	it("retries a conflicting MULTI-card pure-move batch against the latest board state (busy-board lane mirror)", async () => {
+		// The session→lane mirror effect relocates several cards in ONE commit on a busy board; a conflict there
+		// must replay ALL the moves instead of escalating to the "Board changed elsewhere" banner (live-found
+		// 2026-07-10 on a simulated swarm with zero user edits).
+		const baseBoard = createBoard({ backlog: ["a", "b"], inProgress: ["c"] });
+		const movedBoard = createBoard({ backlog: ["a"], review: ["b", "c"] });
+		const latestBoard = createBoard({ backlog: ["d", "a", "b"], inProgress: ["c"] });
+		const rebasedBoard = createBoard({ backlog: ["d", "a"], review: ["b", "c"] });
+		const fetchWorkspaceStateSpy = vi
+			.spyOn(workspaceStateQuery, "fetchWorkspaceState")
+			.mockResolvedValue(createWorkspaceState(latestBoard, 2));
+		const persistWorkspaceState = vi
+			.fn<
+				(input: {
+					workspaceId: string;
+					payload: RuntimeWorkspaceStateSaveRequest;
+				}) => Promise<RuntimeWorkspaceStateResponse>
+			>()
+			.mockRejectedValueOnce(new workspaceStateQuery.WorkspaceStateConflictError(2))
+			.mockResolvedValueOnce(createWorkspaceState(rebasedBoard, 3));
+		const refetchWorkspaceState = vi.fn(async () => undefined);
+		const onWorkspaceRevisionChange = vi.fn();
+		const onWorkspaceStateConflict = vi.fn();
+		const onBoardRebased = vi.fn();
+		let latestSnapshot: HookHarnessSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					initialBoard={baseBoard}
+					initialWorkspaceRevision={1}
+					initialHydrationNonce={0}
+					persistWorkspaceState={persistWorkspaceState}
+					refetchWorkspaceState={refetchWorkspaceState}
+					onWorkspaceRevisionChange={onWorkspaceRevisionChange}
+					onWorkspaceStateConflict={onWorkspaceStateConflict}
+					onBoardRebased={onBoardRebased}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (latestSnapshot === null) {
+			throw new Error("Expected hook snapshot.");
+		}
+		await act(async () => {
+			latestSnapshot?.setHydrationNonce(1);
+		});
+		await act(async () => {
+			latestSnapshot?.setBoard(movedBoard);
+		});
+		await act(async () => {});
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(150);
+		});
+
+		expect(persistWorkspaceState).toHaveBeenCalledTimes(2);
+		expect(fetchWorkspaceStateSpy).toHaveBeenCalledWith("project-a");
+		const retriedBoard = persistWorkspaceState.mock.calls[1]?.[0]?.payload.board as BoardData;
+		const columnCards = (columnId: string): string[] =>
+			retriedBoard.columns.find((column) => column.id === columnId)?.cards.map((card) => card.id) ?? [];
+		expect(columnCards("backlog")).toEqual(["d", "a"]);
+		expect(columnCards("review")).toEqual(["b", "c"]);
+		expect(columnCards("in_progress")).toEqual([]);
+		expect(onWorkspaceStateConflict).not.toHaveBeenCalled();
+		expect(refetchWorkspaceState).not.toHaveBeenCalled();
+	});
+
 	it("falls back to the existing conflict refresh path for non-move edits", async () => {
 		const baseBoard = createBoard({ backlog: ["a", "b"] });
 		const editedBoard: BoardData = {

@@ -322,10 +322,12 @@ body,
 /* Lane floor: columns are `flex: 1 1 0` + `min-w-0`, so BETWEEN the ≤768px mobile carousel and a wide desktop
    (tablet / split-screen, live-found 2026-07-10 at ~956px) seven lanes compressed into unreadable ~70px slivers.
    Give every lane a usable minimum and let the board scroll horizontally instead; on wide screens the columns
-   stay above the floor and no scrollbar appears. The mobile carousel re-overrides with its own 280px/92vw rules. */
+   stay above the floor and no scrollbar appears. The mobile carousel re-overrides with its own 280px/92vw rules.
+   Raised 176→232 (2026-07-10 second pass): even at 1600px wide, 7 lanes left card titles ~2 words before the
+   clamp — 232px is the floor where a two-line title + badges read normally; wide monitors still fit scroll-free. */
 .kb-board > section,
 .kb-board > .kb-board-stack {
-	min-width: 176px;
+	min-width: 232px;
 }
 
 .kb-dependency-surface {
@@ -350,9 +352,15 @@ body,
 
 
 
+/* Suppress sibling-shift animations during programmatic card moves — but NEVER with `transition: none`:
+   @hello-pangea/dnd completes a drop ONLY on the dragging element's `transitionend` (propertyName
+   "transform"), so killing the transition outright leaves the drop clone stranded in position:fixed and the
+   in-flight flag (this very attribute) set forever — a self-sustaining deadlock, live-found 2026-07-10 on a
+   simulated board. A ~0 duration is visually identical and still fires the event (zero-distance drops skip
+   the animation inside the library, so no event is needed there). */
 .kb-board[data-programmatic-card-move="true"] [data-rfd-draggable-context-id],
 .kb-board[data-programmatic-card-move="true"] [data-rfd-placeholder-context-id] {
-	transition: none !important;
+	transition-duration: 0.001s !important;
 }
 
 /* -- Scrollbars -- */

@@ -78,6 +78,19 @@ async function loadMergedScript(): Promise<ScenarioScript> {
 
 async function main(): Promise<void> {
 	const home = process.env.HOME as string;
+	// Fail LOUDLY if the runtime port is already taken: otherwise the health check greets a FOREIGN runtime and
+	// every seed lands in it with "Unknown workspace ID" while our own runtime child dies on EADDRINUSE
+	// (live-hit 2026-07-10 — a leftover stack from an earlier session still held :3484).
+	try {
+		const response = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/projects.list`);
+		if (response.status !== 0) {
+			fail(
+				`port ${RUNTIME_PORT} already serves a runtime — stop it first (lsof -nP -iTCP:${RUNTIME_PORT} -sTCP:LISTEN) or set NKLEIN_SIM_STACK_PORT.`,
+			);
+		}
+	} catch {
+		/* connection refused = port free, proceed */
+	}
 	const script = await loadMergedScript();
 	const simulator = createSimulatorServer(script, {
 		models: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],

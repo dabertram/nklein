@@ -778,6 +778,22 @@ export function KanbanBoard({
 		setProgrammaticCardMoveInFlight(null);
 	}, []);
 
+	// Watchdog: the in-flight flag drives the board-wide data-programmatic-card-move attribute (which relaxes
+	// draggable transitions), so an animated move whose drop never lands (lost `transitionend`, drag swallowed
+	// by a re-render) must not leave the board wedged with a stranded fixed-position clone. Normal moves clear
+	// this within ~1s; 8s means "the drop is lost — reset".
+	useEffect(() => {
+		if (!programmaticCardMoveInFlight) {
+			return;
+		}
+		const watchdogId = window.setTimeout(() => {
+			clearProgrammaticCardMoveInFlight();
+		}, 8000);
+		return () => {
+			window.clearTimeout(watchdogId);
+		};
+	}, [programmaticCardMoveInFlight, clearProgrammaticCardMoveInFlight]);
+
 	const requestProgrammaticCardMove = useCallback<RequestProgrammaticCardMove>(
 		(move) => {
 			const { taskId, toColumnId: targetColumnId } = move;

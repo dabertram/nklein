@@ -73,12 +73,18 @@ export function useProgrammaticCardMoves(): {
 		requestMoveTaskToTrashRef.current = handler;
 	}, []);
 
+	const inFlightWatchdogRef = useRef<number | null>(null);
+
 	const clearProgrammaticCardMoveInFlight = useCallback((taskId?: string) => {
 		if (taskId && programmaticCardMoveInFlightRef.current?.taskId !== taskId) {
 			return;
 		}
 		if (!programmaticCardMoveInFlightRef.current) {
 			return;
+		}
+		if (inFlightWatchdogRef.current !== null) {
+			window.clearTimeout(inFlightWatchdogRef.current);
+			inFlightWatchdogRef.current = null;
 		}
 		programmaticCardMoveInFlightRef.current = null;
 		setProgrammaticCardMoveCycle((current) => current + 1);
@@ -121,6 +127,16 @@ export function useProgrammaticCardMoves(): {
 				delete programmaticCardMoveBehaviorByTaskIdRef.current[taskId];
 				return "unavailable";
 			}
+			// Watchdog: an animated move that never reaches onDragEnd (a lost drop `transitionend`, a re-render
+			// that swallows the drag) must not wedge the board — the in-flight flag drives the board-wide
+			// data-programmatic-card-move attribute and blocks every future programmatic move.
+			if (inFlightWatchdogRef.current !== null) {
+				window.clearTimeout(inFlightWatchdogRef.current);
+			}
+			inFlightWatchdogRef.current = window.setTimeout(() => {
+				inFlightWatchdogRef.current = null;
+				clearProgrammaticCardMoveInFlight(taskId);
+			}, 8000);
 			return "started";
 		},
 		[clearProgrammaticCardMoveInFlight],

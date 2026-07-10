@@ -929,7 +929,7 @@ export function BoardCard({
 					>
 						<div
 							className={cn(
-								"rounded-md border border-border-bright bg-surface-2 p-2.5",
+								"relative rounded-md border border-border-bright bg-surface-2 p-2.5",
 								isCardInteractive && "cursor-pointer hover:bg-surface-3 hover:border-border-bright",
 								isDragging && "shadow-lg",
 								isHovered && isCardInteractive && "bg-surface-3 border-border-bright",
@@ -992,97 +992,107 @@ export function BoardCard({
 										</p>
 									)}
 								</div>
-								{canCopyEvidence ? (
-									<Tooltip content="Create evidence bundle and copy agent prompt">
-										<Button
-											icon={isCopyEvidenceLoading ? <Spinner size={13} /> : <Clipboard size={13} />}
-											variant="ghost"
-											size="sm"
-											disabled={isCopyEvidenceLoading}
-											aria-label="Create task evidence"
-											className="shrink-0"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onCopyEvidence?.(card.id);
-											}}
-										/>
-									</Tooltip>
-								) : null}
-								{!isTrashCard && onManageDependencies ? (
-									<Tooltip content="Manage dependencies">
-										<Button
-											icon={<Link2 size={13} />}
-											variant="ghost"
-											size="sm"
-											aria-label="Manage dependencies"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onManageDependencies(card.id);
-											}}
-											className={cn(isHovered ? "opacity-100" : "opacity-0")}
-										/>
-									</Tooltip>
-								) : null}
-								{isPausedSession ? (
-									<ElementTooltip id="board-card.resume" side="bottom">
-										<Button
-											icon={<Play size={14} />}
-											variant="ghost"
-											size="sm"
-											aria-label="Resume task"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onResumeTask?.(card.id);
-											}}
-										/>
-									</ElementTooltip>
-								) : sessionSummary?.state === "running" ? (
-									<ElementTooltip id="board-card.pause" side="bottom">
-										<Button
-											icon={<Pause size={14} />}
-											variant="ghost"
-											size="sm"
-											aria-label="Pause task"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onPauseTask?.(card.id);
-											}}
-										/>
-									</ElementTooltip>
-								) : columnId === "backlog" || columnId === "planning" ? (
-									<ElementTooltip id="board-card.start" side="bottom">
-										<Button
-											icon={<Play size={14} />}
-											variant="ghost"
-											size="sm"
-											aria-label="Start task"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onStart?.(card.id);
-											}}
-										/>
-									</ElementTooltip>
-								) : isFinishedCard ? (
-									replayCardsEnabled ? (
-										<Button
-											icon={isReplayLoading ? <Spinner size={13} /> : <RotateCcw size={13} />}
-											variant="ghost"
-											size="sm"
-											disabled={isReplayLoading}
-											aria-label="Replay task"
-											onMouseDown={stopEvent}
-											onClick={(event) => {
-												stopEvent(event);
-												onReplayTask?.(card.id);
-											}}
-										/>
-									) : null
-								) : null}
+								{/* Hover-revealed action cluster: the actions float OVER the card's top-right corner instead of
+								    permanently reserving header width — on a 7-lane board the always-visible buttons squeezed the
+								    title to ~73px (live-found 2026-07-10). Kept in the DOM (opacity) so tests + focus still reach
+								    them; focus-within re-reveals for keyboard users. */}
+								<div
+									className={cn(
+										"absolute right-1 top-1 z-10 flex items-center gap-0.5 rounded-md border border-border bg-surface-3/95 px-0.5 shadow-sm transition-opacity focus-within:pointer-events-auto focus-within:opacity-100",
+										isHovered && !isDragging ? "opacity-100" : "pointer-events-none opacity-0",
+									)}
+								>
+									{canCopyEvidence ? (
+										<Tooltip content="Create evidence bundle and copy agent prompt">
+											<Button
+												icon={isCopyEvidenceLoading ? <Spinner size={13} /> : <Clipboard size={13} />}
+												variant="ghost"
+												size="sm"
+												disabled={isCopyEvidenceLoading}
+												aria-label="Create task evidence"
+												className="shrink-0"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onCopyEvidence?.(card.id);
+												}}
+											/>
+										</Tooltip>
+									) : null}
+									{!isTrashCard && onManageDependencies ? (
+										<Tooltip content="Manage dependencies">
+											<Button
+												icon={<Link2 size={13} />}
+												variant="ghost"
+												size="sm"
+												aria-label="Manage dependencies"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onManageDependencies(card.id);
+												}}
+											/>
+										</Tooltip>
+									) : null}
+									{isPausedSession ? (
+										<ElementTooltip id="board-card.resume" side="bottom">
+											<Button
+												icon={<Play size={14} />}
+												variant="ghost"
+												size="sm"
+												aria-label="Resume task"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onResumeTask?.(card.id);
+												}}
+											/>
+										</ElementTooltip>
+									) : sessionSummary?.state === "running" ? (
+										<ElementTooltip id="board-card.pause" side="bottom">
+											<Button
+												icon={<Pause size={14} />}
+												variant="ghost"
+												size="sm"
+												aria-label="Pause task"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onPauseTask?.(card.id);
+												}}
+											/>
+										</ElementTooltip>
+									) : columnId === "backlog" || columnId === "planning" ? (
+										<ElementTooltip id="board-card.start" side="bottom">
+											<Button
+												icon={<Play size={14} />}
+												variant="ghost"
+												size="sm"
+												aria-label="Start task"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onStart?.(card.id);
+												}}
+											/>
+										</ElementTooltip>
+									) : isFinishedCard ? (
+										replayCardsEnabled ? (
+											<Button
+												icon={isReplayLoading ? <Spinner size={13} /> : <RotateCcw size={13} />}
+												variant="ghost"
+												size="sm"
+												disabled={isReplayLoading}
+												aria-label="Replay task"
+												onMouseDown={stopEvent}
+												onClick={(event) => {
+													stopEvent(event);
+													onReplayTask?.(card.id);
+												}}
+											/>
+										) : null
+									) : null}
+								</div>
 							</div>
 							{displayDescription ? (
 								<div ref={descriptionContainerRef}>

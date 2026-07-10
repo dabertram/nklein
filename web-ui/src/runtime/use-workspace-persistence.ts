@@ -161,7 +161,7 @@ function findSingleDependencyOperation(baseBoard: BoardData, nextBoard: BoardDat
 	return null;
 }
 
-function findReplayableBoardOperation(baseBoard: BoardData | null, nextBoard: BoardData): BoardOperation | null {
+function findReplayableBoardOperations(baseBoard: BoardData | null, nextBoard: BoardData): BoardOperation[] | null {
 	if (!baseBoard) {
 		return null;
 	}
@@ -169,19 +169,28 @@ function findReplayableBoardOperation(baseBoard: BoardData | null, nextBoard: Bo
 		return null;
 	}
 	if (JSON.stringify(baseBoard.dependencies) === JSON.stringify(nextBoard.dependencies)) {
-		const moveOperation = findSimpleCardMoveOperation(baseBoard, nextBoard);
-		if (moveOperation) {
-			return moveOperation;
+		const moveOperations = findCardMoveOperations(baseBoard, nextBoard);
+		if (moveOperations && moveOperations.length > 0) {
+			return moveOperations;
 		}
-		return findSingleCardUpdateOperation(baseBoard, nextBoard);
+		const updateOperation = findSingleCardUpdateOperation(baseBoard, nextBoard);
+		return updateOperation ? [updateOperation] : null;
 	}
-	return findSingleDependencyOperation(baseBoard, nextBoard);
+	const dependencyOperation = findSingleDependencyOperation(baseBoard, nextBoard);
+	return dependencyOperation ? [dependencyOperation] : null;
 }
 
-function findSimpleCardMoveOperation(
+/**
+ * The pure-moves diff: every card content-identical, only positions changed. Returns one move op per moved
+ * card, or null when any non-move change exists. Multi-move matters on a BUSY board: the session→lane mirror
+ * effect relocates SEVERAL cards in one commit (live-found 2026-07-10 on a simulated swarm — the single-move
+ * replay bailed, so pure lane mirroring kept escalating to the "Board changed elsewhere" banner with no user
+ * edit anywhere).
+ */
+function findCardMoveOperations(
 	baseBoard: BoardData,
 	nextBoard: BoardData,
-): Extract<BoardOperation, { kind: "move_card" }> | null {
+): Array<Extract<BoardOperation, { kind: "move_card" }>> | null {
 	const baseLocations = collectCardLocations(baseBoard);
 	const nextLocations = collectCardLocations(nextBoard);
 	if (baseLocations.size !== nextLocations.size) {
@@ -211,30 +220,30 @@ function findSimpleCardMoveOperation(
 			}
 		}
 	}
-	if (movedTaskIds.length !== 1) {
+	if (movedTaskIds.length === 0) {
 		return null;
 	}
-	const taskId = movedTaskIds[0];
-	if (!taskId) {
-		return null;
+	const operations: Array<Extract<BoardOperation, { kind: "move_card" }>> = [];
+	for (const taskId of movedTaskIds) {
+		const fromLocation = baseLocations.get(taskId);
+		const toLocation = nextLocations.get(taskId);
+		if (!fromLocation || !toLocation) {
+			return null;
+		}
+		const nextColumn = nextBoard.columns.find((column) => column.id === toLocation.columnId);
+		const previousTaskId = toLocation.index > 0 ? (nextColumn?.cards[toLocation.index - 1]?.id ?? null) : null;
+		const nextTaskId = nextColumn?.cards[toLocation.index + 1]?.id ?? null;
+		operations.push({
+			kind: "move_card",
+			taskId,
+			fromColumnId: fromLocation.columnId,
+			toColumnId: toLocation.columnId,
+			targetIndex: toLocation.index,
+			previousTaskId,
+			nextTaskId,
+		});
 	}
-	const fromLocation = baseLocations.get(taskId);
-	const toLocation = nextLocations.get(taskId);
-	if (!fromLocation || !toLocation) {
-		return null;
-	}
-	const nextColumn = nextBoard.columns.find((column) => column.id === toLocation.columnId);
-	const previousTaskId = toLocation.index > 0 ? (nextColumn?.cards[toLocation.index - 1]?.id ?? null) : null;
-	const nextTaskId = nextColumn?.cards[toLocation.index + 1]?.id ?? null;
-	return {
-		kind: "move_card",
-		taskId,
-		fromColumnId: fromLocation.columnId,
-		toColumnId: toLocation.columnId,
-		targetIndex: toLocation.index,
-		previousTaskId,
-		nextTaskId,
-	};
+	return operations;
 }
 
 function reapplySimpleCardMoveOperation(
@@ -440,18 +449,18 @@ export function useWorkspacePersistence({
 						) {
 							onWorkspaceRevisionChange(error.currentRevision);
 						}
-						const replayableOperation = findReplayableBoardOperation(lastPersistedBoardRef.current, board);
+						const replayableOperations = findReplayableBoardOperations(lastPersistedBoardRef.current, board);
 						if (
-							replayableOperation &&
+							replayableOperations &&
 							requestId === latestPersistRequestIdRef.current &&
 							currentProjectIdRef.current === persistWorkspaceId
 						) {
 							try {
 								const latestWorkspaceState = await fetchWorkspaceState(persistWorkspaceId);
-								const rebasedBoard = reapplyBoardOperation(
-									latestWorkspaceState.board as BoardData,
-									replayableOperation,
-								);
+								let rebasedBoard: BoardData | null = latestWorkspaceState.board as BoardData;
+								for (const operation of replayableOperations) {
+									rebasedBoard = rebasedBoard ? reapplyBoardOperation(rebasedBoard, operation) : null;
+								}
 								if (rebasedBoard) {
 									const retried = await persistWorkspaceState({
 										workspaceId: persistWorkspaceId,

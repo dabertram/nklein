@@ -158,7 +158,29 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 	return fixtures;
 }
 
-/** Compile a whole script. Track order is preserved (earlier tracks win ties in aimock's matcher). */
+/**
+ * Matching specificity of a track — aimock picks the FIRST matching fixture, so compile order decides ties.
+ * Most-specific-first ordering makes merged multi-scenario scripts safe: a needle-keyed track can never be
+ * shadowed by an earlier catch-all (live-found 2026-07-10 — merging project sets in the dev stack let project
+ * 02's no-needle `any` fallback swallow project 05's decompose request, stranding its board in Planning).
+ */
+function trackSpecificity(track: ScenarioTrack): number {
+	if (track.userMessageIncludes) {
+		return 0; // needle-keyed — most specific
+	}
+	if (track.requestClass !== "any") {
+		return 1; // class-scoped
+	}
+	return 2; // catch-all — always last
+}
+
+/**
+ * Compile a whole script. Tracks compile most-specific-first (needle > class > catch-all; stable within a
+ * tier, so same-specificity tracks keep authoring order for ties).
+ */
 export function compileScenarioScript(script: ScenarioScript, options: CompileOptions = {}): Fixture[] {
-	return script.tracks.flatMap((track) => compileTrack(track, options));
+	return script.tracks
+		.map((track, index) => ({ track, index }))
+		.sort((a, b) => trackSpecificity(a.track) - trackSpecificity(b.track) || a.index - b.index)
+		.flatMap(({ track }) => compileTrack(track, options));
 }
