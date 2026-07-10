@@ -11196,13 +11196,22 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       `columnCanHaveLiveTaskSession`). TypeScript exhaustiveness caught all sites (only 3 needed a case — the codebase
       centralizes `RuntimeBoardColumnId` well). NO behavior change yet; 8885 backend + 989 web-ui tests green. An
       empty Ready lane is a valid board state, not a regression.
-      **INCREMENT 2 (promotion — NEXT, test-driven, on a fresh runway):** the behavior change that flows cards INTO
-      ready. Design: a pure `reconcileReadyLane(board, activeSessionTaskIds)` that moves a dep-free card with NO
-      active session out of planning/backlog INTO ready (a card being DECOMPOSED has a planning session ⇒ stays in
-      planning), and ensures a started card leaves ready → in_progress; `listStartableUnstartedTaskIds` must ALSO scan
-      `ready`. RACE TO GUARD (why this is test-first): a card just moved to `STARTED_CARD_ENTRY_LANE=planning` to be
-      started must not be yanked to ready before its session attaches — key the reconcile off the AUTHORITATIVE
-      session set, applied inside the same board-state mutation the sweep uses. Cover the full session lifecycle
-      (create → dep-met → ready → start → in_progress → review) across unit/contract/simulated-flows before wiring.
+      **INCREMENT 2a DONE (2026-07-10) — the promotion LOGIC + sweep integration (committed, 18 tests):** pure
+      `resolveReadyLaneMoves(board, {activeSessionTaskIds, pendingStartTaskIds})` [src/core/ready-lane-reconcile.ts]:
+      dep-free session-less planning card → ready; started ready card → in_progress; re-blocked ready card →
+      planning; backlog never auto-promoted. `listStartableUnstartedTaskIds` now also scans `ready` (backward-compat,
+      inert until the runtime applies the reconcile).
+      **INCREMENT 2b ATTEMPTED + REVERTED — the simulator caught a real interaction bug (2026-07-10):** wiring the
+      reconcile into the completion-sweep + decompose handlers made ready POPULATE beautifully (live sim project-02:
+      once the domain-model card completed, 14 dep-free cards flooded into Ready as queued-but-unblocked), BUT the
+      board then STALLED at 7/19 completed with ~12 cards STUCK in ready. ROOT CAUSE: the start flow moves a starting
+      card to `STARTED_CARD_ENTRY_LANE=planning`; the reconcile's planning→ready rule then bounces it back to ready
+      before its session attaches, so a ready card being started never reaches in_progress. THE FIX 2b NEEDS (make
+      the start flow ready-aware): a card starting FROM ready must transition ready→in_progress DIRECTLY (not via the
+      planning entry-lane), OR the reconcile must exclude cards the runtime is actively dispatching (a reliable
+      pending-start set — the sweep's deferred/over-cap set is NOT that: those are exactly the cards that SHOULD
+      surface in ready, so they must NOT be excluded). Reverted to keep the harness green (19/19); 2a's tested core is
+      committed and inert. NEXT: resolve the bounce (start-flow ready-transition), re-wire, re-verify ready
+      populates AND fully drains via the harness (add `ready==0` to the strict drain gate).
       **INCREMENT 3 (surfaces):** lean-view lane mapping (map `ready`→Queued or its own lane), board counts, drag
       rules, DAG/overview. Run a simulated project through the harness to prove ready populates + drains.
