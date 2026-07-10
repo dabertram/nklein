@@ -7403,7 +7403,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `{contextTokens, qualityScore}` observations per model/task (from the §5.AF ledger / §5.AB eval-sweep probes below)
         and feed the fitted `budgetTokens` into prompt-assembly compaction (the next leaf) + the model-telemetry panel.
   - [ ] Wire learned budget into prompt-assembly: compact/summarize down to `learnedQualityEffectiveBudget(profile)` instead of filling the window (behind §5.Z re-verify).
-  - [ ] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
+  - [x] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
+        **DONE (2026-07-10, 57bd6a09):** new corpus family `context_probe` — the SAME needle-retrieval task at
+        graduated context sizes (2k/8k/24k tokens; sizes under the ≥32k floor so every gated model can attempt
+        all three), yielding `{contextTokens, quality}` points per sweep. Haystack generated DETERMINISTICALLY
+        at run time from a compact spec (`buildContextProbeInput` — repeats measure the model, never the probe);
+        scored by case-insensitive fragment presence (`scoreContextProbeAnswer`). Rides the shared runner
+        (`runModelEval`), so the CLI harness, the Settings on-demand trigger, and the idle re-eval rail all run
+        the probes automatically. Feeding the fitted curve into prompt-assembly stays the next leaf (gated).
   - [x] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
         *(✅ 2026-07-08 — the "Learned model behavior" table (Model Performance stats dialog, getModelBehaviorProfiles)
         shows the QUALITY KNEE per model ("ok ≤ N / degrades ≥ M" from qualityEffectiveContextTokens /
