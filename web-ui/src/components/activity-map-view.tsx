@@ -304,14 +304,28 @@ export function ActivityMapView({
 									/>
 								) : null}
 								{bubble.showLabel ? (
-									<text
-										x={position.x}
-										y={position.labelAbove ? position.y - bubble.radius - 6 : position.y + bubble.radius + 13}
-										textAnchor="middle"
-										className="fill-text-secondary text-[10px]"
-									>
-										{bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title}
-									</text>
+									(() => {
+										const caption = bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title;
+										// Center-anchored on the bubble, but clamped on-canvas: a bubble near the edge
+										// otherwise runs its caption off-screen ("Seed scenario…" rendered as
+										// "d scenario…", live-found 2026-07-10). ~5.1px/char at 10px.
+										const halfWidth = (caption.length * 5.1) / 2;
+										const captionX = Math.min(Math.max(position.x, halfWidth + 4), width - halfWidth - 4);
+										return (
+											<text
+												x={captionX}
+												y={
+													position.labelAbove
+														? position.y - bubble.radius - 6
+														: position.y + bubble.radius + 13
+												}
+												textAnchor="middle"
+												className="fill-text-secondary text-[10px]"
+											>
+												{caption}
+											</text>
+										);
+									})()
 								) : (
 									<title>{bubble.title}</title>
 								)}
