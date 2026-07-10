@@ -5952,8 +5952,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         and "Single-model default" otherwise. Focused UI tests cover all three states. Still owed: live ≥3-agent
         verification below.
   - [~] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
-        endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers. **IN PROGRESS
-        (2026-07-09):** the `complex_dag` fleet verifier now fails closed unless the configured architect + worker + reviewer
+        endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
+        **SIMULATED SWARM MECHANISM VERIFIED (2026-07-10):** `NKLEIN_SIMFLOW_MULTI_MODEL=1 npx tsx
+        scripts/verify-simulated-flow.mts` pins three DISTINCT simulator models per role (architect sim/architect-r1,
+        worker sim/coder-14b, reviewer sim/reviewer-qwq — modelSelectionMode "pinned") and asserts from the request
+        journal that EVERY decompose ran on the architect model, every worker turn on the worker model, every review
+        on the reviewer model — 3/3 cards completed, reviews delivered, zero unmatched, zero LLM compute. Turn-level
+        parallelism is deliberately NOT asserted there: all sim models share one endpoint origin and !Klein
+        serializes turns per endpoint by design (the accepted throughput stance) — cross-endpoint turn parallelism
+        remains the LIVE fleet-run portion below (or a future multi-endpoint simulator: one shim per model + a fake
+        `lms` machine feed would let the pools item verify at memory speed too).
+        **IN PROGRESS (2026-07-09):** the `complex_dag` fleet verifier now fails closed unless the configured architect + worker + reviewer
         models are actually observed in runtime/ledger telemetry (`scripts/verify-fleet-swarm.mts`), so a run cannot
         "pass" by silently using only the default/architect model or by hiding a synthetic reviewer session. A live
         pre-restart run decomposed and exercised the architect/reviewer path, but exposed a real gap: the cold configured

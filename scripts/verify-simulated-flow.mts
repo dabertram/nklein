@@ -11,6 +11,10 @@
  *         NKLEIN_SIMFLOW_SCENARIO — a scenario-set project ("02" or the full registry id): loads that set from
  *         packages/llm-simulator/scenarios/<project>/ and drives the REAL dev-test registry project with it.
  *         NKLEIN_SIMFLOW_RUN — "perfect" (default) or "flaky": which run file of the set to serve.
+ *         NKLEIN_SIMFLOW_MULTI_MODEL=1 — the ≥3-agent SWARM verification (todo §5 ★ near-term): three distinct
+ *         sim models are pinned per role (architect/worker/reviewer, modelSelectionMode "pinned"); after the run
+ *         the simulator journal must show decompose on the architect model, every write_files worker turn on the
+ *         worker model, every review on the reviewer model, and the two worker sessions overlapping in time.
  */
 
 import { spawn } from "node:child_process";
@@ -25,7 +29,13 @@ const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
 const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR ? 480_000 : 240_000);
 const RUNTIME_PORT = 3986;
+const MULTI_MODEL = process.env.NKLEIN_SIMFLOW_MULTI_MODEL === "1";
 const SIM_MODEL = "sim/qwen-fast-coder";
+const SWARM_MODELS = {
+	architect: "sim/architect-r1",
+	worker: "sim/coder-14b",
+	reviewer: "sim/reviewer-qwq",
+} as const;
 
 function fail(message: string): never {
 	console.error(`FAIL ✗ ${message}`);
@@ -41,6 +51,9 @@ if (homedir() === "/Users/david" || process.env.HOME === "/Users/david") {
 // project scenario sets live in packages/llm-simulator/scenarios/ — this inline one keeps the harness
 // self-contained and fast.
 // ---------------------------------------------------------------------------
+// In multi-model swarm mode every turn gets a little latency so the two dep-free workers demonstrably overlap.
+const SMOKE_TURN_LATENCY_MS = MULTI_MODEL ? 700 : undefined;
+
 const script: ScenarioScript = {
 	name: "simflow-smoke",
 	seed: 7,
@@ -154,6 +167,14 @@ const script: ScenarioScript = {
 	],
 };
 
+if (SMOKE_TURN_LATENCY_MS) {
+	for (const track of script.tracks) {
+		for (const turn of track.turns) {
+			turn.latencyMs ??= SMOKE_TURN_LATENCY_MS;
+		}
+	}
+}
+
 /** Resolve NKLEIN_SIMFLOW_SCENARIO ("02" or a full registry id) to {registryId, script}. */
 async function resolveScenario(): Promise<{ registryId: string; scenario: ScenarioScript } | undefined> {
 	if (!SCENARIO_SELECTOR) return undefined;
@@ -174,7 +195,13 @@ async function main(): Promise<void> {
 
 	// 1) Simulator (chat surface + LM Studio /api shim on one origin).
 	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, {
-		models: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
+		models: MULTI_MODEL
+			? [
+					{ id: SWARM_MODELS.architect, state: "loaded", family: "qwen", maxContextLength: 65536 },
+					{ id: SWARM_MODELS.worker, state: "loaded", family: "qwen", maxContextLength: 65536 },
+					{ id: SWARM_MODELS.reviewer, state: "loaded", family: "qwen", maxContextLength: 65536 },
+				]
+			: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
 	});
 	await simulator.start();
 	const simBase = simulator.url(); // http://127.0.0.1:<port>/v1
@@ -192,11 +219,18 @@ async function main(): Promise<void> {
 				selectedAgentId: "nklein",
 				developerModeEnabled: true,
 				setupWizardCompletedAt: Date.now(),
-				modelRoles: {
-					architect: { modelId: SIM_MODEL, providerId: "lmstudio" },
-					worker: { modelId: SIM_MODEL, providerId: "lmstudio" },
-					reviewer: { modelId: SIM_MODEL, providerId: "lmstudio" },
-				},
+				modelRoles: MULTI_MODEL
+					? {
+							// Hard pins per role (todo §5 ★ near-term swarm): auto-selection must NOT substitute.
+							architect: { modelId: SWARM_MODELS.architect, providerId: "lmstudio", modelSelectionMode: "pinned" },
+							worker: { modelId: SWARM_MODELS.worker, providerId: "lmstudio", modelSelectionMode: "pinned" },
+							reviewer: { modelId: SWARM_MODELS.reviewer, providerId: "lmstudio", modelSelectionMode: "pinned" },
+						}
+					: {
+							architect: { modelId: SIM_MODEL, providerId: "lmstudio" },
+							worker: { modelId: SIM_MODEL, providerId: "lmstudio" },
+							reviewer: { modelId: SIM_MODEL, providerId: "lmstudio" },
+						},
 			},
 			null,
 			1,
@@ -210,7 +244,7 @@ async function main(): Promise<void> {
 				lastUsedProvider: "lmstudio",
 				providers: {
 					lmstudio: {
-						settings: { provider: "lmstudio", model: SIM_MODEL, baseUrl: simBase },
+						settings: { provider: "lmstudio", model: MULTI_MODEL ? SWARM_MODELS.worker : SIM_MODEL, baseUrl: simBase },
 						updatedAt: new Date().toISOString(),
 						tokenSource: "manual",
 					},
@@ -325,6 +359,52 @@ async function main(): Promise<void> {
 		if (seedExit !== 0) {
 			console.error(runtimeLogs.join("").slice(-3000));
 			fail(`dev-test monitor exit ${seedExit} — see output above (classification is printed by the monitor)`);
+		}
+		if (MULTI_MODEL) {
+			// ≥3-agent swarm assertions (todo §5 ★ near-term): every request class must have run on ITS pinned
+			// model, and the two dep-free worker cards must have overlapped in time (true parallelism).
+			interface JournalShape {
+				timestamp?: number;
+				body?: { model?: string; messages?: Array<{ role?: string; content?: unknown }>; tools?: Array<{ function?: { name?: string } }> };
+			}
+			const flatText = (entry: JournalShape): string =>
+				JSON.stringify(entry.body?.messages ?? []).toLowerCase();
+			const classified = journal.map((entry) => {
+				const shaped = entry as unknown as JournalShape;
+				const tools = (shaped.body?.tools ?? []).map((tool) => tool.function?.name);
+				const kind = tools.includes("submit_review") ? "review" : flatText(shaped).includes("implementation-card breakdown") ? "decompose" : "worker";
+				return { kind, model: shaped.body?.model ?? "?", at: shaped.timestamp ?? 0, text: flatText(shaped) };
+			});
+			const wrong = classified.filter((entry) => {
+				if (entry.kind === "decompose") return entry.model !== SWARM_MODELS.architect;
+				if (entry.kind === "review") return entry.model !== SWARM_MODELS.reviewer;
+				return entry.model !== SWARM_MODELS.worker;
+			});
+			if (wrong.length > 0) {
+				throw new Error(`swarm role routing violated: ${wrong.map((entry) => `${entry.kind}→${entry.model}`).join(", ")}`);
+			}
+			const windows = ["greet.ts", "farewell.ts"].map((needle) => {
+				const hits = classified.filter((entry) => entry.kind === "worker" && entry.text.includes(needle)).map((entry) => entry.at);
+				return hits.length > 0 ? { first: Math.min(...hits), last: Math.max(...hits) } : null;
+			});
+			const [greetWindow, farewellWindow] = windows;
+			if (!greetWindow || !farewellWindow) {
+				throw new Error("swarm coverage hole: one of the worker cards produced no requests");
+			}
+			// NOTE deliberately NOT asserting turn-level overlap: all sim models share ONE endpoint origin, and
+			// !Klein serializes turns per endpoint by design ("throughput stance", todo §5 ★ — serialization on
+			// local endpoints is ACCEPTED). Turn-level parallelism is a fleet-topology property (models on
+			// separate endpoints/machines) — the live fleet run covers it; here we prove ROLE ROUTING + the flow.
+			console.log(
+				`SWARM timing (single-endpoint serialization expected): greet ${greetWindow.first}–${greetWindow.last} · farewell ${farewellWindow.first}–${farewellWindow.last}`,
+			);
+			const distinctModels = new Set(classified.map((entry) => entry.model));
+			if (distinctModels.size < 3) {
+				throw new Error(`swarm expected ≥3 distinct models on the wire, saw ${distinctModels.size}: ${[...distinctModels].join(", ")}`);
+			}
+			console.log(
+				`SWARM ✓ ${distinctModels.size} distinct models drove ${classified.length} requests (decompose→${SWARM_MODELS.architect}, workers→${SWARM_MODELS.worker}, reviews→${SWARM_MODELS.reviewer}; turns serialized on the shared endpoint as designed).`,
+			);
 		}
 		const reviewLines = runtimeLogs.join("").split("\n").filter((line) => /review|acceptance|sandbox/i.test(line)).slice(-12);
 		console.log("Review/acceptance trail:\n" + reviewLines.join("\n"));
