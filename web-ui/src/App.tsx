@@ -600,6 +600,12 @@ export default function App(): ReactElement {
 		[],
 	);
 
+	const handleWorkspaceRevisionChange = useCallback((revision: number) => {
+		setWorkspaceRevision(revision);
+		// A clean sync after a conflict means the boards converged — the stale warning would only invite a
+		// destructive "restore" of agent-made progress (live-found 2026-07-10 on a simulated busy board).
+		setWorkspaceConflictNoticeVisible((visible) => (visible ? false : visible));
+	}, []);
 	useWorkspacePersistence({
 		board,
 		currentProjectId,
@@ -610,7 +616,7 @@ export default function App(): ReactElement {
 		isWorkspaceStateRefreshing,
 		persistWorkspaceState: persistWorkspaceStateAsync,
 		refetchWorkspaceState: refreshWorkspaceState,
-		onWorkspaceRevisionChange: setWorkspaceRevision,
+		onWorkspaceRevisionChange: handleWorkspaceRevisionChange,
 		onBoardRebased: setBoard,
 		onWorkspaceStateConflict: handleWorkspaceStateConflict,
 	});
@@ -1201,6 +1207,7 @@ export default function App(): ReactElement {
 											<LeanBoardView
 												columns={board.columns}
 												sessions={sessions}
+												dependencies={board.dependencies ?? []}
 												streamFilter={streamFilter}
 												onSelectCard={handleCardSelect}
 												onBackToOverview={() => setZoom(1)}

@@ -28,6 +28,24 @@ import { assessRunAttention, type RunBudgetCeiling } from "../core/run-attention
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { loadWorkspaceState } from "../state/workspace-state";
 
+/**
+ * A chat titled with the raw workspace basename ("nklein-01-clinical-medication-safety-platform-1783…-deD9mJ")
+ * truncates into indistinguishable noise in the session list (live-found 2026-07-10). Strip the generated
+ * prefix/suffix machinery and title-case the slug; fall back to the raw name when the shape is unfamiliar.
+ */
+export function humanizeWorkspaceChatTitle(rawName: string): string {
+	const stripped = rawName
+		.replace(/^nklein-/, "")
+		.replace(/^\d{2}-/, "")
+		.replace(/-\d{10,}(-[a-z0-9]+)?$/i, "");
+	const words = stripped.split(/[-_]+/).filter(Boolean);
+	if (words.length === 0) {
+		return rawName;
+	}
+	const sentence = words.join(" ");
+	return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
 /** The card's session state → the board lane that matters for feedback. `awaiting_review` = the actionable moment. */
 function deriveColumnIdFromState(state: RuntimeTaskSessionState): OperatorColumnId {
 	return state === "awaiting_review" ? "review" : "in_progress";
@@ -128,7 +146,7 @@ export function createBoardChatFeedbackWiring(overrides?: {
 					owningSessionIdByWorkspace.delete(workspaceId);
 				}
 				const workspacePath = workspacePathById.get(workspaceId);
-				const title = workspacePath ? basename(workspacePath) : workspaceId;
+				const title = humanizeWorkspaceChatTitle(workspacePath ? basename(workspacePath) : workspaceId);
 				const session = await ensureChatSessionForWorkspace({ workspaceId, title });
 				owningSessionIdByWorkspace.set(workspaceId, session.id);
 				return toRef(session);

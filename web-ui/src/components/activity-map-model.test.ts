@@ -105,3 +105,28 @@ describe("composeActivityMap (§5.BB Zoom 0)", () => {
 		expect(map.edges.find((e) => e.fromCardId === "held1")?.crossCluster).toBe(false);
 	});
 });
+
+describe("label density", () => {
+	it("keeps all labels on small boards but only active labels past the density limit", () => {
+		const smallColumns: BoardColumn[] = [{ id: "planning", title: "Planning", cards: [card("a"), card("b")] }];
+		const small = composeActivityMap({ columns: smallColumns, dependencies: [], sessions: {}, now: () => NOW });
+		expect(small.clusters.flatMap((cluster) => cluster.bubbles).every((bubble) => bubble.showLabel)).toBe(true);
+
+		const manyCards = Array.from({ length: 30 }, (_, index) => card(`c${index}`));
+		const busyColumns: BoardColumn[] = [
+			{ id: "planning", title: "Planning", cards: manyCards },
+			{ id: "in_progress", title: "In progress", cards: [card("hot")] },
+		];
+		const busy = composeActivityMap({
+			columns: busyColumns,
+			dependencies: [],
+			sessions: { hot: session("hot", "running") },
+			now: () => NOW,
+		});
+		const bubbles = busy.clusters.flatMap((cluster) => cluster.bubbles);
+		const hot = bubbles.find((bubble) => bubble.id === "hot");
+		expect(hot?.showLabel).toBe(true);
+		const idle = bubbles.filter((bubble) => bubble.id !== "hot");
+		expect(idle.some((bubble) => bubble.showLabel)).toBe(false);
+	});
+});

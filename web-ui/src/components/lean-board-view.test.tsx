@@ -137,3 +137,45 @@ describe("LeanBoardView", () => {
 		expect(doing).toContain("read_files");
 	});
 });
+
+describe("queued readiness ordering", () => {
+	it("floats dependency-ready cards above blocked ones and labels the wait", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		const columns: BoardColumn[] = [
+			{ id: "backlog", title: "Backlog", cards: [] },
+			{
+				id: "planning",
+				title: "Planning",
+				cards: [card("late", "Repository README"), card("root", "Core domain model")],
+			},
+			{ id: "in_progress", title: "In progress", cards: [] },
+			{ id: "review", title: "Review", cards: [] },
+			{ id: "completed", title: "Completed", cards: [card("done", "Scaffold")] },
+		];
+		await act(async () => {
+			root.render(
+				<LeanBoardView
+					columns={columns}
+					sessions={{}}
+					dependencies={[
+						{ fromTaskId: "late", toTaskId: "root" },
+						{ fromTaskId: "root", toTaskId: "done" },
+					]}
+					streamFilter={null}
+					onSelectCard={() => {}}
+					onBackToOverview={() => {}}
+				/>,
+			);
+		});
+		const lane = container.querySelector('[data-testid="lean-lane-queued"]') as HTMLElement;
+		const rows = [...lane.querySelectorAll("button")].map((button) => button.textContent ?? "");
+		// "root" is ready (its blocker completed) and must come first; "late" waits on root.
+		expect(rows[0]).toContain("Core domain model");
+		expect(rows[1]).toContain("Repository README");
+		expect(rows[1]).toContain("waiting on 1 card(s)");
+		act(() => root.unmount());
+		container.remove();
+	});
+});

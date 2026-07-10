@@ -4,6 +4,7 @@ import {
 	clampTextWithInlineSuffix,
 	getTaskPromptDescription,
 	normalizePromptForDisplay,
+	stripSkillRoutingPreamble,
 	truncateTaskPromptLabel,
 } from "@/utils/task-prompt";
 
@@ -62,5 +63,26 @@ describe("clampTextWithInlineSuffix", () => {
 			text: "alpha beta gamma delta epsilon zeta",
 			isTruncated: true,
 		});
+	});
+});
+
+describe("stripSkillRoutingPreamble", () => {
+	it("strips the /skill + Guidance-topic preamble !Klein prepends to decomposed prompts", () => {
+		expect(
+			getTaskPromptDescription(
+				"/nklein-ts\n\nGuidance topic: ts\n\nCreate src/adapters/fhir-import.ts: a deterministic adapter.",
+				"FHIR-shaped import adapter",
+			),
+		).toBe("Create src/adapters/fhir-import.ts: a deterministic adapter.");
+	});
+
+	it("leaves prompts that merely START with a slash-path untouched (no Guidance marker)", () => {
+		expect(stripSkillRoutingPreamble("/src/main.ts needs a rewrite")).toBe("/src/main.ts needs a rewrite");
+	});
+
+	it("strips stacked skill blocks", () => {
+		expect(
+			stripSkillRoutingPreamble("/nklein-ts Guidance topic: ts /nklein-ui Guidance topic: ui Build the panel."),
+		).toBe("Build the panel.");
 	});
 });

@@ -382,3 +382,23 @@ describe("loaded vs available states (David 2026-07-10: unloaded models must not
 		expect(summary).toContain("qwen ×2");
 	});
 });
+
+describe("duplicate registry variants", () => {
+	it("collapses the ':default' role-wiring twin onto one row, keeping the better-informed state", () => {
+		const groups = composeFleetRows({
+			registryModels: [
+				makeEntry({ modelId: "lmstudio:sim/qwen-fast-coder", key: "sim/qwen-fast-coder" }),
+				makeEntry({ modelId: "lmstudio:sim/qwen-fast-coder:default", key: "sim/qwen-fast-coder:default" }),
+				makeEntry({
+					modelId: "lmstudio:sim/qwen-fast-coder:http://localhost:49383/v1",
+					key: "sim/qwen-fast-coder@49383",
+				}),
+			],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+		});
+		const rows = groups.flatMap((group) => group.rows);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.modelId).toBe("lmstudio:sim/qwen-fast-coder");
+	});
+});

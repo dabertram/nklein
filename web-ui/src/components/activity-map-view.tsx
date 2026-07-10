@@ -271,14 +271,18 @@ export function ActivityMapView({
 										opacity={0.85}
 									/>
 								) : null}
-								<text
-									x={position.x}
-									y={position.labelAbove ? position.y - bubble.radius - 6 : position.y + bubble.radius + 13}
-									textAnchor="middle"
-									className="fill-text-secondary text-[10px]"
-								>
-									{bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title}
-								</text>
+								{bubble.showLabel ? (
+									<text
+										x={position.x}
+										y={position.labelAbove ? position.y - bubble.radius - 6 : position.y + bubble.radius + 13}
+										textAnchor="middle"
+										className="fill-text-secondary text-[10px]"
+									>
+										{bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title}
+									</text>
+								) : (
+									<title>{bubble.title}</title>
+								)}
 							</g>
 						);
 					}),

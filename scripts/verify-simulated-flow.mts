@@ -184,7 +184,9 @@ async function main(): Promise<void> {
 	await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
 	await mkdir(join(home, ".nklein", "data", "settings"), { recursive: true });
 	await writeFile(
-		join(home, ".nklein", "config.json"),
+		// The runtime's GLOBAL config lives at ~/.nklein/nklein/config.json (runtime-config-paths.ts) — writing
+		// ~/.nklein/config.json is silently ignored (live-found 2026-07-10: the setup wizard auto-fired anyway).
+		join(home, ".nklein", "nklein", "config.json"),
 		JSON.stringify(
 			{
 				selectedAgentId: "nklein",

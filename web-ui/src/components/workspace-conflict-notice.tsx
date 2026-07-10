@@ -26,14 +26,16 @@ export function WorkspaceConflictNotice({
 						want it.
 					</p>
 					<div className="mt-3 flex items-center gap-2">
+						{/* Refresh is the SAFE default: most conflicts are the runtime's own progress racing a viewer,
+						    and "restoring" would silently roll agent-made moves back (live-found 2026-07-10). */}
+						<Button size="sm" variant="primary" onClick={onRefresh}>
+							Refresh board
+						</Button>
 						{onRestoreLocalEdit ? (
-							<Button size="sm" variant="primary" onClick={onRestoreLocalEdit}>
+							<Button size="sm" variant="default" onClick={onRestoreLocalEdit}>
 								Restore my edit
 							</Button>
 						) : null}
-						<Button size="sm" variant="default" onClick={onRefresh}>
-							Refresh board
-						</Button>
 						<Button size="sm" variant="ghost" onClick={onDismiss}>
 							Dismiss
 						</Button>

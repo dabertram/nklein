@@ -23,8 +23,19 @@ function stripOuterXmlTag(text: string): string {
 		.trim();
 }
 
+/**
+ * Strip the skill-routing preamble !Klein prepends to decomposed card prompts ("/nklein-ts\n\nGuidance topic:
+ * ts\n\n…") so previews lead with the card's actual objective (live-found 2026-07-10: every card on a simulated
+ * project-01 board previewed as "/nklein-ts Guidance…"). Tolerates repeated skill blocks and normalized whitespace.
+ */
+export function stripSkillRoutingPreamble(prompt: string): string {
+	// The topic is a short slug ("ts", "ui") — matching a single token keeps the pattern from swallowing the
+	// prompt body once display normalization has collapsed the newlines away.
+	return prompt.replace(/^(?:\s*\/[\w][\w-]*\s+Guidance topic:\s*\S+\s*)+/u, "");
+}
+
 export function getTaskPromptDescription(prompt: string, title: string): string {
-	const normalizedPrompt = stripOuterXmlTag(normalizePromptForDisplay(prompt));
+	const normalizedPrompt = stripSkillRoutingPreamble(stripOuterXmlTag(normalizePromptForDisplay(prompt)));
 	const normalizedTitle = normalizePromptForDisplay(title);
 	if (!normalizedPrompt) {
 		return "";

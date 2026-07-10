@@ -1,7 +1,7 @@
 import type { RuntimeTaskSessionSummary } from "@runtime-contract";
 import { X } from "lucide-react";
 import type React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { buildDagGraph, DAG_LAYOUT, type DagNode } from "@/components/board-dag-model";
 import { cn } from "@/components/ui/cn";
@@ -56,6 +56,20 @@ export function BoardDagView({
 	const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
 	const graph = useMemo(() => buildDagGraph(columns, dependencies, sessions), [columns, dependencies, sessions]);
+
+	// Escape closes the full-screen graph like every other overlay (live-found 2026-07-10: it only closed via ×).
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (event.key === "Escape") {
+				onClose();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, onClose]);
 
 	if (!open) {
 		return null;

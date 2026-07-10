@@ -266,7 +266,17 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 			: toEndpointLabel(endpointRefForModel(entry));
 		const bucket = groupsByLabel.get(label);
 		if (bucket) {
-			bucket.push(row);
+			// Registry variants of the SAME served model (e.g. "…qwen-fast-coder" + "…qwen-fast-coder:default",
+			// one per role wiring) rendered as duplicate rows (live-found 2026-07-10). Same group + same
+			// canonical id ⇒ one row; the better-informed side wins (running > idle > available; keep warmth).
+			const canonical = canonicalFleetModelId(row.modelId);
+			const twinIndex = bucket.findIndex((existing) => canonicalFleetModelId(existing.modelId) === canonical);
+			if (twinIndex >= 0) {
+				const twin = bucket[twinIndex] as FleetRow;
+				bucket[twinIndex] = mergeFleetRowTwins(twin, row);
+			} else {
+				bucket.push(row);
+			}
 		} else {
 			groupsByLabel.set(label, [row]);
 		}
@@ -278,6 +288,32 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 	}));
 	groups.sort((left, right) => left.endpointLabel.localeCompare(right.endpointLabel));
 	return groups;
+}
+
+/**
+ * Registry ids embed their endpoint ref as a suffix — the SAME served model shows up as "provider:model",
+ * "provider:model:default" AND "provider:model:http://host:port/v1" depending on which wiring registered it.
+ * Row identity collapses all of them onto the bare "provider:model".
+ */
+function canonicalFleetModelId(modelId: string): string {
+	return modelId.replace(/:(?:default|https?:\/\/\S*)$/i, "");
+}
+
+const FLEET_STATE_RANK: Record<FleetRow["state"], number> = { running: 2, idle: 1, available: 0 };
+
+/** Merge duplicate-model rows: the better-informed side wins field-wise (running beats idle beats available). */
+function mergeFleetRowTwins(left: FleetRow, right: FleetRow): FleetRow {
+	const primary = FLEET_STATE_RANK[right.state] > FLEET_STATE_RANK[left.state] ? right : left;
+	const secondary = primary === left ? right : left;
+	return {
+		...primary,
+		modelId: canonicalFleetModelId(primary.modelId),
+		servedId: canonicalFleetModelId(primary.servedId),
+		warmKind: primary.warmKind ?? secondary.warmKind,
+		role: primary.role ?? secondary.role,
+		activityText: primary.activityText ?? secondary.activityText,
+		activityToolName: primary.activityToolName ?? secondary.activityToolName,
+	};
 }
 
 /** Running rows before idle; then by served model name (stable, locale-aware). */

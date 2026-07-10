@@ -31,17 +31,35 @@ function matchesStream(card: BoardCard, streamFilter: string | null): boolean {
 export function LeanBoardView({
 	columns,
 	sessions,
+	dependencies = [],
 	streamFilter,
 	onSelectCard,
 	onBackToOverview,
 }: {
 	columns: readonly BoardColumn[];
 	sessions: Readonly<Record<string, RuntimeTaskSessionSummary>>;
+	/** Board dependency edges (from = the dependent card, to = its blocker) — drives Queued readiness ordering. */
+	dependencies?: readonly { fromTaskId: string; toTaskId: string }[];
 	/** Cluster id from the activity map, or null for the whole board. */
 	streamFilter: string | null;
 	onSelectCard: (cardId: string) => void;
 	onBackToOverview: () => void;
 }): ReactElement {
+	// Queued readiness: a freshly decomposed board APPENDS late-graph cards first, so the raw order leads with
+	// "Repository README" while the actually-startable roots sit at the bottom (live-found 2026-07-10 on a
+	// 41-card simulated project). Ready cards (all blockers done/off-board) float to the top, blocked sink.
+	const completedIds = new Set(
+		columns.filter((column) => column.id === "completed").flatMap((column) => column.cards.map((card) => card.id)),
+	);
+	const onBoardIds = new Set(columns.flatMap((column) => column.cards.map((card) => card.id)));
+	const blockerIdsByCard = new Map<string, string[]>();
+	for (const edge of dependencies) {
+		const blockers = blockerIdsByCard.get(edge.fromTaskId) ?? [];
+		blockers.push(edge.toTaskId);
+		blockerIdsByCard.set(edge.fromTaskId, blockers);
+	}
+	const isReady = (cardId: string): boolean =>
+		(blockerIdsByCard.get(cardId) ?? []).every((blocker) => completedIds.has(blocker) || !onBoardIds.has(blocker));
 	return (
 		<div className="flex flex-1 min-h-0 flex-col p-4" data-testid="lean-board">
 			<div className="mb-3 flex items-center gap-2 text-xs text-text-tertiary">
@@ -56,10 +74,14 @@ export function LeanBoardView({
 			</div>
 			<div className="grid flex-1 min-h-0 grid-cols-4 gap-3 overflow-y-auto content-start">
 				{LEAN_LANES.map((lane) => {
-					const cards = columns
+					const laneCards = columns
 						.filter((column) => lane.columnIds.includes(column.id))
 						.flatMap((column) => column.cards)
 						.filter((card) => matchesStream(card, streamFilter));
+					const cards =
+						lane.key === "queued"
+							? [...laneCards].sort((a, b) => Number(isReady(b.id)) - Number(isReady(a.id)))
+							: laneCards;
 					return (
 						<div
 							key={lane.key}
@@ -92,6 +114,17 @@ export function LeanBoardView({
 										) : null}
 										{!live && card.blockedKind ? (
 											<span className="mt-1 block text-[10.5px] font-normal text-status-gold">blocked</span>
+										) : null}
+										{!live && lane.key === "queued" && !isReady(card.id) ? (
+											<span className="mt-1 block text-[10.5px] font-normal text-text-tertiary">
+												waiting on{" "}
+												{
+													(blockerIdsByCard.get(card.id) ?? []).filter(
+														(blocker) => !completedIds.has(blocker) && onBoardIds.has(blocker),
+													).length
+												}{" "}
+												card(s)
+											</span>
 										) : null}
 									</button>
 								);

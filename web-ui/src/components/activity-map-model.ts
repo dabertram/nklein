@@ -19,7 +19,15 @@ export interface ActivityBubble {
 	pulsing: boolean;
 	/** Age factor 0..1 for done cards (older ⇒ more faded); 0 for everything else. */
 	fade: number;
+	/**
+	 * Density-aware labeling: on busy boards (>{@link MAP_LABEL_DENSITY_LIMIT} bubbles) only ACTIVE bubbles keep
+	 * their label — 40+ overlapping captions read as ink soup (live-found 2026-07-10, 42-card simulated board).
+	 */
+	showLabel: boolean;
 }
+
+/** Above this many bubbles, idle cards drop their captions (hover/selection still reveals them). */
+export const MAP_LABEL_DENSITY_LIMIT = 24;
 
 export interface ActivityCluster {
 	id: string;
@@ -131,6 +139,7 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 				radius: STATE_BASE_RADIUS[state] + boost,
 				pulsing: state === "running" && session?.state === "running",
 				fade,
+				showLabel: true,
 			};
 			const { id, label } = clusterKeyFor(card);
 			clusterIdByCardId.set(card.id, id);
@@ -179,6 +188,14 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 				(left.state === "running" ? 0 : 1) - (right.state === "running" ? 0 : 1) ||
 				left.title.localeCompare(right.title),
 		);
+	}
+	if (totalCards > MAP_LABEL_DENSITY_LIMIT) {
+		for (const cluster of clusters) {
+			for (const bubble of cluster.bubbles) {
+				bubble.showLabel =
+					bubble.pulsing || bubble.state === "running" || bubble.state === "review" || bubble.state === "blocked";
+			}
+		}
 	}
 	return { clusters, edges, totalCards, runningCount };
 }
