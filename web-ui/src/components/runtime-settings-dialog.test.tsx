@@ -837,6 +837,40 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.getElementById("runtime-settings-capability-broker")).not.toBeNull();
 	});
 
+	it("surfaces the §5.BB promoted env-flag toggles (basic-memory, chat truncation, reasoning budget, review lenses)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedNKleinOauthConfig,
+							basicMemoryEnabled: true,
+							chatAdaptiveTruncationEnabled: false,
+							reasoningBudgetEnabled: true,
+							reviewLensesEnabled: true,
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+		expect(document.body.textContent).toContain("Basic-memory agent notes (writable)");
+		expect(document.body.textContent).toContain("Retry truncated chat replies with a bigger budget");
+		expect(document.body.textContent).toContain("Reserve extra chat tokens for reasoning models");
+		expect(document.body.textContent).toContain("Review-panel lenses");
+		expect(document.getElementById("runtime-settings-basic-memory")).not.toBeNull();
+		expect(document.getElementById("runtime-settings-chat-adaptive-truncation")).not.toBeNull();
+		expect(document.getElementById("runtime-settings-reasoning-budget")).not.toBeNull();
+		// The config round-trips into the switch states (checked mirrors the persisted value, not the default).
+		expect(document.getElementById("runtime-settings-basic-memory")?.getAttribute("data-state")).toBe("checked");
+		expect(document.getElementById("runtime-settings-chat-adaptive-truncation")?.getAttribute("data-state")).toBe(
+			"unchecked",
+		);
+		expect(document.getElementById("runtime-settings-reasoning-budget")?.getAttribute("data-state")).toBe("checked");
+	});
+
 	it("edits and saves the global model-capability gate policy (§5.AL)", async () => {
 		const handleOpenChange = vi.fn();
 		await act(async () => {

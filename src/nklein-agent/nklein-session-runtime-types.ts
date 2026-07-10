@@ -112,6 +112,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	sandboxMcpExecTarget?: SandboxExecTarget | null;
 	/** §5.AR: basic-memory MCP exec env (CONFIG_DIR + MCP_PROJECT + hardening) for this task's project (from the manager). */
 	basicMemoryExecEnv?: Record<string, string>;
+	/** §5.BB: the resolved basic-memory opt-in (runtime setting OR env) — forwarded to createToolBundle. */
+	basicMemoryEnabled?: boolean;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes decomposition (see createNKleinDecompositionTools). */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;

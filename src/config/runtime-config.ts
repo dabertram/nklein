@@ -54,13 +54,17 @@ import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-re
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
+	DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
+	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -190,6 +194,13 @@ function toRuntimeConfigState({
 			globalConfig?.sandboxMcpServersEnabled,
 			DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 		),
+		basicMemoryEnabled: normalizeBoolean(globalConfig?.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+		chatAdaptiveTruncationEnabled: normalizeBoolean(
+			globalConfig?.chatAdaptiveTruncationEnabled,
+			DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+		),
+		reasoningBudgetEnabled: normalizeBoolean(globalConfig?.reasoningBudgetEnabled, DEFAULT_REASONING_BUDGET_ENABLED),
+		reviewLensesEnabled: normalizeBoolean(globalConfig?.reviewLensesEnabled, DEFAULT_REVIEW_LENSES_ENABLED),
 		capabilityBrokerEnabled: normalizeBoolean(
 			globalConfig?.capabilityBrokerEnabled,
 			DEFAULT_CAPABILITY_BROKER_ENABLED,
@@ -283,6 +294,10 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
+		basicMemoryEnabled: current.basicMemoryEnabled,
+		chatAdaptiveTruncationEnabled: current.chatAdaptiveTruncationEnabled,
+		reasoningBudgetEnabled: current.reasoningBudgetEnabled,
+		reviewLensesEnabled: current.reviewLensesEnabled,
 		capabilityBrokerEnabled: current.capabilityBrokerEnabled,
 		modelStatsTrackingLevel: current.modelStatsTrackingLevel,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
@@ -373,6 +388,10 @@ export async function saveRuntimeConfig(
 		projectSetupWizardCompletedAt?: number | null;
 		knowsTodayEnabled?: boolean;
 		sandboxMcpServersEnabled?: boolean;
+		basicMemoryEnabled?: boolean;
+		chatAdaptiveTruncationEnabled?: boolean;
+		reasoningBudgetEnabled?: boolean;
+		reviewLensesEnabled?: boolean;
 		capabilityBrokerEnabled?: boolean;
 		modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 		retrievalEgressEnabled?: boolean;
@@ -442,6 +461,13 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			basicMemoryEnabled: normalizeBoolean(config.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+			chatAdaptiveTruncationEnabled: normalizeBoolean(
+				config.chatAdaptiveTruncationEnabled,
+				DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+			),
+			reasoningBudgetEnabled: normalizeBoolean(config.reasoningBudgetEnabled, DEFAULT_REASONING_BUDGET_ENABLED),
+			reviewLensesEnabled: normalizeBoolean(config.reviewLensesEnabled, DEFAULT_REVIEW_LENSES_ENABLED),
 			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
@@ -537,6 +563,13 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			basicMemoryEnabled: normalizeBoolean(config.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+			chatAdaptiveTruncationEnabled: normalizeBoolean(
+				config.chatAdaptiveTruncationEnabled,
+				DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
+			),
+			reasoningBudgetEnabled: normalizeBoolean(config.reasoningBudgetEnabled, DEFAULT_REASONING_BUDGET_ENABLED),
+			reviewLensesEnabled: normalizeBoolean(config.reviewLensesEnabled, DEFAULT_REVIEW_LENSES_ENABLED),
 			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),

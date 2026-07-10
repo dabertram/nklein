@@ -149,6 +149,8 @@ export interface NKleinTaskSessionService {
 	setKnowsTodayEnabled(enabled: boolean): void;
 	/** Apply the §5.AR curated sandbox-MCP-servers switch (on by default) when config changes. */
 	setSandboxMcpServersEnabled(enabled: boolean): void;
+	/** Apply the §5.AR/§5.BB basic-memory switch (off by default) when config changes (also updates the sandbox manager). */
+	setBasicMemoryEnabled(enabled: boolean): void;
 	/** Apply the §5.AC egress-gated retrieval config (OFF by default, fail closed) when config changes. */
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void;
 	/** Apply the §5.L per-role web-research capability gate (default allowed = fully_open) when config changes. */
@@ -252,6 +254,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * independently. Live-updated when config changes (same seam as `swarmGuardrails`).
 	 */
 	sandboxMcpServersEnabled?: boolean;
+	/**
+	 * The §5.AR/§5.BB basic-memory switch — OFF BY DEFAULT. When true (or the `NKLEIN_BASIC_MEMORY` env override is
+	 * set), the default-off basic-memory curated MCP server is offered to fitting models and the sandbox manager mounts
+	 * the per-project writable store. Live-updated when config changes (same seam as `swarmGuardrails`).
+	 */
+	basicMemoryEnabled?: boolean;
 	/**
 	 * The §5.AC online-retrieval egress switch — OFF BY DEFAULT (fail closed). When true AND a search backend URL is
 	 * configured, worker sessions get the egress-gated `web_search` extra tool; synthetic sessions (`::review` /

@@ -283,6 +283,12 @@ export function RuntimeSettingsDialog({
 	// §5.AR curated sandbox-MCP servers (ON by default) + §5.M capability broker (prompt-injection taint gate).
 	const [sandboxMcpServersEnabled, setSandboxMcpServersEnabled] = useState(true);
 	const [capabilityBrokerEnabled, setCapabilityBrokerEnabled] = useState(false);
+	// §5.BB env-flag promotions: basic-memory MCP (OFF), chat adaptive truncation (ON), reasoning budget (OFF),
+	// review-panel lenses (OFF). Each still honors its NKLEIN_* env override for scripts/harnesses.
+	const [basicMemoryEnabled, setBasicMemoryEnabled] = useState(false);
+	const [chatAdaptiveTruncationEnabled, setChatAdaptiveTruncationEnabled] = useState(true);
+	const [reasoningBudgetEnabled, setReasoningBudgetEnabled] = useState(false);
+	const [reviewLensesEnabled, setReviewLensesEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -384,6 +390,10 @@ export function RuntimeSettingsDialog({
 	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
 	const retrievalBackendUrlInputId = "runtime-settings-retrieval-backend-url";
 	const sandboxMcpCheckboxId = "runtime-settings-sandbox-mcp";
+	const basicMemoryCheckboxId = "runtime-settings-basic-memory";
+	const chatAdaptiveTruncationCheckboxId = "runtime-settings-chat-adaptive-truncation";
+	const reasoningBudgetCheckboxId = "runtime-settings-reasoning-budget";
+	const reviewLensesLabelId = "runtime-settings-review-lenses-label";
 	const capabilityBrokerCheckboxId = "runtime-settings-capability-broker";
 	const maxConcurrentTasksId = "runtime-settings-max-concurrent-tasks";
 	const workspaceBaseDirId = "runtime-settings-workspace-base-dir";
@@ -528,6 +538,10 @@ export function RuntimeSettingsDialog({
 	const initialLlmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode = config?.llmfitCatalogUpdateMode ?? "notify";
 	const initialSandboxMcpServersEnabled = config?.sandboxMcpServersEnabled ?? true;
 	const initialCapabilityBrokerEnabled = config?.capabilityBrokerEnabled ?? false;
+	const initialBasicMemoryEnabled = config?.basicMemoryEnabled ?? false;
+	const initialChatAdaptiveTruncationEnabled = config?.chatAdaptiveTruncationEnabled ?? true;
+	const initialReasoningBudgetEnabled = config?.reasoningBudgetEnabled ?? false;
+	const initialReviewLensesEnabled = config?.reviewLensesEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -848,6 +862,18 @@ export function RuntimeSettingsDialog({
 		if (capabilityBrokerEnabled !== initialCapabilityBrokerEnabled) {
 			return true;
 		}
+		if (basicMemoryEnabled !== initialBasicMemoryEnabled) {
+			return true;
+		}
+		if (chatAdaptiveTruncationEnabled !== initialChatAdaptiveTruncationEnabled) {
+			return true;
+		}
+		if (reasoningBudgetEnabled !== initialReasoningBudgetEnabled) {
+			return true;
+		}
+		if (reviewLensesEnabled !== initialReviewLensesEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -991,6 +1017,14 @@ export function RuntimeSettingsDialog({
 		initialRetrievalEgressEnabled,
 		initialRetrievalSearchBackendUrl,
 		initialLlmfitCatalogUpdateMode,
+		initialBasicMemoryEnabled,
+		initialChatAdaptiveTruncationEnabled,
+		initialReasoningBudgetEnabled,
+		initialReviewLensesEnabled,
+		basicMemoryEnabled,
+		chatAdaptiveTruncationEnabled,
+		reasoningBudgetEnabled,
+		reviewLensesEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
 		initialMaxConcurrentTasksOverride,
@@ -1077,6 +1111,10 @@ export function RuntimeSettingsDialog({
 		setLlmfitCatalogUpdateMode(config?.llmfitCatalogUpdateMode ?? "notify");
 		setSandboxMcpServersEnabled(config?.sandboxMcpServersEnabled ?? true);
 		setCapabilityBrokerEnabled(config?.capabilityBrokerEnabled ?? false);
+		setBasicMemoryEnabled(config?.basicMemoryEnabled ?? false);
+		setChatAdaptiveTruncationEnabled(config?.chatAdaptiveTruncationEnabled ?? true);
+		setReasoningBudgetEnabled(config?.reasoningBudgetEnabled ?? false);
+		setReviewLensesEnabled(config?.reviewLensesEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -1160,6 +1198,10 @@ export function RuntimeSettingsDialog({
 		config?.llmfitCatalogUpdateMode,
 		config?.sandboxMcpServersEnabled,
 		config?.capabilityBrokerEnabled,
+		config?.basicMemoryEnabled,
+		config?.chatAdaptiveTruncationEnabled,
+		config?.reasoningBudgetEnabled,
+		config?.reviewLensesEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.workspaceBaseDir,
@@ -1625,6 +1667,10 @@ export function RuntimeSettingsDialog({
 			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
 			capabilityBrokerEnabled,
+			basicMemoryEnabled,
+			chatAdaptiveTruncationEnabled,
+			reasoningBudgetEnabled,
+			reviewLensesEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			codeEmbeddingOverride: draftCodeEmbeddingOverride,
 			readyForReviewNotificationsEnabled,
@@ -1884,6 +1930,51 @@ export function RuntimeSettingsDialog({
 								</div>
 								<div className="border-t border-border pt-4">
 									<label
+										htmlFor={chatAdaptiveTruncationCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={chatAdaptiveTruncationCheckboxId}
+											checked={chatAdaptiveTruncationEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setChatAdaptiveTruncationEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Retry truncated chat replies with a bigger budget</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										A chat reply cut off mid-answer is re-asked with an escalating token budget (bounded by a
+										pass cap + ceiling, &sect;5.AA). ON by default; when off, a single one-shot retry remains.
+										The <code>NKLEIN_CHAT_ADAPTIVE_TRUNCATION</code> env var still overrides either way.
+									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={reasoningBudgetCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={reasoningBudgetCheckboxId}
+											checked={reasoningBudgetEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setReasoningBudgetEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Reserve extra chat tokens for reasoning models</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Sizes a chat turn&apos;s <code>max_tokens</code> with a thinking reserve on top of the
+										answer budget so a reasoning model&apos;s reply isn&apos;t starved by its own thinking
+										burn (&sect;5.AN). OFF by default; only applies when no explicit budget is set. The{" "}
+										<code>NKLEIN_REASONING_BUDGET</code> env var also enables it.
+									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
 										htmlFor={retrievalEgressCheckboxId}
 										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
 									>
@@ -1946,6 +2037,29 @@ export function RuntimeSettingsDialog({
 										Offers the baked-in, offline MCP servers (codebase-memory, sequential-thinking,
 										basic-memory) to agents whose capability ruleset allows MCP (&sect;5.AR). ON by default;
 										each runs inside the <code>--network none</code> sandbox.
+									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={basicMemoryCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={basicMemoryCheckboxId}
+											checked={basicMemoryEnabled}
+											disabled={controlsDisabled || !sandboxMcpServersEnabled}
+											onCheckedChange={setBasicMemoryEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Basic-memory agent notes (writable)</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Lets agents keep persistent per-project Markdown notes via the sandboxed basic-memory MCP
+										server (&sect;5.AR). OFF by default because it adds the ONLY writable mounts to the
+										otherwise read-only sandbox. Needs curated sandbox MCP servers on; applies to newly
+										started containers. The <code>NKLEIN_BASIC_MEMORY</code> env var also enables it.
 									</p>
 								</div>
 								<div className="border-t border-border pt-4">
@@ -2385,6 +2499,26 @@ export function RuntimeSettingsDialog({
 											Rounds before a bouncing card parks for attention (default 20).
 										</span>
 									</div>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<div className="flex items-center gap-2 text-[13px] text-text-primary">
+										<RadixSwitch.Root
+											checked={reviewLensesEnabled}
+											disabled={controlsDisabled || !secondOpinionReviewEnabled}
+											onCheckedChange={setReviewLensesEnabled}
+											aria-labelledby={reviewLensesLabelId}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span id={reviewLensesLabelId}>Review-panel lenses</span>
+									</div>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										Seeds each second-opinion review with complexity-matched focus lenses (correctness, edge
+										cases, security, …) so the reviewer covers distinct angles instead of one generic pass
+										(&sect;5.AW). OFF by default; needs second-opinion review on. The{" "}
+										<code>NKLEIN_REVIEW_LENSES</code> env var also enables it.
+									</p>
 								</div>
 								<div style={{ gridColumn: "1 / span 2" }}>
 									<div className="flex items-center gap-2 text-[13px] text-text-primary">

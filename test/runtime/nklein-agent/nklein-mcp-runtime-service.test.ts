@@ -211,6 +211,44 @@ describe("createNKleinMcpRuntimeService", () => {
 		await bundle.dispose();
 	});
 
+	it("§5.BB basic-memory opt-in: offered only when the caller's setting (or the env override) enables it", async () => {
+		const previousEnv = process.env.NKLEIN_BASIC_MEMORY;
+		delete process.env.NKLEIN_BASIC_MEMORY;
+		try {
+			const managers: FakeMcpManager[] = [];
+			const service = createNKleinMcpRuntimeService({
+				createMcpManager: (options) => {
+					const manager = new FakeMcpManager(options);
+					managers.push(manager);
+					return manager;
+				},
+			});
+			const execTarget = { containerName: "nklein-agent-sandbox-9", uid: 10009, workdir: "/workspaces/task-9" };
+			// phi-4-mini-instruct is catalogued TOOL_CAPABLE ⇒ clears the basic-memory fit gate — so the only
+			// remaining gate is the §5.BB opt-in composition under test.
+			const withoutOptIn = await service.createToolBundle({
+				modelId: "phi-4-mini-instruct",
+				sandboxExecTarget: execTarget,
+			});
+			const withOptIn = await service.createToolBundle({
+				modelId: "phi-4-mini-instruct",
+				sandboxExecTarget: execTarget,
+				basicMemoryEnabled: true,
+			});
+			const registeredNames = (index: number) => (managers[index]?.registrations ?? []).map((r) => r.name);
+			expect(registeredNames(0)).not.toContain("basic-memory");
+			expect(registeredNames(1)).toContain("basic-memory");
+			await withoutOptIn.dispose();
+			await withOptIn.dispose();
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.NKLEIN_BASIC_MEMORY;
+			} else {
+				process.env.NKLEIN_BASIC_MEMORY = previousEnv;
+			}
+		}
+	});
+
 	it("creates a codebase-memory localization provider over sandbox docker-exec and cold-indexes the repo", async () => {
 		const managers: FakeMcpManager[] = [];
 		const service = createNKleinMcpRuntimeService({

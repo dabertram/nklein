@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Four previously env-only switches are now real Settings** — basic-memory agent notes (per-project writable
+  memory, off by default), the chat truncation-retry ladder (on by default), reasoning-model token reserves for
+  chat (off), and review-panel lenses (off) can all be toggled in Settings instead of requiring `NKLEIN_*`
+  environment variables. The env vars still work as overrides for scripts and harnesses, so nothing existing breaks.
 - **The board has a "Ready" lane between Planning and In Progress** (todo §5.B, protected feature). Dep-free cards
   that are only waiting for a free slot (concurrency cap, busy endpoint, or a file-overlap lock) now park in their
   own column instead of blending into Planning — the board finally distinguishes *refining*, *waiting for a slot*,

@@ -103,6 +103,12 @@ export const runtimeConfigResponseSchema = z.object({
 	replayCardsEnabled: z.boolean().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
+	// §5.BB env-flag promotions — optional for backward compatibility with older runtimes/config files. Each still
+	// composes with its env override at the consuming seam (env keeps working for scripts/harnesses).
+	basicMemoryEnabled: z.boolean().optional(),
+	chatAdaptiveTruncationEnabled: z.boolean().optional(),
+	reasoningBudgetEnabled: z.boolean().optional(),
+	reviewLensesEnabled: z.boolean().optional(),
 	capabilityBrokerEnabled: z.boolean().optional(),
 	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
 	retrievalEgressEnabled: z.boolean().optional(),
@@ -149,6 +155,10 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	projectSetupWizardCompletedAt: z.number().nullable().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
+	basicMemoryEnabled: z.boolean().optional(),
+	chatAdaptiveTruncationEnabled: z.boolean().optional(),
+	reasoningBudgetEnabled: z.boolean().optional(),
+	reviewLensesEnabled: z.boolean().optional(),
 	capabilityBrokerEnabled: z.boolean().optional(),
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),

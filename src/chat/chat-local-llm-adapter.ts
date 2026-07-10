@@ -1,5 +1,5 @@
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
-import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
+import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
@@ -133,12 +133,50 @@ const ADAPTIVE_TRUNCATION_LADDER_FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
 const TRUNCATION_RETRY_MAX_ATTEMPTS = 3;
 
 /**
- * OPT-IN env flag (§5.AN pre-flight budget sizing) — when truthy AND the resolved model is a reasoning model AND the
- * caller did not pass an explicit `sampling.maxTokens`, size the chat-turn `max_tokens` with a reasoning reserve on top
- * of the default answer budget (via the pure {@link planReasoningOutputBudget} core) so a reasoning model's answer isn't
+ * §5.AN pre-flight budget sizing — when enabled AND the resolved model is a reasoning model AND the caller did not
+ * pass an explicit `sampling.maxTokens`, size the chat-turn `max_tokens` with a reasoning reserve on top of the
+ * default answer budget (via the pure {@link planReasoningOutputBudget} core) so a reasoning model's answer isn't
  * starved by its own thinking burn. Default (OFF) is byte-identical to today — the DEFAULT_SAMPLING is used unchanged.
+ * Enabled by the `reasoningBudgetEnabled` runtime setting OR this env override (§5.BB).
  */
 const REASONING_BUDGET_FLAG = "NKLEIN_REASONING_BUDGET";
+
+/**
+ * §5.BB runtime-config bits for the two chat-adapter feature gates, updatable at the runtime-server config-apply seam
+ * via {@link setChatAdapterRuntimeFlags}. The adapter is constructed deep below the config plumbing (per-turn client
+ * factories), so a module-level bit the server refreshes on every config load/save is the honest seam. Env overrides
+ * still compose at READ time: `NKLEIN_CHAT_ADAPTIVE_TRUNCATION` is a two-way escape hatch over its default-ON setting
+ * (explicit `0` force-disables, truthy force-enables), and `NKLEIN_REASONING_BUDGET` ORs into its default-OFF setting.
+ * The defaults here mirror runtime-config-defaults so a process that never applies a config (tests, harness scripts)
+ * behaves byte-identically to the pre-§5.BB env-only world.
+ */
+interface ChatAdapterRuntimeFlags {
+	adaptiveTruncationEnabled: boolean;
+	reasoningBudgetEnabled: boolean;
+}
+
+let chatAdapterRuntimeFlags: ChatAdapterRuntimeFlags = {
+	adaptiveTruncationEnabled: true,
+	reasoningBudgetEnabled: false,
+};
+
+/** Apply the persisted chat-adapter settings (called from the runtime server whenever the runtime config is (re)applied). */
+export function setChatAdapterRuntimeFlags(flags: ChatAdapterRuntimeFlags): void {
+	chatAdapterRuntimeFlags = { ...flags };
+}
+
+/** The effective §5.AA adaptive-truncation gate: config bit unless the env escape hatch is explicitly set. */
+function isAdaptiveTruncationLadderEnabled(): boolean {
+	return resolveDefaultOnFlag(
+		chatAdapterRuntimeFlags.adaptiveTruncationEnabled,
+		process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG],
+	);
+}
+
+/** The effective §5.AN reasoning-budget gate: config bit OR the env override (either enables). */
+function isReasoningBudgetEnabled(): boolean {
+	return chatAdapterRuntimeFlags.reasoningBudgetEnabled || isTruthyEnv(process.env[REASONING_BUDGET_FLAG]);
+}
 
 /**
  * Resolve the sampling options for the chat-turn path. DEFAULT (flag OFF / non-reasoning model / caller-supplied
@@ -159,7 +197,7 @@ function resolveChatTurnSampling(options: {
 	// DEFAULT answer budget, never a caller-supplied one.
 	if (
 		options.sampling?.maxTokens !== undefined ||
-		!isTruthyEnv(process.env[REASONING_BUDGET_FLAG]) ||
+		!isReasoningBudgetEnabled() ||
 		!options.modelId ||
 		!isReasoningModel(options.modelId)
 	) {
@@ -188,7 +226,7 @@ async function completePlainWithTruncationLadder(
 	sampling: LocalLlmSamplingOptions,
 ): Promise<string> {
 	let { content, finishReason } = await client.complete({ messages, sampling });
-	if (isEnabledByDefaultEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])) {
+	if (isAdaptiveTruncationLadderEnabled()) {
 		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
 			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
@@ -359,9 +397,7 @@ export function createChatAgentModel(
 			// forward = doubling) across up to TRUNCATION_RETRY_MAX_ATTEMPTS passes, breaking the instant the model lands a
 			// call, the truncation signal clears, or the ceiling stops the budget from growing. Both the pass count AND the
 			// monotonic ceiling clamp bound the turn, so a persistently-truncating model can never spin.
-			const maxEscalations = isEnabledByDefaultEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])
-				? TRUNCATION_RETRY_MAX_ATTEMPTS
-				: 1;
+			const maxEscalations = isAdaptiveTruncationLadderEnabled() ? TRUNCATION_RETRY_MAX_ATTEMPTS : 1;
 			let escalationBudget = bumped.maxTokens;
 			for (let pass = 0; pass < maxEscalations; pass += 1) {
 				const stillTruncated =

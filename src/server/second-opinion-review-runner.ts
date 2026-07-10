@@ -363,12 +363,13 @@ export async function runSecondOpinionReviewForTask(
 		? await input.service.pickDiverseEscalationModel?.(input.taskId).catch(() => null)
 		: null;
 
-	// §5.AW review-panel lenses (OPT-IN behind NKLEIN_REVIEW_LENSES; default = undefined ⇒ the seed prompt is
-	// byte-identical). complexity is derived from the card prompt; reviewerTier is a FIXED conservative "mid" because
-	// the reviewer object here carries only {providerId, modelId} with no tier (a tier-resolution subsystem is out of
-	// scope). An empty panel (e.g. no eligible lenses) still resolves to undefined so nothing is threaded.
+	// §5.AW review-panel lenses (OPT-IN via the persisted `reviewLensesEnabled` setting OR the NKLEIN_REVIEW_LENSES env
+	// override — either enables, §5.BB; default OFF = undefined ⇒ the seed prompt is byte-identical). complexity is
+	// derived from the card prompt; reviewerTier is a FIXED conservative "mid" because the reviewer object here carries
+	// only {providerId, modelId} with no tier (a tier-resolution subsystem is out of scope). An empty panel (e.g. no
+	// eligible lenses) still resolves to undefined so nothing is threaded.
 	const reviewLenses =
-		config.secondOpinionReviewEnabled && isTruthyEnv(process.env.NKLEIN_REVIEW_LENSES)
+		config.secondOpinionReviewEnabled && (config.reviewLensesEnabled || isTruthyEnv(process.env.NKLEIN_REVIEW_LENSES))
 			? (() => {
 					const plan = planReviewPanel({
 						complexity: classifyTaskComplexity({ taskText: card.prompt }),

@@ -117,4 +117,27 @@ describe("createRuntimeConfigStateFromValues", () => {
 		expect(state.maxConcurrentTasksOverride).toBeNull();
 		expect(state.effectiveMaxConcurrentTasks).toBe(2);
 	});
+
+	it("fills the §5.BB promoted env flags with their honest defaults when the input omits them", () => {
+		const state = createRuntimeConfigStateFromValues(makeInput());
+		expect(state.basicMemoryEnabled).toBe(false);
+		expect(state.chatAdaptiveTruncationEnabled).toBe(true);
+		expect(state.reasoningBudgetEnabled).toBe(false);
+		expect(state.reviewLensesEnabled).toBe(false);
+	});
+
+	it("passes explicit §5.BB flag values through", () => {
+		const state = createRuntimeConfigStateFromValues(
+			makeInput({
+				basicMemoryEnabled: true,
+				chatAdaptiveTruncationEnabled: false,
+				reasoningBudgetEnabled: true,
+				reviewLensesEnabled: true,
+			}),
+		);
+		expect(state.basicMemoryEnabled).toBe(true);
+		expect(state.chatAdaptiveTruncationEnabled).toBe(false);
+		expect(state.reasoningBudgetEnabled).toBe(true);
+		expect(state.reviewLensesEnabled).toBe(true);
+	});
 });

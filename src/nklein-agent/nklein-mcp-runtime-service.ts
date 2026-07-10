@@ -116,6 +116,12 @@ export interface NKleinMcpToolBundleOptions {
 	 * project — applied ONLY to the basic-memory `docker exec` so it reads/writes the task's mounted per-project store.
 	 */
 	basicMemoryExecEnv?: Record<string, string>;
+	/**
+	 * §5.BB: the caller's resolved basic-memory opt-in (the `basicMemoryEnabled` runtime setting). ORed with the
+	 * `NKLEIN_BASIC_MEMORY` env override at bundle time (either enables); absent/false + no env ⇒ the default-off
+	 * basic-memory server is NOT offered even when baked + fitting.
+	 */
+	basicMemoryEnabled?: boolean;
 }
 
 export type CodebaseMemoryLocalizationIndexMode = "fast" | "moderate" | "full";
@@ -698,9 +704,10 @@ export function createNKleinMcpRuntimeService(
 			// §5.AR: curated MCP servers hosted INSIDE the task's sandbox, offered only to a fitting model. Empty unless the
 			// caller supplies BOTH the exec target and the model id (the opt-out gate lives in the caller). Default-OFF
 			// servers (basic-memory — write-capable authored memory) are additionally gated behind an explicit opt-in so
-			// they are NOT offered by default even once baked+fitting; NKLEIN_BASIC_MEMORY enables it.
+			// they are NOT offered by default even once baked+fitting; the caller's `basicMemoryEnabled` runtime setting
+			// OR the NKLEIN_BASIC_MEMORY env override enables it (§5.BB — either enables).
 			const enabledOptIns = new Set<string>();
-			if (isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY)) {
+			if (bundleOptions?.basicMemoryEnabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY)) {
 				enabledOptIns.add("basic-memory");
 			}
 			const curatedServers =

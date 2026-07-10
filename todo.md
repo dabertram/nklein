@@ -10740,12 +10740,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       card badge (getCardMailboxCounts, 15s poll) · context-truncation indicator in main chat (contextTruncated
 >       on the done event). **§5.BC**: verified the shipped toggle IS the user's pick (all-edges de-emphasized +
 >       hover). **§5.AX carousel**: CYAN confirmed (user pick — agent selection = user action; already cyan).
-> - [ ] **HELD for a follow-up slice (needs server config-threading first, not a UI-only change):** settings
->       panels for the four still-env-only flags (NKLEIN_BASIC_MEMORY + audit cadence, NKLEIN_CHAT_ADAPTIVE_TRUNCATION,
->       NKLEIN_REASONING_BUDGET, NKLEIN_REVIEW_LENSES) — each reads env at a deep seam (sandbox constructor field,
->       adapter module consts, review runner) so the config||env composition must be threaded server-side before a
->       panel is honest. Likewise the **fitness-table browser** (read-only §5.AL verdicts view) — no tRPC endpoint
->       exists yet. Egress + searchBackendUrl + speculative best-of-N settings were verified ALREADY in the dialog.
+> - [x] **Four env-only flags threaded + paneled (§5.BB slice, 2026-07-10).** Each is now a persisted runtime-config
+>       field (schema/defaults/merge/change-detection/contract/response all extended) with a Settings switch, and the
+>       env var still composes at the consuming seam so scripts/harnesses keep working:
+>       `basicMemoryEnabled` (default OFF) — task-session-service `isBasicMemoryEnabled()` (setting OR env) rides the
+>       start request into `createToolBundle`'s opt-in set, AND the sandbox manager takes a `basicMemoryEnabled`
+>       constructor option + `setBasicMemoryEnabled` live setter (runtime-server passes it at construction and in the
+>       cached-service re-apply branch; mounts still bake at container start, so a toggle applies to new containers);
+>       `chatAdaptiveTruncationEnabled` (default ON — the flag went default-ON in decision-1, so the honest default is
+>       true, NOT the off-by-default the original note assumed) + `reasoningBudgetEnabled` (default OFF) — the chat
+>       adapter's module consts became `setChatAdapterRuntimeFlags(...)` module state, applied at server startup and
+>       inside the wrapped `setActiveRuntimeConfig` seam; env composes at READ time (`resolveDefaultOnFlag` in
+>       core/env-flag for the default-ON two-way escape hatch, plain OR for the default-OFF one);
+>       `reviewLensesEnabled` (default OFF) — second-opinion-review-runner now gates lenses on
+>       `config.reviewLensesEnabled || env` (mirrors the testDrivenMode precedent right below it).
+>       NOT done here: the audit-cadence companion knob (basic-memory audit) and the **fitness-table browser**
+>       (read-only §5.AL verdicts view) — the browser still needs its tRPC endpoint. Egress + searchBackendUrl +
+>       speculative best-of-N settings were verified ALREADY in the dialog.
 > - [x] Mechanics (shipped): zoom = per-user persisted UI state, gates VISIBILITY not capability; default = Z0.
 
 *(Original 4-discrete-modes sketch (2026-07-02) superseded by the zoom-level framing above.)*

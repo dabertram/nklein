@@ -14,7 +14,11 @@ import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-rea
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
-import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
+import {
+	DEFAULT_BASIC_MEMORY_ENABLED,
+	DEFAULT_KNOWS_TODAY_ENABLED,
+	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+} from "../config/runtime-config-defaults";
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
@@ -396,6 +400,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-MCP switch (on by default); live-updated with config, OR-ed with the env override. */
 	private sandboxMcpServersEnabled: boolean;
+	/** §5.AR/§5.BB basic-memory switch (off by default); live-updated with config, OR-ed with the env override. */
+	private basicMemoryEnabled: boolean;
 	/** §5.AC retrieval egress switch (OFF by default, fail closed); live-updated with config. */
 	private retrievalEgressEnabled: boolean;
 	private modelStatsTrackingLevel: ModelStatsTrackingLevel;
@@ -478,6 +484,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
+		this.basicMemoryEnabled = options.basicMemoryEnabled ?? DEFAULT_BASIC_MEMORY_ENABLED;
 		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;
 		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
@@ -1068,6 +1075,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					? {
 							sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId),
 							basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(input.taskId),
+							// §5.BB: the resolved basic-memory opt-in (setting OR env) rides along so the MCP bundle
+							// offers/withholds the default-off basic-memory server consistently with the mounts.
+							basicMemoryEnabled: this.isBasicMemoryEnabled(),
 						}
 					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
@@ -1598,6 +1608,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						? {
 								sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
 								basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
+								// §5.BB: same resolved basic-memory opt-in as the main start path.
+								basicMemoryEnabled: this.isBasicMemoryEnabled(),
 							}
 						: {}),
 					// Decompose/plan seed: read-only + decompose_project only (strip execution/write) — §5.B, sweep run 7.
@@ -2276,6 +2288,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	setSandboxMcpServersEnabled(enabled: boolean): void {
 		this.sandboxMcpServersEnabled = enabled;
+	}
+
+	/**
+	 * §5.BB live-update the basic-memory switch when the runtime config changes (same seam as
+	 * `setSandboxMcpServersEnabled`), forwarding to the sandbox manager so the per-project writable-store plan follows
+	 * the setting for subsequently registered projects.
+	 */
+	setBasicMemoryEnabled(enabled: boolean): void {
+		this.basicMemoryEnabled = enabled;
+		this.agentSandboxManager?.setBasicMemoryEnabled(enabled);
+	}
+
+	/** §5.BB: whether basic-memory should be offered — the persisted setting OR the env override (either enables). */
+	private isBasicMemoryEnabled(): boolean {
+		return this.basicMemoryEnabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
 	}
 
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void {

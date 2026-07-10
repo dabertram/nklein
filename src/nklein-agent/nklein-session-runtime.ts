@@ -210,6 +210,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				modelId: request.modelId,
 				sandboxExecTarget: request.sandboxMcpExecTarget ?? null,
 				...(request.basicMemoryExecEnv ? { basicMemoryExecEnv: request.basicMemoryExecEnv } : {}),
+				...(request.basicMemoryEnabled !== undefined ? { basicMemoryEnabled: request.basicMemoryEnabled } : {}),
 			});
 			startWarnings = mcpToolBundle.warnings;
 		} catch (error) {

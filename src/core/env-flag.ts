@@ -27,3 +27,18 @@ export function isEnabledByDefaultEnv(value: string | undefined): boolean {
 	}
 	return !(normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off");
 }
+
+/**
+ * Resolve a DEFAULT-ON feature flag from a persisted config bit plus its env escape hatch (§5.BB): an explicitly SET
+ * (non-empty) env var wins in BOTH directions — truthy forces ON (script/harness override), an explicit
+ * `0`/`false`/`no`/`off` forces OFF — while an unset/empty var defers to the config setting. This keeps the
+ * pre-Settings env contract byte-identical for scripts (e.g. `NKLEIN_CHAT_ADAPTIVE_TRUNCATION=0` still disables)
+ * while making the Settings switch honest. Default-OFF flags don't need this — they compose as the plain
+ * `config || isTruthyEnv(env)` (either enables). Pure.
+ */
+export function resolveDefaultOnFlag(configEnabled: boolean, envValue: string | undefined): boolean {
+	if (envValue === undefined || envValue.trim() === "") {
+		return configEnabled;
+	}
+	return isEnabledByDefaultEnv(envValue);
+}
