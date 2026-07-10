@@ -11137,8 +11137,25 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (startable-unstarted sweep) / operator instead of reading as queued-forever. 9 queue tests (incl. the new
       exhaustion case) + 8869 fast tests green.
 
-- [ ] **CROSS-PROJECT endpoint contention: a review that loses the endpoint race can wedge SILENTLY
-      (2026-07-10 evening, reproduced twice on the simulated multi-project stack; solo runs pass).** Evidence:
+- [ ] **SILENT REVIEW HANG — a dispatched second-opinion review can wedge forever BEFORE reaching the model
+      (2026-07-10, reproduced 3×; the earlier "cross-project contention" framing is WRONG — it reproduces on a
+      SOLO project under the dev stack).**
+      **BEST EVIDENCE (late-evening solo repro, board frozen 2h at 5 completed / 12 verdict-less review / 0
+      running):** (a) the watchdog stalled-review rescue fired every tick for 2h, cycling s09→s17→s03→s05→s23
+      (the 12-min dedup expiry works) — and EVERY dispatched review hung with NO outcome line, NO error, NO
+      "waiting for capacity" warning; (b) `lsof` on the live runtime showed ZERO open sockets to the simulator ⇒
+      the hang is PRE-MODEL (inside runSecondOpinionReviewForTask before the first chat request); (c) exactly ONE
+      Docker sandbox container sat "Up 2 hours" with all sessions interrupted/idle (responsive to exec) — a
+      LEAKED REVIEW SANDBOX/WORKSPACE SLOT is the prime suspect, with the pool's prepareWorkspace queue waiting
+      SILENTLY (the queue seam logs nothing — grep 0 hits for capacity); the #31 per-task review-workspace mutex
+      is suspect #2; (d) a direct probe of the live simulator with a wedged card's review request answered
+      submit_review correctly at count 0 ⇒ the sim is not the blocker; (e) the pre-freeze drain shows the known
+      `skipped (not_reviewable)` → `skipped (no_verdict)` two-step on the same cards that later wedge — likely
+      the round that LEAKS the slot. NEXT (focused session): add warn-level progress stamps to
+      runSecondOpinionReviewForTask's phases (mutex acquire → pool prepare → launch resolve → first model call)
+      + a bounded timeout with slot release on every phase; make the pool's capacity queue LOG when an acquire
+      waits >30s; then reproduce via the dev stack (solo 05, watchable pace — NOT the instant harness, which
+      passes). Evidence:
       merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
       known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
       settled with no submit_review — even though a direct probe of the live simulator answered that exact
