@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The "Get started" tour now describes !Klein, not its ancestor.** The onboarding slides still claimed task
+  import from Linear and GitHub (inherited copy from the fork's origin — !Klein is local-only and does neither).
+  The tour now tells the real story: describe your goal in chat, !Klein decomposes it into dependent cards, local
+  models work the board down with second-opinion reviews and acceptance checks before anything ships — all on
+  your machine, every agent in an isolated sandbox.
+
 - **The chat's board feed no longer cries wolf on healthy boards.** Every delivered card's session is torn down
   as "interrupted" after its clean hand-off, and an ended session's heartbeat naturally goes quiet — the chat
   digest and activity ticker narrated both as "❌ failed" and "heartbeat lost (the run may be dead)" right after

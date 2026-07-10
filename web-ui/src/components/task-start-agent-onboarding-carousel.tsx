@@ -57,32 +57,32 @@ interface OnboardingDoneResult {
 export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	{
 		kind: "media",
-		title: "Create tasks with !Klein",
+		title: "Describe it — !Klein plans and builds it",
 		description:
-			"Press c to create a task yourself, or talk to the sidebar !Klein agent to plan work for you. It can pull projects and issues from Linear and GitHub, then turn them into tasks your coding agent can pick up.",
+			"Talk to the chat (or press c to write a card yourself): !Klein breaks your goal into small dependent tasks on the board, and your local models work through them one by one. Everything runs on your machine — no cloud, and every agent works inside an isolated Docker sandbox.",
 		// Onboarding demo media pending: !Klein's own self-hosted clips. The prior
 		// inherited Cline demo videos were removed (they streamed from external
 		// signed S3 URLs that the served CSP intentionally blocks — see todo.md).
 		// With no source, the slide renders as title + description only.
-		assetAlt: "Talking to the sidebar !Klein agent to create tasks from Linear and GitHub",
+		assetAlt: "Talking to the !Klein chat to plan work into board cards",
 		assetWidthPx: 1908,
 		assetHeightPx: 720,
 	},
 	{
 		kind: "media",
-		title: "Auto commit and link",
+		title: "Watch the board burn down",
 		description:
-			"Create dependency chains of linked tasks that start one another automatically. Agents can auto commit their work as they finish, so you can orchestrate tasks in order and watch the board burn them down automatically.",
-		assetAlt: "Linking task cards in !Klein",
+			"Cards flow Planning → Ready → In Progress → Review → Completed on their own; dependency chains start the next task automatically and finished work is committed to its own branch. Zoom to taste: Chat keeps it simple, Professional and the dependency graph show everything.",
+		assetAlt: "Cards flowing across the !Klein board with dependency links",
 		assetWidthPx: 1156,
 		assetHeightPx: 720,
 	},
 	{
 		kind: "media",
-		title: "Review changes with comments",
+		title: "Reviewed before it ships",
 		description:
-			"Your workflow will feel like writing tickets, reviewing code, and shipping. Watch the agent work next to real-time diffs, then click lines to leave comments like you're reviewing a PR.",
-		assetAlt: "Leaving comments on code diffs in !Klein",
+			"Every task's work is checked by a second model and the task's own acceptance command before delivery. Watch real-time diffs while agents work, click lines to leave comments like a PR review, and anything that needs you shows up in the chat.",
+		assetAlt: "Reviewing diffs and leaving line comments in !Klein",
 		assetWidthPx: 1616,
 		assetHeightPx: 1080,
 	},
