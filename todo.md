@@ -9230,9 +9230,30 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the change-field registry → `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a
       careful slice — config defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).
 - [ ] **Settings draft boundary — extract behavior model, decomposed:**
-  - [ ] Extract behavior-owning Settings draft model from `runtime-settings-dialog.tsx`: typed draft state, init/reset, dirty detection.
-  - [ ] Extract validation + save-payload construction into separate modules under `web-ui/src/features/settings/`.
-  - [ ] Keep the dialog as pure composition; verify against existing settings-dialog oracle BEFORE extracting visual sections.
+  - [x] Extract behavior-owning Settings draft model from `runtime-settings-dialog.tsx`: typed draft state, init/reset, dirty detection.
+        **DONE (2026-07-10):** [web-ui/src/features/settings/settings-draft.ts](web-ui/src/features/settings/settings-draft.ts)
+        (482 lines) — `SettingsDraft`/`SettingsConfigSnapshot` types, `initSettingsDraftFromConfig` (the single source of
+        truth for every config-field → local-state fallback, replacing the dialog's ~100-line `initial*` block AND the
+        reset effect's duplicated mapping), `snapshotSwarmGuardrailInputs`, `isSettingsDraftDirty` (the full per-field-group
+        comparison chain, semantics preserved verbatim: trimmed numeric strings, normalized templates, serialized model
+        roles, JSON-compared concurrency maps), plus the localStorage task-default readers. The reset effect keeps its
+        FIELD-LEVEL dep list on purpose (a config refresh with identical values must not clobber edits) and calls the init
+        fn inside the effect body.
+  - [x] Extract validation + save-payload construction into separate modules under `web-ui/src/features/settings/`.
+        **DONE (2026-07-10):** [web-ui/src/features/settings/settings-save.ts](web-ui/src/features/settings/settings-save.ts)
+        (312 lines) — `parseTimeoutMsInput`/`parsePositiveNumberInput`, `validateAndParseSettingsNumbers` (exact historical
+        check order + error strings), `validateCodeEmbeddingDefaultsForSave`, the LM-Studio/context-window model-role save
+        warnings (`findFirstModelRole{Availability,Context}Warning`, pure via a `getModelsForProvider` injection), and
+        `buildRuntimeConfigSaveRequest` (the full `updateRuntimeConfig` payload incl. the sparse semantics: blank
+        workspace/retrieval URLs → null, unset timeouts → null, normalized model roles, request-only fields omitted).
+  - [x] Keep the dialog as pure composition; verify against existing settings-dialog oracle BEFORE extracting visual sections.
+        **DONE (2026-07-10):** oracle `runtime-settings-dialog.test.tsx` 45/45 before AND after (assertions untouched);
+        full web-ui suite 1032/1032 (995 pre-existing + 37 new module tests in `settings-draft.test.ts` (15) and
+        `settings-save.test.ts` (22): init-from-fixture + defaults, per-field-group dirty flips, trim/normalize
+        equivalences, numeric-validation error messages, payload sparse semantics, model-role warning cases). Dialog
+        3693 → 3229 lines (-464; the remaining bridge is a ~130-line `draft` useMemo mapping the per-field useState onto
+        the typed draft — collapsing those useStates or moving section JSX belongs to the next leaf). Zero behavior
+        change; no CHANGELOG entry needed.
   - [ ] Enable independent settings sections to be assigned separately (pairs with §5.W regroup).
 - [x] **tRPC router composition — DONE (2026-06-27).** All four sub-routers extracted from `app-router.ts` into
       `src/trpc/routers/{runtime,chat,workspace,projects}-router.ts`, each a `build<X>Router(t[, workspaceProcedure])`

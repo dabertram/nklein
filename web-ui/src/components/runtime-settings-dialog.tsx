@@ -8,11 +8,9 @@ import { getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
 import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
-	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
-import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import {
 	BarChart3,
 	Bell,
@@ -36,7 +34,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRulesetsSettingsPanel } from "@/components/agent-rulesets-settings-panel";
 import {
-	areCodeEmbeddingSettingsEqual,
 	buildCodeEmbeddingSettings,
 	CODE_EMBEDDING_PROVIDER_OPTIONS,
 	EmbeddingEndpointFields,
@@ -47,25 +44,30 @@ import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { ModelRolesEditor } from "@/components/model-roles-editor";
 import { buildDisplayedAgentCommand } from "@/components/runtime-settings-command-display";
-import {
-	MODEL_ROLE_IDS,
-	MODEL_ROLE_LABELS,
-	type ModelRoleId,
-	normalizeModelRolesForSettings,
-	serializeModelRoles,
-} from "@/components/runtime-settings-model-roles";
-import { findProviderCatalogItem, normalizeProviderId } from "@/components/runtime-settings-provider-helpers";
-import {
-	inputsToSwarmGuardrails,
-	type SwarmGuardrailInputs,
-	swarmGuardrailsToInputs,
-} from "@/components/runtime-settings-swarm-guardrails";
+import { MODEL_ROLE_IDS, normalizeModelRolesForSettings } from "@/components/runtime-settings-model-roles";
+import { normalizeProviderId } from "@/components/runtime-settings-provider-helpers";
+import { type SwarmGuardrailInputs, swarmGuardrailsToInputs } from "@/components/runtime-settings-swarm-guardrails";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import { SwarmGuardrailsSettingsPanel } from "@/components/swarm-guardrails-settings-panel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+	initSettingsDraftFromConfig,
+	isSettingsDraftDirty,
+	readBooleanTaskDefault,
+	readTaskAutoReviewModeDefault,
+	type SettingsDraft,
+	snapshotSwarmGuardrailInputs,
+} from "@/features/settings/settings-draft";
+import {
+	buildRuntimeConfigSaveRequest,
+	findFirstModelRoleAvailabilityWarning,
+	findFirstModelRoleContextWarning,
+	validateAndParseSettingsNumbers,
+	validateCodeEmbeddingDefaultsForSave,
+} from "@/features/settings/settings-save";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import { useRuntimeSettingsNKleinMcpController } from "@/hooks/use-runtime-settings-nklein-mcp-controller";
@@ -73,11 +75,7 @@ import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, t
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
 import { buildSuggestedCodeEmbeddingBaseUrl } from "@/runtime/code-embedding-endpoint";
 import { isCloudProviderSupportEnabled } from "@/runtime/native-agent";
-import {
-	findNKleinProviderModel,
-	getNKleinModelContextWindowWarning,
-	isLmStudioProviderId,
-} from "@/runtime/nklein-context-window-policy";
+import { findNKleinProviderModel } from "@/runtime/nklein-context-window-policy";
 import { fetchNKleinProviderModels, openFileOnHost } from "@/runtime/runtime-config-query";
 import type {
 	AgentRulesetsConfigPayload,
@@ -96,7 +94,7 @@ import type {
 	RuntimeTaskAutoReviewMode,
 } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
-import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
+import { LocalStorageKey, writeLocalStorageItem } from "@/storage/local-storage-store";
 import {
 	type BrowserNotificationPermission,
 	formatNotificationPermissionStatus,
@@ -111,11 +109,7 @@ import {
 	NKleinModelContextWindowSettingsPanel,
 	NKleinSmokeEvalTrial,
 } from "./nklein-settings-panels";
-import {
-	getNextShortcutLabel,
-	normalizeAgentTimeoutProfile,
-	normalizeTemplateForComparison,
-} from "./runtime-settings-dialog-helpers";
+import { getNextShortcutLabel, normalizeTemplateForComparison } from "./runtime-settings-dialog-helpers";
 import {
 	AgentRow,
 	InlineUtilityButton,
@@ -191,22 +185,6 @@ const SKILL_DYNAMICS_LEVEL_LABELS: Record<RuntimeSkillDynamicsLevel, string> = {
 	assigned_skills: "Assigned skills",
 	fully_static: "Fully static",
 };
-
-function readBooleanTaskDefault(key: LocalStorageKey, fallback: boolean): boolean {
-	const stored = readLocalStorageItem(key);
-	if (stored === "true") {
-		return true;
-	}
-	if (stored === "false") {
-		return false;
-	}
-	return fallback;
-}
-
-function readTaskAutoReviewModeDefault(): RuntimeTaskAutoReviewMode {
-	const stored = readLocalStorageItem(LocalStorageKey.TaskAutoReviewMode);
-	return stored === "pr" ? "pr" : "commit";
-}
 
 export function RuntimeSettingsDialog({
 	open,
@@ -496,104 +474,13 @@ export function RuntimeSettingsDialog({
 		[desktopBridge],
 	);
 
-	const configuredAgentId = config?.selectedAgentId ?? null;
-	const fallbackAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? "nklein") : "nklein";
-	const initialSelectedAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? fallbackAgentId) : "nklein";
-	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
-	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
-	const initialAgentTimeoutProfile = normalizeAgentTimeoutProfile(
-		config?.agentTimeoutProfile,
-		cloudProviderSupportEnabled,
+	// Config-derived snapshot the draft is seeded from and compared against (see settings-draft.ts).
+	// Pure derivation, so recomputing on config identity changes is safe; the reset effect below keeps
+	// its own field-level dependency list so a refresh with unchanged values never clobbers edits.
+	const configSnapshot = useMemo(
+		() => initSettingsDraftFromConfig(config, { cloudProviderSupportEnabled }),
+		[config, cloudProviderSupportEnabled],
 	);
-	const initialRequestTimeoutMs = config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs);
-	const initialStreamTimeoutMs = config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs);
-	const initialToolTimeoutMs = config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs);
-	const initialAgentTimeoutMs = config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs);
-	const initialConversationTimeoutMs =
-		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
-	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
-	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
-	const initialWorkspaceBaseDir = config?.workspaceBaseDir ?? "";
-	const initialSandboxMaxContainers = String(config?.sandboxMaxContainers ?? 1);
-	const initialSandboxAgentsPerContainer = String(config?.sandboxAgentsPerContainer ?? 0);
-	const initialSandboxMemoryPerContainerMb = String(config?.sandboxMemoryPerContainerMb ?? 2048);
-	const initialSandboxCpusPerContainer = String(config?.sandboxCpusPerContainer ?? 2);
-	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
-	const initialSandboxIsolationProfileDefault = config?.sandboxIsolationProfileDefault ?? "lean_shared";
-	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
-	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
-	const initialTestDrivenModeEnabled = config?.testDrivenModeEnabled ?? false;
-	const initialHardTaskRoutingMode = config?.hardTaskRoutingMode ?? "attempt_with_available";
-	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
-	const initialReviewMaxRounds = config?.reviewMaxRounds ?? 20;
-	const initialSpeculativeBestOfNEnabled = config?.speculativeBestOfNEnabled ?? true;
-	const initialSpeculativeMaxConcurrentSpecs = config?.speculativeMaxConcurrentSpecs ?? 1;
-	const initialSpeculativeMaxSpecsPerRun = config?.speculativeMaxSpecsPerRun ?? 3;
-	const initialSwarmGuardrails = config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
-	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
-	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
-	const initialKnowsTodayEnabled = config?.knowsTodayEnabled ?? false;
-	const initialRetrievalEgressEnabled = config?.retrievalEgressEnabled ?? false;
-	const initialRetrievalSearchBackendUrl = config?.retrievalSearchBackendUrl ?? "";
-	const initialLlmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode = config?.llmfitCatalogUpdateMode ?? "notify";
-	const initialSandboxMcpServersEnabled = config?.sandboxMcpServersEnabled ?? true;
-	const initialCapabilityBrokerEnabled = config?.capabilityBrokerEnabled ?? false;
-	const initialBasicMemoryEnabled = config?.basicMemoryEnabled ?? false;
-	const initialChatAdaptiveTruncationEnabled = config?.chatAdaptiveTruncationEnabled ?? true;
-	const initialReasoningBudgetEnabled = config?.reasoningBudgetEnabled ?? false;
-	const initialReviewLensesEnabled = config?.reviewLensesEnabled ?? false;
-	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
-	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
-		provider: "local_lexical" as const,
-		model: LOCAL_CODE_EMBEDDING_MODEL,
-		baseUrl: null,
-	};
-	const initialCodeEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
-	const initialShortcuts = config?.shortcuts ?? [];
-	const initialMaxConcurrentTasksOverride = config?.maxConcurrentTasksOverride ?? null;
-	const initialSelectedAgentIdOverride = config?.selectedAgentIdOverride ?? null;
-	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
-	const initialConcurrencyDefaults = useMemo(
-		() => ({
-			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
-			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
-			perHost: { ...(config?.concurrencyDefaults?.perHost ?? {}) },
-			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
-		}),
-		[config?.concurrencyDefaults],
-	);
-	const initialModelGateUnsuitable: RuntimeModelGateAction =
-		config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject";
-	const initialModelGateUnknown: RuntimeModelGateAction = config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn";
-	const initialSkillDynamicsLevel: RuntimeSkillDynamicsLevel = config?.skillDynamicsLevelDefault ?? "fully_dynamic";
-	const initialSkillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null =
-		config?.skillDynamicsLevelOverride ?? null;
-	const initialConcurrencyOverride = useMemo(
-		() =>
-			config?.concurrencyOverride != null
-				? {
-						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
-						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
-						perHost: { ...(config.concurrencyOverride.perHost ?? {}) },
-						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
-					}
-				: null,
-		[config?.concurrencyOverride],
-	);
-	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
-		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
-		[config?.agentRulesets],
-	);
-	const initialModelRolesOverride = useMemo(
-		() => (config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null),
-		[config?.modelRolesOverride],
-	);
-	const initialAgentRulesetsOverride = useMemo(
-		() => config?.agentRulesetsOverride ?? null,
-		[config?.agentRulesetsOverride],
-	);
-	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
-	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
 	const nkleinSettings = useRuntimeSettingsNKleinController({
 		open,
 		workspaceId,
@@ -750,385 +637,224 @@ export function RuntimeSettingsDialog({
 			applyDedicatedSandboxPreset();
 		}
 	};
-	const hasUnsavedChanges = useMemo(() => {
-		if (!config) {
-			return false;
-		}
-		if (selectedAgentId !== initialSelectedAgentId) {
-			return true;
-		}
-		if (agentAutonomousModeEnabled !== initialAgentAutonomousModeEnabled) {
-			return true;
-		}
-		if (agentTimeoutMode !== initialAgentTimeoutMode) {
-			return true;
-		}
-		if (agentTimeoutProfile !== initialAgentTimeoutProfile) {
-			return true;
-		}
-		if (requestTimeoutMs.trim() !== initialRequestTimeoutMs.trim()) {
-			return true;
-		}
-		if (streamTimeoutMs.trim() !== initialStreamTimeoutMs.trim()) {
-			return true;
-		}
-		if (toolTimeoutMs.trim() !== initialToolTimeoutMs.trim()) {
-			return true;
-		}
-		if (agentTimeoutMs.trim() !== initialAgentTimeoutMs.trim()) {
-			return true;
-		}
-		if (conversationTimeoutMs.trim() !== initialConversationTimeoutMs.trim()) {
-			return true;
-		}
-		if (maxAgentWritableFileLines.trim() !== initialMaxAgentWritableFileLines.trim()) {
-			return true;
-		}
-		if (maxConcurrentTasks.trim() !== initialMaxConcurrentTasks.trim()) {
-			return true;
-		}
-		if (workspaceBaseDir.trim() !== initialWorkspaceBaseDir.trim()) {
-			return true;
-		}
-		if (sandboxMaxContainers.trim() !== initialSandboxMaxContainers.trim()) {
-			return true;
-		}
-		if (sandboxAgentsPerContainer.trim() !== initialSandboxAgentsPerContainer.trim()) {
-			return true;
-		}
-		if (sandboxMemoryPerContainerMb.trim() !== initialSandboxMemoryPerContainerMb.trim()) {
-			return true;
-		}
-		if (sandboxCpusPerContainer.trim() !== initialSandboxCpusPerContainer.trim()) {
-			return true;
-		}
-		if (sandboxIdleTimeoutMinutes.trim() !== initialSandboxIdleTimeoutMinutes.trim()) {
-			return true;
-		}
-		if (sandboxIsolationProfileDefault !== initialSandboxIsolationProfileDefault) {
-			return true;
-		}
-		if (lostHeartbeatPolicy !== initialLostHeartbeatPolicy) {
-			return true;
-		}
-		if (decompositionAutoApplyEnabled !== initialDecompositionAutoApplyEnabled) {
-			return true;
-		}
-		if (hardTaskRoutingMode !== initialHardTaskRoutingMode) {
-			return true;
-		}
-		if (testDrivenModeEnabled !== initialTestDrivenModeEnabled) {
-			return true;
-		}
-		if (secondOpinionReviewEnabled !== initialSecondOpinionReviewEnabled) {
-			return true;
-		}
-		if (reviewMaxRounds !== initialReviewMaxRounds) {
-			return true;
-		}
-		if (speculativeBestOfNEnabled !== initialSpeculativeBestOfNEnabled) {
-			return true;
-		}
-		if (speculativeMaxConcurrentSpecs !== initialSpeculativeMaxConcurrentSpecs) {
-			return true;
-		}
-		if (speculativeMaxSpecsPerRun !== initialSpeculativeMaxSpecsPerRun) {
-			return true;
-		}
-		if (!areRuntimeSwarmGuardrailsEqual(inputsToSwarmGuardrails(swarmGuardrailInputs), initialSwarmGuardrails)) {
-			return true;
-		}
-		if (developerModeEnabled !== initialDeveloperModeEnabled) {
-			return true;
-		}
-		if (replayCardsEnabled !== initialReplayCardsEnabled) {
-			return true;
-		}
-		if (knowsTodayEnabled !== initialKnowsTodayEnabled) {
-			return true;
-		}
-		if (retrievalEgressEnabled !== initialRetrievalEgressEnabled) {
-			return true;
-		}
-		if (retrievalSearchBackendUrl.trim() !== initialRetrievalSearchBackendUrl.trim()) {
-			return true;
-		}
-		if (llmfitCatalogUpdateMode !== initialLlmfitCatalogUpdateMode) {
-			return true;
-		}
-		if (sandboxMcpServersEnabled !== initialSandboxMcpServersEnabled) {
-			return true;
-		}
-		if (capabilityBrokerEnabled !== initialCapabilityBrokerEnabled) {
-			return true;
-		}
-		if (basicMemoryEnabled !== initialBasicMemoryEnabled) {
-			return true;
-		}
-		if (chatAdaptiveTruncationEnabled !== initialChatAdaptiveTruncationEnabled) {
-			return true;
-		}
-		if (reasoningBudgetEnabled !== initialReasoningBudgetEnabled) {
-			return true;
-		}
-		if (reviewLensesEnabled !== initialReviewLensesEnabled) {
-			return true;
-		}
-		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
-			return true;
-		}
-		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingDefaults, initialCodeEmbeddingDefaults)) {
-			return true;
-		}
-		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingOverride, initialCodeEmbeddingOverride)) {
-			return true;
-		}
-		if (
-			taskDefaultStartInPlanMode !== initialTaskDefaultStartInPlanMode ||
-			taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
-			taskDefaultAutoReviewMode !== initialTaskDefaultAutoReviewMode
-		) {
-			return true;
-		}
-		if (nkleinSettings.hasUnsavedChanges) {
-			return true;
-		}
-		if (nkleinMcpSettings.hasUnsavedChanges) {
-			return true;
-		}
-		if (serializeModelRoles(modelRoles) !== serializeModelRoles(initialModelRoles)) {
-			return true;
-		}
-		if (JSON.stringify(concurrencyDefaults) !== JSON.stringify(initialConcurrencyDefaults)) {
-			return true;
-		}
-		if (modelGateUnsuitable !== initialModelGateUnsuitable || modelGateUnknown !== initialModelGateUnknown) {
-			return true;
-		}
-		if (skillDynamicsLevel !== initialSkillDynamicsLevel) {
-			return true;
-		}
-		if (JSON.stringify(concurrencyOverride) !== JSON.stringify(initialConcurrencyOverride)) {
-			return true;
-		}
-		if (JSON.stringify(agentRulesets) !== JSON.stringify(initialAgentRulesets)) {
-			return true;
-		}
-		if (draftThemeId !== initialThemeId) {
-			return true;
-		}
-		if (!areRuntimeProjectShortcutsEqual(shortcuts, initialShortcuts)) {
-			return true;
-		}
-		if (maxConcurrentTasksOverride !== initialMaxConcurrentTasksOverride) {
-			return true;
-		}
-		if (skillDynamicsLevelOverride !== initialSkillDynamicsLevelOverride) {
-			return true;
-		}
-		if (selectedAgentIdOverride !== initialSelectedAgentIdOverride) {
-			return true;
-		}
-		if (
-			(modelRolesOverride === null) !== (initialModelRolesOverride === null) ||
-			(modelRolesOverride !== null &&
-				serializeModelRoles(modelRolesOverride) !== serializeModelRoles(initialModelRolesOverride ?? {}))
-		) {
-			return true;
-		}
-		if (JSON.stringify(agentRulesetsOverride) !== JSON.stringify(initialAgentRulesetsOverride)) {
-			return true;
-		}
-		if (
-			normalizeTemplateForComparison(commitPromptTemplate) !==
-			normalizeTemplateForComparison(initialCommitPromptTemplate)
-		) {
-			return true;
-		}
-		return (
-			normalizeTemplateForComparison(openPrPromptTemplate) !==
-			normalizeTemplateForComparison(initialOpenPrPromptTemplate)
-		);
-	}, [
-		agentAutonomousModeEnabled,
-		agentTimeoutMode,
-		agentTimeoutMs,
-		agentTimeoutProfile,
-		nkleinMcpSettings.hasUnsavedChanges,
-		nkleinSettings.hasUnsavedChanges,
-		commitPromptTemplate,
-		conversationTimeoutMs,
-		config,
-		decompositionAutoApplyEnabled,
-		testDrivenModeEnabled,
-		hardTaskRoutingMode,
-		secondOpinionReviewEnabled,
-		reviewMaxRounds,
-		speculativeBestOfNEnabled,
-		speculativeMaxConcurrentSpecs,
-		speculativeMaxSpecsPerRun,
-		developerModeEnabled,
-		draftCodeEmbeddingDefaults,
-		draftCodeEmbeddingOverride,
-		draftThemeId,
-		initialCodeEmbeddingDefaults,
-		initialCodeEmbeddingOverride,
-		initialAgentAutonomousModeEnabled,
-		initialAgentTimeoutMs,
-		initialAgentTimeoutMode,
-		initialAgentTimeoutProfile,
-		initialCommitPromptTemplate,
-		initialConversationTimeoutMs,
-		initialDecompositionAutoApplyEnabled,
-		initialSecondOpinionReviewEnabled,
-		initialReviewMaxRounds,
-		initialSpeculativeBestOfNEnabled,
-		initialSpeculativeMaxConcurrentSpecs,
-		initialSpeculativeMaxSpecsPerRun,
-		initialDeveloperModeEnabled,
-		initialMaxAgentWritableFileLines,
-		initialMaxConcurrentTasks,
-		initialWorkspaceBaseDir,
-		initialSandboxAgentsPerContainer,
-		initialSandboxCpusPerContainer,
-		initialSandboxIdleTimeoutMinutes,
-		initialSandboxIsolationProfileDefault,
-		initialSandboxMaxContainers,
-		initialSandboxMemoryPerContainerMb,
-		initialLostHeartbeatPolicy,
-		initialModelRoles,
-		initialConcurrencyDefaults,
-		concurrencyDefaults,
-		initialModelGateUnsuitable,
-		modelGateUnsuitable,
-		initialModelGateUnknown,
-		modelGateUnknown,
-		initialSkillDynamicsLevel,
-		skillDynamicsLevel,
-		initialConcurrencyOverride,
-		concurrencyOverride,
-		initialAgentRulesets,
-		agentRulesets,
-		initialOpenPrPromptTemplate,
-		initialRequestTimeoutMs,
-		initialReadyForReviewNotificationsEnabled,
-		initialReplayCardsEnabled,
-		initialKnowsTodayEnabled,
-		initialRetrievalEgressEnabled,
-		initialRetrievalSearchBackendUrl,
-		initialLlmfitCatalogUpdateMode,
-		initialBasicMemoryEnabled,
-		initialChatAdaptiveTruncationEnabled,
-		initialReasoningBudgetEnabled,
-		initialReviewLensesEnabled,
-		basicMemoryEnabled,
-		chatAdaptiveTruncationEnabled,
-		reasoningBudgetEnabled,
-		reviewLensesEnabled,
-		initialSelectedAgentId,
-		initialShortcuts,
-		initialMaxConcurrentTasksOverride,
-		initialSelectedAgentIdOverride,
-		initialSkillDynamicsLevelOverride,
-		maxConcurrentTasksOverride,
-		skillDynamicsLevelOverride,
-		selectedAgentIdOverride,
-		modelRolesOverride,
-		agentRulesetsOverride,
-		initialModelRolesOverride,
-		initialAgentRulesetsOverride,
-		initialTaskDefaultAutoReviewEnabled,
-		initialTaskDefaultAutoReviewMode,
-		initialTaskDefaultStartInPlanMode,
-		initialStreamTimeoutMs,
-		initialThemeId,
-		initialToolTimeoutMs,
-		maxAgentWritableFileLines,
-		maxConcurrentTasks,
-		workspaceBaseDir,
-		sandboxAgentsPerContainer,
-		sandboxCpusPerContainer,
-		sandboxIdleTimeoutMinutes,
-		sandboxIsolationProfileDefault,
-		sandboxMaxContainers,
-		sandboxMemoryPerContainerMb,
-		lostHeartbeatPolicy,
-		modelRoles,
-		openPrPromptTemplate,
-		requestTimeoutMs,
-		readyForReviewNotificationsEnabled,
-		replayCardsEnabled,
-		knowsTodayEnabled,
-		retrievalEgressEnabled,
-		retrievalSearchBackendUrl,
-		llmfitCatalogUpdateMode,
-		selectedAgentId,
-		shortcuts,
-		streamTimeoutMs,
-		taskDefaultAutoReviewEnabled,
-		taskDefaultAutoReviewMode,
-		taskDefaultStartInPlanMode,
-		toolTimeoutMs,
-	]);
+	// The editable draft, assembled from the dialog's local state for the behavior model
+	// (dirty detection here; validation + save payload in settings-save.ts).
+	const draft = useMemo<SettingsDraft>(
+		() => ({
+			selectedAgentId,
+			agentAutonomousModeEnabled,
+			agentTimeoutMode,
+			agentTimeoutProfile,
+			requestTimeoutMs,
+			streamTimeoutMs,
+			toolTimeoutMs,
+			agentTimeoutMs,
+			conversationTimeoutMs,
+			maxAgentWritableFileLines,
+			maxConcurrentTasks,
+			workspaceBaseDir,
+			sandboxMaxContainers,
+			sandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes,
+			sandboxIsolationProfileDefault,
+			lostHeartbeatPolicy,
+			decompositionAutoApplyEnabled,
+			testDrivenModeEnabled,
+			hardTaskRoutingMode,
+			secondOpinionReviewEnabled,
+			reviewMaxRounds,
+			speculativeBestOfNEnabled,
+			speculativeMaxConcurrentSpecs,
+			speculativeMaxSpecsPerRun,
+			swarmGuardrailInputs,
+			developerModeEnabled,
+			replayCardsEnabled,
+			knowsTodayEnabled,
+			retrievalEgressEnabled,
+			retrievalSearchBackendUrl,
+			llmfitCatalogUpdateMode,
+			sandboxMcpServersEnabled,
+			capabilityBrokerEnabled,
+			basicMemoryEnabled,
+			chatAdaptiveTruncationEnabled,
+			reasoningBudgetEnabled,
+			reviewLensesEnabled,
+			readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
+			codeEmbeddingOverride: draftCodeEmbeddingOverride,
+			shortcuts,
+			maxConcurrentTasksOverride,
+			selectedAgentIdOverride,
+			modelRoles,
+			concurrencyDefaults,
+			modelGateUnsuitable,
+			modelGateUnknown,
+			skillDynamicsLevel,
+			skillDynamicsLevelOverride,
+			concurrencyOverride,
+			agentRulesets,
+			modelRolesOverride,
+			agentRulesetsOverride,
+			commitPromptTemplate,
+			openPrPromptTemplate,
+		}),
+		[
+			selectedAgentId,
+			agentAutonomousModeEnabled,
+			agentTimeoutMode,
+			agentTimeoutProfile,
+			requestTimeoutMs,
+			streamTimeoutMs,
+			toolTimeoutMs,
+			agentTimeoutMs,
+			conversationTimeoutMs,
+			maxAgentWritableFileLines,
+			maxConcurrentTasks,
+			workspaceBaseDir,
+			sandboxMaxContainers,
+			sandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes,
+			sandboxIsolationProfileDefault,
+			lostHeartbeatPolicy,
+			decompositionAutoApplyEnabled,
+			testDrivenModeEnabled,
+			hardTaskRoutingMode,
+			secondOpinionReviewEnabled,
+			reviewMaxRounds,
+			speculativeBestOfNEnabled,
+			speculativeMaxConcurrentSpecs,
+			speculativeMaxSpecsPerRun,
+			swarmGuardrailInputs,
+			developerModeEnabled,
+			replayCardsEnabled,
+			knowsTodayEnabled,
+			retrievalEgressEnabled,
+			retrievalSearchBackendUrl,
+			llmfitCatalogUpdateMode,
+			sandboxMcpServersEnabled,
+			capabilityBrokerEnabled,
+			basicMemoryEnabled,
+			chatAdaptiveTruncationEnabled,
+			reasoningBudgetEnabled,
+			reviewLensesEnabled,
+			readyForReviewNotificationsEnabled,
+			draftCodeEmbeddingDefaults,
+			draftCodeEmbeddingOverride,
+			shortcuts,
+			maxConcurrentTasksOverride,
+			selectedAgentIdOverride,
+			modelRoles,
+			concurrencyDefaults,
+			modelGateUnsuitable,
+			modelGateUnknown,
+			skillDynamicsLevel,
+			skillDynamicsLevelOverride,
+			concurrencyOverride,
+			agentRulesets,
+			modelRolesOverride,
+			agentRulesetsOverride,
+			commitPromptTemplate,
+			openPrPromptTemplate,
+		],
+	);
+	const hasUnsavedChanges = useMemo(
+		() =>
+			config !== null &&
+			isSettingsDraftDirty({
+				draft,
+				snapshot: configSnapshot,
+				local: {
+					taskDefaultStartInPlanMode,
+					taskDefaultAutoReviewEnabled,
+					taskDefaultAutoReviewMode,
+					themeId: draftThemeId,
+				},
+				localInitial: {
+					taskDefaultStartInPlanMode: initialTaskDefaultStartInPlanMode,
+					taskDefaultAutoReviewEnabled: initialTaskDefaultAutoReviewEnabled,
+					taskDefaultAutoReviewMode: initialTaskDefaultAutoReviewMode,
+					themeId: initialThemeId,
+				},
+				nkleinSettingsDirty: nkleinSettings.hasUnsavedChanges,
+				nkleinMcpSettingsDirty: nkleinMcpSettings.hasUnsavedChanges,
+			}),
+		[
+			config,
+			draft,
+			configSnapshot,
+			taskDefaultStartInPlanMode,
+			taskDefaultAutoReviewEnabled,
+			taskDefaultAutoReviewMode,
+			draftThemeId,
+			initialTaskDefaultStartInPlanMode,
+			initialTaskDefaultAutoReviewEnabled,
+			initialTaskDefaultAutoReviewMode,
+			initialThemeId,
+			nkleinSettings.hasUnsavedChanges,
+			nkleinMcpSettings.hasUnsavedChanges,
+		],
+	);
 
+	// Reset the draft to the loaded config whenever the dialog opens or a watched config field changes.
+	// The dependency list is intentionally field-level (NOT the snapshot object): a config refresh that
+	// returns identical values must not clobber in-progress edits.
 	useEffect(() => {
 		if (!open) {
 			return;
 		}
-		setSelectedAgentId(fallbackAgentId);
-		setAgentAutonomousModeEnabled(config?.agentAutonomousModeEnabled ?? true);
-		setAgentTimeoutMode(config?.agentTimeoutMode ?? "normal");
-		setAgentTimeoutProfile(normalizeAgentTimeoutProfile(config?.agentTimeoutProfile, cloudProviderSupportEnabled));
-		setRequestTimeoutMs(config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs));
-		setStreamTimeoutMs(config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs));
-		setToolTimeoutMs(config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs));
-		setAgentTimeoutMs(config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs));
-		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
-		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
-		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
-		setWorkspaceBaseDir(config?.workspaceBaseDir ?? "");
-		setSandboxMaxContainers(String(config?.sandboxMaxContainers ?? 1));
-		setSandboxAgentsPerContainer(String(config?.sandboxAgentsPerContainer ?? 0));
-		setSandboxMemoryPerContainerMb(String(config?.sandboxMemoryPerContainerMb ?? 2048));
-		setSandboxCpusPerContainer(String(config?.sandboxCpusPerContainer ?? 2));
-		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
-		setSandboxIsolationProfileDefault(config?.sandboxIsolationProfileDefault ?? "lean_shared");
-		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
-		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
-		setTestDrivenModeEnabled(config?.testDrivenModeEnabled ?? false);
-		setHardTaskRoutingMode(config?.hardTaskRoutingMode ?? "attempt_with_available");
-		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
-		setReviewMaxRounds(config?.reviewMaxRounds ?? 20);
-		setSpeculativeBestOfNEnabled(config?.speculativeBestOfNEnabled ?? true);
-		setSpeculativeMaxConcurrentSpecs(config?.speculativeMaxConcurrentSpecs ?? 1);
-		setSpeculativeMaxSpecsPerRun(config?.speculativeMaxSpecsPerRun ?? 3);
-		setSwarmGuardrailInputs(swarmGuardrailsToInputs(config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS));
-		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
-		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
-		setKnowsTodayEnabled(config?.knowsTodayEnabled ?? false);
-		setRetrievalEgressEnabled(config?.retrievalEgressEnabled ?? false);
-		setRetrievalSearchBackendUrl(config?.retrievalSearchBackendUrl ?? "");
-		setLlmfitCatalogUpdateMode(config?.llmfitCatalogUpdateMode ?? "notify");
-		setSandboxMcpServersEnabled(config?.sandboxMcpServersEnabled ?? true);
-		setCapabilityBrokerEnabled(config?.capabilityBrokerEnabled ?? false);
-		setBasicMemoryEnabled(config?.basicMemoryEnabled ?? false);
-		setChatAdaptiveTruncationEnabled(config?.chatAdaptiveTruncationEnabled ?? true);
-		setReasoningBudgetEnabled(config?.reasoningBudgetEnabled ?? false);
-		setReviewLensesEnabled(config?.reviewLensesEnabled ?? false);
-		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
-		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
-			provider: "local_lexical" as const,
-			model: LOCAL_CODE_EMBEDDING_MODEL,
-			baseUrl: null,
-		};
-		setCodeEmbeddingDefaultsProvider(nextEmbeddingDefaults.provider);
-		setCodeEmbeddingDefaultsModel(nextEmbeddingDefaults.model ?? "");
-		setCodeEmbeddingDefaultsBaseUrl(nextEmbeddingDefaults.baseUrl ?? "");
-		const nextEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
-		setCodeEmbeddingOverrideEnabled(nextEmbeddingOverride !== null);
-		setCodeEmbeddingOverrideProvider(nextEmbeddingOverride?.provider ?? "local_lexical");
-		setCodeEmbeddingOverrideModel(nextEmbeddingOverride?.model ?? LOCAL_CODE_EMBEDDING_MODEL);
-		setCodeEmbeddingOverrideBaseUrl(nextEmbeddingOverride?.baseUrl ?? "");
+		const snapshot = initSettingsDraftFromConfig(config, { cloudProviderSupportEnabled });
+		setSelectedAgentId(snapshot.selectedAgentId);
+		setAgentAutonomousModeEnabled(snapshot.agentAutonomousModeEnabled);
+		setAgentTimeoutMode(snapshot.agentTimeoutMode);
+		setAgentTimeoutProfile(snapshot.agentTimeoutProfile);
+		setRequestTimeoutMs(snapshot.requestTimeoutMs);
+		setStreamTimeoutMs(snapshot.streamTimeoutMs);
+		setToolTimeoutMs(snapshot.toolTimeoutMs);
+		setAgentTimeoutMs(snapshot.agentTimeoutMs);
+		setConversationTimeoutMs(snapshot.conversationTimeoutMs);
+		setMaxAgentWritableFileLines(snapshot.maxAgentWritableFileLines);
+		setMaxConcurrentTasks(snapshot.maxConcurrentTasks);
+		setWorkspaceBaseDir(snapshot.workspaceBaseDir);
+		setSandboxMaxContainers(snapshot.sandboxMaxContainers);
+		setSandboxAgentsPerContainer(snapshot.sandboxAgentsPerContainer);
+		setSandboxMemoryPerContainerMb(snapshot.sandboxMemoryPerContainerMb);
+		setSandboxCpusPerContainer(snapshot.sandboxCpusPerContainer);
+		setSandboxIdleTimeoutMinutes(snapshot.sandboxIdleTimeoutMinutes);
+		setSandboxIsolationProfileDefault(snapshot.sandboxIsolationProfileDefault);
+		setLostHeartbeatPolicy(snapshot.lostHeartbeatPolicy);
+		setDecompositionAutoApplyEnabled(snapshot.decompositionAutoApplyEnabled);
+		setTestDrivenModeEnabled(snapshot.testDrivenModeEnabled);
+		setHardTaskRoutingMode(snapshot.hardTaskRoutingMode);
+		setSecondOpinionReviewEnabled(snapshot.secondOpinionReviewEnabled);
+		setReviewMaxRounds(snapshot.reviewMaxRounds);
+		setSpeculativeBestOfNEnabled(snapshot.speculativeBestOfNEnabled);
+		setSpeculativeMaxConcurrentSpecs(snapshot.speculativeMaxConcurrentSpecs);
+		setSpeculativeMaxSpecsPerRun(snapshot.speculativeMaxSpecsPerRun);
+		setSwarmGuardrailInputs(snapshotSwarmGuardrailInputs(snapshot));
+		setDeveloperModeEnabled(snapshot.developerModeEnabled);
+		setReplayCardsEnabled(snapshot.replayCardsEnabled);
+		setKnowsTodayEnabled(snapshot.knowsTodayEnabled);
+		setRetrievalEgressEnabled(snapshot.retrievalEgressEnabled);
+		setRetrievalSearchBackendUrl(snapshot.retrievalSearchBackendUrl);
+		setLlmfitCatalogUpdateMode(snapshot.llmfitCatalogUpdateMode);
+		setSandboxMcpServersEnabled(snapshot.sandboxMcpServersEnabled);
+		setCapabilityBrokerEnabled(snapshot.capabilityBrokerEnabled);
+		setBasicMemoryEnabled(snapshot.basicMemoryEnabled);
+		setChatAdaptiveTruncationEnabled(snapshot.chatAdaptiveTruncationEnabled);
+		setReasoningBudgetEnabled(snapshot.reasoningBudgetEnabled);
+		setReviewLensesEnabled(snapshot.reviewLensesEnabled);
+		setReadyForReviewNotificationsEnabled(snapshot.readyForReviewNotificationsEnabled);
+		setCodeEmbeddingDefaultsProvider(snapshot.codeEmbeddingDefaults.provider);
+		setCodeEmbeddingDefaultsModel(snapshot.codeEmbeddingDefaults.model ?? "");
+		setCodeEmbeddingDefaultsBaseUrl(snapshot.codeEmbeddingDefaults.baseUrl ?? "");
+		setCodeEmbeddingOverrideEnabled(snapshot.codeEmbeddingOverride !== null);
+		setCodeEmbeddingOverrideProvider(snapshot.codeEmbeddingOverride?.provider ?? "local_lexical");
+		setCodeEmbeddingOverrideModel(snapshot.codeEmbeddingOverride?.model ?? LOCAL_CODE_EMBEDDING_MODEL);
+		setCodeEmbeddingOverrideBaseUrl(snapshot.codeEmbeddingOverride?.baseUrl ?? "");
 		const storedTaskDefaultStartInPlanMode = readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false);
 		const storedTaskDefaultAutoReviewEnabled = readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false);
 		const storedTaskDefaultAutoReviewMode = readTaskAutoReviewModeDefault();
@@ -1138,37 +864,21 @@ export function RuntimeSettingsDialog({
 		setInitialTaskDefaultAutoReviewEnabled(storedTaskDefaultAutoReviewEnabled);
 		setTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
 		setInitialTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
-		setShortcuts(config?.shortcuts ?? []);
-		setMaxConcurrentTasksOverride(config?.maxConcurrentTasksOverride ?? null);
-		setSelectedAgentIdOverride(config?.selectedAgentIdOverride ?? null);
-		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
-		setConcurrencyDefaults({
-			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
-			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
-			perHost: { ...(config?.concurrencyDefaults?.perHost ?? {}) },
-			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
-		});
-		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
-		setModelGateUnknown(config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn");
-		setSkillDynamicsLevel(config?.skillDynamicsLevelDefault ?? "fully_dynamic");
-		setSkillDynamicsLevelOverride(config?.skillDynamicsLevelOverride ?? null);
-		setConcurrencyOverride(
-			config?.concurrencyOverride != null
-				? {
-						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
-						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
-						perHost: { ...(config.concurrencyOverride.perHost ?? {}) },
-						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
-					}
-				: null,
-		);
-		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
-		setModelRolesOverride(
-			config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null,
-		);
-		setAgentRulesetsOverride(config?.agentRulesetsOverride ?? null);
-		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
-		setOpenPrPromptTemplate(config?.openPrPromptTemplate ?? "");
+		setShortcuts(snapshot.shortcuts);
+		setMaxConcurrentTasksOverride(snapshot.maxConcurrentTasksOverride);
+		setSelectedAgentIdOverride(snapshot.selectedAgentIdOverride);
+		setModelRoles(snapshot.modelRoles);
+		setConcurrencyDefaults(snapshot.concurrencyDefaults);
+		setModelGateUnsuitable(snapshot.modelGateUnsuitable);
+		setModelGateUnknown(snapshot.modelGateUnknown);
+		setSkillDynamicsLevel(snapshot.skillDynamicsLevel);
+		setSkillDynamicsLevelOverride(snapshot.skillDynamicsLevelOverride);
+		setConcurrencyOverride(snapshot.concurrencyOverride);
+		setAgentRulesets(snapshot.agentRulesets);
+		setModelRolesOverride(snapshot.modelRolesOverride);
+		setAgentRulesetsOverride(snapshot.agentRulesetsOverride);
+		setCommitPromptTemplate(snapshot.commitPromptTemplate);
+		setOpenPrPromptTemplate(snapshot.openPrPromptTemplate);
 		setSaveError(null);
 	}, [
 		config?.agentAutonomousModeEnabled,
@@ -1225,7 +935,6 @@ export function RuntimeSettingsDialog({
 		config?.agentRulesetsOverride,
 		config?.streamTimeoutMs,
 		config?.toolTimeoutMs,
-		fallbackAgentId,
 		open,
 	]);
 
@@ -1435,50 +1144,15 @@ export function RuntimeSettingsDialog({
 		[nkleinProviderId, nkleinSettings.providerModels, modelRoleModelsByProviderId],
 	);
 
-	const getModelRoleContextWarning = useCallback(
-		(roleId: ModelRoleId): string | null => {
-			const roleSettings = modelRoles[roleId] ?? {};
-			const roleProviderId = roleSettings.providerId ?? "";
-			const effectiveProviderId = roleProviderId || nkleinProviderId;
-			const providerDefaultModelId = roleProviderId
-				? (findProviderCatalogItem(nkleinSettings.providerCatalog, roleProviderId)?.defaultModelId?.trim() ?? "")
-				: "";
-			const effectiveModelId = roleSettings.modelId?.trim() || providerDefaultModelId;
-			if (!effectiveModelId) {
-				return null;
-			}
-			const roleModels = getModelRoleProviderModels(effectiveProviderId);
-			return getNKleinModelContextWindowWarning({
-				model: findNKleinProviderModel(roleModels, effectiveModelId),
-				modelId: effectiveModelId,
-				label: `${MODEL_ROLE_LABELS[roleId]} model`,
-			});
-		},
-		[nkleinProviderId, nkleinSettings.providerCatalog, getModelRoleProviderModels, modelRoles],
-	);
-
-	const getModelRoleAvailabilityWarning = useCallback(
-		(roleId: ModelRoleId): string | null => {
-			const roleSettings = modelRoles[roleId] ?? {};
-			const roleProviderId = roleSettings.providerId ?? "";
-			const effectiveProviderId = roleProviderId || nkleinProviderId;
-			if (!isLmStudioProviderId(effectiveProviderId)) {
-				return null;
-			}
-			const roleModelId = roleSettings.modelId?.trim() ?? "";
-			if (roleProviderId && !roleModelId) {
-				return `${MODEL_ROLE_LABELS[roleId]} role uses LM Studio. Choose a loaded LM Studio model before saving.`;
-			}
-			if (!roleModelId) {
-				return null;
-			}
-			const roleModels = getModelRoleProviderModels(effectiveProviderId);
-			if (findNKleinProviderModel(roleModels, roleModelId)) {
-				return null;
-			}
-			return `${MODEL_ROLE_LABELS[roleId]} model "${roleModelId}" is not loaded in LM Studio. Load it, refresh models, then choose it before saving.`;
-		},
-		[nkleinProviderId, getModelRoleProviderModels, modelRoles],
+	// Inputs for the pure model-role save validations in settings-save.ts.
+	const modelRoleWarningContext = useMemo(
+		() => ({
+			modelRoles,
+			nkleinProviderId,
+			providerCatalog: nkleinSettings.providerCatalog,
+			getModelsForProvider: getModelRoleProviderModels,
+		}),
+		[modelRoles, nkleinProviderId, nkleinSettings.providerCatalog, getModelRoleProviderModels],
 	);
 
 	useEffect(() => {
@@ -1493,94 +1167,18 @@ export function RuntimeSettingsDialog({
 
 	const handleSave = async () => {
 		setSaveError(null);
-		const parseTimeoutMsInput = (value: string): number | null | "invalid" => {
-			const trimmed = value.trim();
-			if (trimmed.length === 0) {
-				return null;
-			}
-			const parsed = Number(trimmed);
-			if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
-				return "invalid";
-			}
-			return parsed;
-		};
-		const parsePositiveNumberInput = (value: string): number | "invalid" => {
-			const parsed = Number(value.trim());
-			if (!Number.isFinite(parsed) || parsed <= 0) {
-				return "invalid";
-			}
-			return parsed;
-		};
-		const parsedRequestTimeout = parseTimeoutMsInput(requestTimeoutMs);
-		const parsedStreamTimeout = parseTimeoutMsInput(streamTimeoutMs);
-		const parsedToolTimeout = parseTimeoutMsInput(toolTimeoutMs);
-		const parsedAgentTimeout = parseTimeoutMsInput(agentTimeoutMs);
-		const parsedConversationTimeout = parseTimeoutMsInput(conversationTimeoutMs);
-		const parsedMaxAgentWritableFileLines = parseTimeoutMsInput(maxAgentWritableFileLines);
-		const parsedMaxConcurrentTasks = parseTimeoutMsInput(maxConcurrentTasks);
-		const parsedSandboxMaxContainers = parseTimeoutMsInput(sandboxMaxContainers);
-		const parsedSandboxAgentsPerContainer = parseTimeoutMsInput(sandboxAgentsPerContainer);
-		const parsedSandboxMemoryPerContainerMb = parseTimeoutMsInput(sandboxMemoryPerContainerMb);
-		const parsedSandboxCpusPerContainer = parsePositiveNumberInput(sandboxCpusPerContainer);
-		const parsedSandboxIdleTimeoutMinutes = parseTimeoutMsInput(sandboxIdleTimeoutMinutes);
-		if (
-			parsedRequestTimeout === "invalid" ||
-			parsedStreamTimeout === "invalid" ||
-			parsedToolTimeout === "invalid" ||
-			parsedAgentTimeout === "invalid" ||
-			parsedConversationTimeout === "invalid" ||
-			parsedMaxAgentWritableFileLines === "invalid" ||
-			parsedMaxAgentWritableFileLines === null ||
-			parsedMaxConcurrentTasks === "invalid" ||
-			parsedMaxConcurrentTasks === null ||
-			parsedSandboxMaxContainers === "invalid" ||
-			parsedSandboxMaxContainers === null ||
-			parsedSandboxAgentsPerContainer === "invalid" ||
-			parsedSandboxAgentsPerContainer === null ||
-			parsedSandboxMemoryPerContainerMb === "invalid" ||
-			parsedSandboxMemoryPerContainerMb === null ||
-			parsedSandboxCpusPerContainer === "invalid" ||
-			parsedSandboxIdleTimeoutMinutes === "invalid" ||
-			parsedSandboxIdleTimeoutMinutes === null
-		) {
-			setSaveError(
-				"Timeout values must be integers >= 0; the file-size soft target, concurrency, and sandbox pool settings must be within their allowed ranges.",
-			);
-			return;
-		}
-		if (parsedMaxAgentWritableFileLines < 1) {
-			setSaveError("The file-size soft target must be an integer >= 1.");
-			return;
-		}
-		if (parsedMaxConcurrentTasks < 1) {
-			setSaveError("Max concurrent tasks must be an integer >= 1.");
-			return;
-		}
-		if (parsedSandboxMaxContainers < 1) {
-			setSaveError("Sandbox max containers must be an integer >= 1.");
-			return;
-		}
-		if (parsedSandboxAgentsPerContainer < 0) {
-			setSaveError("Sandbox agents per container must be an integer >= 0.");
-			return;
-		}
-		if (parsedSandboxMemoryPerContainerMb < 1) {
-			setSaveError("Sandbox memory per container must be an integer >= 1.");
-			return;
-		}
-		if (parsedSandboxIdleTimeoutMinutes < 1) {
-			setSaveError("Sandbox idle timeout must be an integer >= 1 minute.");
+		const numbersResult = validateAndParseSettingsNumbers(draft);
+		if (!numbersResult.ok) {
+			setSaveError(numbersResult.error);
 			return;
 		}
 		if (!config) {
 			setSaveError("Runtime settings are still loading. Try again in a moment.");
 			return;
 		}
-		if (
-			draftCodeEmbeddingDefaults.provider === "openai_compatible" &&
-			(!draftCodeEmbeddingDefaults.baseUrl || !draftCodeEmbeddingDefaults.model)
-		) {
-			setSaveError("Default OpenAI-compatible embeddings need both an endpoint URL and a model id.");
+		const codeEmbeddingError = validateCodeEmbeddingDefaultsForSave(draftCodeEmbeddingDefaults);
+		if (codeEmbeddingError !== null) {
+			setSaveError(codeEmbeddingError);
 			return;
 		}
 		const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
@@ -1589,7 +1187,7 @@ export function RuntimeSettingsDialog({
 			return;
 		}
 		const shouldRequestNotificationPermission =
-			!initialReadyForReviewNotificationsEnabled &&
+			!configSnapshot.readyForReviewNotificationsEnabled &&
 			readyForReviewNotificationsEnabled &&
 			notificationPermission === "default";
 		if (shouldRequestNotificationPermission) {
@@ -1601,16 +1199,12 @@ export function RuntimeSettingsDialog({
 			return;
 		}
 		if (selectedAgentId === "nklein") {
-			const modelRoleAvailabilityWarning = MODEL_ROLE_IDS.map((roleId) =>
-				getModelRoleAvailabilityWarning(roleId),
-			).find((warning): warning is string => warning !== null);
+			const modelRoleAvailabilityWarning = findFirstModelRoleAvailabilityWarning(modelRoleWarningContext);
 			if (modelRoleAvailabilityWarning) {
 				setSaveError(modelRoleAvailabilityWarning);
 				return;
 			}
-			const modelRoleContextWarning = MODEL_ROLE_IDS.map((roleId) => getModelRoleContextWarning(roleId)).find(
-				(warning): warning is string => warning !== null,
-			);
+			const modelRoleContextWarning = findFirstModelRoleContextWarning(modelRoleWarningContext);
 			if (modelRoleContextWarning) {
 				setSaveError(modelRoleContextWarning);
 				return;
@@ -1626,65 +1220,7 @@ export function RuntimeSettingsDialog({
 				return;
 			}
 		}
-		const saved = await save({
-			selectedAgentId,
-			selectedAgentIdOverride,
-			maxConcurrentTasksOverride,
-			modelRolesOverride: modelRolesOverride !== null ? normalizeModelRolesForSettings(modelRolesOverride) : null,
-			agentRulesetsOverride,
-			agentAutonomousModeEnabled,
-			agentTimeoutMode,
-			agentTimeoutProfile,
-			requestTimeoutMs: parsedRequestTimeout,
-			streamTimeoutMs: parsedStreamTimeout,
-			toolTimeoutMs: parsedToolTimeout,
-			agentTimeoutMs: parsedAgentTimeout,
-			conversationTimeoutMs: parsedConversationTimeout,
-			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
-			maxConcurrentTasks: parsedMaxConcurrentTasks,
-			workspaceBaseDir: workspaceBaseDir.trim() || null,
-			sandboxMaxContainers: parsedSandboxMaxContainers,
-			sandboxAgentsPerContainer: parsedSandboxAgentsPerContainer,
-			sandboxMemoryPerContainerMb: parsedSandboxMemoryPerContainerMb,
-			sandboxCpusPerContainer: parsedSandboxCpusPerContainer,
-			sandboxIdleTimeoutMinutes: parsedSandboxIdleTimeoutMinutes,
-			sandboxIsolationProfileDefault,
-			lostHeartbeatPolicy,
-			decompositionAutoApplyEnabled,
-			testDrivenModeEnabled,
-			hardTaskRoutingMode,
-			secondOpinionReviewEnabled,
-			reviewMaxRounds,
-			speculativeBestOfNEnabled,
-			speculativeMaxConcurrentSpecs,
-			speculativeMaxSpecsPerRun,
-			swarmGuardrails: inputsToSwarmGuardrails(swarmGuardrailInputs),
-			developerModeEnabled,
-			replayCardsEnabled,
-			knowsTodayEnabled,
-			retrievalEgressEnabled,
-			retrievalSearchBackendUrl: retrievalSearchBackendUrl.trim() || null,
-			llmfitCatalogUpdateMode,
-			sandboxMcpServersEnabled,
-			capabilityBrokerEnabled,
-			basicMemoryEnabled,
-			chatAdaptiveTruncationEnabled,
-			reasoningBudgetEnabled,
-			reviewLensesEnabled,
-			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
-			codeEmbeddingOverride: draftCodeEmbeddingOverride,
-			readyForReviewNotificationsEnabled,
-			modelRoles: normalizeModelRolesForSettings(modelRoles),
-			modelSuitabilityPolicyDefaults: { onUnsuitable: modelGateUnsuitable, onUnknown: modelGateUnknown },
-			skillDynamicsLevelDefault: skillDynamicsLevel,
-			skillDynamicsLevelOverride,
-			concurrencyDefaults,
-			concurrencyOverride,
-			agentRulesets,
-			shortcuts,
-			commitPromptTemplate,
-			openPrPromptTemplate,
-		});
+		const saved = await save(buildRuntimeConfigSaveRequest(draft, numbersResult.parsed));
 		if (!saved) {
 			setSaveError("Could not save runtime settings. Check runtime logs and try again.");
 			return;
