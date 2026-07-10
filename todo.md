@@ -1,5 +1,13 @@
 # !Klein — todo.md (single source of truth for development)
 
+> **⛳ STANDING GOAL (David 2026-07-10 — active until told otherwise):** (1) the LLM-simulator e2e infrastructure
+> (§13) with prepared mock sets for the selected dev-test-projects is FULLY functional and complete; then (2) the
+> UI deep dive is extensively finished — perfect UI/UX in all views and details; then (3) **work through the FULL
+> todo.md backlog and finish EVERY open task**. Cross-cutting rule: **make full use of aimock/the simulator wherever
+> possible and helpful to speed up progress** — any task that touches agent/LLM flows should run against the
+> simulator (memory-speed, deterministic) first and real models only for final hardening; the passthrough-record
+> proxy captures real-LLM behavior whenever real models do run (reflection loop, §13d).
+
 > **This is the one durable dev artifact.** It replaces `specsheet.md`, `plan.md`,
 > `iteration-instructions.md`, `follow-up-1.md … follow-up-6.md`, and
 > `findings-from-follow-up-work-4.md` (all consolidated here and deleted).
