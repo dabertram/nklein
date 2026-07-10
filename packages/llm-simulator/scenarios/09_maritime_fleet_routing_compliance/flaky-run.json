@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (vessel, voyage, waypoint, leg, port call, cargo, bunker fuel). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (vessel, voyage, waypoint, leg, port call, cargo, bunker fuel). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Route planner over deterministic nautical graph fixtures with draft",
-											"prompt": "Implement the foundation for: Route planner over deterministic nautical graph fixtures with draft limits, restricted zones, speed limits, locks, canals, and port approach windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Route planner over deterministic nautical graph fixtures with draft. Implement the foundation for: Route planner over deterministic nautical graph fixtures with draft limits, restricted zones, speed limits, locks, canals, and port approach windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/route-planner-over-deterministic-nautica.mjs and test/route-planner-over-deterministic-nautica.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Route planner over deterministic nautical graph fixtures with draft — core engine",
-											"prompt": "Extend the route planner over deterministic nautical graph fixtures with draft module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Route planner over deterministic nautical graph fixtures with draft — core engine. Extend the route planner over deterministic nautical graph fixtures with draft module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/route-planner-over-deterministic-nautica-2.mjs and test/route-planner-over-deterministic-nautica-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,23 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests",
-											"prompt": "Extend the route planner over deterministic nautical graph fixtures with draft module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s03"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/route-planner-over-deterministic-nautica-3.mjs",
-												"test/route-planner-over-deterministic-nautica-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s05",
 											"title": "Weather and sea-state risk model that scores wind, wave",
-											"prompt": "Implement the foundation for: Weather and sea-state risk model that scores wind, wave height, current, visibility, and forecast uncertainty by route leg. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Weather and sea-state risk model that scores wind, wave. Implement the foundation for: Weather and sea-state risk model that scores wind, wave height, current, visibility, and forecast uncertainty by route leg. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/weather-and-sea-state-risk-model-that-sc.mjs and test/weather-and-sea-state-risk-model-that-sc.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,11 +95,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
+											"id": "s05",
 											"title": "Weather and sea-state risk model that scores wind, wave — core engine",
-											"prompt": "Extend the weather and sea-state risk model that scores wind, wave module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Weather and sea-state risk model that scores wind, wave — core engine. Extend the weather and sea-state risk model that scores wind, wave module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/weather-and-sea-state-risk-model-that-sc-2.mjs and test/weather-and-sea-state-risk-model-that-sc-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s04"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -125,24 +110,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
-											"title": "Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests",
-											"prompt": "Extend the weather and sea-state risk model that scores wind, wave module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s06"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/weather-and-sea-state-risk-model-that-sc-3.mjs",
-												"test/weather-and-sea-state-risk-model-that-sc-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
+											"id": "s06",
 											"title": "Fuel consumption estimator using vessel class, displacement proxy, speed",
-											"prompt": "Implement the foundation for: Fuel consumption estimator using vessel class, displacement proxy, speed curve, sea state, hotel load, and reserve policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Fuel consumption estimator using vessel class, displacement proxy, speed. Implement the foundation for: Fuel consumption estimator using vessel class, displacement proxy, speed curve, sea state, hotel load, and reserve policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fuel-consumption-estimator-using-vessel.mjs and test/fuel-consumption-estimator-using-vessel.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -155,16 +125,46 @@
 											"testFirst": false
 										},
 										{
-											"id": "s09",
+											"id": "s07",
 											"title": "Fuel consumption estimator using vessel class, displacement proxy, speed — core engine",
-											"prompt": "Extend the fuel consumption estimator using vessel class, displacement proxy, speed module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Fuel consumption estimator using vessel class, displacement proxy, speed — core engine. Extend the fuel consumption estimator using vessel class, displacement proxy, speed module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/fuel-consumption-estimator-using-vessel-2.mjs and test/fuel-consumption-estimator-using-vessel-2.test.mjs.",
 											"dependsOn": [
-												"s08"
+												"s06"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/fuel-consumption-estimator-using-vessel-2.mjs",
 												"test/fuel-consumption-estimator-using-vessel-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Emissions compliance tracker for sulfur limits, emission-control zones, berth",
+											"prompt": "Emissions compliance tracker for sulfur limits, emission-control zones, berth. Implement the foundation for: Emissions compliance tracker for sulfur limits, emission-control zones, berth reporting, and fuel switch events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/emissions-compliance-tracker-for-sulfur.mjs and test/emissions-compliance-tracker-for-sulfur.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/emissions-compliance-tracker-for-sulfur.mjs",
+												"test/emissions-compliance-tracker-for-sulfur.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Port-call scheduler with ETA, berth window, pilotage, tug requirements",
+											"prompt": "Port-call scheduler with ETA, berth window, pilotage, tug requirements. Implement the foundation for: Port-call scheduler with ETA, berth window, pilotage, tug requirements, cargo readiness, and delay propagation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/port-call-scheduler-with-eta-berth-windo.mjs and test/port-call-scheduler-with-eta-berth-windo.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/port-call-scheduler-with-eta-berth-windo.mjs",
+												"test/port-call-scheduler-with-eta-berth-windo.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route planner over deterministic nautical graph fixtures with draft",
+			"userMessageIncludes": "src/route-planner-over-deterministic-nautica.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route planner over deterministic nautical graph fixtures with draft — core engine",
+			"userMessageIncludes": "src/route-planner-over-deterministic-nautica-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -574,114 +574,11 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests",
+			"userMessageIncludes": "src/weather-and-sea-state-risk-model-that-sc.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "empty_completion"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/route-planner-over-deterministic-nautica-3.mjs",
-											"content": "/**\n * Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RoutePlannerOverDeterministicNautica3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RoutePlannerOverDeterministicNautica3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RoutePlannerOverDeterministicNautica3Finding[] }} RoutePlannerOverDeterministicNautica3Result\n */\n\n/**\n * Evaluate one input against the route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests policy.\n * @param {RoutePlannerOverDeterministicNautica3Input} input\n * @returns {RoutePlannerOverDeterministicNautica3Result}\n */\nexport function evaluateRoutePlannerOverDeterministicNautica3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"route-planner-over-deterministic-nautica-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"route-planner-over-deterministic-nautica-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"route-planner-over-deterministic-nautica-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"route-planner-over-deterministic-nautica-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/route-planner-over-deterministic-nautica-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRoutePlannerOverDeterministicNautica3 } from \"../src/route-planner-over-deterministic-nautica-3.mjs\";\n\ntest(\"route-planner-over-deterministic-nautica-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRoutePlannerOverDeterministicNautica3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"route-planner-over-deterministic-nautica-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRoutePlannerOverDeterministicNautica3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests\": src/route-planner-over-deterministic-nautica-3.mjs, test/route-planner-over-deterministic-nautica-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s04",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Route planner over deterministic nautical graph fixtures with draft — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s05",
-			"requestClass": "worker",
-			"userMessageIncludes": "Weather and sea-state risk model that scores wind, wave",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "",
-						"reasoning": "Thinking through \"Weather and sea-state risk model that scores wind, wave\" step by step before writing files…"
 					}
 				},
 				{
@@ -744,10 +641,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s04",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Weather and sea-state risk model that scores wind, wave\"",
 			"turns": [
@@ -776,14 +673,15 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s06",
+			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Weather and sea-state risk model that scores wind, wave — core engine",
+			"userMessageIncludes": "src/weather-and-sea-state-risk-model-that-sc-2.mjs",
 			"turns": [
 				{
 					"behavior": {
-						"kind": "stall",
-						"ttftMs": 8000
+						"kind": "text",
+						"content": "",
+						"reasoning": "Thinking through \"Weather and sea-state risk model that scores wind, wave — core engine\" step by step before writing files…"
 					}
 				},
 				{
@@ -846,10 +744,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "perfect-review-s05",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Weather and sea-state risk model that scores wind, wave — core engine\"",
 			"turns": [
@@ -878,119 +776,16 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s07",
+			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests",
+			"userMessageIncludes": "src/fuel-consumption-estimator-using-vessel.mjs",
 			"turns": [
 				{
 					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": "[{\"path\":\"src/weather-and-sea-state-risk-model-that-sc-3.mjs\",\"content\":\"export const truncated = "
-								}
-							}
-						]
+						"kind": "stall",
+						"ttftMs": 8000
 					}
 				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/weather-and-sea-state-risk-model-that-sc-3.mjs",
-											"content": "/**\n * Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} WeatherAndSeaStateRiskModelThatSc3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} WeatherAndSeaStateRiskModelThatSc3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: WeatherAndSeaStateRiskModelThatSc3Finding[] }} WeatherAndSeaStateRiskModelThatSc3Result\n */\n\n/**\n * Evaluate one input against the weather and sea-state risk model that scores wind, wave — edge cases and property-style tests policy.\n * @param {WeatherAndSeaStateRiskModelThatSc3Input} input\n * @returns {WeatherAndSeaStateRiskModelThatSc3Result}\n */\nexport function evaluateWeatherAndSeaStateRiskModelThatSc3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"weather-and-sea-state-risk-model-that-sc-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"weather-and-sea-state-risk-model-that-sc-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"weather-and-sea-state-risk-model-that-sc-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"weather-and-sea-state-risk-model-that-sc-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/weather-and-sea-state-risk-model-that-sc-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateWeatherAndSeaStateRiskModelThatSc3 } from \"../src/weather-and-sea-state-risk-model-that-sc-3.mjs\";\n\ntest(\"weather-and-sea-state-risk-model-that-sc-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateWeatherAndSeaStateRiskModelThatSc3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"weather-and-sea-state-risk-model-that-sc-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateWeatherAndSeaStateRiskModelThatSc3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests\": src/weather-and-sea-state-risk-model-that-sc-3.mjs, test/weather-and-sea-state-risk-model-that-sc-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Weather and sea-state risk model that scores wind, wave — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "Fuel consumption estimator using vessel class, displacement proxy, speed",
-			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1051,10 +846,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Fuel consumption estimator using vessel class, displacement proxy, speed\"",
 			"turns": [
@@ -1083,10 +878,23 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s09",
+			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Fuel consumption estimator using vessel class, displacement proxy, speed — core engine",
+			"userMessageIncludes": "src/fuel-consumption-estimator-using-vessel-2.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/fuel-consumption-estimator-using-vessel-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1147,10 +955,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "perfect-review-s07",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Fuel consumption estimator using vessel class, displacement proxy, speed — core engine\"",
 			"turns": [
@@ -1163,6 +971,198 @@
 								"arguments": {
 									"verdict": "approve",
 									"summary": "Reviewed \"Fuel consumption estimator using vessel class, displacement proxy, speed — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/emissions-compliance-tracker-for-sulfur.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/emissions-compliance-tracker-for-sulfur.mjs",
+											"content": "/**\n * Emissions compliance tracker for sulfur limits, emission-control zones, berth\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EmissionsComplianceTrackerForSulfurInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EmissionsComplianceTrackerForSulfurFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EmissionsComplianceTrackerForSulfurFinding[] }} EmissionsComplianceTrackerForSulfurResult\n */\n\n/**\n * Evaluate one input against the emissions compliance tracker for sulfur limits, emission-control zones, berth policy.\n * @param {EmissionsComplianceTrackerForSulfurInput} input\n * @returns {EmissionsComplianceTrackerForSulfurResult}\n */\nexport function evaluateEmissionsComplianceTrackerForSulfur(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"emissions-compliance-tracker-for-sulfur/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"emissions-compliance-tracker-for-sulfur/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"emissions-compliance-tracker-for-sulfur/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"emissions-compliance-tracker-for-sulfur/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/emissions-compliance-tracker-for-sulfur.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateEmissionsComplianceTrackerForSulfur } from \"../src/emissions-compliance-tracker-for-sulfur.mjs\";\n\ntest(\"emissions-compliance-tracker-for-sulfur: accepts a clean input with evidence\", () => {\n\tconst result = evaluateEmissionsComplianceTrackerForSulfur({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"emissions-compliance-tracker-for-sulfur: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateEmissionsComplianceTrackerForSulfur({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Emissions compliance tracker for sulfur limits, emission-control zones, berth\": src/emissions-compliance-tracker-for-sulfur.mjs, test/emissions-compliance-tracker-for-sulfur.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Emissions compliance tracker for sulfur limits, emission-control zones, berth\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Emissions compliance tracker for sulfur limits, emission-control zones, berth\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/port-call-scheduler-with-eta-berth-windo.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/port-call-scheduler-with-eta-berth-windo.mjs",
+											"content": "/**\n * Port-call scheduler with ETA, berth window, pilotage, tug requirements\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} PortCallSchedulerWithEtaBerthWindoInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} PortCallSchedulerWithEtaBerthWindoFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: PortCallSchedulerWithEtaBerthWindoFinding[] }} PortCallSchedulerWithEtaBerthWindoResult\n */\n\n/**\n * Evaluate one input against the port-call scheduler with eta, berth window, pilotage, tug requirements policy.\n * @param {PortCallSchedulerWithEtaBerthWindoInput} input\n * @returns {PortCallSchedulerWithEtaBerthWindoResult}\n */\nexport function evaluatePortCallSchedulerWithEtaBerthWindo(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"port-call-scheduler-with-eta-berth-windo/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"port-call-scheduler-with-eta-berth-windo/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"port-call-scheduler-with-eta-berth-windo/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"port-call-scheduler-with-eta-berth-windo/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/port-call-scheduler-with-eta-berth-windo.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluatePortCallSchedulerWithEtaBerthWindo } from \"../src/port-call-scheduler-with-eta-berth-windo.mjs\";\n\ntest(\"port-call-scheduler-with-eta-berth-windo: accepts a clean input with evidence\", () => {\n\tconst result = evaluatePortCallSchedulerWithEtaBerthWindo({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"port-call-scheduler-with-eta-berth-windo: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluatePortCallSchedulerWithEtaBerthWindo({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Port-call scheduler with ETA, berth window, pilotage, tug requirements\": src/port-call-scheduler-with-eta-berth-windo.mjs, test/port-call-scheduler-with-eta-berth-windo.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Port-call scheduler with ETA, berth window, pilotage, tug requirements\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Port-call scheduler with ETA, berth window, pilotage, tug requirements\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

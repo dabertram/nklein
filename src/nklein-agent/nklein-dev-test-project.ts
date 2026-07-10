@@ -37,6 +37,9 @@ export type NKleinDevTestProjectPreset =
 // Compile-time drift guard: the runtime API's preset enum (the `node:*`-free contract) MUST stay in lock-step with the
 // list above (its implementation lives here). Either assignment fails to compile if the two diverge — so a new preset
 // added in one place can't silently become un-scoutable through the API (todo §5.AF scout, 2026-06-28).
+/** A dev-test selection: a preset name (curated shortcuts) or any dev-test-projects registry id. */
+export type DevTestSelection = NKleinDevTestProjectPreset | (string & {});
+
 const _devTestPresetContractGuard: NKleinDevTestProjectPreset = "mid_task" as RuntimeDevTestProjectPreset;
 const _devTestPresetModuleGuard: RuntimeDevTestProjectPreset = "mid_task" as NKleinDevTestProjectPreset;
 void _devTestPresetContractGuard;
@@ -113,9 +116,12 @@ export function getDefaultNKleinDevTestScenario(): NKleinDevTestProjectScenario 
 }
 
 export function resolveNKleinDevTestProjectScenario(
-	preset: NKleinDevTestProjectPreset = "mid_task",
+	preset: DevTestSelection = "mid_task",
 ): NKleinDevTestProjectScenario {
-	return loadDevTestScenarioCached(DEV_TEST_SCENARIO_ID_BY_PRESET[preset]);
+	// A selection is either one of the 8 preset names or a registry folder id (e.g. "01_clinical_medication_safety_platform")
+	// — the lower-20 scenario sets are driven by id, not by hand-adding a preset per project (todo §13f).
+	const registryId = DEV_TEST_SCENARIO_ID_BY_PRESET[preset as NKleinDevTestProjectPreset] ?? preset;
+	return loadDevTestScenarioCached(registryId);
 }
 
 function getRepoRootFromCurrentModule(): string {

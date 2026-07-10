@@ -213,7 +213,7 @@
 		{
 			"id": "c-stringified-json",
 			"requestClass": "worker",
-			"userMessageIncludes": "Unit-safe dose and quantity arithmetic",
+			"userMessageIncludes": "Create src/core/dose.ts per S03: DoseUnit/FrequencyUnit/Weig",
 			"turns": [
 				{
 					"behavior": {
@@ -257,7 +257,7 @@
 		{
 			"id": "c-trunc-tool-json",
 			"requestClass": "worker",
-			"userMessageIncludes": "MedicationConceptResolver with unmatched blocking state",
+			"userMessageIncludes": "Create src/core/medication-concept-resolver.ts per S04: reso",
 			"turns": [
 				{
 					"behavior": {
@@ -329,7 +329,7 @@
 		{
 			"id": "c-reasoning-only",
 			"requestClass": "worker",
-			"userMessageIncludes": "Append-only AuditLog",
+			"userMessageIncludes": "Create src/core/audit-log.ts per S06: AuditEventType union,",
 			"turns": [
 				{
 					"behavior": {
@@ -380,7 +380,7 @@
 		{
 			"id": "a-same-question",
 			"requestClass": "worker",
-			"userMessageIncludes": "Max-daily-dose rule with frequency folding",
+			"userMessageIncludes": "Create src/core/rules/max-dose.ts: checkMaxDailyDose(facts,",
 			"turns": [
 				{
 					"behavior": {
@@ -396,7 +396,7 @@
 		{
 			"id": "t-429-rate",
 			"requestClass": "worker",
-			"userMessageIncludes": "evaluateRules facade over the five rules",
+			"userMessageIncludes": "Create src/core/rule-engine.ts: evaluateRules(facts, regimen",
 			"turns": [
 				{
 					"behavior": {
@@ -479,7 +479,7 @@
 		{
 			"id": "t-sse-stall-mid",
 			"requestClass": "worker",
-			"userMessageIncludes": "Reconciliation workflow with source provenance",
+			"userMessageIncludes": "Create src/core/reconciliation.ts per S09: MedicationSource,",
 			"turns": [
 				{
 					"behavior": {
@@ -559,7 +559,7 @@
 		{
 			"id": "c-empty-completion",
 			"requestClass": "worker",
-			"userMessageIncludes": "Adherence calendar summary",
+			"userMessageIncludes": "Create src/core/adherence-calendar.ts per S10: AdherenceEven",
 			"turns": [
 				{
 					"behavior": {
@@ -623,7 +623,7 @@
 		{
 			"id": "perfect-worker-s24",
 			"requestClass": "worker",
-			"userMessageIncludes": "Refill-exhaustion forecast on the injected clock",
+			"userMessageIncludes": "Create src/core/refill-forecast.ts per S11: forecastRefill(c",
 			"turns": [
 				{
 					"behavior": {
@@ -682,7 +682,7 @@
 		{
 			"id": "perfect-worker-s28",
 			"requestClass": "worker",
-			"userMessageIncludes": "Plain-language patient summary with denylist",
+			"userMessageIncludes": "Create src/core/patient-summary.ts per S13: SUMMARY_DENYLIST",
 			"turns": [
 				{
 					"behavior": {
@@ -757,7 +757,7 @@
 		{
 			"id": "perfect-worker-s32",
 			"requestClass": "worker",
-			"userMessageIncludes": "Flagship integration test over seeded patients",
+			"userMessageIncludes": "Create test/integration.test.ts wiring S01-S31 together over",
 			"turns": [
 				{
 					"behavior": {

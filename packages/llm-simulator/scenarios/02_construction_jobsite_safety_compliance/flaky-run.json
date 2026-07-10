@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (sites, contractors, crews, workers, equipment, zones, permits, inspections, observations). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (sites, contractors, crews, workers, equipment, zones, permits, inspections, observations). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Daily pre-task planning workflow with hazard identification, controls, sign-off",
-											"prompt": "Implement the foundation for: Daily pre-task planning workflow with hazard identification, controls, sign-off, and missed-signature escalation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Daily pre-task planning workflow with hazard identification, controls, sign-off. Implement the foundation for: Daily pre-task planning workflow with hazard identification, controls, sign-off, and missed-signature escalation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-pre-task-planning-workflow-with-ha.mjs and test/daily-pre-task-planning-workflow-with-ha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Permit lifecycle for hot work, confined space, energized work",
-											"prompt": "Implement the foundation for: Permit lifecycle for hot work, confined space, energized work, excavation, crane lift, and roof work. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Permit lifecycle for hot work, confined space, energized work. Implement the foundation for: Permit lifecycle for hot work, confined space, energized work, excavation, crane lift, and roof work. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/permit-lifecycle-for-hot-work-confined-s.mjs and test/permit-lifecycle-for-hot-work-confined-s.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "Inspection engine with versioned checklists, failed item severity, required",
-											"prompt": "Implement the foundation for: Inspection engine with versioned checklists, failed item severity, required evidence, and due dates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Inspection engine with versioned checklists, failed item severity, required. Implement the foundation for: Inspection engine with versioned checklists, failed item severity, required evidence, and due dates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inspection-engine-with-versioned-checkli.mjs and test/inspection-engine-with-versioned-checkli.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Offline event log that can accept field updates out",
-											"prompt": "Implement the foundation for: Offline event log that can accept field updates out of order and reconcile them without losing provenance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Offline event log that can accept field updates out. Implement the foundation for: Offline event log that can accept field updates out of order and reconcile them without losing provenance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/offline-event-log-that-can-accept-field.mjs and test/offline-event-log-that-can-accept-field.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Incident timeline builder that links witnesses, photos, equipment, weather",
-											"prompt": "Implement the foundation for: Incident timeline builder that links witnesses, photos, equipment, weather, permit state, and corrective actions. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Incident timeline builder that links witnesses, photos, equipment, weather. Implement the foundation for: Incident timeline builder that links witnesses, photos, equipment, weather, permit state, and corrective actions. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/incident-timeline-builder-that-links-wit.mjs and test/incident-timeline-builder-that-links-wit.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Dashboard that prioritizes imminent permit expirations, high-risk zones, open",
-											"prompt": "Implement the foundation for: Dashboard that prioritizes imminent permit expirations, high-risk zones, open corrective actions, and repeat offenders. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Dashboard that prioritizes imminent permit expirations, high-risk zones, open. Implement the foundation for: Dashboard that prioritizes imminent permit expirations, high-risk zones, open corrective actions, and repeat offenders. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/dashboard-that-prioritizes-imminent-perm.mjs and test/dashboard-that-prioritizes-imminent-perm.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Seed scenario with two sites, subcontractor handoffs, an excavation",
-											"prompt": "Implement the foundation for: Seed scenario with two sites, subcontractor handoffs, an excavation permit conflict, and a near-miss investigation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Seed scenario with two sites, subcontractor handoffs, an excavation. Implement the foundation for: Seed scenario with two sites, subcontractor handoffs, an excavation permit conflict, and a near-miss investigation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-two-sites-subcontract.mjs and test/seed-scenario-with-two-sites-subcontract.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -157,7 +157,7 @@
 										{
 											"id": "s09",
 											"title": "The 4-axis temporal-spatial authorization engine",
-											"prompt": "Implement the foundation for: the 4-axis temporal-spatial authorization engine Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "The 4-axis temporal-spatial authorization engine. Implement the foundation for: the 4-axis temporal-spatial authorization engine Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/the-4-axis-temporal-spatial-authorizatio.mjs and test/the-4-axis-temporal-spatial-authorizatio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Daily pre-task planning workflow with hazard identification, controls, sign-off",
+			"userMessageIncludes": "src/daily-pre-task-planning-workflow-with-ha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Permit lifecycle for hot work, confined space, energized work",
+			"userMessageIncludes": "src/permit-lifecycle-for-hot-work-confined-s.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,7 +579,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Inspection engine with versioned checklists, failed item severity, required",
+			"userMessageIncludes": "src/inspection-engine-with-versioned-checkli.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -682,7 +682,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Offline event log that can accept field updates out",
+			"userMessageIncludes": "src/offline-event-log-that-can-accept-field.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -784,7 +784,7 @@
 		{
 			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Incident timeline builder that links witnesses, photos, equipment, weather",
+			"userMessageIncludes": "src/incident-timeline-builder-that-links-wit.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -893,7 +893,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Dashboard that prioritizes imminent permit expirations, high-risk zones, open",
+			"userMessageIncludes": "src/dashboard-that-prioritizes-imminent-perm.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -989,7 +989,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Seed scenario with two sites, subcontractor handoffs, an excavation",
+			"userMessageIncludes": "src/seed-scenario-with-two-sites-subcontract.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "The 4-axis temporal-spatial authorization engine",
+			"userMessageIncludes": "src/the-4-axis-temporal-spatial-authorizatio.mjs",
 			"turns": [
 				{
 					"behavior": {

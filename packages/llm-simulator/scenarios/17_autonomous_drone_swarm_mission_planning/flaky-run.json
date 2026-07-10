@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (drone, payload, battery, mission, waypoint, geofence, airspace volume, operator). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (drone, payload, battery, mission, waypoint, geofence, airspace volume, operator). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Mission planner for survey grids, corridor inspections, point-of-interest orbits",
-											"prompt": "Implement the foundation for: Mission planner for survey grids, corridor inspections, point-of-interest orbits, search patterns, launch/recovery sites, and payload coverage requirements. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Mission planner for survey grids, corridor inspections, point-of-interest orbits. Implement the foundation for: Mission planner for survey grids, corridor inspections, point-of-interest orbits, search patterns, launch/recovery sites, and payload coverage requirements. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/mission-planner-for-survey-grids-corrido.mjs and test/mission-planner-for-survey-grids-corrido.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -66,23 +66,8 @@
 										},
 										{
 											"id": "s03",
-											"title": "Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine",
-											"prompt": "Extend the mission planner for survey grids, corridor inspections, point-of-interest orbits module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s02"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/mission-planner-for-survey-grids-corrido-2.mjs",
-												"test/mission-planner-for-survey-grids-corrido-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s04",
 											"title": "Flight feasibility engine using battery reserve, wind penalty, climb/descent",
-											"prompt": "Implement the foundation for: Flight feasibility engine using battery reserve, wind penalty, climb/descent, payload mass, communication range, no-fly zones, altitude bands, and return-to-home policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Flight feasibility engine using battery reserve, wind penalty, climb/descent. Implement the foundation for: Flight feasibility engine using battery reserve, wind penalty, climb/descent, payload mass, communication range, no-fly zones, altitude bands, and return-to-home policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/flight-feasibility-engine-using-battery.mjs and test/flight-feasibility-engine-using-battery.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -95,11 +80,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
+											"id": "s04",
 											"title": "Flight feasibility engine using battery reserve, wind penalty, climb/descent — core engine",
-											"prompt": "Extend the flight feasibility engine using battery reserve, wind penalty, climb/descent module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Flight feasibility engine using battery reserve, wind penalty, climb/descent — core engine. Extend the flight feasibility engine using battery reserve, wind penalty, climb/descent module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/flight-feasibility-engine-using-battery-2.mjs and test/flight-feasibility-engine-using-battery-2.test.mjs.",
 											"dependsOn": [
-												"s04"
+												"s03"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -110,39 +95,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
-											"title": "Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority",
-											"prompt": "Implement the foundation for: Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority, and conflict resolution. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/multi-drone-deconfliction-with-time-expa.mjs",
-												"test/multi-drone-deconfliction-with-time-expa.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s07",
-											"title": "Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine",
-											"prompt": "Extend the multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s06"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/multi-drone-deconfliction-with-time-expa-2.mjs",
-												"test/multi-drone-deconfliction-with-time-expa-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
+											"id": "s05",
 											"title": "Telemetry simulator that replays position, battery, link quality, payload",
-											"prompt": "Implement the foundation for: Telemetry simulator that replays position, battery, link quality, payload status, command acknowledgement, and deviation events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Telemetry simulator that replays position, battery, link quality, payload. Implement the foundation for: Telemetry simulator that replays position, battery, link quality, payload status, command acknowledgement, and deviation events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/telemetry-simulator-that-replays-positio.mjs and test/telemetry-simulator-that-replays-positio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -155,16 +110,61 @@
 											"testFirst": false
 										},
 										{
-											"id": "s09",
+											"id": "s06",
 											"title": "Telemetry simulator that replays position, battery, link quality, payload — core engine",
-											"prompt": "Extend the telemetry simulator that replays position, battery, link quality, payload module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Telemetry simulator that replays position, battery, link quality, payload — core engine. Extend the telemetry simulator that replays position, battery, link quality, payload module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/telemetry-simulator-that-replays-positio-2.mjs and test/telemetry-simulator-that-replays-positio-2.test.mjs.",
 											"dependsOn": [
-												"s08"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/telemetry-simulator-that-replays-positio-2.mjs",
 												"test/telemetry-simulator-that-replays-positio-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Contingency manager for lost link, low battery, geofence breach",
+											"prompt": "Contingency manager for lost link, low battery, geofence breach. Implement the foundation for: Contingency manager for lost link, low battery, geofence breach risk, obstacle, weather deterioration, and emergency landing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/contingency-manager-for-lost-link-low-ba.mjs and test/contingency-manager-for-lost-link-low-ba.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/contingency-manager-for-lost-link-low-ba.mjs",
+												"test/contingency-manager-for-lost-link-low-ba.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Contingency manager for lost link, low battery, geofence breach — core engine",
+											"prompt": "Contingency manager for lost link, low battery, geofence breach — core engine. Extend the contingency manager for lost link, low battery, geofence breach module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/contingency-manager-for-lost-link-low-ba-2.mjs and test/contingency-manager-for-lost-link-low-ba-2.test.mjs.",
+											"dependsOn": [
+												"s07"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/contingency-manager-for-lost-link-low-ba-2.mjs",
+												"test/contingency-manager-for-lost-link-low-ba-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "UTM-style approval workflow with mission intent, airspace conflict checks",
+											"prompt": "UTM-style approval workflow with mission intent, airspace conflict checks. Implement the foundation for: UTM-style approval workflow with mission intent, airspace conflict checks, amendments, cancellation, and audit evidence. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/utm-style-approval-workflow-with-mission.mjs and test/utm-style-approval-workflow-with-mission.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/utm-style-approval-workflow-with-mission.mjs",
+												"test/utm-style-approval-workflow-with-mission.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Mission planner for survey grids, corridor inspections, point-of-interest orbits",
+			"userMessageIncludes": "src/mission-planner-for-survey-grids-corrido.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -483,115 +483,13 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine",
+			"userMessageIncludes": "src/flight-feasibility-engine-using-battery.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine\" step by step before writing files…"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/mission-planner-for-survey-grids-corrido-2.mjs",
-											"content": "/**\n * Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MissionPlannerForSurveyGridsCorrido2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MissionPlannerForSurveyGridsCorrido2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MissionPlannerForSurveyGridsCorrido2Finding[] }} MissionPlannerForSurveyGridsCorrido2Result\n */\n\n/**\n * Evaluate one input against the mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine policy.\n * @param {MissionPlannerForSurveyGridsCorrido2Input} input\n * @returns {MissionPlannerForSurveyGridsCorrido2Result}\n */\nexport function evaluateMissionPlannerForSurveyGridsCorrido2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"mission-planner-for-survey-grids-corrido-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"mission-planner-for-survey-grids-corrido-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"mission-planner-for-survey-grids-corrido-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"mission-planner-for-survey-grids-corrido-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/mission-planner-for-survey-grids-corrido-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMissionPlannerForSurveyGridsCorrido2 } from \"../src/mission-planner-for-survey-grids-corrido-2.mjs\";\n\ntest(\"mission-planner-for-survey-grids-corrido-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMissionPlannerForSurveyGridsCorrido2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"mission-planner-for-survey-grids-corrido-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMissionPlannerForSurveyGridsCorrido2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine\": src/mission-planner-for-survey-grids-corrido-2.mjs, test/mission-planner-for-survey-grids-corrido-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s03",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Mission planner for survey grids, corridor inspections, point-of-interest orbits — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s04",
-			"requestClass": "worker",
-			"userMessageIncludes": "Flight feasibility engine using battery reserve, wind penalty, climb/descent",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "stall",
-						"ttftMs": 8000
+						"reasoning": "Thinking through \"Flight feasibility engine using battery reserve, wind penalty, climb/descent\" step by step before writing files…"
 					}
 				},
 				{
@@ -654,10 +552,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s04",
+			"id": "perfect-review-s03",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Flight feasibility engine using battery reserve, wind penalty, climb/descent\"",
 			"turns": [
@@ -686,10 +584,16 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s05",
+			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Flight feasibility engine using battery reserve, wind penalty, climb/descent — core engine",
+			"userMessageIncludes": "src/flight-feasibility-engine-using-battery-2.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 8000
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -750,10 +654,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s04",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Flight feasibility engine using battery reserve, wind penalty, climb/descent — core engine\"",
 			"turns": [
@@ -782,215 +686,10 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s06",
+			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority",
+			"userMessageIncludes": "src/telemetry-simulator-that-replays-positio.mjs",
 			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/multi-drone-deconfliction-with-time-expa.mjs",
-											"content": "/**\n * Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MultiDroneDeconflictionWithTimeExpaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MultiDroneDeconflictionWithTimeExpaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MultiDroneDeconflictionWithTimeExpaFinding[] }} MultiDroneDeconflictionWithTimeExpaResult\n */\n\n/**\n * Evaluate one input against the multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority policy.\n * @param {MultiDroneDeconflictionWithTimeExpaInput} input\n * @returns {MultiDroneDeconflictionWithTimeExpaResult}\n */\nexport function evaluateMultiDroneDeconflictionWithTimeExpa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"multi-drone-deconfliction-with-time-expa/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/multi-drone-deconfliction-with-time-expa.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMultiDroneDeconflictionWithTimeExpa } from \"../src/multi-drone-deconfliction-with-time-expa.mjs\";\n\ntest(\"multi-drone-deconfliction-with-time-expa: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMultiDroneDeconflictionWithTimeExpa({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"multi-drone-deconfliction-with-time-expa: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMultiDroneDeconflictionWithTimeExpa({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority\": src/multi-drone-deconfliction-with-time-expa.mjs, test/multi-drone-deconfliction-with-time-expa.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s06",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s07",
-			"requestClass": "worker",
-			"userMessageIncludes": "Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/multi-drone-deconfliction-with-time-expa-2.mjs",
-											"content": "/**\n * Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MultiDroneDeconflictionWithTimeExpa2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MultiDroneDeconflictionWithTimeExpa2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MultiDroneDeconflictionWithTimeExpa2Finding[] }} MultiDroneDeconflictionWithTimeExpa2Result\n */\n\n/**\n * Evaluate one input against the multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine policy.\n * @param {MultiDroneDeconflictionWithTimeExpa2Input} input\n * @returns {MultiDroneDeconflictionWithTimeExpa2Result}\n */\nexport function evaluateMultiDroneDeconflictionWithTimeExpa2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"multi-drone-deconfliction-with-time-expa-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"multi-drone-deconfliction-with-time-expa-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/multi-drone-deconfliction-with-time-expa-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMultiDroneDeconflictionWithTimeExpa2 } from \"../src/multi-drone-deconfliction-with-time-expa-2.mjs\";\n\ntest(\"multi-drone-deconfliction-with-time-expa-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMultiDroneDeconflictionWithTimeExpa2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"multi-drone-deconfliction-with-time-expa-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMultiDroneDeconflictionWithTimeExpa2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine\": src/multi-drone-deconfliction-with-time-expa-2.mjs, test/multi-drone-deconfliction-with-time-expa-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Multi-drone deconfliction with time-expanded airspace reservations, separation minima, priority — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "Telemetry simulator that replays position, battery, link quality, payload",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": "[{\"path\":\"src/telemetry-simulator-that-replays-positio.mjs\",\"content\":\"export const truncated = "
-								}
-							}
-						]
-					}
-				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1051,10 +750,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "perfect-review-s05",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Telemetry simulator that replays position, battery, link quality, payload\"",
 			"turns": [
@@ -1083,9 +782,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s09",
+			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Telemetry simulator that replays position, battery, link quality, payload — core engine",
+			"userMessageIncludes": "src/telemetry-simulator-that-replays-positio-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1150,7 +849,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Telemetry simulator that replays position, battery, link quality, payload — core engine\"",
 			"turns": [
@@ -1163,6 +862,307 @@
 								"arguments": {
 									"verdict": "approve",
 									"summary": "Reviewed \"Telemetry simulator that replays position, battery, link quality, payload — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s07",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/contingency-manager-for-lost-link-low-ba.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/contingency-manager-for-lost-link-low-ba.mjs",
+											"content": "/**\n * Contingency manager for lost link, low battery, geofence breach\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ContingencyManagerForLostLinkLowBaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ContingencyManagerForLostLinkLowBaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ContingencyManagerForLostLinkLowBaFinding[] }} ContingencyManagerForLostLinkLowBaResult\n */\n\n/**\n * Evaluate one input against the contingency manager for lost link, low battery, geofence breach policy.\n * @param {ContingencyManagerForLostLinkLowBaInput} input\n * @returns {ContingencyManagerForLostLinkLowBaResult}\n */\nexport function evaluateContingencyManagerForLostLinkLowBa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"contingency-manager-for-lost-link-low-ba/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/contingency-manager-for-lost-link-low-ba.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateContingencyManagerForLostLinkLowBa } from \"../src/contingency-manager-for-lost-link-low-ba.mjs\";\n\ntest(\"contingency-manager-for-lost-link-low-ba: accepts a clean input with evidence\", () => {\n\tconst result = evaluateContingencyManagerForLostLinkLowBa({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"contingency-manager-for-lost-link-low-ba: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateContingencyManagerForLostLinkLowBa({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Contingency manager for lost link, low battery, geofence breach\": src/contingency-manager-for-lost-link-low-ba.mjs, test/contingency-manager-for-lost-link-low-ba.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Contingency manager for lost link, low battery, geofence breach\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Contingency manager for lost link, low battery, geofence breach\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "flaky-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/contingency-manager-for-lost-link-low-ba-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/contingency-manager-for-lost-link-low-ba-2.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/contingency-manager-for-lost-link-low-ba-2.mjs",
+											"content": "/**\n * Contingency manager for lost link, low battery, geofence breach — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ContingencyManagerForLostLinkLowBa2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ContingencyManagerForLostLinkLowBa2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ContingencyManagerForLostLinkLowBa2Finding[] }} ContingencyManagerForLostLinkLowBa2Result\n */\n\n/**\n * Evaluate one input against the contingency manager for lost link, low battery, geofence breach — core engine policy.\n * @param {ContingencyManagerForLostLinkLowBa2Input} input\n * @returns {ContingencyManagerForLostLinkLowBa2Result}\n */\nexport function evaluateContingencyManagerForLostLinkLowBa2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"contingency-manager-for-lost-link-low-ba-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"contingency-manager-for-lost-link-low-ba-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/contingency-manager-for-lost-link-low-ba-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateContingencyManagerForLostLinkLowBa2 } from \"../src/contingency-manager-for-lost-link-low-ba-2.mjs\";\n\ntest(\"contingency-manager-for-lost-link-low-ba-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateContingencyManagerForLostLinkLowBa2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"contingency-manager-for-lost-link-low-ba-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateContingencyManagerForLostLinkLowBa2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Contingency manager for lost link, low battery, geofence breach — core engine\": src/contingency-manager-for-lost-link-low-ba-2.mjs, test/contingency-manager-for-lost-link-low-ba-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Contingency manager for lost link, low battery, geofence breach — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Contingency manager for lost link, low battery, geofence breach — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/utm-style-approval-workflow-with-mission.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/utm-style-approval-workflow-with-mission.mjs",
+											"content": "/**\n * UTM-style approval workflow with mission intent, airspace conflict checks\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} UtmStyleApprovalWorkflowWithMissionInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} UtmStyleApprovalWorkflowWithMissionFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: UtmStyleApprovalWorkflowWithMissionFinding[] }} UtmStyleApprovalWorkflowWithMissionResult\n */\n\n/**\n * Evaluate one input against the utm-style approval workflow with mission intent, airspace conflict checks policy.\n * @param {UtmStyleApprovalWorkflowWithMissionInput} input\n * @returns {UtmStyleApprovalWorkflowWithMissionResult}\n */\nexport function evaluateUtmStyleApprovalWorkflowWithMission(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"utm-style-approval-workflow-with-mission/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"utm-style-approval-workflow-with-mission/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"utm-style-approval-workflow-with-mission/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"utm-style-approval-workflow-with-mission/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/utm-style-approval-workflow-with-mission.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateUtmStyleApprovalWorkflowWithMission } from \"../src/utm-style-approval-workflow-with-mission.mjs\";\n\ntest(\"utm-style-approval-workflow-with-mission: accepts a clean input with evidence\", () => {\n\tconst result = evaluateUtmStyleApprovalWorkflowWithMission({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"utm-style-approval-workflow-with-mission: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateUtmStyleApprovalWorkflowWithMission({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"UTM-style approval workflow with mission intent, airspace conflict checks\": src/utm-style-approval-workflow-with-mission.mjs, test/utm-style-approval-workflow-with-mission.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"UTM-style approval workflow with mission intent, airspace conflict checks\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"UTM-style approval workflow with mission intent, airspace conflict checks\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

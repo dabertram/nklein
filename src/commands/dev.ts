@@ -19,7 +19,7 @@ import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
 import {
-	type NKleinDevTestProjectPreset,
+	type DevTestSelection,
 	resolveNKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
@@ -242,7 +242,7 @@ function createDevRuntimeClient(workspaceId: string | null) {
 async function executeDevTestPreset(input: {
 	client: ReturnType<typeof createDevRuntimeClient>;
 	workspaceId: string;
-	preset: NKleinDevTestProjectPreset;
+	preset: DevTestSelection;
 	baseRef: string;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;

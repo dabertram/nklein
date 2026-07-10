@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (organization, user, group, project, repository, branch, commit metadata, merge). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (organization, user, group, project, repository, branch, commit metadata, merge). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Repository abstraction that can ingest deterministic commit graphs and",
-											"prompt": "Implement the foundation for: Repository abstraction that can ingest deterministic commit graphs and branch refs from fixtures without implementing the full Git protocol immediately. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Repository abstraction that can ingest deterministic commit graphs and. Implement the foundation for: Repository abstraction that can ingest deterministic commit graphs and branch refs from fixtures without implementing the full Git protocol immediately. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/repository-abstraction-that-can-ingest-d.mjs and test/repository-abstraction-that-can-ingest-d.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Repository abstraction that can ingest deterministic commit graphs and — core engine",
-											"prompt": "Extend the repository abstraction that can ingest deterministic commit graphs and module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Repository abstraction that can ingest deterministic commit graphs and — core engine. Extend the repository abstraction that can ingest deterministic commit graphs and module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/repository-abstraction-that-can-ingest-d-2.mjs and test/repository-abstraction-that-can-ingest-d-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,23 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests",
-											"prompt": "Extend the repository abstraction that can ingest deterministic commit graphs and module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s03"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/repository-abstraction-that-can-ingest-d-3.mjs",
-												"test/repository-abstraction-that-can-ingest-d-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s05",
 											"title": "Merge request workflow with draft state, discussion threads, approvals",
-											"prompt": "Implement the foundation for: Merge request workflow with draft state, discussion threads, approvals, required reviewers, branch protection, conflict status, and merge train queue. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Merge request workflow with draft state, discussion threads, approvals. Implement the foundation for: Merge request workflow with draft state, discussion threads, approvals, required reviewers, branch protection, conflict status, and merge train queue. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/merge-request-workflow-with-draft-state.mjs and test/merge-request-workflow-with-draft-state.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,11 +95,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
+											"id": "s05",
 											"title": "Merge request workflow with draft state, discussion threads, approvals — core engine",
-											"prompt": "Extend the merge request workflow with draft state, discussion threads, approvals module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Merge request workflow with draft state, discussion threads, approvals — core engine. Extend the merge request workflow with draft state, discussion threads, approvals module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/merge-request-workflow-with-draft-state-2.mjs and test/merge-request-workflow-with-draft-state-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s04"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -125,24 +110,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
-											"title": "Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests",
-											"prompt": "Extend the merge request workflow with draft state, discussion threads, approvals module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s06"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/merge-request-workflow-with-draft-state-3.mjs",
-												"test/merge-request-workflow-with-draft-state-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
+											"id": "s06",
 											"title": "CI pipeline compiler for a constrained YAML-like fixture format",
-											"prompt": "Implement the foundation for: CI pipeline compiler for a constrained YAML-like fixture format with stages, jobs, needs, variables, artifacts, cache keys, environments, and manual gates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "CI pipeline compiler for a constrained YAML-like fixture format. Implement the foundation for: CI pipeline compiler for a constrained YAML-like fixture format with stages, jobs, needs, variables, artifacts, cache keys, environments, and manual gates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y.mjs and test/ci-pipeline-compiler-for-a-constrained-y.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -155,16 +125,46 @@
 											"testFirst": false
 										},
 										{
-											"id": "s09",
+											"id": "s07",
 											"title": "CI pipeline compiler for a constrained YAML-like fixture format — core engine",
-											"prompt": "Extend the ci pipeline compiler for a constrained yaml-like fixture format module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "CI pipeline compiler for a constrained YAML-like fixture format — core engine. Extend the ci pipeline compiler for a constrained yaml-like fixture format module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/ci-pipeline-compiler-for-a-constrained-y-2.mjs and test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs.",
 											"dependsOn": [
-												"s08"
+												"s06"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
 												"test/ci-pipeline-compiler-for-a-constrained-y-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Runner scheduler that matches jobs to tags, capacity, isolation",
+											"prompt": "Runner scheduler that matches jobs to tags, capacity, isolation. Implement the foundation for: Runner scheduler that matches jobs to tags, capacity, isolation level, secrets policy, and concurrency limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta.mjs and test/runner-scheduler-that-matches-jobs-to-ta.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/runner-scheduler-that-matches-jobs-to-ta.mjs",
+												"test/runner-scheduler-that-matches-jobs-to-ta.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Runner scheduler that matches jobs to tags, capacity, isolation — core engine",
+											"prompt": "Runner scheduler that matches jobs to tags, capacity, isolation — core engine. Extend the runner scheduler that matches jobs to tags, capacity, isolation module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/runner-scheduler-that-matches-jobs-to-ta-2.mjs and test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs.",
+											"dependsOn": [
+												"s08"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
+												"test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Repository abstraction that can ingest deterministic commit graphs and",
+			"userMessageIncludes": "src/repository-abstraction-that-can-ingest-d.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Repository abstraction that can ingest deterministic commit graphs and — core engine",
+			"userMessageIncludes": "src/repository-abstraction-that-can-ingest-d-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,115 +579,13 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests",
+			"userMessageIncludes": "src/merge-request-workflow-with-draft-state.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "text",
 						"content": "",
-						"reasoning": "Thinking through \"Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests\" step by step before writing files…"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/repository-abstraction-that-can-ingest-d-3.mjs",
-											"content": "/**\n * Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RepositoryAbstractionThatCanIngestD3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RepositoryAbstractionThatCanIngestD3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RepositoryAbstractionThatCanIngestD3Finding[] }} RepositoryAbstractionThatCanIngestD3Result\n */\n\n/**\n * Evaluate one input against the repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests policy.\n * @param {RepositoryAbstractionThatCanIngestD3Input} input\n * @returns {RepositoryAbstractionThatCanIngestD3Result}\n */\nexport function evaluateRepositoryAbstractionThatCanIngestD3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"repository-abstraction-that-can-ingest-d-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"repository-abstraction-that-can-ingest-d-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/repository-abstraction-that-can-ingest-d-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRepositoryAbstractionThatCanIngestD3 } from \"../src/repository-abstraction-that-can-ingest-d-3.mjs\";\n\ntest(\"repository-abstraction-that-can-ingest-d-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRepositoryAbstractionThatCanIngestD3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"repository-abstraction-that-can-ingest-d-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRepositoryAbstractionThatCanIngestD3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests\": src/repository-abstraction-that-can-ingest-d-3.mjs, test/repository-abstraction-that-can-ingest-d-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s04",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Repository abstraction that can ingest deterministic commit graphs and — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s05",
-			"requestClass": "worker",
-			"userMessageIncludes": "Merge request workflow with draft state, discussion threads, approvals",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "stall",
-						"ttftMs": 8000
+						"reasoning": "Thinking through \"Merge request workflow with draft state, discussion threads, approvals\" step by step before writing files…"
 					}
 				},
 				{
@@ -750,10 +648,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s04",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion threads, approvals\"",
 			"turns": [
@@ -782,21 +680,14 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s06",
+			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Merge request workflow with draft state, discussion threads, approvals — core engine",
+			"userMessageIncludes": "src/merge-request-workflow-with-draft-state-2.mjs",
 			"turns": [
 				{
 					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": "[{\"path\":\"src/merge-request-workflow-with-draft-state-2.mjs\",\"content\":\"export const truncated = "
-								}
-							}
-						]
+						"kind": "stall",
+						"ttftMs": 8000
 					}
 				},
 				{
@@ -859,10 +750,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "perfect-review-s05",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion threads, approvals — core engine\"",
 			"turns": [
@@ -891,25 +782,10 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s07",
+			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests",
+			"userMessageIncludes": "src/ci-pipeline-compiler-for-a-constrained-y.mjs",
 			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -917,80 +793,12 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": [
-										{
-											"path": "src/merge-request-workflow-with-draft-state-3.mjs",
-											"content": "/**\n * Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} MergeRequestWorkflowWithDraftState3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} MergeRequestWorkflowWithDraftState3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: MergeRequestWorkflowWithDraftState3Finding[] }} MergeRequestWorkflowWithDraftState3Result\n */\n\n/**\n * Evaluate one input against the merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests policy.\n * @param {MergeRequestWorkflowWithDraftState3Input} input\n * @returns {MergeRequestWorkflowWithDraftState3Result}\n */\nexport function evaluateMergeRequestWorkflowWithDraftState3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"merge-request-workflow-with-draft-state-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"merge-request-workflow-with-draft-state-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/merge-request-workflow-with-draft-state-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateMergeRequestWorkflowWithDraftState3 } from \"../src/merge-request-workflow-with-draft-state-3.mjs\";\n\ntest(\"merge-request-workflow-with-draft-state-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"merge-request-workflow-with-draft-state-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateMergeRequestWorkflowWithDraftState3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
+									"files": "[{\"path\":\"src/ci-pipeline-compiler-for-a-constrained-y.mjs\",\"content\":\"export const truncated = "
 								}
 							}
 						]
 					}
 				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests\": src/merge-request-workflow-with-draft-state-3.mjs, test/merge-request-workflow-with-draft-state-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Merge request workflow with draft state, discussion threads, approvals — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "CI pipeline compiler for a constrained YAML-like fixture format",
-			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1051,10 +859,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture format\"",
 			"turns": [
@@ -1083,9 +891,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s09",
+			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "CI pipeline compiler for a constrained YAML-like fixture format — core engine",
+			"userMessageIncludes": "src/ci-pipeline-compiler-for-a-constrained-y-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1150,7 +958,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "perfect-review-s07",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"CI pipeline compiler for a constrained YAML-like fixture format — core engine\"",
 			"turns": [
@@ -1163,6 +971,198 @@
 								"arguments": {
 									"verdict": "approve",
 									"summary": "Reviewed \"CI pipeline compiler for a constrained YAML-like fixture format — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/runner-scheduler-that-matches-jobs-to-ta.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/runner-scheduler-that-matches-jobs-to-ta.mjs",
+											"content": "/**\n * Runner scheduler that matches jobs to tags, capacity, isolation\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RunnerSchedulerThatMatchesJobsToTaInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RunnerSchedulerThatMatchesJobsToTaFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RunnerSchedulerThatMatchesJobsToTaFinding[] }} RunnerSchedulerThatMatchesJobsToTaResult\n */\n\n/**\n * Evaluate one input against the runner scheduler that matches jobs to tags, capacity, isolation policy.\n * @param {RunnerSchedulerThatMatchesJobsToTaInput} input\n * @returns {RunnerSchedulerThatMatchesJobsToTaResult}\n */\nexport function evaluateRunnerSchedulerThatMatchesJobsToTa(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"runner-scheduler-that-matches-jobs-to-ta/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/runner-scheduler-that-matches-jobs-to-ta.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRunnerSchedulerThatMatchesJobsToTa } from \"../src/runner-scheduler-that-matches-jobs-to-ta.mjs\";\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Runner scheduler that matches jobs to tags, capacity, isolation\": src/runner-scheduler-that-matches-jobs-to-ta.mjs, test/runner-scheduler-that-matches-jobs-to-ta.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Runner scheduler that matches jobs to tags, capacity, isolation\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Runner scheduler that matches jobs to tags, capacity, isolation\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/runner-scheduler-that-matches-jobs-to-ta-2.mjs",
+											"content": "/**\n * Runner scheduler that matches jobs to tags, capacity, isolation — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RunnerSchedulerThatMatchesJobsToTa2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RunnerSchedulerThatMatchesJobsToTa2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RunnerSchedulerThatMatchesJobsToTa2Finding[] }} RunnerSchedulerThatMatchesJobsToTa2Result\n */\n\n/**\n * Evaluate one input against the runner scheduler that matches jobs to tags, capacity, isolation — core engine policy.\n * @param {RunnerSchedulerThatMatchesJobsToTa2Input} input\n * @returns {RunnerSchedulerThatMatchesJobsToTa2Result}\n */\nexport function evaluateRunnerSchedulerThatMatchesJobsToTa2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"runner-scheduler-that-matches-jobs-to-ta-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"runner-scheduler-that-matches-jobs-to-ta-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRunnerSchedulerThatMatchesJobsToTa2 } from \"../src/runner-scheduler-that-matches-jobs-to-ta-2.mjs\";\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"runner-scheduler-that-matches-jobs-to-ta-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRunnerSchedulerThatMatchesJobsToTa2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\": src/runner-scheduler-that-matches-jobs-to-ta-2.mjs, test/runner-scheduler-that-matches-jobs-to-ta-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Runner scheduler that matches jobs to tags, capacity, isolation — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

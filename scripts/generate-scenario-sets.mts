@@ -99,10 +99,15 @@ function decomposeNeedle(userPrompt: string): string {
 // ---------------------------------------------------------------------------
 
 function condenseTitle(bullet: string): string {
-	// First clause, stripped of trailing punctuation, capped for card-title use.
-	const clause = (bullet.split(/[.;:]/)[0] as string).trim();
+	// First clause, parentheticals stripped, capped for card-title use.
+	const clause = ((bullet.split(/[.;:]/)[0] as string) ?? "").replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
 	const words = clause.split(/\s+/).slice(0, 9).join(" ");
-	return words.charAt(0).toUpperCase() + words.slice(1).replace(/,$/, "");
+	return (words.charAt(0).toUpperCase() + words.slice(1)).replace(/[,\s]+$/, "");
+}
+
+/** Reject junk concepts (spec meta-lines like "~14–18 cards, build THIS first"). */
+function isWorkableConcept(title: string): boolean {
+	return /^[A-Za-z]/.test(title) && title.split(/\s+/).length >= 3 && title.length <= 90;
 }
 
 function slugify(text: string, max = 40): string {
@@ -154,7 +159,14 @@ function synthesizeCards(project: ProjectInput): CardPlan[] {
 		const card: CardPlan = {
 			id,
 			title: uniqueTitle,
-			prompt,
+			// The prompt RESTATES the title first (realistic decompose style) and NAMES its module files — the
+			// module path is the one string that exists ONLY in this card's prompt, and worker tracks key on it
+			// (titles/bullets also appear inside the decompose spec that !Klein embeds into EVERY card prompt —
+			// live cross-match incident 2026-07-10, project-02 run: one card's catch-all swallowed all workers).
+			prompt:
+				title === "Project scaffold: zero-dependency node test wiring"
+					? `${uniqueTitle}. ${prompt}`
+					: `${uniqueTitle}. ${prompt} Files for THIS card: src/${moduleSlug}.mjs and test/${moduleSlug}.test.mjs.`,
 			dependsOn,
 			complexity,
 			filesLikelyTouched: [`src/${moduleSlug}.mjs`, `test/${moduleSlug}.test.mjs`],
@@ -201,6 +213,7 @@ function synthesizeCards(project: ProjectInput): CardPlan[] {
 				stage === 0
 					? `Implement the foundation for: ${concept} Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.`
 					: `Extend the ${baseTitle.toLowerCase()} module: ${stage === 1 ? "cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests" : "add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts"}. Keep the module dependency-free and deterministic; every branch gets a node:test case.`;
+			if (!isWorkableConcept(title)) continue;
 			previous = push(title, prompt, stage === 0 ? [domain.id] : [previous.id], 30 + stage * 10);
 		}
 	};
@@ -229,8 +242,6 @@ function synthesizeCards(project: ProjectInput): CardPlan[] {
 		spineDeps,
 		45,
 	);
-	integration.filesLikelyTouched = ["test/integration.test.mjs", "README.md"];
-	integration.moduleSlug = "integration";
 	return cards;
 }
 
@@ -295,7 +306,9 @@ function workerTrack(project: ProjectInput, card: CardPlan, options: { fixup?: b
 	return {
 		id: `perfect-worker-${card.id}`,
 		requestClass: "worker",
-		userMessageIncludes: card.title,
+		// The module path — NOT the title: titles ride along in every card prompt via the embedded spec. The
+		// scaffold card writes no module, so it keys on its authored title phrase (also absent from any spec).
+		userMessageIncludes: card.id === "s00" ? "zero-dependency node test wiring" : `src/${card.moduleSlug}.mjs`,
 		turns,
 		repeatLastTurn: true,
 		provenance: "generated baseline (generate-scenario-sets.mts)",
@@ -497,6 +510,25 @@ function validate(script: ScenarioScript, cards: CardPlan[]): void {
 	}
 	const titles = new Set(cards.map((card) => card.title));
 	if (titles.size !== cards.length) throw new Error(`${script.name}: duplicate card titles`);
+
+	// Needle EXCLUSIVITY (live incident, project-02 run 2026-07-10): !Klein embeds the decompose spec into every
+	// card prompt, so a worker needle that appears in the spec/plan or another card's prompt cross-matches and
+	// one card's catch-all swallows every other worker session. Each needle must hit EXACTLY its own card.
+	const decomposeArgs = script.tracks
+		.flatMap((track) => track.turns)
+		.flatMap((turn) => (turn.behavior.kind === "tool_calls" ? turn.behavior.calls : []))
+		.filter((call) => call.name === "decompose_project")
+		.map((call) => call.arguments as { spec?: string; plan?: string; summary?: string; tasks?: Array<{ id: string; prompt: string }> });
+	for (const args of decomposeArgs) {
+		const shared = `${args.spec ?? ""}\n${args.plan ?? ""}\n${args.summary ?? ""}`.toLowerCase();
+		const tasks = args.tasks ?? [];
+		for (const track of script.tracks.filter((track) => track.requestClass === "worker")) {
+			const needle = (track.userMessageIncludes ?? "").toLowerCase();
+			if (shared.includes(needle)) throw new Error(`${script.name}: worker needle "${needle}" leaks into the shared spec/plan/summary`);
+			const hits = tasks.filter((task) => task.prompt.toLowerCase().includes(needle));
+			if (hits.length !== 1) throw new Error(`${script.name}: worker needle "${needle}" matches ${hits.length} card prompts (must be exactly 1)`);
+		}
+	}
 }
 
 function readme(project: ProjectInput, cards: CardPlan[], flakyTrackCount: number): string {

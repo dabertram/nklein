@@ -7,17 +7,23 @@
  * LM Studio /api/v0 catalog shim on one origin.
  *
  * Usage:  HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) npx tsx scripts/verify-simulated-flow.mts
- * Env:    NKLEIN_SIMFLOW_TIMEOUT_MS (default 240000) — overall budget for the monitored flow.
+ * Env:    NKLEIN_SIMFLOW_TIMEOUT_MS (default 240000; 480000 in scenario mode) — budget for the monitored flow.
+ *         NKLEIN_SIMFLOW_SCENARIO — a scenario-set project ("02" or the full registry id): loads that set from
+ *         packages/llm-simulator/scenarios/<project>/ and drives the REAL dev-test registry project with it.
+ *         NKLEIN_SIMFLOW_RUN — "perfect" (default) or "flaky": which run file of the set to serve.
  */
 
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createSimulatorServer } from "../packages/llm-simulator/src/index.js";
 import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
 
-const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || 240_000;
+const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
+const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
+const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR ? 480_000 : 240_000);
 const RUNTIME_PORT = 3986;
 const SIM_MODEL = "sim/qwen-fast-coder";
 
@@ -148,12 +154,26 @@ const script: ScenarioScript = {
 	],
 };
 
+/** Resolve NKLEIN_SIMFLOW_SCENARIO ("02" or a full registry id) to {registryId, script}. */
+async function resolveScenario(): Promise<{ registryId: string; scenario: ScenarioScript } | undefined> {
+	if (!SCENARIO_SELECTOR) return undefined;
+	const scenariosDir = new URL("../packages/llm-simulator/scenarios/", import.meta.url).pathname;
+	const dirs = readdirSync(scenariosDir).sort();
+	const match = dirs.find((dir) => dir === SCENARIO_SELECTOR || dir.startsWith(`${SCENARIO_SELECTOR}_`));
+	if (!match) fail(`no scenario set matches "${SCENARIO_SELECTOR}" under packages/llm-simulator/scenarios/`);
+	const runPath = join(scenariosDir, match, `${SCENARIO_RUN}.json`);
+	const scenario = JSON.parse(await readFile(runPath, "utf8")) as ScenarioScript;
+	console.log(`Scenario mode: ${match} · ${SCENARIO_RUN} (${scenario.tracks.length} tracks)`);
+	return { registryId: match, scenario };
+}
+
 async function main(): Promise<void> {
 	const home = process.env.HOME as string;
 	console.log(`Isolated HOME: ${home}`);
+	const scenarioMode = await resolveScenario();
 
 	// 1) Simulator (chat surface + LM Studio /api shim on one origin).
-	const simulator = createSimulatorServer(script, {
+	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, {
 		models: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
 	});
 	await simulator.start();
@@ -252,7 +272,7 @@ async function main(): Promise<void> {
 				"dev",
 				"test-project",
 				"--preset",
-				"mid_task",
+				scenarioMode?.registryId ?? "mid_task",
 				"--poll-interval-ms",
 				"4000",
 				"--max-wait-ms",
@@ -306,6 +326,16 @@ async function main(): Promise<void> {
 		}
 		const reviewLines = runtimeLogs.join("").split("\n").filter((line) => /review|acceptance|sandbox/i.test(line)).slice(-12);
 		console.log("Review/acceptance trail:\n" + reviewLines.join("\n"));
+		if (scenarioMode && SCENARIO_RUN === "perfect-run") {
+			// A perfect-run scenario must fully drain the board: anything parked in Review/failed means fixtures
+			// mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
+			const counts = /"finalCounts":\s*{[^}]*}/.exec(seedOut)?.[0] ?? "";
+			const lane = (name: string): number => Number(new RegExp(`"${name}":\\s*(\\d+)`).exec(counts)?.[1] ?? "-1");
+			if (lane("review") !== 0 || lane("failed") !== 0 || lane("planning") !== 0 || lane("inProgress") !== 0 || lane("completed") < 1) {
+				// throw (not fail/process.exit) so the finally block still tears children down + dumps runtime.log.
+				throw new Error(`perfect-run left cards undrained (${counts})`);
+			}
+		}
 		console.log("PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.");
 	} finally {
 		await writeFile(join(home, "runtime.log"), runtimeLogs.join("")).catch(() => undefined);

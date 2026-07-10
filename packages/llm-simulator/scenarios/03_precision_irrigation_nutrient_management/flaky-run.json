@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (farm, field, block, crop, soil zone, irrigation line, sensor). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (farm, field, block, crop, soil zone, irrigation line, sensor). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Daily soil-water balance calculation using crop coefficient, reference evapotranspiration",
-											"prompt": "Implement the foundation for: Daily soil-water balance calculation using crop coefficient, reference evapotranspiration, rainfall, irrigation, root depth, and allowable depletion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Daily soil-water balance calculation using crop coefficient, reference evapotranspiration. Implement the foundation for: Daily soil-water balance calculation using crop coefficient, reference evapotranspiration, rainfall, irrigation, root depth, and allowable depletion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/daily-soil-water-balance-calculation-usi.mjs and test/daily-soil-water-balance-calculation-usi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Sensor ingestion pipeline with plausibility checks for stuck probes",
-											"prompt": "Implement the foundation for: Sensor ingestion pipeline with plausibility checks for stuck probes, impossible jumps, missing intervals, and unit conversion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Sensor ingestion pipeline with plausibility checks for stuck probes. Implement the foundation for: Sensor ingestion pipeline with plausibility checks for stuck probes, impossible jumps, missing intervals, and unit conversion. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/sensor-ingestion-pipeline-with-plausibil.mjs and test/sensor-ingestion-pipeline-with-plausibil.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "Irrigation recommendation engine that can explain recommended runtime, deficit",
-											"prompt": "Implement the foundation for: Irrigation recommendation engine that can explain recommended runtime, deficit, forecast rain risk, and pump capacity constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Irrigation recommendation engine that can explain recommended runtime, deficit. Implement the foundation for: Irrigation recommendation engine that can explain recommended runtime, deficit, forecast rain risk, and pump capacity constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/irrigation-recommendation-engine-that-ca.mjs and test/irrigation-recommendation-engine-that-ca.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration",
-											"prompt": "Implement the foundation for: Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration, irrigation compatibility, and seasonal limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration. Implement the foundation for: Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration, irrigation compatibility, and seasonal limits. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fertigation-plan-that-tracks-nitrogen-ph.mjs and test/fertigation-plan-that-tracks-nitrogen-ph.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks",
-											"prompt": "Implement the foundation for: Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Implement the foundation for: Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/zone-comparison-views-for-under-watered.mjs and test/zone-comparison-views-for-under-watered.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Scenario planner for heatwave, pump outage, and restricted water",
-											"prompt": "Implement the foundation for: Scenario planner for heatwave, pump outage, and restricted water allocation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Scenario planner for heatwave, pump outage, and restricted water. Implement the foundation for: Scenario planner for heatwave, pump outage, and restricted water allocation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scenario-planner-for-heatwave-pump-outag.mjs and test/scenario-planner-for-heatwave-pump-outag.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Seed data for orchards or vineyards with heterogeneous soils",
-											"prompt": "Implement the foundation for: Seed data for orchards or vineyards with heterogeneous soils and partial sensor failures. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Seed data for orchards or vineyards with heterogeneous soils. Implement the foundation for: Seed data for orchards or vineyards with heterogeneous soils and partial sensor failures. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-data-for-orchards-or-vineyards-with.mjs and test/seed-data-for-orchards-or-vineyards-with.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -156,15 +156,15 @@
 										},
 										{
 											"id": "s09",
-											"title": "Thesis",
-											"prompt": "Implement the foundation for: Thesis: why irrigation+nutrients is a deceptively hard determinism challenge Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"title": "The hardest technical seams",
+											"prompt": "The hardest technical seams. Implement the foundation for: The hardest technical seams (named) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/the-hardest-technical-seams.mjs and test/the-hardest-technical-seams.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/thesis.mjs",
-												"test/thesis.test.mjs"
+												"src/the-hardest-technical-seams.mjs",
+												"test/the-hardest-technical-seams.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "perfect-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -374,7 +374,7 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Daily soil-water balance calculation using crop coefficient, reference evapotranspiration",
+			"userMessageIncludes": "src/daily-soil-water-balance-calculation-usi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Sensor ingestion pipeline with plausibility checks for stuck probes",
+			"userMessageIncludes": "src/sensor-ingestion-pipeline-with-plausibil.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,7 +579,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Irrigation recommendation engine that can explain recommended runtime, deficit",
+			"userMessageIncludes": "src/irrigation-recommendation-engine-that-ca.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -682,7 +682,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Fertigation plan that tracks nitrogen, phosphorus, potassium, product concentration",
+			"userMessageIncludes": "src/fertigation-plan-that-tracks-nitrogen-ph.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -784,7 +784,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Zone comparison views for under-watered, over-watered, and sensor-unreliable blocks",
+			"userMessageIncludes": "src/zone-comparison-views-for-under-watered.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -880,7 +880,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Scenario planner for heatwave, pump outage, and restricted water",
+			"userMessageIncludes": "src/scenario-planner-for-heatwave-pump-outag.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -976,7 +976,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Seed data for orchards or vineyards with heterogeneous soils",
+			"userMessageIncludes": "src/seed-data-for-orchards-or-vineyards-with.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1072,7 +1072,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Thesis",
+			"userMessageIncludes": "src/the-hardest-technical-seams.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1098,12 +1098,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/thesis.mjs",
-											"content": "/**\n * Thesis\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ThesisInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ThesisFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ThesisFinding[] }} ThesisResult\n */\n\n/**\n * Evaluate one input against the thesis policy.\n * @param {ThesisInput} input\n * @returns {ThesisResult}\n */\nexport function evaluateThesis(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"thesis/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"thesis/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"thesis/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"thesis/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/the-hardest-technical-seams.mjs",
+											"content": "/**\n * The hardest technical seams\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheHardestTechnicalSeamsInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheHardestTechnicalSeamsFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheHardestTechnicalSeamsFinding[] }} TheHardestTechnicalSeamsResult\n */\n\n/**\n * Evaluate one input against the the hardest technical seams policy.\n * @param {TheHardestTechnicalSeamsInput} input\n * @returns {TheHardestTechnicalSeamsResult}\n */\nexport function evaluateTheHardestTechnicalSeams(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-hardest-technical-seams/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/thesis.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateThesis } from \"../src/thesis.mjs\";\n\ntest(\"thesis: accepts a clean input with evidence\", () => {\n\tconst result = evaluateThesis({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"thesis: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateThesis({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/the-hardest-technical-seams.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheHardestTechnicalSeams } from \"../src/the-hardest-technical-seams.mjs\";\n\ntest(\"the-hardest-technical-seams: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-hardest-technical-seams: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1129,7 +1129,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Thesis\": src/thesis.mjs, test/thesis.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"The hardest technical seams\": src/the-hardest-technical-seams.mjs, test/the-hardest-technical-seams.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1139,7 +1139,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Thesis\"",
+			"userMessageIncludes": "the card \"The hardest technical seams\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1149,7 +1149,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Thesis\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"The hardest technical seams\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

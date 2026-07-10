@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Scheduling engine with provider availability, room constraints, visit type",
-											"prompt": "Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Scheduling engine with provider availability, room constraints, visit type. Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scheduling-engine-with-provider-availabi.mjs and test/scheduling-engine-with-provider-availabi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Encounter note workflow with structured sections, versioning, amendments, signatures",
-											"prompt": "Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Encounter note workflow with structured sections, versioning, amendments, signatures. Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/encounter-note-workflow-with-structured.mjs and test/encounter-note-workflow-with-structured.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "FHIR-inspired resource mapping layer that can import and export",
-											"prompt": "Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "FHIR-inspired resource mapping layer that can import and export. Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fhir-inspired-resource-mapping-layer-tha.mjs and test/fhir-inspired-resource-mapping-layer-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Consent and role-based access policy that filters sensitive notes",
-											"prompt": "Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Consent and role-based access policy that filters sensitive notes. Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/consent-and-role-based-access-policy-tha.mjs and test/consent-and-role-based-access-policy-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Results inbox for lab or imaging results with abnormal",
-											"prompt": "Implement the foundation for: Results inbox for lab or imaging results with abnormal flags, acknowledgment, patient notification, and follow-up task creation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Results inbox for lab or imaging results with abnormal. Implement the foundation for: Results inbox for lab or imaging results with abnormal flags, acknowledgment, patient notification, and follow-up task creation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/results-inbox-for-lab-or-imaging-results.mjs and test/results-inbox-for-lab-or-imaging-results.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Care plan tracker with goals, interventions, due dates, barriers",
-											"prompt": "Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Care plan tracker with goals, interventions, due dates, barriers. Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/care-plan-tracker-with-goals-interventio.mjs and test/care-plan-tracker-with-goals-interventio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Seed clinic with overlapping appointments, sensitive notes, amended encounters",
-											"prompt": "Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Seed clinic with overlapping appointments, sensitive notes, amended encounters. Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-clinic-with-overlapping-appointment.mjs and test/seed-clinic-with-overlapping-appointment.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -156,38 +156,23 @@
 										},
 										{
 											"id": "s09",
-											"title": "The reframing (why this is an authorization engine wearing",
-											"prompt": "Implement the foundation for: The reframing (why this is an authorization engine wearing an EHR costume) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"title": "The hardest technical seams",
+											"prompt": "The hardest technical seams. Implement the foundation for: The hardest technical seams (where this stops being CRUD) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/the-hardest-technical-seams.mjs and test/the-hardest-technical-seams.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/the-reframing-why-this-is-an-authorizati.mjs",
-												"test/the-reframing-why-this-is-an-authorizati.test.mjs"
+												"src/the-hardest-technical-seams.mjs",
+												"test/the-hardest-technical-seams.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
 										},
 										{
 											"id": "s10",
-											"title": "The hardest technical seams (where this stops being CRUD)",
-											"prompt": "Implement the foundation for: The hardest technical seams (where this stops being CRUD) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/the-hardest-technical-seams-where-this-s.mjs",
-												"test/the-hardest-technical-seams-where-this-s.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s11",
 											"title": "Determinism & testability strategy",
-											"prompt": "Implement the foundation for: Determinism & testability strategy Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Determinism & testability strategy. Implement the foundation for: Determinism & testability strategy Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/determinism-testability-strategy.mjs and test/determinism-testability-strategy.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -200,9 +185,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s12",
-											"title": "Adversarial, failure, and edge-case scenarios (ship these as fixtures)",
-											"prompt": "Implement the foundation for: Adversarial, failure, and edge-case scenarios (ship these as fixtures) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"id": "s11",
+											"title": "Adversarial, failure, and edge-case scenarios",
+											"prompt": "Adversarial, failure, and edge-case scenarios. Implement the foundation for: Adversarial, failure, and edge-case scenarios (ship these as fixtures) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/adversarial-failure-and-edge-case-scenar.mjs and test/adversarial-failure-and-edge-case-scenar.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -215,9 +200,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s13",
-											"title": "Rigorous acceptance criteria, including invariants (property-based)",
-											"prompt": "Implement the foundation for: Rigorous acceptance criteria, including invariants (property-based) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"id": "s12",
+											"title": "Rigorous acceptance criteria, including invariants",
+											"prompt": "Rigorous acceptance criteria, including invariants. Implement the foundation for: Rigorous acceptance criteria, including invariants (property-based) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/rigorous-acceptance-criteria-including-i.mjs and test/rigorous-acceptance-criteria-including-i.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -230,9 +215,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s14",
+											"id": "s13",
 											"title": "Build THIS first, ~26–30 cards)",
-											"prompt": "Implement the foundation for: build THIS first, ~26–30 cards) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Build THIS first, ~26–30 cards). Implement the foundation for: build THIS first, ~26–30 cards) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/build-this-first-26-30-cards.mjs and test/build-this-first-26-30-cards.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -245,24 +230,24 @@
 											"testFirst": false
 										},
 										{
-											"id": "s15",
-											"title": "Domain knowledge-debt to track (surface, don't bluff)",
-											"prompt": "Implement the foundation for: Domain knowledge-debt to track (surface, don't bluff) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"id": "s14",
+											"title": "Domain knowledge-debt to track",
+											"prompt": "Domain knowledge-debt to track. Implement the foundation for: Domain knowledge-debt to track (surface, don't bluff) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/domain-knowledge-debt-to-track.mjs and test/domain-knowledge-debt-to-track.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/domain-knowledge-debt-to-track-surface-d.mjs",
-												"test/domain-knowledge-debt-to-track-surface-d.test.mjs"
+												"src/domain-knowledge-debt-to-track.mjs",
+												"test/domain-knowledge-debt-to-track.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
 										},
 										{
-											"id": "s16",
+											"id": "s15",
 											"title": "Why this is a great !Klein challenge",
-											"prompt": "Implement the foundation for: Why this is a great !Klein challenge Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Why this is a great !Klein challenge. Implement the foundation for: Why this is a great !Klein challenge Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/why-this-is-a-great-klein-challenge.mjs and test/why-this-is-a-great-klein-challenge.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -275,9 +260,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s17",
+											"id": "s16",
 											"title": "Determinism hardening pass 1",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 1. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-1.mjs and test/determinism-hardening-pass-1.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -290,9 +275,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s18",
+											"id": "s17",
 											"title": "Determinism hardening pass 2",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 2. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-2.mjs and test/determinism-hardening-pass-2.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -305,9 +290,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s19",
+											"id": "s18",
 											"title": "Determinism hardening pass 3",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 3. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-3.mjs and test/determinism-hardening-pass-3.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -320,9 +305,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s20",
+											"id": "s19",
 											"title": "Determinism hardening pass 4",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 4. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-4.mjs and test/determinism-hardening-pass-4.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -335,9 +320,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s21",
+											"id": "s20",
 											"title": "Determinism hardening pass 5",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 5. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-5.mjs and test/determinism-hardening-pass-5.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -350,9 +335,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s22",
+											"id": "s21",
 											"title": "Determinism hardening pass 6",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 6. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-6.mjs and test/determinism-hardening-pass-6.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -365,9 +350,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s23",
+											"id": "s22",
 											"title": "Determinism hardening pass 7",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 7. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-7.mjs and test/determinism-hardening-pass-7.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -380,9 +365,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s24",
+											"id": "s23",
 											"title": "Determinism hardening pass 8",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 8. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-8.mjs and test/determinism-hardening-pass-8.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -395,9 +380,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s25",
+											"id": "s24",
 											"title": "Determinism hardening pass 9",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 9. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-9.mjs and test/determinism-hardening-pass-9.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -410,9 +395,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s26",
+											"id": "s25",
 											"title": "Determinism hardening pass 10",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 10. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-10.mjs and test/determinism-hardening-pass-10.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -425,9 +410,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s27",
+											"id": "s26",
 											"title": "Determinism hardening pass 11",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 11. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-11.mjs and test/determinism-hardening-pass-11.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -440,9 +425,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s28",
+											"id": "s27",
 											"title": "Determinism hardening pass 12",
-											"prompt": "Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical.",
+											"prompt": "Determinism hardening pass 12. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-12.mjs and test/determinism-hardening-pass-12.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -455,9 +440,24 @@
 											"testFirst": false
 										},
 										{
+											"id": "s28",
+											"title": "Determinism hardening pass 13",
+											"prompt": "Determinism hardening pass 13. Sweep the existing modules for hidden nondeterminism (implicit ordering, locale-dependent formatting, floating-point drift) and lock the found cases with regression tests. Pure refactors only; behavior stays identical. Files for THIS card: src/determinism-hardening-pass-13.mjs and test/determinism-hardening-pass-13.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 25,
+											"filesLikelyTouched": [
+												"src/determinism-hardening-pass-13.mjs",
+												"test/determinism-hardening-pass-13.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
 											"id": "s29",
 											"title": "Flagship integration test and foundation README",
-											"prompt": "Wire a flagship end-to-end node:test that walks one realistic scenario through the domain model and every evaluate module, asserting the full evidence chain, plus a README section documenting the foundation architecture and the knowledge-debt ledger. No placeholders — the scenario uses the seeded fixtures.",
+											"prompt": "Flagship integration test and foundation README. Wire a flagship end-to-end node:test that walks one realistic scenario through the domain model and every evaluate module, asserting the full evidence chain, plus a README section documenting the foundation architecture and the knowledge-debt ledger. No placeholders — the scenario uses the seeded fixtures. Files for THIS card: src/flagship-integration-test-and-foundation.mjs and test/flagship-integration-test-and-foundation.test.mjs.",
 											"dependsOn": [
 												"s01",
 												"s02",
@@ -467,8 +467,8 @@
 											],
 											"complexity": 45,
 											"filesLikelyTouched": [
-												"test/integration.test.mjs",
-												"README.md"
+												"src/flagship-integration-test-and-foundation.mjs",
+												"test/flagship-integration-test-and-foundation.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -486,7 +486,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -582,7 +582,7 @@
 		{
 			"id": "perfect-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -678,7 +678,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Scheduling engine with provider availability, room constraints, visit type",
+			"userMessageIncludes": "src/scheduling-engine-with-provider-availabi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -774,7 +774,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Encounter note workflow with structured sections, versioning, amendments, signatures",
+			"userMessageIncludes": "src/encounter-note-workflow-with-structured.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -870,7 +870,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "FHIR-inspired resource mapping layer that can import and export",
+			"userMessageIncludes": "src/fhir-inspired-resource-mapping-layer-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -966,7 +966,7 @@
 		{
 			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Consent and role-based access policy that filters sensitive notes",
+			"userMessageIncludes": "src/consent-and-role-based-access-policy-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1062,7 +1062,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Results inbox for lab or imaging results with abnormal",
+			"userMessageIncludes": "src/results-inbox-for-lab-or-imaging-results.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1158,7 +1158,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Care plan tracker with goals, interventions, due dates, barriers",
+			"userMessageIncludes": "src/care-plan-tracker-with-goals-interventio.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1254,7 +1254,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Seed clinic with overlapping appointments, sensitive notes, amended encounters",
+			"userMessageIncludes": "src/seed-clinic-with-overlapping-appointment.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1350,7 +1350,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "The reframing (why this is an authorization engine wearing",
+			"userMessageIncludes": "src/the-hardest-technical-seams.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1376,12 +1376,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/the-reframing-why-this-is-an-authorizati.mjs",
-											"content": "/**\n * The reframing (why this is an authorization engine wearing\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheReframingWhyThisIsAnAuthorizatiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheReframingWhyThisIsAnAuthorizatiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheReframingWhyThisIsAnAuthorizatiFinding[] }} TheReframingWhyThisIsAnAuthorizatiResult\n */\n\n/**\n * Evaluate one input against the the reframing (why this is an authorization engine wearing policy.\n * @param {TheReframingWhyThisIsAnAuthorizatiInput} input\n * @returns {TheReframingWhyThisIsAnAuthorizatiResult}\n */\nexport function evaluateTheReframingWhyThisIsAnAuthorizati(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-reframing-why-this-is-an-authorizati/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/the-hardest-technical-seams.mjs",
+											"content": "/**\n * The hardest technical seams\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheHardestTechnicalSeamsInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheHardestTechnicalSeamsFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheHardestTechnicalSeamsFinding[] }} TheHardestTechnicalSeamsResult\n */\n\n/**\n * Evaluate one input against the the hardest technical seams policy.\n * @param {TheHardestTechnicalSeamsInput} input\n * @returns {TheHardestTechnicalSeamsResult}\n */\nexport function evaluateTheHardestTechnicalSeams(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-hardest-technical-seams/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/the-reframing-why-this-is-an-authorizati.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheReframingWhyThisIsAnAuthorizati } from \"../src/the-reframing-why-this-is-an-authorizati.mjs\";\n\ntest(\"the-reframing-why-this-is-an-authorizati: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheReframingWhyThisIsAnAuthorizati({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-reframing-why-this-is-an-authorizati: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheReframingWhyThisIsAnAuthorizati({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/the-hardest-technical-seams.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheHardestTechnicalSeams } from \"../src/the-hardest-technical-seams.mjs\";\n\ntest(\"the-hardest-technical-seams: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-hardest-technical-seams: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1407,7 +1407,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"The reframing (why this is an authorization engine wearing\": src/the-reframing-why-this-is-an-authorizati.mjs, test/the-reframing-why-this-is-an-authorizati.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"The hardest technical seams\": src/the-hardest-technical-seams.mjs, test/the-hardest-technical-seams.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1417,7 +1417,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"The reframing (why this is an authorization engine wearing\"",
+			"userMessageIncludes": "the card \"The hardest technical seams\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1427,7 +1427,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"The reframing (why this is an authorization engine wearing\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"The hardest technical seams\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1446,103 +1446,7 @@
 		{
 			"id": "perfect-worker-s10",
 			"requestClass": "worker",
-			"userMessageIncludes": "The hardest technical seams (where this stops being CRUD)",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/the-hardest-technical-seams-where-this-s.mjs",
-											"content": "/**\n * The hardest technical seams (where this stops being CRUD)\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheHardestTechnicalSeamsWhereThisSInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheHardestTechnicalSeamsWhereThisSFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheHardestTechnicalSeamsWhereThisSFinding[] }} TheHardestTechnicalSeamsWhereThisSResult\n */\n\n/**\n * Evaluate one input against the the hardest technical seams (where this stops being crud) policy.\n * @param {TheHardestTechnicalSeamsWhereThisSInput} input\n * @returns {TheHardestTechnicalSeamsWhereThisSResult}\n */\nexport function evaluateTheHardestTechnicalSeamsWhereThisS(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-hardest-technical-seams-where-this-s/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams-where-this-s/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams-where-this-s/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams-where-this-s/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/the-hardest-technical-seams-where-this-s.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheHardestTechnicalSeamsWhereThisS } from \"../src/the-hardest-technical-seams-where-this-s.mjs\";\n\ntest(\"the-hardest-technical-seams-where-this-s: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheHardestTechnicalSeamsWhereThisS({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-hardest-technical-seams-where-this-s: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheHardestTechnicalSeamsWhereThisS({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"The hardest technical seams (where this stops being CRUD)\": src/the-hardest-technical-seams-where-this-s.mjs, test/the-hardest-technical-seams-where-this-s.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s10",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"The hardest technical seams (where this stops being CRUD)\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"The hardest technical seams (where this stops being CRUD)\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s11",
-			"requestClass": "worker",
-			"userMessageIncludes": "Determinism & testability strategy",
+			"userMessageIncludes": "src/determinism-testability-strategy.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1607,7 +1511,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s11",
+			"id": "perfect-review-s10",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism & testability strategy\"",
 			"turns": [
@@ -1636,9 +1540,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s12",
+			"id": "perfect-worker-s11",
 			"requestClass": "worker",
-			"userMessageIncludes": "Adversarial, failure, and edge-case scenarios (ship these as fixtures)",
+			"userMessageIncludes": "src/adversarial-failure-and-edge-case-scenar.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1665,7 +1569,7 @@
 									"files": [
 										{
 											"path": "src/adversarial-failure-and-edge-case-scenar.mjs",
-											"content": "/**\n * Adversarial, failure, and edge-case scenarios (ship these as fixtures)\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AdversarialFailureAndEdgeCaseScenarInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AdversarialFailureAndEdgeCaseScenarFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AdversarialFailureAndEdgeCaseScenarFinding[] }} AdversarialFailureAndEdgeCaseScenarResult\n */\n\n/**\n * Evaluate one input against the adversarial, failure, and edge-case scenarios (ship these as fixtures) policy.\n * @param {AdversarialFailureAndEdgeCaseScenarInput} input\n * @returns {AdversarialFailureAndEdgeCaseScenarResult}\n */\nexport function evaluateAdversarialFailureAndEdgeCaseScenar(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"adversarial-failure-and-edge-case-scenar/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Adversarial, failure, and edge-case scenarios\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} AdversarialFailureAndEdgeCaseScenarInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} AdversarialFailureAndEdgeCaseScenarFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: AdversarialFailureAndEdgeCaseScenarFinding[] }} AdversarialFailureAndEdgeCaseScenarResult\n */\n\n/**\n * Evaluate one input against the adversarial, failure, and edge-case scenarios policy.\n * @param {AdversarialFailureAndEdgeCaseScenarInput} input\n * @returns {AdversarialFailureAndEdgeCaseScenarResult}\n */\nexport function evaluateAdversarialFailureAndEdgeCaseScenar(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"adversarial-failure-and-edge-case-scenar/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"adversarial-failure-and-edge-case-scenar/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/adversarial-failure-and-edge-case-scenar.test.mjs",
@@ -1695,7 +1599,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Adversarial, failure, and edge-case scenarios (ship these as fixtures)\": src/adversarial-failure-and-edge-case-scenar.mjs, test/adversarial-failure-and-edge-case-scenar.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Adversarial, failure, and edge-case scenarios\": src/adversarial-failure-and-edge-case-scenar.mjs, test/adversarial-failure-and-edge-case-scenar.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1703,9 +1607,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s12",
+			"id": "perfect-review-s11",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Adversarial, failure, and edge-case scenarios (ship these as fixtures)\"",
+			"userMessageIncludes": "the card \"Adversarial, failure, and edge-case scenarios\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1715,7 +1619,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Adversarial, failure, and edge-case scenarios (ship these as fixtures)\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Adversarial, failure, and edge-case scenarios\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1732,9 +1636,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s13",
+			"id": "perfect-worker-s12",
 			"requestClass": "worker",
-			"userMessageIncludes": "Rigorous acceptance criteria, including invariants (property-based)",
+			"userMessageIncludes": "src/rigorous-acceptance-criteria-including-i.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1761,7 +1665,7 @@
 									"files": [
 										{
 											"path": "src/rigorous-acceptance-criteria-including-i.mjs",
-											"content": "/**\n * Rigorous acceptance criteria, including invariants (property-based)\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RigorousAcceptanceCriteriaIncludingIInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RigorousAcceptanceCriteriaIncludingIFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RigorousAcceptanceCriteriaIncludingIFinding[] }} RigorousAcceptanceCriteriaIncludingIResult\n */\n\n/**\n * Evaluate one input against the rigorous acceptance criteria, including invariants (property-based) policy.\n * @param {RigorousAcceptanceCriteriaIncludingIInput} input\n * @returns {RigorousAcceptanceCriteriaIncludingIResult}\n */\nexport function evaluateRigorousAcceptanceCriteriaIncludingI(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"rigorous-acceptance-criteria-including-i/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"content": "/**\n * Rigorous acceptance criteria, including invariants\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RigorousAcceptanceCriteriaIncludingIInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RigorousAcceptanceCriteriaIncludingIFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RigorousAcceptanceCriteriaIncludingIFinding[] }} RigorousAcceptanceCriteriaIncludingIResult\n */\n\n/**\n * Evaluate one input against the rigorous acceptance criteria, including invariants policy.\n * @param {RigorousAcceptanceCriteriaIncludingIInput} input\n * @returns {RigorousAcceptanceCriteriaIncludingIResult}\n */\nexport function evaluateRigorousAcceptanceCriteriaIncludingI(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"rigorous-acceptance-criteria-including-i/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"rigorous-acceptance-criteria-including-i/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
 											"path": "test/rigorous-acceptance-criteria-including-i.test.mjs",
@@ -1791,7 +1695,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Rigorous acceptance criteria, including invariants (property-based)\": src/rigorous-acceptance-criteria-including-i.mjs, test/rigorous-acceptance-criteria-including-i.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Rigorous acceptance criteria, including invariants\": src/rigorous-acceptance-criteria-including-i.mjs, test/rigorous-acceptance-criteria-including-i.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1799,9 +1703,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s13",
+			"id": "perfect-review-s12",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Rigorous acceptance criteria, including invariants (property-based)\"",
+			"userMessageIncludes": "the card \"Rigorous acceptance criteria, including invariants\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1811,7 +1715,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Rigorous acceptance criteria, including invariants (property-based)\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Rigorous acceptance criteria, including invariants\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -1828,9 +1732,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s14",
+			"id": "perfect-worker-s13",
 			"requestClass": "worker",
-			"userMessageIncludes": "Build THIS first, ~26–30 cards)",
+			"userMessageIncludes": "src/build-this-first-26-30-cards.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1895,7 +1799,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s14",
+			"id": "perfect-review-s13",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Build THIS first, ~26–30 cards)\"",
 			"turns": [
@@ -1924,9 +1828,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s15",
+			"id": "perfect-worker-s14",
 			"requestClass": "worker",
-			"userMessageIncludes": "Domain knowledge-debt to track (surface, don't bluff)",
+			"userMessageIncludes": "src/domain-knowledge-debt-to-track.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1952,12 +1856,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/domain-knowledge-debt-to-track-surface-d.mjs",
-											"content": "/**\n * Domain knowledge-debt to track (surface, don't bluff)\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainKnowledgeDebtToTrackSurfaceDInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainKnowledgeDebtToTrackSurfaceDFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainKnowledgeDebtToTrackSurfaceDFinding[] }} DomainKnowledgeDebtToTrackSurfaceDResult\n */\n\n/**\n * Evaluate one input against the domain knowledge-debt to track (surface, don't bluff) policy.\n * @param {DomainKnowledgeDebtToTrackSurfaceDInput} input\n * @returns {DomainKnowledgeDebtToTrackSurfaceDResult}\n */\nexport function evaluateDomainKnowledgeDebtToTrackSurfaceD(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain-knowledge-debt-to-track-surface-d/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track-surface-d/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track-surface-d/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track-surface-d/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/domain-knowledge-debt-to-track.mjs",
+											"content": "/**\n * Domain knowledge-debt to track\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DomainKnowledgeDebtToTrackInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DomainKnowledgeDebtToTrackFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DomainKnowledgeDebtToTrackFinding[] }} DomainKnowledgeDebtToTrackResult\n */\n\n/**\n * Evaluate one input against the domain knowledge-debt to track policy.\n * @param {DomainKnowledgeDebtToTrackInput} input\n * @returns {DomainKnowledgeDebtToTrackResult}\n */\nexport function evaluateDomainKnowledgeDebtToTrack(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"domain-knowledge-debt-to-track/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"domain-knowledge-debt-to-track/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/domain-knowledge-debt-to-track-surface-d.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomainKnowledgeDebtToTrackSurfaceD } from \"../src/domain-knowledge-debt-to-track-surface-d.mjs\";\n\ntest(\"domain-knowledge-debt-to-track-surface-d: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrackSurfaceD({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain-knowledge-debt-to-track-surface-d: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrackSurfaceD({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/domain-knowledge-debt-to-track.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomainKnowledgeDebtToTrack } from \"../src/domain-knowledge-debt-to-track.mjs\";\n\ntest(\"domain-knowledge-debt-to-track: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrack({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain-knowledge-debt-to-track: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrack({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1983,31 +1887,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Domain knowledge-debt to track (surface, don't bluff)\": src/domain-knowledge-debt-to-track-surface-d.mjs, test/domain-knowledge-debt-to-track-surface-d.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "test/domain-knowledge-debt-to-track-surface-d.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDomainKnowledgeDebtToTrackSurfaceD } from \"../src/domain-knowledge-debt-to-track-surface-d.mjs\";\n\ntest(\"domain-knowledge-debt-to-track-surface-d: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrackSurfaceD({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"domain-knowledge-debt-to-track-surface-d: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDomainKnowledgeDebtToTrackSurfaceD({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Addressed the review feedback on \"Domain knowledge-debt to track (surface, don't bluff)\" and re-ran the tests. Task complete."
+						"content": "Implemented \"Domain knowledge-debt to track\": src/domain-knowledge-debt-to-track.mjs, test/domain-knowledge-debt-to-track.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -2015,9 +1895,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s15",
+			"id": "perfect-review-s14",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"Domain knowledge-debt to track (surface, don't bluff)\"",
+			"userMessageIncludes": "the card \"Domain knowledge-debt to track\"",
 			"turns": [
 				{
 					"behavior": {
@@ -2026,23 +1906,8 @@
 							{
 								"name": "submit_review",
 								"arguments": {
-									"verdict": "request_changes",
-									"summary": "\"Domain knowledge-debt to track (surface, don't bluff)\" is close but ships a gap the card explicitly owns.",
-									"feedback": "The evaluate module for \"Domain knowledge-debt to track (surface, don't bluff)\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"Domain knowledge-debt to track (surface, don't bluff)\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"Domain knowledge-debt to track\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
@@ -2059,9 +1924,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s16",
+			"id": "perfect-worker-s15",
 			"requestClass": "worker",
-			"userMessageIncludes": "Why this is a great !Klein challenge",
+			"userMessageIncludes": "src/why-this-is-a-great-klein-challenge.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2120,16 +1985,55 @@
 						"kind": "text",
 						"content": "Implemented \"Why this is a great !Klein challenge\": src/why-this-is-a-great-klein-challenge.mjs, test/why-this-is-a-great-klein-challenge.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "test/why-this-is-a-great-klein-challenge.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateWhyThisIsAGreatKleinChallenge } from \"../src/why-this-is-a-great-klein-challenge.mjs\";\n\ntest(\"why-this-is-a-great-klein-challenge: accepts a clean input with evidence\", () => {\n\tconst result = evaluateWhyThisIsAGreatKleinChallenge({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"why-this-is-a-great-klein-challenge: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateWhyThisIsAGreatKleinChallenge({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Addressed the review feedback on \"Why this is a great !Klein challenge\" and re-ran the tests. Task complete."
+					}
 				}
 			],
 			"repeatLastTurn": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s16",
+			"id": "perfect-review-s15",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Why this is a great !Klein challenge\"",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "request_changes",
+									"summary": "\"Why this is a great !Klein challenge\" is close but ships a gap the card explicitly owns.",
+									"feedback": "The evaluate module for \"Why this is a great !Klein challenge\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -2155,9 +2059,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s17",
+			"id": "perfect-worker-s16",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 1",
+			"userMessageIncludes": "src/determinism-hardening-pass-1.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2222,7 +2126,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s17",
+			"id": "perfect-review-s16",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 1\"",
 			"turns": [
@@ -2251,9 +2155,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s18",
+			"id": "perfect-worker-s17",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 2",
+			"userMessageIncludes": "src/determinism-hardening-pass-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2318,7 +2222,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s18",
+			"id": "perfect-review-s17",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 2\"",
 			"turns": [
@@ -2347,9 +2251,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s19",
+			"id": "perfect-worker-s18",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 3",
+			"userMessageIncludes": "src/determinism-hardening-pass-3.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2414,7 +2318,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s19",
+			"id": "perfect-review-s18",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 3\"",
 			"turns": [
@@ -2443,9 +2347,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s20",
+			"id": "perfect-worker-s19",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 4",
+			"userMessageIncludes": "src/determinism-hardening-pass-4.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2510,7 +2414,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s20",
+			"id": "perfect-review-s19",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 4\"",
 			"turns": [
@@ -2539,9 +2443,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s21",
+			"id": "perfect-worker-s20",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 5",
+			"userMessageIncludes": "src/determinism-hardening-pass-5.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2606,7 +2510,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s21",
+			"id": "perfect-review-s20",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 5\"",
 			"turns": [
@@ -2635,9 +2539,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s22",
+			"id": "perfect-worker-s21",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 6",
+			"userMessageIncludes": "src/determinism-hardening-pass-6.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2702,7 +2606,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s22",
+			"id": "perfect-review-s21",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 6\"",
 			"turns": [
@@ -2731,9 +2635,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s23",
+			"id": "perfect-worker-s22",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 7",
+			"userMessageIncludes": "src/determinism-hardening-pass-7.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2798,7 +2702,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s23",
+			"id": "perfect-review-s22",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 7\"",
 			"turns": [
@@ -2827,9 +2731,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s24",
+			"id": "perfect-worker-s23",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 8",
+			"userMessageIncludes": "src/determinism-hardening-pass-8.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2894,7 +2798,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s24",
+			"id": "perfect-review-s23",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 8\"",
 			"turns": [
@@ -2923,9 +2827,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s25",
+			"id": "perfect-worker-s24",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 9",
+			"userMessageIncludes": "src/determinism-hardening-pass-9.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -2990,7 +2894,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s25",
+			"id": "perfect-review-s24",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 9\"",
 			"turns": [
@@ -3019,9 +2923,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s26",
+			"id": "perfect-worker-s25",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 10",
+			"userMessageIncludes": "src/determinism-hardening-pass-10.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3086,7 +2990,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s26",
+			"id": "perfect-review-s25",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 10\"",
 			"turns": [
@@ -3115,9 +3019,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s27",
+			"id": "perfect-worker-s26",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 11",
+			"userMessageIncludes": "src/determinism-hardening-pass-11.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3182,7 +3086,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s27",
+			"id": "perfect-review-s26",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 11\"",
 			"turns": [
@@ -3211,9 +3115,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s28",
+			"id": "perfect-worker-s27",
 			"requestClass": "worker",
-			"userMessageIncludes": "Determinism hardening pass 12",
+			"userMessageIncludes": "src/determinism-hardening-pass-12.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3278,7 +3182,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s28",
+			"id": "perfect-review-s27",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Determinism hardening pass 12\"",
 			"turns": [
@@ -3307,9 +3211,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s29",
+			"id": "perfect-worker-s28",
 			"requestClass": "worker",
-			"userMessageIncludes": "Flagship integration test and foundation README",
+			"userMessageIncludes": "src/determinism-hardening-pass-13.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -3335,12 +3239,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/integration.mjs",
-											"content": "/**\n * Flagship integration test and foundation README\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} IntegrationInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} IntegrationFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: IntegrationFinding[] }} IntegrationResult\n */\n\n/**\n * Evaluate one input against the flagship integration test and foundation readme policy.\n * @param {IntegrationInput} input\n * @returns {IntegrationResult}\n */\nexport function evaluateIntegration(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"integration/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"integration/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"integration/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"integration/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/determinism-hardening-pass-13.mjs",
+											"content": "/**\n * Determinism hardening pass 13\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DeterminismHardeningPass13Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DeterminismHardeningPass13Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DeterminismHardeningPass13Finding[] }} DeterminismHardeningPass13Result\n */\n\n/**\n * Evaluate one input against the determinism hardening pass 13 policy.\n * @param {DeterminismHardeningPass13Input} input\n * @returns {DeterminismHardeningPass13Result}\n */\nexport function evaluateDeterminismHardeningPass13(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"determinism-hardening-pass-13/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"determinism-hardening-pass-13/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"determinism-hardening-pass-13/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"determinism-hardening-pass-13/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/integration.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateIntegration } from \"../src/integration.mjs\";\n\ntest(\"integration: accepts a clean input with evidence\", () => {\n\tconst result = evaluateIntegration({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"integration: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateIntegration({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/determinism-hardening-pass-13.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDeterminismHardeningPass13 } from \"../src/determinism-hardening-pass-13.mjs\";\n\ntest(\"determinism-hardening-pass-13: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDeterminismHardeningPass13({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"determinism-hardening-pass-13: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDeterminismHardeningPass13({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -3366,7 +3270,103 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Flagship integration test and foundation README\": src/integration.mjs, test/integration.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"Determinism hardening pass 13\": src/determinism-hardening-pass-13.mjs, test/determinism-hardening-pass-13.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s28",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Determinism hardening pass 13\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Determinism hardening pass 13\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s29",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/flagship-integration-test-and-foundation.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/flagship-integration-test-and-foundation.mjs",
+											"content": "/**\n * Flagship integration test and foundation README\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} FlagshipIntegrationTestAndFoundationInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} FlagshipIntegrationTestAndFoundationFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: FlagshipIntegrationTestAndFoundationFinding[] }} FlagshipIntegrationTestAndFoundationResult\n */\n\n/**\n * Evaluate one input against the flagship integration test and foundation readme policy.\n * @param {FlagshipIntegrationTestAndFoundationInput} input\n * @returns {FlagshipIntegrationTestAndFoundationResult}\n */\nexport function evaluateFlagshipIntegrationTestAndFoundation(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"flagship-integration-test-and-foundation/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"flagship-integration-test-and-foundation/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"flagship-integration-test-and-foundation/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"flagship-integration-test-and-foundation/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/flagship-integration-test-and-foundation.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateFlagshipIntegrationTestAndFoundation } from \"../src/flagship-integration-test-and-foundation.mjs\";\n\ntest(\"flagship-integration-test-and-foundation: accepts a clean input with evidence\", () => {\n\tconst result = evaluateFlagshipIntegrationTestAndFoundation({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"flagship-integration-test-and-foundation: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateFlagshipIntegrationTestAndFoundation({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Flagship integration test and foundation README\": src/flagship-integration-test-and-foundation.mjs, test/flagship-integration-test-and-foundation.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],

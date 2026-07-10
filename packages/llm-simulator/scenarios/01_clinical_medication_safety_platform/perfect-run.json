@@ -705,7 +705,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: strict TypeScript and Vitest wiring",
+			"userMessageIncludes": "Create the npm scaffold: package.json (private, type module,",
 			"turns": [
 				{
 					"behavior": {
@@ -780,7 +780,7 @@
 		{
 			"id": "perfect-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core branded domain types",
+			"userMessageIncludes": "Create src/core/types.ts with the exact S01 exports: branded",
 			"turns": [
 				{
 					"behavior": {
@@ -839,7 +839,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Injected Clock interface and FixedClock",
+			"userMessageIncludes": "Create src/core/clock.ts exporting interface Clock { now():",
 			"turns": [
 				{
 					"behavior": {
@@ -901,7 +901,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Unit-safe dose and quantity arithmetic",
+			"userMessageIncludes": "Create src/core/dose.ts per S03: DoseUnit/FrequencyUnit/Weig",
 			"turns": [
 				{
 					"behavior": {
@@ -974,7 +974,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "RxNorm-shaped fixture graph",
+			"userMessageIncludes": "Create src/fixtures/rxnorm-graph.ts exporting FIXTURE_RXNORM",
 			"turns": [
 				{
 					"behavior": {
@@ -1028,7 +1028,7 @@
 		{
 			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "MedicationConceptResolver with unmatched blocking state",
+			"userMessageIncludes": "Create src/core/medication-concept-resolver.ts per S04: reso",
 			"turns": [
 				{
 					"behavior": {
@@ -1102,7 +1102,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Resolver ambiguity and NDC lookup tests",
+			"userMessageIncludes": "Add test/medication-concept-resolver-ambiguity.test.ts: an a",
 			"turns": [
 				{
 					"behavior": {
@@ -1157,7 +1157,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Versioned ReferencePack fixture",
+			"userMessageIncludes": "Create src/fixtures/reference-pack.ts exporting FIXTURE_REFE",
 			"turns": [
 				{
 					"behavior": {
@@ -1216,7 +1216,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Append-only AuditLog",
+			"userMessageIncludes": "Create src/core/audit-log.ts per S06: AuditEventType union,",
 			"turns": [
 				{
 					"behavior": {
@@ -1275,7 +1275,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Alert and rule-input type contracts",
+			"userMessageIncludes": "Create src/core/rule-types.ts with the S07 contracts shared",
 			"turns": [
 				{
 					"behavior": {
@@ -1330,7 +1330,7 @@
 		{
 			"id": "perfect-worker-s10",
 			"requestClass": "worker",
-			"userMessageIncludes": "Duplicate-ingredient rule with MIN decomposition",
+			"userMessageIncludes": "Create src/core/rules/dup-ingredient.ts: checkDuplicateIngre",
 			"turns": [
 				{
 					"behavior": {
@@ -1389,7 +1389,7 @@
 		{
 			"id": "perfect-worker-s11",
 			"requestClass": "worker",
-			"userMessageIncludes": "Therapeutic-class duplication rule",
+			"userMessageIncludes": "Create src/core/rules/dup-class.ts: checkClassDuplication(re",
 			"turns": [
 				{
 					"behavior": {
@@ -1448,7 +1448,7 @@
 		{
 			"id": "perfect-worker-s12",
 			"requestClass": "worker",
-			"userMessageIncludes": "Max-daily-dose rule with frequency folding",
+			"userMessageIncludes": "Create src/core/rules/max-dose.ts: checkMaxDailyDose(facts,",
 			"turns": [
 				{
 					"behavior": {
@@ -1523,7 +1523,7 @@
 		{
 			"id": "perfect-worker-s13",
 			"requestClass": "worker",
-			"userMessageIncludes": "Allergy rule with beta-lactam cross-reactivity",
+			"userMessageIncludes": "Create src/core/rules/allergy.ts: checkAllergy(facts, regime",
 			"turns": [
 				{
 					"behavior": {
@@ -1582,7 +1582,7 @@
 		{
 			"id": "perfect-worker-s14",
 			"requestClass": "worker",
-			"userMessageIncludes": "Contraindication rule with unsuppressible severity",
+			"userMessageIncludes": "Create src/core/rules/contraindication.ts: checkContraindica",
 			"turns": [
 				{
 					"behavior": {
@@ -1641,7 +1641,7 @@
 		{
 			"id": "perfect-worker-s15",
 			"requestClass": "worker",
-			"userMessageIncludes": "evaluateRules facade over the five rules",
+			"userMessageIncludes": "Create src/core/rule-engine.ts: evaluateRules(facts, regimen",
 			"turns": [
 				{
 					"behavior": {
@@ -1716,7 +1716,7 @@
 		{
 			"id": "perfect-worker-s16",
 			"requestClass": "worker",
-			"userMessageIncludes": "SuppressionStore with severity ceiling",
+			"userMessageIncludes": "Create src/core/suppression-store.ts per S08: SuppressionRec",
 			"turns": [
 				{
 					"behavior": {
@@ -1775,7 +1775,7 @@
 		{
 			"id": "perfect-worker-s17",
 			"requestClass": "worker",
-			"userMessageIncludes": "Suppression audit-event integration",
+			"userMessageIncludes": "Extend SuppressionStore.record with an optional auditLog par",
 			"turns": [
 				{
 					"behavior": {
@@ -1849,7 +1849,7 @@
 		{
 			"id": "perfect-worker-s18",
 			"requestClass": "worker",
-			"userMessageIncludes": "Suppression expiry on the injected clock",
+			"userMessageIncludes": "Add expiresAt?: Date to SuppressionRecord (optional expiry a",
 			"turns": [
 				{
 					"behavior": {
@@ -1916,7 +1916,7 @@
 		{
 			"id": "perfect-worker-s19",
 			"requestClass": "worker",
-			"userMessageIncludes": "Suppression ceiling fuzz invariant",
+			"userMessageIncludes": "Add test/suppression-invariant.test.ts: with a seeded LCG (s",
 			"turns": [
 				{
 					"behavior": {
@@ -1970,7 +1970,7 @@
 		{
 			"id": "perfect-worker-s20",
 			"requestClass": "worker",
-			"userMessageIncludes": "Reconciliation workflow with source provenance",
+			"userMessageIncludes": "Create src/core/reconciliation.ts per S09: MedicationSource,",
 			"turns": [
 				{
 					"behavior": {
@@ -2044,7 +2044,7 @@
 		{
 			"id": "perfect-worker-s21",
 			"requestClass": "worker",
-			"userMessageIncludes": "Reconciliation totality property test",
+			"userMessageIncludes": "Add test/reconciliation-totality.test.ts: with a seeded LCG",
 			"turns": [
 				{
 					"behavior": {
@@ -2098,7 +2098,7 @@
 		{
 			"id": "perfect-worker-s22",
 			"requestClass": "worker",
-			"userMessageIncludes": "Adherence calendar summary",
+			"userMessageIncludes": "Create src/core/adherence-calendar.ts per S10: AdherenceEven",
 			"turns": [
 				{
 					"behavior": {
@@ -2157,7 +2157,7 @@
 		{
 			"id": "perfect-worker-s23",
 			"requestClass": "worker",
-			"userMessageIncludes": "Adherence timezone-determinism property",
+			"userMessageIncludes": "Add test/adherence-determinism.test.ts: run summarizeAdheren",
 			"turns": [
 				{
 					"behavior": {
@@ -2212,7 +2212,7 @@
 		{
 			"id": "perfect-worker-s24",
 			"requestClass": "worker",
-			"userMessageIncludes": "Refill-exhaustion forecast on the injected clock",
+			"userMessageIncludes": "Create src/core/refill-forecast.ts per S11: forecastRefill(c",
 			"turns": [
 				{
 					"behavior": {
@@ -2271,7 +2271,7 @@
 		{
 			"id": "perfect-worker-s25",
 			"requestClass": "worker",
-			"userMessageIncludes": "Held-medication refill forecast scenario",
+			"userMessageIncludes": "Add test/refill-forecast-held.test.ts (worked example C): a",
 			"turns": [
 				{
 					"behavior": {
@@ -2325,7 +2325,7 @@
 		{
 			"id": "perfect-worker-s26",
 			"requestClass": "worker",
-			"userMessageIncludes": "Safety task queue with audit trail",
+			"userMessageIncludes": "Create src/core/task-queue.ts per S12: SafetyTask and TaskQu",
 			"turns": [
 				{
 					"behavior": {
@@ -2385,7 +2385,7 @@
 		{
 			"id": "perfect-worker-s27",
 			"requestClass": "worker",
-			"userMessageIncludes": "Task-to-evidence traceability test",
+			"userMessageIncludes": "Add test/task-traceability.test.ts: run evaluateRules over a",
 			"turns": [
 				{
 					"behavior": {
@@ -2440,7 +2440,7 @@
 		{
 			"id": "perfect-worker-s28",
 			"requestClass": "worker",
-			"userMessageIncludes": "Plain-language patient summary with denylist",
+			"userMessageIncludes": "Create src/core/patient-summary.ts per S13: SUMMARY_DENYLIST",
 			"turns": [
 				{
 					"behavior": {
@@ -2515,7 +2515,7 @@
 		{
 			"id": "perfect-worker-s29",
 			"requestClass": "worker",
-			"userMessageIncludes": "Patient-summary denylist negative tests",
+			"userMessageIncludes": "Add test/patient-summary-denylist.test.ts: table-drive the S",
 			"turns": [
 				{
 					"behavior": {
@@ -2569,7 +2569,7 @@
 		{
 			"id": "perfect-worker-s30",
 			"requestClass": "worker",
-			"userMessageIncludes": "Five seeded patient fixtures",
+			"userMessageIncludes": "Create src/fixtures/patients.ts with the five S14 patients a",
 			"turns": [
 				{
 					"behavior": {
@@ -2624,7 +2624,7 @@
 		{
 			"id": "perfect-worker-s31",
 			"requestClass": "worker",
-			"userMessageIncludes": "Adversarial E4 scenario fixtures",
+			"userMessageIncludes": "Create src/fixtures/adversarial-scenarios.ts re-exporting th",
 			"turns": [
 				{
 					"behavior": {
@@ -2678,7 +2678,7 @@
 		{
 			"id": "perfect-worker-s32",
 			"requestClass": "worker",
-			"userMessageIncludes": "Flagship integration test over seeded patients",
+			"userMessageIncludes": "Create test/integration.test.ts wiring S01-S31 together over",
 			"turns": [
 				{
 					"behavior": {
@@ -2749,7 +2749,7 @@
 		{
 			"id": "perfect-worker-s33",
 			"requestClass": "worker",
-			"userMessageIncludes": "Therapeutic-class breadth in the ReferencePack",
+			"userMessageIncludes": "Worked example A, card 1: extend FIXTURE_REFERENCE_PACK.ther",
 			"turns": [
 				{
 					"behavior": {
@@ -2822,7 +2822,7 @@
 		{
 			"id": "perfect-worker-s34",
 			"requestClass": "worker",
-			"userMessageIncludes": "Duplicate-class breadth patient fixtures",
+			"userMessageIncludes": "Worked example A, card 2: add three more patient fixtures (t",
 			"turns": [
 				{
 					"behavior": {
@@ -2877,7 +2877,7 @@
 		{
 			"id": "perfect-worker-s35",
 			"requestClass": "worker",
-			"userMessageIncludes": "Same-class duplication property test",
+			"userMessageIncludes": "Worked example A, card 3: add test/rule-engine-property.test",
 			"turns": [
 				{
 					"behavior": {
@@ -2932,7 +2932,7 @@
 		{
 			"id": "perfect-worker-s36",
 			"requestClass": "worker",
-			"userMessageIncludes": "Audit-log projections for queue and calendar",
+			"userMessageIncludes": "Create src/core/audit-projections.ts: projectTaskCounts(audi",
 			"turns": [
 				{
 					"behavior": {
@@ -2991,7 +2991,7 @@
 		{
 			"id": "perfect-worker-s37",
 			"requestClass": "worker",
-			"userMessageIncludes": "Knowledge-debt ledger",
+			"userMessageIncludes": "Create docs/knowledge-debt.md: a table of live debts with co",
 			"turns": [
 				{
 					"behavior": {
@@ -3030,7 +3030,7 @@
 		{
 			"id": "perfect-worker-s38",
 			"requestClass": "worker",
-			"userMessageIncludes": "LASA confusable-name surfacing rule",
+			"userMessageIncludes": "Create src/core/rules/lasa.ts: checkLookAlikeSoundAlike(regi",
 			"turns": [
 				{
 					"behavior": {
@@ -3088,7 +3088,7 @@
 		{
 			"id": "perfect-worker-s39",
 			"requestClass": "worker",
-			"userMessageIncludes": "FHIR-shaped import adapter over fixtures",
+			"userMessageIncludes": "Create src/adapters/fhir-import.ts: a deterministic adapter",
 			"turns": [
 				{
 					"behavior": {
@@ -3147,7 +3147,7 @@
 		{
 			"id": "perfect-worker-s40",
 			"requestClass": "worker",
-			"userMessageIncludes": "Repository README and architecture notes",
+			"userMessageIncludes": "Write README.md: what the platform is (decision support, not",
 			"turns": [
 				{
 					"behavior": {

@@ -52,6 +52,40 @@ describe("checked-in scenario sets", () => {
 					expect(new Set(needles).size).toBe(needles.length);
 				}
 
+				// A worker session's user text is the card PROMPT — every worker needle must literally appear in
+				// some decomposed card prompt or the track can never match on the wire (titles alone don't).
+				const cardPrompts = decomposeEmitters.flatMap((track) =>
+					track.turns.flatMap((turn) =>
+						turn.behavior.kind === "tool_calls"
+							? turn.behavior.calls
+									.filter((call) => call.name === "decompose_project")
+									.flatMap((call) => ((call.arguments as { tasks?: Array<{ prompt?: string }> }).tasks ?? []).map((task) => (task.prompt ?? "").toLowerCase()))
+							: [],
+					),
+				);
+				const sharedDecomposeText = decomposeEmitters
+					.flatMap((track) => track.turns)
+					.flatMap((turn) => (turn.behavior.kind === "tool_calls" ? turn.behavior.calls : []))
+					.filter((call) => call.name === "decompose_project")
+					.map((call) => {
+						const args = call.arguments as { spec?: string; plan?: string; summary?: string };
+						return `${args.spec ?? ""}\n${args.plan ?? ""}\n${args.summary ?? ""}`.toLowerCase();
+					})
+					.join("\n");
+				for (const track of script.tracks.filter((track) => track.requestClass === "worker")) {
+					const needle = (track.userMessageIncludes ?? "").toLowerCase();
+					expect(needle).not.toHaveLength(0);
+					// EXCLUSIVITY (live incident, project-02 run 2026-07-10): !Klein embeds the decompose spec into
+					// every card prompt, so a needle in the shared spec/plan or in >1 prompt cross-matches and one
+					// card's catch-all swallows every other worker session.
+					const promptHits = cardPrompts.filter((prompt) => prompt.includes(needle)).length;
+					expect(promptHits, `${track.id}: needle "${needle}" matches ${promptHits} card prompts (must be exactly 1)`).toBe(1);
+					expect(
+						sharedDecomposeText.includes(needle),
+						`${track.id}: needle "${needle}" leaks into the shared decompose spec/plan/summary`,
+					).toBe(false);
+				}
+
 				// Review ladders end with a text turn (the runner re-prompts until a non-tool turn) and repeat.
 				for (const track of script.tracks.filter((track) => track.requestClass === "review")) {
 					const last = track.turns[track.turns.length - 1];

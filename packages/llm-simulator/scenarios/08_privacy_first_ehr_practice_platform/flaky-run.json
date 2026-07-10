@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, practitioner, appointment, encounter, observation, condition, medication statement, order). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Scheduling engine with provider availability, room constraints, visit type",
-											"prompt": "Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Scheduling engine with provider availability, room constraints, visit type. Implement the foundation for: Scheduling engine with provider availability, room constraints, visit type duration, cancellation, waitlist, and overbook policy. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scheduling-engine-with-provider-availabi.mjs and test/scheduling-engine-with-provider-availabi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Encounter note workflow with structured sections, versioning, amendments, signatures",
-											"prompt": "Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Encounter note workflow with structured sections, versioning, amendments, signatures. Implement the foundation for: Encounter note workflow with structured sections, versioning, amendments, signatures, and problem-list updates. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/encounter-note-workflow-with-structured.mjs and test/encounter-note-workflow-with-structured.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "FHIR-inspired resource mapping layer that can import and export",
-											"prompt": "Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "FHIR-inspired resource mapping layer that can import and export. Implement the foundation for: FHIR-inspired resource mapping layer that can import and export deterministic JSON fixtures without claiming full FHIR compliance. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/fhir-inspired-resource-mapping-layer-tha.mjs and test/fhir-inspired-resource-mapping-layer-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Consent and role-based access policy that filters sensitive notes",
-											"prompt": "Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Consent and role-based access policy that filters sensitive notes. Implement the foundation for: Consent and role-based access policy that filters sensitive notes, reproductive health flags, behavioral health notes, and minor proxy access scenarios. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/consent-and-role-based-access-policy-tha.mjs and test/consent-and-role-based-access-policy-tha.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Results inbox for lab or imaging results with abnormal",
-											"prompt": "Implement the foundation for: Results inbox for lab or imaging results with abnormal flags, acknowledgment, patient notification, and follow-up task creation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Results inbox for lab or imaging results with abnormal. Implement the foundation for: Results inbox for lab or imaging results with abnormal flags, acknowledgment, patient notification, and follow-up task creation. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/results-inbox-for-lab-or-imaging-results.mjs and test/results-inbox-for-lab-or-imaging-results.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Care plan tracker with goals, interventions, due dates, barriers",
-											"prompt": "Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Care plan tracker with goals, interventions, due dates, barriers. Implement the foundation for: Care plan tracker with goals, interventions, due dates, barriers, outcomes, and patient-facing summary. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/care-plan-tracker-with-goals-interventio.mjs and test/care-plan-tracker-with-goals-interventio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Seed clinic with overlapping appointments, sensitive notes, amended encounters",
-											"prompt": "Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Seed clinic with overlapping appointments, sensitive notes, amended encounters. Implement the foundation for: Seed clinic with overlapping appointments, sensitive notes, amended encounters, and abnormal results. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-clinic-with-overlapping-appointment.mjs and test/seed-clinic-with-overlapping-appointment.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -156,15 +156,15 @@
 										},
 										{
 											"id": "s09",
-											"title": "The reframing (why this is an authorization engine wearing",
-											"prompt": "Implement the foundation for: The reframing (why this is an authorization engine wearing an EHR costume) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"title": "The hardest technical seams",
+											"prompt": "The hardest technical seams. Implement the foundation for: The hardest technical seams (where this stops being CRUD) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/the-hardest-technical-seams.mjs and test/the-hardest-technical-seams.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/the-reframing-why-this-is-an-authorizati.mjs",
-												"test/the-reframing-why-this-is-an-authorizati.test.mjs"
+												"src/the-hardest-technical-seams.mjs",
+												"test/the-hardest-technical-seams.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Scheduling engine with provider availability, room constraints, visit type",
+			"userMessageIncludes": "src/scheduling-engine-with-provider-availabi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Encounter note workflow with structured sections, versioning, amendments, signatures",
+			"userMessageIncludes": "src/encounter-note-workflow-with-structured.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,7 +579,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "FHIR-inspired resource mapping layer that can import and export",
+			"userMessageIncludes": "src/fhir-inspired-resource-mapping-layer-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -675,7 +675,7 @@
 		{
 			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Consent and role-based access policy that filters sensitive notes",
+			"userMessageIncludes": "src/consent-and-role-based-access-policy-tha.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -771,7 +771,7 @@
 		{
 			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Results inbox for lab or imaging results with abnormal",
+			"userMessageIncludes": "src/results-inbox-for-lab-or-imaging-results.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -874,7 +874,7 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Care plan tracker with goals, interventions, due dates, barriers",
+			"userMessageIncludes": "src/care-plan-tracker-with-goals-interventio.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -976,7 +976,7 @@
 		{
 			"id": "flaky-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Seed clinic with overlapping appointments, sensitive notes, amended encounters",
+			"userMessageIncludes": "src/seed-clinic-with-overlapping-appointment.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "The reframing (why this is an authorization engine wearing",
+			"userMessageIncludes": "src/the-hardest-technical-seams.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1111,12 +1111,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/the-reframing-why-this-is-an-authorizati.mjs",
-											"content": "/**\n * The reframing (why this is an authorization engine wearing\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheReframingWhyThisIsAnAuthorizatiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheReframingWhyThisIsAnAuthorizatiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheReframingWhyThisIsAnAuthorizatiFinding[] }} TheReframingWhyThisIsAnAuthorizatiResult\n */\n\n/**\n * Evaluate one input against the the reframing (why this is an authorization engine wearing policy.\n * @param {TheReframingWhyThisIsAnAuthorizatiInput} input\n * @returns {TheReframingWhyThisIsAnAuthorizatiResult}\n */\nexport function evaluateTheReframingWhyThisIsAnAuthorizati(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-reframing-why-this-is-an-authorizati/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-reframing-why-this-is-an-authorizati/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/the-hardest-technical-seams.mjs",
+											"content": "/**\n * The hardest technical seams\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheHardestTechnicalSeamsInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheHardestTechnicalSeamsFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheHardestTechnicalSeamsFinding[] }} TheHardestTechnicalSeamsResult\n */\n\n/**\n * Evaluate one input against the the hardest technical seams policy.\n * @param {TheHardestTechnicalSeamsInput} input\n * @returns {TheHardestTechnicalSeamsResult}\n */\nexport function evaluateTheHardestTechnicalSeams(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-hardest-technical-seams/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-hardest-technical-seams/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/the-reframing-why-this-is-an-authorizati.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheReframingWhyThisIsAnAuthorizati } from \"../src/the-reframing-why-this-is-an-authorizati.mjs\";\n\ntest(\"the-reframing-why-this-is-an-authorizati: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheReframingWhyThisIsAnAuthorizati({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-reframing-why-this-is-an-authorizati: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheReframingWhyThisIsAnAuthorizati({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/the-hardest-technical-seams.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheHardestTechnicalSeams } from \"../src/the-hardest-technical-seams.mjs\";\n\ntest(\"the-hardest-technical-seams: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-hardest-technical-seams: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheHardestTechnicalSeams({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1142,7 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"The reframing (why this is an authorization engine wearing\": src/the-reframing-why-this-is-an-authorizati.mjs, test/the-reframing-why-this-is-an-authorizati.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"The hardest technical seams\": src/the-hardest-technical-seams.mjs, test/the-hardest-technical-seams.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"The reframing (why this is an authorization engine wearing\"",
+			"userMessageIncludes": "the card \"The hardest technical seams\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"The reframing (why this is an authorization engine wearing\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"The hardest technical seams\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

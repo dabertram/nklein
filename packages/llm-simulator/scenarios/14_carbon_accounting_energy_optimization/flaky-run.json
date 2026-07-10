@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (facility, meter, submeter, production line, product, energy source, tariff). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (facility, meter, submeter, production line, product, energy source, tariff). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Scope 1 and Scope 2 accounting engine with factor",
-											"prompt": "Implement the foundation for: Scope 1 and Scope 2 accounting engine with factor versions, location-based and market-based electricity, renewable certificates, and data-quality scoring. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Scope 1 and Scope 2 accounting engine with factor. Implement the foundation for: Scope 1 and Scope 2 accounting engine with factor versions, location-based and market-based electricity, renewable certificates, and data-quality scoring. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/scope-1-and-scope-2-accounting-engine-wi.mjs and test/scope-1-and-scope-2-accounting-engine-wi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Scope 1 and Scope 2 accounting engine with factor — core engine",
-											"prompt": "Extend the scope 1 and scope 2 accounting engine with factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Scope 1 and Scope 2 accounting engine with factor — core engine. Extend the scope 1 and scope 2 accounting engine with factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/scope-1-and-scope-2-accounting-engine-wi-2.mjs and test/scope-1-and-scope-2-accounting-engine-wi-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "Energy baseline model that normalizes consumption against production volume",
-											"prompt": "Implement the foundation for: Energy baseline model that normalizes consumption against production volume, weather degree days, operating hours, and shutdown periods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Energy baseline model that normalizes consumption against production volume. Implement the foundation for: Energy baseline model that normalizes consumption against production volume, weather degree days, operating hours, and shutdown periods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/energy-baseline-model-that-normalizes-co.mjs and test/energy-baseline-model-that-normalizes-co.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Energy baseline model that normalizes consumption against production volume — core engine",
-											"prompt": "Extend the energy baseline model that normalizes consumption against production volume module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Energy baseline model that normalizes consumption against production volume — core engine. Extend the energy baseline model that normalizes consumption against production volume module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/energy-baseline-model-that-normalizes-co-2.mjs and test/energy-baseline-model-that-normalizes-co-2.test.mjs.",
 											"dependsOn": [
 												"s04"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Tariff calculator for time-of-use rates, demand charges, power factor",
-											"prompt": "Implement the foundation for: Tariff calculator for time-of-use rates, demand charges, power factor penalties, contracted capacity, and demand-response events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Tariff calculator for time-of-use rates, demand charges, power factor. Implement the foundation for: Tariff calculator for time-of-use rates, demand charges, power factor penalties, contracted capacity, and demand-response events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/tariff-calculator-for-time-of-use-rates.mjs and test/tariff-calculator-for-time-of-use-rates.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Tariff calculator for time-of-use rates, demand charges, power factor — core engine",
-											"prompt": "Extend the tariff calculator for time-of-use rates, demand charges, power factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Tariff calculator for time-of-use rates, demand charges, power factor — core engine. Extend the tariff calculator for time-of-use rates, demand charges, power factor module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/tariff-calculator-for-time-of-use-rates-2.mjs and test/tariff-calculator-for-time-of-use-rates-2.test.mjs.",
 											"dependsOn": [
 												"s06"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Optimization planner that proposes load shifting, peak shaving, battery",
-											"prompt": "Implement the foundation for: Optimization planner that proposes load shifting, peak shaving, battery dispatch, and production schedule adjustments under operational constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Optimization planner that proposes load shifting, peak shaving, battery. Implement the foundation for: Optimization planner that proposes load shifting, peak shaving, battery dispatch, and production schedule adjustments under operational constraints. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/optimization-planner-that-proposes-load.mjs and test/optimization-planner-that-proposes-load.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -157,7 +157,7 @@
 										{
 											"id": "s09",
 											"title": "Optimization planner that proposes load shifting, peak shaving, battery — core engine",
-											"prompt": "Extend the optimization planner that proposes load shifting, peak shaving, battery module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Optimization planner that proposes load shifting, peak shaving, battery — core engine. Extend the optimization planner that proposes load shifting, peak shaving, battery module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/optimization-planner-that-proposes-load-2.mjs and test/optimization-planner-that-proposes-load-2.test.mjs.",
 											"dependsOn": [
 												"s08"
 											],
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Scope 1 and Scope 2 accounting engine with factor",
+			"userMessageIncludes": "src/scope-1-and-scope-2-accounting-engine-wi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -483,7 +483,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Scope 1 and Scope 2 accounting engine with factor — core engine",
+			"userMessageIncludes": "src/scope-1-and-scope-2-accounting-engine-wi-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -579,7 +579,7 @@
 		{
 			"id": "perfect-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Energy baseline model that normalizes consumption against production volume",
+			"userMessageIncludes": "src/energy-baseline-model-that-normalizes-co.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -675,7 +675,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Energy baseline model that normalizes consumption against production volume — core engine",
+			"userMessageIncludes": "src/energy-baseline-model-that-normalizes-co-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -778,7 +778,7 @@
 		{
 			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Tariff calculator for time-of-use rates, demand charges, power factor",
+			"userMessageIncludes": "src/tariff-calculator-for-time-of-use-rates.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -880,7 +880,7 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Tariff calculator for time-of-use rates, demand charges, power factor — core engine",
+			"userMessageIncludes": "src/tariff-calculator-for-time-of-use-rates-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -989,7 +989,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Optimization planner that proposes load shifting, peak shaving, battery",
+			"userMessageIncludes": "src/optimization-planner-that-proposes-load.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Optimization planner that proposes load shifting, peak shaving, battery — core engine",
+			"userMessageIncludes": "src/optimization-planner-that-proposes-load-2.mjs",
 			"turns": [
 				{
 					"behavior": {

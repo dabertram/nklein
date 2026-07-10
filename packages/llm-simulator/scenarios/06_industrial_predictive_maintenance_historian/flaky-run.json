@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (plant, line, asset, component, sensor tag, reading, alarm, failure). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (plant, line, asset, component, sensor tag, reading, alarm, failure). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Historian ingestion for mixed-rate numeric and categorical tags with",
-											"prompt": "Implement the foundation for: Historian ingestion for mixed-rate numeric and categorical tags with unit metadata, quality flags, and late arrivals. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Historian ingestion for mixed-rate numeric and categorical tags with. Implement the foundation for: Historian ingestion for mixed-rate numeric and categorical tags with unit metadata, quality flags, and late arrivals. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/historian-ingestion-for-mixed-rate-numer.mjs and test/historian-ingestion-for-mixed-rate-numer.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Condition monitoring checks for vibration RMS, temperature drift, pressure",
-											"prompt": "Implement the foundation for: Condition monitoring checks for vibration RMS, temperature drift, pressure deviation, cycle count, operating envelope, and alarm floods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Condition monitoring checks for vibration RMS, temperature drift, pressure. Implement the foundation for: Condition monitoring checks for vibration RMS, temperature drift, pressure deviation, cycle count, operating envelope, and alarm floods. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/condition-monitoring-checks-for-vibratio.mjs and test/condition-monitoring-checks-for-vibratio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "Failure-mode library linking symptoms, thresholds, recommended inspections, required parts",
-											"prompt": "Implement the foundation for: Failure-mode library linking symptoms, thresholds, recommended inspections, required parts, and production impact. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Failure-mode library linking symptoms, thresholds, recommended inspections, required parts. Implement the foundation for: Failure-mode library linking symptoms, thresholds, recommended inspections, required parts, and production impact. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/failure-mode-library-linking-symptoms-th.mjs and test/failure-mode-library-linking-symptoms-th.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Work-order prioritization based on risk, safety class, production schedule",
-											"prompt": "Implement the foundation for: Work-order prioritization based on risk, safety class, production schedule, spare availability, and maintenance windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Work-order prioritization based on risk, safety class, production schedule. Implement the foundation for: Work-order prioritization based on risk, safety class, production schedule, spare availability, and maintenance windows. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/work-order-prioritization-based-on-risk.mjs and test/work-order-prioritization-based-on-risk.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance",
-											"prompt": "Implement the foundation for: Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance actions, and downtime. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance. Implement the foundation for: Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance actions, and downtime. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/root-cause-timeline-that-aligns-telemetr.mjs and test/root-cause-timeline-that-aligns-telemetr.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Simulation fixtures for a pump bearing failure, compressor leak",
-											"prompt": "Implement the foundation for: Simulation fixtures for a pump bearing failure, compressor leak, conveyor misalignment, and false-positive sensor fault. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Simulation fixtures for a pump bearing failure, compressor leak. Implement the foundation for: Simulation fixtures for a pump bearing failure, compressor leak, conveyor misalignment, and false-positive sensor fault. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/simulation-fixtures-for-a-pump-bearing-f.mjs and test/simulation-fixtures-for-a-pump-bearing-f.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Reports for mean time between failures, mean time to",
-											"prompt": "Implement the foundation for: Reports for mean time between failures, mean time to repair, recurring failure modes, and deferred risk. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Reports for mean time between failures, mean time to. Implement the foundation for: Reports for mean time between failures, mean time to repair, recurring failure modes, and deferred risk. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/reports-for-mean-time-between-failures-m.mjs and test/reports-for-mean-time-between-failures-m.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -157,7 +157,7 @@
 										{
 											"id": "s09",
 											"title": "Quality-propagating, late-correcting feature windows",
-											"prompt": "Implement the foundation for: quality-propagating, late-correcting feature windows Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Quality-propagating, late-correcting feature windows. Implement the foundation for: quality-propagating, late-correcting feature windows Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/quality-propagating-late-correcting-feat.mjs and test/quality-propagating-late-correcting-feat.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "perfect-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Historian ingestion for mixed-rate numeric and categorical tags with",
+			"userMessageIncludes": "src/historian-ingestion-for-mixed-rate-numer.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -478,7 +478,7 @@
 		{
 			"id": "perfect-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Condition monitoring checks for vibration RMS, temperature drift, pressure",
+			"userMessageIncludes": "src/condition-monitoring-checks-for-vibratio.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -574,7 +574,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Failure-mode library linking symptoms, thresholds, recommended inspections, required parts",
+			"userMessageIncludes": "src/failure-mode-library-linking-symptoms-th.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -675,7 +675,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Work-order prioritization based on risk, safety class, production schedule",
+			"userMessageIncludes": "src/work-order-prioritization-based-on-risk.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -778,7 +778,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Root-cause timeline that aligns telemetry, alarms, operator notes, maintenance",
+			"userMessageIncludes": "src/root-cause-timeline-that-aligns-telemetr.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -874,7 +874,7 @@
 		{
 			"id": "flaky-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Simulation fixtures for a pump bearing failure, compressor leak",
+			"userMessageIncludes": "src/simulation-fixtures-for-a-pump-bearing-f.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -976,7 +976,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Reports for mean time between failures, mean time to",
+			"userMessageIncludes": "src/reports-for-mean-time-between-failures-m.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1072,7 +1072,7 @@
 		{
 			"id": "flaky-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "Quality-propagating, late-correcting feature windows",
+			"userMessageIncludes": "src/quality-propagating-late-correcting-feat.mjs",
 			"turns": [
 				{
 					"behavior": {

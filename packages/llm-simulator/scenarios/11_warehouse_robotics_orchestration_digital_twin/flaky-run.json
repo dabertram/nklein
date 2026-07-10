@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (warehouse map, node, aisle, zone, robot, charger, tote, sku). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (warehouse map, node, aisle, zone, robot, charger, tote, sku). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Task allocation engine that assigns robots based on location",
-											"prompt": "Implement the foundation for: Task allocation engine that assigns robots based on location, battery, payload, priority, zone permissions, order wave, and charger availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Task allocation engine that assigns robots based on location. Implement the foundation for: Task allocation engine that assigns robots based on location, battery, payload, priority, zone permissions, order wave, and charger availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/task-allocation-engine-that-assigns-robo.mjs and test/task-allocation-engine-that-assigns-robo.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Traffic manager with path reservations, one-way aisles, intersection locks",
-											"prompt": "Implement the foundation for: Traffic manager with path reservations, one-way aisles, intersection locks, deadlock detection, and replanning. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Traffic manager with path reservations, one-way aisles, intersection locks. Implement the foundation for: Traffic manager with path reservations, one-way aisles, intersection locks, deadlock detection, and replanning. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/traffic-manager-with-path-reservations-o.mjs and test/traffic-manager-with-path-reservations-o.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -82,7 +82,7 @@
 										{
 											"id": "s04",
 											"title": "Digital twin simulation that replays robot telemetry, task state",
-											"prompt": "Implement the foundation for: Digital twin simulation that replays robot telemetry, task state, inventory movement, and exception events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Digital twin simulation that replays robot telemetry, task state. Implement the foundation for: Digital twin simulation that replays robot telemetry, task state, inventory movement, and exception events. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/digital-twin-simulation-that-replays-rob.mjs and test/digital-twin-simulation-that-replays-rob.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -97,7 +97,7 @@
 										{
 											"id": "s05",
 											"title": "Inventory movement ledger connecting physical totes, SKU quantities, source/destination",
-											"prompt": "Implement the foundation for: Inventory movement ledger connecting physical totes, SKU quantities, source/destination, scan evidence, and exception correction. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Inventory movement ledger connecting physical totes, SKU quantities, source/destination. Implement the foundation for: Inventory movement ledger connecting physical totes, SKU quantities, source/destination, scan evidence, and exception correction. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/inventory-movement-ledger-connecting-phy.mjs and test/inventory-movement-ledger-connecting-phy.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -112,7 +112,7 @@
 										{
 											"id": "s06",
 											"title": "Safety-zone policy for human-only areas, maintenance lockout, emergency stop",
-											"prompt": "Implement the foundation for: Safety-zone policy for human-only areas, maintenance lockout, emergency stop, speed-limited zones, and blocked aisles. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Safety-zone policy for human-only areas, maintenance lockout, emergency stop. Implement the foundation for: Safety-zone policy for human-only areas, maintenance lockout, emergency stop, speed-limited zones, and blocked aisles. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/safety-zone-policy-for-human-only-areas.mjs and test/safety-zone-policy-for-human-only-areas.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -127,7 +127,7 @@
 										{
 											"id": "s07",
 											"title": "Battery and charger scheduler with queueing, opportunity charging, and",
-											"prompt": "Implement the foundation for: Battery and charger scheduler with queueing, opportunity charging, and degraded robot behavior. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Battery and charger scheduler with queueing, opportunity charging, and. Implement the foundation for: Battery and charger scheduler with queueing, opportunity charging, and degraded robot behavior. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/battery-and-charger-scheduler-with-queue.mjs and test/battery-and-charger-scheduler-with-queue.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -142,7 +142,7 @@
 										{
 											"id": "s08",
 											"title": "Seed scenario with rush orders, blocked aisle, low-battery robot",
-											"prompt": "Implement the foundation for: Seed scenario with rush orders, blocked aisle, low-battery robot, lost tote, and deadlock-prone crossing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Seed scenario with rush orders, blocked aisle, low-battery robot. Implement the foundation for: Seed scenario with rush orders, blocked aisle, low-battery robot, lost tote, and deadlock-prone crossing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/seed-scenario-with-rush-orders-blocked-a.mjs and test/seed-scenario-with-rush-orders-blocked-a.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -156,15 +156,15 @@
 										},
 										{
 											"id": "s09",
-											"title": "The meta-test",
-											"prompt": "Implement the foundation for: The meta-test: why determinism + the intent/reality split is the whole challenge Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"title": "The deterministic simulation / digital-twin kernel",
+											"prompt": "The deterministic simulation / digital-twin kernel. Implement the foundation for: The deterministic simulation / digital-twin kernel (the foundation under the foundation) Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/the-deterministic-simulation-digital-twi.mjs and test/the-deterministic-simulation-digital-twi.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
 											"complexity": 30,
 											"filesLikelyTouched": [
-												"src/the-meta-test.mjs",
-												"test/the-meta-test.test.mjs"
+												"src/the-deterministic-simulation-digital-twi.mjs",
+												"test/the-deterministic-simulation-digital-twi.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Task allocation engine that assigns robots based on location",
+			"userMessageIncludes": "src/task-allocation-engine-that-assigns-robo.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -483,7 +483,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Traffic manager with path reservations, one-way aisles, intersection locks",
+			"userMessageIncludes": "src/traffic-manager-with-path-reservations-o.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -586,7 +586,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Digital twin simulation that replays robot telemetry, task state",
+			"userMessageIncludes": "src/digital-twin-simulation-that-replays-rob.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -688,7 +688,7 @@
 		{
 			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Inventory movement ledger connecting physical totes, SKU quantities, source/destination",
+			"userMessageIncludes": "src/inventory-movement-ledger-connecting-phy.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -797,7 +797,7 @@
 		{
 			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Safety-zone policy for human-only areas, maintenance lockout, emergency stop",
+			"userMessageIncludes": "src/safety-zone-policy-for-human-only-areas.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -893,7 +893,7 @@
 		{
 			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "Battery and charger scheduler with queueing, opportunity charging, and",
+			"userMessageIncludes": "src/battery-and-charger-scheduler-with-queue.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -989,7 +989,7 @@
 		{
 			"id": "perfect-worker-s08",
 			"requestClass": "worker",
-			"userMessageIncludes": "Seed scenario with rush orders, blocked aisle, low-battery robot",
+			"userMessageIncludes": "src/seed-scenario-with-rush-orders-blocked-a.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1085,7 +1085,7 @@
 		{
 			"id": "perfect-worker-s09",
 			"requestClass": "worker",
-			"userMessageIncludes": "The meta-test",
+			"userMessageIncludes": "src/the-deterministic-simulation-digital-twi.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1111,12 +1111,12 @@
 								"arguments": {
 									"files": [
 										{
-											"path": "src/the-meta-test.mjs",
-											"content": "/**\n * The meta-test\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheMetaTestInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheMetaTestFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheMetaTestFinding[] }} TheMetaTestResult\n */\n\n/**\n * Evaluate one input against the the meta-test policy.\n * @param {TheMetaTestInput} input\n * @returns {TheMetaTestResult}\n */\nexport function evaluateTheMetaTest(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-meta-test/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-meta-test/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-meta-test/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-meta-test/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+											"path": "src/the-deterministic-simulation-digital-twi.mjs",
+											"content": "/**\n * The deterministic simulation / digital-twin kernel\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} TheDeterministicSimulationDigitalTwiInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} TheDeterministicSimulationDigitalTwiFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: TheDeterministicSimulationDigitalTwiFinding[] }} TheDeterministicSimulationDigitalTwiResult\n */\n\n/**\n * Evaluate one input against the the deterministic simulation / digital-twin kernel policy.\n * @param {TheDeterministicSimulationDigitalTwiInput} input\n * @returns {TheDeterministicSimulationDigitalTwiResult}\n */\nexport function evaluateTheDeterministicSimulationDigitalTwi(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"the-deterministic-simulation-digital-twi/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"the-deterministic-simulation-digital-twi/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"the-deterministic-simulation-digital-twi/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"the-deterministic-simulation-digital-twi/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
 										},
 										{
-											"path": "test/the-meta-test.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheMetaTest } from \"../src/the-meta-test.mjs\";\n\ntest(\"the-meta-test: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheMetaTest({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-meta-test: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheMetaTest({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+											"path": "test/the-deterministic-simulation-digital-twi.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateTheDeterministicSimulationDigitalTwi } from \"../src/the-deterministic-simulation-digital-twi.mjs\";\n\ntest(\"the-deterministic-simulation-digital-twi: accepts a clean input with evidence\", () => {\n\tconst result = evaluateTheDeterministicSimulationDigitalTwi({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"the-deterministic-simulation-digital-twi: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateTheDeterministicSimulationDigitalTwi({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
 										}
 									]
 								}
@@ -1142,7 +1142,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"The meta-test\": src/the-meta-test.mjs, test/the-meta-test.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+						"content": "Implemented \"The deterministic simulation / digital-twin kernel\": src/the-deterministic-simulation-digital-twi.mjs, test/the-deterministic-simulation-digital-twi.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
 				}
 			],
@@ -1152,7 +1152,7 @@
 		{
 			"id": "perfect-review-s09",
 			"requestClass": "review",
-			"userMessageIncludes": "the card \"The meta-test\"",
+			"userMessageIncludes": "the card \"The deterministic simulation / digital-twin kernel\"",
 			"turns": [
 				{
 					"behavior": {
@@ -1162,7 +1162,7 @@
 								"name": "submit_review",
 								"arguments": {
 									"verdict": "approve",
-									"summary": "Reviewed \"The meta-test\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+									"summary": "Reviewed \"The deterministic simulation / digital-twin kernel\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

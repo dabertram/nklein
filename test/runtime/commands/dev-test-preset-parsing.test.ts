@@ -33,6 +33,19 @@ describe("parseDevTestPreset", () => {
 	it("treats an empty string as invalid (not as the default)", () => {
 		expect(() => parseDevTestPreset("")).toThrow(/Expected one of:/);
 	});
+
+	it("accepts any dev-test-projects registry id (the lower-20 scenario projects, §13f)", () => {
+		expect(parseDevTestPreset("01_clinical_medication_safety_platform")).toBe(
+			"01_clinical_medication_safety_platform",
+		);
+		expect(parseDevTestPreset("20_virtualized_microkernel_operating_system_lab")).toBe(
+			"20_virtualized_microkernel_operating_system_lab",
+		);
+	});
+
+	it("mentions registry ids in the rejection message", () => {
+		expect(() => parseDevTestPreset("nope")).toThrow(/registry id/);
+	});
 });
 
 describe("parseDevTestSweepPresets", () => {

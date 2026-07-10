@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, accession, order, study, series, instance, modality, worklist item). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (patient, accession, order, study, series, instance, modality, worklist item). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -51,38 +51,8 @@
 										},
 										{
 											"id": "s02",
-											"title": "DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance",
-											"prompt": "Implement the foundation for: DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance hierarchy, modality, orientation, spacing, acquisition time, and burned-in annotation flags. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
-											"dependsOn": [
-												"s01"
-											],
-											"complexity": 30,
-											"filesLikelyTouched": [
-												"src/dicom-inspired-metadata-parser-for-deter.mjs",
-												"test/dicom-inspired-metadata-parser-for-deter.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s03",
-											"title": "DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine",
-											"prompt": "Extend the dicom-inspired metadata parser for deterministic json fixtures covering patient/study/series/instance module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s02"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/dicom-inspired-metadata-parser-for-deter-2.mjs",
-												"test/dicom-inspired-metadata-parser-for-deter-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s04",
 											"title": "Worklist prioritization using modality, status, STAT flag, site, subspecialty",
-											"prompt": "Implement the foundation for: Worklist prioritization using modality, status, STAT flag, site, subspecialty, SLA, unread comparisons, and radiologist availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Worklist prioritization using modality, status, STAT flag, site, subspecialty. Implement the foundation for: Worklist prioritization using modality, status, STAT flag, site, subspecialty, SLA, unread comparisons, and radiologist availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/worklist-prioritization-using-modality-s.mjs and test/worklist-prioritization-using-modality-s.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -95,24 +65,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s05",
-											"title": "Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine",
-											"prompt": "Extend the worklist prioritization using modality, status, stat flag, site, subspecialty module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s04"
-											],
-											"complexity": 40,
-											"filesLikelyTouched": [
-												"src/worklist-prioritization-using-modality-s-2.mjs",
-												"test/worklist-prioritization-using-modality-s-2.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s06",
+											"id": "s03",
 											"title": "Hanging protocol engine that selects layout, prior studies, series",
-											"prompt": "Implement the foundation for: Hanging protocol engine that selects layout, prior studies, series order, synchronization groups, and window presets based on modality/body part. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Hanging protocol engine that selects layout, prior studies, series. Implement the foundation for: Hanging protocol engine that selects layout, prior studies, series order, synchronization groups, and window presets based on modality/body part. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/hanging-protocol-engine-that-selects-lay.mjs and test/hanging-protocol-engine-that-selects-lay.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -125,11 +80,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
+											"id": "s04",
 											"title": "Hanging protocol engine that selects layout, prior studies, series — core engine",
-											"prompt": "Extend the hanging protocol engine that selects layout, prior studies, series module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Hanging protocol engine that selects layout, prior studies, series — core engine. Extend the hanging protocol engine that selects layout, prior studies, series module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/hanging-protocol-engine-that-selects-lay-2.mjs and test/hanging-protocol-engine-that-selects-lay-2.test.mjs.",
 											"dependsOn": [
-												"s06"
+												"s03"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -140,9 +95,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s08",
+											"id": "s05",
 											"title": "Measurement model for length, angle, region, SUV-like placeholder, timepoint",
-											"prompt": "Implement the foundation for: Measurement model for length, angle, region, SUV-like placeholder, timepoint comparison, and units tied to pixel spacing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Measurement model for length, angle, region, SUV-like placeholder, timepoint. Implement the foundation for: Measurement model for length, angle, region, SUV-like placeholder, timepoint comparison, and units tied to pixel spacing. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/measurement-model-for-length-angle-regio.mjs and test/measurement-model-for-length-angle-regio.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -155,16 +110,61 @@
 											"testFirst": false
 										},
 										{
-											"id": "s09",
+											"id": "s06",
 											"title": "Measurement model for length, angle, region, SUV-like placeholder, timepoint — core engine",
-											"prompt": "Extend the measurement model for length, angle, region, suv-like placeholder, timepoint module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Measurement model for length, angle, region, SUV-like placeholder, timepoint — core engine. Extend the measurement model for length, angle, region, suv-like placeholder, timepoint module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/measurement-model-for-length-angle-regio-2.mjs and test/measurement-model-for-length-angle-regio-2.test.mjs.",
 											"dependsOn": [
-												"s08"
+												"s05"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/measurement-model-for-length-angle-regio-2.mjs",
 												"test/measurement-model-for-length-angle-regio-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s07",
+											"title": "Report workflow with draft, preliminary, final, addendum, critical result",
+											"prompt": "Report workflow with draft, preliminary, final, addendum, critical result. Implement the foundation for: Report workflow with draft, preliminary, final, addendum, critical result notification, and discrepancy review. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/report-workflow-with-draft-preliminary-f.mjs and test/report-workflow-with-draft-preliminary-f.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/report-workflow-with-draft-preliminary-f.mjs",
+												"test/report-workflow-with-draft-preliminary-f.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Report workflow with draft, preliminary, final, addendum, critical result — core engine",
+											"prompt": "Report workflow with draft, preliminary, final, addendum, critical result — core engine. Extend the report workflow with draft, preliminary, final, addendum, critical result module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/report-workflow-with-draft-preliminary-f-2.mjs and test/report-workflow-with-draft-preliminary-f-2.test.mjs.",
+											"dependsOn": [
+												"s07"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/report-workflow-with-draft-preliminary-f-2.mjs",
+												"test/report-workflow-with-draft-preliminary-f-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Dose and quality tracker for repeated studies, missing metadata",
+											"prompt": "Dose and quality tracker for repeated studies, missing metadata. Implement the foundation for: Dose and quality tracker for repeated studies, missing metadata, rejected images, and acquisition protocol deviations. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/dose-and-quality-tracker-for-repeated-st.mjs and test/dose-and-quality-tracker-for-repeated-st.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/dose-and-quality-tracker-for-repeated-st.mjs",
+												"test/dose-and-quality-tracker-for-repeated-st.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,216 +382,11 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance",
+			"userMessageIncludes": "src/worklist-prioritization-using-modality-s.mjs",
 			"turns": [
 				{
 					"behavior": {
 						"kind": "empty_completion"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/dicom-inspired-metadata-parser-for-deter.mjs",
-											"content": "/**\n * DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DicomInspiredMetadataParserForDeterInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DicomInspiredMetadataParserForDeterFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DicomInspiredMetadataParserForDeterFinding[] }} DicomInspiredMetadataParserForDeterResult\n */\n\n/**\n * Evaluate one input against the dicom-inspired metadata parser for deterministic json fixtures covering patient/study/series/instance policy.\n * @param {DicomInspiredMetadataParserForDeterInput} input\n * @returns {DicomInspiredMetadataParserForDeterResult}\n */\nexport function evaluateDicomInspiredMetadataParserForDeter(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"dicom-inspired-metadata-parser-for-deter/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/dicom-inspired-metadata-parser-for-deter.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDicomInspiredMetadataParserForDeter } from \"../src/dicom-inspired-metadata-parser-for-deter.mjs\";\n\ntest(\"dicom-inspired-metadata-parser-for-deter: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDicomInspiredMetadataParserForDeter({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"dicom-inspired-metadata-parser-for-deter: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDicomInspiredMetadataParserForDeter({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance\": src/dicom-inspired-metadata-parser-for-deter.mjs, test/dicom-inspired-metadata-parser-for-deter.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s02",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s03",
-			"requestClass": "worker",
-			"userMessageIncludes": "DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "",
-						"reasoning": "Thinking through \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine\" step by step before writing files…"
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/dicom-inspired-metadata-parser-for-deter-2.mjs",
-											"content": "/**\n * DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DicomInspiredMetadataParserForDeter2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DicomInspiredMetadataParserForDeter2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DicomInspiredMetadataParserForDeter2Finding[] }} DicomInspiredMetadataParserForDeter2Result\n */\n\n/**\n * Evaluate one input against the dicom-inspired metadata parser for deterministic json fixtures covering patient/study/series/instance — core engine policy.\n * @param {DicomInspiredMetadataParserForDeter2Input} input\n * @returns {DicomInspiredMetadataParserForDeter2Result}\n */\nexport function evaluateDicomInspiredMetadataParserForDeter2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"dicom-inspired-metadata-parser-for-deter-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"dicom-inspired-metadata-parser-for-deter-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/dicom-inspired-metadata-parser-for-deter-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDicomInspiredMetadataParserForDeter2 } from \"../src/dicom-inspired-metadata-parser-for-deter-2.mjs\";\n\ntest(\"dicom-inspired-metadata-parser-for-deter-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDicomInspiredMetadataParserForDeter2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"dicom-inspired-metadata-parser-for-deter-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDicomInspiredMetadataParserForDeter2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine\": src/dicom-inspired-metadata-parser-for-deter-2.mjs, test/dicom-inspired-metadata-parser-for-deter-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s03",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"DICOM-inspired metadata parser for deterministic JSON fixtures covering patient/study/series/instance — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "flaky-worker-s04",
-			"requestClass": "worker",
-			"userMessageIncludes": "Worklist prioritization using modality, status, STAT flag, site, subspecialty",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "stall",
-						"ttftMs": 8000
 					}
 				},
 				{
@@ -654,10 +449,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
+			"provenance": "generated flaky baseline — c-empty-completion then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s04",
+			"id": "perfect-review-s02",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Worklist prioritization using modality, status, STAT flag, site, subspecialty\"",
 			"turns": [
@@ -686,119 +481,17 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s05",
+			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine",
+			"userMessageIncludes": "src/hanging-protocol-engine-that-selects-lay.mjs",
 			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": "[{\"path\":\"src/worklist-prioritization-using-modality-s-2.mjs\",\"content\":\"export const truncated = "
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/worklist-prioritization-using-modality-s-2.mjs",
-											"content": "/**\n * Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} WorklistPrioritizationUsingModalityS2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} WorklistPrioritizationUsingModalityS2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: WorklistPrioritizationUsingModalityS2Finding[] }} WorklistPrioritizationUsingModalityS2Result\n */\n\n/**\n * Evaluate one input against the worklist prioritization using modality, status, stat flag, site, subspecialty — core engine policy.\n * @param {WorklistPrioritizationUsingModalityS2Input} input\n * @returns {WorklistPrioritizationUsingModalityS2Result}\n */\nexport function evaluateWorklistPrioritizationUsingModalityS2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"worklist-prioritization-using-modality-s-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"worklist-prioritization-using-modality-s-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"worklist-prioritization-using-modality-s-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"worklist-prioritization-using-modality-s-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/worklist-prioritization-using-modality-s-2.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateWorklistPrioritizationUsingModalityS2 } from \"../src/worklist-prioritization-using-modality-s-2.mjs\";\n\ntest(\"worklist-prioritization-using-modality-s-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateWorklistPrioritizationUsingModalityS2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"worklist-prioritization-using-modality-s-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateWorklistPrioritizationUsingModalityS2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "Implemented \"Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine\": src/worklist-prioritization-using-modality-s-2.mjs, test/worklist-prioritization-using-modality-s-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s05",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Worklist prioritization using modality, status, STAT flag, site, subspecialty — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
+						"content": "",
+						"reasoning": "Thinking through \"Hanging protocol engine that selects layout, prior studies, series\" step by step before writing files…"
 					}
 				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s06",
-			"requestClass": "worker",
-			"userMessageIncludes": "Hanging protocol engine that selects layout, prior studies, series",
-			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -859,10 +552,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-reasoning-only then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "perfect-review-s03",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Hanging protocol engine that selects layout, prior studies, series\"",
 			"turns": [
@@ -891,10 +584,16 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s07",
+			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Hanging protocol engine that selects layout, prior studies, series — core engine",
+			"userMessageIncludes": "src/hanging-protocol-engine-that-selects-lay-2.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "stall",
+						"ttftMs": 8000
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -955,10 +654,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s07",
+			"id": "perfect-review-s04",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Hanging protocol engine that selects layout, prior studies, series — core engine\"",
 			"turns": [
@@ -987,10 +686,23 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s08",
+			"id": "flaky-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Measurement model for length, angle, region, SUV-like placeholder, timepoint",
+			"userMessageIncludes": "src/measurement-model-for-length-angle-regio.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/measurement-model-for-length-angle-regio.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1051,10 +763,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "perfect-review-s05",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Measurement model for length, angle, region, SUV-like placeholder, timepoint\"",
 			"turns": [
@@ -1083,9 +795,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s09",
+			"id": "perfect-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Measurement model for length, angle, region, SUV-like placeholder, timepoint — core engine",
+			"userMessageIncludes": "src/measurement-model-for-length-angle-regio-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1150,7 +862,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Measurement model for length, angle, region, SUV-like placeholder, timepoint — core engine\"",
 			"turns": [
@@ -1163,6 +875,294 @@
 								"arguments": {
 									"verdict": "approve",
 									"summary": "Reviewed \"Measurement model for length, angle, region, SUV-like placeholder, timepoint — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s07",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/report-workflow-with-draft-preliminary-f.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/report-workflow-with-draft-preliminary-f.mjs",
+											"content": "/**\n * Report workflow with draft, preliminary, final, addendum, critical result\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReportWorkflowWithDraftPreliminaryFInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReportWorkflowWithDraftPreliminaryFFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReportWorkflowWithDraftPreliminaryFFinding[] }} ReportWorkflowWithDraftPreliminaryFResult\n */\n\n/**\n * Evaluate one input against the report workflow with draft, preliminary, final, addendum, critical result policy.\n * @param {ReportWorkflowWithDraftPreliminaryFInput} input\n * @returns {ReportWorkflowWithDraftPreliminaryFResult}\n */\nexport function evaluateReportWorkflowWithDraftPreliminaryF(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"report-workflow-with-draft-preliminary-f/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/report-workflow-with-draft-preliminary-f.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateReportWorkflowWithDraftPreliminaryF } from \"../src/report-workflow-with-draft-preliminary-f.mjs\";\n\ntest(\"report-workflow-with-draft-preliminary-f: accepts a clean input with evidence\", () => {\n\tconst result = evaluateReportWorkflowWithDraftPreliminaryF({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"report-workflow-with-draft-preliminary-f: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateReportWorkflowWithDraftPreliminaryF({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Report workflow with draft, preliminary, final, addendum, critical result\": src/report-workflow-with-draft-preliminary-f.mjs, test/report-workflow-with-draft-preliminary-f.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s07",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Report workflow with draft, preliminary, final, addendum, critical result\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Report workflow with draft, preliminary, final, addendum, critical result\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/report-workflow-with-draft-preliminary-f-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/report-workflow-with-draft-preliminary-f-2.mjs",
+											"content": "/**\n * Report workflow with draft, preliminary, final, addendum, critical result — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} ReportWorkflowWithDraftPreliminaryF2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} ReportWorkflowWithDraftPreliminaryF2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: ReportWorkflowWithDraftPreliminaryF2Finding[] }} ReportWorkflowWithDraftPreliminaryF2Result\n */\n\n/**\n * Evaluate one input against the report workflow with draft, preliminary, final, addendum, critical result — core engine policy.\n * @param {ReportWorkflowWithDraftPreliminaryF2Input} input\n * @returns {ReportWorkflowWithDraftPreliminaryF2Result}\n */\nexport function evaluateReportWorkflowWithDraftPreliminaryF2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"report-workflow-with-draft-preliminary-f-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"report-workflow-with-draft-preliminary-f-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/report-workflow-with-draft-preliminary-f-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateReportWorkflowWithDraftPreliminaryF2 } from \"../src/report-workflow-with-draft-preliminary-f-2.mjs\";\n\ntest(\"report-workflow-with-draft-preliminary-f-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateReportWorkflowWithDraftPreliminaryF2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"report-workflow-with-draft-preliminary-f-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateReportWorkflowWithDraftPreliminaryF2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Report workflow with draft, preliminary, final, addendum, critical result — core engine\": src/report-workflow-with-draft-preliminary-f-2.mjs, test/report-workflow-with-draft-preliminary-f-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Report workflow with draft, preliminary, final, addendum, critical result — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Report workflow with draft, preliminary, final, addendum, critical result — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/dose-and-quality-tracker-for-repeated-st.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/dose-and-quality-tracker-for-repeated-st.mjs",
+											"content": "/**\n * Dose and quality tracker for repeated studies, missing metadata\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} DoseAndQualityTrackerForRepeatedStInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} DoseAndQualityTrackerForRepeatedStFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: DoseAndQualityTrackerForRepeatedStFinding[] }} DoseAndQualityTrackerForRepeatedStResult\n */\n\n/**\n * Evaluate one input against the dose and quality tracker for repeated studies, missing metadata policy.\n * @param {DoseAndQualityTrackerForRepeatedStInput} input\n * @returns {DoseAndQualityTrackerForRepeatedStResult}\n */\nexport function evaluateDoseAndQualityTrackerForRepeatedSt(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"dose-and-quality-tracker-for-repeated-st/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"dose-and-quality-tracker-for-repeated-st/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"dose-and-quality-tracker-for-repeated-st/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"dose-and-quality-tracker-for-repeated-st/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/dose-and-quality-tracker-for-repeated-st.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateDoseAndQualityTrackerForRepeatedSt } from \"../src/dose-and-quality-tracker-for-repeated-st.mjs\";\n\ntest(\"dose-and-quality-tracker-for-repeated-st: accepts a clean input with evidence\", () => {\n\tconst result = evaluateDoseAndQualityTrackerForRepeatedSt({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"dose-and-quality-tracker-for-repeated-st: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateDoseAndQualityTrackerForRepeatedSt({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Dose and quality tracker for repeated studies, missing metadata\": src/dose-and-quality-tracker-for-repeated-st.mjs, test/dose-and-quality-tracker-for-repeated-st.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Dose and quality tracker for repeated studies, missing metadata\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Dose and quality tracker for repeated studies, missing metadata\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]

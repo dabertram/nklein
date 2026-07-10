@@ -24,7 +24,7 @@
 										{
 											"id": "s00",
 											"title": "Project scaffold: zero-dependency node test wiring",
-											"prompt": "Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
+											"prompt": "Project scaffold: zero-dependency node test wiring. Create the npm scaffold: package.json (private, type module, test script = node --test, NO dependencies) plus a README stub naming the product. npm test must exit 0 before any feature card lands. Do not add TypeScript or external test frameworks — the foundation uses plain ESM JavaScript with JSDoc types and node:test.",
 											"dependsOn": [],
 											"complexity": 20,
 											"filesLikelyTouched": [
@@ -37,7 +37,7 @@
 										{
 											"id": "s01",
 											"title": "Core domain model and stable identifiers",
-											"prompt": "Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (product, wafer, lot, carrier, route, operation, recipe, equipment, chamber). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input.",
+											"prompt": "Core domain model and stable identifiers. Create src/domain.mjs: JSDoc-typed factories and validators for the core entities (product, wafer, lot, carrier, route, operation, recipe, equipment, chamber). Every entity gets a stable string id, a createdAt ISO timestamp taken from an injected clock function, and an appendAudit(entry) helper that never mutates prior entries. Add test/domain.test.mjs (node:test) covering id stability, audit append-only behavior, and validator rejection of malformed input. Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs and test/core-domain-model-and-stable-identifiers.test.mjs.",
 											"dependsOn": [
 												"s00"
 											],
@@ -52,7 +52,7 @@
 										{
 											"id": "s02",
 											"title": "Route engine supporting rework, split lots, merge lots, sampling",
-											"prompt": "Implement the foundation for: Route engine supporting rework, split lots, merge lots, sampling plans, engineering holds, queue time constraints, and recipe qualification. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Route engine supporting rework, split lots, merge lots, sampling. Implement the foundation for: Route engine supporting rework, split lots, merge lots, sampling plans, engineering holds, queue time constraints, and recipe qualification. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/route-engine-supporting-rework-split-lot.mjs and test/route-engine-supporting-rework-split-lot.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -67,7 +67,7 @@
 										{
 											"id": "s03",
 											"title": "Route engine supporting rework, split lots, merge lots, sampling — core engine",
-											"prompt": "Extend the route engine supporting rework, split lots, merge lots, sampling module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Route engine supporting rework, split lots, merge lots, sampling — core engine. Extend the route engine supporting rework, split lots, merge lots, sampling module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/route-engine-supporting-rework-split-lot-2.mjs and test/route-engine-supporting-rework-split-lot-2.test.mjs.",
 											"dependsOn": [
 												"s02"
 											],
@@ -81,23 +81,8 @@
 										},
 										{
 											"id": "s04",
-											"title": "Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests",
-											"prompt": "Extend the route engine supporting rework, split lots, merge lots, sampling module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s03"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/route-engine-supporting-rework-split-lot-3.mjs",
-												"test/route-engine-supporting-rework-split-lot-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s05",
 											"title": "Equipment state model for productive, standby, engineering, scheduled down",
-											"prompt": "Implement the foundation for: Equipment state model for productive, standby, engineering, scheduled down, unscheduled down, qualification, and chamber-specific availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "Equipment state model for productive, standby, engineering, scheduled down. Implement the foundation for: Equipment state model for productive, standby, engineering, scheduled down, unscheduled down, qualification, and chamber-specific availability. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/equipment-state-model-for-productive-sta.mjs and test/equipment-state-model-for-productive-sta.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -110,11 +95,11 @@
 											"testFirst": false
 										},
 										{
-											"id": "s06",
+											"id": "s05",
 											"title": "Equipment state model for productive, standby, engineering, scheduled down — core engine",
-											"prompt": "Extend the equipment state model for productive, standby, engineering, scheduled down module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "Equipment state model for productive, standby, engineering, scheduled down — core engine. Extend the equipment state model for productive, standby, engineering, scheduled down module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/equipment-state-model-for-productive-sta-2.mjs and test/equipment-state-model-for-productive-sta-2.test.mjs.",
 											"dependsOn": [
-												"s05"
+												"s04"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
@@ -125,24 +110,9 @@
 											"testFirst": false
 										},
 										{
-											"id": "s07",
-											"title": "Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests",
-											"prompt": "Extend the equipment state model for productive, standby, engineering, scheduled down module: add a read-side projection that folds evaluations into an explainable report object, keeping every number traceable to input facts. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
-											"dependsOn": [
-												"s06"
-											],
-											"complexity": 50,
-											"filesLikelyTouched": [
-												"src/equipment-state-model-for-productive-sta-3.mjs",
-												"test/equipment-state-model-for-productive-sta-3.test.mjs"
-											],
-											"acceptanceCommand": "npm test",
-											"testFirst": false
-										},
-										{
-											"id": "s08",
+											"id": "s06",
 											"title": "SPC evaluation using deterministic fixtures for control limits, Western",
-											"prompt": "Implement the foundation for: SPC evaluation using deterministic fixtures for control limits, Western Electric-style rules, trend, shift, outlier, and missing sample handling. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path.",
+											"prompt": "SPC evaluation using deterministic fixtures for control limits, Western. Implement the foundation for: SPC evaluation using deterministic fixtures for control limits, Western Electric-style rules, trend, shift, outlier, and missing sample handling. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/spc-evaluation-using-deterministic-fixtu.mjs and test/spc-evaluation-using-deterministic-fixtu.test.mjs.",
 											"dependsOn": [
 												"s01"
 											],
@@ -155,16 +125,46 @@
 											"testFirst": false
 										},
 										{
-											"id": "s09",
+											"id": "s07",
 											"title": "SPC evaluation using deterministic fixtures for control limits, Western — core engine",
-											"prompt": "Extend the spc evaluation using deterministic fixtures for control limits, western module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case.",
+											"prompt": "SPC evaluation using deterministic fixtures for control limits, Western — core engine. Extend the spc evaluation using deterministic fixtures for control limits, western module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/spc-evaluation-using-deterministic-fixtu-2.mjs and test/spc-evaluation-using-deterministic-fixtu-2.test.mjs.",
 											"dependsOn": [
-												"s08"
+												"s06"
 											],
 											"complexity": 40,
 											"filesLikelyTouched": [
 												"src/spc-evaluation-using-deterministic-fixtu-2.mjs",
 												"test/spc-evaluation-using-deterministic-fixtu-2.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s08",
+											"title": "Genealogy graph connecting wafers, lots, process runs, recipes, reticles",
+											"prompt": "Genealogy graph connecting wafers, lots, process runs, recipes, reticles. Implement the foundation for: Genealogy graph connecting wafers, lots, process runs, recipes, reticles, chambers, operators, metrology, and downstream bins. Create a pure, deterministic ESM module exporting an evaluate function that returns typed findings with evidence strings (no I/O, no Date.now, clock injected). Add node:test coverage for the accepted path and at least one blocking path. Files for THIS card: src/genealogy-graph-connecting-wafers-lots-p.mjs and test/genealogy-graph-connecting-wafers-lots-p.test.mjs.",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 30,
+											"filesLikelyTouched": [
+												"src/genealogy-graph-connecting-wafers-lots-p.mjs",
+												"test/genealogy-graph-connecting-wafers-lots-p.test.mjs"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": false
+										},
+										{
+											"id": "s09",
+											"title": "Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine",
+											"prompt": "Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine. Extend the genealogy graph connecting wafers, lots, process runs, recipes, reticles module: cover the hard edge cases the spec calls out (boundary values, conflicting inputs, replay determinism) with additional pure logic and tests. Keep the module dependency-free and deterministic; every branch gets a node:test case. Files for THIS card: src/genealogy-graph-connecting-wafers-lots-p-2.mjs and test/genealogy-graph-connecting-wafers-lots-p-2.test.mjs.",
+											"dependsOn": [
+												"s08"
+											],
+											"complexity": 40,
+											"filesLikelyTouched": [
+												"src/genealogy-graph-connecting-wafers-lots-p-2.mjs",
+												"test/genealogy-graph-connecting-wafers-lots-p-2.test.mjs"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false
@@ -182,7 +182,7 @@
 		{
 			"id": "perfect-worker-s00",
 			"requestClass": "worker",
-			"userMessageIncludes": "Project scaffold: zero-dependency node test wiring",
+			"userMessageIncludes": "zero-dependency node test wiring",
 			"turns": [
 				{
 					"behavior": {
@@ -278,7 +278,7 @@
 		{
 			"id": "flaky-worker-s01",
 			"requestClass": "worker",
-			"userMessageIncludes": "Core domain model and stable identifiers",
+			"userMessageIncludes": "src/domain.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -382,7 +382,7 @@
 		{
 			"id": "flaky-worker-s02",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route engine supporting rework, split lots, merge lots, sampling",
+			"userMessageIncludes": "src/route-engine-supporting-rework-split-lot.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -483,7 +483,7 @@
 		{
 			"id": "flaky-worker-s03",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route engine supporting rework, split lots, merge lots, sampling — core engine",
+			"userMessageIncludes": "src/route-engine-supporting-rework-split-lot-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -586,7 +586,7 @@
 		{
 			"id": "flaky-worker-s04",
 			"requestClass": "worker",
-			"userMessageIncludes": "Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests",
+			"userMessageIncludes": "src/equipment-state-model-for-productive-sta.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -594,102 +594,6 @@
 						"ttftMs": 8000
 					}
 				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": [
-										{
-											"path": "src/route-engine-supporting-rework-split-lot-3.mjs",
-											"content": "/**\n * Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} RouteEngineSupportingReworkSplitLot3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} RouteEngineSupportingReworkSplitLot3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: RouteEngineSupportingReworkSplitLot3Finding[] }} RouteEngineSupportingReworkSplitLot3Result\n */\n\n/**\n * Evaluate one input against the route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests policy.\n * @param {RouteEngineSupportingReworkSplitLot3Input} input\n * @returns {RouteEngineSupportingReworkSplitLot3Result}\n */\nexport function evaluateRouteEngineSupportingReworkSplitLot3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"route-engine-supporting-rework-split-lot-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"route-engine-supporting-rework-split-lot-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"route-engine-supporting-rework-split-lot-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"route-engine-supporting-rework-split-lot-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/route-engine-supporting-rework-split-lot-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateRouteEngineSupportingReworkSplitLot3 } from \"../src/route-engine-supporting-rework-split-lot-3.mjs\";\n\ntest(\"route-engine-supporting-rework-split-lot-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateRouteEngineSupportingReworkSplitLot3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"route-engine-supporting-rework-split-lot-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateRouteEngineSupportingReworkSplitLot3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests\": src/route-engine-supporting-rework-split-lot-3.mjs, test/route-engine-supporting-rework-split-lot-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
-		},
-		{
-			"id": "perfect-review-s04",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Route engine supporting rework, split lots, merge lots, sampling — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s05",
-			"requestClass": "worker",
-			"userMessageIncludes": "Equipment state model for productive, standby, engineering, scheduled down",
-			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -750,10 +654,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — t-sse-stall-mid then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s05",
+			"id": "perfect-review-s04",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Equipment state model for productive, standby, engineering, scheduled down\"",
 			"turns": [
@@ -782,23 +686,10 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "flaky-worker-s06",
+			"id": "perfect-worker-s05",
 			"requestClass": "worker",
-			"userMessageIncludes": "Equipment state model for productive, standby, engineering, scheduled down — core engine",
+			"userMessageIncludes": "src/equipment-state-model-for-productive-sta-2.mjs",
 			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "write_files",
-								"arguments": {
-									"files": "[{\"path\":\"src/equipment-state-model-for-productive-sta-2.mjs\",\"content\":\"export const truncated = "
-								}
-							}
-						]
-					}
-				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -859,10 +750,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s06",
+			"id": "perfect-review-s05",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"Equipment state model for productive, standby, engineering, scheduled down — core engine\"",
 			"turns": [
@@ -891,25 +782,10 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s07",
+			"id": "flaky-worker-s06",
 			"requestClass": "worker",
-			"userMessageIncludes": "Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests",
+			"userMessageIncludes": "src/spc-evaluation-using-deterministic-fixtu.mjs",
 			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "read_files",
-								"arguments": {
-									"paths": [
-										"specification.md"
-									]
-								}
-							}
-						]
-					}
-				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -917,80 +793,12 @@
 							{
 								"name": "write_files",
 								"arguments": {
-									"files": [
-										{
-											"path": "src/equipment-state-model-for-productive-sta-3.mjs",
-											"content": "/**\n * Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} EquipmentStateModelForProductiveSta3Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} EquipmentStateModelForProductiveSta3Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: EquipmentStateModelForProductiveSta3Finding[] }} EquipmentStateModelForProductiveSta3Result\n */\n\n/**\n * Evaluate one input against the equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests policy.\n * @param {EquipmentStateModelForProductiveSta3Input} input\n * @returns {EquipmentStateModelForProductiveSta3Result}\n */\nexport function evaluateEquipmentStateModelForProductiveSta3(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"equipment-state-model-for-productive-sta-3/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"equipment-state-model-for-productive-sta-3/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"equipment-state-model-for-productive-sta-3/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"equipment-state-model-for-productive-sta-3/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
-										},
-										{
-											"path": "test/equipment-state-model-for-productive-sta-3.test.mjs",
-											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateEquipmentStateModelForProductiveSta3 } from \"../src/equipment-state-model-for-productive-sta-3.mjs\";\n\ntest(\"equipment-state-model-for-productive-sta-3: accepts a clean input with evidence\", () => {\n\tconst result = evaluateEquipmentStateModelForProductiveSta3({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"equipment-state-model-for-productive-sta-3: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateEquipmentStateModelForProductiveSta3({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
-										}
-									]
+									"files": "[{\"path\":\"src/spc-evaluation-using-deterministic-fixtu.mjs\",\"content\":\"export const truncated = "
 								}
 							}
 						]
 					}
 				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"npm test"
-									]
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Implemented \"Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests\": src/equipment-state-model-for-productive-sta-3.mjs, test/equipment-state-model-for-productive-sta-3.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-review-s07",
-			"requestClass": "review",
-			"userMessageIncludes": "the card \"Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests\"",
-			"turns": [
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "submit_review",
-								"arguments": {
-									"verdict": "approve",
-									"summary": "Reviewed \"Equipment state model for productive, standby, engineering, scheduled down — edge cases and property-style tests\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "text",
-						"content": "Review submitted."
-					}
-				}
-			],
-			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
-		},
-		{
-			"id": "perfect-worker-s08",
-			"requestClass": "worker",
-			"userMessageIncludes": "SPC evaluation using deterministic fixtures for control limits, Western",
-			"turns": [
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -1051,10 +859,10 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
-			"id": "perfect-review-s08",
+			"id": "perfect-review-s06",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"SPC evaluation using deterministic fixtures for control limits, Western\"",
 			"turns": [
@@ -1083,9 +891,9 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s09",
+			"id": "perfect-worker-s07",
 			"requestClass": "worker",
-			"userMessageIncludes": "SPC evaluation using deterministic fixtures for control limits, Western — core engine",
+			"userMessageIncludes": "src/spc-evaluation-using-deterministic-fixtu-2.mjs",
 			"turns": [
 				{
 					"behavior": {
@@ -1150,7 +958,7 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-review-s09",
+			"id": "perfect-review-s07",
 			"requestClass": "review",
 			"userMessageIncludes": "the card \"SPC evaluation using deterministic fixtures for control limits, Western — core engine\"",
 			"turns": [
@@ -1163,6 +971,198 @@
 								"arguments": {
 									"verdict": "approve",
 									"summary": "Reviewed \"SPC evaluation using deterministic fixtures for control limits, Western — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s08",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/genealogy-graph-connecting-wafers-lots-p.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/genealogy-graph-connecting-wafers-lots-p.mjs",
+											"content": "/**\n * Genealogy graph connecting wafers, lots, process runs, recipes, reticles\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GenealogyGraphConnectingWafersLotsPInput\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GenealogyGraphConnectingWafersLotsPFinding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GenealogyGraphConnectingWafersLotsPFinding[] }} GenealogyGraphConnectingWafersLotsPResult\n */\n\n/**\n * Evaluate one input against the genealogy graph connecting wafers, lots, process runs, recipes, reticles policy.\n * @param {GenealogyGraphConnectingWafersLotsPInput} input\n * @returns {GenealogyGraphConnectingWafersLotsPResult}\n */\nexport function evaluateGenealogyGraphConnectingWafersLotsP(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"genealogy-graph-connecting-wafers-lots-p/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/genealogy-graph-connecting-wafers-lots-p.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateGenealogyGraphConnectingWafersLotsP } from \"../src/genealogy-graph-connecting-wafers-lots-p.mjs\";\n\ntest(\"genealogy-graph-connecting-wafers-lots-p: accepts a clean input with evidence\", () => {\n\tconst result = evaluateGenealogyGraphConnectingWafersLotsP({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"genealogy-graph-connecting-wafers-lots-p: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateGenealogyGraphConnectingWafersLotsP({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles\": src/genealogy-graph-connecting-wafers-lots-p.mjs, test/genealogy-graph-connecting-wafers-lots-p.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s08",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-worker-s09",
+			"requestClass": "worker",
+			"userMessageIncludes": "src/genealogy-graph-connecting-wafers-lots-p-2.mjs",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"paths": [
+										"specification.md"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/genealogy-graph-connecting-wafers-lots-p-2.mjs",
+											"content": "/**\n * Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine\n * Deterministic, dependency-free foundation module (generated baseline — hand-polish deepens domain logic).\n * @typedef {{ id: string, occurredAt: string, quantity: number, attributes?: Record<string, string> }} GenealogyGraphConnectingWafersLotsP2Input\n * @typedef {{ code: string, severity: \"info\" | \"warning\" | \"critical\", evidence: string[] }} GenealogyGraphConnectingWafersLotsP2Finding\n * @typedef {{ subjectId: string, status: \"accepted\" | \"blocked\", findings: GenealogyGraphConnectingWafersLotsP2Finding[] }} GenealogyGraphConnectingWafersLotsP2Result\n */\n\n/**\n * Evaluate one input against the genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine policy.\n * @param {GenealogyGraphConnectingWafersLotsP2Input} input\n * @returns {GenealogyGraphConnectingWafersLotsP2Result}\n */\nexport function evaluateGenealogyGraphConnectingWafersLotsP2(input) {\n\tconst findings = [];\n\tif (!input || typeof input.id !== \"string\" || input.id.length === 0) {\n\t\treturn { subjectId: \"unknown\", status: \"blocked\", findings: [{ code: \"genealogy-graph-connecting-wafers-lots-p-2/missing-id\", severity: \"critical\", evidence: [\"input.id is required\"] }] };\n\t}\n\tif (!Number.isFinite(input.quantity) || input.quantity < 0) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p-2/quantity-range\", severity: \"critical\", evidence: [`quantity ${input.quantity} is outside [0, ∞)`] });\n\t}\n\tif (!/^\\d{4}-\\d{2}-\\d{2}T/.test(input.occurredAt ?? \"\")) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p-2/timestamp-shape\", severity: \"warning\", evidence: [`occurredAt ${String(input.occurredAt)} is not ISO-8601`] });\n\t}\n\tconst blocked = findings.some((finding) => finding.severity === \"critical\");\n\tif (findings.length === 0) {\n\t\tfindings.push({ code: \"genealogy-graph-connecting-wafers-lots-p-2/clean\", severity: \"info\", evidence: [\"all deterministic checks passed\"] });\n\t}\n\treturn { subjectId: input.id, status: blocked ? \"blocked\" : \"accepted\", findings };\n}\n"
+										},
+										{
+											"path": "test/genealogy-graph-connecting-wafers-lots-p-2.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateGenealogyGraphConnectingWafersLotsP2 } from \"../src/genealogy-graph-connecting-wafers-lots-p-2.mjs\";\n\ntest(\"genealogy-graph-connecting-wafers-lots-p-2: accepts a clean input with evidence\", () => {\n\tconst result = evaluateGenealogyGraphConnectingWafersLotsP2({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"genealogy-graph-connecting-wafers-lots-p-2: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateGenealogyGraphConnectingWafersLotsP2({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Implemented \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine\": src/genealogy-graph-connecting-wafers-lots-p-2.mjs, test/genealogy-graph-connecting-wafers-lots-p-2.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
+					}
+				}
+			],
+			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "perfect-review-s09",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine\"",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Reviewed \"Genealogy graph connecting wafers, lots, process runs, recipes, reticles — core engine\": scope matches the card, logic is deterministic and dependency-free, tests cover accept + block paths. Approving."
 								}
 							}
 						]
