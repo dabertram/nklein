@@ -10977,6 +10977,14 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       etc.): if a battle-proven simulator covers all needs, USE it; if needs are only partially covered, prefer a hybrid
       (reuse transport, build our scenario/profile layer); implement fully ourselves ONLY if the gap analysis says so.
       Decision + evidence goes to docs/dev/llm-simulator/build-vs-buy.md before code.
+      *(◐ 2026-07-10 — BOTH research legs LANDED: [docs/dev/llm-simulator/existing-solutions.md] (19 candidates;
+      recommendation: HYBRID — adopt @copilotkit/aimock as transport/fixture/chaos engine [TS, zero-dep, MIT, SSE
+      latency-physics, tool-call fixtures, chaos + record-replay], build the nklein layer nobody sells: model-family
+      quirk profiles, loop/stall generators, seeded scenario driver, LM Studio /api/v0 shim; ~1-day spike to verify
+      reasoning_content/stall/models-endpoint before committing) + [docs/dev/llm-simulator/failure-catalog.md]
+      (complete cited catalog: 35 transport + 28 content + 18 agent-loop modes with expected harness behavior,
+      grounded in MAST/TRAIL/LiteLLM-mapping/OpenHands-StuckDetector taxonomies). NEXT: the aimock spike →
+      build-vs-buy.md verdict → scaffold packages/llm-simulator.)*
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY

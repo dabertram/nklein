@@ -68,6 +68,7 @@ import {
 // Re-exported so existing importers (cli.ts, workspace-registry.ts, tests) keep resolving it from here.
 export { resolveKleinSourceRepoPath } from "./projects-api-helpers";
 
+import { deleteChatSessionsForWorkspace } from "../chat/chat-session-store";
 import type { CreateProjectsApiDependencies } from "./projects-api-types";
 import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
@@ -586,6 +587,11 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					if (!removed) {
 						errors.push(`Could not remove project index entry for ${entry.workspaceId}.`);
 					}
+					// Cleanup must be consistent in EVERY detail (David 2026-07-10): the project's chats go with it.
+					await deleteChatSessionsForWorkspace(entry.workspaceId).catch((error) => {
+						const message = error instanceof Error ? error.message : String(error);
+						errors.push(`Could not remove chat sessions for ${entry.workspaceId}: ${message}`);
+					});
 					await removeWorkspaceStateFiles(entry.workspaceId).catch((error) => {
 						const message = error instanceof Error ? error.message : String(error);
 						errors.push(`Could not remove workspace state for ${entry.workspaceId}: ${message}`);
@@ -703,6 +709,10 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				if (!removed) {
 					throw new Error(`Could not remove project index entry for "${body.projectId}".`);
 				}
+				// Cleanup must be consistent in EVERY detail (David 2026-07-10): the project's chats go with it.
+				await deleteChatSessionsForWorkspace(body.projectId).catch(() => {
+					// Best-effort: a chat-store hiccup must not block the project removal itself.
+				});
 				await removeWorkspaceStateFiles(body.projectId);
 				deps.disposeWorkspace(body.projectId, {
 					stopTerminalSessions: false,

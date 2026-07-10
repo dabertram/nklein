@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { parseValidatedJsonl } from "../state/jsonl-store";
+import { clearChatTranscript } from "./chat-transcript-store";
 
 /**
  * Board-independent chat session store (todo §5.M — the unified agentic chat). Chat sessions are NOT kanban
@@ -441,11 +442,36 @@ export async function clearChatOutstandingAsk(
 	});
 }
 
-export async function deleteChatSession(id: string, options: ChatSessionStoreOptions = {}): Promise<boolean> {
+export interface DeleteChatSessionOptions extends ChatSessionStoreOptions {
+	/** Root dir of the TRANSCRIPT store (separate sibling dir); tests inject a tmp dir. */
+	transcriptRootDir?: string;
+}
+
+export async function deleteChatSession(id: string, options: DeleteChatSessionOptions = {}): Promise<boolean> {
 	const existing = await getChatSession(id, options);
 	if (!existing) {
 		return false;
 	}
 	await appendChatSessionEvent({ type: "delete", at: (options.now ?? Date.now)(), id }, options.rootDir);
+	// Deleting a session must also drop its transcript — a deleted chat leaving its full transcript on disk was
+	// the "cleanup is not consistent in every detail" class of leak (David 2026-07-10).
+	await clearChatTranscript(id, { rootDir: options.transcriptRootDir });
 	return true;
+}
+
+/**
+ * Delete every chat session OWNED by `workspaceId` (sessions + transcripts). Project removal must sweep the
+ * project's chats too — bulk project cleanup previously left them behind (David 2026-07-10: cleanup "should be
+ * consistent throughout the full app in every detail"). Returns the deleted session ids.
+ */
+export async function deleteChatSessionsForWorkspace(
+	workspaceId: string,
+	options: DeleteChatSessionOptions = {},
+): Promise<string[]> {
+	const sessions = await listChatSessions(options);
+	const owned = sessions.filter((session) => session.ownedWorkspaceId === workspaceId);
+	for (const session of owned) {
+		await deleteChatSession(session.id, options);
+	}
+	return owned.map((session) => session.id);
 }

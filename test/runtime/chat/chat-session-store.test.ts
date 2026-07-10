@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,12 +7,14 @@ import {
 	clearChatOutstandingAsk,
 	createChatSession,
 	deleteChatSession,
+	deleteChatSessionsForWorkspace,
 	ensureChatSessionForWorkspace,
 	findChatSessionByOwnedWorkspace,
 	getChatSession,
 	listChatSessions,
 	updateChatSession,
 } from "../../../src/chat/chat-session-store";
+import { appendChatMessage, readChatTranscript } from "../../../src/chat/chat-transcript-store";
 
 describe("chat-session-store", () => {
 	let rootDir: string;
@@ -327,5 +329,46 @@ describe("bug-hunt #4 (2026-07-05): outstandingAsks has a writer (addChatOutstan
 		await addChatOutstandingAsk(created.id, { signalKey: "k2", taskId: "t2", question: "b?" }, opts);
 		const cleared = await clearChatOutstandingAsk(created.id, "k1", opts);
 		expect(cleared?.outstandingAsks).toEqual([{ signalKey: "k2", taskId: "t2", question: "b?" }]);
+	});
+
+	it("deleteChatSessionsForWorkspace removes exactly the workspace's chats AND their transcripts", async () => {
+		const rootDir = await mkdtemp(join(tmpdir(), "nklein-chat-sessions-"));
+		const transcriptRootDir = await mkdtemp(join(tmpdir(), "nklein-chat-transcripts-"));
+		const now = () => 1_700_000_000_000;
+		try {
+			const opts = { rootDir, now };
+			const owned = await createChatSession({ title: "proj chat", ownedWorkspaceId: "ws-gone" }, opts);
+			const owned2 = await createChatSession({ title: "proj chat 2", ownedWorkspaceId: "ws-gone" }, opts);
+			const other = await createChatSession({ title: "other project", ownedWorkspaceId: "ws-keep" }, opts);
+			const global = await createChatSession({ title: "global chat" }, opts);
+			await appendChatMessage(owned.id, { role: "user", content: "hi" }, { rootDir: transcriptRootDir });
+
+			const deleted = await deleteChatSessionsForWorkspace("ws-gone", { rootDir, now, transcriptRootDir });
+			expect(deleted.sort()).toEqual([owned.id, owned2.id].sort());
+
+			const remaining = (await listChatSessions({ rootDir })).map((s) => s.id).sort();
+			expect(remaining).toEqual([other.id, global.id].sort());
+			// The deleted session's transcript is gone too (cleanup consistent in every detail).
+			expect(await readChatTranscript(owned.id, { rootDir: transcriptRootDir })).toEqual([]);
+		} finally {
+			await rm(rootDir, { force: true, recursive: true });
+			await rm(transcriptRootDir, { force: true, recursive: true });
+		}
+	});
+
+	it("deleteChatSession drops the transcript alongside the session", async () => {
+		const rootDir = await mkdtemp(join(tmpdir(), "nklein-chat-sessions-"));
+		const transcriptRootDir = await mkdtemp(join(tmpdir(), "nklein-chat-transcripts-"));
+		const now = () => 1_700_000_000_000;
+		try {
+			const created = await createChatSession({ title: "t" }, { rootDir, now });
+			await appendChatMessage(created.id, { role: "user", content: "hello" }, { rootDir: transcriptRootDir });
+			expect(await deleteChatSession(created.id, { rootDir, now, transcriptRootDir })).toBe(true);
+			expect(await getChatSession(created.id, { rootDir })).toBeNull();
+			expect(await readChatTranscript(created.id, { rootDir: transcriptRootDir })).toEqual([]);
+		} finally {
+			await rm(rootDir, { force: true, recursive: true });
+			await rm(transcriptRootDir, { force: true, recursive: true });
+		}
 	});
 });
