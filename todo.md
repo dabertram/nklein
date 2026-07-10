@@ -10976,10 +10976,12 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       the backlog is worked. (Roster load/unload control confirmed; Docker healthy for the implement family.)
 
 ## 12. UI-polish sweep findings (2026-07-10, non-UI — logged for backlog)
-- [ ] **Fixture models pollute the LIVE model registry:** `huge-advertised-model`, `local-model`, `small-local-model`
-      (test fixtures) show up as real rows in the fleet strip ("unknown ×3") and in the registry API. The registry
-      store should never persist dev-test/fixture model entries — scrub on write or filter fixture ids from
-      runtime.getNKleinModelRegistry. (UI now condenses them under the idle summary, but the DATA is wrong.)
+- [x] **Fixture models pollute the LIVE model registry** — FIXED (2026-07-10). New pure predicate
+      [src/core/fixture-model-ids.ts] `isFixtureModelId` (curated exact set: `huge-advertised-model` / `local-model` /
+      `small-local-model` / … + unambiguous `mock-*`/`dummy-*`/`*-fixture` markers, conservatively narrow so a real
+      published id never matches — 5 tests). `handleGetNKleinModelRegistry` now filters fixture entries out of
+      `snapshot.models` before building the response, so they never reach the registry API OR the board fleet strip
+      (which reads this same response). The prune command remains for scrubbing an already-polluted persisted store.
 - [~] **Agent LOOP detection + task-boundary escalation (David 2026-07-10, live-observed).** qwen3.6-35b-a3b looped
       endlessly on whether the task's test command for `*.js` is correct when the repo needs `*.ts` — a "solution
       outside allowed space" loop: the model keeps re-raising the same boundary question instead of progressing, because

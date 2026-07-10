@@ -14,6 +14,7 @@ import {
 	parseNKleinModelMaxConcurrentRequestsRequest,
 	parseNKleinModelRegistryRemoveRequest,
 } from "../../core/api-validation";
+import { isFixtureModelId } from "../../core/fixture-model-ids";
 import {
 	fetchLoadedModelDescriptors as fetchLoadedModelDescriptorsDefault,
 	type LoadedModelDescriptor,
@@ -143,8 +144,14 @@ export async function handleGetNKleinModelRegistry(
 		runtimeConfig?.effectiveSelectedAgentId === "nklein"
 			? deps.nkleinProviderService.getProviderSettingsSummary()
 			: null;
+	// Keep synthetic fixture/test ids out of the live surface (todo 10979): a dev-test store can carry
+	// `huge-advertised-model` / `local-model` / … which would otherwise render as real "unknown" rows here and
+	// in the board fleet strip (it reads this registry response).
+	const liveSnapshotModels = Object.fromEntries(
+		Object.entries(snapshot.models).filter(([, entry]) => !isFixtureModelId(entry.modelId)),
+	);
 	const models = addConfiguredLocalModelRegistryEntries({
-		models: snapshot.models,
+		models: liveSnapshotModels,
 		runtimeConfig,
 		launchConfig,
 		providerSettings,
