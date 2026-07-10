@@ -11230,18 +11230,20 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       surface in ready, so they must NOT be excluded). Reverted to keep the harness green (19/19); 2a's tested core is
       committed and inert. NEXT: resolve the bounce (start-flow ready-transition), re-wire, re-verify ready
       populates AND fully drains via the harness (add `ready==0` to the strict drain gate).
-      **DEEPER STRUCTURAL FINDING (2026-07-10 — the real shape of the work, and the "probe of how well the
-      implementation is structured" David wanted):** the current lane model CONFLATES planning with running — a
-      started WORK card *parks in `planning` while it runs* (`RUNNING_CARD_ENTRY_LANE_BY_SOURCE` in
-      task-board-lane-reconcile.ts maps backlog→planning and review→in_progress, but planning→NOTHING, so a running
-      card stays in planning; `in_progress` today is mainly the resumed-from-review lane). The Ready lane therefore
-      isn't a simple column insert — it forces DISENTANGLING three states the board currently merges into "planning":
-      refining/decomposing (planning) vs dep-free-waiting (ready) vs actively-running (in_progress). The re-arch:
-      (a) `RUNNING_CARD_ENTRY_LANE_BY_SOURCE` gains `planning→in_progress` + `ready→in_progress` (a running card
-      leaves planning/ready for in_progress on the running transition); (b) the ready reconcile only promotes
-      NON-running dep-free cards; (c) audit every consumer that assumes "running work lives in planning" (the
-      ready-sweep's "started cards park in planning" comment, the fleet strip, counts, lean view). This is the
-      genuine multi-increment feature; do it on a dedicated runway with the simulator harness proving populate +
-      drain at each step. Increments 1 + 2a (committed, tested) are the safe foundation.
-      **INCREMENT 3 (surfaces):** lean-view lane mapping (map `ready`→Queued or its own lane), board counts, drag
-      rules, DAG/overview. Run a simulated project through the harness to prove ready populates + drains.
+      **(historical) DEEPER STRUCTURAL FINDING (2026-07-10) — RESOLVED same day, differently than first scoped:**
+      the "conflation" framing dissolved once the §5.B semantics were taken seriously: a started card doing its
+      REFINEMENT pass in `planning` is intentional product design (every started card re-validates its plan before
+      `begin_implementation` moves it to in_progress), not a lane bug — so `planning→in_progress` on the running
+      transition is deliberately NOT mapped. The two REAL gaps the finding contained were both fixed and verified:
+      (1) **client render** — "the full board already renders the Ready column" proved FALSE: the web-ui canonical
+      column skeleton (board-data.ts) + normalizeColumnId dropped the server's `ready` column entirely; fixed in
+      `2bae05af`, all 7 columns render (Backlog·Planning·Ready·In Progress·Review·Completed·Trash), live screenshot
+      with ready populated to 14. (2) **running session shown in Ready** — a deferred card parked in `ready` with a
+      QUEUED session had no lane move when that session later flipped to running (the sync start-flow move never
+      fires for queued→running); fixed in `830bf39d` by adding `ready→planning` (STARTED_CARD_ENTRY_LANE, matching
+      every other started card) to RUNNING_CARD_ENTRY_LANE_BY_SOURCE — root-caused + authored in a spawned worktree
+      session, integrated + live-verified on a full simulated drain (96 probes, ready peaked at 15 cards, 0 probes
+      ever saw a running session in ready). The divergent UNWIRED `resolveReadyLaneMoves` proposal (it sent started
+      ready cards to in_progress, skipping refinement) was deleted with its tests — the defer-based flow + the lane
+      map are the single mechanism. Lane model now: planning = refining (incl. running refinement), ready = dep-free
+      waiting NO session, in_progress = implementing, review/completed/trash unchanged.

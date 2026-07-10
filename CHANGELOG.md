@@ -2,6 +2,20 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The board has a "Ready" lane between Planning and In Progress** (todo §5.B, protected feature). Dep-free cards
+  that are only waiting for a free slot (concurrency cap, busy endpoint, or a file-overlap lock) now park in their
+  own column instead of blending into Planning — the board finally distinguishes *refining*, *waiting for a slot*,
+  and *implementing*. Old boards gain the lane automatically on load (zero migration), every surface understands it
+  (lean view rolls it into Queued, DAG/overview/drag rules/counts include it), and a card that begins running always
+  leaves Ready for its refinement pass — verified live on a simulated project where Ready filled to 15 cards and
+  drained one-by-one with zero running-session sightings across 96 probes.
+- **A dense-UI polish pass across every zoom level, driven by live simulated boards** — 13 targeted fixes plus a new
+  adaptive density feature: on constrained window widths (769–1279px) the whole UI zooms out slightly (8–15%) so
+  titles and captions fit instead of truncating; board lanes, the git-history diff, and the chat pane all gained
+  minimum-width floors with horizontal scrolling instead of collapsing into unreadable slivers; the activity map
+  clamps and declutters its captions per-cluster (and scales halos to phone canvases); the DAG explains a zero-edge
+  layout instead of looking broken; system messages stop breaking words mid-character; sidebar rows reveal full
+  project names on hover; and the mobile board carousel now includes the Completed/Trash stack as a proper page.
 - **Simulated project flows now drain real runtimes end-to-end at every scale tested** (todo §13): the
   hand-authored 41-card clinical set, the largest generated 50-card set, and a failure-injection flaky run all
   complete against a live runtime with zero LLM compute and zero unmatched mock requests. Along the way the
