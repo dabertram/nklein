@@ -84,6 +84,12 @@ export interface RunNKleinSecondOpinionReviewInput {
 	 *  normal onBounce, and a REPEATED identical gate feedback trips the identical-loop PARK guard (never spins). */
 	preReviewVerdict?: ReviewSubmissionInput | null;
 	now?: () => number;
+	/**
+	 * Diagnostic phase stamps (2026-07-11 review-hang autopsy, todo §12): a silently-wedged review pinpoints its
+	 * LAST-reached inner phase (card-load / diff / context / seed-built / review-session). Optional + warn-routed —
+	 * absent means zero overhead and byte-identical behavior.
+	 */
+	stampPhase?: (phase: string) => void;
 	deps: {
 		/** Resolve the card (with its persisted review history) by id; null when gone. */
 		getCard(taskId: string): Promise<SecondOpinionReviewCard | null>;
@@ -142,10 +148,13 @@ export async function runNKleinSecondOpinionReview(
 	input: RunNKleinSecondOpinionReviewInput,
 ): Promise<NKleinSecondOpinionReviewOutcome> {
 	const now = (input.now ?? Date.now)();
+	const stamp = input.stampPhase ?? (() => {});
+	stamp("core: card-load");
 	const card = await input.deps.getCard(input.taskId);
 	if (!card) {
 		return { type: "skipped", reason: "card_not_found" };
 	}
+	stamp("core: diff-load");
 	const diff = (await input.deps.getTaskDiff(input.taskId))?.trim() || "";
 	if (
 		!shouldReviewCard({
@@ -187,6 +196,7 @@ export async function runNKleinSecondOpinionReview(
 
 	const history = card.review?.history ?? [];
 	const round = history.length + 1;
+	stamp("core: context-load");
 	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
 	// §5.AW: a captured speculative candidate arms the A/B arbitration seed. Only a non-empty PRIMARY diff
 	// qualifies — a no-op primary keeps the ordinary no-changes review flow (the spec is discarded with it).
@@ -205,8 +215,10 @@ export async function runNKleinSecondOpinionReview(
 		// Opt-in: absent unless the runner (gated on NKLEIN_REVIEW_LENSES) supplied a non-empty panel.
 		...(input.reviewLenses && input.reviewLenses.length > 0 ? { lenses: input.reviewLenses } : {}),
 	});
+	stamp(`core: review-session start (round ${round}, seed ${seedPrompt.length}b)`);
 	const submission =
 		input.preReviewVerdict ?? (await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round }));
+	stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
 	if (!submission) {
 		return { type: "skipped", reason: "no_verdict" };
 	}

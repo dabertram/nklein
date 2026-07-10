@@ -7987,15 +7987,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       MCSR speed observations into the writer; and
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).
-- [ ] **Replay / simulation mode (ties §5.V), decomposed:**
-  - [ ] Capture + index ledger attempt model outputs as deterministic test fixtures. *(gated-on-capture-seam design
-        2026-07-08: attempt events carry tool names + FINGERPRINTS but not raw model outputs (deliberate — the ledger
-        is telemetry, not a transcript store), so fixtures cannot be projected from today's records; capturing full
-        outputs is a storage/privacy design decision (opt-in dev-mode recording seam) that should be made deliberately,
-        not slipped in.)*
-  - [ ] Implement replay orchestrator: substitute fixtures for live model calls, run workflow. *(rides the capture
-        seam above — nothing to substitute until fixtures exist. NOTE the e2e runtime-mock's pushFrame streaming layer
-        already covers the UI half of deterministic replay.)*
+- [~] **Replay / simulation mode (ties §5.V), decomposed:** *(largely SUBSUMED BY §13 — reconciled 2026-07-11)*
+  - [x] Capture + index ledger attempt model outputs as deterministic test fixtures. **RESOLVED VIA §13
+        (2026-07-11):** the deliberate opt-in capture seam exists as the aimock RECORD PROXY
+        (scripts/run-record-proxy.mts → scripts/distill-capture.mts → scenario tracks keyed by failure-catalog
+        ids, docs/dev/llm-simulator/README.md) — real model outputs are captured OUTSIDE the ledger (which stays
+        telemetry, exactly as this leaf's design note demanded) and indexed as replayable simulator fixtures.
+  - [x] Implement replay orchestrator: substitute fixtures for live model calls, run workflow. **RESOLVED VIA §13
+        (2026-07-11):** verify-simulated-flow.mts + dev-simulated-stack.mts run the REAL runtime end-to-end with
+        fixture responses substituted for every model call (decompose → workers → reviews → delivery), CI-suitable
+        and zero-LLM. The e2e runtime-mock's pushFrame layer covers the UI half.
   - [~] Add per-tool idempotency keys + durable result hashes/refs. **ATTEMPT/DISPATCH IDEMPOTENCY-KEY DERIVATION DONE
         (2026-07-01):** [src/core/attempt-idempotency-key.ts](src/core/attempt-idempotency-key.ts) fills the gap where the
         `scheduler` ledger event's `idempotencyKey` field (`AgentSchedulerEvent`/`BuildSchedulerEventInput`) existed but
@@ -8010,8 +8011,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         first, null-keyed always kept — via a dependency-free structural view, so real ledger events pass in directly). Pure,
         deterministic, no I/O/clock/randomness. 20 unit tests (incl. a pinned literal digest, each identity field's
         discriminating power, absent≡empty/whitespace/rung normalization, delimiter-collision guard, and an end-to-end
-        re-dispatch-dedup). tsc+biome+vitest green. **STILL OWED:** wiring the derivation into the durable-scheduler `lease`
-        event write site + the per-TOOL-result durable hashes/refs (a distinct grain — replay reuse of a tool result).
+        re-dispatch-dedup). tsc+biome+vitest green. **LEASE WIRING VERIFIED ALREADY DONE (2026-07-11):** durable-run-controller.commit() stamps every
+        lease action via keyDurableLeaseActions (pre-apply snapshot ⇒ reproducible keys; tests assert the stamped
+        events + a dedicated durable-lease-idempotency suite) — the earlier "still owed" note was stale. Per-TOOL
+        result hashes/refs (replay reuse of individual tool results) remain a distinct grain — folded into the
+        `reuse` mode note below (rides the §13 capture seam if ever needed; the simulator already replays at the
+        RESPONSE grain, which is the grain !Klein actually consumes).
   - [~] Implement replay modes: `reuse` (use fixture), `simulate` (mock), `skip`, `reconfirm` (compare fixture vs live).
         **`reconfirm` DETERMINISM-COMPARATOR CORE DONE (2026-07-01):** [src/core/ledger-replay-determinism.ts](src/core/ledger-replay-determinism.ts)
         supplies the pure primitive `reconfirm` turns on — given a captured ledger log + a replayed one (two `AgentLedgerEvent[]`,
@@ -8027,10 +8032,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the same facts still compares clean. Pure/total, no I/O/clock/randomness; grep confirmed no prior `divergen*`/determinism
         comparator existed (`replayDurableJobs`/`latestRunState` fold ONE log; nothing COMPARED two). 26 unit tests
         (kind-specific signatures, envelope-noise invariance, order-normalization, each divergence kind, first-of-several,
-        symmetry, purity/no-mutation, delimiter-collision, unknown-kind forward-compat). tsc+biome+vitest green. **STILL OWED:**
-        the orchestrator that drives the OTHER three modes (`reuse`/`simulate`/`skip`) + wires this verdict into a live-vs-fixture
-        `reconfirm` run (gated on the replay orchestrator + fixture capture above).
-  - [ ] Convert §5.V live-only flows to deterministic replay tests; debug races without GPU.
+        symmetry, purity/no-mutation, delimiter-collision, unknown-kind forward-compat). tsc+biome+vitest green. **MODES RECONCILED (2026-07-11):**
+        `simulate` = LIVE via §13 (the whole simulator layer); `reuse` = the simulator's per-track fixture replay
+        (response-grain — the grain !Klein consumes; per-tool-result reuse would be a finer grain with no current
+        consumer); `skip` = a scenario track simply omits/fallbacks a class; `reconfirm` = **HARNESS SHIPPED:
+        scripts/verify-replay-determinism.mts** runs the seeded smoke flow TWICE in fresh isolated HOMEs and
+        compares the two Agent Attempt Ledgers via compareLedgerReplayDeterminism (run-scoped ids + ephemeral
+        localhost ports normalized) — LIVE-VERIFIED PASS: 14 causal events matched across independent runs. Any
+        future drift localizes to its first divergent event ("debug races without GPU").
+  - [x] Convert §5.V live-only flows to deterministic replay tests; debug races without GPU. **RESOLVED VIA
+        §13 + THE DETERMINISM HARNESS (2026-07-11):** the simulated-flow layer already runs the previously
+        live-only flows deterministically (decompose/worker/review/bounce/acceptance/delivery — scenario sets
+        01/02/03/05/10/19 drain a real runtime with zero GPU), and verify-replay-determinism.mts is the
+        race-debugging lever (first-divergence localization between two seeded runs).
 - [~] **Durable long-run job scheduler (C3 spine).** A background job runner that **checkpoints to the ledger** and
       **resumes** — the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven:
       the 30-min multi-card run died on one transient `fetch failed`). Seeds: the endpoint scheduler (§6.5) + per-model

@@ -59,8 +59,12 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
+		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
+		const stamp = input.stampPhase ?? (() => {});
 		if (!deps.getAgentSandboxManager()) {
+			stamp("session: no sandbox manager (skip)");
 			return null;
 		}
 		// #31 (run32 live): a second concurrent review for the same task would prepare the SAME
@@ -68,6 +72,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		// blocked-read loop + no verdict). Single-flight: the caller treats null as "skipped" (fail-closed
 		// hold), and the in-flight round concludes normally.
 		if (inFlightSecondOpinionReviewTaskIds.has(input.taskId)) {
+			stamp("session: single-flight BLOCKED (a prior round is still in flight)");
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
@@ -80,9 +85,11 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		}
 		inFlightSecondOpinionReviewTaskIds.add(input.taskId);
 		try {
+			stamp("session: single-flight enter");
 			return await runInner(input);
 		} finally {
 			inFlightSecondOpinionReviewTaskIds.delete(input.taskId);
+			stamp("session: single-flight exit");
 		}
 	}
 
@@ -96,11 +103,14 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
+		const stamp = input.stampPhase ?? (() => {});
 		const sandboxManager = deps.getAgentSandboxManager();
 		if (!sandboxManager) {
 			return null;
 		}
+		stamp("session: reviewer-resolve");
 		const workerLaunch = deps.getLaunchConfig(input.taskId) ?? null;
 		// W2.5a (audit 2026-07-02, §5.AB): with NO configured reviewer this previously fell back to the WORKER's
 		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
@@ -123,6 +133,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			return null;
 		}
 		const selectionSource = input.reviewer ? "explicit_pin" : autoReviewer ? "auto_diverse" : "worker_fallback";
+		stamp(`session: reviewer=${modelId} (${selectionSource}); bracketed-run enter`);
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId,

@@ -416,6 +416,7 @@ export async function runSecondOpinionReviewForTask(
 	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
+		stampPhase,
 		enabled: config.secondOpinionReviewEnabled,
 		...(preReviewVerdict ? { preReviewVerdict } : {}),
 		maxRounds: config.reviewMaxRounds,
@@ -471,6 +472,7 @@ export async function runSecondOpinionReviewForTask(
 					baseRef: card.baseRef,
 					seedPrompt,
 					reviewer,
+					stampPhase,
 				});
 			},
 			onDeliver: async ({ review }) => {

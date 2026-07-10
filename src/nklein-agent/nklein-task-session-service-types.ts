@@ -184,6 +184,8 @@ export interface NKleinTaskSessionService {
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
+		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null>;
 	runPlanCritiqueSession(input: {
 		taskId: string;
