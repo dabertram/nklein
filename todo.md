@@ -11036,10 +11036,20 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       SSE (investigate: React re-render rate during streaming, workspace-state broadcast frequency, subprocess forks).
       TODO: profile !Klein's own CPU while a heavy request streams and fix whatever is ours; verify the storm fix
       already reduced it.
-- [ ] **Fleet under-utilization while cards wait:** deep-chain board had 12 cards WAITING with `qwen/qwen3-coder-next`
-      (44GB local) IDLE the whole time — only devstral drove work (Running 1, Cap 3). Investigate worker-role
-      candidacy/admission: why an idle capable local model never got a card (catalog verdict? per-host concurrency cap
-      from the lm-link work? role pinning to the configured-but-absent legion worker?). This serializes the swarm.
+- [x] **Fleet under-utilization while cards wait** — INVESTIGATED → largely EXPECTED behavior on that topology
+      (2026-07-10). Deep-chain is STRICTLY SERIAL (each card depends on the previous), and `listStartableUnstartedTaskIds`
+      only returns dep-free cards, so exactly ONE card is ever startable at a time — "Running 1" with 11 waiting is
+      dependency-bound, NOT admission-blocked (the other 2 of Cap 3 have nothing to run). And the idle 80B
+      `qwen/qwen3-coder-next` is the router working as DESIGNED: `selectSwarmRouteForTask` picks the "smallest
+      sufficient FREE pool (reserve the strong machine for hard cards)" (model-swarm-route.ts), so medium chain cards
+      correctly drain through the 24B devstral while the 80B stays reserved for HARD cards. Role-pinning-to-absent-legion
+      is ruled out here (devstral DID drive work, so the worker role wasn't hard-pinned to an unloaded model; and pinned
+      role models now fail closed with `pinned_model_unavailable` per the §5-AG work). The GENUINE under-utilization
+      mechanisms were separate and are both FIXED: (1) the deferred-retry trailing-timer swallowed by the terminal-retry
+      sweep debounce → dep-ready cards froze in Planning (found+fixed via the simulator, §13); (2) the endpoint-busy
+      queue backoff not cut short on completion (fixed below). What WOULD still be a real bug — a genuinely-startable
+      card sitting unstarted with a free slot AND an idle capable model — is now covered by those fixes + the
+      board-liveness watchdog. No further code change; the reserve-strong-model design is intentional.
 
 - [x] **Endpoint-busy queue: cut the retry backoff short on session completion (fleet under-utilization mechanism #2)** —
       FIXED (2026-07-10). Investigation corrected the original observation: WORKER turn-releases already force-drain
