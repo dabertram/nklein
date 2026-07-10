@@ -1151,6 +1151,36 @@ body.kb-dependency-link-mode {
 	}
 }
 
+/* -- Limited-width zoom-out (David 2026-07-10) -- */
+
+/* On constrained desktop widths, prefer a slightly smaller UI over truncated text — ellipsized titles hurt
+   usability far more than 8–15% smaller type. Standardized CSS zoom (Chromium 128+) keeps rect/pointer math
+   consistent, so drag-and-drop and the SVG maps stay correct. Ranges stop ABOVE the ≤768px mobile carousel
+   (touch targets keep full size) and end where the full layout fits without truncating. */
+/* The root compensates the zoom: viewport units are zoom-immune (standardized CSS zoom), so a 100svh/100vw app
+   under zoom < 1 would shrink into the top-left corner instead of gaining room — divide them back out. */
+@media (min-width: 769px) and (max-width: 1279px) {
+	body {
+		zoom: 0.92;
+	}
+
+	.kb-app-root {
+		height: calc(100svh / 0.92);
+		width: calc(100vw / 0.92);
+	}
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+	body {
+		zoom: 0.85;
+	}
+
+	.kb-app-root {
+		height: calc(100svh / 0.85);
+		width: calc(100vw / 0.85);
+	}
+}
+
 /* -- Mobile board -- */
 
 @media (max-width: 768px) {

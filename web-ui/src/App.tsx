@@ -976,7 +976,7 @@ export default function App(): ReactElement {
 
 	return (
 		<LayoutCustomizationsProvider onResetBottomTerminalLayoutCustomizations={resetBottomTerminalLayoutCustomizations}>
-			<div className="flex h-[100svh] min-w-0 overflow-hidden">
+			<div className="kb-app-root flex h-[100svh] min-w-0 overflow-hidden">
 				{!selectedCard ? (
 					<ProjectNavigationPanel
 						projects={displayedProjects}
