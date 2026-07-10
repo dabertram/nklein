@@ -11055,6 +11055,19 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       bypass the debounce and swallowed sweeps re-arm the timer (terminal-retry-sweep-policy.test.ts).
       NEXT: live-validate set 01 (hand-authored) + a flaky run + the 50-card set 19; then the record→distill
       capture docs; then the Fable UI deep dive on simulated workflows.)*
+      *(✅ 2026-07-10 — **SCENARIO INFRASTRUCTURE FULLY VALIDATED LIVE.** Round-2 runs under the STRICT drain
+      gate: project 01 (hand-authored, 41 cards) 42/42 completed · project 19 (largest generated, 50 cards)
+      51/51 completed · project 02 flaky 10 completed + 1 intentional review hold — all zero unmatched requests,
+      zero LLM compute. Two more product bugs found+fixed by the layer: (a) double dispatch — started cards sit
+      in the Planning entry lane so repeat auto-starts re-queued an already-running card and the endpoint-busy
+      queue ran it twice (autoStartTaskIds now skips cards with an active/queued session); (b) generated titles
+      >80 chars were clamped by task-title.ts so review-seed needles could never match (generator caps titles).
+      Reflection loop CLOSED: run-record-proxy.mts (capture; NOTE aimock proxyOnly=true DISABLES saving) +
+      distill-capture.mts (recorded turnIndex → atAssistantCount-pinned tracks); full workflow documented in
+      docs/dev/llm-simulator/README.md. Set-01 runs offline via no-op acceptance (its TS/vitest content needs
+      installs; generated sets keep REAL green acceptance via node:test).
+      NEXT: the Fable UI deep dive driven by simulated workflows (goal step 2) — persistent simulator+runtime+
+      web-ui stack, then work the todo backlog top-to-bottom (goal step 3).)*
 - [ ] **"Ready" lane between Planning and In Progress (David 2026-07-10 — LATER, protected).** Would make the
       queued-but-unblocked state visible as its own column. This touches the task flow everywhere (columns model, ready
       sweep, routing, UI lanes, drag rules, lean view, counts). **PROTECTION (David, verbatim intent): before ANY

@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Simulated project flows now drain real runtimes end-to-end at every scale tested** (todo §13): the
+  hand-authored 41-card clinical set, the largest generated 50-card set, and a failure-injection flaky run all
+  complete against a live runtime with zero LLM compute and zero unmatched mock requests. Along the way the
+  simulator exposed and fixed a second scheduler bug — repeat auto-starts could double-dispatch an
+  already-running card via the endpoint-busy queue (its duplicate session then produced an empty patch and
+  wedged review). The record→distill reflection loop is wired end-to-end (capture proxy + distiller CLI) and
+  documented in docs/dev/llm-simulator/README.md.
 - **A frozen-board dispatch stall is fixed — found by the LLM simulator in minutes** (todo §13/§12). Driving a
   20-card simulated project through a real runtime reproduced a stall real-model runs had only hinted at: the
   deferred-retry trailing timer could be silently swallowed by the terminal-retry sweep debounce, leaving ready
