@@ -62,6 +62,8 @@ export {
 };
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
+/** A QUEUED slot acquisition waiting past this (via the injected `warn`) is logged as a possible capacity stall. */
+const SLOT_QUEUE_SLOW_WAIT_LOG_MS = 30_000;
 const DOCKER_UNAVAILABLE_MARKERS = [
 	"cannot connect to the docker daemon",
 	"is the docker daemon running",
@@ -115,6 +117,12 @@ export interface AgentSandboxManagerOptions {
 	execFile?: typeof execFile;
 	setTimeout?: typeof setTimeout;
 	clearTimeout?: typeof clearTimeout;
+	/**
+	 * Optional diagnostic logger. When a slot acquisition has to QUEUE (pool at capacity), a warn fires if the
+	 * wait exceeds {@link SLOT_QUEUE_SLOW_WAIT_LOG_MS} and again on resolve/reject — so a silent capacity stall
+	 * (the review-hang autopsy, 2026-07-10) is visible instead of a mysterious freeze. No-op by default.
+	 */
+	warn?: (message: string) => void;
 }
 
 interface DockerExecError extends Error {
@@ -300,7 +308,10 @@ export class AgentSandboxManager {
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
 		this.staticWritableMounts = [...(options.writableMounts ?? [])];
+		this.warn = options.warn;
 	}
+
+	private readonly warn: ((message: string) => void) | undefined;
 
 	/**
 	 * §5.BB live-apply the basic-memory setting on a runtime-config change (same seam as {@link setNetworkPolicy},
@@ -415,11 +426,39 @@ export class AgentSandboxManager {
 		}
 		input.onQueued?.();
 		return await new Promise<TaskPlacement>((resolve, reject) => {
+			// Diagnostic: a QUEUED acquisition that stalls (pool at capacity, or a leaked slot never released) is the
+			// silent freeze from the 2026-07-10 review-hang autopsy. Log when the wait crosses the slow threshold and
+			// again on settle, so a capacity stall pinpoints itself instead of looking like a mysterious hang.
+			const queuedAt = Date.now();
+			let slowTimer: ReturnType<typeof setTimeout> | undefined;
+			if (this.warn) {
+				slowTimer = this.setTimeoutImpl(() => {
+					this.warn?.(
+						`Sandbox slot for ${input.taskId} has been QUEUED ${Math.round(SLOT_QUEUE_SLOW_WAIT_LOG_MS / 1000)}s+ (pool at capacity — ${this.containers.size}/${this.poolConfig.maxContainers} containers, ${this.queue.length} waiting). A slot may be leaked if this never clears.`,
+					);
+				}, SLOT_QUEUE_SLOW_WAIT_LOG_MS);
+				slowTimer.unref?.();
+			}
+			const settleLog = (outcome: string): void => {
+				if (slowTimer) {
+					this.clearTimeoutImpl(slowTimer);
+				}
+				const waitedMs = Date.now() - queuedAt;
+				if (this.warn && waitedMs >= SLOT_QUEUE_SLOW_WAIT_LOG_MS) {
+					this.warn(`Sandbox slot for ${input.taskId} ${outcome} after ${Math.round(waitedMs / 1000)}s queued.`);
+				}
+			};
 			const entry = {
 				taskId: input.taskId,
 				projectRepoPath: input.projectRepoPath,
-				resolve,
-				reject,
+				resolve: (placement: TaskPlacement) => {
+					settleLog("acquired");
+					resolve(placement);
+				},
+				reject: (error: unknown) => {
+					settleLog("gave up");
+					reject(error);
+				},
 			};
 			this.queue.push(entry);
 			// run19 live finding (the review-sandbox-prep hang): AUXILIARY acquisitions (the acceptance re-check,

@@ -255,6 +255,15 @@ let acceptanceSessionSeq = 0;
 /** Bounded slot wait for this auxiliary seam: the pool may be busy with the very sessions awaiting this check. */
 const ACCEPTANCE_SLOT_QUEUE_WAIT_MS = 120_000;
 
+/**
+ * Ceiling on the pre-command pause wait. `waitUntilResumed` blocks FOREVER while a task is paused and never
+ * resumed — but here it runs AFTER the sandbox slot is acquired, so an indefinite wait leaks the slot (the
+ * review-hang deadlock class, 2026-07-10). Past this cap we proceed with the command rather than hold the slot
+ * hostage to a stuck pause: the acceptance gate has its own command timeout, and a genuinely-paused board is the
+ * operator's call, not a reason to freeze the pool.
+ */
+const ACCEPTANCE_PAUSE_WAIT_CAP_MS = 60_000;
+
 export async function runNKleinAcceptanceGateInSandbox(
 	options: RunNKleinAcceptanceGateInSandboxOptions,
 ): Promise<NKleinAcceptanceGateResult> {
@@ -279,7 +288,21 @@ export async function runNKleinAcceptanceGateInSandbox(
 			...options,
 			workspacePath: workspace.workdir,
 			runCommand: async (execution) => {
-				await options.pauseController?.waitUntilResumed(taskId);
+				// Bounded pause-wait: this runs AFTER the slot is acquired, so an indefinite wait on a stuck pause
+				// leaks the slot (the review-hang deadlock class). Past the cap we proceed — the command has its own
+				// timeout, and a genuinely-paused board is the operator's decision, not a reason to freeze the pool.
+				const pauseWait = options.pauseController?.waitUntilResumed(taskId);
+				if (pauseWait) {
+					let capTimer: ReturnType<typeof setTimeout> | undefined;
+					const cap = new Promise<void>((resolve) => {
+						capTimer = setTimeout(resolve, ACCEPTANCE_PAUSE_WAIT_CAP_MS);
+						capTimer.unref?.();
+					});
+					await Promise.race([pauseWait.catch(() => undefined), cap]);
+					if (capTimer) {
+						clearTimeout(capTimer);
+					}
+				}
 				const command = rewriteSandboxAcceptanceCommand(execution.command, execution.cwd);
 				const shellExecution = resolveShellExecution(command);
 				return await options.sandboxManager.exec(sandboxTaskId, [shellExecution.binary, ...shellExecution.args], {

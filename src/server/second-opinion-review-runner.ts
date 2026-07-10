@@ -341,6 +341,10 @@ export async function runSecondOpinionReviewForTask(
 	// its result — previously acceptanceSummary was never populated, so the reviewer judged the diff with zero
 	// knowledge of whether acceptance passed/failed/exists (an opinion, not an evidence-backed gate). Best-effort:
 	// an unavailable check (no sandbox / method absent on a fake) yields null and the reviewer is told so.
+	// Phase stamps (2026-07-10 review-hang autopsy): a silently-wedged review pinpoints its last-reached phase.
+	// Fire only via the injected `warn`, so they're diagnostic noise-free unless a caller wants them.
+	const stampPhase = (phase: string): void => input.warn?.(`[review-phase] ${input.taskId}: ${phase}`);
+	stampPhase("acceptance-verify start");
 	const acceptance = config.secondOpinionReviewEnabled
 		? await (async () => {
 				try {
@@ -357,6 +361,7 @@ export async function runSecondOpinionReviewForTask(
 				}
 			})()
 		: null;
+	stampPhase("acceptance-verify done");
 
 	// W4.2 layer 3: probe once per review run for a lineage-diverse escalation worker (null ⇒ park as before).
 	const escalationCandidate = config.secondOpinionReviewEnabled
@@ -404,7 +409,8 @@ export async function runSecondOpinionReviewForTask(
 			input.warn?.(`Test-driven gate: bouncing ${input.taskId} — ${gate.reason}`);
 		}
 	}
-	return runNKleinSecondOpinionReview({
+	stampPhase("review-session start");
+	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
 		enabled: config.secondOpinionReviewEnabled,
@@ -552,4 +558,6 @@ ${review.lastFeedback}`
 			},
 		},
 	});
+	stampPhase(`review-session done (${reviewResult.type})`);
+	return reviewResult;
 }

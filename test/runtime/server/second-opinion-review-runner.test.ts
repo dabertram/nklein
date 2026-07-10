@@ -399,7 +399,12 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(
 			expect.objectContaining({ reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } }),
 		);
-		expect(warn).not.toHaveBeenCalled();
+		// No PROBLEM warning fired (pin mismatch / lineage). The `[review-phase]` diagnostic stamps are expected
+		// (they trace the phases for the review-hang autopsy) and are ignored here.
+		const problemWarnings = warn.mock.calls
+			.map((call) => String(call[0]))
+			.filter((message) => !message.startsWith("[review-phase]"));
+		expect(problemWarnings).toEqual([]);
 	});
 
 	it("honors the pin leniently when the loaded set is unknown (empty probe never wedges a review)", async () => {

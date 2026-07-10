@@ -1869,6 +1869,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
 					basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
+					// Surface a stalled slot acquisition (the review-hang class) instead of a silent freeze.
+					warn: (message) => deps.warn(message),
 				}),
 				onDecompositionApplied: async (event) => {
 					if (event.workspacePath !== scope.workspacePath) {

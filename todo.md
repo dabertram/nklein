@@ -11155,7 +11155,19 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       runSecondOpinionReviewForTask's phases (mutex acquire → pool prepare → launch resolve → first model call)
       + a bounded timeout with slot release on every phase; make the pool's capacity queue LOG when an acquire
       waits >30s; then reproduce via the dev stack (solo 05, watchable pace — NOT the instant harness, which
-      passes). Evidence:
+      passes).
+      **INSTRUMENTATION + FIRST FIX LANDED (2026-07-10 late):** (1) AgentSandboxManager takes an injected `warn`
+      and now LOGS a queued slot acquisition that stalls past 30s (pool size + queue depth) and again on settle —
+      so a capacity stall pinpoints itself instead of a silent freeze; wired in runtime-server. (2)
+      runSecondOpinionReviewForTask emits `[review-phase]` stamps (acceptance-verify start/done · review-session
+      start/done+outcome) via the injected warn, so the next repro shows the LAST phase reached. (3) ROOT-CAUSE
+      FIX for the one unbounded await in a slot-holding critical section: the acceptance gate's pre-command
+      `pauseController.waitUntilResumed(taskId)` (which blocks FOREVER on a never-resumed pause, leaking the slot)
+      is now bounded to 60s (ACCEPTANCE_PAUSE_WAIT_CAP_MS) — past the cap it proceeds (the command has its own
+      timeout; a paused board is the operator's call, not a pool freeze). 14 acceptance-gate tests (incl. a fake-
+      timer cap test proving no hang) + 19 review-runner tests + 8939 fast green. STILL OWED: run the instrumented
+      stack (solo 05, watchable) to CONFIRM the phase stamps + queue log pinpoint any residual hang, and confirm
+      the pause-cap (or a further phase bound) fully drains 05. Evidence:
       merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
       known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
       settled with no submit_review — even though a direct probe of the live simulator answered that exact

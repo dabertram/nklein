@@ -242,6 +242,41 @@ describe("nklein acceptance gate", () => {
 		expect(disposeWorkspace).toHaveBeenCalledWith(preparedTaskId);
 	});
 
+	it("does NOT hang forever on a stuck pause — proceeds past the 60s cap so the slot is never leaked", async () => {
+		// The pre-command pause wait runs AFTER the sandbox slot is acquired; a never-resumed pause used to hold
+		// the slot forever (the review-hang deadlock class, 2026-07-10). Past the cap the command runs anyway.
+		vi.useFakeTimers();
+		try {
+			const pauseController = new NKleinPauseController();
+			pauseController.setCardPaused("task-stuck", true); // paused and NEVER resumed
+			const exec = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
+			const sandboxManager = {
+				assertAvailable: vi.fn(async () => {}),
+				prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/task-stuck", uid: 70_002 })),
+				exec,
+				disposeWorkspace: vi.fn(async () => {}),
+			} as unknown as AgentSandboxManager;
+
+			const pending = runNKleinAcceptanceGateInSandbox({
+				taskId: "task-stuck",
+				projectRepoPath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				sandboxManager,
+				pauseController,
+			});
+
+			// Let prepareWorkspace resolve, then advance PAST the 60s pause cap — the command must run despite the
+			// pause never being lifted.
+			await vi.advanceTimersByTimeAsync(0);
+			expect(exec).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(60_000);
+			await expect(pending).resolves.toMatchObject({ present: true, passed: true });
+			expect(exec).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("executes stale /workspaces acceptance commands from the fresh sandbox root", async () => {
 		const exec = vi.fn(async () => ({
 			exitCode: 0,
