@@ -9820,13 +9820,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Implement fallback endpoint for tool-call + reasoning SSE events (more structured than OpenAI path).
   - [ ] Use stateful sessions (avoid resending history) for efficiency + long-context leverage.
   - [ ] Wire MCP integration (ties §5.AC/§5.M tool expansion).
-- [ ] **REST model management via /api/v1/models endpoints, decomposed:**
-  - [ ] Implement in-process alternative to `lms` CLI shell-outs (still guarded by `decideModelLoad`). *(the guard
-        core exists: `src/core/model-load-policy.ts` `decideModelLoadAction` (2026-07-08 — residents sacred, headroom-
-        gated, largest-idle-evicted-first). This leaf is the in-process LM Studio REST client replacing the `lms`
-        shell-outs — a fetch-layer build gated on the API-management design; the policy governor is ready to wrap it.)*
-  - [ ] Wire `/api/v1/models/{load,unload,download}` endpoints.
-  - [ ] Re-verify exact load-params (context length, gpu, ttl) shape.
+- [~] **REST model management via /api/v1/models endpoints, decomposed:**
+  - [x] Implement in-process alternative to `lms` CLI shell-outs (still guarded by `decideModelLoad`).
+        **DONE (2026-07-10):** [src/core/lmstudio-rest-model-client.ts] — injectable-fetch client
+        (list/load/unload/download, discriminated results, never throws) + `loadModelViaRestGuarded`, which keeps
+        `decideModelLoadAction` as the governor (residents sacred, headroom-gated, largest-idle-evicted-first,
+        freed-GB credited across eviction steps, bounded evictions, full policy audit trail). 7 unit tests over
+        the live-verified wire shapes.
+  - [x] Wire `/api/v1/models/{load,unload,download}` endpoints. *(same module; all three probed live 2026-07-10.)*
+  - [x] Re-verify exact load-params (context length, gpu, ttl) shape. **LIVE-VERIFIED (2026-07-10, LM Studio
+        :1234; STRICT schemas — unknown keys rejected with `unrecognized_keys`):** load accepts ONLY
+        `{model, context_length}` (NO ttl/gpu keys — those remain CLI-only levers: `lms load --ttl` for keep-alive);
+        unload takes `{instance_id}`; list returns `loaded_instances` + `size_bytes` + `max_context_length` (a
+        full replacement for the `lms ps`/`lms ls` reads). Shapes documented in the client header.
+  - [ ] REMAINING (follow-up): swap a live consumer onto the REST client (e.g. a REST-backed option for
+        model-lab/verify-all-models, or runtime-managed loads when that lands) — the CLI path stays for
+        ttl/device levers the REST surface does not expose.
 - [~] **Reasoning control as a first-class §5.AA lever, decomposed:** *(disable-thinking-for-simple + keep-for-hard
       [x], the truncation-recovery rung + the per-family model-thinking-control extension [~]; only the live per-family
       verification (⏱ FLEET) remains. Reclassified [ ]→[~] 2026-07-08.)*
