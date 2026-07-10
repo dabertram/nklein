@@ -1207,7 +1207,7 @@ export default function App(): ReactElement {
 											/>
 										) : (
 											<KanbanBoard
-												forceFleetExpanded={zoom === 4}
+												professionalDefaults={zoom === 4}
 												data={board}
 												taskSessions={sessions}
 												reasoningSnippetByTaskId={reasoningSnippetByTaskId}

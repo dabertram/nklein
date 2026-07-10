@@ -170,7 +170,7 @@ export function KanbanBoard({
 	onRuntimeConfigChanged,
 	onTaskSessionSummary,
 	replayCardsEnabled = false,
-	forceFleetExpanded = false,
+	professionalDefaults = false,
 	defaultAgentId,
 	reasoningSnippetByTaskId,
 }: {
@@ -208,8 +208,12 @@ export function KanbanBoard({
 	onRuntimeConfigChanged?: () => void;
 	onTaskSessionSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	replayCardsEnabled?: boolean;
-	/** §5.BB Zoom 3 (Professional): render the fleet block expanded regardless of the stored toggle. */
-	forceFleetExpanded?: boolean;
+	/**
+	 * §5.BB Zoom 4 (Professional) = the COCKPIT: the fleet block AND the dependency edges default ON here (Z3
+	 * Expert keeps them off at rest) — this is the ladder's actual Z3↔Z4 distinction (they had drifted identical,
+	 * David 2026-07-10). Explicit user toggles always win over the zoom default (tri-state prefs).
+	 */
+	professionalDefaults?: boolean;
 	/** The workspace's selected agent — cards only wear an agent chip when they differ from it. */
 	defaultAgentId?: string | null;
 	/** §5.V: live reasoning-phase snippets per task (derived at App level from task-chat reasoning messages). */
@@ -231,17 +235,17 @@ export function KanbanBoard({
 	const [copyEvidenceTaskId, setCopyEvidenceTaskId] = useState<string | null>(null);
 	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
-	// §5.BC (user pick: treatment C — all edges behind a toggle): persisted, OFF by default so the board
-	// stays clean at rest; the linking draft always draws regardless.
-	const [dependencyEdgesVisible, setDependencyEdgesVisible] = useState(
-		() => readLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible) === "1",
+	// §5.BC (user pick: treatment C — all edges behind a toggle): persisted TRI-STATE. Unset defers to the zoom
+	// default (Professional cockpit shows edges, Expert stays clean); an explicit toggle wins everywhere.
+	const [dependencyEdgesPref, setDependencyEdgesPref] = useState<string | null>(() =>
+		readLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible),
 	);
+	const dependencyEdgesVisible = dependencyEdgesPref === null ? professionalDefaults : dependencyEdgesPref === "1";
 	const handleToggleDependencyEdges = useCallback(() => {
-		setDependencyEdgesVisible((current) => {
-			writeLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible, current ? "0" : "1");
-			return !current;
-		});
-	}, []);
+		const next = dependencyEdgesVisible ? "0" : "1";
+		writeLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible, next);
+		setDependencyEdgesPref(next);
+	}, [dependencyEdgesVisible]);
 	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted TRI-STATE: unset defers to the
 	// zoom default (§5.BB Professional opens it, other zooms keep it collapsed), while an EXPLICIT user toggle wins
 	// everywhere — the previous force-open on Professional made the toggle a dead click there (live-found 2026-07-09).
@@ -249,7 +253,7 @@ export function KanbanBoard({
 	const [fleetStripPref, setFleetStripPref] = useState<string | null>(() =>
 		readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded),
 	);
-	const fleetStripExpanded = fleetStripPref === null ? forceFleetExpanded : fleetStripPref === "1";
+	const fleetStripExpanded = fleetStripPref === null ? professionalDefaults : fleetStripPref === "1";
 	const handleToggleFleetStrip = useCallback(() => {
 		const next = fleetStripExpanded ? "0" : "1";
 		writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, next);

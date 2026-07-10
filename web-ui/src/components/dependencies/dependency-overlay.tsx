@@ -612,8 +612,37 @@ export function DependencyOverlay({
 		if (resizeObserver) {
 			resizeObserver.observe(container);
 		}
-		const mutationObserver = new MutationObserver(() => {
-			scheduleRefresh();
+		// The overlay's OWN nodes (paths animating side-transitions, delete controls) live inside the observed
+		// container — reacting to them re-triggered refresh in a feedback loop that kept the SVG churning ~3×/s on an
+		// IDLE board (live-measured 2026-07-10; part of the flicker + render-load David reported). Ignore mutations
+		// originating inside the overlay, and coalesce the rest to at most one refresh per 120ms.
+		let lastRefreshAt = 0;
+		let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+		const scheduleCoalescedRefresh = () => {
+			const now = Date.now();
+			const since = now - lastRefreshAt;
+			if (since >= 120) {
+				lastRefreshAt = now;
+				scheduleRefresh();
+				return;
+			}
+			if (pendingTimeout === null) {
+				pendingTimeout = setTimeout(() => {
+					pendingTimeout = null;
+					lastRefreshAt = Date.now();
+					scheduleRefresh();
+				}, 120 - since);
+			}
+		};
+		const isOverlayOwned = (node: Node): boolean => {
+			const element = node.nodeType === 1 ? (node as Element) : node.parentElement;
+			return element?.closest?.(".kb-dependency-overlay, .kb-dependency-delete-control") != null;
+		};
+		const mutationObserver = new MutationObserver((mutations) => {
+			if (mutations.every((mutation) => isOverlayOwned(mutation.target))) {
+				return;
+			}
+			scheduleCoalescedRefresh();
 		});
 		mutationObserver.observe(container, {
 			subtree: true,
@@ -626,6 +655,9 @@ export function DependencyOverlay({
 			mutationObserver.disconnect();
 			resizeObserver?.disconnect();
 			window.cancelAnimationFrame(animationFrameId);
+			if (pendingTimeout !== null) {
+				clearTimeout(pendingTimeout);
+			}
 		};
 	}, [containerRef, refreshLayout]);
 
