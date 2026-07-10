@@ -171,14 +171,17 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(lookupModelCapability("google/gemma-4-e4b")?.family).toBe("gemma-4-e4b");
 	});
 
-	it("qwen3-14b + qwen3.6-27b are PROVISIONAL (verified:false); qwen3.6-27b does NOT shadow the qwopus3.6 driver", () => {
+	it("qwen3-14b stays PROVISIONAL; qwen3.6-27b is settled-verified (2026-07-10 eval) and does NOT shadow the qwopus3.6 driver", () => {
 		const q14 = lookupModelCapability("qwen3-14b");
 		expect(q14?.family).toBe("qwen3-14b");
 		expect(q14?.toolUse).toBe("TOOL_WEAK");
 		expect(q14?.verified).toBe(false); // n=1 legion fail — provisional
 		const q36 = lookupModelCapability("qwen3.6-27b");
 		expect(q36?.family).toBe("qwen3.6-27b");
-		expect(q36?.verified).toBe(false); // speed-confounded legion run, not a capability ceiling
+		// 2026-07-10 settled eval (4 repeats/cell): tool-use 12/12; reviewer recall deterministically weak.
+		expect(q36?.verified).toBe(true);
+		expect(q36?.toolUse).toBe("TOOL_CAPABLE");
+		expect(q36?.note).toContain("REVIEWER RECALL");
 		// the qwopus3.6 MERGE (backlog driver) still resolves to ITS own row, not the base qwen3.6-27b row.
 		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");
 	});

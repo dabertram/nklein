@@ -370,20 +370,21 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: false,
 	},
 	{
-		// qwen3.6-27b (base qwen3.6, arch qwen35) — NOT the qwopus3.6 merge (own row above). Only data is a SPEED-CONFOUNDED
-		// laptop run, so the verdict is research-led + verified:false — do NOT read a slow-HW timeout as incapacity.
+		// qwen3.6-27b (base qwen3.6, arch qwen35) — NOT the qwopus3.6 merge (own row above). First SETTLED-depth
+		// empirical evidence 2026-07-10 (eval harness, 4 repeats/cell on the m5max, LOW-POWER mode).
 		family: "qwen3.6-27b",
 		match: /qwen-?3[._]6-27b/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "reasoning",
 		speed: "slow",
 		sizeGb: 17,
-		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE — the backlog driver — has its own row and drives multi-tool chains fine). Only live data 2026-07-01 is SPEED-CONFOUNDED: on the LAPTOP (8 GB VRAM + 32 GB RAM) it ran ~14 min (840s) mostly RAM-bound and hit INCOMPLETE — a throughput/timeout artifact, NOT a capability ceiling (the known 'a 27B is too slow for a multi-turn tool-chain in-window' pattern). Held TOOL_CAPABLE (the 3.6 gen chains natively on adequate HW), verified:false — a CLEAN run owed on a fast box.",
+		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE has its own row). SETTLED eval evidence 2026-07-10 (§5.AB harness, 4 repeats/cell, m5max LOW-POWER): TOOL USE PERFECT — 12/12 across easy/medium/hard incl. the irrelevance probe (settled_pass, spread 0). DECOMPOSE strong easy+medium (settled 1.0); the HARD decompose exceeded the 300s eval cap ×4 at low power (unscored TIMEOUT, not a refusal — power-aware caveat, re-run on high power before reading a ceiling). REVIEWER RECALL IS THE REAL WEAKNESS: settled 0.5 on the medium pair (consistently missed one of null-deref/unhandled-rejection) and 0.33 on the hard trio (caught 1 of race/leak/injection) — deterministic misses (spread 0), so prefer a different family for the reviewer role or pair it with review lenses. Review turns cost ~220-260s each at low power.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — qwen3.6-27b INCOMPLETE @840s, speed-confounded); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (laptop, speed-confounded INCOMPLETE @840s); see docs/dev/model-sweep-log.md",
+			"eval harness 2026-07-10 (scripts/eval-harness.mts, NKLEIN_EVAL_REPEATS=4, persisted to fitness-table): mean 0.854/32 cells — worker 1.0/1.0, architect 1.0 quality @maxDiff 0.66, reviewer 0.611 quality/0.333 reliability",
 		],
 		basis: "both",
-		verified: false,
+		verified: true,
 	},
 	// ── OpenAI gpt-oss (open-weight MoE) — 2026-07-01 fleet sweep: chaining tracks ACTIVE params ──────────────
 	{
