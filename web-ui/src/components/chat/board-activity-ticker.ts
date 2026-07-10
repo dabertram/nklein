@@ -103,6 +103,13 @@ export function diffBoardActivity(
 
 	const sessionKeys = [...new Set([...Object.keys(previous.sessions), ...Object.keys(next.sessions)])].sort();
 	for (const key of sessionKeys) {
+		// Synthetic sub-sessions (`::review` / `::acceptance` / `::spec`) are the card's JUDGES, not its work —
+		// they end `interrupted` by design after delivering, so ticking them spammed healthy boards with
+		// "session interrupted" (live-found 2026-07-10, 8× on a clean drain). The card's own lane moves and its
+		// base session carry the story; sub-sessions stay silent (matching the server bridge's derived-id skip).
+		if (key.includes("::")) {
+			continue;
+		}
 		const prior = previous.sessions[key];
 		const current = next.sessions[key];
 		const wasLive = prior !== undefined && LIVE_SESSION_STATES.has(prior.state);

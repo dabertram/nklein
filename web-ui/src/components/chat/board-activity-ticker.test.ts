@@ -50,7 +50,9 @@ describe("diffBoardActivity (§5.BB chat activity ticks)", () => {
 		const before = snapshot([column("in_progress", [card("a")])], { a: session("a", "queued") });
 		const after = snapshot([column("in_progress", [card("a", { blockedKind: "needs_decomposition" }), card("b")])], {
 			a: session("a", "running", "qwop4b-a"),
-			"b::review": session("b", "failed"),
+			b: session("b", "failed"),
+			// Synthetic sub-sessions (the card's judges) stay SILENT — they end interrupted by design (2026-07-10).
+			"b::review": session("b", "interrupted"),
 		});
 		const ticks = diffBoardActivity(before, after, 5000);
 		expect(ticks.map((tick) => tick.label)).toEqual([
