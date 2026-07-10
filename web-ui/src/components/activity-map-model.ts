@@ -20,14 +20,21 @@ export interface ActivityBubble {
 	/** Age factor 0..1 for done cards (older ⇒ more faded); 0 for everything else. */
 	fade: number;
 	/**
-	 * Density-aware labeling: on busy boards (>{@link MAP_LABEL_DENSITY_LIMIT} bubbles) only ACTIVE bubbles keep
-	 * their label — 40+ overlapping captions read as ink soup (live-found 2026-07-10, 42-card simulated board).
+	 * Density-aware labeling: inside a CLUSTER with more than {@link MAP_CLUSTER_LABEL_LIMIT} bubbles only ACTIVE
+	 * bubbles keep their label — overlapping captions read as ink soup. The trigger is per-cluster, not per-board:
+	 * a 19-card board with 18 bubbles in one cluster collides even though the total is small (live-found 2026-07-10,
+	 * an all-done single-stream project stacked 18 unreadable captions), whereas the same 19 cards spread over small
+	 * separate clusters do not — so density must be measured where the labels actually crowd each other.
 	 */
 	showLabel: boolean;
 }
 
-/** Above this many bubbles, idle cards drop their captions (hover/selection still reveals them). */
-export const MAP_LABEL_DENSITY_LIMIT = 24;
+/**
+ * Above this many bubbles IN A SINGLE CLUSTER, idle cards drop their captions (hover/selection still reveals them,
+ * and zooming into the cluster shows every title). Sized so typical small streams stay fully labeled while a dense
+ * stream declutters to just its live/review/blocked bubbles.
+ */
+export const MAP_CLUSTER_LABEL_LIMIT = 9;
 
 export interface ActivityCluster {
 	id: string;
@@ -189,12 +196,15 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 				left.title.localeCompare(right.title),
 		);
 	}
-	if (totalCards > MAP_LABEL_DENSITY_LIMIT) {
-		for (const cluster of clusters) {
-			for (const bubble of cluster.bubbles) {
-				bubble.showLabel =
-					bubble.pulsing || bubble.state === "running" || bubble.state === "review" || bubble.state === "blocked";
-			}
+	for (const cluster of clusters) {
+		// Per-cluster: a sparse cluster keeps every caption; a crowded one keeps only its ACTIVE bubbles' captions
+		// (idle titles still surface on hover and when the cluster is zoomed into).
+		if (cluster.bubbles.length <= MAP_CLUSTER_LABEL_LIMIT) {
+			continue;
+		}
+		for (const bubble of cluster.bubbles) {
+			bubble.showLabel =
+				bubble.pulsing || bubble.state === "running" || bubble.state === "review" || bubble.state === "blocked";
 		}
 	}
 	return { clusters, edges, totalCards, runningCount };

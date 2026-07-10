@@ -107,7 +107,7 @@ describe("composeActivityMap (§5.BB Zoom 0)", () => {
 });
 
 describe("label density", () => {
-	it("keeps all labels on small boards but only active labels past the density limit", () => {
+	it("keeps all labels on small boards but only active labels in a crowded cluster", () => {
 		const smallColumns: BoardColumn[] = [{ id: "planning", title: "Planning", cards: [card("a"), card("b")] }];
 		const small = composeActivityMap({ columns: smallColumns, dependencies: [], sessions: {}, now: () => NOW });
 		expect(small.clusters.flatMap((cluster) => cluster.bubbles).every((bubble) => bubble.showLabel)).toBe(true);
@@ -128,5 +128,32 @@ describe("label density", () => {
 		expect(hot?.showLabel).toBe(true);
 		const idle = bubbles.filter((bubble) => bubble.id !== "hot");
 		expect(idle.some((bubble) => bubble.showLabel)).toBe(false);
+	});
+
+	it("declutters a single dense cluster even when the board total is small (per-cluster trigger)", () => {
+		// 12 done cards, all one stream ⇒ one cluster of 12. Total is well under any board-wide limit, but the
+		// captions still pile up — this is the all-done single-stream project that stacked 18 unreadable labels.
+		const cards = Array.from({ length: 12 }, (_, index) =>
+			card(`d${index}`, { generatedFromPlan: plan("safety-stream") }),
+		);
+		const columns: BoardColumn[] = [{ id: "completed", title: "Completed", cards }];
+		const map = composeActivityMap({ columns, dependencies: [], sessions: {}, now: () => NOW });
+		const bubbles = map.clusters.flatMap((cluster) => cluster.bubbles);
+		expect(bubbles.length).toBe(12);
+		// No active bubbles ⇒ the dense cluster shows zero inline labels (halo label + hover still identify them).
+		expect(bubbles.some((bubble) => bubble.showLabel)).toBe(false);
+	});
+
+	it("keeps labels when many cards are spread across small clusters (no false board-wide declutter)", () => {
+		// 30 cards, but six streams of five ⇒ every cluster is sparse. A board-wide count would wrongly strip these;
+		// per-cluster keeps them because five captions in a halo do not collide.
+		const cards = Array.from({ length: 6 }, (_, s) =>
+			Array.from({ length: 5 }, (_, i) => card(`s${s}-c${i}`, { generatedFromPlan: plan(`stream-${s}`) })),
+		).flat();
+		const columns: BoardColumn[] = [{ id: "completed", title: "Completed", cards }];
+		const map = composeActivityMap({ columns, dependencies: [], sessions: {}, now: () => NOW });
+		const bubbles = map.clusters.flatMap((cluster) => cluster.bubbles);
+		expect(bubbles.length).toBe(30);
+		expect(bubbles.every((bubble) => bubble.showLabel)).toBe(true);
 	});
 });
