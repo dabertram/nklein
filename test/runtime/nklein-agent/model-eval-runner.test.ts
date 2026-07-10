@@ -11,11 +11,14 @@ import {
 function perfectChat(): ModelEvalChat {
 	const reviewById = new Map<string, ReviewEvalPrompt>();
 	const decomposeById = new Map<string, { nodes: string[]; edges: { from: string; to: string }[] }>();
+	const toolUseById = new Map<string, { name: string; args: Record<string, unknown> } | null>();
 	for (const row of EVAL_PROMPT_CORPUS) {
 		if (row.family === "review") {
 			reviewById.set(row.prompt.slice(0, 40), row);
 		} else if (row.family === "decompose") {
 			decomposeById.set(row.prompt.slice(0, 40), row.reference);
+		} else if (row.family === "tool_use") {
+			toolUseById.set(row.prompt.slice(0, 40), row.expected);
 		}
 	}
 	return async (messages) => {
@@ -31,6 +34,18 @@ function perfectChat(): ModelEvalChat {
 				}
 				const tasks = reference.nodes.map((node) => ({ id: node, dependsOn: depsByNode.get(node) ?? [] }));
 				return { message: { content: JSON.stringify({ tasks }) } };
+			}
+		}
+		for (const [needle, expected] of toolUseById) {
+			if (userText.includes(needle)) {
+				// Emit the expected call (or NO call for an irrelevance probe, which is the correct answer there).
+				return expected
+					? {
+							message: {
+								tool_calls: [{ function: { name: expected.name, arguments: JSON.stringify(expected.args) } }],
+							},
+						}
+					: { message: { content: "The ocean breathes slow / a haiku needs no weather / just salt on the wind" } };
 			}
 		}
 		for (const [needle, row] of reviewById) {
@@ -53,8 +68,8 @@ describe("runModelEval", () => {
 		);
 		expect(result.scoredAttempts).toBeGreaterThan(0);
 		expect(result.meanScore).toBe(1);
-		// implement cells are skipped ⇒ only architect + reviewer roles fold.
-		expect(Object.keys(result.fitnessByRole).sort()).toEqual(["architect", "reviewer"]);
+		// implement cells are skipped ⇒ architect (decompose) + reviewer (review) + worker (tool_use) roles fold.
+		expect(Object.keys(result.fitnessByRole).sort()).toEqual(["architect", "reviewer", "worker"]);
 		expect(result.fitnessByRole.architect?.reliability).toBe(1);
 		expect(result.cells.every((cell) => cell.score === 1)).toBe(true);
 	});

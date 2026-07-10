@@ -18,11 +18,13 @@ import {
 	type EvalPrompt,
 	type ReviewEvalPrompt,
 	scoreEvalAnswer,
+	type ToolUseEvalPrompt,
 } from "../core/eval-prompt-corpus.js";
 import type { FitnessDifficultyTier } from "../core/fitness-table-schema.js";
 import type { ModelEvalRun } from "../core/model-eval-aggregation.js";
 import { type EvalCellStability, scoreModelEvalStability } from "../core/model-eval-stability.js";
 import type { ModelFitnessRecord } from "../core/model-fitness.js";
+import type { ToolCallAttempt } from "../core/prompt-family-scorers.js";
 import { selectStructuredOutputStrategy } from "../core/structured-output-strategy.js";
 
 /** Map the corpus difficulty tier to a 0..1 number for the fitness fold (mirrors the CLI harness). */
@@ -37,7 +39,7 @@ export interface ModelEvalChatChoice {
 	message?: {
 		content?: string;
 		reasoning_content?: string;
-		tool_calls?: Array<{ function?: { arguments?: string } }>;
+		tool_calls?: Array<{ function?: { name?: string; arguments?: string } }>;
 	};
 	finish_reason?: string;
 }
@@ -150,6 +152,40 @@ async function scoreDecompose(
 	return answer ? scoreEvalAnswer(prompt, answer) : null;
 }
 
+/**
+ * BFCL-style tool-use probe (todo 6845c): offer the probe's tools with `tool_choice:"auto"` (NOT required — an
+ * irrelevance probe must let the model decline to call) and grade the emitted call. A null call is a valid answer
+ * for an irrelevance probe, so — unlike the other families — a no-call is NOT a "no answer": it is scored directly.
+ */
+async function scoreToolUse(prompt: ToolUseEvalPrompt, maxTokens: number, chat: ModelEvalChat): Promise<number | null> {
+	const tools = prompt.tools.map((tool) => ({
+		type: "function",
+		function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+	}));
+	const choice = await chat([{ role: "user", content: prompt.prompt }], {
+		tools,
+		tool_choice: "auto",
+		max_tokens: maxTokens,
+	});
+	if (choice === null) {
+		return null; // transport failure — genuinely unscorable this attempt.
+	}
+	const rawCall = choice.message?.tool_calls?.[0]?.function;
+	let called: ToolCallAttempt | null = null;
+	if (rawCall?.name) {
+		let args: Record<string, unknown> = {};
+		try {
+			const parsed =
+				typeof rawCall.arguments === "string" ? JSON.parse(rawCall.arguments || "{}") : (rawCall.arguments ?? {});
+			args = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+		} catch {
+			args = {};
+		}
+		called = { name: rawCall.name, args };
+	}
+	return scoreEvalAnswer(prompt, { family: "tool_use", called });
+}
+
 async function scoreReview(prompt: ReviewEvalPrompt, maxTokens: number, chat: ModelEvalChat): Promise<number | null> {
 	const choice = await chat([{ role: "user", content: `${prompt.prompt}\n\n\`\`\`js\n${prompt.code}\n\`\`\`` }], {
 		max_tokens: maxTokens,
@@ -192,7 +228,9 @@ export async function runModelEval(
 			const score =
 				prompt.family === "decompose"
 					? await scoreDecompose(prompt, config.modelId, maxTokens, deps.chat)
-					: await scoreReview(prompt as ReviewEvalPrompt, maxTokens, deps.chat);
+					: prompt.family === "tool_use"
+						? await scoreToolUse(prompt as ToolUseEvalPrompt, maxTokens, deps.chat)
+						: await scoreReview(prompt as ReviewEvalPrompt, maxTokens, deps.chat);
 			const latencyMs = Math.max(0, now() - start);
 			totalAttempts += 1;
 			const effectiveScore = score ?? 0;

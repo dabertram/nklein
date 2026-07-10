@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { scoreDefectCatchingReview, scorePassingCode, scoreValidDag } from "../../../src/core/prompt-family-scorers";
+import {
+	scoreDefectCatchingReview,
+	scorePassingCode,
+	scoreToolUseCall,
+	scoreValidDag,
+} from "../../../src/core/prompt-family-scorers";
 
 describe("scoreValidDag", () => {
 	it("scores 1 for a valid acyclic graph with resolvable edges", () => {
@@ -92,5 +97,42 @@ describe("scorer non-finite / duplicate-node fail-safe (regression: bug-hunt 202
 	it("scoreValidDag deduplicates node ids (a valid DAG with a repeated node id is not misreported as a cycle)", () => {
 		// Before the fix: removed(2) !== raw graph.nodes.length(3) ⇒ wrongly scored 0.
 		expect(scoreValidDag({ nodes: ["a", "b", "b"], edges: [{ from: "a", to: "b" }] })).toBe(1);
+	});
+});
+
+describe("scoreToolUseCall (BFCL-style, todo 6845c)", () => {
+	const expected = { name: "convert_currency", args: { amount: 100, from: "USD", to: "EUR" } };
+
+	it("scores 1 for the exact right call", () => {
+		expect(
+			scoreToolUseCall({ name: "convert_currency", args: { amount: 100, from: "USD", to: "EUR" } }, expected),
+		).toBe(1);
+	});
+
+	it("gives partial credit: right function, one wrong arg", () => {
+		// right name (0.5) + 2/3 args match (0.5 * 2/3) = 0.833…
+		expect(
+			scoreToolUseCall({ name: "convert_currency", args: { amount: 100, from: "USD", to: "GBP" } }, expected),
+		).toBeCloseTo(0.5 + 0.5 * (2 / 3), 5);
+	});
+
+	it("scores 0 for the wrong function or no call when a call was required", () => {
+		expect(scoreToolUseCall({ name: "get_weather", args: {} }, expected)).toBe(0);
+		expect(scoreToolUseCall(null, expected)).toBe(0);
+	});
+
+	it("is case/whitespace tolerant on string args", () => {
+		expect(
+			scoreToolUseCall({ name: "convert_currency", args: { amount: 100, from: " usd ", to: "eur" } }, expected),
+		).toBe(1);
+	});
+
+	it("irrelevance: no call scores 1, a spurious call scores 0", () => {
+		expect(scoreToolUseCall(null, null)).toBe(1);
+		expect(scoreToolUseCall({ name: "get_weather", args: { location: "Berlin" } }, null)).toBe(0);
+	});
+
+	it("right function with no required args scores 1", () => {
+		expect(scoreToolUseCall({ name: "ping", args: { extra: "ignored" } }, { name: "ping", args: {} })).toBe(1);
 	});
 });

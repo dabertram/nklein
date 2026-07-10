@@ -77,3 +77,47 @@ export function scoreDefectCatchingReview(caught: readonly string[], seededDefec
 	const found = seededDefects.filter((defect) => flagged.has(defect)).length;
 	return found / seededDefects.length;
 }
+
+// ── Tool-use family: BFCL-style function-calling (todo 6845c) ─────────────────────────────────────────────────────────
+
+/** One tool call the model made (or `null` if it made none) and the call a correct answer requires. */
+export interface ToolCallAttempt {
+	name: string;
+	args: Record<string, unknown>;
+}
+
+/**
+ * Score a function-calling attempt BFCL-style. `expected === null` is an IRRELEVANCE probe: the offered tools cannot
+ * satisfy the ask, so a correct model makes NO call (score 1) and a spurious call scores 0. Otherwise: 0 if no call
+ * or the wrong function; else 0.5 for the right function name + 0.5 × the fraction of expected argument key/values
+ * that match (loose string-equal, case-insensitive, whitespace-trimmed — a right call with a wrong arg still earns
+ * partial credit). Extra args the model adds are not penalized (BFCL grades the required arguments).
+ */
+export function scoreToolUseCall(called: ToolCallAttempt | null, expected: ToolCallAttempt | null): number {
+	if (expected === null) {
+		return called === null ? 1 : 0;
+	}
+	if (called === null || called.name !== expected.name) {
+		return 0;
+	}
+	const expectedKeys = Object.keys(expected.args);
+	if (expectedKeys.length === 0) {
+		return 1;
+	}
+	const matched = expectedKeys.filter((key) => looseArgEqual(called.args[key], expected.args[key])).length;
+	return 0.5 + 0.5 * (matched / expectedKeys.length);
+}
+
+function looseArgEqual(actual: unknown, expected: unknown): boolean {
+	if (typeof expected === "string" && typeof actual === "string") {
+		return actual.trim().toLowerCase() === expected.trim().toLowerCase();
+	}
+	if (typeof expected === "number" && typeof actual === "number") {
+		return actual === expected;
+	}
+	if (typeof expected === "boolean") {
+		return actual === expected;
+	}
+	// Fallback: structural string compare (covers nested objects/arrays without a deep-equal dep).
+	return JSON.stringify(actual) === JSON.stringify(expected);
+}

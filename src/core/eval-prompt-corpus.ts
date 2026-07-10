@@ -15,7 +15,14 @@
  */
 
 import { z } from "zod";
-import { scoreDefectCatchingReview, scorePassingCode, scoreValidDag, type TaskGraph } from "./prompt-family-scorers.js";
+import {
+	scoreDefectCatchingReview,
+	scorePassingCode,
+	scoreToolUseCall,
+	scoreValidDag,
+	type TaskGraph,
+	type ToolCallAttempt,
+} from "./prompt-family-scorers.js";
 import type { TaskDifficultyTier } from "./task-difficulty-estimate.js";
 
 // ── Schema ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -71,15 +78,40 @@ export const reviewEvalPromptSchema = z.object({
 	seededDefects: z.array(z.string().min(1)),
 });
 
+/**
+ * Tool-use family (worker): BFCL-style function-calling (todo 6845c). The model is offered `tools` and must emit the
+ * correct call for `prompt` — or NO call when `expected === null` (an irrelevance probe: the tools can't satisfy the
+ * ask). Scored by {@link scoreToolUseCall}. Tool-calling is the worker capability axis (§5-AN), so role = worker.
+ */
+export const toolUseEvalPromptSchema = z.object({
+	...evalCommonShape,
+	role: z.literal("worker"),
+	family: z.literal("tool_use"),
+	/** The OpenAI-style function tools offered to the model for this probe. */
+	tools: z
+		.array(
+			z.object({
+				name: z.string().min(1),
+				description: z.string().min(1),
+				parameters: z.record(z.string(), z.unknown()),
+			}),
+		)
+		.min(1),
+	/** The call a correct answer requires, or `null` for an irrelevance probe (no call expected). */
+	expected: z.object({ name: z.string().min(1), args: z.record(z.string(), z.unknown()) }).nullable(),
+});
+
 export const evalPromptSchema = z.discriminatedUnion("family", [
 	decomposeEvalPromptSchema,
 	implementEvalPromptSchema,
 	reviewEvalPromptSchema,
+	toolUseEvalPromptSchema,
 ]);
 
 export type DecomposeEvalPrompt = z.infer<typeof decomposeEvalPromptSchema>;
 export type ImplementEvalPrompt = z.infer<typeof implementEvalPromptSchema>;
 export type ReviewEvalPrompt = z.infer<typeof reviewEvalPromptSchema>;
+export type ToolUseEvalPrompt = z.infer<typeof toolUseEvalPromptSchema>;
 export type EvalPrompt = z.infer<typeof evalPromptSchema>;
 export type EvalRole = EvalPrompt["role"];
 export type EvalScorerFamily = EvalPrompt["family"];
@@ -90,7 +122,8 @@ export type EvalScorerFamily = EvalPrompt["family"];
 export type EvalAnswer =
 	| { family: "decompose"; graph: TaskGraph }
 	| { family: "implement"; passed: number; total: number }
-	| { family: "review"; caught: readonly string[] };
+	| { family: "review"; caught: readonly string[] }
+	| { family: "tool_use"; called: ToolCallAttempt | null };
 
 /**
  * Grade a model's `answer` to `prompt` with the deterministic scorer for the prompt's family, returning a score in
@@ -110,6 +143,8 @@ export function scoreEvalAnswer(prompt: EvalPrompt, answer: EvalAnswer): number 
 		case "review":
 			// prompt is narrowed to the review family by the guard above.
 			return scoreDefectCatchingReview(answer.caught, (prompt as ReviewEvalPrompt).seededDefects);
+		case "tool_use":
+			return scoreToolUseCall(answer.called, (prompt as ToolUseEvalPrompt).expected);
 	}
 }
 
@@ -334,10 +369,88 @@ const REVIEW_PROMPTS: readonly ReviewEvalPrompt[] = [
 ];
 
 /** The full eval corpus (all families). Small + curated; extend by adding rows to the family arrays above. */
+/** BFCL-style tool-use probes (todo 6845c): simple call, multi-tool selection, and an irrelevance case. */
+const TOOL_USE_PROMPTS: readonly ToolUseEvalPrompt[] = [
+	{
+		id: "tooluse-simple-weather",
+		role: "worker",
+		family: "tool_use",
+		difficulty: "easy",
+		prompt: "What is the current temperature in Berlin in celsius? Use the tool.",
+		guidance: "Call get_weather with location=Berlin and unit=celsius.",
+		tools: [
+			{
+				name: "get_weather",
+				description: "Get the current weather for a location.",
+				parameters: {
+					type: "object",
+					properties: {
+						location: { type: "string", description: "City name" },
+						unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+					},
+					required: ["location"],
+				},
+			},
+		],
+		expected: { name: "get_weather", args: { location: "Berlin", unit: "celsius" } },
+	},
+	{
+		id: "tooluse-multi-select",
+		role: "worker",
+		family: "tool_use",
+		difficulty: "medium",
+		prompt: "Convert 100 US dollars to euros using the right tool.",
+		guidance: "Pick convert_currency (not send_email or get_weather) with amount=100, from=USD, to=EUR.",
+		tools: [
+			{
+				name: "get_weather",
+				description: "Get the current weather for a location.",
+				parameters: { type: "object", properties: { location: { type: "string" } }, required: ["location"] },
+			},
+			{
+				name: "convert_currency",
+				description: "Convert an amount between two currencies.",
+				parameters: {
+					type: "object",
+					properties: {
+						amount: { type: "number" },
+						from: { type: "string" },
+						to: { type: "string" },
+					},
+					required: ["amount", "from", "to"],
+				},
+			},
+			{
+				name: "send_email",
+				description: "Send an email.",
+				parameters: { type: "object", properties: { to: { type: "string" } }, required: ["to"] },
+			},
+		],
+		expected: { name: "convert_currency", args: { amount: 100, from: "USD", to: "EUR" } },
+	},
+	{
+		id: "tooluse-irrelevance",
+		role: "worker",
+		family: "tool_use",
+		difficulty: "hard",
+		prompt: "Write me a haiku about the ocean.",
+		guidance: "The offered tool cannot write a haiku — a correct model makes NO tool call and answers directly.",
+		tools: [
+			{
+				name: "get_weather",
+				description: "Get the current weather for a location.",
+				parameters: { type: "object", properties: { location: { type: "string" } }, required: ["location"] },
+			},
+		],
+		expected: null,
+	},
+];
+
 export const EVAL_PROMPT_CORPUS: readonly EvalPrompt[] = [
 	...DECOMPOSE_PROMPTS,
 	...IMPLEMENT_PROMPTS,
 	...REVIEW_PROMPTS,
+	...TOOL_USE_PROMPTS,
 ];
 
 // ── Selectors ───────────────────────────────────────────────────────────────────────────────────────────────────────

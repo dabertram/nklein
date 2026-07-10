@@ -6850,7 +6850,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         already live on registry entries + speed rollups. REMAINING: RAM/VRAM pressure + model load-time tracking —
         needs an lms-ps/OS sampling loop, rides the sweep phase.)*
   - [x] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models. *(SHIPPED: difficulty gate + free-first pool routing)*
-  - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
+  - [x] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table. **DONE (2026-07-10):**
+        new `tool_use` eval family (BFCL-style) end-to-end — `toolUseEvalPromptSchema` (offered tools + expected
+        call, or `expected:null` for an irrelevance probe) with 3 probes (simple call / multi-tool selection /
+        irrelevance); pure `scoreToolUseCall` scorer (right function 0.5 + fraction-of-required-args 0.5; irrelevance
+        = no-call scores 1, spurious call 0; case/whitespace-tolerant args); `runModelEval` offers the tools with
+        `tool_choice:"auto"` (so irrelevance can decline) and folds the result into the WORKER role fitness (tool-use
+        is the worker capability axis). Verified deterministically via `scripts/verify-simulated-eval.mts` — the 3
+        tool_use probes score 1.0 across 6 repeats (worker fitness quality/reliability 1.0), zero LLM compute; 43
+        eval-suite tests green. Live per-model tool-use fitness accrues through the same `evaluateConnectedModels`
+        trigger / CLI sweep.
   - [x] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
         *(✅ ALREADY IMPLEMENTED by the §5.AW deliberation trigger — [deliberation-trigger.ts](src/core/deliberation-trigger.ts)
         `shouldDeliberate({stakes, confidence, diverseCriticAvailable, budgetRemaining})`: fires a multi-agent debate

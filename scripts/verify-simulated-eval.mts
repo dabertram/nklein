@@ -71,6 +71,20 @@ function buildTracks(): ScenarioTrack[] {
 				repeatLastTurn: true,
 				provenance: "generated from the corpus answer key (verify-simulated-eval)",
 			});
+		} else if (row.family === "tool_use") {
+			// Serve the expected tool call, or a plain-text answer for an irrelevance probe (expected === null).
+			tracks.push({
+				id: `eval-${row.id}`,
+				requestClass: "any",
+				userMessageIncludes: needle,
+				turns: [
+					row.expected
+						? { behavior: { kind: "tool_calls", calls: [{ name: row.expected.name, arguments: row.expected.args }] } }
+						: { behavior: { kind: "text", content: "No tool fits this request; answering directly instead." } },
+				],
+				repeatLastTurn: true,
+				provenance: "generated from the corpus answer key (verify-simulated-eval)",
+			});
 		} else {
 			tracks.push({
 				id: `eval-${row.id}`,

@@ -32,6 +32,7 @@ describe("eval-prompt-corpus", () => {
 			decompose: "architect",
 			implement: "worker",
 			review: "reviewer",
+			tool_use: "worker",
 		};
 		for (const prompt of EVAL_PROMPT_CORPUS) {
 			expect(prompt.role).toBe(expected[prompt.family]);
@@ -157,5 +158,18 @@ describe("eval-corpus versioning", () => {
 
 	it("fingerprint is order-sensitive but total over the empty corpus", () => {
 		expect(evalCorpusFingerprint([])).toMatch(/^v\d+-[0-9a-f]{8}$/);
+	});
+
+	it("every tool_use probe self-scores 1 (its expected call IS the answer key)", () => {
+		let toolUseCount = 0;
+		for (const prompt of EVAL_PROMPT_CORPUS) {
+			if (prompt.family === "tool_use") {
+				toolUseCount += 1;
+				const called = prompt.expected ? { name: prompt.expected.name, args: prompt.expected.args } : null;
+				expect(scoreEvalAnswer(prompt, { family: "tool_use", called })).toBe(1);
+			}
+		}
+		// simple + multi-select + irrelevance
+		expect(toolUseCount).toBeGreaterThanOrEqual(3);
 	});
 });
