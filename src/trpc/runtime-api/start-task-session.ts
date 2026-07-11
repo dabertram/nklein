@@ -3,12 +3,14 @@ import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
+import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
 import { fetchLmsLinkDevices } from "../../core/lms-link-status";
+import { loadModelExclusive } from "../../core/lms-model-runner";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors, mergeLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import {
@@ -335,16 +337,54 @@ export async function handleStartTaskSession(
 			isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl) &&
 			shouldBlockUnloadedModel(nkleinLaunchConfig.modelId, loadedModelIds)
 		) {
-			return {
-				ok: false,
-				summary: null,
-				errorCode: "model_not_loaded",
-				error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
-				modelNotLoaded: {
-					requestedModelId: nkleinLaunchConfig.modelId,
-					loadedModelIds,
+			// §5.AB machine-aware AUTONOMOUS LOAD (OPT-IN via NKLEIN_DEVICE_RAM_GB): rather than block a non-resident
+			// model, LOAD it on a linked device that FITS — guarded by loadModelExclusive (capability gate +
+			// one-at-a-time unload + headroom). This is the EFFECTIVE hook: the device is decided at LOAD time, and
+			// LM-Link serves a loaded model from where it sits (dispatch-time steering was proven inert, 2026-07-12).
+			// Fail-safe + opt-in: disabled / no-fit / load-error ⇒ loaded:false ⇒ fall through to the original block.
+			// With NKLEIN_DEVICE_RAM_GB unset, the adapter returns immediately with NO fleet I/O ⇒ byte-identical.
+			const autoLoad = await ensureModelLoadedOnFittingDevice(
+				{ modelId: nkleinLaunchConfig.modelId, contextLength: nkleinLaunchConfig.contextWindow ?? 40_000 },
+				{
+					fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
+					listModelSizes: async () => {
+						const listed = await createLmStudioRestModelClient({ baseUrl: residencyBaseUrl }).listModels();
+						const modelSizes = new Map<string, number>();
+						if (listed.ok) {
+							for (const model of listed.value) {
+								if (model.sizeBytes != null && model.sizeBytes > 0) {
+									modelSizes.set(model.key, model.sizeBytes);
+								}
+							}
+						}
+						return modelSizes;
+					},
+					loadExclusive: async (request) => {
+						const loadResult = await loadModelExclusive(createDefaultLmsRunner(), {
+							modelId: request.modelId,
+							candidateSizeBytes: request.candidateSizeBytes,
+							totalRamBytes: request.totalRamBytes,
+							contextLength: request.contextLength,
+							targetDevice: request.targetDevice,
+							targetDeviceIdentifier: request.targetDeviceIdentifier,
+						});
+						return { loaded: loadResult.loaded, reason: loadResult.reason };
+					},
 				},
-			};
+			).catch(() => ({ loaded: false as const, reason: "autonomous load error" }));
+			if (!autoLoad.loaded) {
+				return {
+					ok: false,
+					summary: null,
+					errorCode: "model_not_loaded",
+					error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio${autoLoad.reason ? ` (auto-load: ${autoLoad.reason})` : ""}. Load it in LM Studio, or set NKLEIN_DEVICE_RAM_GB so !Klein loads it on a fitting device (loaded: ${loadedModelIds.join(", ") || "none"}).`,
+					modelNotLoaded: {
+						requestedModelId: nkleinLaunchConfig.modelId,
+						loadedModelIds,
+					},
+				};
+			}
+			// Loaded on a fitting device — proceed past the block (the model is now resident).
 		}
 		// §5.AL capability gate: a task session is an agentic, tool-using run, so REFUSE a catalog-`reject` primary model
 		// (e.g. a reasoning-only variant that can't drive tool chains) up front rather than burning a whole task on it.

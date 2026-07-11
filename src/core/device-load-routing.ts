@@ -18,6 +18,7 @@
  */
 
 import { kvCacheBytes } from "./kv-cache-size";
+import type { LmsLinkDevices } from "./lms-link-status";
 import { decideModelLoad } from "./model-load-headroom";
 
 const GiB = 1024 ** 3;
@@ -227,6 +228,45 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 export interface LinkedDeviceInfo {
 	deviceName: string;
 	deviceIdentifier?: string;
+}
+
+/** Flatten an {@link LmsLinkDevices} roster (local host + peers) into `LinkedDeviceInfo[]`, deduped by identifier. */
+export function buildLinkedDeviceList(link: LmsLinkDevices): LinkedDeviceInfo[] {
+	const devices: LinkedDeviceInfo[] = [];
+	const seen = new Set<string>();
+	if (link.localMachineName && link.localDeviceIdentifier) {
+		devices.push({ deviceName: link.localMachineName, deviceIdentifier: link.localDeviceIdentifier });
+		seen.add(link.localDeviceIdentifier);
+	}
+	for (const [deviceId, deviceName] of link.namesByDeviceId) {
+		if (seen.has(deviceId)) {
+			continue;
+		}
+		devices.push({ deviceName, deviceIdentifier: deviceId });
+		seen.add(deviceId);
+	}
+	return devices;
+}
+
+/**
+ * Build a {@link DeviceLoadCandidate} from a linked device + its configured RAM + resident bytes — or `null` when the
+ * device has NO configured RAM (`ramBytes` undefined/≤0), so an unmapped device is dropped from the candidate set (we
+ * can't prove its headroom; leave it to LM-Link). Pairs with `.filter((c) => c !== null)` at the call site.
+ */
+export function buildEffectiveCandidate(
+	device: LinkedDeviceInfo,
+	ramBytes: number | undefined,
+	residentSizeBytes: number,
+): DeviceLoadCandidate | null {
+	if (ramBytes === undefined || ramBytes <= 0) {
+		return null;
+	}
+	return {
+		deviceName: device.deviceName,
+		...(device.deviceIdentifier !== undefined ? { deviceIdentifier: device.deviceIdentifier } : {}),
+		totalRamBytes: ramBytes,
+		residentSizeBytes: Math.max(0, residentSizeBytes),
+	};
 }
 
 /**

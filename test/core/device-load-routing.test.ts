@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	applyLocalDeviceAlias,
+	buildEffectiveCandidate,
+	buildLinkedDeviceList,
 	type DeviceLoadCandidate,
 	estimateEffectiveModelBytes,
 	type LinkedDeviceInfo,
@@ -9,6 +11,7 @@ import {
 	selectDeviceForModelLoad,
 } from "../../src/core/device-load-routing";
 import { kvCacheBytes } from "../../src/core/kv-cache-size";
+import type { LmsLinkDevices } from "../../src/core/lms-link-status";
 
 const GiB = 1024 ** 3;
 const gb = (n: number): number => n * GiB;
@@ -374,5 +377,60 @@ describe("planPreferredDeviceSteering", () => {
 			effectiveModelBytes: gb(13),
 		});
 		expect(steering.action).toBe("skip");
+	});
+});
+
+describe("buildLinkedDeviceList", () => {
+	const roster: LmsLinkDevices = {
+		localMachineName: "m5max",
+		localDeviceIdentifier: "id-m5max",
+		preferredDeviceIdentifier: "id-mini",
+		namesByDeviceId: new Map([
+			["id-mini", "m4mini"],
+			["id-legion", "legion5pro"],
+		]),
+	};
+
+	it("flattens the local host + peers into name/id pairs", () => {
+		expect(buildLinkedDeviceList(roster)).toEqual([
+			{ deviceName: "m5max", deviceIdentifier: "id-m5max" },
+			{ deviceName: "m4mini", deviceIdentifier: "id-mini" },
+			{ deviceName: "legion5pro", deviceIdentifier: "id-legion" },
+		]);
+	});
+
+	it("omits the local host when its name/id are unavailable", () => {
+		expect(
+			buildLinkedDeviceList({
+				localMachineName: null,
+				localDeviceIdentifier: null,
+				preferredDeviceIdentifier: null,
+				namesByDeviceId: new Map([["id-mini", "m4mini"]]),
+			}),
+		).toEqual([{ deviceName: "m4mini", deviceIdentifier: "id-mini" }]);
+	});
+});
+
+describe("buildEffectiveCandidate", () => {
+	it("builds a candidate from a device + its RAM + resident bytes", () => {
+		expect(buildEffectiveCandidate({ deviceName: "m5max", deviceIdentifier: "id" }, gb(128), gb(8))).toEqual({
+			deviceName: "m5max",
+			deviceIdentifier: "id",
+			totalRamBytes: gb(128),
+			residentSizeBytes: gb(8),
+		});
+	});
+
+	it("returns null for an unmapped device (no configured RAM) so it drops from the candidate set", () => {
+		expect(buildEffectiveCandidate({ deviceName: "m4mini" }, undefined, 0)).toBeNull();
+		expect(buildEffectiveCandidate({ deviceName: "m4mini" }, 0, 0)).toBeNull();
+	});
+
+	it("clamps a negative resident to zero and omits an absent identifier", () => {
+		expect(buildEffectiveCandidate({ deviceName: "bare" }, gb(64), -5)).toEqual({
+			deviceName: "bare",
+			totalRamBytes: gb(64),
+			residentSizeBytes: 0,
+		});
 	});
 });

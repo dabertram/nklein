@@ -2755,7 +2755,9 @@ describe("createRuntimeApi startTaskSession", () => {
 
 			expect(response.ok).toBe(false);
 			expect(response.error).toContain('Model "claude-sonnet-4-6" is not loaded in LM Studio');
-			expect(response.error).toContain("!Klein does not load models");
+			// §5.AB: with NKLEIN_DEVICE_RAM_GB unset the autonomous load is disabled, so the block still fires; the
+			// message now points at loading it (or enabling the flag) rather than the old "!Klein does not load models".
+			expect(response.error).toContain("Load it in LM Studio");
 			expect(response.error).toContain("loaded: some-other-loaded-model");
 			expect(response.errorCode).toBe("model_not_loaded");
 			expect(response.modelNotLoaded).toEqual({
