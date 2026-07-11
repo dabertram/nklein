@@ -5208,6 +5208,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           returns `{runaway, reason, detail}` and stays silent below a min-length + on long-non-repetitive output. 10
           tests. **Owed (WIRING):** sample the in-flight stream + abort→retry-ladder on a runaway verdict at the vendored
           model-call seam (shared with the other §5.AA rungs); and a ledger `transition` event on the bounce.
+          **RE-CONFIRMED LIVE (real-model `habit-wide-fanout` probe, 2026-07-11):** an 8B worker on a trivial `formatter-json`
+          card generated unbounded ~15 min (~50k+ tokens, degenerate) — NEW detail vs sweep-run-9: it held the single LM
+          Studio endpoint and thereby blocked **4 parallel-ready sibling cards** (not just its own), so the fan-out board
+          made no progress until killed. Same root cause (detector unwired; `unlimited` gives no backstop) — the seam-wiring
+          is the fix, and the fan-out evidence raises its priority since one runaway now starves a whole ready lane.
     - [x] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
           *(✅ 2026-07-08 — the adapter stamps each response with the rung that produced it (`constrained_schema` /
           `native_tool_choice_required` / `prompt_variant:<family>`); the loop collects per turn; chat + autonomous
