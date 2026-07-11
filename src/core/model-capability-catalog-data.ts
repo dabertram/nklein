@@ -437,6 +437,22 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "empirical",
 		verified: true,
 	},
+	{
+		// QwQ-32B (Qwen's dense reasoning model). Its `qwq` token is unique — no collision with the qwen3/coder rows.
+		family: "qwq-32b",
+		match: /qwq-?32b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		speed: "slow",
+		sizeGb: 35,
+		note: "QwQ-32B (Qwen dense reasoning). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.955/11): worker/tool-use + context probes 1.000; decompose 1.000 on easy+hard (medium NO-ANSWER — reasoning over-think, hit the harness cell cap); REVIEWER quality 0.833 (caught the hard race/leak/injection trio — a STRONG reviewer, ties qwen3.6-35b-a3b). Also chat-agent-tools single-tool PASS. BUT PROHIBITIVELY SLOW: decompose cells took 191-272s EACH and review cells ~140-168s — the full 12-cell eval ran ~22 MINUTES even at HIGH power (it over-thinks massively). Same quality as qwen3.6-35b-a3b (both 0.955, both reviewer 0.833) at 4-6× the latency, so PREFER qwen3.6-35b-a3b for the reviewer role — QwQ's quality is real but its latency makes it impractical for unattended/interactive use. speed:slow is an understatement. basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwq-32b: mean 0.955/11 — reviewer 0.833, but ~3-4min/decompose cell, ~22min total); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
 	// ── OpenAI gpt-oss (open-weight MoE) — 2026-07-01 fleet sweep: chaining tracks ACTIVE params ──────────────
 	{
 		family: "gpt-oss-120b",
