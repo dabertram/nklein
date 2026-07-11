@@ -36,7 +36,6 @@ import type { ModelClassFacts } from "../../core/role-model-class";
 import { selectSwarmRoleModel } from "../../core/role-model-swarm-pick";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { applySpeedCapabilityDial } from "../../core/speed-capability-dial";
-import { steerPreferredDeviceForModel } from "../../core/steer-preferred-device";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -1208,34 +1207,6 @@ export async function handleStartTaskSession(
 		// instead of losing it. Best-effort: a mailbox read failure must never block a start.
 		const mailboxNotes = await listPendingCardMailbox(body.taskId).catch(() => []);
 		const promptWithMailbox = `${body.prompt}${composeMailboxPromptAddendum(mailboxNotes)}`;
-		// §5.AB machine-aware routing (OPT-IN via NKLEIN_DEVICE_RAM_GB): just before the model request, steer LM-Link's
-		// preferred device so a model that would SWAP an undersized linked node (the m4mini 14B crash, 2026-07-11) loads on
-		// one that fits instead. Gated + fail-open — env unset ⇒ zero fleet I/O and byte-identical; the adapter never throws
-		// (any read/write failure degrades to a no-op), and the extra catch guarantees a routing hint can't break a start.
-		await steerPreferredDeviceForModel(
-			{
-				modelId: nkleinLaunchConfig.modelId ?? "",
-				contextLength: nkleinLaunchConfig.contextWindow ?? 40_000,
-			},
-			{
-				fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
-				listModelSizes: async () => {
-					const listed = await createLmStudioRestModelClient({ baseUrl: residencyBaseUrl }).listModels();
-					const sizes = new Map<string, number>();
-					if (listed.ok) {
-						for (const model of listed.value) {
-							if (model.sizeBytes != null && model.sizeBytes > 0) {
-								sizes.set(model.key, model.sizeBytes);
-							}
-						}
-					}
-					return sizes;
-				},
-				setPreferredDevice: async (deviceIdentifier) => {
-					await createDefaultLmsRunner()(["link", "set-preferred-device", deviceIdentifier]);
-				},
-			},
-		).catch(() => {});
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,

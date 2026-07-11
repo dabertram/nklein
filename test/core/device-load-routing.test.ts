@@ -6,7 +6,6 @@ import {
 	type DeviceLoadCandidate,
 	estimateEffectiveModelBytes,
 	type LinkedDeviceInfo,
-	planPreferredDeviceSteering,
 	resolveDeviceRamBytesFromEnv,
 	selectDeviceForModelLoad,
 } from "../../src/core/device-load-routing";
@@ -279,107 +278,6 @@ describe("estimateEffectiveModelBytes", () => {
 		expect(withNull).toBe(withoutKey);
 	});
 });
-
-describe("planPreferredDeviceSteering", () => {
-	const linked: LinkedDeviceInfo[] = [
-		{ deviceName: "Local", deviceIdentifier: "id-local" },
-		{ deviceName: "m4mini", deviceIdentifier: "id-mini" },
-		{ deviceName: "legion5pro", deviceIdentifier: "id-legion" },
-	];
-	const ram = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16,legion5pro:24" });
-
-	it("steers a 14B away from a preferred m4mini to the fitting farm (the real fix)", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: ram,
-			linkedDevices: linked,
-			currentPreferredDeviceId: "id-mini", // LM-Link currently prefers m4mini
-			effectiveModelBytes: gb(15.6), // 14B @40k
-		});
-		expect(steering.action).toBe("set_preferred");
-		if (steering.action === "set_preferred") {
-			expect(steering.deviceName).toBe("Local");
-			expect(steering.deviceIdentifier).toBe("id-local");
-		}
-	});
-
-	it("is a no-op when the best-fit device is already preferred", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: ram,
-			linkedDevices: linked,
-			currentPreferredDeviceId: "id-local",
-			effectiveModelBytes: gb(15.6),
-		});
-		expect(steering.action).toBe("already_preferred");
-	});
-
-	it("reports no_fit when the model exceeds every mapped device", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: ram,
-			linkedDevices: linked,
-			effectiveModelBytes: gb(200), // bigger than the 128 GB farm's usable headroom
-		});
-		expect(steering.action).toBe("no_fit");
-		if (steering.action === "no_fit") {
-			expect(steering.rejected.length).toBe(3);
-		}
-	});
-
-	it("skips (byte-identical) when no RAM map is configured", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: {},
-			linkedDevices: linked,
-			effectiveModelBytes: gb(13),
-		});
-		expect(steering.action).toBe("skip");
-	});
-
-	it("skips when no linked device has a configured RAM entry", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: { someOtherHost: gb(64) },
-			linkedDevices: linked,
-			effectiveModelBytes: gb(13),
-		});
-		expect(steering.action).toBe("skip");
-	});
-
-	it("ignores unmapped devices — only judges those with a configured RAM entry", () => {
-		// Only m4mini is mapped; a 4 GB model fits it, so it's chosen even though Local (unmapped) exists.
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: { m4mini: gb(16) },
-			linkedDevices: linked,
-			currentPreferredDeviceId: "id-local",
-			effectiveModelBytes: gb(4),
-		});
-		expect(steering.action).toBe("set_preferred");
-		if (steering.action === "set_preferred") {
-			expect(steering.deviceName).toBe("m4mini");
-		}
-	});
-
-	it("accounts for the per-device resident set (a full farm yields to an idle mapped box)", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: ram,
-			linkedDevices: linked,
-			residentBytesByDevice: { Local: gb(124) }, // farm nearly full
-			currentPreferredDeviceId: "id-local",
-			effectiveModelBytes: gb(10),
-		});
-		expect(steering.action).toBe("set_preferred");
-		if (steering.action === "set_preferred") {
-			expect(steering.deviceName).toBe("legion5pro"); // the idle 24 GB box now wins
-		}
-	});
-
-	it("skips when the best-fit device has no LM-Link identifier to steer to", () => {
-		const steering = planPreferredDeviceSteering({
-			deviceRamBytes: { Local: gb(128) },
-			linkedDevices: [{ deviceName: "Local" }], // no identifier
-			effectiveModelBytes: gb(13),
-		});
-		expect(steering.action).toBe("skip");
-	});
-});
-
 describe("buildLinkedDeviceList", () => {
 	const roster: LmsLinkDevices = {
 		localMachineName: "m5max",
