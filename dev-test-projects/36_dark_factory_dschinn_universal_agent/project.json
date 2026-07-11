@@ -4,6 +4,7 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"fixtureTemplate": "ts-starter",
 	"tier": "36/36 master challenge",
 	"tags": [
 		"autonomous agent operating system",

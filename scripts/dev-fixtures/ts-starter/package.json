@@ -1,0 +1,13 @@
+{
+  "name": "kanban-ts-starter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
