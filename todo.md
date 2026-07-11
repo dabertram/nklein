@@ -10964,8 +10964,16 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       to the focused project window (with route fallback for root windows navigated to `/<projectId>`), polls activity every
       10s without overlapping requests, updates `tray.update(...)`, and wires `togglePause` to the runtime pause command.
       [packages/desktop/src/window-registry.ts] exposes `getFocusedEntry()` so the shell can read focused window metadata.
-      9 focused runtime-control tests + focused-entry coverage; desktop typecheck/tests green. Remaining for (1): packaged
-      app smoke on macOS/Windows/Linux tray surfaces. **RUNTIME-STATE CHANNEL DESIGN
+      9 focused runtime-control tests + focused-entry coverage; desktop typecheck/tests green. **macOS PACKAGED BUILD
+      VERIFIED (2026-07-11, David-approved macOS-now scope):** `electron-builder --mac --dir --arm64` produces a
+      well-formed `nKlein.app` (electron 41.5.0, arm64) — bundle id `com.nklein.nklein` v0.0.1, `Contents/MacOS/nKlein`
+      is Mach-O arm64, ad-hoc signed (unsigned dev build; notarization correctly skipped w/o Apple creds), node-pty
+      native dep rebuilt + unpacked, and the asar bundles the app entry (`/dist/main.js` + `/dist/preload.js`) AND the
+      full staged runtime (`/cli/*` + the built `web-ui` incl. the constellation-K icons). So the macOS PACKAGING
+      PIPELINE is green (catches packaging regressions — the automatable core of the smoke). Remaining for (1): the
+      INTERACTIVE tray/open-UI smoke on the launched packaged app (native menu-bar interaction + a live runtime/Docker),
+      which is GUI-manual — best run with the user. Windows/Linux packaged builds stay hardware-gated (§10b decision).
+      **RUNTIME-STATE CHANNEL DESIGN
       (traced 2026-07-08, blueprint for next build):** pause/resume already exist as WORKSPACE-SCOPED tRPC procedures
       `requestSwarmStop`/`clearSwarmStop` (runtime-api.ts:494/498), driven by a swarm-stop SIGNAL FILE
       (`getSwarmStopSignalPath` in core/swarm-guardrails.ts; runtime reads it → `setBoardPaused`). Served over tRPC-HTTP
