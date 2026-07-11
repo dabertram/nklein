@@ -9874,7 +9874,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         §5.AL gate first, one-resident unload, `decideModelLoad` headroom, ≥32k floor capped to the listed max —
         and uses the REST list's REAL `size_bytes` for headroom (better than the CLI 16 GiB default). REST is
         local-only: `load` refuses under NKLEIN_LOAD_DEVICE/NKLEIN_LOAD_GPU; roster-load/sweep/get stay CLI
-        (ttl/device levers). Live smoke: REST ps ≡ CLI ps. 6 unit tests.
+        (ttl/device levers). 6 unit tests. **FULL PATH LIVE-VALIDATED against a REAL model (2026-07-11, qwen/qwen3-8b):**
+        load → REST `ps` shows it resident → re-load reports "Already resident" (no re-load) → unload clears all
+        instances → 0 resident; working set restored. That real-model pass EXPOSED + FIXED a wire-shape bug the
+        0-loaded 2026-07-10 probe couldn't catch: `loaded_instances[]` elements are `{ id: "<key>[:N]", config }` —
+        the id is `id`, NOT `instance_id`/`identifier` — so `loadedInstanceIds` came back empty for a resident model,
+        making `ps` report 0 AND the "already resident" check always-false (repeated loads STACKED duplicate
+        instances; reproduced 3× live). Fixed (`f4420501`): read `id` first, keep the other spellings as fallbacks.
 - [~] **Reasoning control as a first-class §5.AA lever, decomposed:** *(disable-thinking-for-simple + keep-for-hard
       [x], the truncation-recovery rung + the per-family model-thinking-control extension [~]; only the live per-family
       verification (⏱ FLEET) remains. Reclassified [ ]→[~] 2026-07-08.)*
