@@ -198,6 +198,8 @@ describe("buildReviewBouncePrompt / buildReviewSignOff", () => {
 		expect(prompt).toContain("review round 1");
 		expect(prompt).toContain("Looks close");
 		expect(prompt).toContain("Add a test.");
+		// Firmly push a code EDIT (weak local workers otherwise reply in prose → empty patch → parked round).
+		expect(prompt).toContain("EDITING");
 	});
 
 	it("appends an insight to the sign-off only when present", () => {

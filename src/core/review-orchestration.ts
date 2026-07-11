@@ -279,7 +279,11 @@ export function buildReviewBouncePrompt(input: { round: number; summary: string;
 		"## Requested changes",
 		input.feedback.trim(),
 		"",
-		"Address this feedback directly, then finish as usual so the card can be re-reviewed. If you believe the request is mistaken, make the smallest change that resolves the concern or explain precisely why the current code is correct in your final message.",
+		// Weak local workers tend to reply in prose ("the code is already correct") and make NO edit, so the diff is
+		// unchanged, the reviewer repeats the same request, and the card is parked after a wasted round (live-observed
+		// 2026-07-11, qwen3-8b, habit-deep-chain). Lead with the concrete action — EDIT the file — and frame the
+		// no-change reply as the narrow exception, so a small model is pushed to actually resolve the concern in code.
+		"Address this by EDITING the relevant file(s) now: a prose-only reply leaves the code unchanged, so the reviewer will raise the same concern and the card will be parked without an edit. Make the change, then finish as usual so the card can be re-reviewed. Only if the request is genuinely mistaken and no code change is warranted should you instead make the smallest safe change that resolves the concern, or explain precisely why the current code is already correct in your final message.",
 	].join("\n");
 }
 
