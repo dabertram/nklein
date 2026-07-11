@@ -421,6 +421,22 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "both",
 		verified: true,
 	},
+	{
+		// qwen3.6-35b-a3b (base qwen3.6 MoE, ~35B total / ~3B active). Its `35b-a3b` token can't hit the 27b row.
+		family: "qwen3.6-35b-a3b",
+		match: /qwen-?3[._]6-35b[._-]?a3b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		speed: "slow",
+		sizeGb: 22,
+		note: "qwen3.6-35b-a3b (base qwen3.6 reasoning MoE, ~3B active). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.955/11 scored cells): worker/tool-use + all context probes 1.000; decompose 1.000 on medium+hard (easy cell NO-ANSWER — a reasoning over-think on the trivial prompt, ~41s, not a refusal); and — the standout — REVIEWER quality 0.833 (easy 1.0, medium 0.5, HARD 1.0: it CAUGHT the full race/leak/injection trio). That is a REAL reviewer UPGRADE over the qwen3.6-27b base (0.333 on the hard trio) and over the small-model ceiling (~0.72): the bigger a3b MoE is the strongest REVIEWER swept so far — a viable route for the reviewer role the smaller models fail. Also chat-agent-tools single-tool PASS. Cost: slow reasoning cells (~40s decompose, ~25s review) even at high power. basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwen3.6-35b-a3b: mean 0.955/11 — worker 1.0, decompose 1.0 med+hard, reviewer 0.833 incl. the hard trio); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
 	// ── OpenAI gpt-oss (open-weight MoE) — 2026-07-01 fleet sweep: chaining tracks ACTIVE params ──────────────
 	{
 		family: "gpt-oss-120b",
