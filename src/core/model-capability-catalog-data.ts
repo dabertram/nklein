@@ -256,6 +256,24 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// `qwable*` = local qwen×claude-fable MERGE fine-tunes (David's own tuning; distinct from the qwopus merges).
+		family: "qwable-9b",
+		match: /qwable-9b|qwable.*fable/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		chaining: "native",
+		synthesis: "full",
+		speed: "medium",
+		sizeGb: 7,
+		note: "qwable-9b-claude-fable-5-mlx (David's local qwen×claude-fable-5 merge, ~7 GB MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 across all 3 tiers (n=3, no timeouts) + worker/tool-use + context probes 1.000; reviewer 0.722 (easy 1.0, medium 0.5, hard 0.667 — the same small-model reviewer ceiling, misses subtle null/race defects). STANDOUT RELIABILITY: it scored EVERY one of the 12 cells — unlike the bigger reasoning models (qwq-32b, qwen3.6-35b-a3b) which NO-ANSWER'd cells by over-thinking. So David's fable merge is a solid, RELIABLE decompose+worker all-rounder (ties qwen3-8b's 0.931) at 9B, weak only as a reviewer. Also chat-agent-tools single-tool PASS (call+synth). Moderate latency (~57-180s/cell — slower than qwen3-8b but always answers). basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, qwable-9b-claude-fable-5-mlx: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ZERO no-answers); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		// Specific 7B row first: the Qwen2.5.1-Coder MLX package is a naming/package refresh of the 7B coder line, not an
 		// unknown family. Keep it ahead of the generic Qwen2.5-Coder row so packing/advice sees the 7B footprint.
 		family: "qwen2.5-coder-7b",
