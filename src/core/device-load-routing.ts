@@ -22,6 +22,36 @@ import { decideModelLoad } from "./model-load-headroom";
 const GiB = 1024 ** 3;
 const gib = (bytes: number): string => `${(bytes / GiB).toFixed(1)} GiB`;
 
+/**
+ * Resolve a per-device RAM map (friendly LM-Link device name → bytes) from `NKLEIN_DEVICE_RAM_GB` — a power-user
+ * fleet-tuning knob usable TODAY, ahead of a Settings field (mirrors {@link import("./model-load-headroom").resolveRamBudgetBytesFromEnv}).
+ * Format: comma-separated `name:GB` pairs, e.g. `"Local:128,m4mini:16,legion5pro:24"`. Whitespace-tolerant; a malformed
+ * or non-positive entry is SKIPPED (fail-open — a bad entry never fabricates a false RAM figure). Unset/empty ⇒ `{}`,
+ * which disengages the device selector so the runtime keeps its current LM-Link JIT placement (byte-identical). Pure
+ * over the injected env.
+ */
+export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.env): Record<string, number> {
+	const raw = env.NKLEIN_DEVICE_RAM_GB;
+	if (raw === undefined || raw.trim().length === 0) {
+		return {};
+	}
+	const map: Record<string, number> = {};
+	for (const pair of raw.split(",")) {
+		// Split on the LAST colon so a device name is tolerant of stray colons; the tail must be a positive GB number.
+		const idx = pair.lastIndexOf(":");
+		if (idx <= 0) {
+			continue;
+		}
+		const name = pair.slice(0, idx).trim();
+		const gb = Number.parseFloat(pair.slice(idx + 1).trim());
+		if (name.length === 0 || !Number.isFinite(gb) || gb <= 0) {
+			continue;
+		}
+		map[name] = Math.round(gb * GiB);
+	}
+	return map;
+}
+
 /** One linked device that HAS the model available and is a placement candidate. */
 export interface DeviceLoadCandidate {
 	/** Friendly LM-Link device name (the `lms ps`/`lms ls` DEVICE — e.g. "Local", "m4mini") — the config RAM-map key. */

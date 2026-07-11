@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type DeviceLoadCandidate, selectDeviceForModelLoad } from "../../src/core/device-load-routing";
+import {
+	type DeviceLoadCandidate,
+	resolveDeviceRamBytesFromEnv,
+	selectDeviceForModelLoad,
+} from "../../src/core/device-load-routing";
 
 const GiB = 1024 ** 3;
 const gb = (n: number): number => n * GiB;
@@ -144,5 +148,48 @@ describe("selectDeviceForModelLoad", () => {
 			userBudgetBytes: gb(10),
 		});
 		expect(capped.fits).toBe(false);
+	});
+});
+
+describe("resolveDeviceRamBytesFromEnv", () => {
+	it("parses a comma-separated name:GB map into per-device bytes", () => {
+		const map = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16,legion5pro:24" });
+		expect(map).toEqual({ Local: gb(128), m4mini: gb(16), legion5pro: gb(24) });
+	});
+
+	it("returns an empty map when unset or blank (⇒ the selector disengages, byte-identical)", () => {
+		expect(resolveDeviceRamBytesFromEnv({})).toEqual({});
+		expect(resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "   " })).toEqual({});
+	});
+
+	it("is whitespace-tolerant around names, numbers, and separators", () => {
+		const map = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "  Local : 128 , m4mini : 16 " });
+		expect(map).toEqual({ Local: gb(128), m4mini: gb(16) });
+	});
+
+	it("skips malformed / non-positive / non-numeric entries (fail-open, never a false RAM figure)", () => {
+		const map = resolveDeviceRamBytesFromEnv({
+			NKLEIN_DEVICE_RAM_GB: "Local:128,bogus,m4mini:,legion:0,neg:-4,ok:32,:64",
+		});
+		// Only the two well-formed positive entries survive.
+		expect(map).toEqual({ Local: gb(128), ok: gb(32) });
+	});
+
+	it("accepts fractional GB and rounds to whole bytes", () => {
+		const map = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "mini:16.5" });
+		expect(map).toEqual({ mini: Math.round(16.5 * GiB) });
+	});
+
+	it("feeds selectDeviceForModelLoad end-to-end (env map → candidate RAM → keeps 14B off m4mini)", () => {
+		const ram = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16" });
+		const candidates: DeviceLoadCandidate[] = [
+			{ deviceName: "m4mini", totalRamBytes: ram.m4mini, residentSizeBytes: 0 },
+			{ deviceName: "Local", totalRamBytes: ram.Local, residentSizeBytes: 0 },
+		];
+		const decision = selectDeviceForModelLoad({ candidateSizeBytes: gb(13), candidates });
+		expect(decision.fits).toBe(true);
+		if (decision.fits) {
+			expect(decision.deviceName).toBe("Local");
+		}
 	});
 });
