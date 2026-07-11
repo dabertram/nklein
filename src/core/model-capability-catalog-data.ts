@@ -347,8 +347,11 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwen-?3-8b/,
 		toolUse: "TOOL_NATIVE",
 		kind: "agentic",
-		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn chaining is STOCHASTIC — live 2026-06-29 (HIGH power, fresh-loaded, back-to-back e2e): run 1 narrated steps 2-4 as prose → INCOMPLETE (the evidence-gate correctly refused the false 'done'), run 2 drove the full chain + persisted → PASS. Our best small performer, but don't assume a single run is representative.",
-		sources: ["https://qwenlm.github.io/blog/qwen3/"],
+		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn chaining is STOCHASTIC — live 2026-06-29 (HIGH power, fresh-loaded, back-to-back e2e): run 1 narrated steps 2-4 as prose → INCOMPLETE (the evidence-gate correctly refused the false 'done'), run 2 drove the full chain + persisted → PASS. Our best small performer, but don't assume a single run is representative. EVAL-HARNESS FITNESS (§11 sweep 2026-07-11, m5max low-power, native_tool_call, mean 0.931/12 cells): architect/decompose 1.000 (PERFECT — easy+medium+hard all landed via the tool channel, ~10.7s avg) and worker/tool-use+context 1.000 (perfect: simple/multi-select/irrelevance tool-use AND 2k/8k/24k context probes) — but reviewer quality 0.722 / reliability 0.667 (easy 1.0, medium 0.5 = missed part of the null/unhandled-rejection pair, hard 0.667 = partial on the race/leak/injection trio). So qwen3-8b is a TOP architect/decompose + worker pick but a WEAK reviewer (misses subtle null/concurrency defects — the same small-model reviewer ceiling as coder-14b 0.556 and qwopus3.5-9b 0.833); pair it with review lenses or route review to a stronger model. basis: empirical.",
+		sources: [
+			"https://qwenlm.github.io/blog/qwen3/",
+			"eval-harness 2026-07-11 (m5max low-power, qwen/qwen3-8b: mean 0.931/12 — decompose 1.0, worker 1.0, reviewer 0.722); see docs/dev/model-sweep-log.md",
+		],
 		basis: "both",
 		verified: true,
 	},
