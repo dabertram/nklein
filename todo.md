@@ -572,12 +572,24 @@ source repo went private — so if it vanishes the buildable source still lives 
   is registered on BOTH `Local` (m5max, 128 GB) and `m4mini`, and LM Link resolved it to m4mini — with only the reactive,
   OPT-IN `nklein-model-residency-watcher.ts` (`NKLEIN_RESIDENCY_HEARTBEAT`) noticing AFTER the crash. **Precursor missing:**
   `LmsLinkDevices` ([lms-link-status.ts](src/core/lms-link-status.ts)) exposes device names/ids but NO per-device RAM, so
-  even a wired guard can't currently know m4mini can't fit a 14B. **OWED (the durable fix):** (1) a per-LM-Link-device RAM
-  source (parse/configure each linked host's RAM); (2) wire `decideModelLoad`/`planGuardedModelLoad` into the runtime's
-  session model-load seam so it prefers a device that FITS (and explicit-loads there rather than leaving device choice to
-  LM Link JIT). **IMMEDIATE MITIGATION (David's fleet, no code):** unregister/unload the 14B from m4mini's LM Studio so LM
-  Link only resolves it to m5max, or cap m4mini's per-model context/size — until the machine-aware headroom routing is
-  wired. See [[realmodel-lifecycle-validated]] + [[live-dev-test-single-machine]] for the probe detail.
+  even a wired guard can't currently know m4mini can't fit a 14B. **✅ DURABLE FIX SHIPPED — OPT-IN machine-aware routing
+  (2026-07-12, David scoped it "test harness + !Klein when the user enables it"; commits `28b43ecd`→`b98f99f3`).**
+  ENABLE per-device RAM: `NKLEIN_DEVICE_RAM_GB="Local:128,m4mini:16,legion5pro:24"` (unset ⇒ feature OFF, ZERO fleet I/O,
+  byte-identical). When set, `startTaskSession` (the seam BOTH the dev-test harness and live !Klein dispatch through) calls
+  the fail-open [steer-preferred-device.ts](src/core/steer-preferred-device.ts) adapter just before the model request: it
+  reads the LM-Link roster + model sizes, estimates the EFFECTIVE footprint (weights + KV-at-context — weights-alone
+  under-counts and misses exactly the m4mini case; prefers llmfit's `memoryRequiredGb`), and on a `set_preferred` verdict
+  issues `lms link set-preferred-device <fitting-node>` so LM-Link's JIT lands the model on a node that fits instead of
+  m4mini. Pure toolkit in [device-load-routing.ts](src/core/device-load-routing.ts) (`selectDeviceForModelLoad` /
+  `resolveDeviceRamBytesFromEnv` / `estimateEffectiveModelBytes` / `planPreferredDeviceSteering`, 29 tests) + adapter
+  (10 tests), all opt-in with byte-identical defaults. **NEEDS LIVE FLEET VALIDATION:** set the env, run a dev-test, and
+  confirm via `lms link status` that a 14B card steers the preferred device to Local (not m4mini). **v1 limits (documented,
+  follow-ups):** the global preferred-device could race under highly-concurrent card-starts (bounded by the 1-at-a-time
+  guardrail); a link+size fetch per gated dispatch (opt-in overhead); silent at the seam (handlers have no logger + console
+  is lint-banned) so observability is owed; and a throughput-farm-aware "smallest-sufficient device" policy (§5.AB L834)
+  can layer on the same per-device verdicts later. **IMMEDIATE MITIGATION if the flag is left OFF (David's fleet, no code):**
+  unregister/unload the 14B from m4mini's LM Studio so LM Link only resolves it to m5max, or cap m4mini's per-model
+  context/size. See [[realmodel-lifecycle-validated]] + [[live-dev-test-single-machine]] for the probe detail.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
