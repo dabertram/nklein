@@ -635,6 +635,23 @@ source repo went private — so if it vanishes the buildable source still lives 
   (b) David's REAL m4mini/legion RAM for a precise map (the swap observation already justifies a conservative m4mini:16);
   (c) a throughput-farm-aware "smallest-sufficient device" policy can layer on the same per-device verdicts. Immediate
   no-code alternative still valid: `lms link set-preferred-device <m5max>` so manual loads land on the farm.
+  **★ REAL-MODEL DEV-TEST (2026-07-12, mid_task ×14B, loader ENABLED via .env) validated the loader end-to-end AND found
+  2 more bugs.** (1) **Loader wiring was incomplete — FIXED (`c5ce8dd8`):** a forced non-resident `--model-id` failed at
+  the EARLIER `resolveLaunchConfig` residency gate (before the start block where the loader was wired). Now the
+  resolveLaunchConfig catch runs the loader → `clearProviderModelDiscoveryCache()` → retries once (shared
+  `attemptAutonomousModelLoad` closure reused by both gates). Re-validated LIVE: the 14B loaded on **m5max** + ran the
+  full swarm (decompose → 5 workers with REAL patches → 3 delivered), no m4mini crash. (2) **[ ] BUG — dev-test harness
+  PREMATURE SETTLE:** `runDevTestProject` settles `blocked_by_review_cards` after `DEFAULT_STABLE_POLLS=6 × 5s = 30s` of
+  unchanged board + no active session ([nklein-dev-test-harness.ts](src/nklein-agent/nklein-dev-test-harness.ts) L181 +
+  [dev-test-outcome.ts](src/core/dev-test-outcome.ts):101). Real-model between-turn lulls exceed 30s, so it exits while
+  the runtime keeps working (observed: harness settled at 3m/completed=1; runtime continued to completed=3 by 18m). Fix:
+  a longer stable threshold for the real-model path (30s is tuned for the fast SIM), or gate the "blocked" settle on
+  persistence. (3) **[ ] BUG — REVIEWER path has NO loader → review STALLS:** after delivery, cards sit in `review` with
+  the model idle and ZERO reviewer sessions — the diverse-reviewer rule (W2.5a, no self-review) needs a lineage-DIFFERENT
+  loaded model, but one-at-a-time leaves only the worker resident and the review-session-start path does NOT invoke the
+  autonomous loader. The loader is wired for the worker/task path, NOT the review path. Fix: wire the loader into the
+  review-session start (load a diverse reviewer, accepting worker↔reviewer swapping under one-at-a-time). Note David's
+  config has worker=reviewer=qwen2.5-coder-14b (same lineage), so REAL use hits this too. See [[machine-aware-load-routing]].
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
