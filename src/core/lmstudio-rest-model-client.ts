@@ -7,8 +7,8 @@
  *
  *   GET  /api/v1/models
  *     → { models: [{ type, publisher, key, display_name, architecture, quantization: {name, bits_per_weight},
- *          size_bytes, params_string, loaded_instances: [...], max_context_length, format, capabilities,
- *          description }] }
+ *          size_bytes, params_string, loaded_instances: [{ id: "<key>[:N]", config: {...} }], max_context_length,
+ *          format, capabilities, description }] }   (loaded_instances[].id verified live 2026-07-11 vs a LOADED model)
  *   POST /api/v1/models/load     body { model: <key>, context_length?: number }        (NO ttl/gpu keys — CLI-only levers)
  *     → { type, instance_id, load_time_seconds, status: "loaded" }
  *   POST /api/v1/models/unload   body { instance_id: <id> }
@@ -102,7 +102,11 @@ export function parseLmStudioRestModel(row: unknown): LmStudioRestModel | null {
 		paramsString: typeof record.params_string === "string" ? record.params_string : null,
 		loadedInstanceIds: loadedInstances
 			.map((instance) => {
-				const id = asRecord(instance)?.instance_id ?? asRecord(instance)?.identifier;
+				// LIVE shape (2026-07-11, against a LOADED model): each loaded_instances element is
+				// `{ id: "<key>[:N]", config: {...} }` — the id field is `id`, NOT `instance_id`/`identifier`. The
+				// 2026-07-10 probe had 0 models loaded so this element was never exercised; read `id` first, keep the
+				// other spellings as defensive fallbacks.
+				const id = asRecord(instance)?.id ?? asRecord(instance)?.instance_id ?? asRecord(instance)?.identifier;
 				return typeof id === "string" ? id : typeof instance === "string" ? instance : null;
 			})
 			.filter((id): id is string => id !== null),

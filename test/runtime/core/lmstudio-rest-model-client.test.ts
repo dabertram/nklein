@@ -54,18 +54,26 @@ function fakeFetch(state: {
 const GB = 1_073_741_824;
 
 describe("parseLmStudioRestModel", () => {
-	it("parses the verified row shape and tolerates missing fields", () => {
+	it("parses the LIVE loaded_instances[].id shape (verified 2026-07-11) plus the fallback spellings", () => {
+		// Live shape: each loaded instance is `{ id: "<key>[:N]", config: {...} }` — distinct ids per instance.
 		const model = parseLmStudioRestModel({
 			type: "llm",
-			key: "qwen/qwen3.6-27b",
-			display_name: "Qwen3.6 27B",
-			size_bytes: 17 * GB,
-			loaded_instances: [{ instance_id: "qwen/qwen3.6-27b" }],
-			max_context_length: 262144,
+			key: "qwen/qwen3-8b",
+			display_name: "Qwen3 8B",
+			size_bytes: 5 * GB,
+			loaded_instances: [
+				{ id: "qwen/qwen3-8b", config: { context_length: 40000 } },
+				{ id: "qwen/qwen3-8b:2", config: { context_length: 40000 } },
+			],
+			max_context_length: 40960,
 		});
-		expect(model?.key).toBe("qwen/qwen3.6-27b");
-		expect(model?.loadedInstanceIds).toEqual(["qwen/qwen3.6-27b"]);
-		expect(model?.sizeBytes).toBe(17 * GB);
+		expect(model?.key).toBe("qwen/qwen3-8b");
+		expect(model?.loadedInstanceIds).toEqual(["qwen/qwen3-8b", "qwen/qwen3-8b:2"]);
+		expect(model?.sizeBytes).toBe(5 * GB);
+		// Defensive fallbacks: older/other spellings still parse.
+		expect(
+			parseLmStudioRestModel({ key: "m", loaded_instances: [{ instance_id: "m:9" }] })?.loadedInstanceIds,
+		).toEqual(["m:9"]);
 		expect(parseLmStudioRestModel({ no: "key" })).toBeNull();
 	});
 });
