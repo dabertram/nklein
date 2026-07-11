@@ -325,6 +325,24 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// Qwen3 0.6B — the smallest Qwen3. Its `0-6b` token can't hit `qwen3-8b`, so order vs the 8B is not load-bearing.
+		family: "qwen3-0.6b",
+		match: /qwen-?3-0[._-]?6b/,
+		toolUse: "TOOL_WEAK",
+		kind: "instruct",
+		chaining: "single_only",
+		synthesis: "full",
+		speed: "fast",
+		sizeGb: 0.4,
+		note: "Qwen3 0.6B (the smallest Qwen3). §11 sweep 2026-07-11 (m5max, chat-agent-tools single-read probe): a NOTABLE floor result — even at 0.6B it CALLED read_file (audited ✓) AND fully synthesized the answer (echoed the file's secret verbatim), a CLEAN single-tool PASS. So single-tool call + full synthesis is achievable even at the 0.6B floor — the qwen3 lineage synthesizes well tiny, unlike the coder-tuned/gemma-edge ≤7B rows that abbreviate to 'Done.' on the same probe (single-tool synth is family/tuning-, not size-, gated). MULTI-tool chaining NOT tested and expected to fail at 0.6B (below the ≤4B chaining floor) — kept TOOL_WEAK/single_only, mirroring nemotron-nano's treatment. n=1; a data point, not a worker recommendation.",
+		sources: [
+			"https://qwenlm.github.io/blog/qwen3/",
+			"live chat-agent-tools 2026-07-11 (m5max, `qwen3-0.6b-mlx` ~0.4 GB — single read_file + full synth PASS; §11 sweep increment)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		family: "qwen3-8b",
 		match: /qwen-?3-8b/,
 		toolUse: "TOOL_NATIVE",
