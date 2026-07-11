@@ -30,11 +30,13 @@
 | `nvidia/nemotron-3-nano-4b` | 2.8 GB | 1.00 | 0.83 | **0.83**⭐ | 0.875 | ⚡ ~90s | **fast reviewer** + decompose |
 | `qwen/qwen3.6-35b-a3b` | 22 GB | 1.00 | 1.00 | **0.83**⭐ | 0.955 | slow (~40s/cell) | **strong reviewer** + all-round |
 | `qwen/qwq-32b` | 35 GB | 1.00 | 1.00 | **0.83** | 0.955 | 🐢🐢 ~22min eval | quality but too slow |
+| `nvidia/nemotron-3-super` | 86 GB | 1.00 | 1.00 | **0.83**⭐ | **0.958** | med (~6min eval) | highest mean; big-box architect/reviewer |
+| `qwen/qwen3.6-27b` (base) | 17 GB | 1.00† | 1.00 | 0.61 | 0.894 | slow | worker (weak reviewer 0.33 hard; hard-decompose NO-ANSWER) |
 
 **Per-role picks (small-model swarm):**
 - **Decompose (architect):** nearly universal 1.00 — pick the fastest reliable: `ornith-1.0-9b` / `qwen3-8b` (both ~10s/cell). Reasoning giants (qwq, 35b-a3b) also 1.0 but slow + occasionally NO-ANSWER on the trivial cell (over-think).
 - **Worker (tool-use):** most 1.00; AVOID `qwen2.5-coder-7b` (two tool-use cells 0.000 — calls the tool, abbreviates "Done."). `nemotron-nano` has a context-8k glitch (0.000, non-monotonic).
-- **Reviewer (the differentiator):** the 7-9B qwen-family (`qwen3-8b`, `qwable-9b`, `ornith-9b`, `coder-7b`) + `coder-14b` all hit the **~0.72 ceiling** (miss the hard race/leak/injection trio, 0.667). **BREAK it:** `nemotron-3-nano-4b` (0.833, FAST ~10s/cell — the surprise 4B), `qwen3.6-35b-a3b` (0.833, ~25s/cell), `qwq-32b` (0.833 but ~168s/cell — impractical). **→ Route review to `nemotron-nano-4b` (fast) or `qwen3.6-35b-a3b` (bigger), never a small qwen-family model.** The ceiling is NVIDIA-reasoning-RL-vs-qwen-tuning, not size.
+- **Reviewer (the differentiator):** the 7-9B qwen-family (`qwen3-8b`, `qwable-9b`, `ornith-9b`, `coder-7b`) + `coder-14b` all hit the **~0.72 ceiling** (miss the hard race/leak/injection trio, 0.667). **BREAK it:** both NEMOTRON models — `nemotron-3-nano-4b` (0.833, FAST ~10s/cell, 2.8 GB) and `nemotron-3-super` (0.833, 86 GB) — plus `qwen3.6-35b-a3b` (0.833, 22 GB) and `qwq-32b` (0.833 but ~168s/cell, impractical). The nemotron pair catching the hard trio at BOTH 4B and super scale confirms strong review recall is a **nemotron reasoning-RL family trait, robust across size** — the ceiling is TRAINING-gated (nemotron-RL vs qwen-tuning), not size. **→ Route review to `nemotron-nano-4b` (fast + tiny — same 0.833 as the 86 GB super) or `qwen3.6-35b-a3b`; never a small qwen-family model or the qwen3.6-27b base (0.33 hard).**
 
 ## Roster (2026-06-26)
 

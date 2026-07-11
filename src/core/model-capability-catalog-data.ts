@@ -161,6 +161,22 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "both",
 		verified: true,
 	},
+	{
+		// nemotron-3-super — the big NVIDIA reasoning model (matched by the distinct `super` token; no nano collision).
+		family: "nemotron-super",
+		match: /nemotron(-\d+)?-super/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		speed: "medium",
+		sizeGb: 86,
+		note: "nvidia/nemotron-3-super (~86 GB). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call): the HIGHEST mean of the whole sweep — 0.958/12, ALL cells scored (no over-think NO-ANSWERs). Decompose 1.000 all 3 tiers + worker/tool-use + context probes 1.000; REVIEWER 0.833 (caught the hard race/leak/injection trio). This CONFIRMS the nemotron-reviews-well pattern AT SCALE: both nemotron-3-nano-4b (0.833) and this super (0.833) catch the hard trio, so strong review recall is a NEMOTRON reasoning-RL family trait (robust 4B→super), unlike the qwen-family ~0.72 ceiling — the reviewer weakness is TRAINING-gated, not size-gated. Efficient for its size (whole eval ~6min, faster than the 35B qwq's ~22min). CAVEAT: at ~86 GB it leaves only ~42 GB free on the 128 GB box (near the 25% reserve) and can't coexist with other residents — impractical as a routine reviewer vs the tiny nemotron-nano-4b (same 0.833 review, 2.8 GB); reserve it for a dedicated big-box architect/reviewer. basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, nvidia/nemotron-3-super: mean 0.958/12 — decompose 1.0, worker 1.0, reviewer 0.833, all cells scored, ~6min); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
 	// ── DeepSeek R1 distill (matched BEFORE Qwen: its id contains "qwen3-8b" but it's a reasoning distill) ──
 	{
 		family: "deepseek-r1-distill",
