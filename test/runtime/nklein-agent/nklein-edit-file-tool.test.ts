@@ -42,6 +42,43 @@ describe("parseEditFileRequest", () => {
 		expect(parseEditFileRequest({ edits: [{ search: "x", replace: "y" }] })).toBeNull();
 		expect(parseEditFileRequest({ path: "a.ts" })).toBeNull();
 	});
+
+	// §5.BF 2026-07-11 (#42 regression): a present non-empty `edits` array is the PRIMARY intent — a stray top-level
+	// text/new_text (commentary a weak model adds, and new_text is in the schema) must NOT hijack it into a
+	// whole-file replace that silently drops the edits and clobbers the file.
+	it("#42 regression: a non-empty edits array WINS over a stray top-level text/new_text (no whole-file clobber)", () => {
+		const withText = parseEditFileRequest({
+			path: "src/routes.ts",
+			edits: [{ search: "import a", replace: "import a, b" }],
+			text: "add b to the import",
+		});
+		expect(withText).toEqual({ path: "src/routes.ts", edits: [{ search: "import a", replace: "import a, b" }] });
+		expect(withText?.replaceAll).toBeUndefined();
+
+		const withNewText = parseEditFileRequest({
+			path: "src/routes.ts",
+			edits: [{ search: "x", replace: "y" }],
+			new_text: "commentary",
+			insert_line: 3,
+		});
+		expect(withNewText).toEqual({ path: "src/routes.ts", edits: [{ search: "x", replace: "y" }] });
+		expect(withNewText?.replaceAll).toBeUndefined();
+		expect(withNewText?.insert).toBeUndefined();
+
+		// A STRING-encoded edits array (the repair path) also wins over a stray new_text.
+		const stringEdits = parseEditFileRequest({
+			path: "src/routes.ts",
+			edits: '[{"search":"x","replace":"y"}]',
+			new_text: "commentary",
+		});
+		expect(stringEdits?.edits).toEqual([{ search: "x", replace: "y" }]);
+		expect(stringEdits?.replaceAll).toBeUndefined();
+	});
+
+	it("#42: an EMPTY edits array still allows the new_text-only whole-file replace idiom", () => {
+		const replace = parseEditFileRequest({ path: "src/a.ts", edits: [], new_text: "whole new content" });
+		expect(replace?.replaceAll).toBe("whole new content");
+	});
 });
 
 describe("edit_file tool", () => {

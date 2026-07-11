@@ -7,7 +7,9 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
+	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
@@ -334,10 +336,13 @@ async function approveEditorTool(
 	}
 
 	const nextLines = countTextLines(nextText);
-	if (nextLines > maxAgentWritableFileLines) {
+	// SOFT target, not a hard wall (207bb4f5 / §5.BF 2026-07-11): allow over-target writes up to the hard backstop so
+	// the approval layer stops contradicting the system prompt (which tells models the limit is soft + MAY be exceeded).
+	const hardBackstopLines = resolveHardWriteBackstopLines(maxAgentWritableFileLines);
+	if (nextLines > hardBackstopLines) {
 		return {
 			approved: false,
-			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
+			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target). Split content across multiple files.`,
 		};
 	}
 	const secretFinding = findPotentialSecretInText(newText);
@@ -398,10 +403,13 @@ async function approveWriteFilesTool(
 			};
 		}
 		const lineCount = countTextLines(writeRequest.content);
-		if (lineCount > maxAgentWritableFileLines) {
+		// SOFT target (207bb4f5 / §5.BF 2026-07-11): match the write tool's own semantics — allow over-target writes
+		// up to the hard backstop; hard-denying at the soft target here made the tool's soft-target design dead code.
+		const hardBackstopLines = resolveHardWriteBackstopLines(maxAgentWritableFileLines);
+		if (lineCount > hardBackstopLines) {
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: writing ${lineCount} lines to ${writeRequest.path} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
+				reason: `Blocked ${request.toolName}: writing ${lineCount} lines to ${writeRequest.path} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target). Split content across multiple files.`,
 			};
 		}
 		const secretFinding = findPotentialSecretInText(writeRequest.content);
@@ -473,11 +481,14 @@ async function approveApplyPatchTool(
 			};
 		}
 		const path = resolveToolPath(workspacePath, target.path);
+		// SOFT target (207bb4f5 / §5.BF 2026-07-11): allow over-target patches up to the hard backstop, matching the
+		// write tool + system prompt; only a runaway (soft × multiplier) is denied.
+		const hardBackstopLines = resolveHardWriteBackstopLines(maxAgentWritableFileLines);
 		if (target.type === "add") {
-			if (target.addedLines > maxAgentWritableFileLines) {
+			if (target.addedLines > hardBackstopLines) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: new file ${target.path} would exceed the ${maxAgentWritableFileLines}-line file limit.`,
+					reason: `Blocked ${request.toolName}: new file ${target.path} (${target.addedLines} lines) exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target).`,
 				};
 			}
 			continue;
@@ -485,10 +496,10 @@ async function approveApplyPatchTool(
 
 		const currentLines = (await readFileLineCount(path)) ?? 0;
 		const nextLines = currentLines + target.delta;
-		if (nextLines > maxAgentWritableFileLines) {
+		if (nextLines > hardBackstopLines) {
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: patch would grow ${target.path} to ${nextLines} lines, above the ${maxAgentWritableFileLines}-line file limit.`,
+				reason: `Blocked ${request.toolName}: patch would grow ${target.path} to ${nextLines} lines, exceeding the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target).`,
 			};
 		}
 	}

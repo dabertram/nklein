@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { isPathInsideGitWorkTree, resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
+import { createGitProcessEnv } from "../core/git-process-env";
 import type { RuntimeDevTestProjectPreset } from "../core/projects-api-contract";
 import { toSlug } from "../core/slugify";
 import { loadDevTestProjectScenario } from "./dev-test-project-registry";
@@ -161,18 +162,25 @@ async function initializeGitRepository(workspacePath: string): Promise<void> {
 				"Created workspaces must live outside any repo (see resolveSafeCreatedWorkspaceParentDir).",
 		);
 	}
-	await execFileAsync("git", ["init"], { cwd: workspacePath });
-	await execFileAsync("git", ["config", "kanban.repositoryCreatedByKanban", "true"], { cwd: workspacePath });
-	await execFileAsync("git", ["add", "."], { cwd: workspacePath });
+	// §5.BF 2026-07-11: scrub inherited GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE from the environment (via
+	// createGitProcessEnv) on EVERY git spawn here, not just the commit. A parent git context — e.g. the dev-test rail
+	// invoked from inside a git hook, or a session that inherited those vars — would otherwise hijack `git init`/`add`
+	// into the outer repo's index and silently wedge or mis-target the fixture commit (the same hijack class fixed for
+	// decomposition in 28d5c4ca). The commit's author/committer identity overrides ride on top of the scrubbed env.
+	await execFileAsync("git", ["init"], { cwd: workspacePath, env: createGitProcessEnv() });
+	await execFileAsync("git", ["config", "kanban.repositoryCreatedByKanban", "true"], {
+		cwd: workspacePath,
+		env: createGitProcessEnv(),
+	});
+	await execFileAsync("git", ["add", "."], { cwd: workspacePath, env: createGitProcessEnv() });
 	await execFileAsync("git", ["commit", "-m", "Initial dev test fixture"], {
 		cwd: workspacePath,
-		env: {
-			...process.env,
+		env: createGitProcessEnv({
 			GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || "!Klein Dev Test",
 			GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || "kanban-dev-test@example.invalid",
 			GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || "!Klein Dev Test",
 			GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL || "kanban-dev-test@example.invalid",
-		},
+		}),
 	});
 }
 

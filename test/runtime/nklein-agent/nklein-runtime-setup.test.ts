@@ -49,24 +49,33 @@ describe("createKanbanToolApprovalPolicy", () => {
 		tempDirs.length = 0;
 	});
 
-	it("blocks editor writes that exceed the 1000-line file limit", async () => {
+	// §5.BF 2026-07-11: the 1000-line limit is a SOFT target — an over-target write is ALLOWED (matching the write
+	// tool + the system prompt); only the 4× hard backstop (4000 lines) blocks. A hard-deny at 1001 was dead code.
+	it("ALLOWS an over-soft-target editor write (soft target, not a hard wall)", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
 		const newText = Array.from({ length: 1001 }, (_, index) => `line-${index + 1}`).join("\n");
 
 		const result = await policy.requestToolApproval(
-			createApprovalRequest({
-				toolName: "editor",
-				input: {
-					path: "large.txt",
-					new_text: newText,
-				},
-			}),
+			createApprovalRequest({ toolName: "editor", input: { path: "large.txt", new_text: newText } }),
+		);
+
+		expect(result.approved).toBe(true);
+	});
+
+	it("blocks editor writes only above the 4× hard backstop", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const newText = Array.from({ length: 4001 }, (_, index) => `line-${index + 1}`).join("\n");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({ toolName: "editor", input: { path: "large.txt", new_text: newText } }),
 		);
 
 		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("1000-line file limit");
+		expect(result.reason).toContain("4000-line hard backstop");
 	});
 
 	it("blocks editor writes that introduce obvious secrets", async () => {
@@ -435,24 +444,28 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
 	});
 
-	it("blocks write_file payloads above the configured line limit", async () => {
+	it("ALLOWS an over-soft write_file payload but blocks above the 4× hard backstop", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
+		// Soft target 3 ⇒ hard backstop 12. 4 lines is over-soft (allowed); 13 lines is over the backstop (blocked).
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { maxAgentWritableFileLines: 3 });
-		const content = ["one", "two", "three", "four"].join("\n");
 
-		const result = await policy.requestToolApproval(
+		const overSoft = await policy.requestToolApproval(
 			createApprovalRequest({
 				toolName: "write_file",
-				input: {
-					path: "large.txt",
-					content,
-				},
+				input: { path: "large.txt", content: ["one", "two", "three", "four"].join("\n") },
 			}),
 		);
+		expect(overSoft.approved).toBe(true);
 
-		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("3-line file limit");
+		const overBackstop = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "huge.txt", content: Array.from({ length: 13 }, (_, i) => `l${i}`).join("\n") },
+			}),
+		);
+		expect(overBackstop.approved).toBe(false);
+		expect(overBackstop.reason).toContain("12-line hard backstop");
 	});
 
 	it("blocks path-only write_file payloads before approval", async () => {
@@ -473,23 +486,27 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("path and content fields");
 	});
 
-	it("blocks write_files payloads above the configured line limit", async () => {
+	it("blocks write_files payloads only above the 4× hard backstop", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { maxAgentWritableFileLines: 3 });
-		const content = ["one", "two", "three", "four"].join("\n");
 
-		const result = await policy.requestToolApproval(
+		const overSoft = await policy.requestToolApproval(
 			createApprovalRequest({
 				toolName: "write_files",
-				input: {
-					files: [{ path: "large.txt", content }],
-				},
+				input: { files: [{ path: "large.txt", content: ["one", "two", "three", "four"].join("\n") }] },
 			}),
 		);
+		expect(overSoft.approved).toBe(true);
 
-		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("3-line file limit");
+		const overBackstop = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_files",
+				input: { files: [{ path: "huge.txt", content: Array.from({ length: 13 }, (_, i) => `l${i}`).join("\n") }] },
+			}),
+		);
+		expect(overBackstop.approved).toBe(false);
+		expect(overBackstop.reason).toContain("12-line hard backstop");
 	});
 
 	it("blocks token-oversized read_files requests without explicit ranges", async () => {
@@ -658,32 +675,40 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(adjacentRead.approved).toBe(true);
 	});
 
-	it("blocks apply_patch updates that push a file over 1000 lines", async () => {
+	it("apply_patch: allows a patch that pushes a file over the 1000-line SOFT target, blocks only above the 4× backstop", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
-		const targetPath = join(workspacePath, "target.ts");
-		const baseContent = Array.from({ length: 999 }, (_, index) => `const row${index} = ${index};`).join("\n");
-		await writeFile(targetPath, baseContent, "utf-8");
+		const patchOf = (file: string) =>
+			[
+				"*** Begin Patch",
+				`*** Update File: ${file}`,
+				"@@",
+				"+const added_1 = 1;",
+				"+const added_2 = 2;",
+				"*** End Patch",
+			].join("\n");
 
-		const patch = [
-			"*** Begin Patch",
-			"*** Update File: target.ts",
-			"@@",
-			"+const added_1 = 1;",
-			"+const added_2 = 2;",
-			"*** End Patch",
-		].join("\n");
-
-		const result = await policy.requestToolApproval(
-			createApprovalRequest({
-				toolName: "apply_patch",
-				input: { input: patch },
-			}),
+		// 999 → 1001 lines is over the soft target but under the 4000-line hard backstop: ALLOWED now.
+		const overSoftPath = join(workspacePath, "over-soft.ts");
+		await writeFile(overSoftPath, Array.from({ length: 999 }, (_, i) => `const row${i} = ${i};`).join("\n"), "utf-8");
+		const overSoft = await policy.requestToolApproval(
+			createApprovalRequest({ toolName: "apply_patch", input: { input: patchOf("over-soft.ts") } }),
 		);
+		expect(overSoft.approved).toBe(true);
 
-		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("1000-line file limit");
+		// 3999 → 4001 lines exceeds the 4000-line hard backstop: BLOCKED.
+		const overBackstopPath = join(workspacePath, "over-backstop.ts");
+		await writeFile(
+			overBackstopPath,
+			Array.from({ length: 3999 }, (_, i) => `const row${i} = ${i};`).join("\n"),
+			"utf-8",
+		);
+		const overBackstop = await policy.requestToolApproval(
+			createApprovalRequest({ toolName: "apply_patch", input: { input: patchOf("over-backstop.ts") } }),
+		);
+		expect(overBackstop.approved).toBe(false);
+		expect(overBackstop.reason).toContain("4000-line hard backstop");
 	});
 
 	it("blocks malformed apply_patch input when changed files cannot be identified", async () => {

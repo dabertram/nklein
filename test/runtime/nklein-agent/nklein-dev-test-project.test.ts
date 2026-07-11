@@ -114,6 +114,36 @@ describe("nklein dev test project", () => {
 		expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
 	});
 
+	// §5.BF 2026-07-11: an inherited GIT_INDEX_FILE/GIT_DIR (e.g. the scaffold invoked from inside a git hook) must
+	// NOT hijack the fixture's git init/add/commit into the outer repo's index. createGitProcessEnv scrubs them.
+	it("scaffolds successfully even when a polluting GIT_INDEX_FILE/GIT_DIR is present in the environment", async () => {
+		const parentDir = await createParentDir();
+		const bogusIndex = join(await createParentDir(), "hijack.index");
+		const bogusGitDir = join(await createParentDir(), "outer.git");
+		const saved = { index: process.env.GIT_INDEX_FILE, dir: process.env.GIT_DIR };
+		process.env.GIT_INDEX_FILE = bogusIndex;
+		process.env.GIT_DIR = bogusGitDir;
+		try {
+			const project = await scaffoldNKleinDevTestProject({ parentDir, initializeGit: true });
+			// The commit landed in the fixture's OWN repo (not the outer GIT_DIR), and no hijack index was written.
+			// Verify with a scrubbed env so THIS assertion's git call doesn't inherit the bogus GIT_DIR either.
+			const cleanEnv = { ...process.env };
+			delete cleanEnv.GIT_INDEX_FILE;
+			delete cleanEnv.GIT_DIR;
+			const head = await execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
+				cwd: project.workspacePath,
+				env: cleanEnv,
+			});
+			expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
+			await expect(access(bogusIndex)).rejects.toThrow();
+		} finally {
+			if (saved.index === undefined) delete process.env.GIT_INDEX_FILE;
+			else process.env.GIT_INDEX_FILE = saved.index;
+			if (saved.dir === undefined) delete process.env.GIT_DIR;
+			else process.env.GIT_DIR = saved.dir;
+		}
+	});
+
 	it("scaffolds the audio VST fixture for the audio preset", async () => {
 		const parentDir = await createParentDir();
 		const scenario = resolveNKleinDevTestProjectScenario("audio_vst");

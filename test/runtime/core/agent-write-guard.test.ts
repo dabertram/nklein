@@ -134,6 +134,28 @@ describe("findProtectedTestPath", () => {
 		expect(findProtectedTestPath("")).toBeNull();
 		expect(findProtectedTestPath("   ")).toBeNull();
 	});
+
+	// §5.BF 2026-07-11 (HIGH): the fast prefix match missed absolute + traversal spellings that confineToolPath
+	// happily resolves INSIDE the workspace — so a write could bypass the protected guard. Resolve then re-match.
+	it("catches ABSOLUTE spellings that resolve to a protected path", () => {
+		expect(findProtectedTestPath("/workspaces/task-7/test/protected/guard.test.ts")).toBe(
+			"workspaces/task-7/test/protected/guard.test.ts",
+		);
+		expect(findProtectedTestPath("/workspaces/task-7/vitest.protected.config.ts")).toBe(
+			"workspaces/task-7/vitest.protected.config.ts",
+		);
+	});
+
+	it("catches TRAVERSAL spellings that resolve to a protected path", () => {
+		expect(findProtectedTestPath("src/../test/protected/guard.test.ts")).toBe("test/protected/guard.test.ts");
+		expect(findProtectedTestPath("test/./protected/guard.test.ts")).toBe("test/protected/guard.test.ts");
+		expect(findProtectedTestPath("a/b/../../test/protected/x.ts")).toBe("test/protected/x.ts");
+	});
+
+	it("still rejects a lookalike segment even via the resolved fallback", () => {
+		expect(findProtectedTestPath("/workspaces/t/test/protectedish/foo.ts")).toBeNull();
+		expect(findProtectedTestPath("src/../notest/protected-data/foo.ts")).toBeNull();
+	});
 });
 
 describe("buildProtectedTestApprovalRequest", () => {

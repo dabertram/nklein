@@ -1,10 +1,13 @@
 import { readFile } from "node:fs/promises";
 import {
+	buildLargeFileWriteNudge,
 	countTextLines,
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
+	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
@@ -97,16 +100,22 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 	const hasSearchField = [record.search, record.search_text, record.old, record.old_string, record.old_text].some(
 		(value) => typeof value === "string",
 	);
-	if (insertLine !== null && insertText !== null && !hasSearchField) {
+	// #42 REGRESSION GUARD (§5.BF 2026-07-11): a present, non-empty `edits` array is the model's PRIMARY intent —
+	// the insert and whole-file-replace idioms below must never win over it. A weak model commonly adds a top-level
+	// `text`/`new_text` commentary field alongside `edits` (and `new_text` is literally in this tool's schema); if
+	// the replaceAll branch fired on that stray field it would silently DISCARD every edit and overwrite the entire
+	// file with the commentary string. Only fall through to insert/replaceAll when there is no usable edits array.
+	const rawEdits = repairJsonStringValue(record.edits);
+	const hasEditsArray = Array.isArray(rawEdits) && rawEdits.length > 0;
+	if (!hasEditsArray && insertLine !== null && insertText !== null && !hasSearchField) {
 		return { path, edits: [], insert: { line: insertLine, text: insertText } };
 	}
-	// run42 (#42): `{path, new_text}` with NO search and NO line = the whole-file-replace idiom (the SDK editor's
-	// "create/replace" semantics). Honor it as a full-content replacement through the same write guards.
-	if (insertText !== null && !hasSearchField && insertLineRaw === undefined) {
+	// run42 (#42): `{path, new_text}` with NO edits array, NO search and NO line = the whole-file-replace idiom (the
+	// SDK editor's "create/replace" semantics). Honor it as a full-content replacement through the same write guards.
+	if (!hasEditsArray && insertText !== null && !hasSearchField && insertLineRaw === undefined) {
 		return { path, edits: [], replaceAll: insertText };
 	}
 	// Allow a single {search,replace} at the top level or an `edits` array.
-	const rawEdits = repairJsonStringValue(record.edits);
 	const editValues = Array.isArray(rawEdits) ? rawEdits : [record];
 	const edits = editValues.map(toEditBlock);
 	if (edits.length === 0 || edits.some((edit) => edit === null)) {
@@ -234,9 +243,15 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 			}
 
 			const lineCount = countTextLines(applied.content);
-			if (lineCount > maxFileLines) {
+			// maxFileLines is a SOFT target, not a hard wall (207bb4f5 / §5.BF 2026-07-11): an over-target edit is
+			// ALLOWED (and gets a strong split nudge below) so the agent can keep a genuinely-more-cohesive larger
+			// file — only the much larger backstop (soft × HARD_WRITE_BACKSTOP_MULTIPLIER) hard-blocks a runaway or
+			// accidental huge write. Hard-denying at the soft target here contradicted the system prompt (which now
+			// tells models they MAY exceed it) and, post-#42, edit_file is a whole-file-write path so the mismatch bit.
+			const hardBackstopLines = resolveHardWriteBackstopLines(maxFileLines);
+			if (lineCount > hardBackstopLines) {
 				throw new Error(
-					`Blocked edit_file: the edit would grow ${request.path} to ${lineCount} lines, exceeding the ${maxFileLines}-line file limit.`,
+					`Blocked edit_file: the edit would grow ${request.path} to ${lineCount} lines, exceeding the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxFileLines}-line soft target). A file this large is almost always unintended — split it across files.`,
 				);
 			}
 			const secretFinding = findPotentialSecretInText(applied.content);
@@ -247,11 +262,13 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 			}
 
 			await lockedFileSystem.writeTextFileAtomic(absolutePath, applied.content);
+			const nudge = buildLargeFileWriteNudge([{ path: request.path, lines: lineCount }], maxFileLines);
+			const baseInstruction = `Applied ${request.replaceAll !== undefined ? "the full-file replacement" : request.insert ? "the insert" : `${request.edits.length} edit${request.edits.length === 1 ? "" : "s"}`} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`;
 			return {
 				path: request.path,
 				changed: true,
 				strategies: applied.appliedStrategies,
-				instruction: `Applied ${request.replaceAll !== undefined ? "the full-file replacement" : request.insert ? "the insert" : `${request.edits.length} edit${request.edits.length === 1 ? "" : "s"}`} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`,
+				instruction: nudge ? `${baseInstruction} ${nudge}` : baseInstruction,
 			};
 		},
 	};

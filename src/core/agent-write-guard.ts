@@ -85,12 +85,47 @@ export function findProtectedTestPath(path: string): string | null {
 	if (!normalized) {
 		return null;
 	}
+	// Fast path: an already-workspace-relative spelling (unchanged behavior + return value).
 	if (PROTECTED_TEST_FILES.has(normalized)) {
 		return normalized;
 	}
 	for (const prefix of PROTECTED_TEST_PATH_PREFIXES) {
 		if (normalized === prefix.slice(0, -1) || normalized.startsWith(prefix)) {
 			return normalized;
+		}
+	}
+	// Hardened fallback (§5.BF 2026-07-11): an ABSOLUTE spelling ("/workspaces/<taskId>/test/protected/x" — the form
+	// the write-tool schemas endorse and read tools echo back) or a TRAVERSAL spelling ("src/../test/protected/x",
+	// "test/./protected/x") resolves INSIDE the workspace to a protected path but does not literally start with
+	// "test/protected/", so the fast path misses it while confineToolPath happily accepts it — the write then
+	// bypasses the guard. Resolve "."/".." segments and match the protected SEGMENTS (or a protected root file's
+	// basename) anywhere in the resolved path. Conservative by design: a path that merely LOOKS protected errs toward
+	// "block + require human approval," the safe direction for a human-gated guardrail.
+	const segments: string[] = [];
+	for (const segment of normalized.split("/")) {
+		if (segment === "" || segment === ".") {
+			continue;
+		}
+		if (segment === "..") {
+			segments.pop();
+			continue;
+		}
+		segments.push(segment);
+	}
+	if (segments.length === 0) {
+		return null;
+	}
+	const resolved = segments.join("/");
+	const basename = segments[segments.length - 1];
+	if (basename !== undefined && PROTECTED_TEST_FILES.has(basename)) {
+		return resolved;
+	}
+	for (const prefix of PROTECTED_TEST_PATH_PREFIXES) {
+		const protectedSegments = prefix.replace(/\/+$/u, "").split("/").filter(Boolean);
+		for (let start = 0; start + protectedSegments.length <= segments.length; start += 1) {
+			if (protectedSegments.every((seg, offset) => segments[start + offset] === seg)) {
+				return resolved;
+			}
 		}
 	}
 	return null;
