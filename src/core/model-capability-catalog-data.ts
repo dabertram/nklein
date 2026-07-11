@@ -475,6 +475,24 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// ravenx — a heavy custom MERGE on the qwen3.6-35b-a3b base (cyberagent/pentester/bughunter/opus/openmythos).
+		// MUST precede the plain 35b-a3b row: the ravenx id CONTAINS "qwen3.6-35b-a3b", so the base pattern would
+		// otherwise shadow it (most-specific-first).
+		family: "ravenx-pentester-merge",
+		match: /ravenx|cyberagent.*pentester/,
+		toolUse: "TOOL_WEAK",
+		kind: "reasoning",
+		speed: "slow",
+		sizeGb: 69,
+		note: "ravenx-cyberagent-qwen3.6-35b-a3b-opus-4.7-openmythos-pentester-bughunter merge (~69 GB, MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness, mean 0.833/9 SCORED): the security-tuning-boosts-review hypothesis is REFUTED, and the merge is STRICTLY WORSE than its base qwen3.6-35b-a3b. DECOMPOSE BROKEN: all 3 architect cells NO ANSWER (the heavy merge disrupted the structured decompose_project tool-call — the base scores 1.0 here). REVIEWER 0.833 = IDENTICAL to the base (caught the hard trio, missed the medium null-deref) — the pentester/bughunter tuning added NOTHING to review recall over the base 35b-a3b. Worker mostly 1.0 but tooluse-simple-weather 0.000. So: do NOT route decompose (or reliable tool-work) here; it reviews only as well as its base at 3× the base's footprint. Lesson: a heavy multi-way capability merge can DEGRADE the base's structured-output/tool-calling without improving the target skill — prefer the clean base (qwen3.6-35b-a3b) for both decompose AND review. basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, ravenx-…-pentester-bughunter: mean 0.833/9 — decompose ALL NO-ANSWER, reviewer 0.833 = same as base, worker 0.833); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS — single-tool works; the STRUCTURED decompose call is what the merge broke)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		// qwen3.6-35b-a3b (base qwen3.6 MoE, ~35B total / ~3B active). Its `35b-a3b` token can't hit the 27b row.
 		family: "qwen3.6-35b-a3b",
 		match: /qwen-?3[._]6-35b[._-]?a3b/,
