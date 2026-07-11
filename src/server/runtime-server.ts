@@ -1768,13 +1768,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			} finally {
 				autoReviewFinalizationInFlightTaskIds.delete(inFlightKey);
 				if (autoReviewFinalizationRerunRequestedKeys.delete(inFlightKey)) {
-					// Duplicate awaiting-review summaries can queue a rerun while round 1 is still settling. If that
-					// round BOUNCED the card, onBounce has already moved it back to In Progress and started the worker
-					// fixup. Replaying finalization now races ahead of the worker and reviews the unchanged old artifact.
-					// A genuinely completed fast redrive has transitioned back into an actionable review summary, so
-					// correlating the queued rerun with the latest session state preserves that case and drops only stale work.
+					// Duplicate awaiting-review summaries can queue a rerun while round 1 is still settling. Re-run the
+					// queued finalize UNLESS the worker is ACTIVELY re-driving (running/queued/paused): on a BOUNCE the
+					// card is back In Progress with the worker being fixed up, and a FUTURE awaiting_review edge will
+					// finalize the FRESH artifact — replaying now would race ahead and review the stale one (the case
+					// this gate was added for). But a card that has gone QUIESCENT has no future edge of its own: gating
+					// on `isReviewableNKleinSummary` (state === awaiting_review) dropped the rerun whenever the
+					// zero-latency empty-patch re-drive settled past awaiting_review before this `finally` ran, STRANDING
+					// the no-op worker In Progress instead of reaching the fail-closed Review hold (§5.BF 2026-07-11 —
+					// caught by the deterministic swarm harness). awaiting_review (the queued case) and terminal/idle
+					// states all re-run; only a live re-drive is deferred to its own edge.
 					const latestSummary = service.getSummary(taskId);
-					if (latestSummary && isReviewableNKleinSummary(latestSummary)) {
+					const workerActivelyRedriving =
+						latestSummary?.state === "running" ||
+						latestSummary?.state === "queued" ||
+						latestSummary?.state === "paused";
+					if (!workerActivelyRedriving) {
 						finalizeHeadlessAutoReviewTask(scope, service, taskId);
 					}
 				}
