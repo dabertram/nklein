@@ -246,13 +246,27 @@ describe("estimateEffectiveModelBytes", () => {
 		expect(effective).toBe(gb(9));
 	});
 
-	it("falls back to weights + a conservative KV estimate when no llmfit datum", () => {
+	it("falls back to weights + a conservative KV estimate × runtime overhead when no llmfit datum", () => {
 		const kv = kvCacheBytes({ contextLength: 40_000, numLayers: 48, numKvHeads: 8, headDim: 128, bytesPerParam: 2 });
 		const effective = estimateEffectiveModelBytes({ weightsBytes: gb(8.33), contextLength: 40_000 });
-		expect(effective).toBe(gb(8.33) + kv);
-		// The whole point: a 14B @40k is ~15.6 GiB effective, so a 16 GB node cannot hold it within reserve.
-		expect(effective).toBeGreaterThan(gb(15));
-		expect(effective).toBeLessThan(gb(16));
+		expect(effective).toBe(Math.round((gb(8.33) + kv) * 1.25));
+		// Calibrated to David's observation: a 14B @40k is ~19 GiB effective, so a 24 GB m4mini cannot hold it within
+		// its 25% reserve (matching the observed swap) while a smaller model still fits.
+		expect(effective).toBeGreaterThan(gb(18));
+		expect(effective).toBeLessThan(gb(20));
+	});
+
+	it("the calibrated estimate keeps a 14B off the REAL 24 GB m4mini (David's observed swap)", () => {
+		const effective = estimateEffectiveModelBytes({ weightsBytes: gb(7.75), contextLength: 40_000 });
+		const m4mini24: DeviceLoadCandidate = { deviceName: "m4mini", totalRamBytes: gb(24), residentSizeBytes: 0 };
+		const m5max128: DeviceLoadCandidate = { deviceName: "m5max", totalRamBytes: gb(128), residentSizeBytes: 0 };
+		const decision = selectDeviceForModelLoad({ candidateSizeBytes: effective, candidates: [m4mini24, m5max128] });
+		expect(decision.fits).toBe(true);
+		if (decision.fits) {
+			expect(decision.deviceName).toBe("m5max");
+			// The point of the calibration: m4mini(24 GB) is REJECTED, not merely a lower-headroom alternative.
+			expect(decision.rejected.map((r) => r.deviceName)).toContain("m4mini");
+		}
 	});
 
 	it("the fallback effective footprint keeps a 14B off a 16 GB node end-to-end", () => {

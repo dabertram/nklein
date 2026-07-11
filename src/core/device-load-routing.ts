@@ -29,15 +29,28 @@ const gib = (bytes: number): string => `${(bytes / GiB).toFixed(1)} GiB`;
  * available. Biased toward the larger mid models (48 layers · 8 GQA KV-heads · 128 head-dim · FP16) so the fallback
  * OVER-counts the KV cache — the SAFE direction for routing (over-counting keeps a model OFF a node it might swap,
  * never the reverse). Refine per-model via llmfit / registry arch params. At ctx 40000 this yields ~7.3 GiB of KV,
- * so a 14B's effective footprint (~8.3 weights + ~7.3 KV ≈ 15.6 GiB) correctly fails a 16 GB node's headroom.
+ * so a 14B's weights+KV base (~8.3 + ~7.3 ≈ 15.6 GiB) — before the runtime-overhead factor below lifts it to ~19 GiB.
  */
 const FALLBACK_KV_ARCH = { numLayers: 48, numKvHeads: 8, headDim: 128, bytesPerParam: 2 } as const;
 
 /**
- * Estimate a model's EFFECTIVE resident footprint (weights + KV-cache at the load context) in bytes — the figure the
- * device selector needs, because weights-alone under-counts and would clear a small node that then swaps once the KV
- * cache fills at context. Prefers llmfit's `memoryRequiredGb` (per-quant / MoE / KV-aware, the accurate source); with
- * no llmfit datum it adds a CONSERVATIVE KV estimate ({@link FALLBACK_KV_ARCH}) to the weights. Pure.
+/**
+ * Runtime overhead multiplier applied to the fallback (weights + theoretical KV) estimate to account for what that
+ * arithmetic misses: the LM Studio process, framework/activation buffers, and allocator fragmentation. CALIBRATED to a
+ * live observation (David, 2026-07-12): a 14B @40k SWAPS a 24 GB m4mini, so its real footprint exceeds the ~18 GB
+ * usable there — but weights (~7.75) + theoretical KV (~7.3) = ~15 GB alone would clear it. 1.25× lifts the 14B to
+ * ~18.8 GB so a 24 GB node correctly REJECTS it (matching reality) while a 7B still fits. Not applied to the llmfit
+ * path (its `memoryRequiredGb` already reflects real usage). Conservative-biased: over-counting only ever routes a
+ * model to a BIGGER machine, never a smaller one.
+ */
+const FALLBACK_RUNTIME_OVERHEAD_FACTOR = 1.25;
+
+/**
+ * Estimate a model's EFFECTIVE resident footprint (weights + KV-cache at the load context + runtime overhead) in bytes
+ * — the figure the device selector needs, because weights-alone under-counts and would clear a small node that then
+ * swaps once the KV cache fills at context. Prefers llmfit's `memoryRequiredGb` (per-quant / MoE / KV-aware, the
+ * accurate source); with no llmfit datum it adds a CONSERVATIVE KV estimate ({@link FALLBACK_KV_ARCH}) to the weights
+ * and scales by {@link FALLBACK_RUNTIME_OVERHEAD_FACTOR} for the process/activation overhead the arithmetic misses. Pure.
  */
 export function estimateEffectiveModelBytes(input: {
 	/** Model weights footprint in bytes (from `lms ps`/`lms ls` size). */
@@ -52,7 +65,8 @@ export function estimateEffectiveModelBytes(input: {
 		// llmfit already folds weights + KV at context; never return LESS than the raw weights (defensive floor).
 		return Math.max(input.llmfitMemoryBytes, weights);
 	}
-	return weights + kvCacheBytes({ contextLength: input.contextLength, ...FALLBACK_KV_ARCH });
+	const kv = kvCacheBytes({ contextLength: input.contextLength, ...FALLBACK_KV_ARCH });
+	return Math.round((weights + kv) * FALLBACK_RUNTIME_OVERHEAD_FACTOR);
 }
 
 /**
