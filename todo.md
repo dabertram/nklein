@@ -9868,9 +9868,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `{model, context_length}` (NO ttl/gpu keys — those remain CLI-only levers: `lms load --ttl` for keep-alive);
         unload takes `{instance_id}`; list returns `loaded_instances` + `size_bytes` + `max_context_length` (a
         full replacement for the `lms ps`/`lms ls` reads). Shapes documented in the client header.
-  - [ ] REMAINING (follow-up): swap a live consumer onto the REST client (e.g. a REST-backed option for
-        model-lab/verify-all-models, or runtime-managed loads when that lands) — the CLI path stays for
-        ttl/device levers the REST surface does not expose.
+  - [x] REMAINING (follow-up): swap a live consumer onto the REST client. **DONE (2026-07-11):** model-lab
+        `ps`/`load`/`unload` run over the REST client under `NKLEIN_MODEL_TRANSPORT=rest` (NKLEIN_LMS_REST_URL,
+        default :1234). `loadModelExclusiveViaRest` (lms-model-runner.ts) is the guardrail-identical twin —
+        §5.AL gate first, one-resident unload, `decideModelLoad` headroom, ≥32k floor capped to the listed max —
+        and uses the REST list's REAL `size_bytes` for headroom (better than the CLI 16 GiB default). REST is
+        local-only: `load` refuses under NKLEIN_LOAD_DEVICE/NKLEIN_LOAD_GPU; roster-load/sweep/get stay CLI
+        (ttl/device levers). Live smoke: REST ps ≡ CLI ps. 6 unit tests.
 - [~] **Reasoning control as a first-class §5.AA lever, decomposed:** *(disable-thinking-for-simple + keep-for-hard
       [x], the truncation-recovery rung + the per-family model-thinking-control extension [~]; only the live per-family
       verification (⏱ FLEET) remains. Reclassified [ ]→[~] 2026-07-08.)*

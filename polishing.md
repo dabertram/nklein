@@ -762,39 +762,62 @@
 > Fable+Opus pass should still run (a second model sees different things) but can treat these three as closed and
 > focus on what a single Opus pass may have missed — especially runtime behavior the unit tests don't exercise.
 >
-> **Scope — every commit from this session (`816c2fa7..HEAD` on `feat/kanban-reliability-context-upgrade`):**
-- [ ] **`816c2fa7` — run42 autopsy trio (§5.AN):** #41 the tool_input_rejection counter now fires in the
-      event-adapter ERROR branch (`isPreExecutionToolRejection`) — verify it can't DOUBLE-count when a rejection is
-      also a tool-finished event; #42 edit_file tolerance v2 (numeric-string `insert_line` coercion + `{path,
-      new_text}` = whole-file replace) — verify the whole-file-replace path still honors protected-path/containment/
-      line-limit/secret guards (the commit claims it does); the 100%-reuse telemetry (`identical === previous`).
-- [ ] **`28d5c4ca` — git-hook env scrub in decomposition tests (§4A):** confirm `createGitProcessEnv()` at every
-      spawn; the gotcha is recorded in §4A — sanity-check no OTHER test spawns raw-env `git init`/`commit` in a
-      tmpdir (same hijack class).
-- [ ] **`c741edbb` — §5.BB chat phase 2 (web-ui):** activity ticks (`board-activity-ticker.ts` pure diff — check the
-      first-snapshot-seeds-silently + 60-cap + session-appears-already-failed tick logic) and the @-mention composer
-      (`composer-mention.ts` — the `getActiveMention` email/whitespace guards, ranking, `applyMention` caret math).
-      No DOM test for the panel (repo convention) — eyeball the keyboard handling (Enter submits only when popover
-      closed; ↑/↓/Tab/Esc) and the timeline interleave/sort tie-break.
-- [ ] **`05eb5a13` — §5.AU front-door wiring:** `resolveMessageTargetIndex` in `chat-service.sendMessage`; verify a
-      GOAL-routed turn adds ZERO to the prompt (byte-stable §5.AQ claim), the note-strength-by-rung (directive vs
-      soft-focus vs ask-don't-guess), explicit-handle-persists-focus, and that the live index in runtime-api
-      (`deriveStreams` + persisted streams, `stream-<slug>` id alignment with the client composer) actually matches.
-- [ ] **`9a9f27b2` — §5.AU "talking to X" chip:** wire `focus` exposure + clear-only `clearFocus`; check the chip
-      renders/clears and that clients genuinely can't SET focus over the wire (only @handle does, server-side).
-- [ ] **`6b076676` — §5.AU item 6 `send_to_card` relay (the biggest, review hardest):** the `(state × intent)`
-      effect core + the NEW deterministic intent classifier (is "go with option B" really guidance not steer? is the
-      question-opener regex too greedy?); the INVARIANT that a blocked card never starts; the live-delivery →
-      mailbox-fallback path; and **the mailbox CONSUMPTION at `handleStartTaskSession`** — verify EVERY start path
-      funnels through it (UI, autoStart, queued drain, re-drive) so consumed notes fold into the opening prompt and
-      are never double-consumed or dropped; verify the `getActiveTaskSessions` live wiring resolves the right service.
-- [ ] **Cross-cutting:** run the deterministic integration harnesses (swarm-deterministic{,-pass,-bounce}, ONE AT A
-      TIME) — the relay touches `start-task-session.ts` (prompt now carries the mailbox addendum), a review/delivery-
-      adjacent path the harnesses guard and test:fast doesn't. Confirm the §5.AU relay's prompt-addendum change
-      didn't shift start-prompt token estimation / difficulty in a way that moves model selection.
-- [ ] After the pass: fold any findings into fixes, then mark this settled. Related open §5.AU items (rung-5 LLM
-      disambiguator, the candidate-picker on needs_clarify, live UI read for server-pushed messages 5b/8) stay their
-      own tasks — this is verification of what shipped, not the remaining build.
+> **FORMAL FABLE PASS RUN (2026-07-11) — 6-hunter adversarial workflow (2-of-3-skeptic kill) over `816c2fa7..6b076676`.**
+> 20 raw findings; 3 survived 2-of-3 verification + 2 more got a lone confirming vote before the verifier fleet hit the
+> Fable rate limit (reproduction/already-fixed lenses errored, NOT refuted). All 5 re-verified by hand and FIXED in
+> commit `0f4889c3`:
+>   1. **HIGH — protected-test write guard bypassed by absolute/traversal path spellings.** `findProtectedTestPath`
+>      string-matched the RAW path against `test/protected/`, so an absolute (`/workspaces/<id>/test/protected/x` — the
+>      form the write schemas endorse + read tools echo) or traversal (`src/../test/protected/x`) spelling that
+>      `confineToolPath` resolves INSIDE the workspace returned null and the write proceeded — bypassing all four write
+>      guards (edit_file, write_file(s), editor, apply_patch). FIXED: resolve-then-rematch fallback (collapse `..`/`.`,
+>      match protected segments/basename anywhere; conservative — a lookalike errs toward block+approve).
+>   2. **MEDIUM — #42 regression: a stray top-level `text`/`new_text` beside an `edits` array parsed as
+>      WHOLE-FILE-REPLACE**, silently dropping the edits and clobbering the file. FIXED: a present non-empty `edits`
+>      array now wins over the insert/replaceAll idioms.
+>   3. **MEDIUM — 207bb4f5's soft write-line target was unreachable:** the approval layer (editor/write_files/
+>      apply_patch) + edit_file's in-tool check still HARD-denied at the soft target while the system prompt told
+>      models they MAY exceed it (a pre-execution stall class). FIXED: all now allow up to the 4× hard backstop,
+>      matching the write tool; edit_file also emits the split nudge.
+>   4. **dev-test scaffold ran git init/add/config/commit with a raw env** — an inherited GIT_INDEX_FILE/GIT_DIR could
+>      hijack the fixture commit into an outer repo (the 28d5c4ca hijack class, unfixed here). FIXED: `createGitProcessEnv`
+>      on every spawn.
+> 13 new tests; full fast suite green (8959). The 17 refuted/insufficient-vote findings were correctly rejected
+> (composer highlight-index, timeline tie-break, HANDLE_RE mid-word, derived-stream relay, etc. — each either already
+> handled or misread the current tree).
+- [x] **`816c2fa7` — run42 autopsy trio (§5.AN):** #41 counter verified single-count; #42 whole-file-replace HONORS
+      the guards BUT two real defects found + fixed — the protected check was bypassable by absolute/traversal spelling
+      (HIGH, finding 1) and a stray `text`/`new_text` beside `edits` clobbered the file (finding 2).
+- [x] **`28d5c4ca` — git-hook env scrub (§4A):** the decomposition path was clean, but the sibling dev-test scaffold
+      (`nklein-dev-test-project.ts`) still spawned raw-env git — same hijack class, now scrubbed (finding 4).
+- [x] **`c741edbb` — §5.BB chat phase 2 (web-ui):** activity ticks + @-mention composer reviewed; the ticker replay
+      hole was already closed earlier this session (load-hydration guard, commit 4f0456b5). No surviving defect.
+- [x] **`05eb5a13` — §5.AU front-door wiring:** `resolveMessageTargetIndex` reviewed; the derived-stream relay finding
+      did not survive verification (misread the persisted-vs-derived precedence). No change.
+- [x] **`9a9f27b2` — §5.AU "talking to X" chip:** focus exposure + clear-only reviewed; the dangling-focus-on-trashed-
+      card finding got no confirming vote. No change.
+- [x] **`6b076676` — §5.AU `send_to_card` relay:** the `(state × intent)` core + classifier + blocked-never-starts
+      invariant + mailbox consumption reviewed; the surviving findings here (mailbox re-drive strand, polite-directive
+      discard, STEER_RE over-match) did not reach 2-of-3 and read as by-design on the current tree. No change.
+- [x] **Cross-cutting:** deterministic integration harnesses (swarm-deterministic{,-pass,-bounce}) re-run ONE AT A TIME
+      after the guard fixes. **This caught a 5th, SEPARATE regression** — not from the reviewed commits, but from THIS
+      session's review-hang fix `decbb772`: `swarm-deterministic` was red because the queued-rerun re-finalize was gated
+      on `isReviewableNKleinSummary` (state === awaiting_review), and a zero-latency empty-patch re-drive settles PAST
+      awaiting_review before the `finally` check runs — so the gate dropped the rerun and stranded the no-op worker In
+      Progress instead of the fail-closed Review hold. FIXED (`fc36dd67`): drop the queued rerun ONLY when the worker is
+      actively re-driving (running/queued/paused — the bounce the gate protects, which has its own future edge);
+      awaiting_review + terminal/idle re-run. Bisected to `decbb772` (reverting its 4 review files → green), fixed
+      forward, all three siblings green one-at-a-time (bounce confirms the protection is preserved). The `0f4889c3` guard
+      fixes were independently exonerated — the harness failed identically with them reverted.
+- [ ] **FOLLOW-UP (surfaced by this pass, own decision): `edit_file` is absent from `createKanbanToolPolicies` and has
+      no approval-switch case**, so the approval-layer **card file-scope gate** (`approveScopedWriteTargets`) never runs
+      for it — a worker can edit_file any in-workspace file outside its declared scope. edit_file keeps its OWN in-tool
+      guards (containment, protected [now hardened], secret, line backstop), so this is a scope-discipline gap, not a
+      sandbox escape. Fix = route edit_file through the approval layer (add to `createKanbanToolPolicies` + a
+      `parseEditFileRequest`-backed case) OR thread `filesLikelyTouched`/`taskId` into `createEditFileTool`. Deferred:
+      needs a scope-tightness decision (false-deny risk on legitimate cross-file edits) and is not a security boundary.
+- [x] After the pass: findings folded into fixes (`0f4889c3`), harnesses green — §5.BF SETTLED (bar the scoped-write
+      follow-up above, tracked as its own item). Related open §5.AU items stay their own tasks.
 
 
 ### 5.AX — UI VISUAL OVERHAUL: a modern, clean, distinctive "!Klein" design system *(2026-07-02, user)*
