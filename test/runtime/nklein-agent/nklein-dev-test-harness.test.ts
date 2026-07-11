@@ -60,6 +60,26 @@ describe("runDevTestProject", () => {
 		expect(result.started).toBe(true);
 	});
 
+	it("does NOT false-green when a decompose seed completes a beat before its child materializes", async () => {
+		// Observed live (2026-07-11): a plan-mode smoke seed reached Completed, and for one poll the board showed
+		// completed:1 with nothing else — a beat BEFORE its spawned child card appeared. The child then sat stuck in
+		// Review. Breaking on that single transient poll reported a false "completed". The confirm-complete guard must
+		// keep polling until the pending child surfaces, then classify the run by its real (blocked) state.
+		const reads = [
+			board({ in_progress: 1 }), // seed working
+			board({ completed: 1 }), // TRANSIENT window: seed done, child not yet on the board
+			board({ completed: 1, review: 1 }), // child materialized, stuck in review
+		];
+		const deps = makeDeps(reads);
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main", stablePollsUntilSettled: 2 },
+			deps,
+		);
+		expect(result.classification.outcome).not.toBe("completed");
+		expect(result.classification.outcome).toBe("blocked_by_review_cards");
+		expect(result.finalCounts.review).toBe(1);
+	});
+
 	it("reports acceptance_green_workflow_incomplete when settled with cards left and acceptance green", async () => {
 		const settled = board({ completed: 8, review: 2, planning: 3 });
 		const deps = makeDeps([settled], { runAcceptance: vi.fn(async () => true) });

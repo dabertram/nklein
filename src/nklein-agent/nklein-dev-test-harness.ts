@@ -83,6 +83,11 @@ export interface RunDevTestProjectOptions extends BuildDevTestSeedStartPayloadOp
 	maxWaitMs?: number;
 	/** Consecutive unchanged polls after which the run is considered settled (stalled), not just slow. */
 	stablePollsUntilSettled?: number;
+	/**
+	 * Consecutive complete-looking polls (no session in flight) required before the run is accepted as completed.
+	 * Guards the decompose-seed race where the parent reaches Completed before its children materialize. Default 2.
+	 */
+	completeConfirmPolls?: number;
 }
 
 export interface DevTestProjectRunResult {
@@ -97,6 +102,12 @@ export interface DevTestProjectRunResult {
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_MAX_WAIT_MS = 30 * 60_000;
 const DEFAULT_STABLE_POLLS = 6;
+// A board that momentarily LOOKS complete can be a transient window: a decompose seed reaches Completed a beat before
+// its spawned child cards materialize on the board, so a single poll sees `completed>0` with nothing else counted yet.
+// Breaking on that first poll reports a FALSE GREEN while the children then sit in review/in-progress (observed live,
+// 2026-07-11: a smoke seed showed Completed while its lone child was still stuck in Review). Require the complete shape
+// to hold for CONSECUTIVE polls with no session in flight before accepting it, so the pending children reset it.
+const DEFAULT_COMPLETE_CONFIRM_POLLS = 2;
 
 function countsKey(counts: DevTestBoardCounts): string {
 	return [counts.completed, counts.review, counts.planning, counts.inProgress, counts.backlog, counts.failed].join(
@@ -128,6 +139,7 @@ export async function runDevTestProject(
 	const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
 	const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
 	const stablePolls = options.stablePollsUntilSettled ?? DEFAULT_STABLE_POLLS;
+	const completeConfirmPolls = Math.max(1, options.completeConfirmPolls ?? DEFAULT_COMPLETE_CONFIRM_POLLS);
 
 	const payload = buildDevTestSeedStartPayload(options);
 	const start = await deps.startSeedTask(payload);
@@ -137,6 +149,7 @@ export async function runDevTestProject(
 	let lastState: DevTestStateRead = { board: null, runtimeReachable: true };
 	let lastKey: string | null = null;
 	let unchangedPolls = 0;
+	let completeConfirmations = 0;
 
 	while (deps.now() - startedAt <= maxWaitMs) {
 		const state = await deps.readState();
@@ -144,17 +157,27 @@ export async function runDevTestProject(
 		lastState = state;
 		const counts = readCounts(state);
 
-		if (state.board && isComplete(counts)) {
-			break;
+		// A session actively working (running/queued) means progress is in-flight even when the board count is static —
+		// so do NOT accumulate toward "settled" while one is processing (the fix for the false-stagnant-on-a-slow-turn),
+		// and do NOT accept a complete-looking board while a session could still be spawning children.
+		const sessionActive = (state.activeSessionCount ?? 0) > 0;
+
+		// Confirm completion over consecutive polls with no session in flight. A decompose seed reaches Completed a beat
+		// before its spawned children appear, so a single complete-looking poll is a false green; requiring the shape to
+		// persist lets the pending children (which then sit in review/in-progress) reset the count.
+		if (state.board && isComplete(counts) && !sessionActive) {
+			completeConfirmations += 1;
+			if (completeConfirmations >= completeConfirmPolls) {
+				break;
+			}
+		} else {
+			completeConfirmations = 0;
 		}
 		// A vanished runtime ends the monitor immediately; the last persisted read is what we classify.
 		if (!state.runtimeReachable) {
 			break;
 		}
 		const key = countsKey(counts);
-		// A session actively working (running/queued) means progress is in-flight even when the board count is static —
-		// so do NOT accumulate toward "settled" while one is processing (the fix for the false-stagnant-on-a-slow-turn).
-		const sessionActive = (state.activeSessionCount ?? 0) > 0;
 		if (key === lastKey && !sessionActive) {
 			unchangedPolls += 1;
 			if (unchangedPolls >= stablePolls) {
