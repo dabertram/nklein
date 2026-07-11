@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyLocalDeviceAlias,
 	type DeviceLoadCandidate,
 	estimateEffectiveModelBytes,
 	type LinkedDeviceInfo,
@@ -182,6 +183,32 @@ describe("resolveDeviceRamBytesFromEnv", () => {
 	it("accepts fractional GB and rounds to whole bytes", () => {
 		const map = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "mini:16.5" });
 		expect(map).toEqual({ mini: Math.round(16.5 * GiB) });
+	});
+
+	it("applyLocalDeviceAlias maps a 'Local' key onto the real local device name (the lms-ls-label trap)", () => {
+		const raw = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16" });
+		const aliased = applyLocalDeviceAlias(raw, "m5max");
+		expect(aliased.m5max).toBe(gb(128)); // the real local name now carries the "Local" RAM
+		expect(aliased.Local).toBe(gb(128)); // original key kept (harmless)
+		expect(aliased.m4mini).toBe(gb(16));
+	});
+
+	it("applyLocalDeviceAlias is case-insensitive on the 'local' key", () => {
+		expect(applyLocalDeviceAlias({ local: gb(128) }, "m5max").m5max).toBe(gb(128));
+		expect(applyLocalDeviceAlias({ LOCAL: gb(128) }, "m5max").m5max).toBe(gb(128));
+	});
+
+	it("applyLocalDeviceAlias is a no-op when the real local name is already keyed, or there's no 'Local' key", () => {
+		const alreadyKeyed = { m5max: gb(96), Local: gb(128) };
+		expect(applyLocalDeviceAlias(alreadyKeyed, "m5max")).toBe(alreadyKeyed); // real name wins, unchanged ref
+		const noLocal = { m4mini: gb(16) };
+		expect(applyLocalDeviceAlias(noLocal, "m5max")).toBe(noLocal);
+	});
+
+	it("applyLocalDeviceAlias is a no-op when the local device name is unknown", () => {
+		const raw = { Local: gb(128) };
+		expect(applyLocalDeviceAlias(raw, null)).toBe(raw);
+		expect(applyLocalDeviceAlias(raw, undefined)).toBe(raw);
 	});
 
 	it("feeds selectDeviceForModelLoad end-to-end (env map → candidate RAM → keeps 14B off m4mini)", () => {

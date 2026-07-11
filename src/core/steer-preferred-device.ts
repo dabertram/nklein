@@ -22,6 +22,7 @@
  */
 
 import {
+	applyLocalDeviceAlias,
 	estimateEffectiveModelBytes,
 	type LinkedDeviceInfo,
 	type PreferredDeviceSteering,
@@ -70,8 +71,8 @@ export async function steerPreferredDeviceForModel(
 	input: { modelId: string; contextLength: number },
 	deps: SteerPreferredDeviceDeps,
 ): Promise<PreferredDeviceSteering> {
-	const deviceRamBytes = resolveDeviceRamBytesFromEnv(deps.env);
-	if (Object.keys(deviceRamBytes).length === 0) {
+	const rawDeviceRamBytes = resolveDeviceRamBytesFromEnv(deps.env);
+	if (Object.keys(rawDeviceRamBytes).length === 0) {
 		// Feature disabled ⇒ no fleet I/O, byte-identical behavior.
 		return { action: "skip", reason: "NKLEIN_DEVICE_RAM_GB not set — device steering disabled." };
 	}
@@ -81,6 +82,8 @@ export async function steerPreferredDeviceForModel(
 	}
 	try {
 		const [link, sizes] = await Promise.all([deps.fetchLinkDevices(), deps.listModelSizes()]);
+		// Alias a "Local" map key onto the real local device name (the `lms ls` label ≠ the LM-Link device name trap).
+		const deviceRamBytes = applyLocalDeviceAlias(rawDeviceRamBytes, link.localMachineName);
 		const weightsBytes = sizes.get(modelId);
 		if (weightsBytes === undefined || !(weightsBytes > 0)) {
 			return { action: "skip", reason: `Weights size unknown for "${modelId}" — cannot judge headroom.` };

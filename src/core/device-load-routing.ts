@@ -84,6 +84,28 @@ export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.en
 	return map;
 }
 
+/**
+ * Alias a `"Local"`/`"local"` RAM-map key to the ACTUAL local LM-Link device name. Guards a real trap (live-found
+ * 2026-07-12): `lms ls` shows the local host as `"Local"`, but its LM-Link device NAME (the routing key) is the real
+ * hostname (e.g. `m5max`). A user who writes `Local:128` would otherwise leave the big farm UNMAPPED — excluded from
+ * candidates — and models would route to a smaller mapped box. This copies the `"Local"` value onto the real local
+ * name (when that isn't already keyed), so both spellings work. Pure; returns the map unchanged when there's nothing
+ * to alias.
+ */
+export function applyLocalDeviceAlias(
+	deviceRamBytes: Record<string, number>,
+	localMachineName: string | null | undefined,
+): Record<string, number> {
+	if (!localMachineName || deviceRamBytes[localMachineName] !== undefined) {
+		return deviceRamBytes;
+	}
+	const localKey = Object.keys(deviceRamBytes).find((key) => key.toLowerCase() === "local");
+	if (localKey === undefined) {
+		return deviceRamBytes;
+	}
+	return { ...deviceRamBytes, [localMachineName]: deviceRamBytes[localKey] };
+}
+
 /** One linked device that HAS the model available and is a placement candidate. */
 export interface DeviceLoadCandidate {
 	/** Friendly LM-Link device name (the `lms ps`/`lms ls` DEVICE — e.g. "Local", "m4mini") — the config RAM-map key. */

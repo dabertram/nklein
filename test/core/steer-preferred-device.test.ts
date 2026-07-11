@@ -147,6 +147,37 @@ describe("steerPreferredDeviceForModel", () => {
 		expect(steering.action).toBe("skip"); // the write error degrades to skip, dispatch continues
 	});
 
+	it("aliases a 'Local' env key onto the roster's real local name (m5max) and steers there", async () => {
+		// Env says "Local:128" but the LM-Link local device NAME is "m5max"; the alias must bridge them so the 128 GB
+		// farm is a candidate (else it'd be excluded and the 14B would wrongly route to a smaller mapped box).
+		const setCalls: string[] = [];
+		const deps: SteerPreferredDeviceDeps = {
+			env: { NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16,legion5pro:24" },
+			fetchLinkDevices: async () => ({
+				localMachineName: "m5max",
+				localDeviceIdentifier: "id-m5max",
+				preferredDeviceIdentifier: "id-mini", // currently prefers m4mini (the bad default)
+				namesByDeviceId: new Map([
+					["id-mini", "m4mini"],
+					["id-legion", "legion5pro"],
+				]),
+			}),
+			listModelSizes: async () => sizes,
+			setPreferredDevice: async (id) => {
+				setCalls.push(id);
+			},
+		};
+		const steering = await steerPreferredDeviceForModel(
+			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			deps,
+		);
+		expect(steering.action).toBe("set_preferred");
+		if (steering.action === "set_preferred") {
+			expect(steering.deviceName).toBe("m5max");
+		}
+		expect(setCalls).toEqual(["id-m5max"]);
+	});
+
 	it("prefers the llmfit KV-aware footprint when supplied", async () => {
 		// A small-weights model whose llmfit footprint (with KV) is large enough to be pushed off m4mini onto Local.
 		const rec = recordingDeps({
