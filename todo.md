@@ -619,6 +619,22 @@ source repo went private — so if it vanishes the buildable source still lives 
   guard or removed — it does not earn its per-dispatch fetch while inert. DECISION owed from David: guard-and-block vs
   wire-the-autonomous-loader vs harness-only. (Corrects the "VALIDATED LIVE" note above — that validated the DECISION on
   live data, not end-to-end effectiveness, which these behavior tests then disproved for the dispatch hook.)
+  **✅✅ RESOLVED — AUTONOMOUS LOADER SHIPPED + VALIDATED END-TO-END (2026-07-12; David chose "wire the autonomous
+  loader"; commits `df9eb67c` wire + `42e476ee`/`3bd00687` remove the dead steering).** The EFFECTIVE fix: instead of
+  BLOCKING a non-resident model, `start-task-session` now calls `ensureModelLoadedOnFittingDevice`
+  ([ensure-model-loaded.ts](src/core/ensure-model-loaded.ts)) → picks the best-fit linked device (validated toolkit) →
+  loads there via the guarded `loadModelExclusive` (capability gate + one-at-a-time unload + headroom + preferred
+  set→load→restore). This hooks at LOAD time (the correct point). OPT-IN + fail-safe: gated on `NKLEIN_DEVICE_RAM_GB`
+  (unset ⇒ the adapter returns immediately with no fleet I/O ⇒ the original block still fires, byte-identical); any
+  no-fit / load-error / exception falls through to the block with a clear reason. **LIVE E2E PROOF (real fleet, then
+  cleaned up):** with `NKLEIN_DEVICE_RAM_GB="Local:128,m4mini:16,legion5pro:24"` a non-resident `qwen/qwen2.5-coder-14b`
+  (effective 15.1 GiB @40k) LOADED ON m5max (the 128 GB farm) — NOT the m4mini it used to crash on — the `Local` alias
+  resolved to `m5max`, and the preferred device was correctly RESTORED to m4mini afterward. The inert dispatch-time
+  steering is removed. **REMAINING (follow-ups):** (a) the MIS-PLACED case — a model already resident on a can't-fit
+  device isn't moved (loadModelExclusive treats resident-anywhere as done); a detect-and-reload guard could handle it;
+  (b) David's REAL m4mini/legion RAM for a precise map (the swap observation already justifies a conservative m4mini:16);
+  (c) a throughput-farm-aware "smallest-sufficient device" policy can layer on the same per-device verdicts. Immediate
+  no-code alternative still valid: `lms link set-preferred-device <m5max>` so manual loads land on the farm.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
