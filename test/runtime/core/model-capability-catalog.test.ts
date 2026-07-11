@@ -182,10 +182,11 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(q14?.verified).toBe(false); // n=1 legion fail — provisional
 		const q36 = lookupModelCapability("qwen3.6-27b");
 		expect(q36?.family).toBe("qwen3.6-27b");
-		// 2026-07-10 settled eval (4 repeats/cell): tool-use 12/12; reviewer recall deterministically weak.
+		// 2026-07-10 settled eval + 2026-07-11 HIGH-power confirm: tool-use 12/12; reviewer deterministically weak
+		// (the note documents the confirmed reviewer weakness — reworded from "RECALL" to "WEAKNESS CONFIRMED" §11).
 		expect(q36?.verified).toBe(true);
 		expect(q36?.toolUse).toBe("TOOL_CAPABLE");
-		expect(q36?.note).toContain("REVIEWER RECALL");
+		expect(q36?.note).toContain("REVIEWER WEAKNESS CONFIRMED");
 		// the qwopus3.6 MERGE (backlog driver) still resolves to ITS own row, not the base qwen3.6-27b row.
 		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");
 	});
