@@ -564,6 +564,15 @@ export function createKanbanToolPolicies(): NonNullable<NKleinSdkStartSessionInp
 		write_files: { enabled: true, autoApprove: false },
 		editor: { enabled: true, autoApprove: false },
 		apply_patch: { enabled: true, autoApprove: false },
+		// edit_file is a CUSTOM extra-tool (createEditFileTool); without an explicit policy the SDK auto-approves it,
+		// so it SKIPPED the approval layer that the other write tools go through — leaving the per-card file-SCOPE gate
+		// (approveScopedWriteTargets) unenforced for it (§5.BF follow-up, 2026-07-11). The approval policy already
+		// handles edit_file (extractScopedWriteTargetPaths parses its path); this explicit autoApprove:false routes it
+		// through the same containment + scope checks as write_file/editor/apply_patch. edit_file keeps its own in-tool
+		// guards too (defense-in-depth). Scope enforcement only bites when the card DECLARED filesLikelyTouched, so a
+		// no-scope card is unaffected — this just closes the loophole where a worker could sidestep its declared scope
+		// via edit_file while the other three write tools blocked it.
+		edit_file: { enabled: true, autoApprove: false },
 	};
 }
 

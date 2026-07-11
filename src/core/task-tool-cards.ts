@@ -82,6 +82,13 @@ export const KANBAN_TASK_TOOL_CARDS: readonly ToolCard[] = [
 		args: "patch (unified diff including context).",
 		avoidWhen: "You don't have exact context lines — use editor for a line-addressed edit.",
 	},
+	{
+		name: "edit_file",
+		purpose: "Edit an existing file with lenient search/replace blocks (token-cheap).",
+		useWhen: "Changing regions of a file you've read — send just the changed snippets.",
+		args: "path; edits: [{ search, replace }] (or insert_line + new_text).",
+		avoidWhen: "Creating a new file — use write_file.",
+	},
 ];
 
 /** Look up a kanban task tool card by its exact tool name, or `undefined` when there is no card for that name. */

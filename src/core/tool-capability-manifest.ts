@@ -151,6 +151,9 @@ export const KANBAN_TOOL_MANIFESTS: Readonly<Record<string, ToolCapabilityManife
 	write_files: SANDBOX_WRITE_TOOL_MANIFEST,
 	editor: SANDBOX_WRITE_TOOL_MANIFEST,
 	apply_patch: SANDBOX_WRITE_TOOL_MANIFEST,
+	// edit_file — the token-efficient search/replace edit tool: same sandbox-write tier as the other write tools
+	// (§5.BF follow-up 2026-07-11: it is now an approval-required policy tool, so it needs its manifest + card too).
+	edit_file: SANDBOX_WRITE_TOOL_MANIFEST,
 };
 
 /** The capability manifest for a kanban task tool by name, or `null` when the name isn't a declared kanban tool. */

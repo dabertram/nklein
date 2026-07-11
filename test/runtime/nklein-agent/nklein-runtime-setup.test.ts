@@ -442,6 +442,27 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(policies.write_files).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.editor).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
+		// §5.BF follow-up: edit_file (a custom extra-tool) must be approval-required too, else the SDK auto-approves
+		// it and it skips the per-card file-scope gate the other write tools enforce.
+		expect(policies.edit_file).toEqual({ enabled: true, autoApprove: false });
+	});
+
+	it("scope-gates an out-of-scope edit_file just like write_file/apply_patch (§5.BF follow-up)", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			filesLikelyTouched: ["src/index.ts"],
+		});
+		const editReq = (path: string) =>
+			createApprovalRequest({ toolName: "edit_file", input: { path, edits: [{ search: "a", replace: "b" }] } });
+
+		const inScope = await policy.requestToolApproval(editReq("/workspaces/task-2/src/index.ts"));
+		expect(inScope.approved).toBe(true);
+
+		const outOfScope = await policy.requestToolApproval(editReq("/workspaces/task-2/src/secret.ts"));
+		expect(outOfScope.approved).toBe(false);
+		expect(outOfScope.reason).toContain("outside this card's declared file scope");
 	});
 
 	it("ALLOWS an over-soft write_file payload but blocks above the 4× hard backstop", async () => {
