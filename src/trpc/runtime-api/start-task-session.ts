@@ -56,6 +56,7 @@ import {
 	isLocalProvider,
 } from "../../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
+import { clearProviderModelDiscoveryCache } from "../../nklein-agent/nklein-provider-model-discovery";
 import type {
 	createNKleinProviderService,
 	ResolvedNKleinLaunchConfig,
@@ -272,33 +273,72 @@ export async function handleStartTaskSession(
 			};
 		}
 		const hasTaskLevelNKleinSettingsOverride = body.nkleinSettings !== undefined;
+		const resolveOverrides = {
+			providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
+			modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
+			...(hasTaskLevelNKleinSettingsOverride
+				? { reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null }
+				: {}),
+		};
+		const providerBaseUrlForLoad =
+			deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+		// §5.AB autonomous loader closure: LOAD a model on a linked device that FITS (opt-in NKLEIN_DEVICE_RAM_GB,
+		// fail-safe). Used both here (before resolveLaunchConfig's residency gate) and at the later start block.
+		const attemptAutonomousModelLoad = (modelId: string, contextLength: number) =>
+			ensureModelLoadedOnFittingDevice(
+				{ modelId, contextLength },
+				{
+					fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
+					listModelSizes: async () => {
+						const listed = await createLmStudioRestModelClient({ baseUrl: providerBaseUrlForLoad }).listModels();
+						const modelSizes = new Map<string, number>();
+						if (listed.ok) {
+							for (const model of listed.value) {
+								if (model.sizeBytes != null && model.sizeBytes > 0) {
+									modelSizes.set(model.key, model.sizeBytes);
+								}
+							}
+						}
+						return modelSizes;
+					},
+					loadExclusive: async (request) => {
+						const loadResult = await loadModelExclusive(createDefaultLmsRunner(), {
+							modelId: request.modelId,
+							candidateSizeBytes: request.candidateSizeBytes,
+							totalRamBytes: request.totalRamBytes,
+							contextLength: request.contextLength,
+							targetDevice: request.targetDevice,
+							targetDeviceIdentifier: request.targetDeviceIdentifier,
+						});
+						return { loaded: loadResult.loaded, reason: loadResult.reason };
+					},
+				},
+			).catch(() => ({ loaded: false as const, reason: "autonomous load error" }));
 		let nkleinLaunchConfig: ResolvedNKleinLaunchConfig;
 		try {
-			nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig({
-				providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
-				modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
-				...(hasTaskLevelNKleinSettingsOverride
-					? {
-							reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
-						}
-					: {}),
-			});
+			nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig(resolveOverrides);
 		} catch (primaryError) {
-			// §5.AB: the DEFAULT model didn't resolve (e.g. a stale default → an unloaded variant). Fall back to an
-			// already-loaded model so the card still starts. Only for the default case — an EXPLICIT model keeps its error.
-			const fallback = body.nkleinSettings?.modelId
-				? null
-				: await resolveLoadedFallbackLaunchConfig({
-						resolveLaunchConfig: (overrides) => deps.nkleinProviderService.resolveLaunchConfig(overrides),
-						// Use the configured provider endpoint (not a hardcoded localhost) so the fallback also works for a
-						// LAN/remote LM Studio; default to the local endpoint when the provider carries no explicit baseUrl.
-						baseUrl:
-							deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL,
-					});
-			if (!fallback) {
-				throw primaryError;
+			// §5.AB: an EXPLICIT non-resident model — LOAD it on a fitting device, clear the 30s roster cache, and retry
+			// resolveLaunchConfig ONCE so it now sees the model. Opt-in (NKLEIN_DEVICE_RAM_GB) + fail-safe: a failed load
+			// falls through to the original behavior (DEFAULT ⇒ loaded-fallback; EXPLICIT ⇒ rethrow).
+			const autoLoad = body.nkleinSettings?.modelId
+				? await attemptAutonomousModelLoad(body.nkleinSettings.modelId, 40_000)
+				: { loaded: false as const, reason: "no explicit model" };
+			if (autoLoad.loaded) {
+				clearProviderModelDiscoveryCache();
+				nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig(resolveOverrides);
+			} else {
+				const fallback = body.nkleinSettings?.modelId
+					? null
+					: await resolveLoadedFallbackLaunchConfig({
+							resolveLaunchConfig: (overrides) => deps.nkleinProviderService.resolveLaunchConfig(overrides),
+							baseUrl: providerBaseUrlForLoad,
+						});
+				if (!fallback) {
+					throw primaryError;
+				}
+				nkleinLaunchConfig = fallback;
 			}
-			nkleinLaunchConfig = fallback;
 		}
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 		const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() => ({
@@ -342,35 +382,10 @@ export async function handleStartTaskSession(
 			// LM-Link serves a loaded model from where it sits (dispatch-time steering was proven inert, 2026-07-12).
 			// Fail-safe + opt-in: disabled / no-fit / load-error ⇒ loaded:false ⇒ fall through to the original block.
 			// With NKLEIN_DEVICE_RAM_GB unset, the adapter returns immediately with NO fleet I/O ⇒ byte-identical.
-			const autoLoad = await ensureModelLoadedOnFittingDevice(
-				{ modelId: nkleinLaunchConfig.modelId, contextLength: nkleinLaunchConfig.contextWindow ?? 40_000 },
-				{
-					fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
-					listModelSizes: async () => {
-						const listed = await createLmStudioRestModelClient({ baseUrl: residencyBaseUrl }).listModels();
-						const modelSizes = new Map<string, number>();
-						if (listed.ok) {
-							for (const model of listed.value) {
-								if (model.sizeBytes != null && model.sizeBytes > 0) {
-									modelSizes.set(model.key, model.sizeBytes);
-								}
-							}
-						}
-						return modelSizes;
-					},
-					loadExclusive: async (request) => {
-						const loadResult = await loadModelExclusive(createDefaultLmsRunner(), {
-							modelId: request.modelId,
-							candidateSizeBytes: request.candidateSizeBytes,
-							totalRamBytes: request.totalRamBytes,
-							contextLength: request.contextLength,
-							targetDevice: request.targetDevice,
-							targetDeviceIdentifier: request.targetDeviceIdentifier,
-						});
-						return { loaded: loadResult.loaded, reason: loadResult.reason };
-					},
-				},
-			).catch(() => ({ loaded: false as const, reason: "autonomous load error" }));
+			const autoLoad = await attemptAutonomousModelLoad(
+				nkleinLaunchConfig.modelId,
+				nkleinLaunchConfig.contextWindow ?? 40_000,
+			);
 			if (!autoLoad.loaded) {
 				return {
 					ok: false,
