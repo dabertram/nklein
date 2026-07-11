@@ -19,6 +19,12 @@
  *        (optional LM Link device identifier; resolved from NKLEIN_LOAD_DEVICE when omitted), NKLEIN_LOAD_TARGET_RAM_GB
  *        (target machine RAM for remote headroom), NKLEIN_ROSTER_MACHINE_MAP (JSON object mapping roster machine ids/classes
  *        to LM Link device names/ids for roster-load, e.g. {"workstation":"Local","desktop":"m4mini"}).
+ *
+ * Transport (§5.AN): NKLEIN_MODEL_TRANSPORT=rest switches `ps`/`load`/`unload` onto the in-process
+ * `/api/v1/models` REST client (`loadModelExclusiveViaRest` — same guardrails, no `lms` spawn;
+ * NKLEIN_LMS_REST_URL, default http://localhost:1234). REST is LOCAL-ONLY: it exposes no LM Link device or
+ * gpu-offload levers, so `load` under rest REFUSES when NKLEIN_LOAD_DEVICE/NKLEIN_LOAD_GPU are set, and
+ * roster-load/sweep/get stay on the CLI regardless.
  */
 
 import { spawn } from "node:child_process";
@@ -30,7 +36,13 @@ import {
 	buildCatalogRosterRecommendation,
 	resolveActiveModelSuitabilityPolicy,
 } from "../src/core/model-capability-catalog";
-import { type LmsRunner, listResidentModels, loadModelExclusive } from "../src/core/lms-model-runner";
+import { createLmStudioRestModelClient } from "../src/core/lmstudio-rest-model-client";
+import {
+	type LmsRunner,
+	listResidentModels,
+	loadModelExclusive,
+	loadModelExclusiveViaRest,
+} from "../src/core/lms-model-runner";
 import { assessRosterFit, resolveSwarmRoster } from "../src/core/swarm-roster";
 import { parseRosterMachineMapEnv, resolveRosterLoadPlan } from "../src/core/swarm-roster-load-plan";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../src/core/swarm-roster-config";
@@ -51,6 +63,22 @@ function createLmsRunner(): LmsRunner {
 			child.on("error", (e) => resolve({ stdout: `(lms spawn failed: ${e.message})`, exitCode: 127 }));
 			child.on("close", (code) => resolve({ stdout, exitCode: code ?? 1 }));
 		});
+}
+
+/** §5.AN transport pick: "cli" (default — full lever set) or "rest" (in-process /api/v1, local-only). */
+function resolveModelTransport(): "cli" | "rest" {
+	const raw = process.env.NKLEIN_MODEL_TRANSPORT?.trim().toLowerCase();
+	if (raw && raw !== "cli" && raw !== "rest") {
+		console.error(`Unknown NKLEIN_MODEL_TRANSPORT "${raw}" — use "cli" or "rest".`);
+		process.exit(64);
+	}
+	return raw === "rest" ? "rest" : "cli";
+}
+
+function createRestClient() {
+	return createLmStudioRestModelClient({
+		baseUrl: process.env.NKLEIN_LMS_REST_URL?.trim() || "http://localhost:1234",
+	});
 }
 
 /** Parse the optional NKLEIN_LOAD_GPU env into a gpu-offload policy ("max"/"off"/"auto"/a 0..1 ratio); undefined when unset. */
@@ -102,7 +130,23 @@ async function main(): Promise<void> {
 	const targetDevice = process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined;
 	const targetTotalRamBytes = parseGbEnv("NKLEIN_LOAD_TARGET_RAM_GB") ?? totalmem();
 
+	const transport = resolveModelTransport();
+
 	if (subcommand === "ps") {
+		if (transport === "rest") {
+			const listed = await createRestClient().listModels();
+			if (!listed.ok) {
+				console.error(`REST list failed (${listed.error.type}): ${listed.error.message}`);
+				process.exit(1);
+			}
+			const loaded = listed.value.filter((m) => m.loadedInstanceIds.length > 0);
+			console.log(`Resident models via REST (${loaded.length}):`);
+			for (const m of loaded) {
+				const gib = m.sizeBytes ? `${(m.sizeBytes / 1024 ** 3).toFixed(2)} GiB` : "?";
+				console.log(`  ${m.key}  ·  ${gib}  ·  max ctx ${m.maxContextLength ?? "?"}  ·  ${m.loadedInstanceIds.length} instance(s)`);
+			}
+			return;
+		}
 		const models = await listResidentModels(run);
 		console.log(`Resident models (${models.length}):`);
 		for (const m of models) {
@@ -115,6 +159,24 @@ async function main(): Promise<void> {
 		if (!arg) {
 			console.error("usage: model-lab load <id> [contextLength]");
 			process.exit(64);
+		}
+		if (transport === "rest") {
+			// The REST surface has no LM Link device / gpu-offload levers — refuse rather than silently ignore them.
+			if (targetDevice !== undefined || parseGpuEnv() !== undefined) {
+				console.error(
+					"REST transport is local-only (no device/gpu levers): unset NKLEIN_LOAD_DEVICE / NKLEIN_LOAD_GPU or use NKLEIN_MODEL_TRANSPORT=cli.",
+				);
+				process.exit(64);
+			}
+			const result = await loadModelExclusiveViaRest(createRestClient(), {
+				modelId: arg,
+				totalRamBytes: targetTotalRamBytes,
+				contextLength: ctxArg ? Number.parseInt(ctxArg, 10) : 40_000,
+				reserveFraction,
+				suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
+			});
+			console.log(JSON.stringify(result, null, 2));
+			process.exit(result.loaded ? 0 : 1);
 		}
 		const result = await loadModelExclusive(run, {
 			modelId: arg,
@@ -255,6 +317,28 @@ async function main(): Promise<void> {
 		if (!arg) {
 			console.error("usage: model-lab unload <id>");
 			process.exit(64);
+		}
+		if (transport === "rest") {
+			const client = createRestClient();
+			const listed = await client.listModels();
+			if (!listed.ok) {
+				console.error(`unload ${arg}: REST list failed (${listed.error.type}): ${listed.error.message}`);
+				process.exit(1);
+			}
+			const instanceIds = listed.value.find((m) => m.key === arg)?.loadedInstanceIds ?? [];
+			if (instanceIds.length === 0) {
+				console.log(`unload ${arg}: not loaded (noop)`);
+				return;
+			}
+			for (const instanceId of instanceIds) {
+				const result = await client.unloadModel({ instanceId });
+				if (!result.ok) {
+					console.error(`unload ${arg}: failed (${result.error.type}): ${result.error.message}`);
+					process.exit(1);
+				}
+			}
+			console.log(`unload ${arg}: done (${instanceIds.length} instance${instanceIds.length === 1 ? "" : "s"} via REST)`);
+			return;
 		}
 		const { exitCode } = await run(buildLmsUnloadArgs(arg));
 		console.log(`unload ${arg}: exit ${exitCode}`);

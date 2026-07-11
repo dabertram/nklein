@@ -17,6 +17,7 @@ import {
 	parseLmsPs,
 	type ResidentModel,
 } from "./lms-model-control";
+import type { LmStudioRestModelClient } from "./lmstudio-rest-model-client";
 import { planLoadContextLength } from "./load-context-plan";
 import {
 	assessModelSuitability,
@@ -240,4 +241,130 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			}
 		}
 	}
+}
+
+/**
+ * §5.AN REST-transport twin of {@link loadModelExclusive}: identical hard guardrails (capability gate first,
+ * one-resident-at-a-time unload, headroom check, ≥32k context floor capped to the model max) over the in-process
+ * `/api/v1/models` client instead of `lms` spawns. LOCAL-ONLY by construction — the REST surface has no LM Link
+ * device or gpu-offload levers, so remote/GPU loads stay on the CLI path. One honesty gain over the CLI twin: the
+ * REST list carries every model's real `size_bytes`, so the headroom check uses the true candidate size instead of
+ * the conservative 16 GiB default whenever the caller doesn't supply one.
+ */
+export interface RestLoadExclusiveInput {
+	/** The model KEY to make the sole resident LLM (the `/api/v1/models` `key`). */
+	modelId: string;
+	/** Host RAM in bytes (e.g. `os.totalmem()`). */
+	totalRamBytes: number;
+	/** Optional user-declared RAM budget cap in bytes (see {@link LoadExclusiveInput.userBudgetBytes}). */
+	userBudgetBytes?: number;
+	/** Context window to load with (default 40000; floored to ≥32k, capped to the model's listed max). */
+	contextLength?: number;
+	/** Model keys to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
+	pinnedIdentifiers?: readonly string[];
+	/** RAM fraction to keep free (default 0.25 — the freeze-avoidance reserve). */
+	reserveFraction?: number;
+	/** §5.AL capability gate policy (see {@link LoadExclusiveInput.suitabilityPolicy}). */
+	suitabilityPolicy?: ModelSuitabilityPolicy;
+}
+
+export async function loadModelExclusiveViaRest(
+	client: LmStudioRestModelClient,
+	input: RestLoadExclusiveInput,
+): Promise<LoadExclusiveResult> {
+	// §5.AL capability gate FIRST — same as the CLI twin: a known-unsuitable model never costs the resident one.
+	const suitability = assessModelSuitability(
+		input.modelId,
+		input.suitabilityPolicy ?? DEFAULT_MODEL_SUITABILITY_POLICY,
+	);
+	if (suitability.severity === "reject") {
+		return {
+			loaded: false,
+			modelId: input.modelId,
+			unloaded: [],
+			reason: `Refused by the model-capability gate: ${suitability.reason}`,
+			suitability,
+		};
+	}
+
+	const listed = await client.listModels();
+	if (!listed.ok) {
+		return {
+			loaded: false,
+			modelId: input.modelId,
+			unloaded: [],
+			reason: `LM Studio REST list failed (${listed.error.type}): ${listed.error.message}`,
+			suitability,
+		};
+	}
+	const pinned = new Set(input.pinnedIdentifiers ?? []);
+	const resident = listed.value.filter((model) => model.loadedInstanceIds.length > 0);
+	const target = listed.value.find((model) => model.key === input.modelId);
+	const targetAlreadyResident = resident.some((model) => model.key === input.modelId);
+
+	const unloaded: string[] = [];
+	for (const model of resident) {
+		if (model.key === input.modelId || pinned.has(model.key) || isEmbeddingModel(model.key)) {
+			continue;
+		}
+		for (const instanceId of model.loadedInstanceIds) {
+			const result = await client.unloadModel({ instanceId });
+			if (!result.ok) {
+				return {
+					loaded: false,
+					modelId: input.modelId,
+					unloaded,
+					reason: `Unload of ${model.key} failed (${result.error.type}): ${result.error.message}`,
+					suitability,
+				};
+			}
+		}
+		unloaded.push(model.key);
+	}
+
+	if (targetAlreadyResident) {
+		return {
+			loaded: true,
+			modelId: input.modelId,
+			unloaded,
+			reason: "Already resident; cleared other models.",
+			suitability,
+		};
+	}
+
+	const keptResidentBytes = resident
+		.filter((model) => pinned.has(model.key) || isEmbeddingModel(model.key))
+		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
+	const decision = decideModelLoad({
+		candidateSizeBytes: target?.sizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
+		residentSizeBytes: keptResidentBytes,
+		totalRamBytes: input.totalRamBytes,
+		userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
+		reserveFraction: input.reserveFraction,
+	});
+	if (!decision.allow) {
+		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
+	}
+
+	// Same context discipline as the CLI argv builder: floor to the ≥32k invariant, cap to the model's capability.
+	const floored = Math.max(MIN_CONTEXT_WINDOW_TOKENS, input.contextLength ?? DEFAULT_CONTEXT_LENGTH);
+	const contextLength = target?.maxContextLength != null ? Math.min(floored, target.maxContextLength) : floored;
+	const loadResult = await client.loadModel({ model: input.modelId, contextLength });
+	const caveat = suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`;
+	if (!loadResult.ok) {
+		return {
+			loaded: false,
+			modelId: input.modelId,
+			unloaded,
+			reason: `REST load failed (${loadResult.error.type}): ${loadResult.error.message}`,
+			suitability,
+		};
+	}
+	return {
+		loaded: true,
+		modelId: input.modelId,
+		unloaded,
+		reason: `Loaded via REST in ${loadResult.value.loadTimeSeconds ?? "?"}s (${decision.reason})${caveat}`,
+		suitability,
+	};
 }

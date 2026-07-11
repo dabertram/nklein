@@ -268,3 +268,130 @@ describe("loadModelExclusive", () => {
 		expect(load).toContain("max");
 	});
 });
+
+// ─── §5.AN REST-transport twin ───────────────────────────────────────────────
+
+import { loadModelExclusiveViaRest } from "../../../src/core/lms-model-runner";
+import type { LmStudioRestModel, LmStudioRestModelClient } from "../../../src/core/lmstudio-rest-model-client";
+
+function restModel(key: string, overrides: Partial<LmStudioRestModel> = {}): LmStudioRestModel {
+	return {
+		type: "llm",
+		key,
+		displayName: key,
+		architecture: null,
+		sizeBytes: 8 * GiB,
+		paramsString: null,
+		loadedInstanceIds: [],
+		maxContextLength: 262_144,
+		...overrides,
+	};
+}
+
+/** A fake REST client over a mutable model list; records load/unload calls. */
+function fakeRestClient(models: LmStudioRestModel[]) {
+	const calls: { kind: "load" | "unload"; payload: Record<string, unknown> }[] = [];
+	const client: LmStudioRestModelClient = {
+		async listModels() {
+			return { ok: true, value: models };
+		},
+		async loadModel(input) {
+			calls.push({ kind: "load", payload: { ...input } });
+			return { ok: true, value: { instanceId: input.model, loadTimeSeconds: 3.1, status: "loaded" } };
+		},
+		async unloadModel(input) {
+			calls.push({ kind: "unload", payload: { ...input } });
+			return { ok: true, value: { instanceId: input.instanceId } };
+		},
+		async downloadModel(input) {
+			return { ok: true, value: { model: input.model } };
+		},
+	};
+	return { client, calls };
+}
+
+describe("loadModelExclusiveViaRest (§5.AN — same guardrails, REST transport)", () => {
+	it("unloads every non-pinned, non-embedding loaded model, then loads with the requested context", async () => {
+		const { client, calls } = fakeRestClient([
+			restModel("target"),
+			restModel("other", { loadedInstanceIds: ["other-1"] }),
+			restModel("keep-pinned", { loadedInstanceIds: ["pin-1"] }),
+			restModel("text-embedding-nomic", { loadedInstanceIds: ["embed-1"] }),
+		]);
+		const result = await loadModelExclusiveViaRest(client, {
+			modelId: "target",
+			totalRamBytes,
+			contextLength: 40_000,
+			pinnedIdentifiers: ["keep-pinned"],
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.unloaded).toEqual(["other"]);
+		expect(calls).toEqual([
+			{ kind: "unload", payload: { instanceId: "other-1" } },
+			{ kind: "load", payload: { model: "target", contextLength: 40_000 } },
+		]);
+	});
+
+	it("§5.AL gate: REFUSES a catalog-rejected model without unloading or loading", async () => {
+		const { client, calls } = fakeRestClient([
+			restModel("target"),
+			restModel("other", { loadedInstanceIds: ["o1"] }),
+		]);
+		const result = await loadModelExclusiveViaRest(client, {
+			modelId: "target",
+			totalRamBytes,
+			suitabilityPolicy: { onUnsuitable: "reject", onUnknown: "reject" },
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toContain("model-capability gate");
+		expect(calls).toEqual([]);
+	});
+
+	it("uses the REST list's real size_bytes for the headroom check (refuses an over-budget load)", async () => {
+		const { client, calls } = fakeRestClient([restModel("target", { sizeBytes: 120 * GiB })]);
+		const result = await loadModelExclusiveViaRest(client, { modelId: "target", totalRamBytes });
+		expect(result.loaded).toBe(false);
+		expect(calls.filter((c) => c.kind === "load")).toEqual([]);
+	});
+
+	it("floors the context to ≥32k and caps it to the model's listed max", async () => {
+		const floored = fakeRestClient([restModel("target")]);
+		await loadModelExclusiveViaRest(floored.client, { modelId: "target", totalRamBytes, contextLength: 8_000 });
+		expect(floored.calls.at(-1)?.payload).toEqual({ model: "target", contextLength: 32_000 });
+
+		const capped = fakeRestClient([restModel("target", { maxContextLength: 36_000 })]);
+		await loadModelExclusiveViaRest(capped.client, { modelId: "target", totalRamBytes, contextLength: 50_000 });
+		expect(capped.calls.at(-1)?.payload).toEqual({ model: "target", contextLength: 36_000 });
+	});
+
+	it("is idempotent when the target is already resident (clears others, no re-load)", async () => {
+		const { client, calls } = fakeRestClient([
+			restModel("target", { loadedInstanceIds: ["t1"] }),
+			restModel("other", { loadedInstanceIds: ["o1"] }),
+		]);
+		const result = await loadModelExclusiveViaRest(client, { modelId: "target", totalRamBytes });
+		expect(result.loaded).toBe(true);
+		expect(result.reason).toContain("Already resident");
+		expect(calls).toEqual([{ kind: "unload", payload: { instanceId: "o1" } }]);
+	});
+
+	it("surfaces a REST list failure as a refused load (never throws)", async () => {
+		const client: LmStudioRestModelClient = {
+			async listModels() {
+				return { ok: false, error: { type: "network_error", message: "unreachable" } };
+			},
+			async loadModel() {
+				throw new Error("unused");
+			},
+			async unloadModel() {
+				throw new Error("unused");
+			},
+			async downloadModel() {
+				throw new Error("unused");
+			},
+		};
+		const result = await loadModelExclusiveViaRest(client, { modelId: "target", totalRamBytes });
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toContain("network_error");
+	});
+});
