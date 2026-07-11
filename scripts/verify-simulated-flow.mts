@@ -37,7 +37,11 @@ import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
 const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR ? 480_000 : 240_000);
-const RUNTIME_PORT = 3986;
+// Env-overridable so independent scenario runs can execute in parallel on distinct runtime ports without colliding.
+// Default 3986 unchanged when unset — byte-identical to before. NB: each run spawns worker sessions that shell out to
+// `npm test`, so runs are CPU-heavy; parallelizing MANY (or the two largest scenarios) can starve a big project into a
+// false timeout. Prefer sequential validation; parallelize modestly and only on a lightly-loaded machine.
+const RUNTIME_PORT = Number(process.env.NKLEIN_SIMFLOW_RUNTIME_PORT) || 3986;
 const MULTI_MODEL = process.env.NKLEIN_SIMFLOW_MULTI_MODEL === "1";
 const POOLS = process.env.NKLEIN_SIMFLOW_POOLS === "1";
 const TURNLOOP = process.env.NKLEIN_SIMFLOW_TURNLOOP === "1";
