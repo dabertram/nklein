@@ -17,10 +17,42 @@
  * reserve is byte-identical to the single-machine guard — this only adds the ACROSS-machine choice on top.
  */
 
+import { kvCacheBytes } from "./kv-cache-size";
 import { decideModelLoad } from "./model-load-headroom";
 
 const GiB = 1024 ** 3;
 const gib = (bytes: number): string => `${(bytes / GiB).toFixed(1)} GiB`;
+
+/**
+ * Conservative default KV-cache architecture for a mid-tier (~14B) model, used ONLY when no llmfit estimate is
+ * available. Biased toward the larger mid models (48 layers · 8 GQA KV-heads · 128 head-dim · FP16) so the fallback
+ * OVER-counts the KV cache — the SAFE direction for routing (over-counting keeps a model OFF a node it might swap,
+ * never the reverse). Refine per-model via llmfit / registry arch params. At ctx 40000 this yields ~7.3 GiB of KV,
+ * so a 14B's effective footprint (~8.3 weights + ~7.3 KV ≈ 15.6 GiB) correctly fails a 16 GB node's headroom.
+ */
+const FALLBACK_KV_ARCH = { numLayers: 48, numKvHeads: 8, headDim: 128, bytesPerParam: 2 } as const;
+
+/**
+ * Estimate a model's EFFECTIVE resident footprint (weights + KV-cache at the load context) in bytes — the figure the
+ * device selector needs, because weights-alone under-counts and would clear a small node that then swaps once the KV
+ * cache fills at context. Prefers llmfit's `memoryRequiredGb` (per-quant / MoE / KV-aware, the accurate source); with
+ * no llmfit datum it adds a CONSERVATIVE KV estimate ({@link FALLBACK_KV_ARCH}) to the weights. Pure.
+ */
+export function estimateEffectiveModelBytes(input: {
+	/** Model weights footprint in bytes (from `lms ps`/`lms ls` size). */
+	weightsBytes: number;
+	/** The context the model is (or will be) loaded at — drives the KV-cache term. */
+	contextLength: number;
+	/** llmfit's `memoryRequiredGb × GiB` when known — the accurate KV-aware total; takes precedence. */
+	llmfitMemoryBytes?: number | null;
+}): number {
+	const weights = Math.max(0, input.weightsBytes);
+	if (input.llmfitMemoryBytes !== undefined && input.llmfitMemoryBytes !== null && input.llmfitMemoryBytes > 0) {
+		// llmfit already folds weights + KV at context; never return LESS than the raw weights (defensive floor).
+		return Math.max(input.llmfitMemoryBytes, weights);
+	}
+	return weights + kvCacheBytes({ contextLength: input.contextLength, ...FALLBACK_KV_ARCH });
+}
 
 /**
  * Resolve a per-device RAM map (friendly LM-Link device name → bytes) from `NKLEIN_DEVICE_RAM_GB` — a power-user
@@ -166,5 +198,87 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 		reason: `Load on "${chosen.candidate.deviceName}" — ${gib(chosen.freeBytesAfter)} free after (most headroom of ${fitting.length} fitting device(s)).`,
 		alternatives: rest.map((entry) => entry.candidate),
 		rejected,
+	};
+}
+
+/** A linked LM-Link device (friendly name + optional hex identifier), as read from `lms link status`. */
+export interface LinkedDeviceInfo {
+	deviceName: string;
+	deviceIdentifier?: string;
+}
+
+/**
+ * The steering action the caller should take before dispatching a model request. `set_preferred` ⇒ run
+ * `lms link set-preferred-device <deviceIdentifier>` so LM-Link's JIT lands the model on a fitting node; `no_fit` ⇒
+ * warn (no device can hold it); `already_preferred`/`skip` ⇒ do nothing (byte-identical to today).
+ */
+export type PreferredDeviceSteering =
+	| { action: "set_preferred"; deviceName: string; deviceIdentifier: string; reason: string }
+	| { action: "already_preferred"; deviceName: string; reason: string }
+	| { action: "no_fit"; reason: string; rejected: readonly RejectedDevice[] }
+	| { action: "skip"; reason: string };
+
+/**
+ * Plan whether — and to which device — to steer LM-Link's preferred device before a model request, so the JIT load
+ * lands on a node that fits instead of an undersized one that swaps. PURE: the caller supplies the configured per-device
+ * RAM map (from {@link resolveDeviceRamBytesFromEnv}), the linked-device roster + current preferred id (from
+ * `lms link status`), the per-device resident footprint (from `lms ps`), and the model's effective footprint (from
+ * {@link estimateEffectiveModelBytes}). Only devices WITH a configured RAM entry are judged — an unmapped device is left
+ * to LM-Link (we can't prove its headroom). An empty map ⇒ `skip` ⇒ the runtime keeps today's behavior.
+ */
+export function planPreferredDeviceSteering(input: {
+	deviceRamBytes: Record<string, number>;
+	linkedDevices: readonly LinkedDeviceInfo[];
+	residentBytesByDevice?: Record<string, number>;
+	currentPreferredDeviceId?: string | null;
+	effectiveModelBytes: number;
+	reserveFraction?: number;
+}): PreferredDeviceSteering {
+	if (Object.keys(input.deviceRamBytes).length === 0) {
+		return { action: "skip", reason: "No NKLEIN_DEVICE_RAM_GB map configured — device steering disabled." };
+	}
+	const candidates: DeviceLoadCandidate[] = [];
+	for (const device of input.linkedDevices) {
+		const ram = input.deviceRamBytes[device.deviceName];
+		if (ram === undefined || ram <= 0) {
+			continue; // No configured RAM for this device — can't judge its headroom; leave it to LM-Link.
+		}
+		candidates.push({
+			deviceName: device.deviceName,
+			...(device.deviceIdentifier !== undefined ? { deviceIdentifier: device.deviceIdentifier } : {}),
+			totalRamBytes: ram,
+			residentSizeBytes: Math.max(0, input.residentBytesByDevice?.[device.deviceName] ?? 0),
+		});
+	}
+	if (candidates.length === 0) {
+		return { action: "skip", reason: "No linked device has a configured RAM entry — nothing to steer." };
+	}
+	const decision = selectDeviceForModelLoad({
+		candidateSizeBytes: input.effectiveModelBytes,
+		candidates,
+		...(input.reserveFraction !== undefined ? { reserveFraction: input.reserveFraction } : {}),
+	});
+	if (!decision.fits) {
+		return { action: "no_fit", reason: decision.reason, rejected: decision.rejected };
+	}
+	if (decision.deviceIdentifier === undefined) {
+		// A device was chosen but carries no LM-Link identifier, so it can't be set as the preferred device.
+		return {
+			action: "skip",
+			reason: `Best-fit device "${decision.deviceName}" has no LM-Link identifier to steer to.`,
+		};
+	}
+	if (input.currentPreferredDeviceId && input.currentPreferredDeviceId === decision.deviceIdentifier) {
+		return {
+			action: "already_preferred",
+			deviceName: decision.deviceName,
+			reason: `Preferred device is already the best fit ("${decision.deviceName}").`,
+		};
+	}
+	return {
+		action: "set_preferred",
+		deviceName: decision.deviceName,
+		deviceIdentifier: decision.deviceIdentifier,
+		reason: decision.reason,
 	};
 }
