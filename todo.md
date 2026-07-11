@@ -599,6 +599,26 @@ source repo went private — so if it vanishes the buildable source still lives 
   can layer on the same per-device verdicts later. **IMMEDIATE MITIGATION if the flag is left OFF (David's fleet, no code):**
   unregister/unload the 14B from m4mini's LM Studio so LM Link only resolves it to m5max, or cap m4mini's per-model
   context/size. See [[realmodel-lifecycle-validated]] + [[live-dev-test-single-machine]] for the probe detail.
+  **★★ CRITICAL FOLLOW-UP FINDING (2026-07-12, live-fleet behavior tests) — the task-dispatch WIRING POINT is WRONG; the
+  set-preferred-device steering is INERT in the current config.** Three empirical truths from probing the real fleet
+  (`lms` direct, then restored): (1) **the preferred device controls where a LOAD lands** — `lms load` of the 14B with
+  preferred=m5max loaded ON m5max in 2.9 s (validated the mechanism); (2) **JIT is OFF** — a completion request for a
+  non-resident model returns "No models loaded", it does NOT auto-load; (3) **LM-Link serves an already-loaded model from
+  WHERE IT'S LOADED, ignoring the preferred device** — with the 14B resident on m5max and preferred=m4mini, the request
+  still served from m5max (no new instance). Consequently the seam wiring (`b98f99f3`, steer at `startTaskSession`) CANNOT
+  help the real crash: the task path only ever runs ALREADY-LOADED models (it BLOCKS non-resident ones at
+  start-task-session.ts:335-345, before the steering at ~:1168), and steering can't move a loaded model. The model's
+  device is decided at LOAD time, which happens BEFORE any task dispatch. **So the toolkit + decision are correct and
+  validated, but the effective hook is the LOAD point, not dispatch.** The real fix, by tier: (a) **test harness** — wire
+  `selectDeviceForModelLoad` into `model-lab`'s `loadModelExclusive` device pick (it already carries `targetDeviceIdentifier`),
+  so a harness load auto-lands on a fitting node [clean, effective, safe]; (b) **live !Klein** — there is NO runtime load
+  path (loadModelExclusive has zero `src/` callers; JIT off), so the live fix needs EITHER a detect-and-BLOCK guard at
+  dispatch (refuse a card whose serving device can't fit its model, with "reload on m5max" guidance — prevents the swap
+  instead of crashing) OR wiring the built-but-unwired §5.AB autonomous loader (with the device pick) so !Klein loads on
+  the right device. The committed seam steering is opt-in + fail-open (harmless when off) but should be REPURPOSED to the
+  guard or removed — it does not earn its per-dispatch fetch while inert. DECISION owed from David: guard-and-block vs
+  wire-the-autonomous-loader vs harness-only. (Corrects the "VALIDATED LIVE" note above — that validated the DECISION on
+  live data, not end-to-end effectiveness, which these behavior tests then disproved for the dispatch hook.)
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
