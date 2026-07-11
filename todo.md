@@ -8302,6 +8302,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         it at the scheduler's lease step (admit-gate the ready-ordered candidates against the live per-endpoint pool snapshot
         + global cap; map `admit`→lease, `defer`→leave `ready`, `shed`→a `cancelled`/surfaced outcome) at the live-integration pass.
   - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
+        *(LIVE INSTANCE FOUND 2026-07-11, single-machine smoke: the codebase-memory sandbox MCP intermittently fails to
+        load — `MCP error -32000: Connection closed` — under concurrent worker+index load. Root cause is resource, not
+        code: the baked binary works standalone (`docker exec -i … codebase-memory-mcp` initialize succeeds; stderr
+        `mem.init budget_mb=2048 total_ram_mb=4096`), but `setup-detection.ts` sizes each sandbox container to ~4 GB
+        (`memoryPerContainerMb`, Docker VM here is 7.7 GB) and the MCP's 2 GB budget + the worker's node process +
+        indexing exceeds it → OOM-kill → transport closes. Caught by graceful degradation (createToolBundle try/catch →
+        warning; the worker continues without localization). Fix options (a design call, NOT a blind bump — bumping
+        per-container mem trades against `maxConcurrentExec`, the exact OOM/thrash this item guards): (1) a memory-fit
+        gate that skips offering codebase-memory when the container mem limit < its budget + worker headroom (parallels
+        the existing `fit` model-gate in sandbox-mcp-catalog.ts); (2) pass the MCP a smaller `budget_mb`; (3) raise
+        `memoryPerContainerMb` for the localization pass when host headroom allows. See [[smoke-live-findings-2026-07-11]].)*
 - [~] **Self-improvement quarantine (M4 safety), decomposed:** *(◐ SAFETY KEYSTONE DONE 2026-07-08 —
       [self-improvement-gate.ts](src/core/self-improvement-gate.ts) `decideSelfImprovementApproval(signals)`: the pure
       FAIL-CLOSED unified gate that approves an auto-generated self-modifying patch ONLY when EVERY gate passes —
