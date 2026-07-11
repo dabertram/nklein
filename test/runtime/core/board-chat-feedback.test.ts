@@ -86,6 +86,11 @@ describe("decideBoardChatFeedback — ASK tier (immediate, honored even at conci
 			expect(v.tier).toBe("ask");
 			expect(v.signalKey).toBe(`task-1:${kind}`);
 			expect(v.suggestedVerbs?.length ?? 0).toBeGreaterThan(0);
+			// The reason is shown VERBATIM to a beginner in the chat digest — it must read as plain language, never
+			// leak the raw enum kind (the "delivery_gate_held" jargon-wall this humanization fixed).
+			expect(v.reason).not.toContain(kind);
+			expect(v.reason).not.toMatch(/_/);
+			expect(v.reason).toMatch(/[a-z] [a-z]/); // a real phrase, not a token
 		});
 	}
 

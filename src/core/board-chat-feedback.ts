@@ -68,20 +68,46 @@ export interface BoardChatFeedbackVerdict {
 	milestone?: { done: number; total: number };
 }
 
-/** The ASK-tier signals, in priority order — the first one that became newly true wins. */
+/**
+ * The ASK-tier signals, in priority order — the first one that became newly true wins. Each carries a plain-language
+ * `label`: the chat digest shows this verbatim to a BEGINNER ("…needs you — <label> (approve/edit/reject)"), so it
+ * must read as a sentence with no internal enum jargon. The `kind` stays the stable telemetry/dedup key (signalKey).
+ */
 const ASK_SIGNALS: readonly {
 	kind: string;
+	label: string;
 	verbs: readonly string[];
 	active: (s: OperatorTaskSignals) => boolean;
 }[] = [
-	{ kind: "unsafe_action_ack", verbs: ["approve", "reject"], active: (s) => s.awaitingHostActionAck },
-	{ kind: "delivery_gate_held", verbs: ["approve", "edit", "reject"], active: (s) => s.deliveryGateHeld },
+	{
+		kind: "unsafe_action_ack",
+		label: "an agent wants to run something that could affect your system",
+		verbs: ["approve", "reject"],
+		active: (s) => s.awaitingHostActionAck,
+	},
+	{
+		kind: "delivery_gate_held",
+		label: "a finished card is waiting for your go-ahead",
+		verbs: ["approve", "edit", "reject"],
+		active: (s) => s.deliveryGateHeld,
+	},
 	// A card the review ladder parked / escalated for a human — surface it as an ASK so the operator can act from chat
 	// (review what was tried, retry on a stronger model, or reassign) instead of hunting the board (§5.AW).
-	{ kind: "escalated_to_operator", verbs: ["review", "retry", "reassign"], active: (s) => s.escalatedToOperator },
-	{ kind: "needs_input", verbs: ["respond"], active: (s) => s.clarifyingQuestionPending },
+	{
+		kind: "escalated_to_operator",
+		label: "a card got stuck and needs your call",
+		verbs: ["review", "retry", "reassign"],
+		active: (s) => s.escalatedToOperator,
+	},
+	{
+		kind: "needs_input",
+		label: "an agent has a question for you",
+		verbs: ["respond"],
+		active: (s) => s.clarifyingQuestionPending,
+	},
 	{
 		kind: "sandbox_unavailable",
+		label: "a card can't start — its workspace isn't ready",
 		verbs: ["retry", "fix_setup"],
 		active: (s) => s.blockedKind === "agent_sandbox_unavailable",
 	},
@@ -184,7 +210,7 @@ export function decideBoardChatFeedback(input: BoardChatFeedbackInput): BoardCha
 				action: "surface_ask",
 				tier: "ask",
 				signalKey,
-				reason: `needs the operator: ${ask.kind}`,
+				reason: ask.label,
 				suggestedVerbs: ask.verbs,
 			};
 		}
