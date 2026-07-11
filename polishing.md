@@ -809,13 +809,16 @@
       awaiting_review + terminal/idle re-run. Bisected to `decbb772` (reverting its 4 review files → green), fixed
       forward, all three siblings green one-at-a-time (bounce confirms the protection is preserved). The `0f4889c3` guard
       fixes were independently exonerated — the harness failed identically with them reverted.
-- [ ] **FOLLOW-UP (surfaced by this pass, own decision): `edit_file` is absent from `createKanbanToolPolicies` and has
-      no approval-switch case**, so the approval-layer **card file-scope gate** (`approveScopedWriteTargets`) never runs
-      for it — a worker can edit_file any in-workspace file outside its declared scope. edit_file keeps its OWN in-tool
-      guards (containment, protected [now hardened], secret, line backstop), so this is a scope-discipline gap, not a
-      sandbox escape. Fix = route edit_file through the approval layer (add to `createKanbanToolPolicies` + a
-      `parseEditFileRequest`-backed case) OR thread `filesLikelyTouched`/`taskId` into `createEditFileTool`. Deferred:
-      needs a scope-tightness decision (false-deny risk on legitimate cross-file edits) and is not a security boundary.
+- [x] **FOLLOW-UP (surfaced by this pass, own decision): `edit_file` is absent from `createKanbanToolPolicies` and has
+      no approval-switch case**, so the approval-layer **card file-scope gate** (`approveScopedWriteTargets`) never ran
+      for it — a worker could edit_file any in-workspace file outside its declared scope. edit_file keeps its OWN in-tool
+      guards (containment, protected [now hardened], secret, line backstop), so this was a scope-discipline gap, not a
+      sandbox escape. **FIXED 2026-07-11 (commit `81f8c851`):** added `edit_file: { enabled: true, autoApprove: false }`
+      to `createKanbanToolPolicies` (the approval policy already parses its path via `extractScopedWriteTargetPaths`), so
+      it now routes through the same containment + scope checks as write_file/editor/apply_patch. The false-deny concern
+      is moot: the scope gate only bites when the card DECLARED `filesLikelyTouched` (a no-scope card is unaffected) —
+      identical to the other three write tools. Pulled in the consistency-invariant siblings (KANBAN_TOOL_MANIFESTS +
+      KANBAN_TASK_TOOL_CARDS) + a scope-enforcement test. tsc + 8963 fast + 1033 web-ui + biome green.
 - [x] After the pass: findings folded into fixes (`0f4889c3`), harnesses green — §5.BF SETTLED (bar the scoped-write
       follow-up above, tracked as its own item). Related open §5.AU items stay their own tasks.
 
