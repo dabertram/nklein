@@ -171,6 +171,19 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "research",
 		verified: true,
 	},
+	{
+		// GLM-4.x flash (Zhipu/zai). Its `glm-4` token can't collide with the qwen/gemma/phi rows.
+		family: "glm-4-flash",
+		match: /glm-4[._-]?\d*[._-]?flash|zai-org\/glm-4/,
+		toolUse: "TOOL_WEAK",
+		kind: "instruct",
+		note: "GLM-4.7-flash (zai-org, ~32B). §11 sweep 2026-07-11 (m5max HIGH power, chat-agent-tools single-read probe): did NOT emit a tool call at all (FAIL/no-call) — the agent got no read_file. GLM-4 uses a DISTINCT tool-call format/template; via LM Studio's OpenAI `/v1` our parser saw no structured call, so this is most likely a DIALECT/parser mismatch rather than a proven capability gap (same class as the deepseek-r1 'calls leak into content' issue). Verdict TOOL_WEAK pending a GLM-dialect-aware probe (native `/api/v0` or a GLM tool template); do NOT route unattended tool work here until the format is verified. n=1. basis: empirical.",
+		sources: [
+			"live chat-agent-tools 2026-07-11 (m5max, `zai-org/glm-4.7-flash` — no tool call emitted; §11 sweep, likely dialect mismatch)",
+		],
+		basis: "empirical",
+		verified: false,
+	},
 	// ── Ornith (local MLX) ────────────────────────────────────────────────────────────────────────────────
 	{
 		// Ornith-1.0 = DeepReinforce's SELF-SCAFFOLDING agentic CODING family (2026-06, MIT): RL-learns to jointly produce the
