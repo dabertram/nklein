@@ -11,6 +11,7 @@ import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
+import { loadDotEnv } from "./config/load-dotenv";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
 import type { RuntimeCommandRunResponse } from "./core/api-contract";
 import {
@@ -661,6 +662,9 @@ function createProgram(invocationArgs: string[]): Command {
 }
 
 async function run(): Promise<void> {
+	// Load local .env defaults (project-root then ~/.nklein/.env) FIRST — before any config/env read — so power-user
+	// knobs like NKLEIN_DEVICE_RAM_GB can be preconfigured in a git-ignored file. The real environment always wins.
+	loadDotEnv();
 	const argv = process.argv.slice(2);
 	await runLegacyNameMigration();
 	const program = createProgram(argv);
