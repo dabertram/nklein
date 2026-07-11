@@ -8978,8 +8978,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         contract suites (board-lifecycle: all 6 canonical columns round-trip) — the wrong-field class can't recur in
         tested code; verify-full-system is a script exercised by its own live runs.)*
 - [ ] **dschinn "master challenge" — RESERVED FOR LAST = the MCF capstone, decomposed:**
+  - [x] **PRE-FLIGHT BUG FOUND + FIXED (2026-07-11, real-model probe, commit `92776ec9`):** a qwen3-8b dschinn probe
+        revealed the capstone scaffolded the `smoke-ts-cli` fixture (no project sets `fixtureTemplate` → it falls back to
+        that default), so the workspace `src/` shipped `habit-score.ts`/`habit-insights.ts` and the real-model decompose
+        built "Implement Habit Score Calculation" cards — the SMOKE task, not the dark-factory spec. (Masked for 01-20
+        because their sim scenarios script the cards.) Fixed with a domain-free `ts-starter` fixture pointed at dschinn;
+        the decompose now yields spec-relevant cards ("Implement typed domain model", "Set up testing framework"). The
+        numbered projects share the same latent default-fixture issue for REAL-model runs (follow-up: confirm their sim
+        scenarios don't read the habit-score files before repointing them).
   - [ ] Wait until C0–C8 are green (use smaller dev-test presets C0–C6 for UI/e2e stabilization until then).
-  - [ ] Run the dschinn end-to-end real-project challenge.
+  - [ ] Run the dschinn end-to-end real-project challenge. *(FLEET-GATED confirmed 2026-07-11: 8B under-decomposes to
+        ~3 cards vs the spec's 400-650; the full capstone needs the two-machine fleet with strong models. The scaffold +
+        decompose DOMAIN is now correct (post-fixture-fix), so a fleet run will exercise the right project.)*
   - [ ] On failure: root-cause, structure the next chapter (never brute-force per MCF rule).
 - *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
       rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
