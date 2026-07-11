@@ -15,6 +15,27 @@
 > **FAIL vs CANT:** a malformed-output / parse gap is `❌` (a !Klein hardening task, §5.O parse-and-recover); a model
 > that simply isn't capable enough is `⚠️` (a recorded capability-floor data point, not a bug).
 
+## §11 eval-fitness routing synthesis (2026-07-11, m5max HIGH power)
+
+> The `scripts/eval-harness.mts` per-ROLE fitness (decompose / review / worker · tool-use+context), 1 repeat/cell,
+> `native_tool_call`. Complements the per-flow matrix below (which is pass/fail per harness). Source rows in
+> [model-sweep-log.md](model-sweep-log.md). **Headline: the reviewer weakness is TRAINING-gated, not size-gated.**
+
+| model | size | decompose | worker | **reviewer** | mean | speed | best role |
+|---|---|:-:|:-:|:-:|:-:|---|---|
+| `ornith-1.0-9b` | 5.6 GB | 1.00 | 1.00 | 0.72 | 0.931 | ⚡ ~3min eval | fast decompose+worker |
+| `qwen/qwen3-8b` | 4.6 GB | 1.00 | 1.00 | 0.72 | 0.931 | fast | decompose+worker |
+| `qwable-9b-…-fable-5` | 7 GB | 1.00 | 1.00 | 0.72 | 0.931 | med | reliable all-rounder (no timeouts) |
+| `qwen2.5-coder-7b` | 4.7 GB | 1.00 | 0.67🐞 | 0.72 | 0.764 | fast | decompose only (tool-use unreliable) |
+| `nvidia/nemotron-3-nano-4b` | 2.8 GB | 1.00 | 0.83 | **0.83**⭐ | 0.875 | ⚡ ~90s | **fast reviewer** + decompose |
+| `qwen/qwen3.6-35b-a3b` | 22 GB | 1.00 | 1.00 | **0.83**⭐ | 0.955 | slow (~40s/cell) | **strong reviewer** + all-round |
+| `qwen/qwq-32b` | 35 GB | 1.00 | 1.00 | **0.83** | 0.955 | 🐢🐢 ~22min eval | quality but too slow |
+
+**Per-role picks (small-model swarm):**
+- **Decompose (architect):** nearly universal 1.00 — pick the fastest reliable: `ornith-1.0-9b` / `qwen3-8b` (both ~10s/cell). Reasoning giants (qwq, 35b-a3b) also 1.0 but slow + occasionally NO-ANSWER on the trivial cell (over-think).
+- **Worker (tool-use):** most 1.00; AVOID `qwen2.5-coder-7b` (two tool-use cells 0.000 — calls the tool, abbreviates "Done."). `nemotron-nano` has a context-8k glitch (0.000, non-monotonic).
+- **Reviewer (the differentiator):** the 7-9B qwen-family (`qwen3-8b`, `qwable-9b`, `ornith-9b`, `coder-7b`) + `coder-14b` all hit the **~0.72 ceiling** (miss the hard race/leak/injection trio, 0.667). **BREAK it:** `nemotron-3-nano-4b` (0.833, FAST ~10s/cell — the surprise 4B), `qwen3.6-35b-a3b` (0.833, ~25s/cell), `qwq-32b` (0.833 but ~168s/cell — impractical). **→ Route review to `nemotron-nano-4b` (fast) or `qwen3.6-35b-a3b` (bigger), never a small qwen-family model.** The ceiling is NVIDIA-reasoning-RL-vs-qwen-tuning, not size.
+
 ## Roster (2026-06-26)
 
 | # | model | size | notes |
