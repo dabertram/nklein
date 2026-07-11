@@ -189,6 +189,18 @@ describe("eval-corpus versioning", () => {
 		expect(scoreContextProbeAnswer("No idea, the log is noise.", ["porto"])).toBe(0);
 	});
 
+	it("context-probe scorer: SEPARATOR-insensitive — a correct retrieval scores on content, not typography (§11 harness fix)", () => {
+		// The real 2026-07-11 mis-score: nemotron-nano + gpt-oss answered the needle with NON-BREAKING hyphens
+		// (U+2011), a CORRECT answer that the old exact-substring match scored 0. Now dashes/spaces/underscores all match.
+		expect(scoreContextProbeAnswer("The passphrase is amber‑falcon‑92.", ["amber-falcon-92"])).toBe(1); // non-breaking hyphen
+		expect(scoreContextProbeAnswer("it was amber falcon 92", ["amber-falcon-92"])).toBe(1); // spaces
+		expect(scoreContextProbeAnswer("amber_falcon_92", ["amber-falcon-92"])).toBe(1); // underscores
+		expect(scoreContextProbeAnswer("en–dash amber–falcon–92", ["amber-falcon-92"])).toBe(1); // en dash
+		// Plain-token fragments are unaffected, and a genuinely wrong compound still scores 0 (no false positives).
+		expect(scoreContextProbeAnswer("badge 7431", ["7431"])).toBe(1);
+		expect(scoreContextProbeAnswer("the value was blue-heron-11", ["amber-falcon-92"])).toBe(0);
+	});
+
 	it("every tool_use probe self-scores 1 (its expected call IS the answer key)", () => {
 		let toolUseCount = 0;
 		for (const prompt of EVAL_PROMPT_CORPUS) {

@@ -173,10 +173,23 @@ export function scoreEvalAnswer(prompt: EvalPrompt, answer: EvalAnswer): number 
 	}
 }
 
-/** Context-probe scorer: 1 when the reply contains ANY expected fragment (case-insensitive), else 0. */
+/**
+ * Canonicalize separators so a retrieval scores on CONTENT, not typography: lowercase, then collapse any run of
+ * whitespace / underscore / regular hyphen / Unicode dashes (U+2010 hyphen … U+2015 horizontal bar, U+2212 minus)
+ * to a single `-`. Fixes a real §11-sweep mis-score (2026-07-11): models rendered the needle "amber-falcon-92" with
+ * NON-BREAKING hyphens (U+2011) — a CORRECT answer — yet the old exact-substring match scored it 0 (nemotron-nano +
+ * gpt-oss-120b both lost the 8k worker cell to this). Plain-token fragments ("7431", "porto") are unaffected.
+ */
+function canonicalizeContextProbeText(text: string): string {
+	// Char class: whitespace, underscore, the Unicode dash range U+2010–U+2015 (incl. U+2011 non-breaking hyphen),
+	// U+2212 minus, and the regular hyphen (kept LAST so it is a literal, never a range endpoint).
+	return text.toLowerCase().replace(/[\s_‐-―−-]+/gu, "-");
+}
+
+/** Context-probe scorer: 1 when the reply contains ANY expected fragment (case- + separator-insensitive), else 0. */
 export function scoreContextProbeAnswer(answerText: string, expectedFragments: readonly string[]): number {
-	const normalized = answerText.toLowerCase();
-	return expectedFragments.some((fragment) => normalized.includes(fragment.toLowerCase())) ? 1 : 0;
+	const normalized = canonicalizeContextProbeText(answerText);
+	return expectedFragments.some((fragment) => normalized.includes(canonicalizeContextProbeText(fragment))) ? 1 : 0;
 }
 
 /** Filler sentences the haystack cycles through — varied so repetition-collapse can't trivially compress them. */
