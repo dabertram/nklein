@@ -4,6 +4,7 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"fixtureTemplate": "ts-starter",
 	"tier": "14/20",
 	"tags": [
 		"GHG accounting",

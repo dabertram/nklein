@@ -4,6 +4,7 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"fixtureTemplate": "ts-starter",
 	"tier": "6/20",
 	"tags": [
 		"industrial maintenance",

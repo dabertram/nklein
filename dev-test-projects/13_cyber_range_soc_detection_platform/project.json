@@ -4,6 +4,7 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"fixtureTemplate": "ts-starter",
 	"tier": "13/20",
 	"tags": [
 		"security operations",
