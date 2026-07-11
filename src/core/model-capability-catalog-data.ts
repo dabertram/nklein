@@ -183,9 +183,12 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /deepseek-r1.*qwen3?-8b|deepseek-r1-0528/,
 		toolUse: "TOOL_WEAK",
 		kind: "reasoning",
-		note: 'Reasoning distill: card claims "enhanced function calling" but ships no parser/template; calls leak into content and </think> tags break parsers. Poor fit for unattended tool chaining.',
-		sources: ["https://github.com/vllm-project/vllm/issues/19001"],
-		basis: "research",
+		note: 'Reasoning distill: card claims "enhanced function calling" but ships no parser/template; calls leak into content and </think> tags break parsers. Poor fit for unattended tool chaining. SWEEP-CONFIRMED (§11 2026-07-11, HIGH power, eval-harness mean 0.867/10): DECOMPOSE is FLAKY — 2 of 3 architect cells NO ANSWER (easy+medium; only hard landed), i.e. it over-thinks / leaks the structured decompose call — while every OTHER reasoning model swept (qwq-32b, qwen3.6-35b-a3b, nemotron) decomposed 1.0, so "reasoning flakes on tool-call" is R1-SPECIFIC, not a reasoning-family trait. Reviewer weak (0.556 — medium 0.000, hard 0.667). Worker single-tool/context is fine (1.0) WHEN it emits. So: avoid r1 for decompose/review; its distill-specific call-leakage is the culprit. basis: both.',
+		sources: [
+			"https://github.com/vllm-project/vllm/issues/19001",
+			"eval-harness 2026-07-11 (m5max HIGH power, deepseek-r1-0528-qwen3-8b: mean 0.867/10 — decompose 2/3 NO-ANSWER flaky, reviewer 0.556, worker 1.0); see docs/dev/model-sweep-log.md",
+		],
+		basis: "both",
 		verified: true,
 	},
 	{
