@@ -203,6 +203,24 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "both",
 		verified: false,
 	},
+	{
+		// Ornith-1.0-9B — the 9B sibling of the 35B self-scaffolding coder. Its `9b` token can't hit the `-35b` row.
+		family: "ornith-1.0-9b",
+		match: /ornith-?(1[._]0-)?9b|ornith-9b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "code",
+		chaining: "native",
+		synthesis: "full",
+		speed: "fast",
+		sizeGb: 5.6,
+		note: "Ornith-1.0-9B (DeepReinforce self-scaffolding agentic coder, the 9B sibling of the 35B — and unlike the 35B it LOADS fine, e.g. `ornith-1.0-9b@q4_k_m`). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 all 3 tiers + worker/tool-use + context probes 1.000; reviewer 0.722 (the small-model ceiling). STANDOUT: FAST + reliable — ~8-13s per decompose cell, the WHOLE 12-cell eval in ~3 MINUTES (vs qwable-9b ~19min, qwq-32b ~22min), and it scored every cell (no over-think NO-ANSWERs). So the 9B ornith is a FAST, reliable decompose+worker all-rounder (ties qwen3-8b/qwable-9b at 0.931 quality but among the FASTEST) — a strong local worker/architect pick, weak only as a reviewer. Also chat-agent-tools single-tool PASS. NOTE the 35B sibling's self-scaffolding caveat may apply (give it room to plan), though the 9B chained cleanly in-harness. basis: empirical.",
+		sources: [
+			"eval-harness 2026-07-11 (m5max HIGH power, ornith-1.0-9b@q4_k_m: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ~3min total = FAST); see docs/dev/model-sweep-log.md",
+			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
 	// ── Qwen ──────────────────────────────────────────────────────────────────────────────────────────────
 	{
 		// The qwopus3.6 REASONING lineage (the 27B). MORE SPECIFIC than the generic `qwopus` row below, so it must

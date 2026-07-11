@@ -136,8 +136,12 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx")?.selfScaffolding).toBeUndefined();
 		const v = assessModelSuitability("ornith-1.0-35b-mlx@4bit");
 		expect(v.severity).not.toBe("reject"); // NOT rejected on a load-fail
-		// The size-anchored regex must NOT match the 9B sibling.
-		expect(lookupModelCapability("ornith-1.0-9b-mlx")).toBeNull();
+		// The size-anchored 35B regex must NOT catch the 9B sibling — which now has its OWN entry (§11 sweep
+		// 2026-07-11: the 9B LOADS + eval-harness 0.931, a fast reliable decompose+worker). So the 9B resolves to
+		// the ornith-1.0-9b family (verified), NEVER to the 35B row.
+		const nine = lookupModelCapability("ornith-1.0-9b-mlx");
+		expect(nine?.family).toBe("ornith-1.0-9b");
+		expect(nine?.verified).toBe(true);
 	});
 
 	it("gpt-oss chaining tracks ACTIVE params: 120b (~5.1B active) TOOL_CAPABLE full-synth vs 20b (~3.6B active) TOOL_WEAK chain-drop", () => {
