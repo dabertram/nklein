@@ -59,6 +59,33 @@ describe("buildBoardChatDigest — multi-item rollup", () => {
 		expect(d.askCount).toBe(1);
 	});
 
+	it("renders a milestone as plain plan-progress from its counts (no 'decomposition phase boundary' jargon)", () => {
+		const partial = buildBoardChatDigest({
+			items: [
+				item({
+					title: "c",
+					tier: "milestone",
+					reason: "decomposition phase boundary",
+					milestone: { done: 3, total: 8 },
+				}),
+			],
+		});
+		expect(partial.message).toContain('▸ "c" — 3 of 8 planned steps done');
+		expect(partial.message).not.toContain("decomposition phase boundary");
+
+		const complete = buildBoardChatDigest({
+			items: [
+				item({
+					title: "c",
+					tier: "milestone",
+					reason: "decomposition phase boundary",
+					milestone: { done: 8, total: 8 },
+				}),
+			],
+		});
+		expect(complete.message).toContain('▸ "c" — all 8 planned steps done');
+	});
+
 	it("heads the rollup with a stream/group label when given (§5.AU forward-compat)", () => {
 		const d = buildBoardChatDigest({ items: many, groupLabel: "Auth stream" });
 		expect(d.message.split("\n")[0]).toBe("Auth stream — board update:");

@@ -29,6 +29,8 @@ export interface BoardChatDigestItem {
 	resultText?: string;
 	/** For ASK items: the decision verbs to offer. */
 	suggestedVerbs?: readonly string[];
+	/** For MILESTONE items: the plan progress (focus-chain steps) — rendered as "N of M planned steps done". */
+	milestone?: { done: number; total: number };
 }
 
 /** The compact board-health counts (a subset of §5.AG `OperatorBoardSummary.counts`) rendered on the pull/status path. */
@@ -84,7 +86,15 @@ function renderLine(item: BoardChatDigestItem): string {
 		return `⚠️ ${title} needs you — ${item.reason}${verbs}`;
 	}
 	if (item.tier === "milestone") {
-		return `▸ ${title} — ${item.reason}`;
+		// Show the ACTUAL plan progress (the milestone's done/total steps) in plain language, not the internal
+		// "decomposition phase boundary" reason a beginner can't parse. The counts were previously discarded.
+		const m = item.milestone;
+		if (m && m.total > 0) {
+			return m.done >= m.total
+				? `▸ ${title} — all ${m.total} planned steps done`
+				: `▸ ${title} — ${m.done} of ${m.total} planned steps done`;
+		}
+		return `▸ ${title} — made progress on its plan`;
 	}
 	// NOTIFY: pick by reason.
 	if (item.reason === "done") {

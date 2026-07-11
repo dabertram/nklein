@@ -182,6 +182,7 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 				reason: verdict.reason,
 				...(transition.resultText ? { resultText: transition.resultText } : {}),
 				...(verdict.suggestedVerbs ? { suggestedVerbs: verdict.suggestedVerbs } : {}),
+				...(verdict.milestone ? { milestone: verdict.milestone } : {}),
 			};
 
 			if (verdict.action === "defer_to_digest") {
