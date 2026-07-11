@@ -582,8 +582,17 @@ source repo went private — so if it vanishes the buildable source still lives 
   issues `lms link set-preferred-device <fitting-node>` so LM-Link's JIT lands the model on a node that fits instead of
   m4mini. Pure toolkit in [device-load-routing.ts](src/core/device-load-routing.ts) (`selectDeviceForModelLoad` /
   `resolveDeviceRamBytesFromEnv` / `estimateEffectiveModelBytes` / `planPreferredDeviceSteering`, 29 tests) + adapter
-  (10 tests), all opt-in with byte-identical defaults. **NEEDS LIVE FLEET VALIDATION:** set the env, run a dev-test, and
-  confirm via `lms link status` that a 14B card steers the preferred device to Local (not m4mini). **v1 limits (documented,
+  (10 tests), all opt-in with byte-identical defaults. **✅ VALIDATED LIVE against the real fleet (2026-07-12, READ-ONLY
+  dry-run — the adapter with real `fetchLmsLinkDevices` + real REST sizes, a no-op `setPreferredDevice`, ZERO fleet
+  mutation):** the 14B (real weights 7.75 GiB, ~15 GiB effective @40k) produces `set_preferred → m5max` (112.9 GiB free),
+  correctly steering OFF the fleet's CURRENT preferred device (which the dry-run showed IS m4mini — the very cause). The
+  read-only harness also surfaced two facts: (a) the real device NAMES are `m5max` (local) · `m4mini` · `legion5pro`
+  (ids visible in `lms link status`), and (b) a UX TRAP — `lms ls` labels the local host `"Local"` but its LM-Link routing
+  NAME is `m5max`; a `Local:…` map key would leave the 128 GB farm UNMAPPED. FIXED with `applyLocalDeviceAlias` (commit
+  `c5e52cc9`) so `Local:128` now resolves to `m5max`. **STILL OWED:** a FULL live dispatch (set the env, run a dev-test,
+  confirm via `lms link status` that the preferred device actually flips + the 14B runs on m5max without m4mini swapping)
+  — the read-only dry-run proves the DECISION; the effectful `set-preferred-device` write + JIT placement want one live
+  end-to-end run. **v1 limits (documented,
   follow-ups):** the global preferred-device could race under highly-concurrent card-starts (bounded by the 1-at-a-time
   guardrail); a link+size fetch per gated dispatch (opt-in overhead); silent at the seam (handlers have no logger + console
   is lint-banned) so observability is owed; and a throughput-farm-aware "smallest-sufficient device" policy (§5.AB L834)
