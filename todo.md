@@ -556,6 +556,28 @@ source repo went private — so if it vanishes the buildable source still lives 
   cheapest filter (does the mechanism physically fit? do the numbers fit?) and I skipped it. See the §4A root-cause rule's
   new "GATE a hypothesis on CONSISTENCY … BEFORE you entertain it" bullet — that filter, applied first, kills this on
   tick 1. Cause remains crash / eviction / external-unload, undetermined without m4mini's logs.
+  **★ RESOLVED 2026-07-11 (David's live observation + a real-model probe) — the vanish is a MEMORY-PRESSURE CRASH (swap)
+  on m4mini, and it RECURS because the runtime's model-load path is NOT headroom-gated.** David, watching a real-model
+  run: *"i've seen m4mini swapping during last run."* Corroborated by a `mid_task` probe that forced
+  `qwen/qwen2.5-coder-14b`: the runtime routed the worker to the m4mini 14B instance, and its task-runs recorded
+  `Agent error: The model has crashed without additional info` (state `awaiting_review`, reason `error`, patch `empty`).
+  So among the three surviving hypotheses, **CRASH-via-memory-eviction is CONFIRMED** and TTL / external-unload are ruled
+  out (a swap-kill is not a clean unload). **Mechanism:** a 14B (~8.33 GB weights) at the mandated **40000** context — KV
+  cache + OS on top — exceeds m4mini's RAM, so it pages to disk (swap) and LM Studio's model process dies. This SHARPENS
+  the §5.AB "m4mini ≤14B" routing heuristic (line ~834): a 14B **at full 40k ctx** already swaps m4mini — the real ceiling
+  is lower, or needs a reduced context on that node. **WHY IT RECURS (the real gap, confirmed by reading the code
+  2026-07-11):** the runtime does NOT headroom-check its loads. `decideModelLoad` ([model-load-headroom.ts](src/core/model-load-headroom.ts))
+  is wired ONLY into `loadModelExclusive` → and `loadModelExclusive` has NO callers in `src/` (only `scripts/model-lab.mts`,
+  the dev sweep tool). The live runtime relies on **LM Studio LM-Link JIT auto-resolution** to pick the device — the 14B
+  is registered on BOTH `Local` (m5max, 128 GB) and `m4mini`, and LM Link resolved it to m4mini — with only the reactive,
+  OPT-IN `nklein-model-residency-watcher.ts` (`NKLEIN_RESIDENCY_HEARTBEAT`) noticing AFTER the crash. **Precursor missing:**
+  `LmsLinkDevices` ([lms-link-status.ts](src/core/lms-link-status.ts)) exposes device names/ids but NO per-device RAM, so
+  even a wired guard can't currently know m4mini can't fit a 14B. **OWED (the durable fix):** (1) a per-LM-Link-device RAM
+  source (parse/configure each linked host's RAM); (2) wire `decideModelLoad`/`planGuardedModelLoad` into the runtime's
+  session model-load seam so it prefers a device that FITS (and explicit-loads there rather than leaving device choice to
+  LM Link JIT). **IMMEDIATE MITIGATION (David's fleet, no code):** unregister/unload the 14B from m4mini's LM Studio so LM
+  Link only resolves it to m5max, or cap m4mini's per-model context/size — until the machine-aware headroom routing is
+  wired. See [[realmodel-lifecycle-validated]] + [[live-dev-test-single-machine]] for the probe detail.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
