@@ -6,12 +6,14 @@ import {
 	concurrencyConfigSchema,
 	concurrencyOverrideSchema,
 	DEFAULT_CONCURRENCY_CONFIG,
+	DEFAULT_HOST_CONCURRENCY_CAP,
 	normalizeConcurrencyConfig,
 	normalizeConcurrencyMap,
 	normalizeConcurrencyOverride,
 	resolveEffectiveHostConcurrency,
 	resolveEffectiveModelConcurrency,
 	resolveEffectiveProviderConcurrency,
+	resolveExplicitHostConcurrency,
 	resolveSessionConcurrencyCaps,
 } from "../../../src/core/concurrency-config";
 
@@ -191,6 +193,17 @@ describe("resolveEffectiveHostConcurrency (override ?? global ?? env fallback)",
 
 	it("uses the fallback when no configured host cap exists", () => {
 		expect(resolveEffectiveHostConcurrency("legion-device", { global, fallback: 3 })).toBe(3);
+	});
+
+	it("defaults to DEFAULT_HOST_CONCURRENCY_CAP=1 with no layers at all (§10c#5+6 default-ON)", () => {
+		expect(resolveEffectiveHostConcurrency("unconfigured-host", {})).toBe(DEFAULT_HOST_CONCURRENCY_CAP);
+		expect(DEFAULT_HOST_CONCURRENCY_CAP).toBe(1);
+	});
+
+	it("resolveExplicitHostConcurrency stays null without explicit layers (surfaces distinguish default from chosen)", () => {
+		expect(resolveExplicitHostConcurrency("unconfigured-host", {})).toBeNull();
+		expect(resolveExplicitHostConcurrency("legion-device", { global, fallback: 3 })).toBe(3);
+		expect(resolveExplicitHostConcurrency("local", { global })).toBe(2);
 	});
 });
 

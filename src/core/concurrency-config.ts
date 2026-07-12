@@ -220,13 +220,47 @@ export function resolveEffectiveEndpointConcurrency(
 	return resolveKeyCap(endpoint, input.override?.perEndpoint, input.global?.perEndpoint, null);
 }
 
-/** The effective per-LM-Studio-host cap for a session, or null when no layer sets one (§5.AB host caps). */
+/**
+ * The DEFAULT per-host concurrency cap when no layer configures one (user 2026-07-12, todo §10c#5+6): the per-machine
+ * gate is ON EVERYWHERE with max-caution serialization — one concurrent session per LM Studio host — until the
+ * operator raises a specific host in Settings (e.g. m5max:2). Prevents the co-model slowdown (the legion 4× lesson)
+ * and low-power overload by default instead of by opt-in.
+ */
+export const DEFAULT_HOST_CONCURRENCY_CAP = 1;
+
+/**
+ * The effective per-LM-Studio-host cap for a session (§5.AB host caps). Precedence: per-host override → per-host
+ * global → the legacy `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env fallback → {@link DEFAULT_HOST_CONCURRENCY_CAP} (the
+ * §10c#5+6 default-ON). Never null for a resolved host — a session only escapes host gating when its model can't be
+ * mapped to a host at all (no `lms ps`, e.g. tests/simulator), which keeps those environments byte-identical.
+ */
 export function resolveEffectiveHostConcurrency(
 	hostId: string,
 	input: {
 		global?: ConcurrencyConfig | null;
 		override?: ConcurrencyOverride | null;
-		/** Optional lowest-precedence uniform host cap, kept for the legacy `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env. */
+		/** Optional uniform host cap, kept for the legacy `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` env. */
+		fallback?: number | null;
+	},
+): number | null {
+	return resolveKeyCap(
+		hostId,
+		input.override?.perHost,
+		input.global?.perHost,
+		input.fallback ?? DEFAULT_HOST_CONCURRENCY_CAP,
+	);
+}
+
+/**
+ * The EXPLICITLY-configured per-host cap only (override → global → env fallback), WITHOUT the §10c#5+6 default —
+ * null when no layer set one. For surfaces that must distinguish "the operator chose this" from "the enforced
+ * default" (e.g. the capacity report's recommendation basis); admission always uses the effective resolver above.
+ */
+export function resolveExplicitHostConcurrency(
+	hostId: string,
+	input: {
+		global?: ConcurrencyConfig | null;
+		override?: ConcurrencyOverride | null;
 		fallback?: number | null;
 	},
 ): number | null {

@@ -2,6 +2,7 @@ import {
 	type ConcurrencyConfig,
 	type ConcurrencyOverride,
 	resolveEffectiveHostConcurrency,
+	resolveExplicitHostConcurrency,
 } from "./concurrency-config";
 import type { LmsPsModel } from "./lms-ps-json";
 
@@ -20,7 +21,10 @@ export interface LmStudioCapacityHostReport {
 	activeModelCount: number;
 	queuedRequests: number;
 	maxReportedParallel: number | null;
+	/** The operator-EXPLICIT cap (Settings/env), or null when the host runs on the enforced default. */
 	configuredCap: number | null;
+	/** The cap ADMISSION actually enforces — explicit cap, else DEFAULT_HOST_CONCURRENCY_CAP (§10c#5+6 default-ON). */
+	effectiveCap: number;
 	recommendedCap: number;
 	recommendationBasis: "explicit_cap" | "conservative";
 	models: LmStudioCapacityModelReport[];
@@ -36,11 +40,13 @@ function active(model: LmsPsModel): boolean {
 
 function recommendationForHost(input: {
 	configuredCap: number | null;
+	effectiveCap: number;
 }): Pick<LmStudioCapacityHostReport, "recommendedCap" | "recommendationBasis"> {
 	if (input.configuredCap !== null) {
 		return { recommendedCap: input.configuredCap, recommendationBasis: "explicit_cap" };
 	}
-	return { recommendedCap: 1, recommendationBasis: "conservative" };
+	// No explicit cap: the recommendation IS the enforced §10c#5+6 default (serialize per host until raised).
+	return { recommendedCap: input.effectiveCap, recommendationBasis: "conservative" };
 }
 
 export function buildLmStudioCapacityReport(input: {
@@ -59,17 +65,23 @@ export function buildLmStudioCapacityReport(input: {
 		}
 	}
 	const hosts = [...byHost.entries()].map(([hostId, models]) => {
-		const configuredCap = resolveEffectiveHostConcurrency(hostId, {
+		const configuredCap = resolveExplicitHostConcurrency(hostId, {
 			global: input.global,
 			override: input.override,
 			fallback: input.hostFallback ?? null,
 		});
+		const effectiveCap =
+			resolveEffectiveHostConcurrency(hostId, {
+				global: input.global,
+				override: input.override,
+				fallback: input.hostFallback ?? null,
+			}) ?? 1;
 		const maxReportedParallel =
 			models
 				.map((model) => model.parallel)
 				.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
 				.sort((left, right) => right - left)[0] ?? null;
-		const recommendation = recommendationForHost({ configuredCap });
+		const recommendation = recommendationForHost({ configuredCap, effectiveCap });
 		return {
 			hostId,
 			loadedModelCount: models.length,
@@ -77,6 +89,7 @@ export function buildLmStudioCapacityReport(input: {
 			queuedRequests: models.reduce((sum, model) => sum + model.queued, 0),
 			maxReportedParallel,
 			configuredCap,
+			effectiveCap,
 			...recommendation,
 			models: models.map((model) => ({
 				identifier: model.identifier,
@@ -102,7 +115,7 @@ export function formatLmStudioCapacityReport(report: LmStudioCapacityReport): st
 		const cap = host.configuredCap === null ? "not set" : String(host.configuredCap);
 		const parallel = host.maxReportedParallel === null ? "n/a" : String(host.maxReportedParallel);
 		lines.push(
-			`Host ${host.hostId}: ${host.loadedModelCount} loaded, ${host.activeModelCount} active, q${host.queuedRequests}, configured cap ${cap}, LM parallel ${parallel} (reported, not a safe cap), recommended cap ${host.recommendedCap} (${host.recommendationBasis})`,
+			`Host ${host.hostId}: ${host.loadedModelCount} loaded, ${host.activeModelCount} active, q${host.queuedRequests}, configured cap ${cap}, enforced cap ${host.effectiveCap}, LM parallel ${parallel} (reported, not a safe cap), recommended cap ${host.recommendedCap} (${host.recommendationBasis})`,
 		);
 		for (const model of host.models) {
 			const modelParallel = model.reportedParallel === null ? "n/a" : String(model.reportedParallel);

@@ -843,16 +843,13 @@ export async function handleStartTaskSession(
 		// §5.AB LM-Link per-HOST handling: resolved ONCE here and reused for BOTH routing pool keys (below) and the
 		// admission gate (further down). Host caps from Settings are keyed by `lms ps --json` machine id (`local` for this
 		// box, linked device ids for LM Link machines). The older NKLEIN_PER_MACHINE_MAX_CONCURRENCY env remains as a
-		// lowest-precedence uniform fallback. With no host cap/env, no subprocess runs and behavior stays byte-identical.
+		// uniform fallback ABOVE the new default. DEFAULT ON (user 2026-07-12, §10c#5+6): the host map now resolves on
+		// EVERY dispatch (one cached `lms ps`) so every mapped host is gated at DEFAULT_HOST_CONCURRENCY_CAP=1 unless
+		// Settings raises it; environments without `lms` (tests/simulator) resolve an empty map ⇒ no hostId ⇒ inert.
 		const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
 		const legacyPerMachineCap =
 			Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 && residencyCheckEnabled ? rawPerMachineCap : null;
-		const configuredHostCaps = {
-			...(scopedRuntimeConfig.concurrencyDefaults?.perHost ?? {}),
-			...(scopedRuntimeConfig.concurrencyOverride?.perHost ?? {}),
-		};
-		const shouldResolveHostMap =
-			residencyCheckEnabled && (legacyPerMachineCap !== null || Object.keys(configuredHostCaps).length > 0);
+		const shouldResolveHostMap = residencyCheckEnabled;
 		const hostMapProviderIds = [
 			...new Set([...guardCandidates.values()].map((candidate) => candidate.entry.providerId)),
 		];
