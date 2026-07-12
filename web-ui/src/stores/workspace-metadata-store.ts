@@ -24,22 +24,63 @@ const homeGitSummaryListeners = new Set<StoreListener>();
 const taskMetadataListenersByTaskId = new Map<string, Set<StoreListener>>();
 const anyTaskMetadataListeners = new Set<TaskMetadataListener>();
 
-function emitHomeGitSummary(): void {
-	for (const listener of homeGitSummaryListeners) {
-		listener();
+// Listener notifications are coalesced and flushed on a microtask instead of
+// firing synchronously from the mutators. A mutation can be triggered while
+// React is mid-render/commit — most notably when App's `replaceWorkspaceMetadata`
+// / `resetWorkspaceMetadataStore` effects are flushed as pending passive effects
+// during the rapid board-seeding burst. Calling a `useSyncExternalStore` listener
+// in that window makes React schedule an update for a subscribed component
+// (BoardCard, TopBar, or App via use-git-actions) while a different component is
+// still rendering, producing the dev-only "Cannot update a component while
+// rendering a different component" and "flushSync ... React is already rendering"
+// warnings (and forcing synchronous re-renders). Store values are still mutated
+// synchronously, so any getSnapshot read in the same tick observes the latest
+// data; only the fan-out to subscribers is deferred to a clean stack frame.
+let pendingHomeGitNotify = false;
+const pendingTaskMetadataNotify = new Set<string>();
+let notifyFlushScheduled = false;
+
+function scheduleNotifyFlush(): void {
+	if (notifyFlushScheduled) {
+		return;
 	}
+	notifyFlushScheduled = true;
+	queueMicrotask(flushPendingNotifications);
 }
 
-function emitTaskMetadata(taskId: string): void {
-	const listeners = taskMetadataListenersByTaskId.get(taskId);
-	if (listeners) {
-		for (const listener of listeners) {
+function flushPendingNotifications(): void {
+	notifyFlushScheduled = false;
+	const shouldNotifyHomeGit = pendingHomeGitNotify;
+	pendingHomeGitNotify = false;
+	const taskIds = Array.from(pendingTaskMetadataNotify);
+	pendingTaskMetadataNotify.clear();
+
+	if (shouldNotifyHomeGit) {
+		for (const listener of homeGitSummaryListeners) {
 			listener();
 		}
 	}
-	for (const listener of anyTaskMetadataListeners) {
-		listener(taskId);
+	for (const taskId of taskIds) {
+		const listeners = taskMetadataListenersByTaskId.get(taskId);
+		if (listeners) {
+			for (const listener of listeners) {
+				listener();
+			}
+		}
+		for (const listener of anyTaskMetadataListeners) {
+			listener(taskId);
+		}
 	}
+}
+
+function emitHomeGitSummary(): void {
+	pendingHomeGitNotify = true;
+	scheduleNotifyFlush();
+}
+
+function emitTaskMetadata(taskId: string): void {
+	pendingTaskMetadataNotify.add(taskId);
+	scheduleNotifyFlush();
 }
 
 function toTaskWorkspaceSnapshot(metadata: RuntimeTaskWorkspaceMetadata): ReviewTaskWorkspaceSnapshot {
