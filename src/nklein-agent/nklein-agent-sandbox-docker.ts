@@ -135,20 +135,43 @@ export function createAgentSandboxTaskUid(taskId: string): number {
 	return TASK_UID_BASE + offset;
 }
 
+/** Egress topology inputs for the `--network` mapping (§10c#18 — the proxied `allowlist` path). */
+export interface AgentSandboxEgressWiring {
+	/** Whether the §5.L egress proxy is confirmed HEALTHY for this sandbox (else `allowlist` fail-closes to none). */
+	egressProxyAvailable?: boolean;
+	/**
+	 * The name of the `docker network create --internal` egress network the proxy is dual-homed on. Required for the
+	 * proxied `allowlist` path; absent ⇒ `allowlist` fail-closes to `none` (a healthy proxy with no network is not a
+	 * usable route, so we never over-grant).
+	 */
+	egressNetworkName?: string;
+}
+
 /**
  * Map a resolved {@link SandboxNetworkPolicy} to Docker `--network` arguments.
  *
  *  - `none`  → `--network none` (no outbound reachability; the historical default).
  *  - `full`  → `--network bridge` (default bridge network with NAT egress).
- *  - `allowlist` → **fail-closed to `none` for now.** A real per-domain egress allowlist needs an egress proxy
- *    or firewalled network that does not yet exist; granting full egress under an "allowlist" label would be a
- *    security lie, so until the proxy lands we deny rather than over-grant. Tracked as a follow-up.
+ *  - `allowlist` → `--network <egressNetworkName>` (the `--internal` egress network: NO NAT/gateway, the proxy is
+ *    the ONLY route) WHEN the egress proxy is confirmed available AND a network name is supplied; **otherwise
+ *    fail-closed to `--network none`** exactly as before the proxy landed (a mislabeled "allowlist" without real
+ *    per-domain enforcement would be a security lie).
  *
- * Hard invariant: this only changes outbound reachability. The container's other isolation flags
- * (`--cap-drop ALL`, `--read-only`, `no-new-privileges`, tmpfs, read-only mounts) are unconditional.
+ * Backward-compatible: with no egress wiring, `allowlist` maps to `none` (today's behavior, byte-identical). Hard
+ * invariant: this only changes outbound reachability. The container's other isolation flags (`--cap-drop ALL`,
+ * `--read-only`, `no-new-privileges`, tmpfs, read-only mounts) are unconditional.
  */
-export function resolveAgentSandboxNetworkArgs(policy: SandboxNetworkPolicy): string[] {
-	return sandboxNetworkHasEgress(policy) ? ["--network", "bridge"] : ["--network", "none"];
+export function resolveAgentSandboxNetworkArgs(
+	policy: SandboxNetworkPolicy,
+	egress?: AgentSandboxEgressWiring,
+): string[] {
+	if (policy === "full") {
+		return ["--network", "bridge"];
+	}
+	if (sandboxNetworkHasEgress(policy, egress) && egress?.egressNetworkName) {
+		return ["--network", egress.egressNetworkName];
+	}
+	return ["--network", "none"];
 }
 
 export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOptions): string[] {

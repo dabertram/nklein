@@ -156,10 +156,20 @@ describe("agent-rulesets api-contract schema agrees with the core", () => {
 });
 
 describe("agent-rulesets egress + tool access", () => {
-	it("grants real egress only for the full policy (allowlist fails closed for now)", () => {
+	it("grants real egress only for the full policy; allowlist fails closed with no proxy context (unchanged)", () => {
 		expect(sandboxNetworkHasEgress("full")).toBe(true);
 		expect(sandboxNetworkHasEgress("allowlist")).toBe(false);
 		expect(sandboxNetworkHasEgress("none")).toBe(false);
+	});
+
+	it("un-deadens allowlist ONLY when the egress proxy is available (§10c#18); none/full context-independent", () => {
+		// The §5.L keystone extension: allowlist gains proxied egress iff the proxy is confirmed healthy.
+		expect(sandboxNetworkHasEgress("allowlist", { egressProxyAvailable: true })).toBe(true);
+		expect(sandboxNetworkHasEgress("allowlist", { egressProxyAvailable: false })).toBe(false);
+		expect(sandboxNetworkHasEgress("allowlist", {})).toBe(false); // absent flag ⇒ fail closed
+		// none never gets egress; full always does — the proxy flag can't change either.
+		expect(sandboxNetworkHasEgress("none", { egressProxyAvailable: true })).toBe(false);
+		expect(sandboxNetworkHasEgress("full", { egressProxyAvailable: false })).toBe(true);
 	});
 
 	it("enables web tools only when the capability tier actually has egress", () => {

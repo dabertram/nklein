@@ -393,11 +393,37 @@ describe("AgentSandboxManager", () => {
 		expect(withMounts.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
 	});
 
-	it("maps the capability network policy to docker --network args (allowlist fails closed)", () => {
+	it("maps the capability network policy to docker --network args (allowlist fails closed without the proxy)", () => {
 		expect(resolveAgentSandboxNetworkArgs("none")).toEqual(["--network", "none"]);
 		expect(resolveAgentSandboxNetworkArgs("full")).toEqual(["--network", "bridge"]);
-		// allowlist has no real egress filter yet, so it denies rather than over-grants.
+		// allowlist with no egress wiring denies rather than over-grants (byte-identical to before the proxy).
 		expect(resolveAgentSandboxNetworkArgs("allowlist")).toEqual(["--network", "none"]);
+	});
+
+	it("§10c#18: allowlist maps to the internal egress network ONLY when the proxy is available AND named", () => {
+		const net = "nklein-egress-int-dev";
+		// Proxy available + a network name → the --internal egress network (the proxy is the only route).
+		expect(
+			resolveAgentSandboxNetworkArgs("allowlist", { egressProxyAvailable: true, egressNetworkName: net }),
+		).toEqual(["--network", net]);
+		// Proxy available but NO network name → fail closed (a healthy proxy with no route is not a route).
+		expect(resolveAgentSandboxNetworkArgs("allowlist", { egressProxyAvailable: true })).toEqual([
+			"--network",
+			"none",
+		]);
+		// Proxy unavailable → fail closed even with a network name.
+		expect(
+			resolveAgentSandboxNetworkArgs("allowlist", { egressProxyAvailable: false, egressNetworkName: net }),
+		).toEqual(["--network", "none"]);
+		// full/none ignore the egress wiring entirely.
+		expect(resolveAgentSandboxNetworkArgs("full", { egressProxyAvailable: true, egressNetworkName: net })).toEqual([
+			"--network",
+			"bridge",
+		]);
+		expect(resolveAgentSandboxNetworkArgs("none", { egressProxyAvailable: true, egressNetworkName: net })).toEqual([
+			"--network",
+			"none",
+		]);
 	});
 
 	it("defaults to an isolated network and opens egress only for the full policy, keeping isolation flags", () => {

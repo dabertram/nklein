@@ -118,14 +118,31 @@ export function deliveryPolicyForTier(tier: AgentDeliveryTier): AgentDeliveryPol
 	return DELIVERY_MATRIX[tier];
 }
 
+/** Runtime context for the egress-capability decision — the §5.L proxy's availability un-deadens `allowlist`. */
+export interface SandboxEgressContext {
+	/**
+	 * Whether the host-side egress proxy (docs/dev/egress-proxy-design.md, §10c#18) is confirmed HEALTHY for this
+	 * sandbox. Only then does `allowlist` map to the proxied internal network + un-deaden `medium`'s web tools;
+	 * absent/false ⇒ `allowlist` fail-closes to no egress, byte-identical to the pre-proxy behavior.
+	 */
+	egressProxyAvailable?: boolean;
+}
+
 /**
  * Whether a network policy grants REAL outbound egress. Single source of truth shared by the sandbox
- * `--network` mapping and tool gating, so they can never disagree. Only `full` grants egress today; `allowlist`
- * is fail-closed (denied) until a per-domain egress proxy exists — granting egress under an "allowlist" label
- * without enforcement would be a security lie.
+ * `--network` mapping and tool gating, so they can never disagree. `full` always grants egress; `allowlist`
+ * grants egress ONLY when the §5.L egress proxy is confirmed available (its per-domain enforcement is what makes
+ * the "allowlist" label honest) and otherwise fail-closes to none; `none` never. The optional context defaults to
+ * proxy-UNavailable, so every existing single-arg caller keeps today's fail-closed behavior unchanged.
  */
-export function sandboxNetworkHasEgress(policy: SandboxNetworkPolicy): boolean {
-	return policy === "full";
+export function sandboxNetworkHasEgress(policy: SandboxNetworkPolicy, context?: SandboxEgressContext): boolean {
+	if (policy === "full") {
+		return true;
+	}
+	if (policy === "allowlist") {
+		return context?.egressProxyAvailable === true;
+	}
+	return false;
 }
 
 export interface AgentToolAccess {
