@@ -50,6 +50,10 @@ const requestedRuntimeArgs = requestedDevFullArgs.filter((arg) => arg !== withSh
 const devInstanceIsolated = /^(1|true|yes|on)$/i.test(process.env.NKLEIN_DEV_ISOLATED ?? "");
 const baseRuntimePort = Number.parseInt(process.env.NKLEIN_DEV_RUNTIME_PORT ?? "", 10) || 3484;
 const baseWebUiPort = Number.parseInt(process.env.NKLEIN_DEV_WEB_UI_PORT ?? "", 10) || 4173;
+// Overridden base ports ALSO mean "a second instance running ALONGSIDE" — such a boot must never kill the default
+// stack's processes (live-hit 2026-07-12: a :3486 rig with only NKLEIN_DEV_RUNTIME_PORT set swept the :3484 sim
+// stack away because the isolation flag alone guarded the sweep). Ports-or-flag now both mark the instance alternate.
+const devInstanceIsAlternate = devInstanceIsolated || baseRuntimePort !== 3484 || baseWebUiPort !== 4173;
 const requestedLanHost = process.env.NKLEIN_LAN_HOST?.trim() || "";
 const runtimeBindHost =
 	process.env.NKLEIN_RUNTIME_HOST?.trim() || process.env.KANBAN_RUNTIME_HOST?.trim() || requestedLanHost || "127.0.0.1";
@@ -276,7 +280,11 @@ if (!devInstanceIsolated && (await canReachExistingDevServer())) {
 	process.exit(0);
 }
 
-if (!devInstanceIsolated) {
+if (devInstanceIsAlternate) {
+	if (!devInstanceIsolated) {
+		console.log("Alternate dev instance (non-default ports): skipping the stale-process sweep so the default stack stays up.");
+	}
+} else {
 	await stopStaleDevProcesses();
 	await waitForPreferredDevPortsToSettle();
 }
