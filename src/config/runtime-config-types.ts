@@ -120,6 +120,11 @@ export interface RuntimeConfigState {
 	openPrPromptTemplateDefault: string;
 	/** §5.W: user-configured base directory under which !Klein creates workspaces; null → home default. */
 	workspaceBaseDir: string | null;
+	/**
+	 * §5.AB machine-aware loader: per-device RAM budget as `"name:GB,name:GB"` (e.g. `"m5max:128,m4mini:24"`);
+	 * null/empty → the autonomous fitting-device loader stays disabled. Env `NKLEIN_DEVICE_RAM_GB` overrides this.
+	 */
+	deviceRamGb: string | null;
 }
 
 export interface RuntimeConfigUpdateInput {
@@ -189,6 +194,7 @@ export interface RuntimeConfigUpdateInput {
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
+	deviceRamGb?: string | null;
 }
 
 /** On-disk shape of the global config file (every field optional — the loader normalizes + fills defaults). */
@@ -247,6 +253,7 @@ export interface RuntimeGlobalConfigFileShape {
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
+	deviceRamGb?: string | null;
 }
 
 /** On-disk shape of a project's config file — only the project-scoped settings + per-project overrides. */

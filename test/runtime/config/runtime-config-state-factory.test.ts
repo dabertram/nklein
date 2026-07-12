@@ -79,6 +79,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		commitPromptTemplate: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplate: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: null,
+		deviceRamGb: null,
 		...overrides,
 	};
 }

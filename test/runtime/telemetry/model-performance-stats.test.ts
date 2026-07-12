@@ -22,6 +22,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
+		deviceRamGb: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
 		setupWizardCompletedAt: null,

@@ -102,6 +102,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("commitPromptTemplate"),
 	runtimeConfigChangeField("openPrPromptTemplate"),
 	runtimeConfigChangeField("workspaceBaseDir"),
+	runtimeConfigChangeField("deviceRamGb"),
 ];
 
 // Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).

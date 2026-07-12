@@ -65,7 +65,11 @@ import { resolveRuntimeSpeculativeConfig } from "./runtime-config-speculative-re
 import { deriveSuitabilityFields } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
-import { normalizeShortcutLabel, normalizeWorkspaceBaseDir } from "./runtime-config-value-helpers";
+import {
+	normalizeDeviceRamGb,
+	normalizeShortcutLabel,
+	normalizeWorkspaceBaseDir,
+} from "./runtime-config-value-helpers";
 
 /** Raw, already-merged field values handed to the state assembler (pre-normalization). */
 export interface RuntimeConfigStateFromValuesInput {
@@ -141,6 +145,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
 	workspaceBaseDir: string | null;
+	deviceRamGb: string | null;
 }
 
 export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFromValuesInput): RuntimeConfigState {
@@ -242,5 +247,6 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(input.workspaceBaseDir),
+		deviceRamGb: normalizeDeviceRamGb(input.deviceRamGb),
 	};
 }

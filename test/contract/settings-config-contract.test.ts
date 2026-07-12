@@ -891,3 +891,58 @@ describe.sequential("Suite 16 — workspaceBaseDir persistence", () => {
 		expect(after.workspaceBaseDir).toBeNull();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Suite: deviceRamGb global config field (§5.AB machine-aware loader)
+// ---------------------------------------------------------------------------
+
+describe.sequential("Suite 16 — deviceRamGb persistence", () => {
+	let server: BackendUnderTest;
+	let cwd: string;
+	let homeDir: string;
+
+	beforeAll(async () => {
+		cwd = makeTempDir("kanban-sc-drg-cwd-");
+		homeDir = makeTempDir("kanban-sc-drg-home-");
+		mkdirSync(cwd, { recursive: true });
+		initGitRepository(cwd);
+		server = await startTsBackend({ cwd, homeDir });
+	}, 30_000);
+
+	afterAll(async () => {
+		await server.stop();
+		cleanupDir(cwd);
+		cleanupDir(homeDir);
+	});
+
+	it("deviceRamGb starts as null on a fresh backend", async () => {
+		const cfg = await getConfig(server.baseUrl);
+		expect(cfg.deviceRamGb ?? null).toBeNull();
+	});
+
+	it("saving deviceRamGb persists and reads back the value", async () => {
+		const budget = "m5max:128,m4mini:24,legion5pro:32";
+		const saveRes = await saveConfig(server.baseUrl, { deviceRamGb: budget });
+		expect(saveRes.status).toBe(200);
+		expect(saveRes.payload.deviceRamGb).toBe(budget);
+
+		const after = await getConfig(server.baseUrl);
+		expect(after.deviceRamGb).toBe(budget);
+	});
+
+	it("deviceRamGb is written to the on-disk global config.json", async () => {
+		const cfg = await getConfig(server.baseUrl);
+		const globalConfigPath = cfg.globalConfigPath as string;
+		const raw = JSON.parse(readFileSync(globalConfigPath, "utf8")) as Record<string, unknown>;
+		expect(raw.deviceRamGb).toBe("m5max:128,m4mini:24,legion5pro:32");
+	});
+
+	it("saving deviceRamGb=null clears it back to null", async () => {
+		const saveRes = await saveConfig(server.baseUrl, { deviceRamGb: null });
+		expect(saveRes.status).toBe(200);
+		expect(saveRes.payload.deviceRamGb ?? null).toBeNull();
+
+		const after = await getConfig(server.baseUrl);
+		expect(after.deviceRamGb ?? null).toBeNull();
+	});
+});

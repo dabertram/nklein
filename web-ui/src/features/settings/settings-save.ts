@@ -267,6 +267,7 @@ export function buildRuntimeConfigSaveRequest(
 		maxAgentWritableFileLines: parsed.maxAgentWritableFileLines,
 		maxConcurrentTasks: parsed.maxConcurrentTasks,
 		workspaceBaseDir: draft.workspaceBaseDir.trim() || null,
+		deviceRamGb: draft.deviceRamGb.trim() || null,
 		sandboxMaxContainers: parsed.sandboxMaxContainers,
 		sandboxAgentsPerContainer: parsed.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: parsed.sandboxMemoryPerContainerMb,

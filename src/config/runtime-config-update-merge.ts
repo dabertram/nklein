@@ -75,6 +75,7 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
 		selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
 		workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
+		deviceRamGb: keepUpdatedValue(updates.deviceRamGb, current.deviceRamGb),
 		developerModeEnabled: keepNormalizedValue(updates.developerModeEnabled, current.developerModeEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
 		),

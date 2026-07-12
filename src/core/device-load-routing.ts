@@ -70,16 +70,13 @@ export function estimateEffectiveModelBytes(input: {
 }
 
 /**
- * Resolve a per-device RAM map (friendly LM-Link device name → bytes) from `NKLEIN_DEVICE_RAM_GB` — a power-user
- * fleet-tuning knob usable TODAY, ahead of a Settings field (mirrors {@link import("./model-load-headroom").resolveRamBudgetBytesFromEnv}).
+ * Parse a per-device RAM map (friendly LM-Link device name → bytes) from a raw `"name:GB,name:GB"` string.
  * Format: comma-separated `name:GB` pairs, e.g. `"Local:128,m4mini:16,legion5pro:24"`. Whitespace-tolerant; a malformed
  * or non-positive entry is SKIPPED (fail-open — a bad entry never fabricates a false RAM figure). Unset/empty ⇒ `{}`,
- * which disengages the device selector so the runtime keeps its current LM-Link JIT placement (byte-identical). Pure
- * over the injected env.
+ * which disengages the device selector so the runtime keeps its current LM-Link JIT placement (byte-identical). Pure.
  */
-export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.env): Record<string, number> {
-	const raw = env.NKLEIN_DEVICE_RAM_GB;
-	if (raw === undefined || raw.trim().length === 0) {
+export function parseDeviceRamGb(raw: string | null | undefined): Record<string, number> {
+	if (raw === undefined || raw === null || raw.trim().length === 0) {
 		return {};
 	}
 	const map: Record<string, number> = {};
@@ -97,6 +94,30 @@ export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.en
 		map[name] = Math.round(gb * GiB);
 	}
 	return map;
+}
+
+/**
+ * Resolve the per-device RAM map from the `NKLEIN_DEVICE_RAM_GB` env var — a power-user fleet-tuning knob
+ * (mirrors {@link import("./model-load-headroom").resolveRamBudgetBytesFromEnv}). Pure over the injected env.
+ */
+export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.env): Record<string, number> {
+	return parseDeviceRamGb(env.NKLEIN_DEVICE_RAM_GB);
+}
+
+/**
+ * Resolve the per-device RAM map with the documented precedence: the `NKLEIN_DEVICE_RAM_GB` env var WINS when set
+ * (matching cli.ts's "the real environment always wins"), else the persisted Settings value (`config.deviceRamGb`).
+ * Unset/empty on both ⇒ `{}` ⇒ the autonomous fitting-device loader stays disengaged. Pure over its inputs.
+ */
+export function resolveDeviceRamBytes(input: {
+	env?: NodeJS.ProcessEnv;
+	configuredDeviceRamGb?: string | null;
+}): Record<string, number> {
+	const fromEnv = resolveDeviceRamBytesFromEnv(input.env ?? process.env);
+	if (Object.keys(fromEnv).length > 0) {
+		return fromEnv;
+	}
+	return parseDeviceRamGb(input.configuredDeviceRamGb);
 }
 
 /**

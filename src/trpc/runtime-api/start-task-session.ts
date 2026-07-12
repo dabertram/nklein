@@ -288,6 +288,7 @@ export async function handleStartTaskSession(
 			ensureModelLoadedOnFittingDevice(
 				{ modelId, contextLength },
 				{
+					configuredDeviceRamGb: scopedRuntimeConfig.deviceRamGb,
 					fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
 					listModelSizes: async () => {
 						const listed = await createLmStudioRestModelClient({ baseUrl: providerBaseUrlForLoad }).listModels();

@@ -69,6 +69,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
+		deviceRamGb: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		setupWizardCompletedAt: null,

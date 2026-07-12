@@ -66,6 +66,7 @@ interface SettingsDraftCommonFields {
 	maxAgentWritableFileLines: string;
 	maxConcurrentTasks: string;
 	workspaceBaseDir: string;
+	deviceRamGb: string;
 	sandboxMaxContainers: string;
 	sandboxAgentsPerContainer: string;
 	sandboxMemoryPerContainerMb: string;
@@ -180,6 +181,7 @@ export function initSettingsDraftFromConfig(
 		maxAgentWritableFileLines: String(config?.maxAgentWritableFileLines ?? 1000),
 		maxConcurrentTasks: String(config?.maxConcurrentTasks ?? 3),
 		workspaceBaseDir: config?.workspaceBaseDir ?? "",
+		deviceRamGb: config?.deviceRamGb ?? "",
 		sandboxMaxContainers: String(config?.sandboxMaxContainers ?? 1),
 		sandboxAgentsPerContainer: String(config?.sandboxAgentsPerContainer ?? 0),
 		sandboxMemoryPerContainerMb: String(config?.sandboxMemoryPerContainerMb ?? 2048),
@@ -315,6 +317,9 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (draft.workspaceBaseDir.trim() !== snapshot.workspaceBaseDir.trim()) {
+		return true;
+	}
+	if (draft.deviceRamGb.trim() !== snapshot.deviceRamGb.trim()) {
 		return true;
 	}
 	if (draft.sandboxMaxContainers.trim() !== snapshot.sandboxMaxContainers.trim()) {

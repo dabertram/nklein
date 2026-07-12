@@ -131,6 +131,7 @@ export function buildRuntimeConfigResponse(
 		selectedAgentId,
 		selectedShortcutLabel: runtimeConfig.selectedShortcutLabel,
 		workspaceBaseDir: runtimeConfig.workspaceBaseDir,
+		deviceRamGb: runtimeConfig.deviceRamGb,
 		cloudProviderSupportEnabled: CLOUD_ENABLED,
 		agentAutonomousModeEnabled: runtimeConfig.agentAutonomousModeEnabled,
 		agentTimeoutMode: runtimeConfig.agentTimeoutMode,

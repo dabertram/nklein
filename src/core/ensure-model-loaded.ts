@@ -20,7 +20,7 @@ import {
 	buildEffectiveCandidate,
 	buildLinkedDeviceList,
 	estimateEffectiveModelBytes,
-	resolveDeviceRamBytesFromEnv,
+	resolveDeviceRamBytes,
 	selectDeviceForModelLoad,
 } from "./device-load-routing";
 import type { LmsLinkDevices } from "./lms-link-status";
@@ -47,6 +47,8 @@ export interface EnsureModelLoadedDeps {
 	llmfitMemoryBytes?: (modelId: string) => number | null;
 	/** Injectable env for the gate (defaults to process.env). */
 	env?: NodeJS.ProcessEnv;
+	/** Persisted Settings value (`config.deviceRamGb`); used when the env var is unset (env wins). */
+	configuredDeviceRamGb?: string | null;
 }
 
 export type EnsureModelLoadedResult =
@@ -62,9 +64,15 @@ export async function ensureModelLoadedOnFittingDevice(
 	input: { modelId: string; contextLength: number },
 	deps: EnsureModelLoadedDeps,
 ): Promise<EnsureModelLoadedResult> {
-	const rawDeviceRamBytes = resolveDeviceRamBytesFromEnv(deps.env);
+	const rawDeviceRamBytes = resolveDeviceRamBytes({
+		env: deps.env,
+		configuredDeviceRamGb: deps.configuredDeviceRamGb,
+	});
 	if (Object.keys(rawDeviceRamBytes).length === 0) {
-		return { loaded: false, reason: "NKLEIN_DEVICE_RAM_GB not set — autonomous load disabled." };
+		return {
+			loaded: false,
+			reason: "No per-device RAM budget (NKLEIN_DEVICE_RAM_GB / Settings) — autonomous load disabled.",
+		};
 	}
 	const modelId = input.modelId.trim();
 	if (modelId.length === 0) {

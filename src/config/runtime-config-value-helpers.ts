@@ -43,6 +43,18 @@ export function normalizeWorkspaceBaseDir(value: unknown): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * §5.AB: trim the machine-aware loader's per-device RAM budget string (`"name:GB,name:GB"`) to a non-empty
+ * string, or null when unset/blank. The device-loader parser interprets the pairs; this only trims.
+ */
+export function normalizeDeviceRamGb(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const normalized = value.trim();
+	return normalized.length > 0 ? normalized : null;
+}
+
 /** True when `value` is non-null and owns `key` (its own enumerable/declared property). */
 export function hasOwnKey<T extends object>(value: T | null, key: keyof T): boolean {
 	if (!value) {

@@ -147,7 +147,12 @@ import type {
 	RuntimeProjectConfigFileShape,
 } from "./runtime-config-types";
 import { mergeGlobalRuntimeConfigFields } from "./runtime-config-update-merge";
-import { keepNormalizedValue, normalizeShortcutLabel, normalizeWorkspaceBaseDir } from "./runtime-config-value-helpers";
+import {
+	keepNormalizedValue,
+	normalizeDeviceRamGb,
+	normalizeShortcutLabel,
+	normalizeWorkspaceBaseDir,
+} from "./runtime-config-value-helpers";
 
 export { getRuntimeGlobalConfigPath, getRuntimeProjectConfigPath } from "./runtime-config-paths";
 // Re-exported from their dedicated types module (§5.AK runtime-config facade slice) so existing importers of this
@@ -243,6 +248,7 @@ function toRuntimeConfigState({
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(globalConfig?.workspaceBaseDir),
+		deviceRamGb: normalizeDeviceRamGb(globalConfig?.deviceRamGb),
 	};
 }
 
@@ -288,6 +294,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		selectedAgentId: current.selectedAgentId,
 		selectedShortcutLabel: current.selectedShortcutLabel,
 		workspaceBaseDir: current.workspaceBaseDir,
+		deviceRamGb: current.deviceRamGb,
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
 		setupWizardCompletedAt: current.setupWizardCompletedAt,
@@ -382,6 +389,7 @@ export async function saveRuntimeConfig(
 		selectedAgentId: RuntimeAgentId;
 		selectedShortcutLabel: string | null;
 		workspaceBaseDir: string | null;
+		deviceRamGb: string | null;
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
 		setupWizardCompletedAt?: number | null;
@@ -453,6 +461,7 @@ export async function saveRuntimeConfig(
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			workspaceBaseDir: config.workspaceBaseDir,
+			deviceRamGb: config.deviceRamGb,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),
@@ -554,6 +563,7 @@ export async function saveRuntimeConfig(
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			workspaceBaseDir: config.workspaceBaseDir,
+			deviceRamGb: config.deviceRamGb,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),

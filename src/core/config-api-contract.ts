@@ -50,6 +50,8 @@ export const runtimeConfigResponseSchema = z.object({
 	selectedShortcutLabel: z.string().nullable(),
 	// §5.W: user-configured base directory for workspaces !Klein creates; null → home default.
 	workspaceBaseDir: z.string().nullable(),
+	// §5.AB: machine-aware loader per-device RAM budget "name:GB,name:GB"; optional so older clients/fixtures omit it.
+	deviceRamGb: z.string().nullable().optional(),
 	cloudProviderSupportEnabled: z.boolean().optional(),
 	agentAutonomousModeEnabled: z.boolean(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema,
@@ -149,6 +151,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema.optional(),
 	selectedShortcutLabel: z.string().nullable().optional(),
 	workspaceBaseDir: z.string().nullable().optional(),
+	deviceRamGb: z.string().nullable().optional(),
 	developerModeEnabled: z.boolean().optional(),
 	replayCardsEnabled: z.boolean().optional(),
 	setupWizardCompletedAt: z.number().nullable().optional(),

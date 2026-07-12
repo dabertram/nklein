@@ -91,6 +91,30 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 		expect(rec.loadCalls()).toEqual([]);
 	});
 
+	it("engages via the configured Settings value (configuredDeviceRamGb) when the env var is unset", async () => {
+		const rec = recDeps({ env: {}, configuredDeviceRamGb: "m5max:128,m4mini:16,legion5pro:24" });
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(true);
+		if (result.loaded) {
+			expect(result.deviceName).toBe("m5max");
+		}
+		expect(rec.loadCalls()).toHaveLength(1);
+	});
+
+	it("env wins over the configured Settings value when both are set", async () => {
+		// env maps ONLY the small box (m4mini:16) which cannot fit the 14B ⇒ no load, proving the config value was ignored.
+		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m4mini:16" }, configuredDeviceRamGb: "m5max:128" });
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(false);
+		expect(rec.loadCalls()).toEqual([]);
+	});
+
 	it("does not load (loaded:false) when NO mapped device can fit the model", async () => {
 		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m4mini:16" } }); // only the small box is mapped
 		const result = await ensureModelLoadedOnFittingDevice(

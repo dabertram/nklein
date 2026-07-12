@@ -5,7 +5,8 @@ import {
 	buildLinkedDeviceList,
 	type DeviceLoadCandidate,
 	estimateEffectiveModelBytes,
-	type LinkedDeviceInfo,
+	parseDeviceRamGb,
+	resolveDeviceRamBytes,
 	resolveDeviceRamBytesFromEnv,
 	selectDeviceForModelLoad,
 } from "../../src/core/device-load-routing";
@@ -169,6 +170,13 @@ describe("resolveDeviceRamBytesFromEnv", () => {
 		expect(resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "   " })).toEqual({});
 	});
 
+	it("parseDeviceRamGb treats null/undefined the same as blank (⇒ empty map)", () => {
+		expect(parseDeviceRamGb(null)).toEqual({});
+		expect(parseDeviceRamGb(undefined)).toEqual({});
+		expect(parseDeviceRamGb("")).toEqual({});
+		expect(parseDeviceRamGb("m5max:128")).toEqual({ m5max: gb(128) });
+	});
+
 	it("is whitespace-tolerant around names, numbers, and separators", () => {
 		const map = resolveDeviceRamBytesFromEnv({ NKLEIN_DEVICE_RAM_GB: "  Local : 128 , m4mini : 16 " });
 		expect(map).toEqual({ Local: gb(128), m4mini: gb(16) });
@@ -224,6 +232,29 @@ describe("resolveDeviceRamBytesFromEnv", () => {
 		if (decision.fits) {
 			expect(decision.deviceName).toBe("Local");
 		}
+	});
+});
+
+describe("resolveDeviceRamBytes (env-wins-over-Settings precedence)", () => {
+	it("uses the env var when it is set, ignoring the configured Settings value", () => {
+		const map = resolveDeviceRamBytes({
+			env: { NKLEIN_DEVICE_RAM_GB: "m5max:128" },
+			configuredDeviceRamGb: "m4mini:24",
+		});
+		expect(map).toEqual({ m5max: gb(128) });
+	});
+
+	it("falls back to the configured Settings value when the env var is unset/blank", () => {
+		expect(resolveDeviceRamBytes({ env: {}, configuredDeviceRamGb: "m4mini:24" })).toEqual({ m4mini: gb(24) });
+		expect(
+			resolveDeviceRamBytes({ env: { NKLEIN_DEVICE_RAM_GB: "  " }, configuredDeviceRamGb: "m4mini:24" }),
+		).toEqual({ m4mini: gb(24) });
+	});
+
+	it("returns an empty map (loader disabled) when neither env nor Settings is set", () => {
+		expect(resolveDeviceRamBytes({ env: {}, configuredDeviceRamGb: null })).toEqual({});
+		expect(resolveDeviceRamBytes({ env: {}, configuredDeviceRamGb: "" })).toEqual({});
+		expect(resolveDeviceRamBytes({ env: {} })).toEqual({});
 	});
 });
 

@@ -23,6 +23,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		selectedAgentId: "claude",
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
+		deviceRamGb: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		setupWizardCompletedAt: null,

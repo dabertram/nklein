@@ -126,6 +126,7 @@ import type { RuntimeGlobalConfigFileShape } from "./runtime-config-types";
 import {
 	assignChangedConfigField,
 	hasOwnKey,
+	normalizeDeviceRamGb,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
 } from "./runtime-config-value-helpers";
@@ -186,6 +187,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
+	deviceRamGb?: string | null;
 }
 
 export function buildRuntimeGlobalConfigFilePayload(
@@ -235,6 +237,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.workspaceBaseDir === undefined ? undefined : normalizeWorkspaceBaseDir(config.workspaceBaseDir);
 	const existingWorkspaceBaseDir = hasOwnKey(existing, "workspaceBaseDir")
 		? normalizeWorkspaceBaseDir(existing?.workspaceBaseDir)
+		: undefined;
+	const deviceRamGb = config.deviceRamGb === undefined ? undefined : normalizeDeviceRamGb(config.deviceRamGb);
+	const existingDeviceRamGb = hasOwnKey(existing, "deviceRamGb")
+		? normalizeDeviceRamGb(existing?.deviceRamGb)
 		: undefined;
 	const agentAutonomousModeEnabled = normalizeBoolean(
 		config.agentAutonomousModeEnabled,
@@ -394,6 +400,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		}
 	} else if (existingWorkspaceBaseDir) {
 		payload.workspaceBaseDir = existingWorkspaceBaseDir;
+	}
+	if (deviceRamGb !== undefined) {
+		if (deviceRamGb) {
+			payload.deviceRamGb = deviceRamGb;
+		}
+	} else if (existingDeviceRamGb) {
+		payload.deviceRamGb = existingDeviceRamGb;
 	}
 	if (
 		hasOwnKey(existing, "developerModeEnabled") ||
