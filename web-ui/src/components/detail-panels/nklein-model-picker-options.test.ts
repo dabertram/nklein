@@ -129,9 +129,9 @@ describe("applyModelVerdictBadgesToOptions (§10c#11)", () => {
 			{ modelId: "QWEN/QWEN2.5-CODER-14B", label: "stalled 3× · tool-weak" },
 			{ modelId: "unknown-model", label: "unsuitable" },
 		]);
-		expect(out[0].label).toBe("Default");
-		expect(out[1].label).toBe("Qwen2.5 Coder 14B ⚠ stalled 3× · tool-weak");
-		expect(out[2].label).toBe("Healthy");
+		expect(out[0]?.label).toBe("Default");
+		expect(out[1]?.label).toBe("Qwen2.5 Coder 14B ⚠ stalled 3× · tool-weak");
+		expect(out[2]?.label).toBe("Healthy");
 	});
 
 	it("is a no-op copy with no badges", () => {
