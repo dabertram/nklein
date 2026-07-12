@@ -10441,7 +10441,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (§5.AD `learnedQualityEffectiveBudget`, §5.AB clamp) and (b) the task's needs (size/complexity/role/knowledge-debt).
       Pure `selectSysPromptLevel({availableContext, taskProfile, mode})` core. Leave headroom for the task — never let the
       sysprompt crowd out the actual task information.
-- [ ] **B2. Observation-based context-size advisor (slow-processing → suggested caps, low-spec-safe), decomposed.** Build
+- [x] **B2. Observation-based context-size advisor (slow-processing → suggested caps, low-spec-safe) — DONE 2026-07-12.**
+      Pure [src/core/context-size-advisor.ts]: `adviseContextSizes(observations)` → per-model `{kind, suggestedContextTokens,
+      evidence, confidence, safetyNotes}`. CONSERVATIVE per the spec: never suggests below `MIN_CONTEXT_FLOOR_TOKENS` (32k);
+      distinguishes an OVER-PROVISIONED window (loaded ≫ used AND slow prefill ⇒ `reduce_context`, cap toward peak×1.5) from
+      a LARGE-BUT-NECESSARY one (well-used ⇒ `keep`; well-used-but-slow ⇒ `route_to_stronger_machine`, never cut) and an
+      OVERFLOWED one (peak ≥ loaded ⇒ route/raise); every reduce carries the evidence numbers + compensating-mechanism notes
+      (JIT retrieval, compaction, stable-prefix caching, smaller cards, stronger-machine routing); gates on ≥5 samples +
+      ≥20% savings. WIRED END-TO-END into `nklein dev capacity` (dev.ts): `buildContextSizeObservations` joins loaded `lms ps`
+      models (loaded context) with the disk-backed `readModelPerformanceStats` `model`-scope aggregates (avg input tokens +
+      TTFT + runs) by normalized id (a mismatch ⇒ 0 samples ⇒ honest "too few samples", fail-safe); `formatContextSizeAdvice`
+      prints the hint. Verified live (`nklein dev capacity` runs, clean empty-state with no models loaded). 17 tests (every
+      decision branch + join + format + floor-clamp); tsc + biome + 8990 fast green. This is the CONSUMER the built §5.AQ
+      cores were waiting for.
+- [x] ~~**B2 (original text).**~~ Build
       a read-only recommendation path that consumes §5.AF ledger/runtime observations (`promptTokens`, TTFT, prefill tok/s,
       loaded context length, request context, cache verdict, host/model id, concurrency, power mode, outcome) and suggests
       per-host/per-model/per-task-class context caps or sysprompt levels when repeated slow prefill dominates useful work.

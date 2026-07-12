@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
+  machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when
+  the actual prompt is small. The capacity report now looks at how much context each loaded model is given versus
+  how much it actually uses and how slow its prefill is, and — only when a big window is demonstrably wasted —
+  suggests a smaller cap (never below the 32k floor), with the evidence and the compensating steps to keep it
+  effective (retrieval, compaction, smaller cards). A window that's genuinely full but slow is flagged to route to
+  a stronger machine instead of being cut. Advisory only; nothing is changed automatically.
+
 - **The code-intelligence memory server no longer crashes agents on smaller machines.** The sandbox's
   codebase-memory MCP (a ~2 GB code-graph index that cuts tokens ~99%) was being launched into every task
   container — including the 4 GB default — where, under concurrent build/test load, it exceeded the container's

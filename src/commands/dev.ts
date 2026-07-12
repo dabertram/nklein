@@ -8,6 +8,11 @@ import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-co
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
+import {
+	adviseContextSizes,
+	buildContextSizeObservations,
+	formatContextSizeAdvice,
+} from "../core/context-size-advisor";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
@@ -30,6 +35,7 @@ import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-po
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
+import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import {
@@ -504,19 +510,31 @@ async function runDevCapacityCommand(options: DevCapacityOptions = {}): Promise<
 	const cwd = options.cwd ?? process.cwd();
 	const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
 	const legacyHostFallback = Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 ? rawPerMachineCap : null;
-	const [config, models] = await Promise.all([loadRuntimeConfig(cwd), fetchLmsPsModels(createDefaultLmsRunner())]);
+	const [config, models, perf] = await Promise.all([
+		loadRuntimeConfig(cwd),
+		fetchLmsPsModels(createDefaultLmsRunner()),
+		readModelPerformanceStats({}).catch(() => null),
+	]);
 	const report = buildLmStudioCapacityReport({
 		models,
 		global: config.concurrencyDefaults,
 		override: config.concurrencyOverride,
 		hostFallback: legacyHostFallback,
 	});
+	// §5.AQ B2: advise on wasted context (slow prefill over an over-provisioned window) from loaded models + telemetry.
+	const contextAdvice = adviseContextSizes(
+		buildContextSizeObservations({
+			loadedModels: models,
+			modelPerfAggregates: perf?.aggregates ?? [],
+		}),
+	);
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ cwd, legacyHostFallback, ...report }, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ cwd, legacyHostFallback, ...report, contextAdvice }, null, 2)}\n`);
 		return;
 	}
 	process.stdout.write("LM Studio serving capacity (read-only lms ps + runtime config):\n\n");
 	process.stdout.write(formatLmStudioCapacityReport(report));
+	process.stdout.write(`\n${formatContextSizeAdvice(contextAdvice)}`);
 }
 
 export function registerDevCommand(program: Command): void {
