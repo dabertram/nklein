@@ -3,6 +3,7 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { computeNKleinFailureBackoff, type NKleinTaskFailureBackoffState } from "./nklein-failure-backoff";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
+	buildLocalModelUnavailableGuidance,
 	clearActiveTurnState,
 	createMessage,
 	isCreditLimitError,
@@ -68,7 +69,7 @@ export function createTaskFailureEmitter(deps: TaskFailureEmitterDeps): TaskFail
 		}
 		const { consecutiveFailures, shouldPark } = backoff;
 		const localModelUnavailableGuidance = localModelUnavailable
-			? `Local model "${modelId}" on ${endpoint ?? "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`
+			? buildLocalModelUnavailableGuidance(modelId, endpoint)
 			: null;
 		deps.recordFailure(taskId, backoff.nextState);
 		recordSelfObservation({

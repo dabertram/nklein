@@ -15,12 +15,14 @@ import {
 	isRecoverableToolCallFailure,
 	isReviewableAbortedToolCompletion,
 } from "./nklein-event-adapter-tool-activity";
+import { isLocalProvider } from "./nklein-local-only-policy";
 import { extractAgentErrorMessage, readMessagePartText, readToolResult } from "./nklein-message-content-readers";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import { isLikelySerializedAgentEventChunk } from "./nklein-serialized-event-chunk";
 import {
 	appendAssistantChunk,
 	appendReasoningChunk,
+	buildLocalModelUnavailableGuidance,
 	canReturnToRunning,
 	clearActiveTurnState,
 	createAssistantMessage,
@@ -28,6 +30,7 @@ import {
 	createReasoningMessage,
 	finishToolCallMessage,
 	isCreditLimitError,
+	isLocalModelRuntimeUnavailableError,
 	isNKleinUserAttentionTool,
 	latestAssistantMessageMatches,
 	type NKleinTaskMessage,
@@ -43,6 +46,27 @@ import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-to
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
 import { extractRejectedToolNames, isPreExecutionToolRejection } from "./tool-rejection-signal";
+
+/**
+ * The operator-facing warning for an agent error/run-failure. A LOCAL model host that dropped its model mid-run
+ * (crash/unload) gets the actionable reload/right-size guidance ({@link buildLocalModelUnavailableGuidance}) instead
+ * of the raw "The model has crashed" string — matching the failure-emitter path, so a model crash reads the same
+ * helpful way wherever it surfaces (the gap a live low-power/m4mini drain exposed 2026-07-12). Credit-limit errors
+ * suppress the raw warning (the dedicated notice conveys it); everything else keeps the raw message.
+ */
+function resolveAgentErrorWarning(
+	entry: NKleinTaskSessionEntry,
+	errorMessage: string | null,
+	creditLimitError: boolean,
+): string | null {
+	if (creditLimitError) {
+		return null;
+	}
+	if (isLocalProvider(entry.summary.providerId ?? "") && isLocalModelRuntimeUnavailableError(errorMessage)) {
+		return buildLocalModelUnavailableGuidance(entry.summary.modelId ?? null, null);
+	}
+	return errorMessage ?? "Unknown agent error";
+}
 
 export interface ApplyNKleinSessionEventInput {
 	event: unknown;
@@ -159,7 +183,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 						: {
 								state: "awaiting_review",
 								reviewReason: "error",
-								warningMessage: creditLimitError ? null : (errorMessage ?? "Unknown agent error"),
+								warningMessage: resolveAgentErrorWarning(entry, errorMessage, creditLimitError),
 							}),
 					lastOutputAt: now(),
 					lastHookAt: now(),
@@ -199,7 +223,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 				{
 					state: "awaiting_review",
 					reviewReason: "error",
-					warningMessage: creditLimitError ? null : (errorMessage ?? "Unknown agent error"),
+					warningMessage: resolveAgentErrorWarning(entry, errorMessage, creditLimitError),
 					lastOutputAt: now(),
 					lastHookAt: now(),
 					latestHookActivity: {

@@ -733,6 +733,78 @@ describe("applyNKleinSessionEvent", () => {
 		expect(result.messages).toHaveLength(0);
 	});
 
+	it("surfaces actionable reload guidance (not the raw crash) for a local model that crashed mid-run", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		entry.summary.providerId = "lmstudio";
+		entry.summary.modelId = "qwen2.5-coder-14b";
+
+		const result = applyEvent({
+			entry,
+			isNKleinProvider: false,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "error",
+						error: new Error("The model has crashed without additional information. (Exit code: null)"),
+						recoverable: false,
+						iteration: 1,
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.warningMessage).toContain("Reload the model");
+		expect(result.entry.summary.warningMessage).toContain("qwen2.5-coder-14b");
+		expect(result.entry.summary.warningMessage).not.toBe(
+			"The model has crashed without additional information. (Exit code: null)",
+		);
+	});
+	it("surfaces reload guidance for a local model crash on a run-failed event too", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		entry.summary.providerId = "lmstudio";
+		entry.summary.modelId = "coder-14b";
+
+		const result = applyEvent({
+			entry,
+			isNKleinProvider: false,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "run-failed", error: new Error("model has crashed"), recoverable: false, iteration: 1 },
+				},
+			},
+		});
+
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.warningMessage).toContain("Reload the model");
+	});
+	it("keeps the raw error (no local-reload guidance) when the provider is not a local host", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		entry.summary.providerId = "openai";
+		entry.summary.modelId = "gpt-5";
+
+		const result = applyEvent({
+			entry,
+			isNKleinProvider: false,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "run-failed", error: new Error("socket hang up"), recoverable: false, iteration: 1 },
+				},
+			},
+		});
+
+		expect(result.entry.summary.warningMessage).toBe("socket hang up");
+		expect(result.entry.summary.warningMessage).not.toContain("Reload the model");
+	});
 	it("preserves credit-limit metadata when a later done event closes the turn", () => {
 		const entry = createEntry("task-1");
 		entry.summary.state = "awaiting_review";

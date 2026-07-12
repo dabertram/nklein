@@ -89,6 +89,18 @@ export function isLocalModelRuntimeUnavailableError(errorMessage: string | null)
 	return LOCAL_MODEL_UNAVAILABLE_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
+/**
+ * The operator-facing guidance shown when a LOCAL model host drops its model mid-run (crash/unload — see
+ * {@link isLocalModelRuntimeUnavailableError}). Shared by the failure-emitter's park path AND the event-adapter's
+ * agent-error / run-failed paths so a model crash surfaces the SAME actionable "reload or right-size" guidance
+ * everywhere — instead of the raw "The model has crashed" string leaking through the event-adapter path while the
+ * failure-emitter path gives helpful guidance (the gap a live low-power/m4mini drain exposed 2026-07-12).
+ */
+export function buildLocalModelUnavailableGuidance(modelId: string | null, endpoint: string | null): string {
+	const model = modelId?.trim() || "the local model";
+	return `Local model "${model}" on ${endpoint?.trim() || "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`;
+}
+
 const WINDOWS_INVALID_SESSION_ID_CHARS = /[<>:"/\\|?*]/g;
 
 export interface NKleinTaskSessionEntry {
