@@ -676,6 +676,21 @@ source repo went private — so if it vanishes the buildable source still lives 
   now settable from the UI). Tests: parse null/undefined, precedence (3), config-enables + env-wins (2), config round-trip
   case, 4-case end-to-end contract suite (real backend save→disk→read). tsc + biome + 8963 backend + 82 web-ui + browser
   visual all green. Config-role extension (4) stays DEFERRED (David: explicit-only). See [[machine-aware-load-routing]].
+  (6) **[x] CONFIG-PATH LIVE-VALIDATED ON THE REAL FLEET (2026-07-12, low-power mode — David: "slower but fully
+  functional").** Isolated-HOME rig with `deviceRamGb` written INTO the global config.json and the env var NEUTRALIZED
+  (`NKLEIN_DEVICE_RAM_GB=""` blocks the repo `.env` injection; empty parses to `{}` so the resolver falls through to the
+  config value): a NON-RESIDENT `qwen/qwen2.5-coder-14b` (`--model-id`, small-model-smoke) **loaded on Local/m5max**
+  (8.33 GB, ctx 40000) — NOT the still-preferred m4mini — purely from the Settings-persisted value. Same run also
+  live-confirmed: the §5.AF memory-fit gate's NOT-SILENT warning (verbatim in the task-run record: Codebase Memory OFF,
+  4096 < 2048+2560, raise Settings → Agents), and the §12 turn-loop guard FIRED ON A REAL MODEL — the 14B re-raised the
+  same question 3 turns during the decompose seed and was correctly PARKED for attention with the operator message
+  (state `awaiting_review`, reason `attention`); auto-resolve wasn't groundable and no lineage-diverse model was resident,
+  so the park layer was the right rung. (Not directly inspected in this pass: the verbatim contested question in the chat
+  surface — the sim e2e regression covers it.) Fleet restored exactly as found (model unloaded, rig removed). Two
+  follow-ups filed from the run: the dev-test monitor classifies a PARKED-for-attention card as generic "stagnant"
+  (should surface "needs attention: <question>" — see §5.AI note), and `dev-full`'s stale-process sweep kills OTHER dev
+  stacks on boot (it killed the :3484 sim stack; fine for the shared default instance, surprising for a second isolated
+  rig — consider scoping the sweep to the SAME ports it is about to claim).
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
@@ -10600,7 +10615,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **GPU/VRAM idle — lean on LM Studio Idle TTL + Auto-Evict + JIT load** to reclaim a whole model's VRAM when idle; set a short TTL; never pre-load. The orchestrator stays event-driven.
   - [ ] **CPU — event-driven, NOT poll-driven** (idle loop must block at OS level → ~0 CPU; tight polling can cost 30–50% CPU). Audit all `setInterval`/watchers; `unref()` + stop idle timers. (Ties the v0/models-hammering fix + the discovery-cache throttle.)
   - [ ] **Node RAM — bound the heap (`--max-old-space-size`), LRU+TTL every cache, clear timers/listeners, stream (don't buffer) model output, bounded worker pool.** Hunt the 4 classic leak sources.
-  - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches).
+  - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches). *(MEASURED 2026-07-12 —
+        evidence-based deprioritization: after weeks of heavy dev use the REAL footprint is tiny — agent-attempt-ledger
+        288K total (largest workspace file 97K / 169 events), telemetry 1.1M, task-runs 1.4M. Growth rate ≈ 100K/workspace
+        per marathon ⇒ months from mattering. Do NOT spend a session here before higher-value items; revisit when a real
+        instance shows multi-hundred-MB stores or a long-running install complains.)*
   - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
 - [~] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:** **(2026-06-29: pure decision cores done — `src/core/inference-levers.ts`: `shouldUseSpeculativeDecoding` (opt-in+measured) + `recommendKvCacheQuant` (q8 only w/ flash-attn) + `recommendSampler`; 13 tests. Owed: wire into §5.AB selection + the load knobs.)**
   - [~] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold). *(2026-07-01: PURE AMORTIZATION CORE done — `src/core/cache-warmup-amortization.ts`: the cost/benefit arithmetic for whether warming a stable prefix is worth it, the "is the cache worth making warm?" lever this Tier-0 line names and item E's "reserve broken-cache models for one-shot calls" both imply but no sibling computed. A `PrefixCostProfile` = `{ coldPrefillCost, warmPrefillCost }` (any consistent cost unit — ms/s — INJECTED, measured via the `cache-health.ts` TTFT probe / the §5.AF ledger). `warmupSavingPerReuse(profile, cacheHealthy=true)` → `{ savingPerReuse = max(0, cold−warm), canSave }`; an UNHEALTHY cache forces the saving to 0 (re-prefills every turn ⇒ no warm regime — item E falls straight out). `warmupBreakevenReuses(profile, alternativePerSendCost=cold, cacheHealthy)` = `ceil((cold−alt)/(alt−warm))` clamped ≥0, or `+Infinity` when the warm regime isn't cheaper / the cache is unhealthy (against the default pay-cold-every-send alternative any ≥1 reuse on a healthy positive-saving cache pays from the first reuse — breakeven 0). `decideWarmupAmortization({ profile, expectedReuses, alternativePerSendCost?, cacheHealthy? })` → `{ worthWarming, savingPerReuse, breakevenReuses, netSaving, reason }`: worth warming iff `canSave` AND `expectedReuses ≥ breakeven`; `netSaving = expectedReuses·(alt−warm) − max(0, cold−alt)` (the horizon P&L, can be negative) RANKS which prefixes most deserve a scarce warm slot. A strict one-shot = 0 reuses ⇒ never amortizes vs a cheaper alternative. 22 tests. DISTINCT unit/axis from every §5.AQ cache sibling — those reason about TOKENS (`cache-prefix-reuse.ts` one-turn reuse), SPACE under a budget (`cache-prefix-retention.ts` which to evict — this decides the TIME value of the slot that arbitrates), byte STRUCTURE (`cache-aware-prompt-layout.ts` / `cache-stable-prefix-order.ts`), or WHETHER caching works (`cache-health.ts` — consumed here as the `cacheHealthy` gate); none compute the cold-establish-vs-reuse-horizon payback. Composes nothing it edits. Owed: feed live measured cold/warm prefill costs + a reuse-horizon estimate (from the task/session shape) + the `cache-health.ts` verdict, gate prefix warming + broken-cache one-shot routing on `decideWarmupAmortization`, and rank warm-slot candidates by `netSaving` alongside `cache-prefix-retention.ts`.)*
@@ -11324,9 +11343,13 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (board disk-read + health fs-scan) is COALESCED to one-per-window via `createCoalescingScheduler` (§5.AI
       event-loop relief), so streaming does not spin the event loop per token. That the lag "resolved the moment
       models were unloaded" points the RESIDUAL at (b) — system-level low-power + big-model unified-memory/CPU
-      saturation, which is expected and outside !Klein's control. REMAINING (needs a live model loaded): a CPU
-      profile of the !Klein process while a heavy request streams, to confirm no !Klein-side hotspot survives the
-      throttling — and a client-side React re-render-rate check during streaming.
+      saturation, which is expected and outside !Klein's control. **CPU PROFILE DONE (2026-07-12, live 14B streaming on
+      low-power m5max — David confirmed low-power is the standing mode, "slower but fully functional"):** sampled the
+      runtime process (3s × 41 samples) during a real qwen2.5-coder-14b worker turn — 29 samples <5% CPU, 11 at 5–50%,
+      exactly ONE 155% burst (a turn-boundary control-plane blip: prompt assembly/board persist/GC), median ~0%, RSS
+      stable 986–992 MB (no leak). CONFIRMED: no !Klein-side hotspot survives the SSE batching/coalescing — the
+      whole-machine lag is (b) model inference saturating the low-power box, outside !Klein's control. REMAINING (last
+      leg, needs a browser attached to a live streaming session): the client-side React re-render-rate check.
 - [x] **Fleet under-utilization while cards wait** — INVESTIGATED → largely EXPECTED behavior on that topology
       (2026-07-10). Deep-chain is STRICTLY SERIAL (each card depends on the previous), and `listStartableUnstartedTaskIds`
       only returns dep-free cards, so exactly ONE card is ever startable at a time — "Running 1" with 11 waiting is
