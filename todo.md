@@ -691,8 +691,9 @@ source repo went private — so if it vanishes the buildable source still lives 
   **✅ FIXED same day (`f8880108`): new `needs_attention` outcome** (pure `countAttentionParkedSessions` over
   awaiting_review+attention sessions → threaded state-reader → harness → dev.ts; "Needs your attention: N card(s)
   parked with a question for the operator"; 8 tests incl. the exact live shape) — and `dev-full`'s stale-process
-  sweep kills OTHER dev stacks on boot (it killed the :3484 sim stack; fine for the shared default instance, surprising for a second isolated
-  rig — consider scoping the sweep to the SAME ports it is about to claim).
+  sweep killed OTHER dev stacks on boot — **✅ FIXED (2026-07-12, `b0be40fc`): overridden base ports now ALSO mark the
+  instance alternate** (isolated-flag OR non-default NKLEIN_DEV_RUNTIME_PORT/WEB_UI_PORT skips the sweep), so a second
+  rig never kills the default :3484/:4173 stack; only the true default instance sweeps.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
