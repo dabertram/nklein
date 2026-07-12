@@ -7,6 +7,7 @@ import {
 	createChatAgentModel,
 	createChatModelDeps,
 	parseExtractedMemories,
+	STREAM_CONTINUATION_MARKER,
 	setChatAdapterRuntimeFlags,
 } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
@@ -163,7 +164,7 @@ describe("createChatModelDeps", () => {
 			expect(reply).toBe("The half-"); // never recovered, but bounded
 		});
 
-		it("flag ON ⇒ the STREAMING path is NOT retried on truncation (no double visible output)", async () => {
+		it("flag ON ⇒ a chronically-truncated STREAM continues a BOUNDED number of times (§10c#12; never re-streams, never spins)", async () => {
 			process.env[FLAG] = "1";
 			let completeCalls = 0;
 			let streamCalls = 0;
@@ -180,9 +181,11 @@ describe("createChatModelDeps", () => {
 			};
 			const deps = createChatModelDeps(client);
 			const reply = await deps.complete([{ role: "user", content: "hi" }], () => {});
-			expect(streamCalls).toBe(1);
-			expect(completeCalls).toBe(0); // no fallback retry via complete → the streamed turn is left untouched
-			expect(reply).toBe("The half-");
+			// 1 initial stream + at most the ladder's pass count of continuations — bounded, no infinite spin.
+			expect(streamCalls).toBe(4);
+			expect(completeCalls).toBe(0); // continuations ride completeStream (append), never the plain path
+			expect(reply.startsWith("The half-")).toBe(true);
+			expect(reply).toContain("_(continued)_");
 		});
 
 		it("flag ON ⇒ a truncated summary is also re-asked with a larger budget", async () => {
@@ -1300,5 +1303,86 @@ describe("parseExtractedMemories (§5.M memory extractor output normalization)",
 
 	it("keeps real facts that merely CONTAIN a sentinel word", () => {
 		expect(parseExtractedMemories("none of the tests use mocks")).toEqual(["none of the tests use mocks"]);
+	});
+});
+
+describe("§10c#12 streamed-turn truncation — append-continuation ladder", () => {
+	const FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+	let savedFlag: string | undefined;
+	beforeEach(() => {
+		savedFlag = process.env[FLAG];
+		delete process.env[FLAG];
+		setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: false });
+	});
+	afterEach(() => {
+		if (savedFlag === undefined) {
+			delete process.env[FLAG];
+		} else {
+			process.env[FLAG] = savedFlag;
+		}
+		// Restore the module defaults (mirroring runtime-config-defaults) so other suites see the pristine state.
+		setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: true, reasoningBudgetEnabled: false });
+	});
+
+	// A streaming client: the FIRST stream is cut off (finish length); the continuation completes (finish stop).
+	const streamingCutOffOnce = (calls: {
+		messages: unknown[][];
+		budgets: (number | undefined)[];
+	}): ChatCompletionClient => ({
+		complete: async () => ({ content: "unused", finishReason: "stop", raw: {} }),
+		completeStream: async (request, onChunk) => {
+			calls.messages.push(request.messages as unknown[]);
+			calls.budgets.push(request.sampling?.maxTokens);
+			if (calls.messages.length === 1) {
+				onChunk("The half-");
+				return { content: "The half-", finishReason: "length", raw: {} };
+			}
+			onChunk("finished rest.");
+			return { content: "finished rest.", finishReason: "stop", raw: {} };
+		},
+	});
+
+	it("appends the continuation after the subtle marker — never replaces the streamed prefix", async () => {
+		const calls = { messages: [] as unknown[][], budgets: [] as (number | undefined)[] };
+		const deps = createChatModelDeps(streamingCutOffOnce(calls), { sampling: { maxTokens: 512 } });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "hi" }], (delta) => streamed.push(delta));
+		// The live stream saw: prefix, marker, continuation — in order (no re-stream of the prefix).
+		expect(streamed).toEqual(["The half-", STREAM_CONTINUATION_MARKER, "finished rest."]);
+		// The persisted reply is the seamless append.
+		expect(reply).toBe(`The half-${STREAM_CONTINUATION_MARKER}finished rest.`);
+		// The continuation request carried the partial as assistant context + a continue nudge, at a raised budget.
+		expect(calls.messages).toHaveLength(2);
+		const continuation = calls.messages[1] as Array<{ role: string; content: string }>;
+		expect(continuation.at(-2)?.role).toBe("assistant");
+		expect(continuation.at(-2)?.content).toBe("The half-");
+		expect(continuation.at(-1)?.content).toMatch(/Continue EXACTLY where you stopped/);
+		expect(calls.budgets[1] ?? 0).toBeGreaterThan(512);
+	});
+
+	it("keeps the old single-stream behavior when the adaptive switch is OFF", async () => {
+		setChatAdapterRuntimeFlags({ adaptiveTruncationEnabled: false, reasoningBudgetEnabled: false });
+		const calls = { messages: [] as unknown[][], budgets: [] as (number | undefined)[] };
+		const deps = createChatModelDeps(streamingCutOffOnce(calls), { sampling: { maxTokens: 512 } });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "hi" }], (delta) => streamed.push(delta));
+		expect(streamed).toEqual(["The half-"]);
+		expect(reply).toBe("The half-");
+		expect(calls.messages).toHaveLength(1);
+	});
+
+	it("a clean stream (finish stop) never triggers a continuation", async () => {
+		const client: ChatCompletionClient = {
+			complete: async () => ({ content: "unused", finishReason: "stop", raw: {} }),
+			completeStream: async (_request, onChunk) => {
+				onChunk("done.");
+				return { content: "done.", finishReason: "stop", raw: {} };
+			},
+		};
+		const deps = createChatModelDeps(client, { sampling: { maxTokens: 512 } });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "hi" }], (delta) => streamed.push(delta));
+		expect(streamed).toEqual(["done."]);
+		expect(reply).toBe("done.");
 	});
 });

@@ -246,6 +246,62 @@ async function completePlainWithTruncationLadder(
 	return cleanModelReply(content);
 }
 
+/** The visible-but-subtle seam between a cut-off streamed reply and its continuation (§10c#12, user 2026-07-12). */
+export const STREAM_CONTINUATION_MARKER = "\n\n_(continued)_\n\n";
+const STREAM_CONTINUE_NUDGE =
+	"Your previous reply was cut off by the token limit. Continue EXACTLY where you stopped — do not repeat " +
+	"anything you already wrote and do not summarize; just continue the reply.";
+
+/**
+ * §5.AA streamed-turn truncation — UX contract decided 2026-07-12 (§10c#12): APPEND-CONTINUATION. When a token-
+ * streamed chat turn ends `finish:"length"`, ask the model to CONTINUE from where it stopped and stream the
+ * continuation after a subtle "(continued)" marker — never re-stream/replace what the user already saw. Bounded by
+ * the same pass count + budget ceiling as the plain ladder; gated on the same adaptive-truncation switch (default
+ * ON via config; a disabled switch keeps the old single-stream behavior byte-identical).
+ */
+async function streamWithContinuationLadder(
+	client: ChatCompletionClient,
+	messages: LocalLlmChatMessage[],
+	sampling: LocalLlmSamplingOptions,
+	onToken: (delta: string) => void,
+): Promise<string> {
+	const completeStream = client.completeStream;
+	if (!completeStream) {
+		return completePlainWithTruncationLadder(client, messages, sampling);
+	}
+	const first = await completeStream({ messages, sampling }, onToken);
+	let combined = cleanModelReply(first.content);
+	let finishReason = first.finishReason;
+	if (isAdaptiveTruncationLadderEnabled()) {
+		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
+		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
+			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
+				break;
+			}
+			const escalated = raisedTokenBudget({ current: budget, attempt: 1, ceiling: TRUNCATION_RETRY_BUDGET_CEILING });
+			if (escalated <= budget) {
+				break;
+			}
+			onToken(STREAM_CONTINUATION_MARKER);
+			const continuation = await completeStream(
+				{
+					messages: [
+						...messages,
+						{ role: "assistant", content: combined },
+						{ role: "user", content: STREAM_CONTINUE_NUDGE },
+					],
+					sampling: { ...sampling, maxTokens: escalated },
+				},
+				onToken,
+			);
+			combined = `${combined}${STREAM_CONTINUATION_MARKER}${cleanModelReply(continuation.content)}`;
+			finishReason = continuation.finishReason;
+			budget = escalated;
+		}
+	}
+	return combined;
+}
+
 export function createChatModelDeps(
 	client: ChatCompletionClient,
 	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
@@ -256,9 +312,9 @@ export function createChatModelDeps(
 		complete: async (prompt, onToken) => {
 			const messages = prompt.map((message) => ({ role: message.role, content: message.content }));
 			if (onToken && client.completeStream) {
-				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged) reply.
-				const { content } = await client.completeStream({ messages, sampling }, onToken);
-				return cleanModelReply(content);
+				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged)
+				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
+				return streamWithContinuationLadder(client, messages, sampling, onToken);
 			}
 			return completePlainWithTruncationLadder(client, messages, sampling);
 		},
