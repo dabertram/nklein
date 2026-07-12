@@ -11587,9 +11587,12 @@ downloads whenever relevant (model-lab phase (a) waits on them).
       is an OPEN sub-question, it was armed unconditionally at service creation); (5) RECOVERY MACHINERY IS
       HEALTHY once the wedge clears: a manual `stopTaskSession` → `interrupted` → retryWaitingCardsAfterTerminal
       resumed the cascade INSTANTLY (cards then completed with real patches). FIX DIRECTIONS (in value order):
-      (a) ZERO-TOKEN TURN LIVENESS — a `running` session whose model turn never produced a first token within a
-      generous bound (e.g. 3× expected TTFT, ≥2-3 min) is wedged ⇒ interrupt + retry + say so loudly (covers
-      EVERY pre-first-turn wedge site, including unknown future ones; same self-heal philosophy as #29);
+      (a) ✅ ZERO-TOKEN TURN LIVENESS SHIPPED (2026-07-13, same session): `src/core/session-turn-liveness.ts`
+      `listZeroTokenWedgedSessions` (pure, 9 tests — flags `running` sessions past a generous 15-min bound with
+      ZERO token/heartbeat history; anything with a liveness signal stays with the heartbeat machinery) + the
+      board-liveness watchdog now interrupts the wedges (warn + self-observation + `stopTaskSession`; the summary
+      event drives the existing terminal-retry, live-proven to resume the cascade). Covers EVERY pre-first-turn
+      wedge site including unknown future ones; same self-heal philosophy as #29;
       (b) root-cause the wedge SITE deterministically (W2.1-harness repro of queued-drain-start racing the
       seed's teardown; prime suspect per the 2026-07-10 note: the model-turn ADMISSION gate's evaluate/tail path
       — the seed's admission may never release when it settles `idle`, deadlocking the next turn's admission);
