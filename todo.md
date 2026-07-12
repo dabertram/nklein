@@ -9792,7 +9792,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             *(✅ CORE WIRING DONE (W2.6b, verified-live 2026-07-08): the selection path (start-task-session.ts ~L463)
             reads the self-observation events per start and folds the runtime verdict into every candidate's blended
             capability via `createCapabilityBlender` (TOOL_UNSUITABLE ×0.1 / TOOL_WEAK ×0.5) — the penalty steers
-            selection, no longer display-only. REMAINING (UX-only, needs-David-call ⇒ DECIDED 2026-07-12, §10c#11: badge ONLY, no confirm-flow UI): the §5.AG selector BADGE surfacing
+            selection, no longer display-only. REMAINING (UX-only, needs-David-call ⇒ DECIDED 2026-07-12, §10c#11: badge ONLY — ✅ SHIPPED same day (buildModelVerdictBadges + runtime.getModelVerdictBadges + picker label suffix via applyModelVerdictBadgesToOptions)): the §5.AG selector BADGE surfacing
             the penalty + the one-button confirm-provisional→catalog flow.)*
 - [-] **Keep extending the catalog (standing), decomposed:** *(STANDING POLICY, not a one-shot box — folded in as
       sweeps happen. Latest 2026-07-08: qwopus3.5-9b-coder-mtp session findings added to the qwopus3.5-coder catalog
