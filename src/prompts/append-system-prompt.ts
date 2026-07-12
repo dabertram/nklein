@@ -53,7 +53,7 @@ function resolveHomeAgentId(taskId: string): RuntimeAgentId | null {
 function renderLinearSetupGuidanceForAgent(agentId: RuntimeAgentId | null): string {
 	switch (agentId) {
 		case "nklein":
-			return "- If Linear MCP is not available in the current agent (!Klein), direct the user to open settings and go to the MCP section where they can add the Linear integration.";
+			return "- If Linear MCP is not available in the current agent (!Klein), direct the user to open settings, go to the MCP section, add an MCP server named `linear` with the HTTP URL `https://mcp.linear.app/mcp`, and connect its OAuth.";
 		case "claude":
 			return "- If Linear MCP is not available in the current agent (Claude Code), suggest running: `claude mcp add --transport http --scope user linear https://mcp.linear.app/mcp`";
 		case "codex":

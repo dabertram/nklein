@@ -20,17 +20,6 @@ interface UseRuntimeSettingsNKleinMcpControllerOptions {
 	liveAuthStatuses?: RuntimeNKleinMcpServerAuthStatus[] | null;
 }
 
-const LINEAR_MCP_SERVER_NAME = "linear";
-const LINEAR_MCP_SERVER_URL = "https://mcp.linear.app/mcp";
-
-export type LinearMcpPresetStatus = "not-configured" | "configured" | "connected";
-
-export interface LinearMcpPreset {
-	status: LinearMcpPresetStatus;
-	isSettingUp: boolean;
-	setup: () => Promise<SaveResult>;
-}
-
 export interface UseRuntimeSettingsNKleinMcpControllerResult {
 	mcpSettingsPath: string;
 	mcpServers: RuntimeNKleinMcpServer[];
@@ -43,7 +32,6 @@ export interface UseRuntimeSettingsNKleinMcpControllerResult {
 	addMcpServer: (server: RuntimeNKleinMcpServer) => Promise<SaveResult>;
 	saveMcpSettings: () => Promise<SaveResult>;
 	runMcpServerOauth: (serverName: string) => Promise<SaveResult>;
-	linearMcpPreset: LinearMcpPreset;
 }
 
 function normalizeRecord(record: Record<string, string> | undefined): Record<string, string> | undefined {
@@ -84,15 +72,6 @@ function normalizeMcpServer(server: RuntimeNKleinMcpServer): RuntimeNKleinMcpSer
 
 function normalizeMcpServers(servers: RuntimeNKleinMcpServer[]): RuntimeNKleinMcpServer[] {
 	return servers.map(normalizeMcpServer).sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function buildLinearMcpServer(): RuntimeNKleinMcpServer {
-	return {
-		name: LINEAR_MCP_SERVER_NAME,
-		disabled: false,
-		type: "streamableHttp",
-		url: LINEAR_MCP_SERVER_URL,
-	};
 }
 
 function upsertServerByName(
@@ -310,54 +289,6 @@ export function useRuntimeSettingsNKleinMcpController(
 		[hasUnsavedChanges, mcpServers, persistMcpSettings, reloadAuthStatuses, workspaceId],
 	);
 
-	const setupLinearMcpServer = useCallback(async (): Promise<SaveResult> => {
-		const nextServers = upsertServerByName(mcpServers, buildLinearMcpServer());
-		setMcpServers(nextServers);
-		setIsSavingMcpSettings(true);
-		setAuthenticatingMcpServerName(LINEAR_MCP_SERVER_NAME);
-		try {
-			const saveResult = await persistMcpSettings(nextServers);
-			if (!saveResult.ok) {
-				return saveResult;
-			}
-			await runNKleinMcpServerOAuth(workspaceId, {
-				serverName: LINEAR_MCP_SERVER_NAME,
-			});
-			await reloadAuthStatuses();
-			return {
-				ok: true,
-			};
-		} catch (error) {
-			await reloadAuthStatuses();
-			return toSaveError(error);
-		} finally {
-			setIsSavingMcpSettings(false);
-			setAuthenticatingMcpServerName(null);
-		}
-	}, [mcpServers, persistMcpSettings, reloadAuthStatuses, workspaceId]);
-
-	const linearMcpPreset = useMemo((): LinearMcpPreset => {
-		const normalizedName = LINEAR_MCP_SERVER_NAME.toLowerCase();
-		const server = mcpServers.find((s) => s.name.trim().toLowerCase() === normalizedName);
-		const authStatus = server
-			? mcpAuthStatusByServerName[server.name]
-			: mcpAuthStatusByServerName[LINEAR_MCP_SERVER_NAME];
-		const isCorrectlyConfigured =
-			server?.disabled === false && server.type === "streamableHttp" && server.url.trim() === LINEAR_MCP_SERVER_URL;
-		const isSettingUp = (authenticatingMcpServerName?.trim().toLowerCase() ?? "") === normalizedName;
-
-		let status: LinearMcpPresetStatus;
-		if (isCorrectlyConfigured && authStatus?.oauthConfigured) {
-			status = "connected";
-		} else if (isCorrectlyConfigured) {
-			status = "configured";
-		} else {
-			status = "not-configured";
-		}
-
-		return { status, isSettingUp, setup: setupLinearMcpServer };
-	}, [mcpServers, mcpAuthStatusByServerName, authenticatingMcpServerName, setupLinearMcpServer]);
-
 	return {
 		mcpSettingsPath,
 		mcpServers,
@@ -370,6 +301,5 @@ export function useRuntimeSettingsNKleinMcpController(
 		addMcpServer,
 		saveMcpSettings,
 		runMcpServerOauth,
-		linearMcpPreset,
 	};
 }
