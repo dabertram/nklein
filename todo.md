@@ -4571,7 +4571,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           the embedding discover/save tests anchor on the `Code intelligence embeddings` h6 and stay green) + build green.
     - [x] relabel "Git Prompts" → "Git" **(2026-07-01)** — `runtime-settings-dialog.tsx`: tab label + section header now
           "Git" (the stable `git-prompts` id / `data-settings-section` anchor kept, so navigation is unaffected). web-ui tsc clean.
-    - [?] Workspace/Project settings polish ⏸ NEEDS-DAVID-UX-CALL ⇒ DECIDED 2026-07-12 (§10c#9): override badges in the nav ONLY (work item) *(2026-07-08: the Project section is already
+    - [?] Workspace/Project settings polish ⏸ NEEDS-DAVID-UX-CALL ⇒ DECIDED 2026-07-12 (§10c#9): override badges in the nav ONLY — ✅ SHIPPED same day (listActiveProjectOverrides + SettingsNav count pill, title lists the active overrides) *(2026-07-08: the Project section is already
           substantive — config-path link (click-to-open), §5.BA per-project guided-setup re-trigger, and the
           per-project OverrideRow cluster (max concurrent tasks / agent / model roles). "Polish" here has no concrete
           spec (the 2026-07-01 note: "needs a specific UX call, not a mechanical move"). Candidate calls when David
