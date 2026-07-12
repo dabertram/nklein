@@ -666,6 +666,16 @@ source repo went private — so if it vanishes the buildable source still lives 
   step (after the winner at ~:1085, before dispatch) that loads the winning model on a fitting device via
   `attemptAutonomousModelLoad`. Needs a live config-role dev-test to validate — do NOT rush (the reviewer "stall" was
   already a misdiagnosis). This is what makes the loader actually help David's real fleet, not just the dev-test path.
+  (5) **[x] SETTINGS UI FIELD SHIPPED (David's Q2 decision, 2026-07-12; commit `3d47d4cf`).** The per-device RAM budget is
+  now a first-class global config field (`deviceRamGb`, "name:GB" string) surfaced at **Settings → Tasks → "Machine-Aware
+  Model Loading → Per-device RAM budget"**, plumbed end-to-end (types → normalizer → merge → state-factory → file payload
+  → change-detection → API contract → getConfig mapper → web-ui draft/save/dialog, modeled on `workspaceBaseDir`). The
+  loader now resolves the map via `resolveDeviceRamBytes({env, configuredDeviceRamGb})` with **env-wins-over-Settings**
+  precedence (`NKLEIN_DEVICE_RAM_GB` still overrides); a blank field disengages the loader (no separate toggle). Follow-up
+  (b) — David's REAL fleet RAM — is CAPTURED: `m5max:128,m4mini:24,legion5pro:32` (in the git-ignored `.env` today, and
+  now settable from the UI). Tests: parse null/undefined, precedence (3), config-enables + env-wins (2), config round-trip
+  case, 4-case end-to-end contract suite (real backend save→disk→read). tsc + biome + 8963 backend + 82 web-ui + browser
+  visual all green. Config-role extension (4) stays DEFERRED (David: explicit-only). See [[machine-aware-load-routing]].
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
