@@ -79,10 +79,18 @@ function probeEgressGate(): EgressGate {
 	return { ready: true, reason: "", image, bundlePath };
 }
 
-/** Run a curl inside a throwaway container on the internal egress network, optionally with the proxy env. */
-function curlInSandbox(networkName: string, url: string, proxyEnv: Record<string, string> | null): number {
-	const envArgs = proxyEnv ? Object.entries(proxyEnv).flatMap(([k, v]) => ["-e", `${k}=${v}`]) : [];
-	const noproxy = proxyEnv ? [] : ["--noproxy", "*"];
+// Fetch a URL from a throwaway sandbox container on the internal egress network, via python3's urllib (the image ships
+// node + python3 but NOT curl/wget). When `proxyEnv` is set, its HTTPS_PROXY is used as the CONNECT proxy; when null,
+// no proxy is used (a direct attempt, which must fail on the `--internal` network — the fail-closed backstop). Returns
+// the process exit code: 0 = the fetch succeeded end-to-end (proxy allowed + egress reached the host).
+const PY_HTTP_PROBE =
+	"import sys,urllib.request as u\n" +
+	"p=sys.argv[1] or None\n" +
+	"o=u.build_opener(u.ProxyHandler({'http':p,'https':p} if p else {}))\n" +
+	"try:\n o.open(sys.argv[2],timeout=15).read(1);sys.exit(0)\n" +
+	"except Exception as e:\n sys.stderr.write(repr(e));sys.exit(1)\n";
+function httpGetInSandbox(networkName: string, url: string, proxyEnv: Record<string, string> | null): number {
+	const proxyUrl = proxyEnv?.HTTPS_PROXY ?? "";
 	const result = spawnSync(
 		"docker",
 		[
@@ -92,15 +100,12 @@ function curlInSandbox(networkName: string, url: string, proxyEnv: Record<string
 			networkName,
 			"--cap-drop",
 			"ALL",
-			...envArgs,
+			"--entrypoint",
+			"python3",
 			resolveAgentSandboxImageName(),
-			"curl",
-			"-sS",
-			"--max-time",
-			"15",
-			"-o",
-			"/dev/null",
-			...noproxy,
+			"-c",
+			PY_HTTP_PROBE,
+			proxyUrl,
 			url,
 		],
 		{ encoding: "utf8", timeout: 60_000 },
@@ -153,11 +158,11 @@ if (gate.ready) {
 				};
 
 				// Allowlisted host connects through the proxy.
-				expect(curlInSandbox(networkName, `https://${ALLOWED_HOST}`, proxyEnv)).toBe(0);
-				// Unlisted host is refused by the proxy (non-zero curl exit).
-				expect(curlInSandbox(networkName, `https://${DENIED_HOST}`, proxyEnv)).not.toBe(0);
+				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, proxyEnv)).toBe(0);
+				// Unlisted host is refused by the proxy (non-zero exit).
+				expect(httpGetInSandbox(networkName, `https://${DENIED_HOST}`, proxyEnv)).not.toBe(0);
 				// Without the proxy env, the `--internal` network gives no route (fail-closed backstop).
-				expect(curlInSandbox(networkName, `https://${ALLOWED_HOST}`, null)).not.toBe(0);
+				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, null)).not.toBe(0);
 
 				const audit = readProxyAudit(containerName);
 				const allowRecord = audit.find((r) => r.host === ALLOWED_HOST && r.decision === "allow");

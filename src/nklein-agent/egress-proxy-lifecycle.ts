@@ -167,7 +167,15 @@ export async function probeEgressProxyHealthy(
 ): Promise<boolean> {
 	const port = options.port ?? EGRESS_PROXY_ROLE_PORTS.worker;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
-	const script = `const s=require("net").connect(${port},"127.0.0.1");const t=setTimeout(()=>process.exit(1),${timeoutMs});t.unref();s.on("connect",()=>{clearTimeout(t);s.destroy();process.exit(0)});s.on("error",()=>{clearTimeout(t);process.exit(1)});`;
+	// RETRY-connect INSIDE the single exec until the deadline: `docker run -d` returns before the container's node
+	// process boots + binds its listeners, so a one-shot connect fails fast on ECONNREFUSED (live-found on the
+	// low-power fleet, 2026-07-12). Re-attempting every 150ms within `timeoutMs` waits out the startup delay without
+	// paying a fresh `docker exec` per attempt; still fail-closed — an unreachable proxy exits 1 at the deadline.
+	const script =
+		`const P=${port},D=Date.now()+${timeoutMs};` +
+		`function t(){const s=require("net").connect(P,"127.0.0.1");` +
+		`s.on("connect",()=>{s.destroy();process.exit(0)});` +
+		`s.on("error",()=>{s.destroy();Date.now()>D?process.exit(1):setTimeout(t,150)})}t();`;
 	try {
 		const result = await runDocker(["exec", options.containerName, "node", "-e", script], {
 			timeoutMs: timeoutMs + 2_000,
