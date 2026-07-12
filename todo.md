@@ -687,9 +687,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   (state `awaiting_review`, reason `attention`); auto-resolve wasn't groundable and no lineage-diverse model was resident,
   so the park layer was the right rung. (Not directly inspected in this pass: the verbatim contested question in the chat
   surface — the sim e2e regression covers it.) Fleet restored exactly as found (model unloaded, rig removed). Two
-  follow-ups filed from the run: the dev-test monitor classifies a PARKED-for-attention card as generic "stagnant"
-  (should surface "needs attention: <question>" — see §5.AI note), and `dev-full`'s stale-process sweep kills OTHER dev
-  stacks on boot (it killed the :3484 sim stack; fine for the shared default instance, surprising for a second isolated
+  follow-ups filed from the run: the dev-test monitor classified a PARKED-for-attention card as generic "stagnant" —
+  **✅ FIXED same day (`f8880108`): new `needs_attention` outcome** (pure `countAttentionParkedSessions` over
+  awaiting_review+attention sessions → threaded state-reader → harness → dev.ts; "Needs your attention: N card(s)
+  parked with a question for the operator"; 8 tests incl. the exact live shape) — and `dev-full`'s stale-process
+  sweep kills OTHER dev stacks on boot (it killed the :3484 sim stack; fine for the shared default instance, surprising for a second isolated
   rig — consider scoping the sweep to the SAME ports it is about to claim).
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
