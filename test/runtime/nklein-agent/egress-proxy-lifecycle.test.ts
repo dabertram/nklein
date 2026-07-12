@@ -43,6 +43,27 @@ describe("isEgressProxyEnabled — DEFAULT OFF (§7)", () => {
 	});
 });
 
+describe("isEgressProxyEnabled — env-over-config precedence (§6 I3)", () => {
+	it("falls through to the configured value when the env var is unset or blank", () => {
+		expect(isEgressProxyEnabled({}, true)).toBe(true);
+		expect(isEgressProxyEnabled({}, false)).toBe(false);
+		expect(isEgressProxyEnabled({}, undefined)).toBe(false);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "" }, true)).toBe(true);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "   " }, true)).toBe(true);
+	});
+	it("lets a SET env var win over the config in BOTH directions (real environment wins)", () => {
+		// Truthy env forces ON even when the persisted config is false.
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "1" }, false)).toBe(true);
+		// An explicit falsy env forces OFF even when the persisted config is true.
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "0" }, true)).toBe(false);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "false" }, true)).toBe(false);
+	});
+	it("defaults to false when neither the env var nor the config enables it", () => {
+		expect(isEgressProxyEnabled({})).toBe(false);
+		expect(isEgressProxyEnabled({}, false)).toBe(false);
+	});
+});
+
 describe("ensureEgressProxyAvailable — DEFAULT OFF invariant", () => {
 	it("flag OFF ⇒ ZERO docker calls and available:false (byte-identical old path)", async () => {
 		const docker = makeDocker(() => OK);

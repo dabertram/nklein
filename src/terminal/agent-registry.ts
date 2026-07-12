@@ -132,6 +132,8 @@ export function buildRuntimeConfigResponse(
 		selectedShortcutLabel: runtimeConfig.selectedShortcutLabel,
 		workspaceBaseDir: runtimeConfig.workspaceBaseDir,
 		deviceRamGb: runtimeConfig.deviceRamGb,
+		sandboxEgressProxyEnabled: runtimeConfig.sandboxEgressProxyEnabled,
+		sandboxEgressAllowlist: runtimeConfig.sandboxEgressAllowlist,
 		cloudProviderSupportEnabled: CLOUD_ENABLED,
 		agentAutonomousModeEnabled: runtimeConfig.agentAutonomousModeEnabled,
 		agentTimeoutMode: runtimeConfig.agentTimeoutMode,

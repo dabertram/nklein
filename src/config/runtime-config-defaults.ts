@@ -31,6 +31,12 @@ export const DEFAULT_SANDBOX_MCP_SERVERS_ENABLED = true;
  */
 export const DEFAULT_CAPABILITY_BROKER_ENABLED = true;
 export const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
+/**
+ * §5.L egress proxy (docs/dev/egress-proxy-design.md §6 I3) — the persisted equivalent of the
+ * `NKLEIN_SANDBOX_EGRESS_PROXY` env flag. OFF BY DEFAULT: flag off ⇒ byte-identical to the pre-proxy world
+ * (the `allowlist` tier stays `--network none`, fail-closed R2). The env var still overrides (real environment wins).
+ */
+export const DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED = false;
 /** §5.AR basic-memory MCP (write-capable authored memory) — OFF BY DEFAULT; `NKLEIN_BASIC_MEMORY` still force-enables (§5.BB). */
 export const DEFAULT_BASIC_MEMORY_ENABLED = false;
 /**

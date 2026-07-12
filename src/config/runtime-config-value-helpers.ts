@@ -55,6 +55,19 @@ export function normalizeDeviceRamGb(value: unknown): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * §5.L egress proxy (§6 I3): trim the free-form `sandboxEgressAllowlist` config string (comma/newline-separated
+ * hosts) to a non-empty string, or null when unset/blank. `parseEgressAllowlist` splits/dedups the entries at the
+ * point of use; this only trims — mirroring `normalizeDeviceRamGb`'s "store the raw string, parse later" style.
+ */
+export function normalizeSandboxEgressAllowlist(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const normalized = value.trim();
+	return normalized.length > 0 ? normalized : null;
+}
+
 /** True when `value` is non-null and owns `key` (its own enumerable/declared property). */
 export function hasOwnKey<T extends object>(value: T | null, key: keyof T): boolean {
 	if (!value) {

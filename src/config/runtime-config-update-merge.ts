@@ -28,6 +28,7 @@ import {
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
@@ -76,6 +77,12 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
 		workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
 		deviceRamGb: keepUpdatedValue(updates.deviceRamGb, current.deviceRamGb),
+		sandboxEgressProxyEnabled: keepNormalizedValue(
+			updates.sandboxEgressProxyEnabled,
+			current.sandboxEgressProxyEnabled,
+			(value) => normalizeBoolean(value, DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED),
+		),
+		sandboxEgressAllowlist: keepUpdatedValue(updates.sandboxEgressAllowlist, current.sandboxEgressAllowlist),
 		developerModeEnabled: keepNormalizedValue(updates.developerModeEnabled, current.developerModeEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
 		),

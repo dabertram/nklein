@@ -1932,6 +1932,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
+					// §5.L egress proxy (§6 I3): persisted flag + host allowlist (env still overrides the flag).
+					sandboxEgressProxyEnabled: runtimeConfig.sandboxEgressProxyEnabled,
+					sandboxEgressAllowlist: runtimeConfig.sandboxEgressAllowlist,
 					basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
 					// Surface a stalled slot acquisition (the review-hang class) instead of a silent freeze.
 					warn: (message) => deps.warn(message),
@@ -2617,6 +2620,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// service kept its original (looser) egress after the operator tightened isolation — a fail-open
 			// Docker-isolation drift (prime directive #2). Every other config field below is already re-applied here.
 			await service.setSandboxNetworkPolicy(sandboxNetworkPolicy);
+			// §5.L egress proxy (§6 I3): re-apply the persisted proxy flag + host allowlist on a live config change (same
+			// drift-guard discipline as the --network re-apply above — a cached manager must re-probe, never keep a stale
+			// verdict/allowlist). The NKLEIN_SANDBOX_EGRESS_PROXY env still overrides the flag.
+			service.setSandboxEgressConfig(
+				runtimeConfig.sandboxEgressProxyEnabled,
+				runtimeConfig.sandboxEgressAllowlist ?? "",
+			);
 			service.setSwarmGuardrails(effectiveSwarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);

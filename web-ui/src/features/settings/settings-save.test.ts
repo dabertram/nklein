@@ -247,6 +247,22 @@ describe("buildRuntimeConfigSaveRequest", () => {
 		expect(payload.swarmGuardrails).toEqual(DEFAULT_RUNTIME_SWARM_GUARDRAILS);
 	});
 
+	it("passes the egress-proxy flag through and trims / nulls the host allowlist (§6 I3)", () => {
+		const setPayload = buildRuntimeConfigSaveRequest(
+			makeDraft({ sandboxEgressProxyEnabled: true, sandboxEgressAllowlist: "  api.github.com, pkg.example.org  " }),
+			parsedDefaults,
+		);
+		expect(setPayload.sandboxEgressProxyEnabled).toBe(true);
+		expect(setPayload.sandboxEgressAllowlist).toBe("api.github.com, pkg.example.org");
+
+		const blankPayload = buildRuntimeConfigSaveRequest(
+			makeDraft({ sandboxEgressProxyEnabled: false, sandboxEgressAllowlist: "   " }),
+			parsedDefaults,
+		);
+		expect(blankPayload.sandboxEgressProxyEnabled).toBe(false);
+		expect(blankPayload.sandboxEgressAllowlist).toBeNull();
+	});
+
 	it("normalizes model roles and keeps a null override as null", () => {
 		const payload = buildRuntimeConfigSaveRequest(
 			makeDraft({

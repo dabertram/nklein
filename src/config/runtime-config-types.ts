@@ -125,6 +125,16 @@ export interface RuntimeConfigState {
 	 * null/empty → the autonomous fitting-device loader stays disabled. Env `NKLEIN_DEVICE_RAM_GB` overrides this.
 	 */
 	deviceRamGb: string | null;
+	/**
+	 * §5.L egress proxy (§6 I3): persisted equivalent of the `NKLEIN_SANDBOX_EGRESS_PROXY` env flag. OFF by default.
+	 * Env-when-set overrides the config (real environment wins); off ⇒ the `allowlist` tier stays `--network none`.
+	 */
+	sandboxEgressProxyEnabled: boolean;
+	/**
+	 * §5.L egress proxy (§6 I3): comma/newline-separated host allowlist gating which hosts allowlist-tier agents may
+	 * reach; null/empty → default-deny (fail-closed). v1 applies ONE global allowlist to every role (per-role lists later).
+	 */
+	sandboxEgressAllowlist: string | null;
 }
 
 export interface RuntimeConfigUpdateInput {
@@ -195,6 +205,8 @@ export interface RuntimeConfigUpdateInput {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	sandboxEgressProxyEnabled?: boolean;
+	sandboxEgressAllowlist?: string | null;
 }
 
 /** On-disk shape of the global config file (every field optional — the loader normalizes + fills defaults). */
@@ -254,6 +266,8 @@ export interface RuntimeGlobalConfigFileShape {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	sandboxEgressProxyEnabled?: boolean;
+	sandboxEgressAllowlist?: string | null;
 }
 
 /** On-disk shape of a project's config file — only the project-scoped settings + per-project overrides. */

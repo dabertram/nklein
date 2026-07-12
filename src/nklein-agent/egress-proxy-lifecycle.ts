@@ -1,6 +1,6 @@
 import type { AgentRulesetRole } from "../core/agent-rulesets";
 import { isTruthyEnv } from "../core/env-flag";
-import { EGRESS_PROXY_ROLE_PORTS } from "./egress-proxy-entrypoint";
+import { EGRESS_PROXY_ALLOWLIST_ENV, EGRESS_PROXY_ROLE_PORTS } from "./egress-proxy-entrypoint";
 import { type AgentSandboxEgressWiring, resolveAgentSandboxImageName } from "./nklein-agent-sandbox-docker";
 
 /**
@@ -51,9 +51,21 @@ export type EgressProxyRunDocker = (
 	options?: { timeoutMs?: number },
 ) => Promise<EgressProxyDockerResult>;
 
-/** DEFAULT-OFF gate (§7). Truthy `NKLEIN_SANDBOX_EGRESS_PROXY` ⇒ enabled; anything else ⇒ the byte-identical old path. */
-export function isEgressProxyEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-	return isTruthyEnv(env[EGRESS_PROXY_ENABLED_ENV]);
+/**
+ * DEFAULT-OFF gate (§7), now config-aware (§6 I3). Precedence — the REAL ENVIRONMENT ALWAYS WINS (matching cli.ts /
+ * the deviceRamGb loader): an explicitly SET (non-blank) `NKLEIN_SANDBOX_EGRESS_PROXY` decides in BOTH directions
+ * (truthy ⇒ on, an explicit `0`/`false` ⇒ off), and the persisted `configuredEnabled` (Settings) is consulted ONLY
+ * when the env var is unset/blank. Formally: env-truthy OR (env-unset AND configuredEnabled). Default (both unset) ⇒
+ * false ⇒ byte-identical to the pre-proxy world.
+ */
+export function isEgressProxyEnabled(env: NodeJS.ProcessEnv = process.env, configuredEnabled?: boolean): boolean {
+	const raw = env[EGRESS_PROXY_ENABLED_ENV];
+	if (raw !== undefined && raw.trim().length > 0) {
+		// Env explicitly set (real environment wins): its truthiness alone decides; the config is ignored.
+		return isTruthyEnv(raw);
+	}
+	// Env unset/blank ⇒ defer to the persisted Settings value (default false when absent).
+	return configuredEnabled ?? false;
 }
 
 /** Namespaced egress-network name (`nklein-egress-int[-<ns>]`), matching the sandbox pool's namespacing discipline. */
@@ -239,6 +251,17 @@ export interface EnsureEgressProxyOptions {
 	image?: string;
 	env?: NodeJS.ProcessEnv;
 	probeTimeoutMs?: number;
+	/**
+	 * §6 I3: the persisted Settings flag (`sandboxEgressProxyEnabled`), consulted by {@link isEgressProxyEnabled} ONLY
+	 * when the env var is unset (real environment wins). Absent ⇒ treated as false (DEFAULT-OFF).
+	 */
+	configuredEnabled?: boolean;
+	/**
+	 * §6 I3: the resolved global host allowlist (already parsed via `parseEgressAllowlist`). Passed to the proxy
+	 * container as `NKLEIN_EGRESS_PROXY_ALLOWLIST` so the in-container runtime binds it as the `allowlistForRole`
+	 * source. v1 is ONE global allowlist for every role. Empty/absent ⇒ default-deny (fail-closed).
+	 */
+	allowlist?: readonly string[];
 }
 
 /**
@@ -255,8 +278,9 @@ export async function ensureEgressProxyAvailable(
 ): Promise<EgressProxyAvailability> {
 	const networkName = egressNetworkName(options.namespace);
 	const containerName = egressProxyContainerName(options.namespace);
-	// DEFAULT-OFF (§7): return immediately with NO docker interaction — byte-identical to the pre-proxy world.
-	if (!isEgressProxyEnabled(options.env)) {
+	// DEFAULT-OFF (§7): return immediately with NO docker interaction — byte-identical to the pre-proxy world. The
+	// persisted Settings flag can enable it too (§6 I3), but an unset config keeps the env-only behavior unchanged.
+	if (!isEgressProxyEnabled(options.env, options.configuredEnabled)) {
 		return { available: false, networkName, internalIp: null };
 	}
 	try {
@@ -269,6 +293,11 @@ export async function ensureEgressProxyAvailable(
 				networkName,
 				bundleHostPath: options.bundleHostPath,
 				image: options.image,
+				// §6 I3: hand the resolved global allowlist to the in-container runtime via env (its `allowlistForRole`
+				// source). Only set when non-empty so an empty allowlist injects nothing (byte-identical container args).
+				...(options.allowlist && options.allowlist.length > 0
+					? { env: { [EGRESS_PROXY_ALLOWLIST_ENV]: options.allowlist.join(",") } }
+					: {}),
 			});
 		}
 		const healthy = await probeEgressProxyHealthy(runDocker, {

@@ -66,6 +66,7 @@ import {
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
@@ -150,6 +151,7 @@ import { mergeGlobalRuntimeConfigFields } from "./runtime-config-update-merge";
 import {
 	keepNormalizedValue,
 	normalizeDeviceRamGb,
+	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
 } from "./runtime-config-value-helpers";
@@ -249,6 +251,11 @@ function toRuntimeConfigState({
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(globalConfig?.workspaceBaseDir),
 		deviceRamGb: normalizeDeviceRamGb(globalConfig?.deviceRamGb),
+		sandboxEgressProxyEnabled: normalizeBoolean(
+			globalConfig?.sandboxEgressProxyEnabled,
+			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+		),
+		sandboxEgressAllowlist: normalizeSandboxEgressAllowlist(globalConfig?.sandboxEgressAllowlist),
 	};
 }
 
@@ -295,6 +302,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		selectedShortcutLabel: current.selectedShortcutLabel,
 		workspaceBaseDir: current.workspaceBaseDir,
 		deviceRamGb: current.deviceRamGb,
+		sandboxEgressProxyEnabled: current.sandboxEgressProxyEnabled,
+		sandboxEgressAllowlist: current.sandboxEgressAllowlist,
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
 		setupWizardCompletedAt: current.setupWizardCompletedAt,
@@ -390,6 +399,8 @@ export async function saveRuntimeConfig(
 		selectedShortcutLabel: string | null;
 		workspaceBaseDir: string | null;
 		deviceRamGb: string | null;
+		sandboxEgressProxyEnabled?: boolean;
+		sandboxEgressAllowlist: string | null;
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
 		setupWizardCompletedAt?: number | null;
@@ -462,6 +473,11 @@ export async function saveRuntimeConfig(
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			workspaceBaseDir: config.workspaceBaseDir,
 			deviceRamGb: config.deviceRamGb,
+			sandboxEgressProxyEnabled: normalizeBoolean(
+				config.sandboxEgressProxyEnabled,
+				DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+			),
+			sandboxEgressAllowlist: config.sandboxEgressAllowlist,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),
@@ -564,6 +580,11 @@ export async function saveRuntimeConfig(
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			workspaceBaseDir: config.workspaceBaseDir,
 			deviceRamGb: config.deviceRamGb,
+			sandboxEgressProxyEnabled: normalizeBoolean(
+				config.sandboxEgressProxyEnabled,
+				DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+			),
+			sandboxEgressAllowlist: config.sandboxEgressAllowlist,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),

@@ -268,6 +268,8 @@ export function buildRuntimeConfigSaveRequest(
 		maxConcurrentTasks: parsed.maxConcurrentTasks,
 		workspaceBaseDir: draft.workspaceBaseDir.trim() || null,
 		deviceRamGb: draft.deviceRamGb.trim() || null,
+		sandboxEgressProxyEnabled: draft.sandboxEgressProxyEnabled,
+		sandboxEgressAllowlist: draft.sandboxEgressAllowlist.trim() || null,
 		sandboxMaxContainers: parsed.sandboxMaxContainers,
 		sandboxAgentsPerContainer: parsed.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: parsed.sandboxMemoryPerContainerMb,

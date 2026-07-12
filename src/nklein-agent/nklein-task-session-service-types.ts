@@ -227,6 +227,8 @@ export interface NKleinTaskSessionService {
 	rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	setSandboxNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void>;
+	/** §5.L egress proxy (§6 I3): live-apply the persisted proxy flag + host allowlist to the sandbox manager. */
+	setSandboxEgressConfig(enabled: boolean, allowlist: string): void;
 	setModelTurnAdmissionGate(gate: NKleinModelTurnAdmissionGate | null): void;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;

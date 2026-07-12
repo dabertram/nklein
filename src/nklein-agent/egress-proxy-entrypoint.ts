@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { AGENT_RULESET_ROLES, type AgentCapabilityRulesetConfig, type AgentRulesetRole } from "../core/agent-rulesets";
 import type { EgressProxyAuditRecord } from "../core/egress-proxy-audit";
 import { createEgressProxyDnsStub, type EgressProxyDnsSocketFactory } from "./egress-proxy-dns-stub";
-import { resolveEgressProxyRoleSnapshot } from "./egress-proxy-role-snapshot";
+import { parseEgressAllowlist, resolveEgressProxyRoleSnapshot } from "./egress-proxy-role-snapshot";
 import {
 	createEgressProxyServer,
 	type EgressProxyConnectionContext,
@@ -35,6 +35,12 @@ export const EGRESS_PROXY_ROLE_PORTS: Record<AgentRulesetRole, number> = {
 
 /** The default UDP port the DNS stub binds inside the container (standard DNS). */
 export const EGRESS_PROXY_DNS_STUB_PORT = 53;
+
+/**
+ * §6 I3: the env var the host manager uses to hand the resolved global host allowlist to the in-container runtime
+ * (comma-separated hosts, applied to EVERY role in v1). Set by `startEgressProxyContainer`, read by `runEgressProxyMain`.
+ */
+export const EGRESS_PROXY_ALLOWLIST_ENV = "NKLEIN_EGRESS_PROXY_ALLOWLIST";
 
 export interface EgressProxyRuntimeDeps {
 	/** Resolved capability ruleset (role → tier → networkPolicy). Absent ⇒ built-in default tier. */
@@ -151,28 +157,16 @@ export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): Egr
 	};
 }
 
-/**
- * Read the PRE-I3 bootstrap allowlist from `NKLEIN_EGRESS_PROXY_ALLOWLIST` (comma-separated hosts, applied to EVERY
- * role). This is a temporary seam so the live Docker integration test can demonstrate an ALLOW before the real per-role
- * config surface lands in I3 (§6); absent ⇒ empty ⇒ default-deny (fail-closed). NOT the production config.
- */
-export function parseBootstrapAllowlistEnv(value: string | undefined): readonly string[] {
-	if (!value) {
-		return [];
-	}
-	return value
-		.split(",")
-		.map((host) => host.trim())
-		.filter((host) => host.length > 0);
-}
-
 /** Build the production runtime from process env + defaults and start it (the bundle entry calls this). */
 export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
-	const bootstrapAllowlist = parseBootstrapAllowlistEnv(process.env.NKLEIN_EGRESS_PROXY_ALLOWLIST);
+	// §6 I3: the host manager hands the resolved global allowlist in via NKLEIN_EGRESS_PROXY_ALLOWLIST (set by
+	// egress-proxy-lifecycle → startEgressProxyContainer from the persisted `sandboxEgressAllowlist` config).
+	// `parseEgressAllowlist` is the canonical parser; v1 binds ONE global allowlist to EVERY role (per-role lists later).
+	// Absent ⇒ empty ⇒ default-deny (fail-closed, R2).
+	const allowlist = parseEgressAllowlist(process.env[EGRESS_PROXY_ALLOWLIST_ENV]);
 	const runtime = createEgressProxyRuntime({
 		auditRootDir: process.env.NKLEIN_EGRESS_PROXY_AUDIT_DIR?.trim() || undefined,
-		// Pre-I3 bootstrap only (see parseBootstrapAllowlistEnv). I3 replaces this with the resolved per-role config.
-		allowlistForRole: bootstrapAllowlist.length > 0 ? () => bootstrapAllowlist : undefined,
+		allowlistForRole: allowlist.length > 0 ? () => allowlist : undefined,
 	});
 	await runtime.start();
 	return runtime;

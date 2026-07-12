@@ -946,3 +946,70 @@ describe.sequential("Suite 16 — deviceRamGb persistence", () => {
 		expect(after.deviceRamGb ?? null).toBeNull();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Suite: sandbox egress proxy config surface (§5.L egress proxy, §6 I3)
+// ---------------------------------------------------------------------------
+
+describe.sequential("Suite 17 — sandbox egress proxy config persistence", () => {
+	let server: BackendUnderTest;
+	let cwd: string;
+	let homeDir: string;
+
+	beforeAll(async () => {
+		cwd = makeTempDir("kanban-sc-egr-cwd-");
+		homeDir = makeTempDir("kanban-sc-egr-home-");
+		mkdirSync(cwd, { recursive: true });
+		initGitRepository(cwd);
+		server = await startTsBackend({ cwd, homeDir });
+	}, 30_000);
+
+	afterAll(async () => {
+		await server.stop();
+		cleanupDir(cwd);
+		cleanupDir(homeDir);
+	});
+
+	it("defaults to OFF with an empty allowlist on a fresh backend", async () => {
+		const cfg = await getConfig(server.baseUrl);
+		expect(cfg.sandboxEgressProxyEnabled ?? false).toBe(false);
+		expect(cfg.sandboxEgressAllowlist ?? null).toBeNull();
+	});
+
+	it("saving the flag + allowlist persists and reads back the values", async () => {
+		const allowlist = "api.github.com,registry.npmjs.org";
+		const saveRes = await saveConfig(server.baseUrl, {
+			sandboxEgressProxyEnabled: true,
+			sandboxEgressAllowlist: allowlist,
+		});
+		expect(saveRes.status).toBe(200);
+		expect(saveRes.payload.sandboxEgressProxyEnabled).toBe(true);
+		expect(saveRes.payload.sandboxEgressAllowlist).toBe(allowlist);
+
+		const after = await getConfig(server.baseUrl);
+		expect(after.sandboxEgressProxyEnabled).toBe(true);
+		expect(after.sandboxEgressAllowlist).toBe(allowlist);
+	});
+
+	it("writes the flag + allowlist to the on-disk global config.json", async () => {
+		const cfg = await getConfig(server.baseUrl);
+		const globalConfigPath = cfg.globalConfigPath as string;
+		const raw = JSON.parse(readFileSync(globalConfigPath, "utf8")) as Record<string, unknown>;
+		expect(raw.sandboxEgressProxyEnabled).toBe(true);
+		expect(raw.sandboxEgressAllowlist).toBe("api.github.com,registry.npmjs.org");
+	});
+
+	it("clearing the allowlist and disabling the flag reverts to the defaults", async () => {
+		const saveRes = await saveConfig(server.baseUrl, {
+			sandboxEgressProxyEnabled: false,
+			sandboxEgressAllowlist: null,
+		});
+		expect(saveRes.status).toBe(200);
+		expect(saveRes.payload.sandboxEgressProxyEnabled ?? false).toBe(false);
+		expect(saveRes.payload.sandboxEgressAllowlist ?? null).toBeNull();
+
+		const after = await getConfig(server.baseUrl);
+		expect(after.sandboxEgressProxyEnabled ?? false).toBe(false);
+		expect(after.sandboxEgressAllowlist ?? null).toBeNull();
+	});
+});

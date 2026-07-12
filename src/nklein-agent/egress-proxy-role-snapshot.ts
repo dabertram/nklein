@@ -56,3 +56,29 @@ export function resolveEgressProxyRoleSnapshot(
 		...(requirePerActionApproval !== undefined ? { requirePerActionApproval } : {}),
 	};
 }
+
+/**
+ * §5.L egress proxy config surface (§6 I3): parse the free-form `sandboxEgressAllowlist` Settings string
+ * (comma/newline-separated hosts) into a clean host list — trim each entry, drop blanks, de-duplicate (first
+ * occurrence wins, order preserved). Unset/blank ⇒ `[]` ⇒ default-deny (fail-closed, R2). Pure.
+ *
+ * This is the CANONICAL allowlist parser the manager feeds into the role-snapshot `allowlistForRole` source. v1
+ * applies ONE global allowlist to EVERY role (`allowlistForRole: () => parseEgressAllowlist(raw)`); per-role
+ * allowlists (`egressAllowlist.roleOverrides`, design §6 I3) are a later refinement layered on this same seam.
+ */
+export function parseEgressAllowlist(raw: string | null | undefined): string[] {
+	if (raw === undefined || raw === null) {
+		return [];
+	}
+	const seen = new Set<string>();
+	const hosts: string[] = [];
+	for (const entry of raw.split(/[,\n]/)) {
+		const host = entry.trim();
+		if (host.length === 0 || seen.has(host)) {
+			continue;
+		}
+		seen.add(host);
+		hosts.push(host);
+	}
+	return hosts;
+}

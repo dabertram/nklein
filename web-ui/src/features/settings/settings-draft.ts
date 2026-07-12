@@ -67,6 +67,8 @@ interface SettingsDraftCommonFields {
 	maxConcurrentTasks: string;
 	workspaceBaseDir: string;
 	deviceRamGb: string;
+	sandboxEgressProxyEnabled: boolean;
+	sandboxEgressAllowlist: string;
 	sandboxMaxContainers: string;
 	sandboxAgentsPerContainer: string;
 	sandboxMemoryPerContainerMb: string;
@@ -182,6 +184,8 @@ export function initSettingsDraftFromConfig(
 		maxConcurrentTasks: String(config?.maxConcurrentTasks ?? 3),
 		workspaceBaseDir: config?.workspaceBaseDir ?? "",
 		deviceRamGb: config?.deviceRamGb ?? "",
+		sandboxEgressProxyEnabled: config?.sandboxEgressProxyEnabled ?? false,
+		sandboxEgressAllowlist: config?.sandboxEgressAllowlist ?? "",
 		sandboxMaxContainers: String(config?.sandboxMaxContainers ?? 1),
 		sandboxAgentsPerContainer: String(config?.sandboxAgentsPerContainer ?? 0),
 		sandboxMemoryPerContainerMb: String(config?.sandboxMemoryPerContainerMb ?? 2048),
@@ -320,6 +324,12 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (draft.deviceRamGb.trim() !== snapshot.deviceRamGb.trim()) {
+		return true;
+	}
+	if (draft.sandboxEgressProxyEnabled !== snapshot.sandboxEgressProxyEnabled) {
+		return true;
+	}
+	if (draft.sandboxEgressAllowlist.trim() !== snapshot.sandboxEgressAllowlist.trim()) {
 		return true;
 	}
 	if (draft.sandboxMaxContainers.trim() !== snapshot.sandboxMaxContainers.trim()) {

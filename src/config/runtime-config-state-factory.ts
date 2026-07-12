@@ -37,6 +37,7 @@ import {
 	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_LENSES_ENABLED,
+	DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
@@ -67,6 +68,7 @@ import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
 import {
 	normalizeDeviceRamGb,
+	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
 } from "./runtime-config-value-helpers";
@@ -146,6 +148,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	openPrPromptTemplate: string;
 	workspaceBaseDir: string | null;
 	deviceRamGb: string | null;
+	sandboxEgressProxyEnabled: boolean;
+	sandboxEgressAllowlist: string | null;
 }
 
 export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFromValuesInput): RuntimeConfigState {
@@ -248,5 +252,10 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(input.workspaceBaseDir),
 		deviceRamGb: normalizeDeviceRamGb(input.deviceRamGb),
+		sandboxEgressProxyEnabled: normalizeBoolean(
+			input.sandboxEgressProxyEnabled,
+			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+		),
+		sandboxEgressAllowlist: normalizeSandboxEgressAllowlist(input.sandboxEgressAllowlist),
 	};
 }

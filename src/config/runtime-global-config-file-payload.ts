@@ -67,6 +67,7 @@ import {
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_LENSES_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
@@ -127,6 +128,7 @@ import {
 	assignChangedConfigField,
 	hasOwnKey,
 	normalizeDeviceRamGb,
+	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
 } from "./runtime-config-value-helpers";
@@ -188,6 +190,8 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	sandboxEgressProxyEnabled?: boolean;
+	sandboxEgressAllowlist?: string | null;
 }
 
 export function buildRuntimeGlobalConfigFilePayload(
@@ -209,6 +213,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
 	const basicMemoryEnabled = normalizeBoolean(config.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED);
+	const sandboxEgressProxyEnabled = normalizeBoolean(
+		config.sandboxEgressProxyEnabled,
+		DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+	);
 	const chatAdaptiveTruncationEnabled = normalizeBoolean(
 		config.chatAdaptiveTruncationEnabled,
 		DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
@@ -241,6 +249,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const deviceRamGb = config.deviceRamGb === undefined ? undefined : normalizeDeviceRamGb(config.deviceRamGb);
 	const existingDeviceRamGb = hasOwnKey(existing, "deviceRamGb")
 		? normalizeDeviceRamGb(existing?.deviceRamGb)
+		: undefined;
+	const sandboxEgressAllowlist =
+		config.sandboxEgressAllowlist === undefined
+			? undefined
+			: normalizeSandboxEgressAllowlist(config.sandboxEgressAllowlist);
+	const existingSandboxEgressAllowlist = hasOwnKey(existing, "sandboxEgressAllowlist")
+		? normalizeSandboxEgressAllowlist(existing?.sandboxEgressAllowlist)
 		: undefined;
 	const agentAutonomousModeEnabled = normalizeBoolean(
 		config.agentAutonomousModeEnabled,
@@ -408,6 +423,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 	} else if (existingDeviceRamGb) {
 		payload.deviceRamGb = existingDeviceRamGb;
 	}
+	if (sandboxEgressAllowlist !== undefined) {
+		if (sandboxEgressAllowlist) {
+			payload.sandboxEgressAllowlist = sandboxEgressAllowlist;
+		}
+	} else if (existingSandboxEgressAllowlist) {
+		payload.sandboxEgressAllowlist = existingSandboxEgressAllowlist;
+	}
 	if (
 		hasOwnKey(existing, "developerModeEnabled") ||
 		readLegacyDeveloperModeEnabled(existing) !== null ||
@@ -432,6 +454,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
 	assignChangedConfigField(payload, existing, "basicMemoryEnabled", basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxEgressProxyEnabled",
+		sandboxEgressProxyEnabled,
+		DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
+	);
 	assignChangedConfigField(
 		payload,
 		existing,

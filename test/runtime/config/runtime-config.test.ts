@@ -179,6 +179,8 @@ describe.sequential("runtime-config auto agent selection", () => {
 			{ key: "commitPromptTemplate", value: "Custom commit template" },
 			{ key: "openPrPromptTemplate", value: "Custom PR template" },
 			{ key: "deviceRamGb", value: "m5max:128,m4mini:24" },
+			{ key: "sandboxEgressProxyEnabled", value: true },
+			{ key: "sandboxEgressAllowlist", value: "api.example.com,pkg.example.org" },
 		];
 		for (const testCase of cases) {
 			const { path: tempHome, cleanup } = createTempDir("kanban-home-runtime-config-field-roundtrip-");
@@ -928,6 +930,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					selectedShortcutLabel: null,
 					workspaceBaseDir: null,
 					deviceRamGb: null,
+					sandboxEgressAllowlist: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",
@@ -1008,6 +1011,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					selectedShortcutLabel: null,
 					workspaceBaseDir: null,
 					deviceRamGb: null,
+					sandboxEgressAllowlist: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",
@@ -1044,6 +1048,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					selectedShortcutLabel: null,
 					workspaceBaseDir: null,
 					deviceRamGb: null,
+					sandboxEgressAllowlist: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",

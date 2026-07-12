@@ -29,6 +29,8 @@ const representativeConfig = {
 	maxAgentWritableFileLines: 1500,
 	maxConcurrentTasks: 5,
 	workspaceBaseDir: "/tmp/workspaces",
+	sandboxEgressProxyEnabled: true,
+	sandboxEgressAllowlist: "api.github.com,pkg.example.org",
 	sandboxMaxContainers: 4,
 	sandboxAgentsPerContainer: 1,
 	sandboxMemoryPerContainerMb: 4096,
@@ -111,6 +113,8 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.maxAgentWritableFileLines).toBe("1000");
 		expect(snapshot.maxConcurrentTasks).toBe("3");
 		expect(snapshot.workspaceBaseDir).toBe("");
+		expect(snapshot.sandboxEgressProxyEnabled).toBe(false);
+		expect(snapshot.sandboxEgressAllowlist).toBe("");
 		expect(snapshot.sandboxMaxContainers).toBe("1");
 		expect(snapshot.sandboxAgentsPerContainer).toBe("0");
 		expect(snapshot.sandboxMemoryPerContainerMb).toBe("2048");
@@ -174,6 +178,8 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.maxAgentWritableFileLines).toBe("1500");
 		expect(snapshot.maxConcurrentTasks).toBe("5");
 		expect(snapshot.workspaceBaseDir).toBe("/tmp/workspaces");
+		expect(snapshot.sandboxEgressProxyEnabled).toBe(true);
+		expect(snapshot.sandboxEgressAllowlist).toBe("api.github.com,pkg.example.org");
 		expect(snapshot.sandboxMaxContainers).toBe("4");
 		expect(snapshot.sandboxAgentsPerContainer).toBe("1");
 		expect(snapshot.sandboxMemoryPerContainerMb).toBe("4096");
@@ -264,6 +270,8 @@ describe("isSettingsDraftDirty", () => {
 			{ maxAgentWritableFileLines: "2000" },
 			{ maxConcurrentTasks: "9" },
 			{ workspaceBaseDir: "/elsewhere" },
+			{ sandboxEgressProxyEnabled: false },
+			{ sandboxEgressAllowlist: "changed.example.com" },
 			{ sandboxMaxContainers: "8" },
 			{ sandboxAgentsPerContainer: "3" },
 			{ sandboxMemoryPerContainerMb: "8192" },

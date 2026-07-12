@@ -103,6 +103,8 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("openPrPromptTemplate"),
 	runtimeConfigChangeField("workspaceBaseDir"),
 	runtimeConfigChangeField("deviceRamGb"),
+	runtimeConfigChangeField("sandboxEgressProxyEnabled"),
+	runtimeConfigChangeField("sandboxEgressAllowlist"),
 ];
 
 // Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).

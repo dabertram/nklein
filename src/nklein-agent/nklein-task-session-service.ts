@@ -2517,6 +2517,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		await this.agentSandboxManager?.setNetworkPolicy(policy);
 	}
 
+	/** §5.L egress proxy (§6 I3): forward the persisted proxy flag + host allowlist to the sandbox manager. */
+	setSandboxEgressConfig(enabled: boolean, allowlist: string): void {
+		this.agentSandboxManager?.setSandboxEgressConfig(enabled, allowlist);
+	}
+
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {
 		const resumed: RuntimeTaskSessionSummary[] = [];
 		for (const taskId of this.pauseController.listControllerPausedTaskIds()) {

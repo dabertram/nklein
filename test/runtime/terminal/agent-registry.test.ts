@@ -24,6 +24,8 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
+		sandboxEgressProxyEnabled: false,
+		sandboxEgressAllowlist: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		setupWizardCompletedAt: null,

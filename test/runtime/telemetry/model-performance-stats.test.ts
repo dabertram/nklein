@@ -23,6 +23,8 @@ function createRuntimeConfig(): RuntimeConfigState {
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
+		sandboxEgressProxyEnabled: false,
+		sandboxEgressAllowlist: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
 		setupWizardCompletedAt: null,

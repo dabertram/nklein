@@ -25,6 +25,7 @@ import {
 	resolveSandboxEgressWiring,
 	teardownEgressProxy,
 } from "./egress-proxy-lifecycle";
+import { parseEgressAllowlist } from "./egress-proxy-role-snapshot";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
@@ -118,6 +119,16 @@ export interface AgentSandboxManagerOptions {
 	 * uniform, so the global preset governs egress for every container.
 	 */
 	networkPolicy?: SandboxNetworkPolicy;
+	/**
+	 * §5.L egress proxy (§6 I3): the persisted `sandboxEgressProxyEnabled` Settings flag. Consulted by
+	 * `isEgressProxyEnabled` ONLY when `NKLEIN_SANDBOX_EGRESS_PROXY` is unset (real environment wins). Default false.
+	 */
+	sandboxEgressProxyEnabled?: boolean;
+	/**
+	 * §5.L egress proxy (§6 I3): the persisted `sandboxEgressAllowlist` (raw comma/newline string). Parsed via
+	 * `parseEgressAllowlist` and handed to the proxy container as its `allowlistForRole` source. Empty ⇒ default-deny.
+	 */
+	sandboxEgressAllowlist?: string | null;
 	/**
 	 * §5.AR/§5.BB basic-memory: enables the per-project writable store plan (config + notes mounted RW at container
 	 * start). Composed with the `NKLEIN_BASIC_MEMORY` env override at construction/set time (either enables); defaults
@@ -297,6 +308,12 @@ export class AgentSandboxManager {
 	private poolConfig: AgentSandboxPoolConfig;
 	// Mutable so an operator tightening/loosening the capability tier at runtime is re-applied (see setNetworkPolicy).
 	private networkPolicy: SandboxNetworkPolicy;
+	// §5.L egress proxy (§6 I3): the persisted flag + raw allowlist string, mutable so a live Settings change re-applies
+	// (setSandboxEgressConfig). Read at container (re)create: `isEgressProxyEnabled(env, this.sandboxEgressProxyEnabled)`
+	// gates the wiring and `parseEgressAllowlist(this.sandboxEgressAllowlist)` rides the proxy container's env. The
+	// `NKLEIN_SANDBOX_EGRESS_PROXY` env still overrides the flag (real environment wins).
+	private sandboxEgressProxyEnabled: boolean;
+	private sandboxEgressAllowlist: string;
 	private readonly execFileImpl: typeof execFile;
 	private readonly setTimeoutImpl: typeof setTimeout;
 	private readonly clearTimeoutImpl: typeof clearTimeout;
@@ -333,6 +350,8 @@ export class AgentSandboxManager {
 		this.image = options.image ?? resolveAgentSandboxImageName();
 		this.poolConfig = normalizeAgentSandboxPoolConfig(options.poolConfig);
 		this.networkPolicy = options.networkPolicy ?? "none";
+		this.sandboxEgressProxyEnabled = options.sandboxEgressProxyEnabled ?? false;
+		this.sandboxEgressAllowlist = options.sandboxEgressAllowlist ?? "";
 		this.basicMemoryEnabled = (options.basicMemoryEnabled ?? false) || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
@@ -351,6 +370,22 @@ export class AgentSandboxManager {
 	 */
 	setBasicMemoryEnabled(enabled: boolean): void {
 		this.basicMemoryEnabled = enabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
+	}
+
+	/**
+	 * §5.L egress proxy (§6 I3) live-apply on a runtime-config change (same seam as {@link setBasicMemoryEnabled} /
+	 * {@link setNetworkPolicy}). Updates the persisted flag + raw allowlist and, when EITHER changed, resets the
+	 * availability memo so the NEXT `allowlist` container (re)create re-probes/re-provisions the shared proxy — never
+	 * keeping a stale verdict or a stale startup allowlist (drift protection, prime directive #2). A proxy container
+	 * already running keeps its startup allowlist until the pool reaps it at stopNow (env is baked at container start —
+	 * the same "applies to subsequently-created containers" discipline as the basic-memory writable mounts).
+	 */
+	setSandboxEgressConfig(enabled: boolean, allowlist: string): void {
+		if (enabled !== this.sandboxEgressProxyEnabled || allowlist !== this.sandboxEgressAllowlist) {
+			this.egressEnsurePromise = null;
+		}
+		this.sandboxEgressProxyEnabled = enabled;
+		this.sandboxEgressAllowlist = allowlist;
 	}
 
 	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
@@ -882,7 +917,8 @@ export class AgentSandboxManager {
 	 */
 	private async resolveContainerEgressWiring(): Promise<{ wiring?: AgentSandboxEgressWiring; internalIp?: string }> {
 		// FAIL-CLOSED / DEFAULT-OFF gate (§7): flag off or a non-`allowlist` policy ⇒ no ensure call, no egress wiring.
-		if (!isEgressProxyEnabled(process.env) || this.networkPolicy !== "allowlist") {
+		// The flag is now env OR persisted config (§6 I3): env-when-set wins, else the `sandboxEgressProxyEnabled` setting.
+		if (!isEgressProxyEnabled(process.env, this.sandboxEgressProxyEnabled) || this.networkPolicy !== "allowlist") {
 			return {};
 		}
 		const availability = await this.ensureEgressAvailability();
@@ -925,6 +961,10 @@ export class AgentSandboxManager {
 			bundleHostPath,
 			image: this.image,
 			env: process.env,
+			// §6 I3: the persisted flag (env still overrides) + the resolved global allowlist handed to the proxy
+			// container as its `allowlistForRole` source. v1 is ONE global allowlist for every role (per-role later).
+			configuredEnabled: this.sandboxEgressProxyEnabled,
+			allowlist: parseEgressAllowlist(this.sandboxEgressAllowlist),
 		});
 	}
 
