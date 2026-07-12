@@ -2,6 +2,7 @@ import type { LookupAddress } from "node:dns";
 import { lookup as dnsLookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { chromium } from "playwright";
+import { isPrivateOrReservedIp } from "../core/egress-proxy-verdict";
 import { labelsForSourceContent } from "../core/taint-content-scan";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
@@ -53,71 +54,9 @@ export interface BrowserToolOptions {
 const DEFAULT_MAX_CHARS = 8_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-/**
- * Returns true when the given IP string belongs to a private, loopback, link-local, CGNAT, or other reserved range
- * that should be blocked in remote mode to prevent SSRF. Uses ipaddr.js `range()` so we inherit its maintained range
- * table rather than hand-rolling comparisons.
- *
- * IPv6-mapped IPv4 addresses (::ffff:x.y.z.w) are unwrapped to their IPv4 form so they cannot bypass the check via
- * the mapped representation.
- */
-export function isPrivateOrReservedIp(ip: string): boolean {
-	let parsed: ipaddr.IPv4 | ipaddr.IPv6;
-	try {
-		parsed = ipaddr.parse(ip);
-	} catch {
-		// Not a valid IP at all — treat as non-private (URL validation will catch it separately).
-		return false;
-	}
-
-	// Unwrap IPv6-mapped IPv4 (::ffff:x.y.z.w) so the IPv4 range table applies.
-	if (parsed.kind() === "ipv6") {
-		const v6 = parsed as ipaddr.IPv6;
-		if (v6.isIPv4MappedAddress()) {
-			parsed = v6.toIPv4Address();
-		}
-	}
-
-	if (parsed.kind() === "ipv4") {
-		const range = (parsed as ipaddr.IPv4).range();
-		// "unicast" is the default returned by ipaddr for normal public IPs; everything else is restricted.
-		// Explicitly enumerate the ranges we block for clarity rather than relying on a catch-all inversion.
-		const BLOCKED_IPV4_RANGES: Set<string> = new Set([
-			"loopback", // 127.0.0.0/8
-			"private", // 10/8, 172.16/12, 192.168/16
-			"linkLocal", // 169.254.0.0/16 — incl. 169.254.169.254 cloud metadata
-			"carrierGradeNat", // 100.64.0.0/10
-			"unspecified", // 0.0.0.0/8
-			"broadcast", // 255.255.255.255
-			"multicast", // 224.0.0.0/4
-			"reserved", // various TEST-NET/IETF/documentation ranges
-		]);
-		return BLOCKED_IPV4_RANGES.has(range);
-	}
-
-	// IPv6
-	const range = (parsed as ipaddr.IPv6).range();
-	const BLOCKED_IPV6_RANGES: Set<string> = new Set([
-		"loopback", // ::1
-		"uniqueLocal", // fc00::/7 — private IPv6
-		"linkLocal", // fe80::/10
-		"multicast", // ff00::/8
-		"unspecified", // ::
-		"ipv4Mapped", // already unwrapped above, but keep as backstop
-		"reserved",
-		// IPv4-EMBEDDING transition ranges — each carries/routes to an IPv4 destination in its low bits, so an
-		// attacker can reach loopback/LAN/cloud-metadata through the IPv6 literal (e.g. `64:ff9b::a9fe:a9fe` → the
-		// 169.254.169.254 metadata endpoint). ipaddr.js names them distinctly and they are NOT covered by the
-		// unwrap above (that only handles `::ffff:` mapped). Block the whole ranges (fail-closed): a literal NAT64/
-		// 6to4/Teredo URL in a page-fetch is an SSRF attempt, never a legitimate public-page fetch (which resolves
-		// via DNS to a normal address). Was a fail-OPEN hole (bug-hunt 2026-07-05).
-		"rfc6052", // 64:ff9b::/96 — NAT64 well-known prefix (embeds IPv4 in low 32 bits)
-		"rfc6145", // ::ffff:0:0/96 — IPv4-translatable (stateless NAT64)
-		"6to4", // 2002::/16 — 6to4 (embeds IPv4 in bits 16-48)
-		"teredo", // 2001::/32 — Teredo tunneling (embeds a mapped IPv4)
-	]);
-	return BLOCKED_IPV6_RANGES.has(range);
-}
+// The private/reserved-range predicate MOVED to `../core/egress-proxy-verdict` (egress-proxy design §6 I1) so the
+// SSRF guard and the egress proxy share ONE range truth; re-exported here so existing importers keep working.
+export { isPrivateOrReservedIp } from "../core/egress-proxy-verdict";
 
 /**
  * Resolves a URL's hostname to an IP address and checks whether it is private/reserved.
