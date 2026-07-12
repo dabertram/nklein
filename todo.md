@@ -5849,7 +5849,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   linked machines sharing ONE `localhost:1234` endpoint ARE distinguished. OFF by default ⇒ byte-identical (no `lms ps`
 >   subprocess). So !Klein CAN auto-handle per-machine concurrency — the predefined-pools FALLBACK is NOT needed. **REMAINING
 >   (finer): (1)** it's OFF by default ⇒ the swarm counts per-ENDPOINT until the user sets `NKLEIN_PER_MACHINE_MAX_CONCURRENCY`
->   ⇒ the mix-up risk exists by default — DECIDED 2026-07-12 (§10c#5+6): DEFAULT ON EVERYWHERE, all persisted host caps = 1 (work item). Original ask: decide whether to DEFAULT it on (or auto-enable when `lms ps` shows >1 machine) so
+>   ⇒ the mix-up risk exists by default — DECIDED 2026-07-12 (§10c#5+6): DEFAULT ON EVERYWHERE, all persisted host caps = 1 — ✅ SHIPPED same day (DEFAULT_HOST_CONCURRENCY_CAP=1 in resolveEffectiveHostConcurrency; host map resolves every dispatch; explicit-vs-effective split in the capacity report). Original ask: decide whether to DEFAULT it on (or auto-enable when `lms ps` shows >1 machine) so
 >   it's correct-by-default; **(2) CONFIRMED (2026-07-01) — the pool-ROUTING layer DOES need per-`machineId` keying for
 >   fan-out.** `selectSwarmRouteForTask` keys each candidate's pool by `poolId: candidate.entry.endpoint` (start-task-session
 >   ~L480) and `computePoolFreeSlots` counts per-ENDPOINT (~L494) — so LM-linked machines sharing one `localhost:1234` endpoint
