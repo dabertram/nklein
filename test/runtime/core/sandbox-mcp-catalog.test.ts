@@ -54,6 +54,29 @@ describe("selectSandboxMcpServersForModel — applies the §5.AL fit gate over A
 	});
 });
 
+describe("selectSandboxMcpServersForModel — ALSO applies the §5.AF memory-fit gate", () => {
+	it("omitting the container limit is backward-compatible (unbounded ⇒ memory gate does not engage)", () => {
+		// A model-fitting server is still offered when no container memory limit is supplied.
+		expect(selectSandboxMcpServersForModel("qwen/qwen3-8b").map((s) => s.id)).toContain("codebase-memory");
+	});
+
+	it("WITHHOLDS codebase-memory on the 4 GB default container (the OOM-under-load fix), but keeps sequential-thinking", () => {
+		const ids = selectSandboxMcpServersForModel("qwen/qwen3-8b", 4096).map((s) => s.id);
+		expect(ids).not.toContain("codebase-memory"); // 2048 budget + 2560 headroom = 4608 > 4096 ⇒ withheld
+		expect(ids).toContain("sequential-thinking"); // 256 budget fits comfortably
+	});
+
+	it("OFFERS codebase-memory again on a 8 GB container", () => {
+		expect(selectSandboxMcpServersForModel("qwen/qwen3-8b", 8192).map((s) => s.id)).toContain("codebase-memory");
+	});
+
+	it("the memory gate composes with the model gate (a tool-unsuitable model still gets nothing on a big container)", () => {
+		expect(selectSandboxMcpServersForModel("phi-4-reasoning-plus", 16384).map((s) => s.id)).not.toContain(
+			"codebase-memory",
+		);
+	});
+});
+
 describe("buildSandboxMcpDockerExecArgs — persistent docker-exec stdio command", () => {
 	it("mirrors execAsTaskUser (-u/-w/container) and adds -i for the bidirectional MCP pipe", () => {
 		const args = buildSandboxMcpDockerExecArgs(

@@ -2,6 +2,15 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The code-intelligence memory server no longer crashes agents on smaller machines.** The sandbox's
+  codebase-memory MCP (a ~2 GB code-graph index that cuts tokens ~99%) was being launched into every task
+  container — including the 4 GB default — where, under concurrent build/test load, it exceeded the container's
+  memory limit and got OOM-killed mid-work (`MCP error -32000: Connection closed`), silently stripping the agent's
+  code localization. !Klein now checks up front whether a container has room for a heavy MCP server alongside the
+  worker (its budget + the container's own baseline + one concurrent command) and simply doesn't offer it when it
+  won't fit — deterministic, predictable behavior instead of a random mid-run crash. Give sandbox containers more
+  memory (Settings → Agents → isolation pool) to bring it back; the lightweight servers are unaffected.
+
 - **The "Get started" tour now describes !Klein, not its ancestor.** The onboarding slides still claimed task
   import from Linear and GitHub (inherited copy from the fork's origin — !Klein is local-only and does neither).
   The tour now tells the real story: describe your goal in chat, !Klein decomposes it into dependent cards, local

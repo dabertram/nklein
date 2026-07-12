@@ -1521,6 +1521,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// Same gate the tool bundle uses to offer curated sandbox MCP servers — so the structural-retrieval
 					// nudge is added exactly when (and only when) a structural code-graph server is offered to this model.
 					sandboxMcpEnabled: this.isSandboxMcpEnabled(),
+					// §5.AF: the pool's per-container memory limit, so the nudge honors the memory-fit gate too (a heavy
+					// server withheld from a small container isn't advertised in guidance).
+					...(this.agentSandboxManager
+						? { sandboxContainerMemoryLimitMb: this.agentSandboxManager.getContainerMemoryLimitMb() }
+						: {}),
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});

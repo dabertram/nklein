@@ -712,7 +712,15 @@ export function createNKleinMcpRuntimeService(
 			}
 			const curatedServers =
 				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
-					? filterEnabledSandboxServers(selectSandboxMcpServersForModel(bundleOptions.modelId), enabledOptIns)
+					? filterEnabledSandboxServers(
+							// §5.AF: the exec target carries the container's memory limit, so a heavy server (codebase-memory) is
+							// withheld from a container too small to host it without OOM under concurrent load.
+							selectSandboxMcpServersForModel(
+								bundleOptions.modelId,
+								bundleOptions.sandboxExecTarget.memoryLimitMb,
+							),
+							enabledOptIns,
+						)
 					: [];
 
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {

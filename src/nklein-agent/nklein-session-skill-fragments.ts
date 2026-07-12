@@ -31,6 +31,12 @@ export interface BuildSessionSkillFragmentsInput {
 	/** Whether curated sandbox MCP servers are offered this session (the same gate the tool bundle uses). */
 	sandboxMcpEnabled?: boolean;
 	/**
+	 * §5.AF: the sandbox pool's per-container memory limit (MB). Threaded so the structural-retrieval nudge applies the
+	 * SAME memory-fit gate as the tool bundle — a heavy server (codebase-memory) withheld from a small container must not
+	 * be advertised in guidance. Absent ⇒ unbounded (the memory gate does not engage), matching the tool bundle's default.
+	 */
+	sandboxContainerMemoryLimitMb?: number;
+	/**
 	 * §5.AE the user's effective skill-dynamics level (global default ← per-project override). Drives WHICH skills
 	 * `resolveActiveSkills` selects (role bundle vs relevance-scored vs assigned) — so the repo-map/other fragments this
 	 * session actually carries honor the setting. Absent ⇒ the resolver's own default (`fully_dynamic`).
@@ -44,11 +50,12 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 
 	// §5.AR structural-retrieval nudge — pure + cheap (no I/O), so it is NOT gated behind the repo-map scan flag. It is
 	// added ONLY when a structural code-graph MCP server (codebase-memory) is actually offered to this model, via the
-	// SAME §5.AL fit gate that adds its tools — so guidance and tool can never disagree. Today codebase-memory is
-	// `available: false`, so selectSandboxMcpServersForModel never returns it and this is a zero-op; the moment the
-	// binary is baked into the sandbox image it auto-activates, telling agents to prefer graph queries over grep.
+	// SAME §5.AL model-fit AND §5.AF memory-fit gates that add its tools — so guidance and tool can never disagree (incl.
+	// when codebase-memory is withheld from a too-small container to avoid the OOM-under-load kill).
 	if (input.sandboxMcpEnabled && input.modelId) {
-		const offeredServerIds = selectSandboxMcpServersForModel(input.modelId).map((server) => server.id);
+		const offeredServerIds = selectSandboxMcpServersForModel(input.modelId, input.sandboxContainerMemoryLimitMb).map(
+			(server) => server.id,
+		);
 		const guidance = buildStructuralRetrievalGuidance(offeredServerIds);
 		if (guidance) {
 			fragments.push({ key: "structural-retrieval", volatility: "config", text: guidance });

@@ -8426,7 +8426,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         input normalization/floor/clamp, projections/counts, determinism/no-mutation). tsc+biome+vitest green. **Owed:** wire
         it at the scheduler's lease step (admit-gate the ready-ordered candidates against the live per-endpoint pool snapshot
         + global cap; map `admit`→lease, `defer`→leave `ready`, `shed`→a `cancelled`/surfaced outcome) at the live-integration pass.
-  - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
+  - [~] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
+        **✅ THE codebase-memory OOM INSTANCE IS FIXED (2026-07-12, fix option 1 — the memory-fit gate).** New pure
+        [src/core/mcp-server-memory-fit.ts] `decideMcpServerMemoryFit` parallels the §5.AL model-fit gate: a heavy MCP is
+        WITHHELD when `containerMemoryLimitMb < memoryBudgetMb + workerHeadroom` (default headroom 2560 = sandbox baseline
+        1024 + one exec-spike 1536, per setup-detection.ts). Each `SandboxMcpServerDef` now carries a `memoryBudgetMb`
+        (codebase-memory 2048 / basic-memory 512 / sequential-thinking 256); `selectSandboxMcpServersForModel(modelId,
+        containerMemoryLimitMb?)` applies BOTH gates. Wiring: the container limit rides `SandboxExecTarget.memoryLimitMb`
+        (set in `getSandboxExecTarget` from `poolConfig.memoryPerContainerMb`) — the exec target is already threaded to
+        `createToolBundle`, so ZERO new hops; the structural-retrieval SKILL FRAGMENT gets the same limit via a new
+        `AgentSandboxManager.getContainerMemoryLimitMb()` so guidance never advertises a withheld server. NET: on the 4 GB
+        default container codebase-memory (2048) is deterministically withheld (needs ≥4608) — predictable degradation, no
+        mid-work OOM-kill churn; on a 6 GB+ container it is offered. The operator raises `memoryPerContainerMb` (Settings →
+        Agents → isolation pool) to get it back. 11 new tests (pure gate + catalog integration + boundary); tsc + biome +
+        8973 fast green. REMAINING (the broader `[~]`): the live multi-model lab thrash/deadlock sweep (fleet-run, deferred).
         *(LIVE INSTANCE FOUND 2026-07-11, single-machine smoke: the codebase-memory sandbox MCP intermittently fails to
         load — `MCP error -32000: Connection closed` — under concurrent worker+index load. Root cause is resource, not
         code: the baked binary works standalone (`docker exec -i … codebase-memory-mcp` initialize succeeds; stderr

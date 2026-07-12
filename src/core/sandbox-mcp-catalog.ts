@@ -13,6 +13,7 @@
  * gate ({@link decideMcpServerModelFitById}) is applied uniformly: a server is offered to a task only when its model fits.
  */
 
+import { decideMcpServerMemoryFit } from "./mcp-server-memory-fit";
 import {
 	BASIC_MEMORY_FIT,
 	CODEBASE_MEMORY_FIT,
@@ -35,6 +36,13 @@ export interface SandboxMcpServerDef {
 	/** The §5.AL model-fit profile — gates which models get this server (see {@link selectSandboxMcpServersForModel}). */
 	fit: McpServerModelFitProfile;
 	/**
+	 * Peak resident memory budget in MB — feeds the §5.AF memory-fit gate
+	 * ({@link import("./mcp-server-memory-fit").decideMcpServerMemoryFit}) so a heavy server is withheld from a container
+	 * too small to host it alongside the worker (the codebase-memory OOM-under-load fix). codebase-memory advertises
+	 * `budget_mb=2048`; the lightweight scaffolds (sequential-thinking, basic-memory) reserve conservatively small.
+	 */
+	memoryBudgetMb: number;
+	/**
 	 * Whether the server's binary is actually present in the current sandbox image. Both `sequential-thinking` (§5.AR
 	 * increment 1) and `codebase-memory` (`codebase-memory-mcp@0.8.1`, its static binary + compiled-in embeddings baked
 	 * in via docker/agent-sandbox/Dockerfile) now ship in the image — {@link listAvailableSandboxMcpServers} filters on
@@ -53,6 +61,8 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 		label: "Sequential Thinking",
 		inContainerArgv: ["mcp-server-sequential-thinking"],
 		fit: SEQUENTIAL_THINKING_FIT,
+		// A stateless reasoning scaffold (no embeddings/index) — a small node process; conservatively 256 MB.
+		memoryBudgetMb: 256,
 		available: true,
 	},
 	{
@@ -62,6 +72,9 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 		// Dockerfile). Bare invocation speaks stdio MCP (matches its published client config `args: []`).
 		inContainerArgv: ["codebase-memory-mcp"],
 		fit: CODEBASE_MEMORY_FIT,
+		// The heavy one: compiled-in embeddings + a code graph. It advertises `mem.init budget_mb=2048` on startup — this
+		// 2 GB is what OOM-kills the 4 GB default container under concurrent load, so the memory-fit gate keys on it.
+		memoryBudgetMb: 2048,
 		available: true,
 	},
 	{
@@ -72,6 +85,8 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 		// A failed connect degrades gracefully (createToolBundle try/catch → warning), so this is safe pre-rebuild.
 		inContainerArgv: ["basic-memory", "mcp"],
 		fit: BASIC_MEMORY_FIT,
+		// A python/uv markdown-graph store — moderate; conservatively 512 MB (fits the default container).
+		memoryBudgetMb: 512,
 		available: true,
 	},
 ];
@@ -82,12 +97,25 @@ export function listAvailableSandboxMcpServers(): readonly SandboxMcpServerDef[]
 }
 
 /**
- * The curated, AVAILABLE servers that should be offered to `modelId` — i.e. present in the image AND cleared by the
- * §5.AL fit gate ("for models where it fits"). Pure. The runtime pairs each with a `docker exec` transport
+ * The curated, AVAILABLE servers that should be offered to `modelId` on a container with `containerMemoryLimitMb` — i.e.
+ * present in the image AND cleared by BOTH the §5.AL model-fit gate ("for models where it fits") AND the §5.AF memory-fit
+ * gate ("for containers that can host it without OOM"). Pure. `containerMemoryLimitMb` omitted/unbounded ⇒ the memory gate
+ * does not engage (backward-compatible: model-fit only). The runtime pairs each survivor with a `docker exec` transport
  * ({@link buildSandboxMcpDockerExecArgs}) and adds its tools to the model's bundle.
  */
-export function selectSandboxMcpServersForModel(modelId: string): readonly SandboxMcpServerDef[] {
-	return listAvailableSandboxMcpServers().filter((server) => decideMcpServerModelFitById(server.fit, modelId).offer);
+export function selectSandboxMcpServersForModel(
+	modelId: string,
+	containerMemoryLimitMb?: number,
+): readonly SandboxMcpServerDef[] {
+	return listAvailableSandboxMcpServers().filter(
+		(server) =>
+			decideMcpServerModelFitById(server.fit, modelId).offer &&
+			decideMcpServerMemoryFit({
+				serverId: server.id,
+				memoryBudgetMb: server.memoryBudgetMb,
+				containerMemoryLimitMb,
+			}).offer,
+	);
 }
 
 /**
@@ -118,6 +146,12 @@ export interface SandboxExecTarget {
 	uid: number;
 	/** The task's working directory inside the container. */
 	workdir: string;
+	/**
+	 * The container's cgroup memory limit in MB (the pool's `memoryPerContainerMb`). Rides along with the exec target
+	 * so {@link selectSandboxMcpServersForModel} can apply the §5.AF memory-fit gate — withholding a heavy MCP server
+	 * from a container too small to host it without OOM. Optional/absent ⇒ treated as unbounded (gate does not engage).
+	 */
+	memoryLimitMb?: number;
 }
 
 /**

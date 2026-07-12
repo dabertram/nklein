@@ -470,6 +470,8 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		// §5.AR: the sandbox-MCP feature is ON by default, so task start now queries the exec target; the fake has no
 		// real container/placement, so it returns null (⇒ no curated servers offered — these tests don't exercise MCP).
 		getSandboxExecTarget: () => null,
+		// §5.AF: the skill-fragment path queries the pool memory limit for the MCP memory-fit gate — return the default.
+		getContainerMemoryLimitMb: () => 4096,
 	} as unknown as AgentSandboxManager;
 	return {
 		manager,

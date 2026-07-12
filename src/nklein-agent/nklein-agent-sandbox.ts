@@ -578,7 +578,19 @@ export class AgentSandboxManager {
 			containerName: createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 			uid: placement.uid,
 			workdir: placement.workdir,
+			// §5.AF: carry the container's cgroup memory limit so the MCP memory-fit gate can withhold a heavy server
+			// (codebase-memory, 2 GB) from a container too small to host it without OOM under concurrent load.
+			memoryLimitMb: this.poolConfig.memoryPerContainerMb,
 		};
+	}
+
+	/**
+	 * §5.AF: the pool-wide per-container cgroup memory limit in MB (every container in the pool is `docker run --memory`
+	 * this). Lets the session's structural-retrieval SKILL FRAGMENT apply the SAME memory-fit gate as the tool bundle, so
+	 * the "prefer codebase-memory graph queries" nudge is never added when that server is withheld from a small container.
+	 */
+	getContainerMemoryLimitMb(): number {
+		return this.poolConfig.memoryPerContainerMb;
 	}
 
 	/**
