@@ -22,6 +22,14 @@ export interface DesktopBindPlan {
 	host: string;
 	/** The host/IP LAN users browse to (the runtime's `--public-host`), or null on loopback / when none is detectable. */
 	publicHost: string | null;
+	/**
+	 * Whether to pass the runtime's `--insecure-remote-http` opt-out. The runtime refuses a non-loopback bind over
+	 * plain HTTP without it (remote-security-policy.ts), and a packaged desktop app has no TLS cert to offer — so the
+	 * LAN opt-in implies it. DECIDED (§ desktop app #2): passcode auth over plain LAN HTTP, not self-signed TLS —
+	 * per-device certificate-trust friction outweighs the wire-privacy gain on a private network, and the Settings
+	 * toggle carries the explicit cleartext warning instead. Always false on loopback (the flag would be meaningless).
+	 */
+	insecureRemoteHttp: boolean;
 }
 
 /**
@@ -30,9 +38,21 @@ export interface DesktopBindPlan {
  */
 export function resolveDesktopBindPlan(input: { enabled: boolean; lanIpv4: string | null }): DesktopBindPlan {
 	if (!input.enabled) {
-		return { host: LOOPBACK_HOST, publicHost: null };
+		return { host: LOOPBACK_HOST, publicHost: null, insecureRemoteHttp: false };
 	}
-	return { host: WILDCARD_HOST, publicHost: input.lanIpv4 };
+	return { host: WILDCARD_HOST, publicHost: input.lanIpv4, insecureRemoteHttp: true };
+}
+
+/**
+ * The host the DESKTOP itself dials (health checks, the BrowserWindow URL) for a given bind host. A wildcard bind is
+ * not a dialable address — Windows cannot connect to 0.0.0.0 and Chromium ≥128 blocks it outright ("0.0.0.0-day"
+ * mitigation) — so the desktop always talks to its own runtime over loopback; only LAN devices use the public host.
+ */
+export function resolveRuntimeConnectHost(bindHost: string): string {
+	if (bindHost === WILDCARD_HOST || bindHost === "::" || bindHost === "[::]") {
+		return LOOPBACK_HOST;
+	}
+	return bindHost;
 }
 
 /** Ranks the common private-LAN ranges so the most likely home-LAN address wins: 192.168 → 10 → 172.16-31. */

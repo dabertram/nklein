@@ -195,3 +195,39 @@ describe("OAuth relay dialog focus is late-bound", () => {
 		expect(slice).not.toMatch(/getMainWindow:\s*\(\)\s*=>\s*focusedWindow\b/);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// LAN serving IPC wiring (§ desktop app #2)
+//
+// The get/set flow itself is unit-tested in network-access-ipc.test.ts (injected
+// seams); here we pin the main.ts wiring: both channels registered, the set
+// handler staging the bind plan on the orchestrator, and the startup bind
+// threading publicHost/insecureRemoteHttp into the orchestrator options.
+// ---------------------------------------------------------------------------
+
+describe("network-access IPC wiring", () => {
+	const mainSrc = readFileSync(
+		new URL("../src/main.ts", import.meta.url),
+		"utf-8",
+	);
+
+	it("registers the get/set-network-access handlers over the seam module", () => {
+		expect(mainSrc).toContain('ipcMain.handle("get-network-access"');
+		expect(mainSrc).toContain('ipcMain.handle("set-network-access"');
+		expect(mainSrc).toMatch(/getNetworkAccessEnabled\(networkAccessIpcDeps\)/);
+		expect(mainSrc).toMatch(/setNetworkAccessEnabled\(networkAccessIpcDeps,\s*enabled\)/);
+	});
+
+	it("stages bind-plan changes on the orchestrator (applied by the next restart)", () => {
+		expect(mainSrc).toMatch(/applyBindPlan:\s*\(plan: DesktopBindPlan\)\s*=>\s*orchestrator\.setBindPlan\(plan\)/);
+	});
+
+	it("threads the full startup bind plan into the orchestrator", () => {
+		const ctorIdx = mainSrc.indexOf("new RuntimeOrchestrator({");
+		expect(ctorIdx).toBeGreaterThan(-1);
+		const slice = mainSrc.slice(ctorIdx, ctorIdx + 400);
+		expect(slice).toContain("host: startupBind.host");
+		expect(slice).toContain("publicHost: startupBind.publicHost");
+		expect(slice).toContain("insecureRemoteHttp: startupBind.insecureRemoteHttp");
+	});
+});

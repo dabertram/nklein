@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { assertPathIsDirectory, hasGitRepository, pathIsDirectory } from "../../src/cli-path-checks";
+import { createGitProcessEnv } from "../../src/core/git-process-env";
 
 let dir = "";
 let filePath = "";
@@ -14,7 +15,10 @@ beforeAll(async () => {
 	filePath = join(dir, "a-file.txt");
 	await writeFile(filePath, "x");
 	gitDir = await mkdtemp(join(tmpdir(), "nklein-path-checks-git-"));
-	execFileSync("git", ["init", "-q"], { cwd: gitDir });
+	// Scrubbed env (§4A): under a git hook (pre-commit runs this suite) an inherited GIT_DIR
+	// would hijack this init into the OUTER repo — from a linked worktree it even flips
+	// core.bare on the shared config (live incident 2026-07-13).
+	execFileSync("git", ["init", "-q"], { cwd: gitDir, env: createGitProcessEnv() });
 });
 
 afterAll(async () => {

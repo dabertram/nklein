@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { powerSaveBlocker } from "electron";
 
+import { type DesktopBindPlan, resolveRuntimeConnectHost } from "./network-access-config.js";
 import { RuntimeChildManager } from "./runtime-child.js";
 import {
 	DESKTOP_HEALTH_PATH,
@@ -13,10 +14,13 @@ import {
 
 interface RuntimeOrchestratorOptions {
 
+	/** The host the runtime BINDS to (`--host`). The orchestrator itself always dials the connect host. */
 	host: string;
-	/** The browser-facing host (`--public-host`) advertised for LAN access; null on a loopback bind. */
-	publicHost?: string | null;
 	port: number;
+	/** The browse-to host advertised to LAN users (`--public-host`), when LAN serving is on. */
+	publicHost?: string | null;
+	/** Pass the runtime's `--insecure-remote-http` opt-out (required for a non-loopback plain-HTTP bind). */
+	insecureRemoteHttp?: boolean;
 	healthTimeoutMs: number;
 	resolveCliShimPath: () => string;
 	/**
@@ -106,8 +110,18 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 	// authoritative trust gate for bridge attachment (§5.Y #10).
 	private activeNonce: string | null = null;
 
+	// The bind plan for the NEXT spawn (§ desktop app #2 — LAN serving). Seeded from the
+	// startup options; replaced by `setBindPlan()` when the user flips the Settings toggle,
+	// so the follow-up runtime restart binds the new host without a full app relaunch.
+	private bindPlan: DesktopBindPlan;
+
 	constructor(private readonly opts: RuntimeOrchestratorOptions) {
 		super();
+		this.bindPlan = {
+			host: opts.host,
+			publicHost: opts.publicHost ?? null,
+			insecureRemoteHttp: opts.insecureRemoteHttp ?? false,
+		};
 	}
 
 	getUrl(): string | null {
@@ -116,6 +130,20 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 
 	isOwned(): boolean {
 		return this.ownsChild;
+	}
+
+	/** The bind plan the next spawned runtime will use. */
+	getBindPlan(): DesktopBindPlan {
+		return this.bindPlan;
+	}
+
+	/**
+	 * Swap the bind plan for the NEXT runtime spawn. Called when the user toggles LAN serving
+	 * in Settings; takes effect on the next `restart()` (the caller prompts for it) — the
+	 * currently-running child keeps its bind until then.
+	 */
+	setBindPlan(plan: DesktopBindPlan): void {
+		this.bindPlan = plan;
 	}
 
 	/**
@@ -128,7 +156,9 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 	}
 
 	defaultOrigin(): string {
-		return `http://${this.opts.host}:${this.opts.port}`;
+		// Always a dialable same-machine address: on a wildcard bind the desktop still talks
+		// to its runtime over loopback (see resolveRuntimeConnectHost).
+		return `http://${resolveRuntimeConnectHost(this.bindPlan.host)}:${this.opts.port}`;
 	}
 
 	/**
@@ -471,9 +501,10 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		}
 		try {
 			const url = await this.manager.start({
-				host: this.opts.host,
-				publicHost: this.opts.publicHost ?? null,
+				host: this.bindPlan.host,
 				port: this.opts.port,
+				publicHost: this.bindPlan.publicHost,
+				insecureRemoteHttp: this.bindPlan.insecureRemoteHttp,
 			});
 			if (this.terminated) {
 				// `shutdown()` / `dispose()` fired while `manager.start()`

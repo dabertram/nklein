@@ -258,10 +258,12 @@ describe("createTerminalWebSocketBridge – passcode gate", () => {
 			resolveTerminalManager: (workspaceId) => (workspaceId === WORKSPACE_ID ? terminalManager : null),
 			isTerminalIoWebSocketPath: (pathname) => pathname === "/api/terminal/io",
 			isTerminalControlWebSocketPath: (pathname) => pathname === "/api/terminal/control",
-			// Validator: only the token "valid-token" is accepted.
-			validateUpgradeSession: (cookieHeader) =>
-				cookieHeader?.includes("nklein_session=valid-token") === true ||
-				cookieHeader?.includes("kanban_session=valid-token") === true,
+			// Validator: only the token "valid-token" is accepted. (The real validator in
+			// runtime-server.ts also trusts loopback peers; here we exercise the bridge's
+			// reject/allow mechanics, so the fake looks at the cookie alone.)
+			validateUpgradeSession: (request) =>
+				request.headers.cookie?.includes("nklein_session=valid-token") === true ||
+				request.headers.cookie?.includes("kanban_session=valid-token") === true,
 		});
 		server.listen(0, "127.0.0.1");
 		await once(server, "listening");

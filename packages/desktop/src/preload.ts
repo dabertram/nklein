@@ -21,16 +21,17 @@ const desktopApi = {
 		return ipcRenderer.invoke("set-autostart", enabled);
 	},
 
-	/** Read whether !Klein is set to serve on the local network (the persisted opt-in). */
+	/** Read the persisted LAN-serving opt-in (§ desktop app #2). */
 	getNetworkAccess(): Promise<boolean> {
 		return ipcRenderer.invoke("get-network-access");
 	},
 
 	/**
-	 * Enable/disable LAN serving. Resolves to `{ ok }` (with `error` on failure); `restartRequired` is true when the
-	 * user deferred the relaunch that actually rebinds the host (it applies on the next launch).
+	 * Persist the LAN-serving opt-in and stage the matching runtime bind. Takes effect on the
+	 * next runtime restart (call `restartRuntime()` after a confirming prompt). Resolves to
+	 * `{ ok, enabled }` (with an `error` message on failure).
 	 */
-	setNetworkAccess(enabled: boolean): Promise<{ ok: boolean; error?: string; restartRequired?: boolean }> {
+	setNetworkAccess(enabled: boolean): Promise<{ ok: boolean; enabled: boolean; error?: string }> {
 		return ipcRenderer.invoke("set-network-access", enabled);
 	},
 } as const;

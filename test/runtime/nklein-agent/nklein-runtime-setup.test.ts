@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import type { ToolApprovalRequest } from "@cline/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildProtectedTestApprovalRequest } from "../../../src/core/agent-write-guard";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import { createProtectedTestApprovalStore } from "../../../src/core/protected-test-approval-store";
 import {
 	createKanbanToolApprovalPolicy,
@@ -17,7 +18,11 @@ import {
 } from "../../../src/nklein-agent/nklein-runtime-setup";
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
-const execFileAsync = promisify(execFile);
+const rawExecFileAsync = promisify(execFile);
+// Scrubbed env (§4A): the pre-commit hook runs this suite, and a hook-inherited GIT_DIR
+// would hijack these fixture git ops into the outer repo.
+const execFileAsync = (file: string, args: string[], options: { cwd: string }) =>
+	rawExecFileAsync(file, args, { ...options, env: createGitProcessEnv() });
 
 function createTokenDenseContent(lineCount: number, wordsPerLine: number): string {
 	return Array.from(

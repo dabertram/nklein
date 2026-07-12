@@ -7,7 +7,6 @@ import {
 	buildSessionCookieHeader,
 	disablePasscode,
 	extractBearerToken,
-	extractSessionTokenFromCookie,
 	generateInternalToken,
 	generatePasscode,
 	getInternalToken,
@@ -19,8 +18,13 @@ import {
 	SESSION_COOKIE_NAME,
 	validateInternalToken,
 	validatePasscode,
-	validateSession,
 } from "../../../src/security/passcode-manager";
+import { evaluateRemoteRequestAuth } from "../../../src/security/remote-request-auth";
+
+// Both gates delegate to evaluateRemoteRequestAuth (the shared decision in
+// remote-request-auth.ts) — these wrappers run the REAL function from a simulated
+// LAN peer, so the loopback bypass stays out of the way of the token assertions.
+const LAN_PEER = "192.168.1.50";
 
 function runHttpGate(input: {
 	isRemoteMode: boolean;
@@ -30,11 +34,13 @@ function runHttpGate(input: {
 }): "allowed" | "rejected" {
 	const passcodeActive = input.isRemoteMode && isPasscodeEnabled();
 	if (passcodeActive) {
-		const sessionToken = extractSessionTokenFromCookie(input.cookieHeader);
-		const sessionAuth = sessionToken !== null && validateSession(sessionToken);
-		const bearerToken = extractBearerToken(input.authorizationHeader);
-		const internalAuth = bearerToken !== null && validateInternalToken(bearerToken);
-		if (!(sessionAuth || internalAuth) && input.pathname.startsWith("/api/")) {
+		const { authenticated } = evaluateRemoteRequestAuth({
+			passcodeActive,
+			remoteAddress: LAN_PEER,
+			cookieHeader: input.cookieHeader,
+			authorizationHeader: input.authorizationHeader,
+		});
+		if (!authenticated && input.pathname.startsWith("/api/")) {
 			return "rejected";
 		}
 	}
@@ -48,11 +54,13 @@ function runWsUpgradeGate(input: {
 }): "allowed" | "rejected" {
 	const passcodeActive = input.isRemoteMode && isPasscodeEnabled();
 	if (passcodeActive) {
-		const sessionToken = extractSessionTokenFromCookie(input.cookieHeader);
-		const sessionAuth = sessionToken !== null && validateSession(sessionToken);
-		const bearerToken = extractBearerToken(input.authorizationHeader);
-		const internalAuth = bearerToken !== null && validateInternalToken(bearerToken);
-		if (!sessionAuth && !internalAuth) return "rejected";
+		const { authenticated } = evaluateRemoteRequestAuth({
+			passcodeActive,
+			remoteAddress: LAN_PEER,
+			cookieHeader: input.cookieHeader,
+			authorizationHeader: input.authorizationHeader,
+		});
+		if (!authenticated) return "rejected";
 	}
 	return "allowed";
 }

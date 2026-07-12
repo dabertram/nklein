@@ -30,10 +30,11 @@ export interface CreateTerminalWebSocketBridgeRequest {
 	 * Optional session validator for remote-mode passcode enforcement.
 	 * When provided, WebSocket upgrade requests that fail validation are
 	 * rejected with HTTP 401 before the connection is established.
-	 * @param cookieHeader - The value of the Cookie request header (may be undefined).
+	 * @param request - The full upgrade request, so the validator can inspect the session
+	 *   cookie AND the socket peer address (loopback callers bypass the passcode gate).
 	 * @returns true if the request is authenticated, false otherwise.
 	 */
-	validateUpgradeSession?: (cookieHeader: string | undefined) => boolean;
+	validateUpgradeSession?: (request: IncomingMessage) => boolean;
 }
 
 export interface TerminalWebSocketBridge {
@@ -367,7 +368,7 @@ export function createTerminalWebSocketBridge({
 				return;
 			}
 			// ── Passcode gate for terminal WebSocket upgrades ─────────────────
-			if (validateUpgradeSession !== undefined && !validateUpgradeSession(request.headers.cookie)) {
+			if (validateUpgradeSession !== undefined && !validateUpgradeSession(request)) {
 				(socket as Socket).write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
 				(socket as Socket).destroy();
 				return;

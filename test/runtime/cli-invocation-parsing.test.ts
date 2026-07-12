@@ -40,6 +40,23 @@ describe("shouldAutoOpenBrowserTabForInvocation", () => {
 		expect(shouldAutoOpenBrowserTabForInvocation(["--agent", "codex", "--https"])).toBe(true);
 	});
 
+	it("classifies the desktop LAN-serving spawn as a launch (§ desktop app #2 regression)", () => {
+		// --public-host was missing from the classifier when the flag was added, which made the
+		// server EXIT right after startup on any LAN invocation (the post-parse process.exit path).
+		expect(
+			shouldAutoOpenBrowserTabForInvocation([
+				"--no-open",
+				"--port",
+				"3484",
+				"--host",
+				"0.0.0.0",
+				"--public-host",
+				"192.168.1.42",
+				"--insecure-remote-http",
+			]),
+		).toBe(true);
+	});
+
 	it("does NOT auto-open for a subcommand or positional", () => {
 		expect(shouldAutoOpenBrowserTabForInvocation(["task"])).toBe(false);
 		expect(shouldAutoOpenBrowserTabForInvocation(["--open", "dev"])).toBe(false);

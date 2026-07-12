@@ -6,6 +6,7 @@ import {
 	LOOPBACK_HOST,
 	resolveDesktopBindPlan,
 	resolveDesktopStartupBind,
+	resolveRuntimeConnectHost,
 	WILDCARD_HOST,
 } from "../src/network-access-config";
 
@@ -25,13 +26,17 @@ describe("resolveDesktopBindPlan", () => {
 		expect(resolveDesktopBindPlan({ enabled: false, lanIpv4: "192.168.1.5" })).toEqual({
 			host: LOOPBACK_HOST,
 			publicHost: null,
+			insecureRemoteHttp: false,
 		});
 	});
 
-	it("binds wildcard and advertises the LAN IP when ON with a detected address", () => {
+	it("binds wildcard, advertises the LAN IP, and opts into plain remote HTTP when ON", () => {
+		// The runtime refuses a non-loopback plain-HTTP bind without the explicit opt-out;
+		// the desktop's decided posture is passcode-over-plain-HTTP (no cert friction).
 		expect(resolveDesktopBindPlan({ enabled: true, lanIpv4: "192.168.1.5" })).toEqual({
 			host: WILDCARD_HOST,
 			publicHost: "192.168.1.5",
+			insecureRemoteHttp: true,
 		});
 	});
 
@@ -39,7 +44,21 @@ describe("resolveDesktopBindPlan", () => {
 		expect(resolveDesktopBindPlan({ enabled: true, lanIpv4: null })).toEqual({
 			host: WILDCARD_HOST,
 			publicHost: null,
+			insecureRemoteHttp: true,
 		});
+	});
+});
+
+describe("resolveRuntimeConnectHost", () => {
+	it("dials loopback for wildcard binds (0.0.0.0 is not a dialable address)", () => {
+		expect(resolveRuntimeConnectHost(WILDCARD_HOST)).toBe(LOOPBACK_HOST);
+		expect(resolveRuntimeConnectHost("::")).toBe(LOOPBACK_HOST);
+		expect(resolveRuntimeConnectHost("[::]")).toBe(LOOPBACK_HOST);
+	});
+
+	it("dials concrete hosts as-is", () => {
+		expect(resolveRuntimeConnectHost(LOOPBACK_HOST)).toBe(LOOPBACK_HOST);
+		expect(resolveRuntimeConnectHost("192.168.1.5")).toBe("192.168.1.5");
 	});
 });
 
@@ -122,7 +141,7 @@ describe("resolveDesktopStartupBind", () => {
 				return {};
 			},
 		});
-		expect(plan).toEqual({ host: LOOPBACK_HOST, publicHost: null });
+		expect(plan).toEqual({ host: LOOPBACK_HOST, publicHost: null, insecureRemoteHttp: false });
 		expect(enumerated).toBe(false);
 	});
 
@@ -131,6 +150,6 @@ describe("resolveDesktopStartupBind", () => {
 			loadEnabled: () => true,
 			networkInterfaces: () => ({ en0: [ipv4("192.168.1.42")] }),
 		});
-		expect(plan).toEqual({ host: WILDCARD_HOST, publicHost: "192.168.1.42" });
+		expect(plan).toEqual({ host: WILDCARD_HOST, publicHost: "192.168.1.42", insecureRemoteHttp: true });
 	});
 });

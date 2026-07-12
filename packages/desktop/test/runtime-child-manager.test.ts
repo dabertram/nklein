@@ -186,13 +186,45 @@ describe("RuntimeChildManager", () => {
 			expect(readyHandler).toHaveBeenCalledWith("http://127.0.0.1:3484");
 		});
 
-		it("adds --public-host to the spawn args when a LAN publicHost is configured", async () => {
+		it("threads the LAN bind plan into the CLI args and dials loopback for a wildcard bind (§ desktop app #2)", async () => {
 			const spawnSpy = createSpawnFn(mockChild);
-			manager = new RuntimeChildManager({ cliPath: CLI_PATH, spawnFn: spawnSpy });
-			await manager.start({ ...TEST_CONFIG, publicHost: "192.168.1.50" });
-			const args = (spawnSpy as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[];
+			manager = new RuntimeChildManager({
+				cliPath: CLI_PATH,
+				spawnFn: spawnSpy,
+			});
+
+			const url = await manager.start({
+				host: "0.0.0.0",
+				port: 3484,
+				publicHost: "192.168.1.42",
+				insecureRemoteHttp: true,
+			});
+
+			// The desktop's own URL/health checks must use loopback — a wildcard is not dialable.
+			expect(url).toBe("http://127.0.0.1:3484");
+			const httpCall = vi.mocked(http.get).mock.calls[0]?.[0] as { host?: string };
+			expect(httpCall.host).toBe("127.0.0.1");
+
+			const args = (spawnSpy as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as string[];
+			expect(args).toContain("--host");
+			expect(args).toContain("0.0.0.0");
 			expect(args).toContain("--public-host");
-			expect(args).toContain("192.168.1.50");
+			expect(args).toContain("192.168.1.42");
+			expect(args).toContain("--insecure-remote-http");
+		});
+
+		it("omits --public-host and --insecure-remote-http on the default loopback bind", async () => {
+			const spawnSpy = createSpawnFn(mockChild);
+			manager = new RuntimeChildManager({
+				cliPath: CLI_PATH,
+				spawnFn: spawnSpy,
+			});
+
+			await manager.start(TEST_CONFIG);
+
+			const args = (spawnSpy as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as string[];
+			expect(args).not.toContain("--public-host");
+			expect(args).not.toContain("--insecure-remote-http");
 		});
 
 		it("throws if already running", async () => {

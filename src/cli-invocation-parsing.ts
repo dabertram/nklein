@@ -41,7 +41,7 @@ export function shouldAutoOpenBrowserTabForInvocation(argv: string[]): boolean {
 		"--insecure-remote-http",
 		"--dangerously-disable-remote-auth",
 	]);
-	const launchOptionsWithValues = new Set(["--host", "--port", "--agent", "--cert", "--key"]);
+	const launchOptionsWithValues = new Set(["--host", "--public-host", "--port", "--agent", "--cert", "--key"]);
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];

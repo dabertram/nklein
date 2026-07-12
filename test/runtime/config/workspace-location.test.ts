@@ -9,6 +9,7 @@ import {
 	isPathInsideGitWorkTree,
 	resolveSafeCreatedWorkspaceParentDir,
 } from "../../../src/config/workspace-location";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 
 describe("resolveSafeCreatedWorkspaceParentDir (workspace-location safety invariant)", () => {
 	const forbidden = getForbiddenWorkspaceSubtree();
@@ -76,7 +77,8 @@ describe("resolveSafeCreatedWorkspaceParentDir (workspace-location safety invari
 	it("isPathInsideGitWorkTree detects an enclosing repo and clears a plain dir", () => {
 		const gitRoot = mkdtempSync(join(tmpdir(), "nklein-gitguard-"));
 		createdDirs.push(gitRoot);
-		execFileSync("git", ["init", "-q"], { cwd: gitRoot });
+		// Scrubbed env (§4A): a hook-inherited GIT_DIR would hijack this init into the outer repo.
+		execFileSync("git", ["init", "-q"], { cwd: gitRoot, env: createGitProcessEnv() });
 		expect(isPathInsideGitWorkTree(gitRoot)).toBe(true);
 		// A not-yet-created path nested inside the repo is still flagged (we walk up to the existing `.git`).
 		expect(isPathInsideGitWorkTree(join(gitRoot, "nested", "workspace"))).toBe(true);
@@ -90,7 +92,7 @@ describe("resolveSafeCreatedWorkspaceParentDir (workspace-location safety invari
 		// A git repo in the OS temp dir: not at/below !Klein's parent folder, so only the git-awareness can catch it.
 		const gitRoot = mkdtempSync(join(tmpdir(), "nklein-gitguard-"));
 		createdDirs.push(gitRoot);
-		execFileSync("git", ["init", "-q"], { cwd: gitRoot });
+		execFileSync("git", ["init", "-q"], { cwd: gitRoot, env: createGitProcessEnv() });
 
 		const insideRepo = join(gitRoot, "nested", "workspace");
 		expect(isBelowForbidden(insideRepo)).toBe(false); // the old dirname-based check would have allowed this

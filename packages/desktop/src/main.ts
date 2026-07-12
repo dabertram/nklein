@@ -7,7 +7,8 @@ import { AppMenu } from "./app-menu.js";
 import { runDesktopAutoResume } from "./auto-resume-runner.js";
 import type { AutostartPlatform } from "./autostart-config.js";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
-import { resolveDesktopStartupBind } from "./network-access-config.js";
+import { type DesktopBindPlan, resolveDesktopStartupBind } from "./network-access-config.js";
+import { getNetworkAccessEnabled, setNetworkAccessEnabled } from "./network-access-ipc.js";
 import { loadNetworkAccessEnabled, saveNetworkAccessEnabled } from "./network-access-store.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
 import { type AppTray, createAppTray } from "./tray.js";
@@ -72,6 +73,7 @@ if (startupBind.host !== DEFAULT_HOST) {
 const orchestrator = new RuntimeOrchestrator({
 	host: startupBind.host,
 	publicHost: startupBind.publicHost,
+	insecureRemoteHttp: startupBind.insecureRemoteHttp,
 	port: DEFAULT_PORT,
 	healthTimeoutMs: HEALTH_TIMEOUT_MS,
 	resolveCliShimPath,
@@ -227,41 +229,23 @@ ipcMain.handle("set-autostart", async (_event, enabled: unknown) => {
 	}
 });
 
-// Sub-feature (2) LAN serving: read/write the opt-in. The runtime's bind host is decided ONCE at startup
-// (resolveDesktopStartupBind), so changing it needs a FULL app relaunch — an orchestrator restart would rebind the
-// same host. `set` persists the choice, then offers a relaunch (declining ⇒ it applies on the next launch).
-ipcMain.handle("get-network-access", () => {
-	try {
-		return loadNetworkAccessEnabled(app.getPath("userData"));
-	} catch (error) {
-		console.error("[desktop] get-network-access failed:", error);
-		return false;
+// LAN serving (§ desktop app #2): the Settings toggle reads/writes the persisted opt-in. The
+// get/set flow lives in network-access-ipc.ts (injected seams); here we only supply the live
+// userData path, interface snapshot, and the orchestrator's bind plan. A set stages the new
+// bind for the NEXT runtime restart — the renderer prompts for that restart.
+const networkAccessIpcDeps = {
+	loadEnabled: () => loadNetworkAccessEnabled(app.getPath("userData")),
+	saveEnabled: (enabled: boolean) => saveNetworkAccessEnabled(app.getPath("userData"), enabled),
+	networkInterfaces: os.networkInterfaces,
+	applyBindPlan: (plan: DesktopBindPlan) => orchestrator.setBindPlan(plan),
+};
+ipcMain.handle("get-network-access", () => getNetworkAccessEnabled(networkAccessIpcDeps));
+ipcMain.handle("set-network-access", (_event, enabled: unknown) => {
+	const result = setNetworkAccessEnabled(networkAccessIpcDeps, enabled);
+	if (!result.ok) {
+		console.error("[desktop] set-network-access failed:", result.error);
 	}
-});
-ipcMain.handle("set-network-access", async (_event, enabled: unknown) => {
-	try {
-		const nextEnabled = enabled === true;
-		saveNetworkAccessEnabled(app.getPath("userData"), nextEnabled);
-		const { response } = await dialog.showMessageBox({
-			type: "question",
-			buttons: ["Restart now", "Later"],
-			defaultId: 0,
-			cancelId: 1,
-			message: nextEnabled ? "Serve !Klein on your local network?" : "Stop serving !Klein on your local network?",
-			detail: nextEnabled
-				? "Other devices on your LAN will be able to reach !Klein (a passcode is still required). Takes effect after a restart."
-				: "!Klein goes back to this-machine-only after a restart.",
-		});
-		if (response === 0) {
-			app.relaunch();
-			app.quit();
-			return { ok: true, restartRequired: false };
-		}
-		return { ok: true, restartRequired: true };
-	} catch (error) {
-		console.error("[desktop] set-network-access failed:", error);
-		return { ok: false, error: error instanceof Error ? error.message : String(error) };
-	}
+	return result;
 });
 
 // Tracks an in-flight `orchestrator.restart()` so duplicate IPC pings

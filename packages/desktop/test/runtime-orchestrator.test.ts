@@ -13,11 +13,14 @@ vi.mock("electron", () => ({
 const childManagers: FakeChildManager[] = [];
 
 class FakeChildManager extends EventEmitter {
+	/** Configs passed to start(), so bind-plan tests can assert what would be spawned. */
+	startConfigs: unknown[] = [];
 	constructor() {
 		super();
 		childManagers.push(this);
 	}
-	async start(): Promise<string> {
+	async start(config?: unknown): Promise<string> {
+		this.startConfigs.push(config);
 		return "http://127.0.0.1:3484";
 	}
 	async shutdown(): Promise<void> {}
@@ -1883,3 +1886,104 @@ describe("RuntimeOrchestrator health-probe runtime identification", () => {
 });
 
 
+
+describe("RuntimeOrchestrator LAN bind plan (§ desktop app #2)", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		childManagers.length = 0;
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function makeOrchestrator(fetchImpl: typeof fetch, bind?: { host: string; publicHost?: string | null; insecureRemoteHttp?: boolean }) {
+		return new RuntimeOrchestrator({
+			host: bind?.host ?? "127.0.0.1",
+			publicHost: bind?.publicHost,
+			insecureRemoteHttp: bind?.insecureRemoteHttp,
+			port: 3484,
+			healthTimeoutMs: 500,
+			resolveCliShimPath: () => process.execPath,
+			fetchImpl,
+			attachedProbeIntervalMs: 0,
+			recoveryProbeIntervalMs: 0,
+		});
+	}
+
+	it("dials loopback for health/origin even when constructed with a wildcard bind", async () => {
+		const holder: OrchestratorHolder = { orchestrator: null, healthy: false };
+		const fetchImpl = makeNonceFetch(holder);
+		const orchestrator = makeOrchestrator(fetchImpl, {
+			host: "0.0.0.0",
+			publicHost: "192.168.1.42",
+			insecureRemoteHttp: true,
+		});
+		holder.orchestrator = orchestrator;
+
+		expect(orchestrator.defaultOrigin()).toBe("http://127.0.0.1:3484");
+
+		// No pre-existing runtime (holder.healthy=false) → connect() spawns an owned child
+		// carrying the full bind plan, while the returned URL stays loopback.
+		await orchestrator.connect();
+		expect(orchestrator.isOwned()).toBe(true);
+		expect(orchestrator.getUrl()).toBe("http://127.0.0.1:3484");
+		expect(childManagers.at(-1)?.startConfigs[0]).toEqual({
+			host: "0.0.0.0",
+			port: 3484,
+			publicHost: "192.168.1.42",
+			insecureRemoteHttp: true,
+		});
+
+		// Every desktop-side probe dialed loopback — a wildcard is not a dialable address.
+		for (const call of (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls) {
+			const url = call[0] as string | URL;
+			expect(String(url).startsWith("http://127.0.0.1:3484")).toBe(true);
+		}
+
+		await orchestrator.dispose();
+	});
+
+	it("spawns with a staged bind plan after setBindPlan() + restart()", async () => {
+		const holder: OrchestratorHolder = { orchestrator: null, healthy: false };
+		const fetchImpl = makeNonceFetch(holder);
+		const orchestrator = makeOrchestrator(fetchImpl);
+		holder.orchestrator = orchestrator;
+
+		await orchestrator.connect();
+		expect(orchestrator.isOwned()).toBe(true);
+		expect(childManagers.at(-1)?.startConfigs[0]).toEqual({
+			host: "127.0.0.1",
+			port: 3484,
+			publicHost: null,
+			insecureRemoteHttp: false,
+		});
+
+		// The Settings toggle stages the LAN plan; the running child keeps its bind until restart.
+		const lanPlan = { host: "0.0.0.0", publicHost: "192.168.1.42", insecureRemoteHttp: true };
+		orchestrator.setBindPlan(lanPlan);
+		expect(orchestrator.getBindPlan()).toEqual(lanPlan);
+		expect(orchestrator.defaultOrigin()).toBe("http://127.0.0.1:3484");
+
+		await orchestrator.restart();
+		expect(orchestrator.isOwned()).toBe(true);
+		expect(childManagers.at(-1)?.startConfigs[0]).toEqual({
+			host: "0.0.0.0",
+			port: 3484,
+			publicHost: "192.168.1.42",
+			insecureRemoteHttp: true,
+		});
+
+		// And staging loopback again restores the default bind on the following restart.
+		orchestrator.setBindPlan({ host: "127.0.0.1", publicHost: null, insecureRemoteHttp: false });
+		await orchestrator.restart();
+		expect(childManagers.at(-1)?.startConfigs[0]).toEqual({
+			host: "127.0.0.1",
+			port: 3484,
+			publicHost: null,
+			insecureRemoteHttp: false,
+		});
+
+		await orchestrator.dispose();
+	});
+});

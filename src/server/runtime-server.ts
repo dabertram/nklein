@@ -63,6 +63,7 @@ import {
 	getKanbanRuntimeHost,
 	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
+	getKanbanRuntimePublicHost,
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
@@ -111,15 +112,13 @@ import {
 	buildSessionCookieHeader,
 	checkRateLimit,
 	clearRateLimit,
-	extractBearerToken,
-	extractSessionTokenFromCookie,
+	getPasscodeForLocalDisplay,
 	isPasscodeEnabled,
 	issueSession,
 	recordFailedAttempt,
-	validateInternalToken,
 	validatePasscode,
-	validateSession,
 } from "../security/passcode-manager";
+import { evaluateRemoteRequestAuth } from "../security/remote-request-auth";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
@@ -161,6 +160,7 @@ import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
+import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
 import {
 	createRuntimeTerminalTelemetryRecorders,
@@ -2849,12 +2849,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			const requestUrl = new URL(req.url ?? "/", "http://localhost");
 			const pathname = normalizeRequestPath(requestUrl.pathname);
 
-			// ── Passcode gate (remote mode only) ──────────────────────────────
+			// ── Passcode gate (remote mode only; loopback callers are trusted — see
+			// remote-request-auth.ts) ──────────────────────────────────────────
 			const passcodeActive = isRemoteMode && isPasscodeEnabled();
 			if (pathname === "/api/passcode/status") {
 				if (passcodeActive) {
-					const token = extractSessionTokenFromCookie(req.headers.cookie);
-					const authenticated = token !== null && validateSession(token);
+					const { authenticated } = evaluateRemoteRequestAuth({
+						passcodeActive,
+						remoteAddress: req.socket.remoteAddress,
+						cookieHeader: req.headers.cookie,
+						authorizationHeader: req.headers.authorization,
+					});
 					res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
 					res.end(JSON.stringify({ required: true, authenticated }));
 				} else {
@@ -2919,12 +2924,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				return;
 			}
 			if (passcodeActive) {
-				// Check session cookie (browser flow) first, then internal bearer token (CLI flow).
-				const sessionToken = extractSessionTokenFromCookie(req.headers.cookie);
-				const sessionAuth = sessionToken !== null && validateSession(sessionToken);
-				const bearerToken = extractBearerToken(req.headers.authorization);
-				const internalAuth = bearerToken !== null && validateInternalToken(bearerToken);
-				const authenticated = sessionAuth || internalAuth;
+				// Loopback callers pass unconditionally; network callers need the session cookie
+				// (browser flow) or the internal bearer token (CLI flow).
+				const { authenticated } = evaluateRemoteRequestAuth({
+					passcodeActive,
+					remoteAddress: req.socket.remoteAddress,
+					cookieHeader: req.headers.cookie,
+					authorizationHeader: req.headers.authorization,
+				});
 				if (!authenticated) {
 					// Static assets (JS, CSS, images, fonts, icons, manifest) are served
 					// freely even when unauthenticated. They contain no user data and are
@@ -2971,6 +2978,30 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				return;
 			}
 			// ── End desktop nonce handshake ────────────────────────────────────
+			// ── Local network-access info (§ desktop app #2 — LAN serving) ──────
+			// Loopback-only surface for the desktop Settings dialog: live LAN-serving state,
+			// browse-to host, and the active passcode. Network callers get 404 regardless of
+			// auth so the passcode can never cross the wire (see network-access-info.ts).
+			if (pathname === "/api/network-access" && req.method === "GET") {
+				const info = resolveNetworkAccessInfo({
+					remoteAddress: req.socket.remoteAddress,
+					isRemoteMode,
+					passcodeEnabled: isPasscodeEnabled(),
+					passcode: getPasscodeForLocalDisplay(),
+					publicHost: getKanbanRuntimePublicHost(),
+					port: getKanbanRuntimePort(),
+					origin: getKanbanRuntimeOrigin(),
+				});
+				if (info.kind === "not-found") {
+					res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+					res.end('{"error":"Not found"}');
+					return;
+				}
+				res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+				res.end(JSON.stringify(info.body));
+				return;
+			}
+			// ── End local network-access info ──────────────────────────────────
 			if (pathname.startsWith("/api/trpc")) {
 				// WATCH MODE (user directive 2026-07-02: "user shall not be able to disturb ongoing sweeps/tests"):
 				// when the spawning harness sets NKLEIN_WATCH_MODE_MUTATION_TOKEN, every tRPC MUTATION (per the
@@ -3044,14 +3075,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (normalizeRequestPath(requestUrl.pathname) !== "/api/runtime/ws") {
 			return;
 		}
-		// ── Passcode gate for WebSocket upgrades (remote mode only) ──────────
+		// ── Passcode gate for WebSocket upgrades (remote mode only; loopback trusted) ──
 		const passcodeActive = isRemoteMode && isPasscodeEnabled();
 		if (passcodeActive) {
-			const sessionToken = extractSessionTokenFromCookie(request.headers.cookie);
-			const sessionAuth = sessionToken !== null && validateSession(sessionToken);
-			const bearerToken = extractBearerToken(request.headers.authorization);
-			const internalAuth = bearerToken !== null && validateInternalToken(bearerToken);
-			if (!sessionAuth && !internalAuth) {
+			const { authenticated } = evaluateRemoteRequestAuth({
+				passcodeActive,
+				remoteAddress: request.socket.remoteAddress,
+				cookieHeader: request.headers.cookie,
+				authorizationHeader: request.headers.authorization,
+			});
+			if (!authenticated) {
 				socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
 				socket.destroy();
 				return;
@@ -3069,10 +3102,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		isTerminalControlWebSocketPath: (pathname) => normalizeRequestPath(pathname) === "/api/terminal/control",
 		validateUpgradeSession:
 			isRemoteMode && isPasscodeEnabled()
-				? (cookieHeader) => {
-						const token = extractSessionTokenFromCookie(cookieHeader);
-						return token !== null && validateSession(token);
-					}
+				? (request) =>
+						evaluateRemoteRequestAuth({
+							passcodeActive: true,
+							remoteAddress: request.socket.remoteAddress,
+							cookieHeader: request.headers.cookie,
+							authorizationHeader: request.headers.authorization,
+						}).authenticated
 				: undefined,
 	});
 	server.on("upgrade", (request, socket) => {

@@ -18,12 +18,19 @@ import http from "node:http";
 import path from "node:path";
 
 import { buildFilteredEnv } from "./runtime-child-env.js";
+import { resolveRuntimeConnectHost } from "./network-access-config.js";
 
 export interface RuntimeChildConfig {
+	/** The host the runtime BINDS to (`--host`) — a wildcard when LAN serving is on. */
 	host: string;
-	/** The browser-facing host advertised via `--public-host` (LAN IP); null/omitted on a loopback bind. */
-	publicHost?: string | null;
 	port: number;
+	/** The browse-to host advertised to LAN users (`--public-host`), when LAN serving is on and one was detected. */
+	publicHost?: string | null;
+	/**
+	 * Pass `--insecure-remote-http` — required by the runtime for a non-loopback bind over plain HTTP
+	 * (see resolveDesktopBindPlan for the decided trade-off).
+	 */
+	insecureRemoteHttp?: boolean;
 }
 
 export interface RuntimeChildManagerEvents {
@@ -220,7 +227,10 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 
 	private async spawnChild(config: RuntimeChildConfig): Promise<string> {
 		const cliPath = resolveCliPath(this.opts.cliPath);
-		const url = `http://${config.host}:${config.port}`;
+		// The desktop dials its own runtime over loopback even on a wildcard bind — a
+		// wildcard is not a dialable address (see resolveRuntimeConnectHost).
+		const connectHost = resolveRuntimeConnectHost(config.host);
+		const url = `http://${connectHost}:${config.port}`;
 
 		const env = buildFilteredEnv();
 		env.KANBAN_DESKTOP = "1";
@@ -241,6 +251,9 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 		const args = ["--no-open", "--port", String(config.port), "--host", config.host];
 		if (config.publicHost) {
 			args.push("--public-host", config.publicHost);
+		}
+		if (config.insecureRemoteHttp) {
+			args.push("--insecure-remote-http");
 		}
 
 		// POSIX: `detached: true` makes the child lead its own process
@@ -311,7 +324,7 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 
 		try {
 			await waitForReady(
-				config.host,
+				connectHost,
 				config.port,
 				this.opts.pollIntervalMs,
 				this.opts.startupTimeoutMs,

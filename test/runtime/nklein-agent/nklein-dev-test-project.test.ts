@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import {
 	getDefaultNKleinDevTestScenario,
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
@@ -104,12 +105,15 @@ describe("nklein dev test project", () => {
 			initializeGit: true,
 		});
 
+		// Scrubbed env (§4A): these assertion spawns must not resolve a hook-inherited GIT_DIR.
 		const { stdout } = await execFileAsync("git", ["config", "--get", "kanban.repositoryCreatedByKanban"], {
 			cwd: project.workspacePath,
+			env: createGitProcessEnv(),
 		});
 		expect(stdout.trim()).toBe("true");
 		const head = await execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
 			cwd: project.workspacePath,
+			env: createGitProcessEnv(),
 		});
 		expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
 	});

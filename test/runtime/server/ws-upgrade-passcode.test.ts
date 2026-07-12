@@ -5,15 +5,14 @@
  * with HTTP 401 when remote mode + passcode are active, and allow them through
  * when the session cookie is valid or when the gate is not active.
  *
- * We test the gate by exercising the passcode-manager helpers directly (the
- * same helpers the upgrade handler calls) rather than spinning up a full
- * runtime server, keeping the test fast and deterministic.
+ * The upgrade handler delegates to evaluateRemoteRequestAuth (the shared gate
+ * decision), so these tests exercise the REAL decision function — no server
+ * boot needed, and no mirrored logic that could drift.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	disablePasscode,
-	extractSessionTokenFromCookie,
 	generatePasscode,
 	isPasscodeEnabled,
 	issueSession,
@@ -21,21 +20,28 @@ import {
 	SESSION_COOKIE_NAME,
 	validateSession,
 } from "../../../src/security/passcode-manager";
+import { evaluateRemoteRequestAuth } from "../../../src/security/remote-request-auth";
 
-// ---------------------------------------------------------------------------
-// Helper: simulate the exact guard logic from the upgrade handler so we can
-// assert on all branch outcomes without a real HTTP server.
-// ---------------------------------------------------------------------------
-function runUpgradeGuard(input: { isRemoteMode: boolean; cookieHeader: string | undefined }): "allowed" | "rejected" {
+// A LAN peer address — the loopback bypass must NOT fire for these tests.
+const LAN_PEER = "192.168.1.50";
+
+// Run the same decision the upgrade handler makes (401 on !authenticated).
+function runUpgradeGuard(input: {
+	isRemoteMode: boolean;
+	cookieHeader: string | undefined;
+	remoteAddress?: string;
+}): "allowed" | "rejected" {
 	const passcodeActive = input.isRemoteMode && isPasscodeEnabled();
-	if (passcodeActive) {
-		const token = extractSessionTokenFromCookie(input.cookieHeader);
-		const authenticated = token !== null && validateSession(token);
-		if (!authenticated) {
-			return "rejected";
-		}
+	if (!passcodeActive) {
+		return "allowed";
 	}
-	return "allowed";
+	const { authenticated } = evaluateRemoteRequestAuth({
+		passcodeActive,
+		remoteAddress: input.remoteAddress ?? LAN_PEER,
+		cookieHeader: input.cookieHeader,
+		authorizationHeader: undefined,
+	});
+	return authenticated ? "allowed" : "rejected";
 }
 
 describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
@@ -134,5 +140,17 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 			cookieHeader: `${LEGACY_SESSION_COOKIE_NAME}=${token}`,
 		});
 		expect(result).toBe("allowed");
+	});
+
+	it("allows a loopback peer without any session cookie (§ desktop app #2 — same-machine trust)", () => {
+		generatePasscode();
+		for (const loopback of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
+			const result = runUpgradeGuard({
+				isRemoteMode: true,
+				cookieHeader: undefined,
+				remoteAddress: loopback,
+			});
+			expect(result).toBe("allowed");
+		}
 	});
 });

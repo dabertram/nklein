@@ -3,9 +3,9 @@ import type { Duplex } from "node:stream";
 import {
 	getKanbanRuntimeAdvertisedHost,
 	getKanbanRuntimeHost,
-	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
 	isKanbanRemoteHost,
+	isKanbanRuntimeHttps,
 } from "../core/runtime-endpoint";
 
 export type CorsDecision =
@@ -16,7 +16,12 @@ export type CorsDecision =
 export interface CorsGateInput {
 	method: string | undefined;
 	originHeader: string | undefined;
-	allowedOrigin: string;
+	/**
+	 * Every origin the app is legitimately served from. One entry on a loopback bind; on a
+	 * remote (LAN-serving) bind the app is reachable via loopback (the desktop shell), the
+	 * bound host, AND the advertised public host — a browser sends whichever it loaded.
+	 */
+	allowedOrigins: ReadonlySet<string>;
 }
 
 const isDev = process.env.NODE_ENV === "development";
@@ -31,7 +36,7 @@ export function evaluateCors(input: CorsGateInput): CorsDecision {
 
 	const isDevServer = isDev && (origin === "http://localhost:4173" || origin === "http://127.0.0.1:4173");
 
-	if (origin !== input.allowedOrigin && !isDevServer) {
+	if (!input.allowedOrigins.has(origin) && !isDevServer) {
 		return { kind: "reject", origin };
 	}
 
@@ -74,6 +79,13 @@ export function getAllowedHostHeaders(): ReadonlySet<string> {
 	if (isKanbanRemoteHost()) {
 		addHostPort(boundHost);
 		addHostPort(advertisedHost);
+		// Same-machine access stays first-class on a remote bind: the desktop shell loads the
+		// UI via 127.0.0.1 even while the runtime listens on a wildcard, and a host-machine
+		// browser uses localhost. This does not weaken the DNS-rebinding defence — a rebinding
+		// attack needs the attacker's *domain* in this set, and loopback literals never are.
+		addHostPort("localhost");
+		addHostPort("127.0.0.1");
+		addHostPort("::1");
 		return allowed;
 	}
 
@@ -85,6 +97,21 @@ export function getAllowedHostHeaders(): ReadonlySet<string> {
 		allowed.add("127.0.0.1:4173");
 	}
 	return allowed;
+}
+
+/**
+ * Every origin the served app may legitimately run under — the CORS mirror of
+ * {@link getAllowedHostHeaders} (scheme × allowed hosts). On a loopback bind this is the
+ * classic single-origin set; on a remote bind it additionally covers the bound host, the
+ * advertised public host, and loopback (the desktop shell / host-machine browser).
+ */
+export function getAllowedRuntimeOrigins(): ReadonlySet<string> {
+	const scheme = isKanbanRuntimeHttps() ? "https" : "http";
+	const origins = new Set<string>();
+	for (const host of getAllowedHostHeaders()) {
+		origins.add(`${scheme}://${host}`);
+	}
+	return origins;
 }
 
 const ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].join(", ");
@@ -124,7 +151,7 @@ export function handleHttpRequest(req: IncomingMessage, res: ServerResponse): { 
 	const corsDecision = evaluateCors({
 		method: req.method,
 		originHeader: req.headers.origin,
-		allowedOrigin: getKanbanRuntimeOrigin(),
+		allowedOrigins: getAllowedRuntimeOrigins(),
 	});
 
 	switch (corsDecision.kind) {
@@ -161,7 +188,7 @@ export function handleSocketUpgrade(request: IncomingMessage, socket: Duplex): {
 	const corsDecision = evaluateCors({
 		method: request.method,
 		originHeader: request.headers.origin,
-		allowedOrigin: getKanbanRuntimeOrigin(),
+		allowedOrigins: getAllowedRuntimeOrigins(),
 	});
 	if (corsDecision.kind === "reject") {
 		return rejectSocket(socket);

@@ -45,6 +45,7 @@ import { ModelPerformanceStatsDialog } from "@/components/model-performance-stat
 import { ModelRolesEditor } from "@/components/model-roles-editor";
 import { buildDisplayedAgentCommand } from "@/components/runtime-settings-command-display";
 import { MODEL_ROLE_IDS, normalizeModelRolesForSettings } from "@/components/runtime-settings-model-roles";
+import { NetworkAccessSettingsSection } from "@/components/runtime-settings-network-access";
 import { normalizeProviderId } from "@/components/runtime-settings-provider-helpers";
 import { type SwarmGuardrailInputs, swarmGuardrailsToInputs } from "@/components/runtime-settings-swarm-guardrails";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
@@ -256,9 +257,6 @@ export function RuntimeSettingsDialog({
 	const desktopBridge = typeof window !== "undefined" ? window.desktop : undefined;
 	const [autostartEnabled, setAutostartEnabled] = useState(false);
 	const [autostartBusy, setAutostartBusy] = useState(false);
-	const [networkAccessEnabled, setNetworkAccessEnabled] = useState(false);
-	const [networkAccessBusy, setNetworkAccessBusy] = useState(false);
-	const [networkRestartPending, setNetworkRestartPending] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
 	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a search backend URL.
@@ -370,7 +368,6 @@ export function RuntimeSettingsDialog({
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
 	const developerModeCheckboxId = "runtime-settings-developer-mode";
 	const autostartCheckboxId = "runtime-settings-autostart";
-	const networkAccessCheckboxId = "runtime-settings-network-access";
 	const replayCardsCheckboxId = "runtime-settings-replay-cards";
 	const knowsTodayCheckboxId = "runtime-settings-knows-today";
 	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
@@ -487,47 +484,6 @@ export function RuntimeSettingsDialog({
 				})
 				.catch(() => setAutostartEnabled((prev) => !prev))
 				.finally(() => setAutostartBusy(false));
-		},
-		[desktopBridge],
-	);
-
-	// Read the live LAN-serving opt-in from the desktop app each time the dialog opens.
-	useEffect(() => {
-		if (!open || !desktopBridge) {
-			return;
-		}
-		let cancelled = false;
-		desktopBridge
-			.getNetworkAccess()
-			.then((enabled) => {
-				if (!cancelled) setNetworkAccessEnabled(enabled);
-			})
-			.catch(() => {});
-		return () => {
-			cancelled = true;
-		};
-	}, [open, desktopBridge]);
-
-	const handleNetworkAccessChange = useCallback(
-		(next: boolean) => {
-			if (!desktopBridge) {
-				return;
-			}
-			setNetworkAccessEnabled(next); // optimistic
-			setNetworkAccessBusy(true);
-			setNetworkRestartPending(false);
-			desktopBridge
-				.setNetworkAccess(next)
-				.then((result) => {
-					if (!result.ok) {
-						setNetworkAccessEnabled((prev) => !prev); // revert on failure
-						return;
-					}
-					// The relaunch that rebinds the host was deferred ⇒ tell the user it applies after a restart.
-					setNetworkRestartPending(result.restartRequired === true);
-				})
-				.catch(() => setNetworkAccessEnabled((prev) => !prev))
-				.finally(() => setNetworkAccessBusy(false));
 		},
 		[desktopBridge],
 	);
@@ -1404,6 +1360,9 @@ export function RuntimeSettingsDialog({
 							</p>
 						</div>
 
+						{/* Desktop-only: LAN serving (§ desktop app #2). Persisted opt-in + live state, hidden in a browser. */}
+						{desktopBridge ? <NetworkAccessSettingsSection open={open} bridge={desktopBridge} /> : null}
+
 						{/* Desktop-only: start !Klein on boot. An IMMEDIATE OS action via the Electron bridge (hidden in a browser). */}
 						{desktopBridge ? (
 							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
@@ -1428,38 +1387,6 @@ export function RuntimeSettingsDialog({
 								<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
 									Registers a login item (macOS/Windows) or an autostart entry (Linux). Takes effect on your
 									next login.
-								</p>
-							</div>
-						) : null}
-
-						{/* Desktop-only: serve the UI on the LAN. Needs a relaunch (the bind host is fixed at startup). Hidden in a browser. */}
-						{desktopBridge ? (
-							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-								<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
-									Local network access (experimental)
-								</h6>
-								<label
-									htmlFor={networkAccessCheckboxId}
-									className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
-								>
-									<RadixSwitch.Root
-										id={networkAccessCheckboxId}
-										checked={networkAccessEnabled}
-										disabled={networkAccessBusy}
-										onCheckedChange={handleNetworkAccessChange}
-										className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
-									>
-										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-									</RadixSwitch.Root>
-									<span>Serve the !Klein UI to other devices on your local network</span>
-								</label>
-								<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
-									OFF by default (this machine only). When on, LAN devices reach !Klein through a required
-									passcode — anyone on your network with it can see your projects and terminals. Takes effect
-									after a restart.
-									{networkRestartPending ? (
-										<span className="font-medium text-text-primary"> Restart !Klein to apply.</span>
-									) : null}
 								</p>
 							</div>
 						) : null}

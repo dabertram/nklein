@@ -8,7 +8,9 @@
  * - Comparison uses crypto.timingSafeEqual to prevent timing attacks.
  * - Sessions are random tokens stored in-memory with TTL metadata.
  * - Rate limiting: 5 failed attempts triggers a 30-second lockout.
- * - Passcode is NEVER returned in any response, log, or error message.
+ * - Passcode is NEVER returned in any network-facing response, log, or error message. The
+ *   single display surface besides startup stdout is the loopback-only /api/network-access
+ *   endpoint (the desktop Settings dialog) — see getPasscodeForLocalDisplay.
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -84,6 +86,21 @@ export function disablePasscode(): void {
 /** Whether passcode enforcement is currently active. */
 export function isPasscodeEnabled(): boolean {
 	return passcodeEnabled;
+}
+
+/**
+ * Reveal the active passcode for SAME-MACHINE display surfaces only (the desktop app's
+ * Settings dialog / a host-machine browser, via the loopback-only /api/network-access
+ * endpoint). Loopback callers bypass the passcode gate entirely (remote-request-auth.ts),
+ * so showing them the passcode grants nothing they don't already have — but callers MUST
+ * gate on a loopback socket peer before forwarding this value; it must never cross the
+ * network. Null when enforcement is off or no passcode has been generated.
+ */
+export function getPasscodeForLocalDisplay(): string | null {
+	if (!passcodeEnabled) {
+		return null;
+	}
+	return passcodeState?.value ?? null;
 }
 
 /**

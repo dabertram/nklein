@@ -8,6 +8,7 @@ import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/c
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 import type { NKleinModelRegistryEntry } from "../../../src/nklein-agent/nklein-model-registry";
 import { loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
@@ -953,7 +954,7 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("verifies task acceptance through the scoped NKlein sandbox service", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-acceptance-workspace-"));
 		try {
-			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
 			const board: RuntimeBoardData = {
 				columns: [
 					{
@@ -1076,7 +1077,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-nklein-start-lane-"));
 		try {
 			setSelectedProviderSettings({ provider: "ollama", model: "qwen3.5-9b", baseUrl: "http://127.0.0.1:11434" });
-			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
 			const board: RuntimeBoardData = {
 				columns: [
 					{
@@ -3853,7 +3854,7 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("moves a recovered review task back to in progress after nklein input resumes it", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-nklein-review-resume-"));
 		try {
-			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
 			const board: RuntimeBoardData = {
 				columns: [
 					{ id: "backlog", title: "Backlog", cards: [] },
@@ -4941,7 +4942,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		try {
 			process.env.HOME = tempHome;
 			process.env.USERPROFILE = tempHome;
-			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
 			const board: RuntimeBoardData = {
 				columns: [
 					{

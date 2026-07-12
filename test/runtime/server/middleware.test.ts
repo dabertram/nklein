@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { evaluateCors, evaluateHost, handleSocketUpgrade } from "../../../src/server/middleware";
 
 const ALLOWED_ORIGIN = "http://127.0.0.1:3484";
+const ALLOWED_ORIGINS = new Set([ALLOWED_ORIGIN]);
 const ALLOWED_HOSTS = new Set(["localhost:3484", "127.0.0.1:3484"]);
 
 function makeFakeRequest(headers: Partial<IncomingMessage["headers"]>, method = "GET"): IncomingMessage {
@@ -15,7 +16,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "GET",
 			originHeader: undefined,
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "allow", origin: null });
 	});
@@ -24,7 +25,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "GET",
 			originHeader: "",
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "allow", origin: null });
 	});
@@ -33,7 +34,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "POST",
 			originHeader: ALLOWED_ORIGIN,
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "allow", origin: ALLOWED_ORIGIN });
 	});
@@ -42,16 +43,31 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "POST",
 			originHeader: "http://evil.example.com",
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "reject", origin: "http://evil.example.com" });
+	});
+
+	it("allows every origin in a multi-origin set (remote bind: loopback + bound + advertised)", () => {
+		// § desktop app #2: on a LAN-serving bind the app is legitimately loaded from the
+		// desktop shell (loopback), the wildcard bound host, or the advertised LAN host.
+		const remoteOrigins = new Set(["http://127.0.0.1:3484", "http://0.0.0.0:3484", "http://192.168.1.25:3484"]);
+		for (const origin of remoteOrigins) {
+			expect(evaluateCors({ method: "POST", originHeader: origin, allowedOrigins: remoteOrigins })).toEqual({
+				kind: "allow",
+				origin,
+			});
+		}
+		expect(
+			evaluateCors({ method: "POST", originHeader: "http://192.168.1.99:3484", allowedOrigins: remoteOrigins }),
+		).toEqual({ kind: "reject", origin: "http://192.168.1.99:3484" });
 	});
 
 	it("rejects requests from the same host but a different port", () => {
 		const decision = evaluateCors({
 			method: "GET",
 			originHeader: "http://127.0.0.1:9999",
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "reject", origin: "http://127.0.0.1:9999" });
 	});
@@ -60,7 +76,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "GET",
 			originHeader: "https://127.0.0.1:3484",
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "reject", origin: "https://127.0.0.1:3484" });
 	});
@@ -69,7 +85,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "OPTIONS",
 			originHeader: ALLOWED_ORIGIN,
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "preflight", origin: ALLOWED_ORIGIN });
 	});
@@ -78,7 +94,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "OPTIONS",
 			originHeader: "http://evil.example.com",
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "reject", origin: "http://evil.example.com" });
 	});
@@ -87,7 +103,7 @@ describe("evaluateCors", () => {
 		const decision = evaluateCors({
 			method: "OPTIONS",
 			originHeader: undefined,
-			allowedOrigin: ALLOWED_ORIGIN,
+			allowedOrigins: ALLOWED_ORIGINS,
 		});
 		expect(decision).toEqual({ kind: "allow", origin: null });
 	});
