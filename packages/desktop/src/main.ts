@@ -8,7 +8,7 @@ import { runDesktopAutoResume } from "./auto-resume-runner.js";
 import type { AutostartPlatform } from "./autostart-config.js";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
 import { resolveDesktopStartupBind } from "./network-access-config.js";
-import { loadNetworkAccessEnabled } from "./network-access-store.js";
+import { loadNetworkAccessEnabled, saveNetworkAccessEnabled } from "./network-access-store.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
 import { type AppTray, createAppTray } from "./tray.js";
 import { summarizeTrayActivity } from "./tray-menu.js";
@@ -222,6 +222,43 @@ ipcMain.handle("set-autostart", async (_event, enabled: unknown) => {
 		return { ok: true };
 	} catch (error) {
 		console.error("[desktop] set-autostart failed:", error);
+		return { ok: false, error: error instanceof Error ? error.message : String(error) };
+	}
+});
+
+// Sub-feature (2) LAN serving: read/write the opt-in. The runtime's bind host is decided ONCE at startup
+// (resolveDesktopStartupBind), so changing it needs a FULL app relaunch — an orchestrator restart would rebind the
+// same host. `set` persists the choice, then offers a relaunch (declining ⇒ it applies on the next launch).
+ipcMain.handle("get-network-access", () => {
+	try {
+		return loadNetworkAccessEnabled(app.getPath("userData"));
+	} catch (error) {
+		console.error("[desktop] get-network-access failed:", error);
+		return false;
+	}
+});
+ipcMain.handle("set-network-access", async (_event, enabled: unknown) => {
+	try {
+		const nextEnabled = enabled === true;
+		saveNetworkAccessEnabled(app.getPath("userData"), nextEnabled);
+		const { response } = await dialog.showMessageBox({
+			type: "question",
+			buttons: ["Restart now", "Later"],
+			defaultId: 0,
+			cancelId: 1,
+			message: nextEnabled ? "Serve !Klein on your local network?" : "Stop serving !Klein on your local network?",
+			detail: nextEnabled
+				? "Other devices on your LAN will be able to reach !Klein (a passcode is still required). Takes effect after a restart."
+				: "!Klein goes back to this-machine-only after a restart.",
+		});
+		if (response === 0) {
+			app.relaunch();
+			app.quit();
+			return { ok: true, restartRequired: false };
+		}
+		return { ok: true, restartRequired: true };
+	} catch (error) {
+		console.error("[desktop] set-network-access failed:", error);
 		return { ok: false, error: error instanceof Error ? error.message : String(error) };
 	}
 });

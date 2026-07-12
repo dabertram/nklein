@@ -11,6 +11,10 @@ interface DesktopBridge {
 	getAutostart(): Promise<boolean>;
 	/** Enable/disable start-on-boot; resolves `{ ok }` (with an `error` message on failure). */
 	setAutostart(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+	/** Read whether !Klein serves on the local network (the persisted opt-in). */
+	getNetworkAccess(): Promise<boolean>;
+	/** Enable/disable LAN serving; `restartRequired` is true when the applying relaunch was deferred. */
+	setNetworkAccess(enabled: boolean): Promise<{ ok: boolean; error?: string; restartRequired?: boolean }>;
 }
 
 interface Window {
