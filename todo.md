@@ -437,6 +437,12 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
+- **New root CLI launch flags MUST also be added to `shouldAutoOpenBrowserTabForInvocation` (`src/cli-invocation-parsing.ts`).**
+  That classifier doubles as "is this a server launch": an argv token it doesn't recognize makes `run()` (cli.ts) treat the
+  invocation as a subcommand and `process.exit` right after the command resolves — the server boots, prints "running at …",
+  then exits 0 with no error. This bit `--public-host` (2026-07-13: every LAN launch, incl. the desktop child spawn, died
+  instantly); unit suites stayed green and only a live boot surfaced it. When adding a flag, extend the classifier + its
+  regression test in `test/runtime/cli-invocation-parsing.test.ts` in the same commit.
 - **Basic Memory MCP is LOCAL on this host unless explicitly proven otherwise.** Use the local/default project (currently
   `main`) or omit the `project` parameter; do NOT pass `project:"nklein"` unless a local Basic Memory project with that
   exact name has been confirmed. A cloud-credentials error from Basic Memory is a tool-routing mistake, not a reason to
@@ -11273,15 +11279,32 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       `resolveDesktopStartupBind`) + `network-access-store.ts` (persist the opt-in to `network-access.json`, fail-safe to
       false on missing/malformed) + `main.ts` now resolves the runtime bind host from the persisted opt-in BEFORE spawning
       (default loopback, byte-identical; opt-in ⇒ 0.0.0.0 + logged browse URL). 14 tests, desktop suite 352 green.
-      **✅ TOGGLE + IPC + --public-host WIRED (2026-07-13, `e113d3fd`+`bb6da45e`):** ipcMain get/set-network-access in
-      main.ts (set persists + offers a relaunch, since the bind host is fixed at startup) + preload
-      getNetworkAccess/setNetworkAccess + a desktop-only Settings › General "Local network access (experimental)"
-      RadixSwitch (live-read, optimistic set + revert, "Restart to apply" note, security caption) — hidden in a plain
-      browser like "Start on boot"; and `--public-host` now threads main.ts→RuntimeOrchestrator→runtime-child (arg added
-      when a LAN IP is detected). desktop tsc + suite (353) · web-ui tsc + vitest (1039) · biome clean.
-      Remaining for (2): surface the generated passcode + copy-URL in the toggle (the runtime LOGS it to the child's
-      stdout at cli.ts:470 — parse it there + IPC it up, OR add a runtime read-seam), the HTTPS-cert-vs-insecure-opt-out
-      choice, and the packaged macOS/Windows/Linux smoke (hands-on).)*
+      ✅ **LAN WEBSERVER (2) CODE-COMPLETE (2026-07-13, `a5195ac6`):** everything above except the packaged smoke.
+      (SUPERSEDES the interim `e113d3fd`+`bb6da45e` toggle: those wired a full-app-`relaunch` toggle + an inline
+      Settings block + `--public-host`; this replaced the relaunch with a stage-then-restart bind, extracted the toggle
+      into its own component, added the passcode surface + loopback trust, and kept `--public-host`.)
+      RUNTIME — loopback-trust decision extracted to `src/security/remote-request-auth.ts` (single gate for HTTP + runtime-WS
+      + terminal-WS: loopback socket peers bypass the passcode; matches the loopback-bind posture, fixes the desktop shell
+      facing its own passcode gate + the §5.Y #10 nonce fetch 401ing in remote mode; forwarding headers deliberately ignored);
+      remote-mode Host/CORS allowlists now include loopback + the advertised host as ORIGIN SETS (`getAllowedRuntimeOrigins`);
+      loopback-only `GET /api/network-access` (src/server/network-access-info.ts) reveals live state + passcode to same-machine
+      callers ONLY (LAN peers get 401/404 even with a valid session — live-proven); `getPasscodeForLocalDisplay` documents the
+      display surface. DESKTOP — bind plan carries `insecureRemoteHttp` (DECIDED: passcode-over-plain-HTTP, no self-signed-cert
+      friction; the runtime's refusal stays for non-desktop users); `resolveRuntimeConnectHost` = desktop always DIALS loopback
+      (0.0.0.0 is not dialable on Windows and Chromium ≥128 blocks it); runtime-child threads `--public-host`/`--insecure-remote-http`;
+      orchestrator gained `setBindPlan()`/`getBindPlan()` (Settings toggle stages, restart applies — no app relaunch);
+      `network-access-ipc.ts` get/set seams + `get-network-access`/`set-network-access` ipcMain handlers + preload
+      `getNetworkAccess`/`setNetworkAccess`. WEB-UI — desktop-only Settings › General "Serve on the local network (experimental)"
+      section (`runtime-settings-network-access.tsx`): live-state read on open, optimistic set + revert, restart-required prompt
+      via AlertDialog (running-tasks warning) → existing restart-runtime path, browse-to URL + passcode with copy buttons,
+      cleartext-HTTP security note; hidden in a plain browser, passcode invisible to LAN clients by the loopback-only endpoint.
+      REGRESSION FIX caught by the live check: `--public-host` was missing from `shouldAutoOpenBrowserTabForInvocation`'s
+      launch-flag list, so ANY `--public-host` launch (incl. the desktop LAN spawn) cleanly EXITED right after startup
+      (cli.ts post-parse `process.exit`). Live-verified on a real wildcard bind from BOTH sides (loopback: trusted + passcode
+      visible; own-en0 peer: gated 401 → passcode verify → session works; passcode never crosses the wire). Suites: backend
+      9204, desktop 372, web-ui 1049, all tsc clean. Remaining for (2): ONLY the packaged
+      macOS/Windows/Linux smoke with David — enable the toggle, restart runtime from the prompt, browse from a second device
+      (http://<lan-ip>:3484), enter the passcode shown in Settings.)*
       *(2026-07-08 DEPLOYMENT / UPDATE STRATEGY DECISION — Docker-based deployment is OPTIONAL/LATER, not the primary
       desktop path. The desktop app is the main distribution surface and needs first-class update detection + migration
       handling. Preferred update path: signed/notarized platform packages published as GitHub Releases assets (or a later
