@@ -239,6 +239,14 @@ function createDevRuntimeClient(workspaceId: string | null) {
  * Run one dev-test preset against an already-resolved runtime client + workspace, returning the raw run
  * result + wall time. Shared by the single-preset command and the sweep orchestrator (todo §5.O).
  */
+// Real-model dev-test runs have BETWEEN-TURN lulls (the model sits idle between a worker finishing and the next
+// card's session spawning) that far exceed the fast-simulator's 30s default settle (DEFAULT_STABLE_POLLS=6 × 5s),
+// so the harness would settle "blocked/stagnant" while the runtime is STILL working. Live-found 2026-07-12: it
+// settled at 3m (completed=1) while the runtime kept going to completed=3 by 18m. Give real models a much longer
+// no-progress tolerance (~4 min); the overall run is still bounded by --max-wait-ms and the active-session guard
+// means this only accumulates during a genuine lull (no running/queued session). Callers may override per-run.
+const DEVTEST_REAL_MODEL_STABLE_POLLS = 48;
+
 async function executeDevTestPreset(input: {
 	client: ReturnType<typeof createDevRuntimeClient>;
 	workspaceId: string;
@@ -246,6 +254,7 @@ async function executeDevTestPreset(input: {
 	baseRef: string;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
+	stablePollsUntilSettled?: number;
 	/** §5.AN: force the seed card onto a specific (loaded) model, bypassing stale/multi-machine config roles. */
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	/** When false, the seed card starts in ACT mode (the agent does the work directly) instead of plan/decompose. */
@@ -278,6 +287,8 @@ async function executeDevTestPreset(input: {
 			...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
 			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
 			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
+			// Real models settle far slower than the simulator — tolerate long between-turn lulls (see the constant above).
+			stablePollsUntilSettled: input.stablePollsUntilSettled ?? DEVTEST_REAL_MODEL_STABLE_POLLS,
 		},
 		{
 			startSeedTask: async (payload) => {
