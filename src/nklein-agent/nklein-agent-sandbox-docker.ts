@@ -85,6 +85,19 @@ export interface AgentSandboxDockerRunOptions {
 	 * NEVER affected by this value — only outbound network reachability changes.
 	 */
 	networkPolicy?: SandboxNetworkPolicy;
+	/**
+	 * §5.L egress-proxy wiring (§10c#18), passed straight to {@link resolveAgentSandboxNetworkArgs}. Absent ⇒ the
+	 * pre-proxy mapping (an `allowlist` policy fail-closes to `--network none`); present + available ⇒ `allowlist`
+	 * joins the `--internal` egress network. Set ONLY by the manager for a proxied `allowlist` container.
+	 */
+	egress?: AgentSandboxEgressWiring;
+	/**
+	 * §4 DNS-exfil closure: the egress proxy's internal IP, emitted as `--dns <ip>` so Docker's embedded resolver
+	 * forwards external lookups to the proxy's NXDOMAIN stub rather than a real upstream (a live exfil channel on
+	 * `--internal` networks — risk Q1). Set ONLY for a CONFIRMED proxied `allowlist` container; absent ⇒ NO `--dns`
+	 * argument at all (byte-identical to the pre-proxy run args).
+	 */
+	egressDnsServer?: string;
 }
 
 export function normalizeAgentSandboxPoolConfig(
@@ -188,7 +201,10 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 		AGENT_SANDBOX_CONTAINER_LABEL,
 		"--label",
 		`nklein.slot=${options.slot}`,
-		...resolveAgentSandboxNetworkArgs(options.networkPolicy ?? "none"),
+		...resolveAgentSandboxNetworkArgs(options.networkPolicy ?? "none", options.egress),
+		// §4 DNS-exfil closure: pin the proxied `allowlist` container's resolver at the proxy's NXDOMAIN stub so the
+		// Docker embedded resolver can't forward external names upstream. Absent ⇒ no `--dns` (byte-identical pre-proxy).
+		...(options.egressDnsServer ? ["--dns", options.egressDnsServer] : []),
 		"--cap-drop",
 		"ALL",
 		"--security-opt",

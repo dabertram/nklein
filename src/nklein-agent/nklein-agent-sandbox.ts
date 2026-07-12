@@ -15,9 +15,21 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
+	buildEgressProxyExecEnvArgs,
+	EGRESS_PROXY_BUNDLE_HOST_PATH_ENV,
+	type EgressProxyAvailability,
+	egressNetworkName,
+	egressProxyContainerName,
+	ensureEgressProxyAvailable,
+	isEgressProxyEnabled,
+	resolveSandboxEgressWiring,
+	teardownEgressProxy,
+} from "./egress-proxy-lifecycle";
+import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
 	AGENT_SANDBOX_WORKSPACES_DIR,
+	type AgentSandboxEgressWiring,
 	type AgentSandboxPoolConfig,
 	type AgentSandboxProjectMount,
 	type AgentSandboxWritableMount,
@@ -147,6 +159,14 @@ interface ContainerState {
 	 * container without its mount made `git clone /repos/<key>` fail and fail-closed the whole delivery.
 	 */
 	mountedProjectKeys: Set<string> | null;
+	/**
+	 * §5.L egress proxy (§10c#18): the proxy's INTERNAL IP this container was `docker run` on the `--internal` egress
+	 * network with, or `null` when it is NOT on that network (every `none`/`full` container, and any `allowlist`
+	 * container started while the proxy was unavailable — fail-closed). The exec seam keys per-`docker exec`
+	 * `HTTP(S)_PROXY` injection off THIS value, so a container's proxy env exactly matches the network it was created
+	 * on — never a stale pool-policy read across a runtime tier switch (occupied containers age out).
+	 */
+	egressProxyIp: string | null;
 }
 
 interface TaskPlacement {
@@ -298,6 +318,16 @@ export class AgentSandboxManager {
 	// (poolConfig.maxConcurrentExec) so simultaneous heavy commands can't OOM the container; excess FIFO-queue.
 	private activeExecs = 0;
 	private readonly execWaiters: (() => void)[] = [];
+	// §5.L egress proxy (§10c#18, docs/dev/egress-proxy-design.md §4/§6). The proxy is a POOL-LEVEL shared gateway
+	// (one per namespace), computed ONCE and MEMOIZED here: the first `allowlist` container (re)create resolves this
+	// promise, every subsequent create reuses it (invariant: one `ensureEgressProxyAvailable` across N creates).
+	// `null` ⇒ "not yet probed / re-probe on the next allowlist create". Reset on a switch TO `allowlist`
+	// (setNetworkPolicy) so a re-enabled tier re-probes, and on stopNow. Untouched for `none`/`full` or flag-off.
+	private egressEnsurePromise: Promise<EgressProxyAvailability> | null = null;
+	// STICKY teardown guard, separate from the (resettable) memo: true once we may have created egress Docker
+	// resources (network + proxy container), so stopNow tears them down even after a memo reset left a prior proxy
+	// running (e.g. allowlist → none → allowlist). Never over-grants; only governs cleanup. Cleared after teardown.
+	private egressProxyEnsured = false;
 
 	constructor(options: AgentSandboxManagerOptions = {}) {
 		this.image = options.image ?? resolveAgentSandboxImageName();
@@ -342,6 +372,15 @@ export class AgentSandboxManager {
 			return;
 		}
 		this.networkPolicy = policy;
+		// §5.L egress proxy: a switch TO `allowlist` must re-trigger the availability probe on the NEXT container
+		// (re)create — clear the memo so a re-enabled tier re-probes (fail-closed) instead of reusing a stale verdict.
+		// A switch AWAY from `allowlist` deliberately does NOT tear the proxy down here: occupied containers started on
+		// the egress network are aging out and STILL route through it, so an eager teardown would break their in-flight
+		// egress. The proxy is reaped at stopNow (and by the `nklein.kind=egress-proxy` startup reap) — the `Ensured`
+		// flag stays set so that cleanup still fires. Idle egress containers are retired below like any policy change.
+		if (policy === "allowlist") {
+			this.egressEnsurePromise = null;
+		}
 		const retirements = [...this.containers.values()]
 			.filter((container) => container.occupancy.size === 0)
 			.map((container) => this.retireContainer(container));
@@ -659,11 +698,28 @@ export class AgentSandboxManager {
 			await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
 			await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
 		}
+		// §5.L: reap the pool's shared egress proxy + its `--internal` network, but ONLY if we ever ensured it (a
+		// flag-off / never-`allowlist` pool touched no egress Docker resources ⇒ this is a no-op, so stopNow stays
+		// byte-identical for those pools). Best-effort + resets the memo so a restarted pool re-probes from scratch.
+		await this.teardownEgressProxyIfEnsured();
 		this.containers.clear();
 		this.placements.clear();
 		while (this.queue.length > 0) {
 			this.queue.shift()?.reject(new AgentSandboxUnavailableError("Agent sandbox stopped before a slot opened."));
 		}
+	}
+
+	/** Best-effort teardown of the pool's shared egress proxy + network (see stopNow). No-op if it was never ensured. */
+	private async teardownEgressProxyIfEnsured(): Promise<void> {
+		if (!this.egressProxyEnsured) {
+			return;
+		}
+		await teardownEgressProxy((argv, options) => this.runDocker(argv, options), {
+			containerName: egressProxyContainerName(this.poolConfig.namespace),
+			networkName: egressNetworkName(this.poolConfig.namespace),
+		});
+		this.egressProxyEnsured = false;
+		this.egressEnsurePromise = null;
 	}
 
 	private registerProject(projectRepoPath: string): AgentSandboxProjectMount {
@@ -817,6 +873,80 @@ export class AgentSandboxManager {
 		}
 	}
 
+	/**
+	 * §5.L: resolve the egress wiring for a container ABOUT TO START. Returns EMPTY (⇒ pre-proxy run args) unless the
+	 * flag is on AND the pool policy is `allowlist`; only then is the shared proxy ensured (memoized) and, when it is
+	 * CONFIRMED available, the container joins the `--internal` egress network (`wiring`) and pins `--dns` at the proxy
+	 * stub (`internalIp`). An unavailable/unhealthy proxy returns the fail-closed wiring (no `internalIp`), which the
+	 * arg builder maps to `--network none` (R2). Never invoked for `none`/`full` or with the flag off.
+	 */
+	private async resolveContainerEgressWiring(): Promise<{ wiring?: AgentSandboxEgressWiring; internalIp?: string }> {
+		// FAIL-CLOSED / DEFAULT-OFF gate (§7): flag off or a non-`allowlist` policy ⇒ no ensure call, no egress wiring.
+		if (!isEgressProxyEnabled(process.env) || this.networkPolicy !== "allowlist") {
+			return {};
+		}
+		const availability = await this.ensureEgressAvailability();
+		const wiring = resolveSandboxEgressWiring(availability);
+		if (availability.available && availability.internalIp) {
+			return { wiring, internalIp: availability.internalIp };
+		}
+		// FAIL CLOSED (R2): a proxy that is not confirmed available yields `{ egressProxyAvailable: false }`, which the
+		// arg builder maps to `--network none` — no `--dns`, no egress — exactly the pre-proxy behavior.
+		return { wiring };
+	}
+
+	/**
+	 * Ensure (ONCE, memoized) the pool's shared egress proxy and return its availability. The promise is cached so N
+	 * concurrent/sequential `allowlist` container creates trigger exactly ONE `ensureEgressProxyAvailable`; the memo is
+	 * reset only on a switch TO `allowlist` (setNetworkPolicy) or stopNow. Caller guarantees flag-on + `allowlist`.
+	 */
+	private ensureEgressAvailability(): Promise<EgressProxyAvailability> {
+		if (!this.egressEnsurePromise) {
+			this.egressEnsurePromise = this.probeEgressAvailability();
+		}
+		return this.egressEnsurePromise;
+	}
+
+	/** The memoized body behind {@link ensureEgressAvailability} — resolves the bundle path, then runs the lifecycle. */
+	private async probeEgressAvailability(): Promise<EgressProxyAvailability> {
+		const networkName = egressNetworkName(this.poolConfig.namespace);
+		// I2b interim seam (no app bundling step yet — design §6 I4): the app-shipped proxy bundle path comes from
+		// NKLEIN_EGRESS_PROXY_BUNDLE. ABSENT ⇒ FAIL CLOSED to unavailable WITHOUT touching Docker (no bundle ⇒ no
+		// proxy ⇒ `allowlist` stays `--network none`), so a flag flipped on without a shipped bundle never over-grants.
+		const bundleHostPath = process.env[EGRESS_PROXY_BUNDLE_HOST_PATH_ENV]?.trim();
+		if (!bundleHostPath) {
+			return { available: false, networkName, internalIp: null };
+		}
+		// From here Docker resources (the `--internal` network, the proxy container) MAY be created — mark the sticky
+		// teardown guard BEFORE the call so stopNow reaps them even if the probe later fails or is memo-reset.
+		this.egressProxyEnsured = true;
+		return await ensureEgressProxyAvailable((argv, options) => this.runDocker(argv, options), {
+			namespace: this.poolConfig.namespace,
+			bundleHostPath,
+			image: this.image,
+			env: process.env,
+		});
+	}
+
+	/**
+	 * §5.L exec seam: the per-`docker exec` proxy env argv (`-e HTTP_PROXY=… -e HTTPS_PROXY=… -e NO_PROXY=`) for a
+	 * container, or `[]` when it is NOT on the egress network. Keyed off the CONTAINER's recorded `egressProxyIp`
+	 * (set at create time) — NOT the live pool policy — so a container's proxy env always matches the network it was
+	 * created on, and a flag-off / `none` / `full` / fail-closed container injects NOTHING (byte-identical exec argv).
+	 *
+	 * v1 attributes EVERY exec to the WORKER listener port (EGRESS_PROXY_ROLE_PORTS.worker). Per-role attribution is
+	 * an I3 refinement — the manager's exec seam does not carry the task's resolved ruleset role, and the design
+	 * (§6 I3, risk Q4) explicitly defers task/role attribution rather than plumbing role through the pool here.
+	 * TODO(I3): attribute injected exec env to the task's resolved role instead of always WORKER.
+	 */
+	private egressProxyExecEnvArgs(slot: number): string[] {
+		const internalIp = this.containers.get(slot)?.egressProxyIp;
+		if (!internalIp) {
+			return [];
+		}
+		return buildEgressProxyExecEnvArgs(internalIp, "worker");
+	}
+
 	private async startContainer(container: ContainerState): Promise<void> {
 		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
 		const mounts = [...this.projectMountsByKey.values()];
@@ -854,6 +984,11 @@ export class AgentSandboxManager {
 		await Promise.all(
 			writableMounts.map((mount) => mkdir(mount.hostPath, { recursive: true }).catch(() => undefined)),
 		);
+		// §5.L egress proxy (§10c#18): resolve the egress wiring for THIS container. Only a flag-ON `allowlist` pool
+		// ensures the shared proxy (memoized) and — when it is CONFIRMED available — joins the `--internal` egress
+		// network + pins `--dns` at the proxy stub. Flag off / `none` / `full` / unavailable ⇒ empty wiring ⇒ the run
+		// args are byte-identical to the pre-proxy path (`allowlist` fail-closes to `--network none`, R2).
+		const egress = await this.resolveContainerEgressWiring();
 		const result = await this.runDocker(
 			buildAgentSandboxDockerRunArgs({
 				slot: container.slot,
@@ -862,6 +997,8 @@ export class AgentSandboxManager {
 				...(writableMounts.length > 0 ? { writableMounts } : {}),
 				config: this.poolConfig,
 				networkPolicy: this.networkPolicy,
+				...(egress.wiring ? { egress: egress.wiring } : {}),
+				...(egress.internalIp ? { egressDnsServer: egress.internalIp } : {}),
 			}),
 			{ timeoutMs: 30_000 },
 		);
@@ -871,6 +1008,9 @@ export class AgentSandboxManager {
 			);
 		}
 		container.containerId = result.stdout.trim();
+		// Record the proxy IP this container was created on the egress network with (null unless a confirmed proxied
+		// `allowlist` start) so the exec seam injects `HTTP(S)_PROXY` iff the container truly has that route.
+		container.egressProxyIp = egress.internalIp ?? null;
 		// §5.AR: seed basic-memory's per-project config (validated live: no auto-init) — an idempotent `project add`
 		// per project, run as root with the plan's env (BASIC_MEMORY_CONFIG_DIR → the mounted config dir). Best-effort.
 		for (const plan of basicMemoryPlans) {
@@ -897,6 +1037,7 @@ export class AgentSandboxManager {
 			occupancy: new Set<string>(),
 			idleTimer: null,
 			mountedProjectKeys: null,
+			egressProxyIp: null,
 		};
 	}
 
@@ -1133,6 +1274,10 @@ export class AgentSandboxManager {
 			this.runDocker(
 				[
 					"exec",
+					// §5.L: inject the egress-proxy env (`-e HTTP(S)_PROXY`) for a container on the egress network; `[]`
+					// otherwise, so a flag-off / non-proxied exec is byte-identical. Additive — this seam carries no
+					// other `-e` env (basic-memory rides the separate MCP-host exec), so nothing is clobbered.
+					...this.egressProxyExecEnvArgs(placement.slot),
 					"-u",
 					String(placement.uid),
 					"-w",
@@ -1154,6 +1299,8 @@ export class AgentSandboxManager {
 			this.runDocker(
 				[
 					"exec",
+					// §5.L: same egress-proxy env injection as execAsTaskUser (EVERY task exec on the egress network).
+					...this.egressProxyExecEnvArgs(placement.slot),
 					"-u",
 					"0:0",
 					"-w",

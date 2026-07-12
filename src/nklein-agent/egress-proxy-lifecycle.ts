@@ -22,6 +22,13 @@ import { type AgentSandboxEgressWiring, resolveAgentSandboxImageName } from "./n
  */
 
 export const EGRESS_PROXY_ENABLED_ENV = "NKLEIN_SANDBOX_EGRESS_PROXY";
+/**
+ * HOST path to the app-shipped, esbuild-bundled proxy entrypoint the proxy container bind-mounts read-only (the host
+ * end of {@link EGRESS_PROXY_BUNDLE_CONTAINER_PATH}). I2b interim seam: there is no app bundling step yet, so the
+ * manager reads the bundle path from this env var; ABSENT ⇒ the manager fail-closes availability to `false` (no
+ * bundle ⇒ no proxy ⇒ `allowlist` stays `--network none`). A real bundling step (§6 I4) will supply it automatically.
+ */
+export const EGRESS_PROXY_BUNDLE_HOST_PATH_ENV = "NKLEIN_EGRESS_PROXY_BUNDLE";
 export const EGRESS_NETWORK_LABEL = "nklein.kind=egress";
 export const EGRESS_PROXY_CONTAINER_LABEL = "nklein.kind=egress-proxy";
 const EGRESS_NETWORK_PREFIX = "nklein-egress-int";
