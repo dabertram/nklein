@@ -1,0 +1,207 @@
+import { describe, expect, it } from "vitest";
+import {
+	buildEgressProxyExecEnv,
+	buildEgressProxyExecEnvArgs,
+	type EgressProxyDockerResult,
+	type EgressProxyRunDocker,
+	egressNetworkName,
+	ensureEgressNetwork,
+	ensureEgressProxyAvailable,
+	isEgressProxyEnabled,
+	resolveSandboxEgressWiring,
+	startEgressProxyContainer,
+} from "../../../src/nklein-agent/egress-proxy-lifecycle";
+
+const OK: EgressProxyDockerResult = { exitCode: 0, stdout: "", stderr: "" };
+const FAIL: EgressProxyDockerResult = { exitCode: 1, stdout: "", stderr: "boom" };
+
+/** A fake docker: a router maps an argv to a result (default OK), and every call is recorded for assertions. */
+function makeDocker(router: (argv: readonly string[]) => EgressProxyDockerResult | undefined): {
+	runDocker: EgressProxyRunDocker;
+	calls: string[][];
+} {
+	const calls: string[][] = [];
+	const runDocker: EgressProxyRunDocker = async (argv) => {
+		calls.push([...argv]);
+		return router(argv) ?? OK;
+	};
+	return { runDocker, calls };
+}
+
+const has = (argv: readonly string[], ...needles: string[]): boolean => needles.every((n) => argv.includes(n));
+
+describe("isEgressProxyEnabled — DEFAULT OFF (§7)", () => {
+	it("is false when the flag is unset/empty/falsy", () => {
+		expect(isEgressProxyEnabled({})).toBe(false);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "" })).toBe(false);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "0" })).toBe(false);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "false" })).toBe(false);
+	});
+	it("is true only for a truthy flag", () => {
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "1" })).toBe(true);
+		expect(isEgressProxyEnabled({ NKLEIN_SANDBOX_EGRESS_PROXY: "true" })).toBe(true);
+	});
+});
+
+describe("ensureEgressProxyAvailable — DEFAULT OFF invariant", () => {
+	it("flag OFF ⇒ ZERO docker calls and available:false (byte-identical old path)", async () => {
+		const docker = makeDocker(() => OK);
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: {}, // flag unset
+			bundleHostPath: "/app/egress-proxy.mjs",
+		});
+		expect(docker.calls).toEqual([]); // NOTHING touched docker
+		expect(availability.available).toBe(false);
+		expect(availability.internalIp).toBeNull();
+	});
+});
+
+describe("resolveSandboxEgressWiring — the keystone fail-closed mapping", () => {
+	it("unavailable ⇒ egressProxyAvailable:false (⇒ --network none)", () => {
+		expect(resolveSandboxEgressWiring({ available: false, networkName: "n", internalIp: null })).toEqual({
+			egressProxyAvailable: false,
+		});
+	});
+	it("available + IP ⇒ join the internal egress network", () => {
+		expect(
+			resolveSandboxEgressWiring({ available: true, networkName: "nklein-egress-int", internalIp: "172.30.0.2" }),
+		).toEqual({ egressProxyAvailable: true, egressNetworkName: "nklein-egress-int" });
+	});
+	it("available BUT no IP still fails closed (a proxy we cannot address is not a route)", () => {
+		expect(resolveSandboxEgressWiring({ available: true, networkName: "n", internalIp: null })).toEqual({
+			egressProxyAvailable: false,
+		});
+	});
+});
+
+describe("ensureEgressProxyAvailable — FAIL CLOSED (R2)", () => {
+	it("an UNHEALTHY probe ⇒ available:false even though the container started", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return OK; // network exists
+			if (has(argv, "inspect", "-f", "{{.State.Running}}")) return { exitCode: 0, stdout: "true", stderr: "" };
+			if (has(argv, "exec")) return FAIL; // health probe fails
+			return OK;
+		});
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+		});
+		expect(availability.available).toBe(false);
+		expect(resolveSandboxEgressWiring(availability)).toEqual({ egressProxyAvailable: false });
+	});
+
+	it("an orchestration error (network create + recheck both fail) ⇒ available:false (caught)", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network")) return FAIL; // inspect fails, create fails, recheck fails
+			return OK;
+		});
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+		});
+		expect(availability.available).toBe(false);
+	});
+
+	it("healthy probe but empty internal IP ⇒ available:false", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return OK;
+			if (has(argv, "inspect", "-f", "{{.State.Running}}")) return { exitCode: 0, stdout: "true", stderr: "" };
+			if (has(argv, "exec")) return OK; // probe healthy
+			if (argv[0] === "inspect") return { exitCode: 0, stdout: "   ", stderr: "" }; // IP resolves empty
+			return OK;
+		});
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+		});
+		expect(availability.available).toBe(false);
+	});
+});
+
+describe("ensureEgressProxyAvailable — healthy path", () => {
+	it("network + start + dual-home + healthy probe + IP ⇒ available:true", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return FAIL; // network absent ⇒ create
+			if (has(argv, "inspect", "-f", "{{.State.Running}}")) return FAIL; // not running ⇒ start
+			if (has(argv, "exec")) return OK; // probe healthy
+			if (argv[0] === "inspect") return { exitCode: 0, stdout: "172.30.0.2\n", stderr: "" }; // IP
+			return OK;
+		});
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+		});
+		expect(availability).toEqual({
+			available: true,
+			networkName: egressNetworkName(),
+			internalIp: "172.30.0.2",
+		});
+		// It created the internal network and dual-homed the proxy onto bridge.
+		expect(docker.calls.some((c) => has(c, "network", "create", "--internal"))).toBe(true);
+		expect(docker.calls.some((c) => has(c, "network", "connect", "bridge"))).toBe(true);
+		// The proxy run used the shared image hardening + read-only bundle mount + reap label.
+		const runCall = docker.calls.find((c) => c[0] === "run");
+		expect(runCall).toBeDefined();
+		expect(has(runCall as string[], "--cap-drop", "ALL", "--read-only", "--entrypoint", "node")).toBe(true);
+		expect((runCall as string[]).some((a) => a.includes("nklein.kind=egress-proxy"))).toBe(true);
+		expect((runCall as string[]).some((a) => a.includes("readonly") && a.includes("egress-proxy.mjs"))).toBe(true);
+	});
+});
+
+describe("ensureEgressNetwork — idempotent", () => {
+	it("does NOT create when the network already exists", async () => {
+		const docker = makeDocker((argv) => (has(argv, "network", "inspect") ? OK : OK));
+		await ensureEgressNetwork(docker.runDocker, "nklein-egress-int");
+		expect(docker.calls.some((c) => has(c, "network", "create"))).toBe(false);
+	});
+	it("creates when absent", async () => {
+		const docker = makeDocker((argv) => (has(argv, "network", "inspect") ? FAIL : OK));
+		await ensureEgressNetwork(docker.runDocker, "nklein-egress-int");
+		expect(docker.calls.some((c) => has(c, "network", "create", "--internal"))).toBe(true);
+	});
+});
+
+describe("startEgressProxyContainer — errors surface", () => {
+	it("throws if the proxy container fails to start", async () => {
+		const docker = makeDocker((argv) => (argv[0] === "run" ? FAIL : OK));
+		await expect(
+			startEgressProxyContainer(docker.runDocker, {
+				containerName: "nklein-egress-proxy",
+				networkName: "nklein-egress-int",
+				bundleHostPath: "/app/egress-proxy.mjs",
+			}),
+		).rejects.toThrow(/failed to start/);
+	});
+	it("throws if the bridge dual-home fails", async () => {
+		const docker = makeDocker((argv) => (has(argv, "network", "connect") ? FAIL : OK));
+		await expect(
+			startEgressProxyContainer(docker.runDocker, {
+				containerName: "nklein-egress-proxy",
+				networkName: "nklein-egress-int",
+				bundleHostPath: "/app/egress-proxy.mjs",
+			}),
+		).rejects.toThrow(/dual-home/);
+	});
+});
+
+describe("buildEgressProxyExecEnv — per-role proxy env", () => {
+	it("points HTTP(S)_PROXY at the role's listener port with empty NO_PROXY (nothing bypasses)", () => {
+		expect(buildEgressProxyExecEnv("172.30.0.2", "worker")).toEqual({
+			HTTP_PROXY: "http://172.30.0.2:3129",
+			HTTPS_PROXY: "http://172.30.0.2:3129",
+			NO_PROXY: "",
+		});
+		expect(buildEgressProxyExecEnv("172.30.0.2", "architect").HTTP_PROXY).toBe("http://172.30.0.2:3128");
+		expect(buildEgressProxyExecEnv("172.30.0.2", "reviewer").HTTP_PROXY).toBe("http://172.30.0.2:3130");
+	});
+	it("flattens to -e KEY=VALUE argv (mirrors the manager exec-env precedent)", () => {
+		expect(buildEgressProxyExecEnvArgs("172.30.0.2", "worker")).toEqual([
+			"-e",
+			"HTTP_PROXY=http://172.30.0.2:3129",
+			"-e",
+			"HTTPS_PROXY=http://172.30.0.2:3129",
+			"-e",
+			"NO_PROXY=",
+		]);
+	});
+});
