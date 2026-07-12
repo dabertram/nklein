@@ -11570,7 +11570,31 @@ downloads whenever relevant (model-lab phase (a) waits on them).
       session: reproduce (solo 05, watchable), check the runtime log for auto-start attempts/defers right after
       decompose-applied, and whether the board-liveness watchdog saw startable>0 (it should have swept within
       30s — if it stayed silent, listStartableUnstartedTaskIds may be returning [] wrongly, e.g. all cards
-      dependency-blocked by a mis-inferred dep graph in THIS set's decompose track).** Evidence:
+      dependency-blocked by a mis-inferred dep graph in THIS set's decompose track).**
+      **★ PLANNING-FREEZE ROOT-CAUSED LIVE (2026-07-13, REAL-model rail run — mid_task × coder-14b on m5max,
+      merged tree): a ZOMBIE PRE-FIRST-TURN SESSION poisons the per-machine cap. NOT the [] hypothesis —
+      `listStartableUnstartedTaskIds` is correct (verified on the live board: 4-5 startable).** Chain, each step
+      live-evidenced: (1) decompose applies → auto-start of the first card hits the seed's busy endpoint →
+      `queued behind a busy endpoint` (the ONLY runtime log line) + card → ready; (2) seed settles `idle` →
+      the force-drain dequeues + starts the card → that start CREATES a session that WEDGES BEFORE ITS FIRST
+      MODEL TURN — state=`running`, `lastTokenAt: null` after 14 min, model IDLE, zero sockets to LM Studio,
+      persisted sessions.json EMPTY (in-memory only); (3) the zombie `running` session holds the per-machine
+      concurrency cap (cap=1) ⇒ EVERY subsequent start fails `endpoint_busy` "wait for habit-insight-summary-1"
+      (proven by a manual tRPC start of a sibling) ⇒ total cascade deadlock, idle fleet, empty queue file;
+      (4) NO self-heal exists for this shape: heartbeat/liveness arms only after output starts, so a zero-token
+      `running` session is UNDETECTABLE today; the board-liveness watchdog stayed COMPLETELY silent for 14 min
+      (zero warns, zero self-observations, no #35 error record — why it never ticked/warned for this workspace
+      is an OPEN sub-question, it was armed unconditionally at service creation); (5) RECOVERY MACHINERY IS
+      HEALTHY once the wedge clears: a manual `stopTaskSession` → `interrupted` → retryWaitingCardsAfterTerminal
+      resumed the cascade INSTANTLY (cards then completed with real patches). FIX DIRECTIONS (in value order):
+      (a) ZERO-TOKEN TURN LIVENESS — a `running` session whose model turn never produced a first token within a
+      generous bound (e.g. 3× expected TTFT, ≥2-3 min) is wedged ⇒ interrupt + retry + say so loudly (covers
+      EVERY pre-first-turn wedge site, including unknown future ones; same self-heal philosophy as #29);
+      (b) root-cause the wedge SITE deterministically (W2.1-harness repro of queued-drain-start racing the
+      seed's teardown; prime suspect per the 2026-07-10 note: the model-turn ADMISSION gate's evaluate/tail path
+      — the seed's admission may never release when it settles `idle`, deadlocking the next turn's admission);
+      (c) the watchdog-silence sub-question (why zero ticks logged for an armed interval). Evidence archived:
+      scratchpad/stall-evidence + this session's transcript (poke scripts + tRPC probes inline). Evidence:
       merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
       known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
       settled with no submit_review — even though a direct probe of the live simulator answered that exact
