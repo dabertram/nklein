@@ -656,6 +656,16 @@ source repo went private — so if it vanishes the buildable source still lives 
   (empty re-work), a MODEL limitation handled right. So the full flow (decompose → workers w/ real patches → 3 delivered
   → park the 2 unconvergeable) is VALIDATED. No reviewer-path/diverse-reviewer bug; the only real dev-test bug was the
   premature-settle (fixed `c02eeb10`). See [[machine-aware-load-routing]].
+  (4) **[ ] TOP LOADER FOLLOW-UP — the loader is INERT for CONFIG-ROLE dispatch (self-review CONFIRMED 2026-07-12).** It
+  engages only for the EXPLICIT-model path (dev-test `--model-id` + escalation `action.modelId`). For a normal config-role
+  card (David's fleet: worker=reviewer=14b, architect=9b) the runtime SKIPS non-resident role candidates (start-task-session.ts:443-452,
+  "!Klein won't load it (directive)") and falls back to an already-loaded model — so it never loads a configured role
+  model that isn't resident, and the block-loader runs on the PRIMARY (pre-routing), never the routed winner. Fix (2-part,
+  substantial, touches the hot routing path + one-at-a-time swap): (a) when NKLEIN_DEVICE_RAM_GB is set, DON'T skip
+  non-resident role candidates (:443-452) so routing can pick the best even if unloaded; (b) add a POST-routing loader
+  step (after the winner at ~:1085, before dispatch) that loads the winning model on a fitting device via
+  `attemptAutonomousModelLoad`. Needs a live config-role dev-test to validate — do NOT rush (the reviewer "stall" was
+  already a misdiagnosis). This is what makes the loader actually help David's real fleet, not just the dev-test path.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
