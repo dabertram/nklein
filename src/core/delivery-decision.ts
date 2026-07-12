@@ -1,17 +1,20 @@
 /**
  * Delivery-autonomy decision core (todo §5.L). The second, independent ruleset dial: how far a finished card
- * proceeds — commit → open PR → merge → self-merge — without a human, as a function of the role's resolved
+ * proceeds — commit → merge → self-merge — without a human, as a function of the role's resolved
  * delivery tier ({@link AgentDeliveryPolicy}) and the safety gates.
+ *
+ * §10c#17 (user 2026-07-12): the former `open_pr` action is REMOVED — the result branch held in review IS
+ * delivery (!Klein never shells out to gh). A merge-blocked card at any auto tier now lands on `commit`.
  *
  * The gate semantics intentionally match the shipped `evaluateTrustedAutoMerge` (green tests, no protected-path
  * changes, non-negative regression delta, and an unknown delta only permitted at the most open tier). Keeping
  * this pure makes "what does each tier do when review passes / regresses / touches protected paths" unit-testable
- * without a live runtime; the wiring that actually performs the commit/PR/merge consults this.
+ * without a live runtime; the wiring that actually performs the commit/merge consults this.
  */
 
 import type { AgentDeliveryPolicy } from "./agent-rulesets";
 
-export type DeliveryAction = "manual" | "commit" | "open_pr" | "merge";
+export type DeliveryAction = "manual" | "commit" | "merge";
 
 export interface DeliveryGateInputs {
 	/** The second-opinion reviewer approved the work. */
@@ -65,20 +68,10 @@ export function decideDeliveryAction(policy: AgentDeliveryPolicy, gates: Deliver
 				reason: "Delivery tier auto-merges and all gates passed.",
 			};
 		}
-		// Merge is gated off — fall back to the most autonomous step the tier still allows.
-		if (policy.autoOpenPr) {
-			return { action: "open_pr", selfMerge: false, reason: `Opened a PR instead of merging: ${blockedReason}.` };
-		}
+		// Merge is gated off — the result branch held in review IS delivery (§10c#17; no PR step exists).
 		return { action: "commit", selfMerge: false, reason: `Committed to the task branch: ${blockedReason}.` };
 	}
 
-	if (policy.autoOpenPr) {
-		return {
-			action: "open_pr",
-			selfMerge: false,
-			reason: "Delivery tier auto-commits and opens a PR for human merge.",
-		};
-	}
 	return { action: "commit", selfMerge: false, reason: "Delivery tier auto-commits to the task branch." };
 }
 

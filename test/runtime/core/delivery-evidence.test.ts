@@ -81,7 +81,7 @@ describe("shouldHoldEmptyPatchResult", () => {
 // (self-merge only at the most-open tier), `>=0` permits. The cases below drive a REAL classification through the
 // adapter and into the gate so the sign convention is verified end-to-end, not just in isolation.
 describe("regressionDeltaFromClassification (§5.L delivery gate input)", () => {
-	it("one new failure, nothing fixed → delta -1, which blocks a more_open merge down to a PR", () => {
+	it("one new failure, nothing fixed → delta -1, which blocks a more_open merge down to a held commit", () => {
 		const classification = classifyTestRegression({
 			current: [{ id: "t1", passed: false }],
 			baselineFailingIds: [],
@@ -96,7 +96,7 @@ describe("regressionDeltaFromClassification (§5.L delivery gate input)", () => 
 			regressionDelta: delta,
 			hasProtectedPathChanges: false,
 		});
-		expect(decision.action).toBe("open_pr");
+		expect(decision.action).toBe("commit");
 		expect(decision.selfMerge).toBe(false);
 	});
 
@@ -150,7 +150,7 @@ describe("regressionDeltaFromClassification (§5.L delivery gate input)", () => 
 			regressionDelta: delta,
 			hasProtectedPathChanges: false,
 		});
-		expect(moreOpen.action).toBe("open_pr");
+		expect(moreOpen.action).toBe("commit");
 		expect(moreOpen.selfMerge).toBe(false);
 	});
 });

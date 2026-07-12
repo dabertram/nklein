@@ -116,7 +116,7 @@ export function AgentRulesetsSettingsPanel({ value, disabled = false, onChange }
 			{renderDial(
 				"delivery",
 				"Delivery autonomy",
-				"How far an agent may take a passing card on its own: commit, open a PR, merge, and self-merge on an unknown regression delta.",
+				"How far an agent may take a passing card on its own: commit, merge, and self-merge on an unknown regression delta (the result branch held in review is the delivery — no PR step).",
 			)}
 		</div>
 	);

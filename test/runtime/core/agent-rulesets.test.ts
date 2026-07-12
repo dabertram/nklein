@@ -71,7 +71,6 @@ describe("agent-rulesets delivery matrix", () => {
 	it("automates nothing at the strictest tier", () => {
 		expect(deliveryPolicyForTier("strict")).toEqual({
 			autoCommit: false,
-			autoOpenPr: false,
 			autoMerge: false,
 			allowSelfMergeOnUnknownDelta: false,
 		});
@@ -83,11 +82,11 @@ describe("agent-rulesets delivery matrix", () => {
 		expect(deliveryPolicyForTier("fully_open").allowSelfMergeOnUnknownDelta).toBe(true);
 	});
 
-	it("requires a human merge below the open tiers", () => {
+	it("requires a human merge below the open tiers (no PR step exists — §10c#17)", () => {
 		expect(deliveryPolicyForTier("medium").autoMerge).toBe(false);
-		expect(deliveryPolicyForTier("medium").autoOpenPr).toBe(true);
+		expect(deliveryPolicyForTier("medium").autoCommit).toBe(true);
 		expect(deliveryPolicyForTier("less_strict").autoCommit).toBe(true);
-		expect(deliveryPolicyForTier("less_strict").autoOpenPr).toBe(false);
+		expect(deliveryPolicyForTier("less_strict").autoMerge).toBe(false);
 	});
 });
 

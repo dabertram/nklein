@@ -1547,7 +1547,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// this card auto-merges. Self-merge IS allowed (2026-06-23 decision) at the open tiers; a diff that
 						// touches protected safety paths always holds. Missing/unavailable evidence fails CLOSED (held in
 						// Review with the reason logged above). Regression delta is not yet measured (null → self-merge
-						// only at the most-open tier). Any non-merge action (manual / commit / open_pr) leaves the card
+						// only at the most-open tier). Any non-merge action (manual / commit) leaves the card
 						// in Review.
 						const deliveryConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
 						const changedFiles = await getWorkspaceChangesBetweenRefs({

@@ -23,8 +23,8 @@ describe("decideDeliveryAction", () => {
 		expect(decideDeliveryAction(deliveryPolicyForTier("less_strict"), GREEN)).toMatchObject({ action: "commit" });
 	});
 
-	it("auto-opens a PR (human merges) at medium", () => {
-		expect(decideDeliveryAction(deliveryPolicyForTier("medium"), GREEN)).toMatchObject({ action: "open_pr" });
+	it("auto-commits (human merges from the held result branch — §10c#17, no PR step) at medium", () => {
+		expect(decideDeliveryAction(deliveryPolicyForTier("medium"), GREEN)).toMatchObject({ action: "commit" });
 	});
 
 	it("auto-merges on green gates at more_open, without self-merge", () => {
@@ -33,9 +33,9 @@ describe("decideDeliveryAction", () => {
 		expect(decision.selfMerge).toBe(false);
 	});
 
-	it("more_open will not self-merge on an unknown regression delta (falls back to PR)", () => {
+	it("more_open will not self-merge on an unknown regression delta (falls back to commit)", () => {
 		const decision = decideDeliveryAction(deliveryPolicyForTier("more_open"), { ...GREEN, regressionDelta: null });
-		expect(decision.action).toBe("open_pr");
+		expect(decision.action).toBe("commit");
 	});
 
 	it("fully_open self-merges even with an unknown regression delta", () => {
@@ -46,19 +46,19 @@ describe("decideDeliveryAction", () => {
 
 	it("never merges when review has not approved, regardless of tier (falls back)", () => {
 		const decision = decideDeliveryAction(deliveryPolicyForTier("fully_open"), { ...GREEN, reviewApproved: false });
-		expect(decision.action).toBe("open_pr");
+		expect(decision.action).toBe("commit");
 		expect(decision.reason).toMatch(/review/i);
 	});
 
-	it("never merges on a regression or protected-path change (falls back to PR)", () => {
+	it("never merges on a regression or protected-path change (falls back to commit)", () => {
 		expect(
 			decideDeliveryAction(deliveryPolicyForTier("fully_open"), { ...GREEN, regressionDelta: -1 }),
 		).toMatchObject({
-			action: "open_pr",
+			action: "commit",
 		});
 		expect(
 			decideDeliveryAction(deliveryPolicyForTier("fully_open"), { ...GREEN, hasProtectedPathChanges: true }),
-		).toMatchObject({ action: "open_pr" });
+		).toMatchObject({ action: "commit" });
 	});
 });
 

@@ -48,7 +48,6 @@ export interface AgentCapabilities {
 
 export interface AgentDeliveryPolicy {
 	autoCommit: boolean;
-	autoOpenPr: boolean;
 	autoMerge: boolean;
 	/** Self-merge when the regression delta is null/unknown — only the most open tier permits this. */
 	allowSelfMergeOnUnknownDelta: boolean;
@@ -62,12 +61,15 @@ const CAPABILITY_MATRIX: Record<AgentCapabilityTier, AgentCapabilities> = {
 	fully_open: { network: "full", webResearch: true, headlessBrowser: true, mcp: "on" },
 };
 
+// §10c#17 (user 2026-07-12): the open_pr delivery semantic is REMOVED — result branch + held-in-review IS delivery
+// (never shell out to gh). `medium` therefore collapses to the same delivery policy as `less_strict` (auto-commit,
+// human merge); the tiers stay distinct on the CAPABILITY axis above.
 const DELIVERY_MATRIX: Record<AgentDeliveryTier, AgentDeliveryPolicy> = {
-	strict: { autoCommit: false, autoOpenPr: false, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
-	less_strict: { autoCommit: true, autoOpenPr: false, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
-	medium: { autoCommit: true, autoOpenPr: true, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
-	more_open: { autoCommit: true, autoOpenPr: true, autoMerge: true, allowSelfMergeOnUnknownDelta: false },
-	fully_open: { autoCommit: true, autoOpenPr: true, autoMerge: true, allowSelfMergeOnUnknownDelta: true },
+	strict: { autoCommit: false, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
+	less_strict: { autoCommit: true, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
+	medium: { autoCommit: true, autoMerge: false, allowSelfMergeOnUnknownDelta: false },
+	more_open: { autoCommit: true, autoMerge: true, allowSelfMergeOnUnknownDelta: false },
+	fully_open: { autoCommit: true, autoMerge: true, allowSelfMergeOnUnknownDelta: true },
 };
 
 export interface AgentRulesetTierInfo {
