@@ -68,6 +68,7 @@ import {
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
 import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
+import { listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -2178,6 +2179,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										`Board-liveness watchdog: rebound interrupted card ${summary.taskId} (prior result branch exists) into review.`,
 									);
 								}
+							}
+							// Zero-token turn liveness (live-found 2026-07-13, real-model rail): a session "running" past
+							// a generous bound with NO first token and NO heartbeat is a pre-first-turn ZOMBIE — invisible
+							// to the heartbeat machinery (which arms only once output starts) yet holding an endpoint slot,
+							// so every other start fails endpoint_busy naming it and the cascade deadlocks on an idle
+							// fleet. Interrupt it; the summary event drives the normal terminal-retry machinery
+							// (live-proven: clearing the zombie resumed the frozen cascade instantly).
+							for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now())) {
+								deps.warn(
+									`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
+								);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Board-liveness watchdog fired: zero-token wedged session interrupted (${wedge.taskId}, ${Math.round(wedge.ageMs / 60_000)} min token-less).`,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
+								});
+								await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
 							}
 							const startable = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
 							// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
