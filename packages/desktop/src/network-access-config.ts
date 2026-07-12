@@ -88,3 +88,20 @@ export function detectPrimaryLanIpv4(interfaces: NodeJS.Dict<NetworkInterfaceInf
 	candidates.sort((a, b) => lanRangeRank(a) - lanRangeRank(b));
 	return candidates[0] ?? null;
 }
+
+export interface DesktopStartupBindDeps {
+	/** Reads the persisted opt-in (e.g. `() => loadNetworkAccessEnabled(app.getPath("userData"))`). */
+	loadEnabled: () => boolean;
+	/** The OS network-interface snapshot (e.g. `os.networkInterfaces`). Only consulted when the opt-in is ON. */
+	networkInterfaces: () => NodeJS.Dict<NetworkInterfaceInfo[]>;
+}
+
+/**
+ * Compose the persisted opt-in + live LAN-IP detection into the startup bind plan main.ts hands the runtime. LAN-IP
+ * detection is skipped entirely when the opt-in is OFF (the default), so the common case never enumerates interfaces.
+ */
+export function resolveDesktopStartupBind(deps: DesktopStartupBindDeps): DesktopBindPlan {
+	const enabled = deps.loadEnabled();
+	const lanIpv4 = enabled ? detectPrimaryLanIpv4(deps.networkInterfaces()) : null;
+	return resolveDesktopBindPlan({ enabled, lanIpv4 });
+}

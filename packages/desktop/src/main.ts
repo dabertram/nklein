@@ -1,11 +1,14 @@
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
 import { mkdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { AppMenu } from "./app-menu.js";
 import { runDesktopAutoResume } from "./auto-resume-runner.js";
 import type { AutostartPlatform } from "./autostart-config.js";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
+import { resolveDesktopStartupBind } from "./network-access-config.js";
+import { loadNetworkAccessEnabled } from "./network-access-store.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
 import { type AppTray, createAppTray } from "./tray.js";
 import { summarizeTrayActivity } from "./tray-menu.js";
@@ -52,8 +55,22 @@ let isQuitting = false;
 
 const registry = new WindowRegistry();
 
+// Sub-feature (2): decide the runtime bind host from the persisted LAN-serving opt-in BEFORE spawning the runtime.
+// Default (no file / opt-out) ⇒ loopback, byte-identical to before; opt-in ⇒ wildcard so LAN devices can reach it
+// (the runtime's own passcode guard authenticates a non-loopback bind). Read after the userData override above.
+const startupBind = resolveDesktopStartupBind({
+	loadEnabled: () => loadNetworkAccessEnabled(app.getPath("userData")),
+	networkInterfaces: os.networkInterfaces,
+});
+if (startupBind.host !== DEFAULT_HOST) {
+	console.log(
+		`[desktop] LAN serving enabled — binding the runtime to ${startupBind.host}` +
+			(startupBind.publicHost ? ` (browse to http://${startupBind.publicHost}:${DEFAULT_PORT})` : ""),
+	);
+}
+
 const orchestrator = new RuntimeOrchestrator({
-	host: DEFAULT_HOST,
+	host: startupBind.host,
 	port: DEFAULT_PORT,
 	healthTimeoutMs: HEALTH_TIMEOUT_MS,
 	resolveCliShimPath,

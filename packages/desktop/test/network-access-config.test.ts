@@ -5,6 +5,7 @@ import {
 	isPrivateLanIpv4,
 	LOOPBACK_HOST,
 	resolveDesktopBindPlan,
+	resolveDesktopStartupBind,
 	WILDCARD_HOST,
 } from "../src/network-access-config";
 
@@ -108,5 +109,28 @@ describe("detectPrimaryLanIpv4", () => {
 	it("tolerates the legacy numeric `family` (4) some Node runtimes report", () => {
 		const legacy = { ...ipv4("10.0.0.9"), family: 4 } as unknown as NetworkInterfaceInfo;
 		expect(detectPrimaryLanIpv4({ en0: [legacy] })).toBe("10.0.0.9");
+	});
+});
+
+describe("resolveDesktopStartupBind", () => {
+	it("returns loopback and never enumerates interfaces when the opt-in is off", () => {
+		let enumerated = false;
+		const plan = resolveDesktopStartupBind({
+			loadEnabled: () => false,
+			networkInterfaces: () => {
+				enumerated = true;
+				return {};
+			},
+		});
+		expect(plan).toEqual({ host: LOOPBACK_HOST, publicHost: null });
+		expect(enumerated).toBe(false);
+	});
+
+	it("binds wildcard and advertises the detected LAN IP when the opt-in is on", () => {
+		const plan = resolveDesktopStartupBind({
+			loadEnabled: () => true,
+			networkInterfaces: () => ({ en0: [ipv4("192.168.1.42")] }),
+		});
+		expect(plan).toEqual({ host: WILDCARD_HOST, publicHost: "192.168.1.42" });
 	});
 });
