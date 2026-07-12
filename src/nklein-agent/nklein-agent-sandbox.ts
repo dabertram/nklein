@@ -16,12 +16,12 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	buildEgressProxyExecEnvArgs,
-	EGRESS_PROXY_BUNDLE_HOST_PATH_ENV,
 	type EgressProxyAvailability,
 	egressNetworkName,
 	egressProxyContainerName,
 	ensureEgressProxyAvailable,
 	isEgressProxyEnabled,
+	resolveEgressProxyBundleHostPath,
 	resolveSandboxEgressWiring,
 	teardownEgressProxy,
 } from "./egress-proxy-lifecycle";
@@ -946,10 +946,11 @@ export class AgentSandboxManager {
 	/** The memoized body behind {@link ensureEgressAvailability} — resolves the bundle path, then runs the lifecycle. */
 	private async probeEgressAvailability(): Promise<EgressProxyAvailability> {
 		const networkName = egressNetworkName(this.poolConfig.namespace);
-		// I2b interim seam (no app bundling step yet — design §6 I4): the app-shipped proxy bundle path comes from
-		// NKLEIN_EGRESS_PROXY_BUNDLE. ABSENT ⇒ FAIL CLOSED to unavailable WITHOUT touching Docker (no bundle ⇒ no
-		// proxy ⇒ `allowlist` stays `--network none`), so a flag flipped on without a shipped bundle never over-grants.
-		const bundleHostPath = process.env[EGRESS_PROXY_BUNDLE_HOST_PATH_ENV]?.trim();
+		// §6 I4: resolve the runnable proxy bundle — the app-shipped dist/egress-proxy/entrypoint.mjs (auto-discovered),
+		// or the NKLEIN_EGRESS_PROXY_BUNDLE override (dev/tests). ABSENT ⇒ FAIL CLOSED to unavailable WITHOUT touching
+		// Docker (no bundle ⇒ no proxy ⇒ `allowlist` stays `--network none`), so a flag flipped on in a build that never
+		// shipped the bundle (and set no override) never over-grants.
+		const bundleHostPath = resolveEgressProxyBundleHostPath(process.env);
 		if (!bundleHostPath) {
 			return { available: false, networkName, internalIp: null };
 		}

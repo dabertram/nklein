@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AgentRulesetRole } from "../core/agent-rulesets";
 import { isTruthyEnv } from "../core/env-flag";
 import { EGRESS_PROXY_ALLOWLIST_ENV, EGRESS_PROXY_ROLE_PORTS } from "./egress-proxy-entrypoint";
@@ -23,10 +26,11 @@ import { type AgentSandboxEgressWiring, resolveAgentSandboxImageName } from "./n
 
 export const EGRESS_PROXY_ENABLED_ENV = "NKLEIN_SANDBOX_EGRESS_PROXY";
 /**
- * HOST path to the app-shipped, esbuild-bundled proxy entrypoint the proxy container bind-mounts read-only (the host
- * end of {@link EGRESS_PROXY_BUNDLE_CONTAINER_PATH}). I2b interim seam: there is no app bundling step yet, so the
- * manager reads the bundle path from this env var; ABSENT ⇒ the manager fail-closes availability to `false` (no
- * bundle ⇒ no proxy ⇒ `allowlist` stays `--network none`). A real bundling step (§6 I4) will supply it automatically.
+ * HOST path override to the app-shipped, esbuild-bundled proxy entrypoint the proxy container bind-mounts read-only (the
+ * host end of {@link EGRESS_PROXY_BUNDLE_CONTAINER_PATH}). §6 I4 shipped the real bundling step (`build-egress-proxy.mjs`
+ * → `dist/egress-proxy/entrypoint.mjs`), so {@link resolveEgressProxyBundleHostPath} now AUTO-DISCOVERS the shipped
+ * bundle relative to the running app; this env var stays an OVERRIDE for dev/tests (an unbundled `src` tree has no
+ * shipped bundle). Resolver returns null (⇒ manager fail-closes to `available:false`) when neither is present.
  */
 export const EGRESS_PROXY_BUNDLE_HOST_PATH_ENV = "NKLEIN_EGRESS_PROXY_BUNDLE";
 export const EGRESS_NETWORK_LABEL = "nklein.kind=egress";
@@ -35,6 +39,42 @@ const EGRESS_NETWORK_PREFIX = "nklein-egress-int";
 const EGRESS_PROXY_CONTAINER_PREFIX = "nklein-egress-proxy";
 /** Where the app-shipped proxy bundle is bind-mounted read-only inside the proxy container. */
 export const EGRESS_PROXY_BUNDLE_CONTAINER_PATH = "/opt/nklein/egress-proxy/entrypoint.mjs";
+/** App-relative location of the §6 I4 bundle (`build-egress-proxy.mjs` output), a sibling of the bundled `dist/cli.js`. */
+const SHIPPED_BUNDLE_RELATIVE_PATH = ["egress-proxy", "entrypoint.mjs"] as const;
+
+/** Injectable seams for {@link resolveEgressProxyBundleHostPath} — real `import.meta.url` + `fs.existsSync` by default. */
+export interface ResolveEgressProxyBundleDeps {
+	/** URL of the running module; its directory is `dist/` once the app is bundled. */
+	moduleUrl?: string;
+	/** Existence probe for the candidate shipped-bundle path. */
+	fileExists?: (path: string) => boolean;
+}
+
+/**
+ * Resolve the HOST path to the runnable proxy bundle (§6 I4). Precedence:
+ *  1. `NKLEIN_EGRESS_PROXY_BUNDLE` (explicit, non-blank) — the dev/test override, always wins;
+ *  2. the app-shipped `dist/egress-proxy/entrypoint.mjs`, auto-discovered next to the bundled app module, when present;
+ *  3. `null` — no bundle ⇒ the manager fail-closes availability to `false` (`allowlist` stays `--network none`).
+ *
+ * Auto-discovery keys off the running module's directory: once the app is esbuild-bundled every module collapses into
+ * `dist/cli.js` (or `dist/index.js`), so this module's dir IS `dist/` and the shipped bundle sits at
+ * `dist/egress-proxy/entrypoint.mjs`. In an UNBUNDLED `src` tree (dev/tests) the sibling does not exist, so discovery
+ * yields null and callers depend on the env override — exactly how the live-Docker test supplies the bundle today.
+ */
+export function resolveEgressProxyBundleHostPath(
+	env: NodeJS.ProcessEnv = process.env,
+	deps: ResolveEgressProxyBundleDeps = {},
+): string | null {
+	const override = env[EGRESS_PROXY_BUNDLE_HOST_PATH_ENV]?.trim();
+	if (override) {
+		return override;
+	}
+	const moduleUrl = deps.moduleUrl ?? import.meta.url;
+	const fileExists = deps.fileExists ?? existsSync;
+	const shippedPath = join(dirname(fileURLToPath(moduleUrl)), ...SHIPPED_BUNDLE_RELATIVE_PATH);
+	return fileExists(shippedPath) ? shippedPath : null;
+}
+
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 const DEFAULT_DOCKER_TIMEOUT_MS = 30_000;
 

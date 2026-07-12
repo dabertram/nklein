@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
 	buildEgressProxyExecEnv,
 	buildEgressProxyExecEnvArgs,
+	EGRESS_PROXY_BUNDLE_HOST_PATH_ENV,
 	type EgressProxyDockerResult,
 	type EgressProxyRunDocker,
 	egressNetworkName,
 	ensureEgressNetwork,
 	ensureEgressProxyAvailable,
 	isEgressProxyEnabled,
+	resolveEgressProxyBundleHostPath,
 	resolveSandboxEgressWiring,
 	startEgressProxyContainer,
 } from "../../../src/nklein-agent/egress-proxy-lifecycle";
@@ -224,5 +226,52 @@ describe("buildEgressProxyExecEnv — per-role proxy env", () => {
 			"-e",
 			"NO_PROXY=",
 		]);
+	});
+});
+
+describe("resolveEgressProxyBundleHostPath — §6 I4 auto-discovery + override", () => {
+	// A bundled-app module URL: once esbuilt, every module collapses into dist/cli.js, so the module dir IS dist/.
+	const bundledModuleUrl = "file:///opt/app/dist/cli.js";
+	const shippedPath = "/opt/app/dist/egress-proxy/entrypoint.mjs";
+
+	it("returns the NKLEIN_EGRESS_PROXY_BUNDLE override when set (override always wins, no discovery)", () => {
+		const seen: string[] = [];
+		const resolved = resolveEgressProxyBundleHostPath(
+			{ [EGRESS_PROXY_BUNDLE_HOST_PATH_ENV]: "/custom/proxy.mjs" },
+			{
+				moduleUrl: bundledModuleUrl,
+				fileExists: (p) => {
+					seen.push(p);
+					return true;
+				},
+			},
+		);
+		expect(resolved).toBe("/custom/proxy.mjs");
+		// The override short-circuits — auto-discovery's fileExists is never consulted.
+		expect(seen).toEqual([]);
+	});
+
+	it("auto-discovers dist/egress-proxy/entrypoint.mjs next to the bundled app module when present", () => {
+		const resolved = resolveEgressProxyBundleHostPath(
+			{},
+			{ moduleUrl: bundledModuleUrl, fileExists: (p) => p === shippedPath },
+		);
+		expect(resolved).toBe(shippedPath);
+	});
+
+	it("returns null (⇒ manager fail-closes) when there is no override and no shipped bundle (unbundled src tree)", () => {
+		const resolved = resolveEgressProxyBundleHostPath(
+			{},
+			{ moduleUrl: "file:///repo/src/nklein-agent/egress-proxy-lifecycle.ts", fileExists: () => false },
+		);
+		expect(resolved).toBeNull();
+	});
+
+	it("treats a whitespace-only override as absent and falls through to discovery", () => {
+		const resolved = resolveEgressProxyBundleHostPath(
+			{ [EGRESS_PROXY_BUNDLE_HOST_PATH_ENV]: "   " },
+			{ moduleUrl: bundledModuleUrl, fileExists: (p) => p === shippedPath },
+		);
+		expect(resolved).toBe(shippedPath);
 	});
 });

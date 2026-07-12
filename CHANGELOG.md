@@ -8,8 +8,9 @@
   join a `--internal` Docker network with no route of their own, and the dual-homed proxy is the only way out,
   enforcing the domain allowlist at connect time (fail-closed by topology — proxy down or unhealthy means no
   egress, never full egress), resolving names host-side, blocking DNS exfiltration, and auditing every attempt. It
-  stays OFF unless explicitly enabled and, until enabled, behavior is byte-identical to before. A Settings surface
-  for the allowlist and per-role attribution are still to come.
+  stays OFF unless explicitly enabled and, until enabled, behavior is byte-identical to before. It's now enabled and
+  its allowlist configured from Settings (Settings → Agents), and the proxy ships as a bundled artifact so no manual
+  setup is needed; per-role allowlists and per-task audit attribution are still to come.
 
 - **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
   machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when

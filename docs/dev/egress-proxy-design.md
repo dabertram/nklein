@@ -273,22 +273,32 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
   against an allowed vs denied host (both tools are in the image and proxy-aware); assert connect results + audit
   records + that a direct (non-proxy) fetch has no route.
 
-**I3 — per-role allowlist config surface + policy-keyed pools.**
-- Config: `egressAllowlist: { global: string[]; roleOverrides?: Partial<Record<AgentRulesetRole, string[]>> }` with a
-  small pure resolver (sibling of the tier resolvers in `agent-rulesets.ts`), normalizer + change-detection
-  (pattern: [`runtime-config-rulesets-resolver.ts`](../../src/config/runtime-config-rulesets-resolver.ts)), and the
-  regenerate-proxy-config + recreate-on-change wiring.
-- Pool keyed by network-args key; per-role placement resolves the role's own policy; `AgentRulesetsSettingsPanel`
-  gains the allowlist editor (shown when any resolved tier maps to `allowlist`).
-- Gate: unit tests (resolution precedence role > global; pool keying) + the I2 integration test run per-role.
+**I3 — allowlist config surface. ✅ SHIPPED `1367e2fe`.**
+- Shipped a SINGLE GLOBAL allowlist (not the role-override map originally sketched here — per-role deferred, risk Q4):
+  `sandboxEgressProxyEnabled` (boolean, default false) + `sandboxEgressAllowlist` (string|null) promoted to first-class
+  runtime config, mirroring the `deviceRamGb` plumbing end-to-end — types → `normalizeSandboxEgressAllowlist` →
+  update-merge → state-factory → read/save → change-detection drift-guard (BOTH fields) → `config-api-contract`
+  `.optional()` → `agent-registry` mapper → web-ui settings-draft/save + a Settings card in `runtime-settings-dialog`.
+- `parseEgressAllowlist` is the canonical parser (superseding the removed `parseBootstrapAllowlistEnv`); the persisted
+  allowlist rides the proxy container's `NKLEIN_EGRESS_PROXY_ALLOWLIST` env. `isEgressProxyEnabled(env, configured?)`
+  keeps env-over-config precedence (real environment wins, default OFF); `setSandboxEgressConfig` live-applies on a
+  Settings change and resets the memoized ensure-promise so a tightening never keeps a stale verdict/allowlist.
+- Gate: `settings-config-contract` Suite 17 + runtime-config roundtrip + web-ui settings-draft/save tests.
 
-**I4 — e2e validation + docs.**
-- A canned dev-test/aimock scenario under `medium` tier + flag ON: one task performs (a) allowlisted public fetch →
-  allow, (b) non-allowlisted host → deny, (c) IP literal → deny, (d) `localhost` → deny; assert the four audit
-  records and the board flow completing. Add `scripts/verify-egress-proxy-live.mts` (precedent:
-  `scripts/verify-egress-live.mts`).
-- Docs: integrations-registry row, tier-copy check (`AGENT_CAPABILITY_TIER_INFO.medium` becomes true), CHANGELOG
-  `## [Upcoming]` in the same change (prime directive #6), stamp this doc SHIPPED-through-I4.
+**I4 — real bundling step + e2e validation + docs. ✅ SHIPPED.**
+- **Bundling step (the seam that made the proxy shippable, not env-only):** `scripts/build-egress-proxy.mjs`
+  esbuild-bundles `egress-proxy-entrypoint.ts` (+ its local imports) into a single self-contained ESM
+  `dist/egress-proxy/entrypoint.mjs`, wired into `npm run build`. `resolveEgressProxyBundleHostPath` auto-discovers
+  that shipped bundle next to the bundled app module (`dist/`); `NKLEIN_EGRESS_PROXY_BUNDLE` stays a dev/test
+  override; neither present ⇒ null ⇒ the manager fail-closes to `available:false`. ESM keeps `import.meta.url` intact
+  so the in-container main-module guard fires.
+- **e2e / regression:** the live-Docker `egress-proxy.docker.test.ts` proves allow/deny/no-route + audit end-to-end
+  (gated on `NKLEIN_SANDBOX_EGRESS_PROXY=1` + docker); the deterministic manager wiring (`nklein-agent-sandbox-egress`,
+  8 cases) + resolver unit tests (override / auto-discover / null-fail-closed / whitespace) cover the seam without
+  Docker. A full aimock board-flow scenario was NOT added — it would require live Docker and is redundant with the
+  integration test's real allow/deny proof.
+- Docs: this doc stamped SHIPPED-through-I4; the CHANGELOG `## [Upcoming]` egress bullet updated (Settings surface now
+  shipped; per-role attribution remains the deferred follow-up).
 
 **I5 (optional) — confirm-flow wiring.**
 - `requirePerActionApproval` per role; proxy parks `confirm` attempts in a pending queue exposed on a control
