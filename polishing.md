@@ -874,7 +874,7 @@
 > **User framing (2026-07-02):** *"talking about releasing an early version, there is then also still a lot of things
 > to do to cleanup the branch, to make sure we have a repo that is nicely prepared to show to the public."* **Schedule:
 > only after implementations reach maturity** — the last mile before an early public version.
-> - [ ] **Branch/history cleanup:** decide the public history shape (squash the ~120-commit working branch vs curated
+> - [ ] **Branch/history cleanup:** decide the public history shape ⇒ DECIDED 2026-07-12 (todo §10c#23): FRESH-ROOT release branch (clean initial commit; private repo keeps full history; zero leak risk by construction). Was: (squash the ~120-commit working branch vs curated
 >       history vs fresh-root release branch); merge or retire `feat/kanban-reliability-context-upgrade`; prune stale
 >       branches; verify no secrets/tokens/local paths/personal data anywhere in history (use a scanner, not eyeballs —
 >       e.g. gitleaks/trufflehog run over FULL history; the fleet logs + sweep rows quote local paths → scrub or exclude).
