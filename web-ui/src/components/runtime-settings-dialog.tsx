@@ -53,6 +53,7 @@ import { SwarmGuardrailsSettingsPanel } from "@/components/swarm-guardrails-sett
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { listActiveProjectOverrides } from "@/features/settings/project-overrides";
 import {
 	initSettingsDraftFromConfig,
 	isSettingsDraftDirty,
@@ -428,10 +429,16 @@ export function RuntimeSettingsDialog({
 		() => (cloudProviderSupportEnabled ? supportedAgents : supportedAgents.filter((agent) => agent.id === "nklein")),
 		[cloudProviderSupportEnabled, supportedAgents],
 	);
-	const navItems = useMemo(
-		() => SETTINGS_NAV_ITEMS.filter((item) => !item.nkleinOnly || selectedAgentId === "nklein"),
-		[selectedAgentId],
-	);
+	const navItems = useMemo(() => {
+		// §10c#9: badge the Project entry with the ACTIVE per-project overrides so divergence-from-global is visible
+		// at a glance; the pill's title lists them.
+		const activeOverrides = listActiveProjectOverrides(config);
+		return SETTINGS_NAV_ITEMS.filter((item) => !item.nkleinOnly || selectedAgentId === "nklein").map((item) =>
+			item.id === "project" && activeOverrides.length > 0
+				? { ...item, badge: { count: activeOverrides.length, title: `Overrides: ${activeOverrides.join(", ")}` } }
+				: item,
+		);
+	}, [selectedAgentId, config]);
 
 	useEffect(() => {
 		modelRoleModelsByProviderIdRef.current = modelRoleModelsByProviderId;

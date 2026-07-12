@@ -22,7 +22,13 @@ export function SettingsNav({
 	activeId,
 	onSelect,
 }: {
-	items: ReadonlyArray<{ id: SettingsNavId; label: string; icon: React.ReactNode }>;
+	items: ReadonlyArray<{
+		id: SettingsNavId;
+		label: string;
+		icon: React.ReactNode;
+		/** §10c#9: optional count pill (e.g. active per-project overrides on the Project entry); title lists them. */
+		badge?: { count: number; title: string };
+	}>;
 	activeId: SettingsNavId;
 	onSelect: (id: SettingsNavId) => void;
 }): React.ReactElement {
@@ -44,6 +50,15 @@ export function SettingsNav({
 					>
 						<span className="shrink-0 opacity-80">{item.icon}</span>
 						<span>{item.label}</span>
+						{item.badge && item.badge.count > 0 ? (
+							<span
+								data-testid={`settings-nav-badge-${item.id}`}
+								title={item.badge.title}
+								className="ml-auto shrink-0 rounded-full bg-accent/20 text-accent text-[10px] font-semibold px-1.5 py-0.5 leading-none"
+							>
+								{item.badge.count}
+							</span>
+						) : null}
 					</button>
 				</ElementTooltip>
 			))}
