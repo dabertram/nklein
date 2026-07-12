@@ -11238,9 +11238,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       `resolveDesktopStartupBind`) + `network-access-store.ts` (persist the opt-in to `network-access.json`, fail-safe to
       false on missing/malformed) + `main.ts` now resolves the runtime bind host from the persisted opt-in BEFORE spawning
       (default loopback, byte-identical; opt-in ⇒ 0.0.0.0 + logged browse URL). 14 tests, desktop suite 352 green.
-      Remaining for (2): a desktop Settings/tray TOGGLE + IPC/preload to SET the opt-in (mirror the "Start on boot" switch),
-      thread `--public-host` through the desktop orchestrator→runtime-child, surface the generated passcode + copy-URL,
-      HTTPS-cert-vs-insecure-opt-out choice, and the packaged macOS/Windows/Linux smoke (hands-on).)*
+      **✅ TOGGLE + IPC + --public-host WIRED (2026-07-13, `e113d3fd`+`bb6da45e`):** ipcMain get/set-network-access in
+      main.ts (set persists + offers a relaunch, since the bind host is fixed at startup) + preload
+      getNetworkAccess/setNetworkAccess + a desktop-only Settings › General "Local network access (experimental)"
+      RadixSwitch (live-read, optimistic set + revert, "Restart to apply" note, security caption) — hidden in a plain
+      browser like "Start on boot"; and `--public-host` now threads main.ts→RuntimeOrchestrator→runtime-child (arg added
+      when a LAN IP is detected). desktop tsc + suite (353) · web-ui tsc + vitest (1039) · biome clean.
+      Remaining for (2): surface the generated passcode + copy-URL in the toggle (the runtime LOGS it to the child's
+      stdout at cli.ts:470 — parse it there + IPC it up, OR add a runtime read-seam), the HTTPS-cert-vs-insecure-opt-out
+      choice, and the packaged macOS/Windows/Linux smoke (hands-on).)*
       *(2026-07-08 DEPLOYMENT / UPDATE STRATEGY DECISION — Docker-based deployment is OPTIONAL/LATER, not the primary
       desktop path. The desktop app is the main distribution surface and needs first-class update detection + migration
       handling. Preferred update path: signed/notarized platform packages published as GitHub Releases assets (or a later
