@@ -2,6 +2,15 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Per-domain sandbox egress is now real (experimental, off by default).** The `allowlist` network tier used to
+  fail closed to fully-offline because honest per-domain filtering needed infrastructure that didn't exist — so an
+  agent that needed one whitelisted host got nothing. There's now a host-side egress proxy: `allowlist` sandboxes
+  join a `--internal` Docker network with no route of their own, and the dual-homed proxy is the only way out,
+  enforcing the domain allowlist at connect time (fail-closed by topology — proxy down or unhealthy means no
+  egress, never full egress), resolving names host-side, blocking DNS exfiltration, and auditing every attempt. It
+  stays OFF unless explicitly enabled and, until enabled, behavior is byte-identical to before. A Settings surface
+  for the allowlist and per-role attribution are still to come.
+
 - **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
   machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when
   the actual prompt is small. The capacity report now looks at how much context each loaded model is given versus
