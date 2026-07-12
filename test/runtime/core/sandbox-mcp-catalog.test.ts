@@ -4,6 +4,7 @@ import {
 	DEFAULT_OFF_SANDBOX_MCP_SERVERS,
 	filterEnabledSandboxServers,
 	listAvailableSandboxMcpServers,
+	listMemoryWithheldSandboxServers,
 	SANDBOX_MCP_SERVERS,
 	selectSandboxMcpServersForModel,
 } from "../../../src/core/sandbox-mcp-catalog";
@@ -72,6 +73,29 @@ describe("selectSandboxMcpServersForModel — ALSO applies the §5.AF memory-fit
 
 	it("the memory gate composes with the model gate (a tool-unsuitable model still gets nothing on a big container)", () => {
 		expect(selectSandboxMcpServersForModel("phi-4-reasoning-plus", 16384).map((s) => s.id)).not.toContain(
+			"codebase-memory",
+		);
+	});
+});
+
+describe("listMemoryWithheldSandboxServers — surfaces the memory-withheld (not model-withheld) loss", () => {
+	it("reports codebase-memory as memory-withheld on the 4 GB default container (with a reason)", () => {
+		const withheld = listMemoryWithheldSandboxServers("qwen/qwen3-8b", 4096);
+		const ids = withheld.map((w) => w.id);
+		expect(ids).toContain("codebase-memory");
+		const cm = withheld.find((w) => w.id === "codebase-memory");
+		expect(cm?.reason).toMatch(/withheld/i);
+		expect(cm?.label).toBe("Codebase Memory");
+	});
+
+	it("reports NOTHING withheld on a big container (everything fits) or when unbounded", () => {
+		expect(listMemoryWithheldSandboxServers("qwen/qwen3-8b", 8192)).toEqual([]);
+		expect(listMemoryWithheldSandboxServers("qwen/qwen3-8b", undefined)).toEqual([]);
+	});
+
+	it("does NOT report a model-withheld server as memory-withheld (a tool-unsuitable model's skip isn't a memory loss)", () => {
+		// phi-4-reasoning-plus fails the MODEL gate for codebase-memory, so its absence is not a memory-driven loss.
+		expect(listMemoryWithheldSandboxServers("phi-4-reasoning-plus", 4096).map((w) => w.id)).not.toContain(
 			"codebase-memory",
 		);
 	});

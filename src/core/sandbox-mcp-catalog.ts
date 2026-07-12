@@ -118,6 +118,41 @@ export function selectSandboxMcpServersForModel(
 	);
 }
 
+/** A server the MODEL gate would have offered but the §5.AF MEMORY gate withheld — surfaced so the loss isn't silent. */
+export interface MemoryWithheldSandboxServer {
+	id: string;
+	label: string;
+	/** The memory-fit reason (container size vs budget + headroom). */
+	reason: string;
+}
+
+/**
+ * The available, MODEL-fitting servers that the MEMORY-fit gate WITHHELD for `containerMemoryLimitMb` — i.e. servers a
+ * bigger container would have gotten. Pure. Used to WARN the operator (no silent loss of a capability): on the 4 GB
+ * default container this returns codebase-memory, so the runtime can tell them why localization is off + how to fix it.
+ * Empty when the memory limit is unbounded/omitted (the gate doesn't engage) or nothing is withheld.
+ */
+export function listMemoryWithheldSandboxServers(
+	modelId: string,
+	containerMemoryLimitMb: number | undefined,
+): MemoryWithheldSandboxServer[] {
+	const withheld: MemoryWithheldSandboxServer[] = [];
+	for (const server of listAvailableSandboxMcpServers()) {
+		if (!decideMcpServerModelFitById(server.fit, modelId).offer) {
+			continue; // the model gate would skip it regardless — not a memory-driven loss.
+		}
+		const memory = decideMcpServerMemoryFit({
+			serverId: server.id,
+			memoryBudgetMb: server.memoryBudgetMb,
+			containerMemoryLimitMb,
+		});
+		if (!memory.offer) {
+			withheld.push({ id: server.id, label: server.label, reason: memory.reason });
+		}
+	}
+	return withheld;
+}
+
 /**
  * Server ids that stay OFF by default even when baked + model-fitting — they require an EXPLICIT opt-in. `basic-memory`
  * is write-capable authored memory: a durable free-form store is only trustworthy once the §5.AW strong-model audit is

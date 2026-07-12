@@ -13,6 +13,7 @@ import {
 	buildSandboxMcpDockerExecArgs,
 	filterEnabledSandboxServers,
 	listAvailableSandboxMcpServers,
+	listMemoryWithheldSandboxServers,
 	type SandboxExecTarget,
 	type SandboxMcpServerDef,
 	selectSandboxMcpServersForModel,
@@ -723,17 +724,31 @@ export function createNKleinMcpRuntimeService(
 						)
 					: [];
 
+			// §5.AF: NEVER lose a capability SILENTLY — if the memory-fit gate withheld a model-fitting server (the
+			// codebase-memory OOM guard, which triggers on the 4 GB default container), tell the operator why + how to
+			// restore it. Computed BEFORE the early return so the warning survives even when it was the only server.
+			const memoryWithheldWarnings: string[] =
+				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
+					? listMemoryWithheldSandboxServers(
+							bundleOptions.modelId,
+							bundleOptions.sandboxExecTarget.memoryLimitMb,
+						).map(
+							(server) =>
+								`Sandbox MCP server "${server.label}" is OFF for this task: ${server.reason}. Raise the container memory (Settings → Agents → isolation pool, "memory per container") to enable it.`,
+						)
+					: [];
+
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {
 				return {
 					tools: [],
-					warnings: [],
+					warnings: memoryWithheldWarnings,
 					dispose: async () => {},
 				};
 			}
 
 			const manager: SdkMcpManager = createManagerForRuntime();
 
-			const warnings: string[] = [];
+			const warnings: string[] = [...memoryWithheldWarnings];
 			for (const server of loadedSettings.servers) {
 				if (server.type === "stdio" && !server.disabled) {
 					warnings.push(formatLocalMcpExecutionDisabledWarning(server.name));

@@ -8439,7 +8439,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         default container codebase-memory (2048) is deterministically withheld (needs ≥4608) — predictable degradation, no
         mid-work OOM-kill churn; on a 6 GB+ container it is offered. The operator raises `memoryPerContainerMb` (Settings →
         Agents → isolation pool) to get it back. 11 new tests (pure gate + catalog integration + boundary); tsc + biome +
-        8973 fast green. REMAINING (the broader `[~]`): the live multi-model lab thrash/deadlock sweep (fleet-run, deferred).
+        8973 fast green. **NOT SILENT (follow-on):** `listMemoryWithheldSandboxServers` + a createToolBundle warning (computed
+        BEFORE the empty-bundle early-return so it survives even when the withheld server was the only one) tells the operator
+        WHICH server is off, the container-size-vs-needed reason, and the fix — so the common 4 GB default no longer drops
+        localization invisibly (3 more tests, 8993 fast green). REMAINING (the broader `[~]`): the live multi-model lab
+        thrash/deadlock sweep (fleet-run, deferred).
         *(LIVE INSTANCE FOUND 2026-07-11, single-machine smoke: the codebase-memory sandbox MCP intermittently fails to
         load — `MCP error -32000: Connection closed` — under concurrent worker+index load. Root cause is resource, not
         code: the baked binary works standalone (`docker exec -i … codebase-memory-mcp` initialize succeeds; stderr

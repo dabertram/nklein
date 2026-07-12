@@ -16,8 +16,10 @@
   memory limit and got OOM-killed mid-work (`MCP error -32000: Connection closed`), silently stripping the agent's
   code localization. !Klein now checks up front whether a container has room for a heavy MCP server alongside the
   worker (its budget + the container's own baseline + one concurrent command) and simply doesn't offer it when it
-  won't fit — deterministic, predictable behavior instead of a random mid-run crash. Give sandbox containers more
-  memory (Settings → Agents → isolation pool) to bring it back; the lightweight servers are unaffected.
+  won't fit — deterministic, predictable behavior instead of a random mid-run crash. And it no longer does this
+  silently: when a server is withheld for memory, the session logs exactly which one, the container size vs. what
+  it needed, and the fix — raise the sandbox container memory (Settings → Agents → isolation pool). The lightweight
+  servers are unaffected.
 
 - **The "Get started" tour now describes !Klein, not its ancestor.** The onboarding slides still claimed task
   import from Linear and GitHub (inherited copy from the fork's origin — !Klein is local-only and does neither).
