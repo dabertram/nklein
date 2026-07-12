@@ -60,6 +60,18 @@ describe("runDevTestProject", () => {
 		expect(result.started).toBe(true);
 	});
 
+	it("classifies an operator-parked card as needs_attention, not stagnant (the live §12 turn-loop park)", async () => {
+		// The exact live 2026-07-12 shape: 1 card in planning, its session awaiting_review+attention, nothing active.
+		const parked: DevTestStateRead = { ...board({ planning: 1 }), activeSessionCount: 0, attentionCardCount: 1 };
+		const deps = makeDeps([parked]);
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main", stablePollsUntilSettled: 2 },
+			deps,
+		);
+		expect(result.classification.outcome).toBe("needs_attention");
+		expect(result.classification.summary).toMatch(/Needs your attention/);
+	});
+
 	it("does NOT false-green when a decompose seed completes a beat before its child materializes", async () => {
 		// Observed live (2026-07-11): a plan-mode smoke seed reached Completed, and for one poll the board showed
 		// completed:1 with nothing else — a beat BEFORE its spawned child card appeared. The child then sat stuck in

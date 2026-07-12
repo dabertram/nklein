@@ -143,3 +143,21 @@ export function countActiveAgentSessions(
 	}
 	return { running, queued };
 }
+
+/**
+ * Count the sessions PARKED FOR THE OPERATOR — `awaiting_review` with `reviewReason: "attention"` (the needs-you
+ * surface: autonomy-budget parks, the §12 turn-loop guard's boundary question, review-loop parks). Pure so consumers
+ * (the dev-test monitor's `needs_attention` outcome, badges) derive "waiting on a human answer" from one tested rule.
+ * Distinct from `awaiting_review` with exit/error/interrupted/hook reasons, which are not operator questions.
+ */
+export function countAttentionParkedSessions(
+	summaries: Iterable<Pick<RuntimeTaskSessionSummary, "state" | "reviewReason">>,
+): number {
+	let parked = 0;
+	for (const summary of summaries) {
+		if (summary.state === "awaiting_review" && summary.reviewReason === "attention") {
+			parked += 1;
+		}
+	}
+	return parked;
+}

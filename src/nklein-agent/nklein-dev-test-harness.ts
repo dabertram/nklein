@@ -67,6 +67,12 @@ export interface DevTestStateRead {
 	 * board static for minutes, which previously tripped the "unchanged ⇒ stagnant" settle and produced a FALSE stall.
 	 */
 	activeSessionCount?: number;
+	/**
+	 * Optional count of sessions parked FOR THE OPERATOR (`awaiting_review` + reason `attention` — an autonomy park or
+	 * the §12 turn-loop guard's boundary question). Lets the classifier report `needs_attention` ("answer the question")
+	 * instead of a generic `stagnant` (live-observed 2026-07-12).
+	 */
+	attentionCardCount?: number;
 }
 
 export interface DevTestHarnessDeps {
@@ -196,6 +202,7 @@ export async function runDevTestProject(
 		counts: finalCounts,
 		acceptancePassed,
 		runtimeReachable: lastState.runtimeReachable,
+		...(typeof lastState.attentionCardCount === "number" ? { attentionCardCount: lastState.attentionCardCount } : {}),
 	});
 
 	return {

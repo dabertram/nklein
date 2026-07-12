@@ -85,6 +85,74 @@ describe("classifyDevTestRun", () => {
 		expect(result.outcome).toBe("stagnant");
 	});
 
+	it("reports needs_attention when a card is parked for the operator (the §12 turn-loop park, live 2026-07-12)", () => {
+		// The exact live shape: the smoke seed sat in planning, its session awaiting_review + attention, nothing running.
+		const result = classifyDevTestRun({
+			counts: counts({ planning: 1 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+			attentionCardCount: 1,
+		});
+		expect(result.outcome).toBe("needs_attention");
+		expect(result.success).toBe(false);
+		expect(result.summary).toMatch(/Needs your attention: 1 card\(s\) parked with a question/);
+	});
+
+	it("needs_attention outranks blocked_by_review_cards (a parked review card is a question, not a mystery)", () => {
+		const result = classifyDevTestRun({
+			counts: counts({ completed: 3, review: 2 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+			attentionCardCount: 2,
+		});
+		expect(result.outcome).toBe("needs_attention");
+	});
+
+	it("does NOT report needs_attention while work is still in progress (the run may resolve itself)", () => {
+		const result = classifyDevTestRun({
+			counts: counts({ planning: 1, inProgress: 1 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+			attentionCardCount: 1,
+		});
+		expect(result.outcome).toBe("stagnant");
+	});
+
+	it("attentionCardCount absent behaves exactly as before (0 — callers without session visibility)", () => {
+		const withAbsent = classifyDevTestRun({
+			counts: counts({ completed: 1, planning: 4 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+		});
+		const withZero = classifyDevTestRun({
+			counts: counts({ completed: 1, planning: 4 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+			attentionCardCount: 0,
+		});
+		expect(withAbsent.outcome).toBe("stagnant");
+		expect(withZero.outcome).toBe("stagnant");
+	});
+
+	it("failure and completed still dominate an attention park", () => {
+		expect(
+			classifyDevTestRun({
+				counts: counts({ failed: 1, planning: 1 }),
+				acceptancePassed: null,
+				runtimeReachable: true,
+				attentionCardCount: 1,
+			}).outcome,
+		).toBe("failed");
+		expect(
+			classifyDevTestRun({
+				counts: counts({ completed: 2 }),
+				acceptancePassed: null,
+				runtimeReachable: true,
+				attentionCardCount: 0,
+			}).outcome,
+		).toBe("completed");
+	});
+
 	it("derives counts from board columns (persisted-state path)", () => {
 		const board = {
 			columns: [

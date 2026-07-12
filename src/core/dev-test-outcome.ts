@@ -14,6 +14,13 @@ export type DevTestRunOutcome =
 	| "completed"
 	/** The acceptance command passed, but cards remain unfinished — code is green, workflow is not. */
 	| "acceptance_green_workflow_incomplete"
+	/**
+	 * Card(s) are PARKED FOR THE OPERATOR (needs-you: an autonomy park or the §12 turn-loop guard's boundary question)
+	 * and nothing is progressing. More specific than `stagnant`/`blocked_by_review_cards`: the run is not mysteriously
+	 * stalled — it is waiting on a human answer (live-observed 2026-07-12: a 14B looped on a question, the guard parked
+	 * it, and the monitor reported a generic "stagnant").
+	 */
+	| "needs_attention"
 	/** Cards are parked in Review/awaiting-review and nothing is progressing. */
 	| "blocked_by_review_cards"
 	/** Cards remain, nothing is in progress, and acceptance is not green — work has stalled. */
@@ -41,6 +48,12 @@ export interface ClassifyDevTestRunInput {
 	acceptancePassed: boolean | null;
 	/** False when the runtime API is unreachable and this is a persisted-state read. */
 	runtimeReachable: boolean;
+	/**
+	 * Count of sessions parked for the operator (`awaiting_review` + reason `attention` — see
+	 * `countAttentionParkedSessions`). Optional; absent behaves as 0 (classification unchanged for callers
+	 * without session visibility, e.g. a persisted-board read).
+	 */
+	attentionCardCount?: number;
 }
 
 export interface DevTestRunClassification {
@@ -80,6 +93,7 @@ function countIncomplete(counts: DevTestBoardCounts): number {
 
 export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunClassification {
 	const { counts, acceptancePassed, runtimeReachable } = input;
+	const attentionCardCount = input.attentionCardCount ?? 0;
 	const incompleteCardCount = countIncomplete(counts);
 
 	const outcome = ((): DevTestRunOutcome => {
@@ -98,6 +112,11 @@ export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunCl
 		if (acceptancePassed === true) {
 			return "acceptance_green_workflow_incomplete";
 		}
+		// A card parked FOR THE OPERATOR with no work in flight is a needs-you, not a mysterious stall — name it before
+		// the generic review-block/stagnant buckets so the monitor tells the operator "answer the question" (§12 guard).
+		if (attentionCardCount > 0 && counts.inProgress === 0) {
+			return "needs_attention";
+		}
 		if (counts.review > 0 && counts.inProgress === 0) {
 			return "blocked_by_review_cards";
 		}
@@ -108,7 +127,7 @@ export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunCl
 		outcome,
 		success: outcome === "completed",
 		incompleteCardCount,
-		summary: formatDevTestRunSummary(outcome, counts, acceptancePassed, incompleteCardCount),
+		summary: formatDevTestRunSummary(outcome, counts, acceptancePassed, incompleteCardCount, attentionCardCount),
 	};
 }
 
@@ -117,6 +136,7 @@ function formatDevTestRunSummary(
 	counts: DevTestBoardCounts,
 	acceptancePassed: boolean | null,
 	incompleteCardCount: number,
+	attentionCardCount: number,
 ): string {
 	const acceptanceText =
 		acceptancePassed === true
@@ -130,6 +150,8 @@ function formatDevTestRunSummary(
 			return `Run complete: every non-trash card reached Completed (${acceptanceText}).`;
 		case "acceptance_green_workflow_incomplete":
 			return `Code acceptance green, workflow incomplete: ${incompleteCardCount} card(s) not Completed (${board}).`;
+		case "needs_attention":
+			return `Needs your attention: ${attentionCardCount} card(s) parked with a question for the operator — answer it (card chat / needs-you), then continue; ${incompleteCardCount} card(s) unfinished (${acceptanceText}).`;
 		case "blocked_by_review_cards":
 			return `Blocked by review cards: ${counts.review} card(s) awaiting review, none in progress (${acceptanceText}).`;
 		case "stagnant":

@@ -27,6 +27,8 @@ export interface CreateDevTestStateReaderDeps {
 	readFailedCardCount?(): Promise<number>;
 	/** Optional count of sessions doing in-flight LLM work (running + queued); keeps the monitor from settling mid-turn. */
 	readActiveSessionCount?(): Promise<number>;
+	/** Optional count of sessions parked for the operator (awaiting_review + attention) — the needs-you signal. */
+	readAttentionCardCount?(): Promise<number>;
 }
 
 export function createDevTestStateReader(deps: CreateDevTestStateReaderDeps): () => Promise<DevTestStateRead> {
@@ -39,11 +41,15 @@ export function createDevTestStateReader(deps: CreateDevTestStateReaderDeps): ()
 			const activeSessionCount = deps.readActiveSessionCount
 				? await deps.readActiveSessionCount().catch(() => undefined)
 				: undefined;
+			const attentionCardCount = deps.readAttentionCardCount
+				? await deps.readAttentionCardCount().catch(() => undefined)
+				: undefined;
 			return {
 				board,
 				runtimeReachable: true,
 				...(typeof failedCardCount === "number" ? { failedCardCount } : {}),
 				...(typeof activeSessionCount === "number" ? { activeSessionCount } : {}),
+				...(typeof attentionCardCount === "number" ? { attentionCardCount } : {}),
 			};
 		} catch {
 			// The runtime went away mid-run; classify from the last durable board we can still read.

@@ -19,7 +19,7 @@ import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../co
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
-import { countActiveAgentSessions } from "../core/task-session-api-contract";
+import { countActiveAgentSessions, countAttentionParkedSessions } from "../core/task-session-api-contract";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
@@ -281,6 +281,12 @@ async function executeDevTestPreset(input: {
 			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
 			const counts = countActiveAgentSessions(sessions);
 			return counts.running + counts.queued;
+		},
+		// Sessions parked FOR THE OPERATOR (awaiting_review + attention): lets the monitor report "needs your
+		// attention: answer the question" instead of a generic stagnant (the §12 turn-loop park, live 2026-07-12).
+		readAttentionCardCount: async () => {
+			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
+			return countAttentionParkedSessions(sessions);
 		},
 	});
 	const startedAt = Date.now();
