@@ -10239,12 +10239,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       **◐ CLASSIFIER CORE DONE (2026-07-13):** [src/core/skill-source-trust.ts] `classifySkillSourceTrust(url)` →
       `{trust:"trusted"|"untrusted", origin, reason}` + `isTrustedSkillSource` — PURE/TOTAL/FAIL-SAFE (unparseable /
       non-web / unknown ⇒ untrusted; github decided by EXACT owner/repo so a fork/look-alike isn't trusted by host;
-      the 2M indexes resolve untrusted = discovery-only). 7 tests, tsc+biome clean. OWED: wire it as the C-flow gate
-      (trusted ⇒ lighter friction; untrusted ⇒ full review) + the discovery-index fetch behind the untrusted gate.
-- [ ] **C. User-controlled mode (ship FIRST — the safe one), decomposed:** browse/select → show the FULL SKILL.md source +
+      the 2M indexes resolve untrusted = discovery-only). 7 tests, tsc+biome clean. **✅ C-FLOW GATE WIRED (2026-07-13):**
+      the trust classification is now consumed by the Mode-C decision core (`decideSkillImport`, below) — trusted+clean ⇒
+      lighter `confirm`, untrusted ⇒ `full-review`. OWED (B only): the discovery-index fetch behind the untrusted gate
+      (an effectful network seam).
+- [~] **C. User-controlled mode (ship FIRST — the safe one), decomposed:** browse/select → show the FULL SKILL.md source +
       the bundled-file manifest + the deterministic-scan flags + a clear "UNTRUSTED community content" banner → explicit
       per-skill opt-in **pinned to a content hash** (TOFU; no silent updates) → re-screen + re-confirm on any hash change
       (anti-rug-pull, per Invariant tool-pinning). Record provenance (origin, stars, age) as a non-authoritative signal.
+      **◐ DECISION CORE DONE (2026-07-13):** [src/core/skill-import-decision.ts] `decideSkillImport(input)` is the PURE
+      keystone that composes the epic's screening cores into ONE user-facing decision — `{decision:"allow"|"review"|"reject",
+      friction:"auto"|"confirm"|"full-review"|"blocked", pinState:"new"|"unchanged"|"changed", requiresReconfirm, reasons[]}`.
+      It consumes (by type only) the item-B trust class, the item-E prescreen verdict, the item-A bundled verdict, and a TOFU
+      pin, and enforces the two safety properties: (1) TRUST-GRADUATED FRICTION — a reject-level finding is `blocked` even
+      from a trusted origin (trust never launders a `data_exfiltration` payload); trusted+clean+new ⇒ light `confirm`;
+      untrusted or any review-level finding ⇒ `full-review`. (2) TOFU HASH-PINNING (anti-rug-pull) — an UNCHANGED hash
+      re-imports `auto` (no re-nag on identical bytes); a CHANGED hash on a previously-pinned skill forces `full-review` +
+      re-confirm REGARDLESS of trust. Malformed verdicts fail toward friction, never toward `allow`. `buildSkillContentPreimage`
+      centralises the canonical (length-prefixed, bundled-paths-sorted) hash pre-image so a rug-pull can't mutate content
+      without changing the hash; `recordSkillImportPin` (clock injected) + `worstSkillImportFriction`/`isSkillImportBlocked`/
+      `skillImportNeedsFullReview` predicates. Pure/total/no-mutate; 26 tests; tsc+biome clean. OWED (effectful seams): the
+      browse/select UI + reading the real SKILL.md + bundle off disk (ties §5.AP.A leaf (c)) + the sha256 over the pre-image
+      + the pin store + surfacing the review surface (banner/manifest/flags) + provenance capture.
 - [~] **D. Containment execution (the real protection), decomposed:** an activated skill runs under the SAME §5.L per-role
       capability ruleset (default-deny tools; least-privilege `allowed-tools`), inside the Docker sandbox + egress allowlist.
       **NEVER auto-execute bundled scripts** (`scripts/*` = RCE-by-default; require explicit human review/approval; treat any
