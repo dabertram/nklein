@@ -8,6 +8,19 @@
  *
  * Owned: (a) build a request body (OpenAI-compatible field names, which the native surface accepts); (b) parse a
  * response into extracted text + reasoning + structured tool calls. Pure + total + defensive.
+ *
+ * ⚠ LIVE-PROBED STALE (2026-07-12, LM Studio 0.3.x `/api/v1/chat`): the ASSUMPTIONS below do NOT match the current LM
+ * Studio native surface — the endpoint exists (POST-only) but uses its own unified "Responses"-style shape, so both the
+ * request builder AND the response parser here would fail against it and MUST be rewritten before this module is wired:
+ *   - REQUEST: `{ model, input: [{ type: "text"|"image", content: <string> }, …] }`. It REJECTS `messages` and
+ *     `max_tokens` ("Unrecognized key(s)"); the token cap + `tools`/`tool_choice` keys are NOT the OpenAI ones (probe
+ *     them when rewriting). So `buildNativeChatRequest`'s `{messages, max_tokens, tool_choice}` body → 400.
+ *   - RESPONSE (200): `{ model_instance_id, output: [{ type: "message"|…, content: <string> }, …], response_id,
+ *     stats: { input_tokens, total_output_tokens, reasoning_output_tokens, tokens_per_second, time_to_first_token_seconds } }`.
+ *     Reasoning is a token COUNT in `stats.reasoning_output_tokens` (the text location + the tool-call `output[]` variant
+ *     still need probing). So `parseNativeChatResponse`'s `tool_call.*`/`reasoning.*` field assumptions do not apply.
+ * The fixture tests below are self-consistent but describe the OLD assumed shape — a rewrite must re-derive fixtures from
+ * a live 200. (§5.AA endpoint-iteration.)
  */
 
 /** A neutral chat message (role + text). */

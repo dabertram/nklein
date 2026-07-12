@@ -10033,6 +10033,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Native `/api/v1/chat` structured events, decomposed:** *(endpoint-iteration adapter class — the §5.AA
       endpoint-iteration box (L4658) tracks the same native-client build; both are the LM Studio native-API surface,
       a networked build gated on that adapter, not a bounded pure slice.)*
+      *(◐ LIVE-PROBED 2026-07-12 (`5b…`): the endpoint EXISTS (POST-only, 200s) but the pre-built pure core
+      `src/core/local-native-chat-shape.ts` is STALE vs the real LM Studio 0.3.x contract — it uses a unified
+      "Responses"-style shape, NOT OpenAI `messages`. REQUEST: `{model, input:[{type:"text"|"image", content}]}`
+      (rejects `messages`/`max_tokens`); RESPONSE(200): `{model_instance_id, output:[{type:"message", content}],
+      response_id, stats:{input_tokens, total_output_tokens, reasoning_output_tokens, tokens_per_second,
+      time_to_first_token_seconds}}`. So `buildNativeChatRequest`/`parseNativeChatResponse` must be REWRITTEN from a live
+      200 before wiring (module doc now flags this). Still-owed probing for the rewrite: the tools request key, the
+      reasoning-TEXT location, the tool-call `output[]` variant, and the SSE/streaming shape.)*
   - [ ] Implement fallback endpoint for tool-call + reasoning SSE events (more structured than OpenAI path).
   - [ ] Use stateful sessions (avoid resending history) for efficiency + long-context leverage.
   - [ ] Wire MCP integration (ties §5.AC/§5.M tool expansion).
