@@ -276,6 +276,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   pre-commit test suite is exactly such a hook context, so raw `{...process.env}` spawns pass standalone but fail
   under `git commit -a` (live 2026-07-03: three decomposition tests). Repro/guard: run the test with
   `GIT_INDEX_FILE=<repo>/.git/index` poisoned.
+- **Fresh `.claude/worktrees/*` checkouts have no `node_modules`** (2026-07-13) — Node resolution silently falls back to
+  the MAIN checkout's, which lacks web-ui-only + `@clinebot/*` deps, so runs/typechecks half-work confusingly. To work in
+  one locally: `npm install` in `web-ui/` + `HUSKY=0 npm install` at the worktree root. The runtime's data dir comes from
+  `homedir()`, so an isolated `$HOME` gives a throwaway instance (it auto-registers the cwd repo as a workspace) without
+  touching real projects.
 - **Prefer existing solutions over custom implementations — a standing directive.** Before hand-crafting any non-trivial
   capability, FIRST do **extensive, current online research** for a valid, well-maintained, *suitable* existing solution
   (library, tool, MCP server, service) — **web-search the ecosystem broadly; do NOT rely on training-cutoff memory (it is
@@ -323,6 +328,7 @@ source repo went private — so if it vanishes the buildable source still lives 
 - **Icons:** `lucide-react`, individual imports; 14px for small buttons, 16px default; pass as JSX to `icon` prop.
 - **Radix** directly for headless behavior (`@radix-ui/react-{popover,dropdown-menu,checkbox,switch,collapsible,select}`), styled with Tailwind + `data-[state=checked]:` etc.
 - **Dark theme always.** Surfaces `bg-surface-0` (app) → `-1` (raised) → `-2` (cards/inputs) → `-3` (hover) → `-4` (pressed). Do NOT use Blueprint, Tailwind light-mode defaults, or any `dark:` prefix.
+- **Hand-rolled `useSyncExternalStore` stores (`web-ui/src/stores/`) must NOT notify listeners synchronously from their mutators** (2026-07-13, root cause of the mount-time dev-console warning flood). `App` mutates them from effects (e.g. `workspace-metadata-store`'s `replaceWorkspaceMetadata`/`resetWorkspaceMetadataStore`), and during the board-seeding burst React flushes those pending passive effects while mid-render/commit — a synchronous `emit` then schedules an update for a subscribed component (BoardCard/TopBar/App-via-`use-git-actions`) while another is rendering, flooding the console with `Cannot update a component while rendering a different component` + `flushSync … React is already rendering`. Fix: mutate state synchronously (so `getSnapshot` stays correct) but coalesce the listener fan-out onto a `queueMicrotask`; `startTransition` does NOT help (still schedules synchronously). Regression guard: `workspace-metadata-store.test.tsx`.
 
 ### The quickest simplest explanation is NOT the truth — search deeply for root cause (non-negotiable, user 2026-07-07)
 > **Never accept your first, quickest, most convenient explanation as the answer. A plausible-sounding cause is a
