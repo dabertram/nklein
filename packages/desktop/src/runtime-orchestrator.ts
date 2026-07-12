@@ -14,6 +14,8 @@ import {
 interface RuntimeOrchestratorOptions {
 
 	host: string;
+	/** The browser-facing host (`--public-host`) advertised for LAN access; null on a loopback bind. */
+	publicHost?: string | null;
 	port: number;
 	healthTimeoutMs: number;
 	resolveCliShimPath: () => string;
@@ -470,6 +472,7 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		try {
 			const url = await this.manager.start({
 				host: this.opts.host,
+				publicHost: this.opts.publicHost ?? null,
 				port: this.opts.port,
 			});
 			if (this.terminated) {

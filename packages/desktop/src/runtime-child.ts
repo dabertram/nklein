@@ -21,6 +21,8 @@ import { buildFilteredEnv } from "./runtime-child-env.js";
 
 export interface RuntimeChildConfig {
 	host: string;
+	/** The browser-facing host advertised via `--public-host` (LAN IP); null/omitted on a loopback bind. */
+	publicHost?: string | null;
 	port: number;
 }
 
@@ -237,6 +239,9 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 			: ourOptions;
 
 		const args = ["--no-open", "--port", String(config.port), "--host", config.host];
+		if (config.publicHost) {
+			args.push("--public-host", config.publicHost);
+		}
 
 		// POSIX: `detached: true` makes the child lead its own process
 		// group, which is REQUIRED for `process.kill(-pid, …)` in treeKill

@@ -71,6 +71,7 @@ if (startupBind.host !== DEFAULT_HOST) {
 
 const orchestrator = new RuntimeOrchestrator({
 	host: startupBind.host,
+	publicHost: startupBind.publicHost,
 	port: DEFAULT_PORT,
 	healthTimeoutMs: HEALTH_TIMEOUT_MS,
 	resolveCliShimPath,

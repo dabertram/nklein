@@ -186,6 +186,15 @@ describe("RuntimeChildManager", () => {
 			expect(readyHandler).toHaveBeenCalledWith("http://127.0.0.1:3484");
 		});
 
+		it("adds --public-host to the spawn args when a LAN publicHost is configured", async () => {
+			const spawnSpy = createSpawnFn(mockChild);
+			manager = new RuntimeChildManager({ cliPath: CLI_PATH, spawnFn: spawnSpy });
+			await manager.start({ ...TEST_CONFIG, publicHost: "192.168.1.50" });
+			const args = (spawnSpy as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[];
+			expect(args).toContain("--public-host");
+			expect(args).toContain("192.168.1.50");
+		});
+
 		it("throws if already running", async () => {
 			manager = createManager();
 			await manager.start(TEST_CONFIG);
