@@ -10232,10 +10232,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       UNBLOCKS §5.AP.E(i) (the bundled-file executable/binary scan now has a validated, category-tagged list to scan) and
       feeds §5.AP.D (which entries are `scripts/*`). Still OWED: (c) wiring into the §5.AE `Skill` shape + reading a real
       SKILL.md + its bundle listing off disk at the effectful seam.
-- [ ] **B. Trusted-source default, untrusted opt-in.** Curated allowlist of ORIGINS: official `anthropics/skills` +
+- [~] **B. Trusted-source default, untrusted opt-in.** Curated allowlist of ORIGINS: official `anthropics/skills` +
       `agentskills.io`, and the one community registry with real posture, `tech-leads-club/agent-skills` (CI static-analysis +
       Snyk + content-hashing + immutable lockfiles, no binaries). The 2M indexes (SkillsMP via its REST `/api/v1/skills/search`
       + MCP `/.well-known/mcp`, LobeHub, Skills.sh, hoodini, wshobson) are **discovery-only**, behind an explicit untrusted gate.
+      **◐ CLASSIFIER CORE DONE (2026-07-13):** [src/core/skill-source-trust.ts] `classifySkillSourceTrust(url)` →
+      `{trust:"trusted"|"untrusted", origin, reason}` + `isTrustedSkillSource` — PURE/TOTAL/FAIL-SAFE (unparseable /
+      non-web / unknown ⇒ untrusted; github decided by EXACT owner/repo so a fork/look-alike isn't trusted by host;
+      the 2M indexes resolve untrusted = discovery-only). 7 tests, tsc+biome clean. OWED: wire it as the C-flow gate
+      (trusted ⇒ lighter friction; untrusted ⇒ full review) + the discovery-index fetch behind the untrusted gate.
 - [ ] **C. User-controlled mode (ship FIRST — the safe one), decomposed:** browse/select → show the FULL SKILL.md source +
       the bundled-file manifest + the deterministic-scan flags + a clear "UNTRUSTED community content" banner → explicit
       per-skill opt-in **pinned to a content hash** (TOFU; no silent updates) → re-screen + re-confirm on any hash change
