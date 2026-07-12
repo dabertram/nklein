@@ -117,6 +117,22 @@ export const runtimeFitnessRowSchema = z.object({
 });
 export type RuntimeFitnessRow = z.infer<typeof runtimeFitnessRowSchema>;
 
+// §5.AL/§10c#11 selector badge: models whose RUNTIME verdict is degraded (medium+ confidence only), with a
+// compact operator label ("stalled 3× · tool-weak"). Badge-only surface — no confirm-flow (David 2026-07-12).
+export const runtimeModelVerdictBadgeSchema = z.object({
+	modelId: z.string(),
+	verdict: z.enum(["TOOL_WEAK", "TOOL_UNSUITABLE"]),
+	label: z.string(),
+	sampleCount: z.number().int().nonnegative(),
+});
+export type RuntimeModelVerdictBadge = z.infer<typeof runtimeModelVerdictBadgeSchema>;
+
+export const runtimeModelVerdictBadgesResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	badges: z.array(runtimeModelVerdictBadgeSchema),
+});
+export type RuntimeModelVerdictBadgesResponse = z.infer<typeof runtimeModelVerdictBadgesResponseSchema>;
+
 export const runtimeFitnessTableResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	rows: z.array(runtimeFitnessRowSchema),

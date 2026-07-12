@@ -281,3 +281,63 @@ export function penalizeFitnessByRuntimeVerdict<T extends { modelId: string; fit
 	adjusted.sort((left, right) => right.row.fitnessScore - left.row.fitnessScore || left.index - right.index);
 	return adjusted.map((entry) => entry.row);
 }
+
+/** One flagged model for the §5.AG selector badge (§10c#11): the penalty made visible at pick time. */
+export interface ModelVerdictBadge {
+	modelId: string;
+	verdict: Extract<ToolUseVerdict, "TOOL_WEAK" | "TOOL_UNSUITABLE">;
+	/** Compact operator-facing label, e.g. `"stalled 3× · tool-weak"`. */
+	label: string;
+	sampleCount: number;
+}
+
+/**
+ * Derive the selector-badge list from persisted evidence (pure): one entry per model whose RUNTIME verdict is
+ * degraded (TOOL_WEAK / TOOL_UNSUITABLE) at medium+ confidence — low-confidence negatives stay unbadged so a model
+ * is never publicly flagged on noise (mirrors {@link MIN_RUNS_FOR_VERDICT}). Sorted worst-first (unsuitable before
+ * weak, then by stall count desc, then id). The §10c#11 decision: badge ONLY — no confirm-flow UI.
+ */
+export function buildModelVerdictBadges(input: {
+	events: readonly SelfObservationEventRecord[];
+	runs?: readonly RuntimeRunOutcome[];
+}): ModelVerdictBadge[] {
+	const modelIds = [
+		...new Set(
+			[...input.events.map((event) => event.modelId), ...(input.runs ?? []).map((run) => run.modelId)].filter(
+				(id): id is string => typeof id === "string" && id.trim().length > 0,
+			),
+		),
+	];
+	const badges: ModelVerdictBadge[] = [];
+	for (const modelId of modelIds) {
+		const verdict = assessRuntimeModelVerdict({ modelId, events: input.events, runs: input.runs });
+		if (verdict.confidence === "low") {
+			continue;
+		}
+		if (verdict.verdict !== "TOOL_WEAK" && verdict.verdict !== "TOOL_UNSUITABLE") {
+			continue;
+		}
+		const stalls = verdict.signalCounts.model_stalled;
+		const parts: string[] = [];
+		if (stalls > 0) {
+			parts.push(`stalled ${stalls}×`);
+		}
+		if (verdict.signalCounts.tool_argument_error >= WEAK_TOOL_ARG_ERRORS) {
+			parts.push("tool-arg errors");
+		}
+		parts.push(verdict.verdict === "TOOL_UNSUITABLE" ? "unsuitable" : "tool-weak");
+		badges.push({
+			modelId,
+			verdict: verdict.verdict,
+			label: parts.join(" · "),
+			sampleCount: verdict.sampleCount,
+		});
+	}
+	badges.sort((left, right) => {
+		if (left.verdict !== right.verdict) {
+			return left.verdict === "TOOL_UNSUITABLE" ? -1 : 1;
+		}
+		return right.sampleCount - left.sampleCount || left.modelId.localeCompare(right.modelId);
+	});
+	return badges;
+}

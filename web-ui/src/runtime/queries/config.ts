@@ -14,6 +14,7 @@ import type {
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeModelVerdictBadgesResponse,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSetupPlanResponse,
@@ -52,6 +53,12 @@ export async function fetchModelBehaviorProfiles(
 export async function fetchFitnessTable(workspaceId: string | null): Promise<RuntimeFitnessTableResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getFitnessTable.query();
+}
+
+/** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */
+export async function fetchModelVerdictBadges(workspaceId: string | null): Promise<RuntimeModelVerdictBadgesResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getModelVerdictBadges.query();
 }
 
 export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {

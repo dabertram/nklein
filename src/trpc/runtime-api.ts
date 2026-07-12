@@ -16,6 +16,7 @@ import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../ch
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
+import { selectAttempts } from "../core/agent-attempt-ledger";
 import type {
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeTaskContextImportResponse,
@@ -52,6 +53,7 @@ import {
 import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
 import {
@@ -78,13 +80,13 @@ import {
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { openInBrowser } from "../server/browser";
-import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
-import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
@@ -446,6 +448,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				generatedAt: Date.now(),
 				rows: buildFitnessTableView(Object.values(table.rows)),
 			};
+		},
+		// §5.AL/§10c#11: degraded-model badges for the model selector — derived from persisted self-observation
+		// events + the ledger run denominator (same recipe as `dev model-verdict`). Read-only; empty on any error.
+		getModelVerdictBadges: async () => {
+			const [events, ledgerEvents] = await Promise.all([
+				readSelfObservationEvents({ limit: 500 }).catch(() => []),
+				readAllAgentLedger().catch(() => []),
+			]);
+			const runs = selectAttempts(ledgerEvents).map((attempt) => ({
+				runId: attempt.attemptId,
+				modelId: attempt.modelId,
+			}));
+			return { generatedAt: Date.now(), badges: buildModelVerdictBadges({ events, runs }) };
 		},
 		getFleetStatus: async (workspaceScope) => {
 			return await handleGetFleetStatus({

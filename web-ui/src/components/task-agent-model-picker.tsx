@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { NKleinChatModelSelector } from "@/components/detail-panels/nklein-chat-model-selector";
 import {
+	applyModelVerdictBadgesToOptions,
 	buildNKleinAgentModelPickerOptions,
 	buildNKleinSelectedModelButtonText,
 	getNKleinReasoningEnabledModelIds,
@@ -15,9 +16,11 @@ import { cn } from "@/components/ui/cn";
 import { NativeSelect } from "@/components/ui/native-select";
 import { filterVisibleNKleinProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
 import { isLmStudioProviderId } from "@/runtime/nklein-context-window-policy";
+import { fetchModelVerdictBadges } from "@/runtime/queries/config";
 import { fetchNKleinProviderCatalog, fetchNKleinProviderModels } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
+	RuntimeModelVerdictBadge,
 	RuntimeNKleinProviderCatalogItem,
 	RuntimeNKleinProviderModel,
 	RuntimeNKleinReasoningEffort,
@@ -68,11 +71,34 @@ export function useTaskAgentModelPicker({
 	void _cloudProviderSupportEnabled;
 	const [providerCatalog, setProviderCatalog] = useState<RuntimeNKleinProviderCatalogItem[]>([]);
 	const [providerModels, setProviderModels] = useState<RuntimeNKleinProviderModel[]>([]);
+	const [verdictBadges, setVerdictBadges] = useState<RuntimeModelVerdictBadge[]>([]);
 	const [isLoadingProviders, setIsLoadingProviders] = useState(false);
 	const [isLoadingModels, setIsLoadingModels] = useState(false);
 
 	// Derive the effective agent: explicit override takes precedence, then the global default
 	const effectiveAgentId = agentId ?? defaultAgentId ?? null;
+
+	// §10c#11: fetch the degraded-model badges once per picker activation (read-only telemetry; empty on error).
+	useEffect(() => {
+		if (!active || effectiveAgentId !== "nklein") {
+			return;
+		}
+		let cancelled = false;
+		void fetchModelVerdictBadges(workspaceId)
+			.then((response) => {
+				if (!cancelled) {
+					setVerdictBadges(response.badges);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setVerdictBadges([]);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [active, effectiveAgentId, workspaceId]);
 
 	useEffect(() => {
 		if (!active || effectiveAgentId !== "nklein") {
@@ -214,12 +240,17 @@ export function useTaskAgentModelPicker({
 		}
 		const defaultOptions =
 			nkleinProviderId && isLmStudioProviderId(nkleinProviderId) ? [] : [{ value: "", label: defaultLabel }];
-		return [
-			...defaultOptions,
-			// Exclude the default model from the explicit list — it's already represented by the first option
-			...providerModels.filter((m) => m.id !== effectiveDefaultModelId).map((m) => ({ value: m.id, label: m.name })),
-		];
-	}, [nkleinProviderId, providerModels, effectiveDefaultModelId]);
+		return applyModelVerdictBadgesToOptions(
+			[
+				...defaultOptions,
+				// Exclude the default model from the explicit list — it's already represented by the first option
+				...providerModels
+					.filter((m) => m.id !== effectiveDefaultModelId)
+					.map((m) => ({ value: m.id, label: m.name })),
+			],
+			verdictBadges,
+		);
+	}, [nkleinProviderId, providerModels, effectiveDefaultModelId, verdictBadges]);
 
 	return {
 		agentOptions,

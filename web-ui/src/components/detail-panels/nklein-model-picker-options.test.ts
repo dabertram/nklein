@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	applyModelVerdictBadgesToOptions,
 	buildNKleinAgentModelPickerOptions,
 	buildNKleinSelectedModelButtonText,
 	formatNKleinReasoningEffortLabel,
@@ -114,5 +115,27 @@ describe("nklein model labels", () => {
 	it("resolves known model IDs to display names", () => {
 		expect(resolveNKleinModelDisplayName("llama-3.1-8b")).toBe("llama-3.1-8b");
 		expect(resolveNKleinModelDisplayName("openai/unknown-model")).toBe("openai/unknown-model");
+	});
+});
+
+describe("applyModelVerdictBadgesToOptions (§10c#11)", () => {
+	it("suffixes degraded models' labels (normalized id match) and leaves others + the default option alone", () => {
+		const options = [
+			{ value: "", label: "Default" },
+			{ value: "qwen/qwen2.5-coder-14b", label: "Qwen2.5 Coder 14B" },
+			{ value: "healthy-model", label: "Healthy" },
+		];
+		const out = applyModelVerdictBadgesToOptions(options, [
+			{ modelId: "QWEN/QWEN2.5-CODER-14B", label: "stalled 3× · tool-weak" },
+			{ modelId: "unknown-model", label: "unsuitable" },
+		]);
+		expect(out[0].label).toBe("Default");
+		expect(out[1].label).toBe("Qwen2.5 Coder 14B ⚠ stalled 3× · tool-weak");
+		expect(out[2].label).toBe("Healthy");
+	});
+
+	it("is a no-op copy with no badges", () => {
+		const options = [{ value: "m", label: "M" }];
+		expect(applyModelVerdictBadgesToOptions(options, [])).toEqual(options);
 	});
 });

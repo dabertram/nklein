@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessRuntimeModelVerdict,
+	buildModelVerdictBadges,
 	combineSuitabilityVerdicts,
 	MIN_RUNS_FOR_VERDICT,
 	penalizeFitnessByRuntimeVerdict,
@@ -214,5 +215,41 @@ describe("penalizeFitnessByRuntimeVerdict", () => {
 		const verdicts = new Map<string, "TOOL_UNSUITABLE">([["a", "TOOL_UNSUITABLE"]]);
 		penalizeFitnessByRuntimeVerdict(ranked, verdicts);
 		expect(ranked[0]).toEqual({ modelId: "a", fitnessScore: 0.9 });
+	});
+});
+
+describe("buildModelVerdictBadges (§10c#11 selector badge)", () => {
+	it("badges only degraded models at medium+ confidence, worst-first, with a compact label", () => {
+		const events = [
+			// chronic staller: 4 distinct stalled runs of 4 total ⇒ TOOL_UNSUITABLE, medium+ confidence
+			event("staller", "model_stalled", "r1"),
+			event("staller", "model_stalled", "r2"),
+			event("staller", "model_stalled", "r3"),
+			event("staller", "model_stalled", "r4"),
+			// healthy model with plenty of clean runs
+			event("healthy", "verification_failed", "h1"),
+		];
+		const runs = [
+			...["r1", "r2", "r3", "r4"].map((runId) => ({ runId, modelId: "staller" })),
+			...["h1", "h2", "h3", "h4", "h5", "h6"].map((runId) => ({ runId, modelId: "healthy" })),
+		];
+		const badges = buildModelVerdictBadges({ events, runs });
+		expect(badges.map((b) => b.modelId)).toEqual(["staller"]);
+		expect(badges[0].verdict).toBe("TOOL_UNSUITABLE");
+		expect(badges[0].label).toMatch(/stalled 4×/);
+		expect(badges[0].label).toMatch(/unsuitable/);
+	});
+
+	it("does NOT badge on low-confidence evidence (never condemn on noise)", () => {
+		// one stalled run of one — verdict would be negative but confidence is low ⇒ no badge
+		const badges = buildModelVerdictBadges({
+			events: [event("thin", "model_stalled", "only-run")],
+			runs: [{ runId: "only-run", modelId: "thin" }],
+		});
+		expect(badges).toEqual([]);
+	});
+
+	it("returns empty with no evidence at all", () => {
+		expect(buildModelVerdictBadges({ events: [], runs: [] })).toEqual([]);
 	});
 });

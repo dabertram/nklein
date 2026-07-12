@@ -116,3 +116,25 @@ export function buildNKleinSelectedModelButtonText({
 		showReasoningEffort,
 	});
 }
+
+/**
+ * §5.AL/§10c#11: suffix degraded models' option labels with their runtime-evidence badge ("⚠ stalled 3× ·
+ * tool-weak") so the penalty is visible AT PICK TIME. Pure; id match is normalized (trim/lowercase); the ""
+ * default option is never badged. Unmatched badges are ignored (fail-open — a stale id never breaks the picker).
+ */
+export function applyModelVerdictBadgesToOptions(
+	options: ReadonlyArray<{ value: string; label: string }>,
+	badges: ReadonlyArray<{ modelId: string; label: string }>,
+): Array<{ value: string; label: string }> {
+	if (badges.length === 0) {
+		return [...options];
+	}
+	const byId = new Map(badges.map((badge) => [badge.modelId.trim().toLowerCase(), badge.label]));
+	return options.map((option) => {
+		if (!option.value) {
+			return option;
+		}
+		const badge = byId.get(option.value.trim().toLowerCase());
+		return badge ? { ...option, label: `${option.label} ⚠ ${badge}` } : option;
+	});
+}

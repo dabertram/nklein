@@ -42,6 +42,7 @@ import type {
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeModelVerdictBadgesResponse,
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
 	RuntimeNKleinAccountProfileResponse,
@@ -197,6 +198,8 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
 		/** §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + failing-LLM projection. */
 		getFitnessTable: () => Promise<RuntimeFitnessTableResponse>;
+		/** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */
+		getModelVerdictBadges: () => Promise<RuntimeModelVerdictBadgesResponse>;
 		/** §5.AA learned model behavior: the per-model ModelBehaviorProfile fold, read-only for Settings telemetry. */
 		getModelBehaviorProfiles: () => Promise<RuntimeModelBehaviorProfilesResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */

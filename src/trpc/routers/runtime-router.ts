@@ -24,6 +24,7 @@ import {
 	runtimeMergeHistoryResponseSchema,
 	runtimeModelBehaviorProfilesResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
+	runtimeModelVerdictBadgesResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
 	runtimeNKleinAccountOrganizationsResponseSchema,
 	runtimeNKleinAccountProfileResponseSchema,
@@ -142,6 +143,9 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getFitnessTable: t.procedure
 			.output(runtimeFitnessTableResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getFitnessTable()),
+		getModelVerdictBadges: t.procedure
+			.output(runtimeModelVerdictBadgesResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getModelVerdictBadges()),
 		// §5.AX fleet-strip live status (machine names + warmth).
 		getFleetStatus: workspaceProcedure.output(runtimeFleetStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getFleetStatus(ctx.workspaceScope);
