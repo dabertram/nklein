@@ -10283,8 +10283,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `capability_overreach` (which only FLAGS over-reach as a risk finding) and `capability-escalation.ts` (which compares two
       full `ToolCapabilityManifest`s, not a declared tool-name list vs an allowed set). A `granted` result is the tools to ALLOW,
       NOT a trust assertion — the §5.AP.E pre-screen + §5.AP.C opt-in + Docker sandbox still gate everything else. `skillGrantHasOverreach`
-      convenience predicate too. 24 tests; tsc + biome clean. Still OWED (D): the no-auto-exec bundled-script gate over
-      `skill-bundled-file-manifest.ts`'s `scripts/*` entries; credential/identity constraint (not just domains); Rule-of-Two at the
+      convenience predicate too. 24 tests; tsc + biome clean.
+      **(2026-07-13) NO-AUTO-EXECUTE GATE LEAF done** ("the real protection" — the single most important containment rule):
+      `src/core/skill-execution-gate.ts` — `gateSkillBundleExecution(entries)` + `classifyBundledFileExecution(entry)` are the
+      POLICY over item-A's `skill-bundled-file-manifest.ts` DETECTION (imported BY TYPE). Each bundled file gets a
+      `SkillFileExecutionDisposition`: `blocked` (a reject-level containment finding — never materialised), `requires-approval`
+      (NEVER auto-run — a human must approve it per-file), or `inert` (data, may be read, never runs). CONSERVATIVE / fails
+      toward approval: a file is approval-gated if it's under `scripts/` (RCE-by-LOCATION), OR the manifest flagged
+      `executable_mode`/`executable_script`, OR its path carries a known executable/script/native-binary extension (a 60-ext
+      set — defence-in-depth that catches a `.sh` smuggled into `assets/` without the exec bit, which the manifest only flags
+      under `scripts/`). Bundle `posture` = worst of {clean, approval-required, blocked}. `neverAutoExecutePaths(result)`
+      exposes the exact never-auto-run set the effectful §5.L sandbox seam must refuse to hand a shell without a recorded
+      approval; `skillBundleRequiresExecutionApproval` predicate. Extension parsing is dotfile-safe (`.env` ≠ executable) +
+      dir-name-safe (`py.things/readme` ≠ `.py`) + case-insensitive. Pure/total/no-mutate; 17 tests; tsc + biome clean. This is
+      DISTINCT from the grant-reconcile leaf (which gates TOOLS) and Mode-C (which gates IMPORT friction) — they compose.
+      Still OWED (D): credential/identity constraint (not just domains); Rule-of-Two at the
       session level; and wiring the grant into the effectful §5.L sandbox/egress boundary.
 - [~] **E. Deterministic NON-LLM pre-screen (the only "checking" that adds zero prompt-exposure), decomposed:** static scan
       for injection markers ("ignore previous", role-override, zero-width/homoglyph unicode, hidden HTML/base64 blobs),
