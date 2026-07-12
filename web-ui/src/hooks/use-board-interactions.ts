@@ -85,6 +85,31 @@ function shouldKickoffOnMoveIntoProgress(input: {
 	return input.fromColumnId === "planning" && input.card.startInPlanMode === false && !input.hasExistingSession;
 }
 
+/**
+ * Surface a failed task-start uniformly. A soft `endpoint_busy` deferral — the model endpoint is briefly busy and the
+ * task is usually auto-queued to retry (routine §5.T scheduling, NOT a failure) — gets a NEUTRAL informational toast,
+ * keyed per task so repeated deferrals refresh one toast rather than stacking red errors; every other failure is a
+ * genuine error.
+ */
+function notifyStartFailure(
+	result: { errorCode?: StartTaskSessionResult["errorCode"]; message?: string | null },
+	fallbackMessage: string,
+	taskId: string,
+): void {
+	if (result.errorCode === "endpoint_busy") {
+		showAppToast(
+			{
+				intent: "none",
+				message: result.message ?? "Model endpoint busy — the task will start shortly.",
+				timeout: 5000,
+			},
+			`endpoint-busy:${taskId}`,
+		);
+		return;
+	}
+	notifyError(result.message ?? fallbackMessage);
+}
+
 function getStartBlockedKind(errorCode: StartTaskSessionResult["errorCode"]): TaskBlockedKind | null {
 	if (errorCode === "needs_decomposition") {
 		return "needs_decomposition";
@@ -452,7 +477,7 @@ export function useBoardInteractions({
 			// §5.A). `optimisticMove`/`activeColumnId`/`fromColumnId` remain the revert anchors if the start fails.
 			const started = await startTaskSession(task, { queueOnEndpointBusy: options?.queueOnEndpointBusy });
 			if (!started.ok) {
-				notifyError(started.message ?? "Could not start task session.");
+				notifyStartFailure(started, "Could not start task session.", taskId);
 				const blockedKind = getStartBlockedKind(started.errorCode);
 				if (blockedKind) {
 					// §5.AB: when a task is blocked on routing, append the "why this model" explanation so the operator sees
@@ -937,7 +962,7 @@ export function useBoardInteractions({
 					});
 					const started = await startTaskSession(selection.card, { queueOnEndpointBusy: true });
 					if (!started.ok) {
-						notifyError(started.message ?? "Could not replay task.");
+						notifyStartFailure(started, "Could not replay task.", taskId);
 						return;
 					}
 					showPinnedModelRecommendationToast(taskId, started.selectionReason);
@@ -987,7 +1012,7 @@ export function useBoardInteractions({
 					promptOverride: buildDecompositionPlanningPrompt(selection.card),
 				});
 				if (!started.ok) {
-					notifyError(started.message ?? "Could not start decomposition planning.");
+					notifyStartFailure(started, "Could not start decomposition planning.", taskId);
 					return;
 				}
 				showPinnedModelRecommendationToast(taskId, started.selectionReason);

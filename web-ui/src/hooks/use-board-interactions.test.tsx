@@ -616,6 +616,56 @@ describe("useBoardInteractions", () => {
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
 	});
 
+	it("soft-defers a busy-endpoint task start with a neutral toast, not a red error", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard = createBoard();
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const startTaskSession = vi.fn(async () => ({
+			ok: false as const,
+			message: "Another !Klein task is already running on shared endpoint. Estimated wait: about 1s.",
+			errorCode: "endpoint_busy" as const,
+			retryAfterMs: 1000,
+		}));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// A busy-endpoint deferral is routine scheduling, not a failure: neutral toast, never a red error.
+		expect(notifyErrorMock).not.toHaveBeenCalled();
+		expect(showAppToastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				intent: "none",
+				message: expect.stringContaining("already running on shared endpoint"),
+			}),
+			expect.stringContaining("endpoint-busy:"),
+		);
+	});
+
 	it("marks unloaded local models with the loaded LM Studio model set", async () => {
 		setupDefaultBoardInteractionMocks();
 		let latestSnapshot: HookSnapshot | null = null;
