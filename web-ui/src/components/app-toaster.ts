@@ -44,3 +44,19 @@ export function notifyError(message: string | null | undefined, options?: Notify
 		options?.key ?? `error:${normalized}`,
 	);
 }
+
+export function notifyWarning(message: string | null | undefined, options?: NotifyErrorOptions): void {
+	const normalized = message?.trim();
+	if (!normalized) {
+		return;
+	}
+	showAppToast(
+		{
+			intent: "warning",
+			icon: "warning-sign",
+			message: normalized,
+			timeout: options?.timeout ?? 6000,
+		},
+		options?.key ?? `warning:${normalized}`,
+	);
+}

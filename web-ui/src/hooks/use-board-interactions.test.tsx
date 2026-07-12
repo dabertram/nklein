@@ -9,12 +9,14 @@ import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import type { BoardCard, BoardColumnId, BoardData } from "@/types";
 
 const notifyErrorMock = vi.hoisted(() => vi.fn());
+const notifyWarningMock = vi.hoisted(() => vi.fn());
 const showAppToastMock = vi.hoisted(() => vi.fn());
 const useLinkedBacklogTaskActionsMock = vi.hoisted(() => vi.fn());
 const useProgrammaticCardMovesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/app-toaster", () => ({
 	notifyError: notifyErrorMock,
+	notifyWarning: notifyWarningMock,
 	showAppToast: showAppToastMock,
 }));
 
@@ -264,6 +266,7 @@ describe("useBoardInteractions", () => {
 			window.clearTimeout(handle);
 		});
 		notifyErrorMock.mockReset();
+		notifyWarningMock.mockReset();
 		showAppToastMock.mockReset();
 		useLinkedBacklogTaskActionsMock.mockReset();
 		useProgrammaticCardMovesMock.mockReset();

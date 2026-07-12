@@ -2,7 +2,7 @@ import type { DropResult } from "@hello-pangea/dnd";
 import { clampRuntimeSwarmCardStartBatchSize } from "@runtime-contract";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { notifyError, showAppToast } from "@/components/app-toaster";
+import { notifyError, notifyWarning, showAppToast } from "@/components/app-toaster";
 import type { TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useLinkedBacklogTaskActions } from "@/hooks/use-linked-backlog-task-actions";
 import { useProgrammaticCardMoves } from "@/hooks/use-programmatic-card-moves";
@@ -923,12 +923,14 @@ export function useBoardInteractions({
 			}
 			const activeFileOwners = getSessionActiveTaskCardsForFileOverlap(board, sessions, new Set([taskId]));
 			if (hasLikelyTouchedFileOverlap(selection.card, activeFileOwners)) {
-				notifyError("Another running task likely touches the same files. Wait for it to finish before replaying.");
+				notifyWarning(
+					"Another running task likely touches the same files. Wait for it to finish before replaying.",
+				);
 				return;
 			}
 			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
 			if (availableStartSlots === 0) {
-				notifyError("Maximum concurrent task limit reached. Wait for a running task to finish before replaying.");
+				notifyWarning("Maximum concurrent task limit reached. Wait for a running task to finish before replaying.");
 				return;
 			}
 			const title = selection.card.title.trim() || "this task";
