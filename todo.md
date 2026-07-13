@@ -654,8 +654,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
     block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
-- [ ] **F1.10 — Wire first-class stuck/at-risk signals into worker and runtime loops.** Generalize fixture flips,
-  read/tool loops, host-path confusion, no-progress, and repeated failures into early escalation rather than grinding.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
 - [ ] **F1.14 — Finish production writes to the Agent Attempt Ledger.** Record every attempt, rung, endpoint, model,

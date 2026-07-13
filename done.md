@@ -452,6 +452,24 @@
   exemption + fallback scope + unbounded skip; gate glob-scope new-file allow + out-of-scope deny + forbidden deny
   inside allowed scope).
 
+- [x] **F1.10 — Wire first-class stuck/at-risk signals into worker and runtime loops** *(delivered 2026-07-13).*
+  The unified §5.AA/§5.AG trouble signal (`assessTaskTrouble` — previously a pure core with zero consumers) is now
+  LIVE for every RUNNING card: the board-liveness watchdog tick composes it per task from real data —
+  `buildStucknessSignalsFromLedger` → `classifyAgentStuckness` (repeated capability-class failures across distinct
+  approaches + uncleared loops = hard_stuck; the generalization of fixture flips / repeated failures — host-path
+  confusion and read/tool loops feed in as the attempt stream's outcomes and salvage records), NEW
+  `buildAttemptProgressSnapshotsFromLedger` → `consecutiveNoProgressAttempts` (no-progress grind: same tools, no
+  artifacts, no checks moving), and `assessRunLiveness` over the summary's activity ages with GENEROUS thresholds
+  (idle 2m / stalled 10m / silent 20m — a slow low-power host is never read as stalling; a pre-first-token session
+  is the zero-token sweep's jurisdiction, not "silent"). EARLY escalation instead of grinding: trouble is recorded
+  (self-observation `task_trouble_signal` + ledger transition `running → trouble_<kind>` so projections/learning
+  see it) and a still-alive run gets ONE bounded cancel-then-send steer per episode kind (the turn-loop guard's
+  proven mid-session sequence) — no_progress gets a vary-the-approach steer, hard_stuck a stop-grinding/simplify/
+  finish-honestly steer; `silent` is record-only (the wedge/heartbeat rungs own killing) and the terminal-redrive
+  §5.AG Layer-1 ladder keeps owning model switching. Dedupe clears when the trouble clears, so a new episode
+  re-arms. 7 new tests (snapshot mapper, none/no_progress/hard_stuck/silent verdicts, pre-first-token exemption,
+  slow-but-alive low-power non-trouble, steer messages incl. silent→null).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

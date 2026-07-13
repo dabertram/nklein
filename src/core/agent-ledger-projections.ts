@@ -23,6 +23,7 @@ import {
 	summarizeToolUsageByModel,
 } from "./agent-attempt-ledger";
 import type { AgentStucknessSignals } from "./agent-stuckness";
+import type { AttemptProgressSnapshot } from "./attempt-progress-tracker";
 import { buildFailureCapsule, type FailureCapsule, summarizeFailureCapsules } from "./failure-capsule";
 import {
 	emptyModelBehaviorProfile,
@@ -422,6 +423,34 @@ export function buildStucknessSignalsFromLedger(
 		retryBudgetExhausted: options.retryBudgetExhausted ?? false,
 		hadProgressSinceStuck,
 	};
+}
+
+/**
+ * F1.10: project one task's ledger attempt stream into the `AttemptProgressSnapshot` sequence the no-progress
+ * tracker (`consecutiveNoProgressAttempts`) reads. Oldest → newest. Dimensions from what the attempt actually
+ * recorded: tool-call count + breadth, a quality-gate pass as a check, and produced artifacts as usable output
+ * (presence-as-binary — the ledger stores refs, not byte sizes; "any artifact" vs "none" is the forward signal).
+ */
+export function buildAttemptProgressSnapshotsFromLedger(
+	events: readonly AgentLedgerEvent[],
+	taskId: string,
+): AttemptProgressSnapshot[] {
+	return selectAttempts(events)
+		.filter((attempt) => attempt.taskId === taskId)
+		.sort((left, right) => left.recordedAt - right.recordedAt)
+		.map((attempt) => ({
+			outcome: attempt.outcome,
+			toolCallsEmitted: attempt.toolCalls.length,
+			distinctToolsExercised: new Set(attempt.toolCalls.map((call) => call.name)).size,
+			...(attempt.qualityOk !== null ? { checksPassed: attempt.qualityOk ? 1 : 0 } : {}),
+			usableOutputBytes:
+				attempt.artifacts !== null &&
+				(attempt.artifacts.resultBranch !== null ||
+					attempt.artifacts.patchRef !== null ||
+					attempt.artifacts.evidenceBundle !== null)
+					? 1
+					: 0,
+		}));
 }
 
 // ---------------------------------------------------------------------------

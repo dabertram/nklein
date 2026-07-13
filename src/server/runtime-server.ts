@@ -182,6 +182,7 @@ import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from 
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
+import { buildTroubleSteeringMessage, evaluateRunningTaskTrouble } from "./task-trouble-monitor";
 import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
@@ -475,6 +476,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.9b: a result whose ACTUAL changed files violate the card's work-package bounds gets ONE re-drive naming
 	// the violating paths (mirrors the #28 rung), then holds in Review for the operator.
 	const boundaryViolationRedriveAttemptsByTaskKey = new Map<string, number>();
+	// F1.10: per-workspace "already notified" map for the running-task trouble read (taskId → episode kind), so a
+	// troubled card is steered ONCE per episode kind instead of every watchdog tick; cleared when the trouble clears.
+	const troubleNotifiedKindByWorkspaceId = new Map<string, Map<string, string>>();
 	// run16 live finding: recovery (deferred-retry + ready-sweep) only fired on COMPLETION — a card that dies
 	// (interrupted/failed, e.g. mid-write on a slow model) produces NO completion, so the board froze with
 	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
@@ -2494,6 +2498,69 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
 							});
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
+						}
+						// F1.10 first-class stuck/at-risk read: evaluate the unified trouble signal for every RUNNING
+						// session on this board (ledger attempt stream + summary activity ages). Trouble is RECORDED
+						// (self-observation + ledger transition) and a still-alive grinding run gets ONE bounded
+						// cancel-then-send steer per episode kind — never a kill (the wedge/heartbeat rungs own those).
+						const runningSummaries = trackedService
+							.listSummaries()
+							.filter((summary) => summary.state === "running" && !isHomeAgentSessionId(summary.taskId));
+						if (runningSummaries.length > 0) {
+							const troubleEvents = await readAgentLedger({
+								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+							}).catch(() => []);
+							const notifiedKinds =
+								troubleNotifiedKindByWorkspaceId.get(scope.workspaceId) ?? new Map<string, string>();
+							troubleNotifiedKindByWorkspaceId.set(scope.workspaceId, notifiedKinds);
+							for (const summary of runningSummaries) {
+								const verdict = evaluateRunningTaskTrouble({
+									events: troubleEvents,
+									summary,
+									nowMs: Date.now(),
+								});
+								if (!verdict.trouble) {
+									notifiedKinds.delete(summary.taskId);
+									continue;
+								}
+								if (notifiedKinds.get(summary.taskId) === verdict.kind) {
+									continue; // already handled this episode kind — don't re-nudge every tick
+								}
+								notifiedKinds.set(summary.taskId, verdict.kind);
+								deps.warn(
+									`Task trouble (${verdict.kind}) on running card ${summary.taskId}: ${verdict.reason}`,
+								);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Stuck/at-risk signal for running card ${summary.taskId} (${verdict.kind}): ${verdict.reason}`,
+									taskId: summary.taskId,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "task_trouble_signal", kind: verdict.kind },
+								});
+								void appendAgentLedgerEvent(
+									buildTransitionEvent({
+										workflowId: summary.taskId,
+										taskId: summary.taskId,
+										workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+										from: "running",
+										to: `trouble_${verdict.kind}`,
+										reason: verdict.reason,
+										controllerDecision: "task_trouble_monitor",
+									}),
+								).catch(() => {});
+								const steer = buildTroubleSteeringMessage(verdict);
+								if (steer) {
+									// The turn-loop guard's proven mid-session sequence: cancel the in-flight turn, then
+									// inject the steer. A session that ended on its own cancels to null — drop the nudge.
+									void trackedService
+										.cancelTaskTurn(summary.taskId)
+										.then((cancelled) =>
+											cancelled ? trackedService.sendTaskSessionInput(summary.taskId, steer, "act") : null,
+										)
+										.catch(() => null);
+								}
+							}
 						}
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending

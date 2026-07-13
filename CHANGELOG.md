@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Grinding workers are now caught early, not after they burn their whole run.** The runtime continuously watches
+  every running card for the known trouble patterns — repeated attempts with no measurable progress, the same
+  failure recurring across different approaches, response loops that recovery couldn't clear, and a run gone
+  silent. A troubled-but-alive worker gets one clear mid-run course correction ("change your approach" or "stop
+  grinding — finish the smallest correct version and say what's missing"), and every trouble signal is recorded so
+  the escalation and learning machinery see it. Thresholds are deliberately generous so slow local models on
+  low-power machines are never mistaken for stuck ones.
+
 - **Card guard rails are enforced end to end: while the worker works and before the result merges.** The live write
   gate now understands directory-scoped bounds — a card scoped to `src/orders/**` may create new files inside that
   directory (previously only pre-declared files were allowed), and paths a card declares off-limits are blocked
