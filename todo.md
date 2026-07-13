@@ -11596,8 +11596,17 @@ downloads whenever relevant (model-lab phase (a) waits on them).
       (b) root-cause the wedge SITE deterministically (W2.1-harness repro of queued-drain-start racing the
       seed's teardown; prime suspect per the 2026-07-10 note: the model-turn ADMISSION gate's evaluate/tail path
       — the seed's admission may never release when it settles `idle`, deadlocking the next turn's admission);
-      (c) the watchdog-silence sub-question (why zero ticks logged for an armed interval). Evidence archived:
-      scratchpad/stall-evidence + this session's transcript (poke scripts + tRPC probes inline). Evidence:
+      (c) the watchdog-silence sub-question (why zero ticks logged for an armed interval) — one hypothesis already
+      ELIMINATED (2026-07-13): "the watchdog read a different/empty board" is ruled out; BOTH persisted board copies
+      (HOME-level `workspaces/<id>/board.json` AND the dev-workspace-local `workspace/board.json`) contained the same
+      6 cards (4 planning + 1 ready + 1 completed), so `listStartableUnstartedTaskIds` would return startable>0 from
+      either path. Remaining suspects: the tick's async body never scheduled (event-loop starvation is unlikely — the
+      HTTP API stayed responsive), the interval armed against a DIFFERENT scope.workspaceId than the dev-test project
+      served under, or an await inside the tick (retryWorkspaceStateLock / loadWorkspaceState on the dev-workspace
+      path) hanging forever WITHOUT throwing (which would also skip the #35 error record — a hang is not an error).
+      NEXT: instrument the tick entry itself (a per-tick trace/counter observation) so tick-ran vs tick-hung is
+      distinguishable on the next live run. Evidence archived: scratchpad/stall-evidence + this session's transcript
+      (poke scripts + tRPC probes inline). Evidence:
       merged-stack run, project 05 seeded first — its foundation card s01 hit `skipped (not_reviewable)` (the
       known finalize-before-lane-move race), then a second finalize got `skipped (no_verdict)` (review session
       settled with no submit_review — even though a direct probe of the live simulator answered that exact
