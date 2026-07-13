@@ -783,9 +783,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   publish only when the snapshot differs; no tight poll loop by construction). REMAINING (rides the F1.31b
   wiring): tRPC commands mapping to the reducer, snapshot fan-out via the runtime state hub, persistence of the
   control state + cadence/cap in config, and the Settings/status UI.
-- [ ] **F1.36 — Wire opportunistic idle work into durable scheduling** *(legacy §5.AW).* When a suitable model becomes
-  idle, choose the highest-value safe work-ahead/review/deliberation/context-prep action, enforce overlap/resource/
-  background-budget gates, and record realized value.
+- [ ] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
+  §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
+  now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
+  concurrency cap 1 + trailing-hour dispatch budget 6, applied before the ranker every tick) and RECORDS REALIZED
+  VALUE (`buildOpportunisticWorkOutcomeEvent` → §5.AF ledger transitions `opportunistic_realized|no_value|error`
+  keyed `kind:targetRef`, at both the review and re-eval dispatch sites; `summarizeOpportunisticValue` folds them
+  to a per-kind realized-rate scorecard — the future evidence-driven ranker input). REMAINING (fleet + C3):
+  when `NKLEIN_DURABLE_SCHEDULER` is on, represent opportunistic actions as lowest-priority durable jobs
+  (admission via F1.19 `planDurableAdmission` + F1.24 reservations so they never displace or double-book real
+  work) instead of the side-channel interval; feed `summarizeOpportunisticValue` into the ranker's priorities
+  once enough outcomes accumulate.
 - [ ] **F1.37 — Complete orthogonal N-eyes review scheduling** *(legacy §5.AW).* Assign distinct lenses and model
   families, run blind-then-confer, deduplicate/dispute findings, and stop adding eyes when marginal value collapses.
 - [ ] **F1.38 — Finish the hermetic Playwright smoke foundation** *(legacy §5.AK).* Add the shared mock helper,

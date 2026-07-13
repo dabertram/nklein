@@ -61,6 +61,12 @@ import {
 	findStalledReviewTaskIds,
 	findThinEvalCells,
 } from "../core/opportunistic-idle-work";
+import type { OpportunisticWorkKind } from "../core/opportunistic-work-ranker";
+import {
+	buildOpportunisticWorkOutcomeEvent,
+	decideOpportunisticBudget,
+	type OpportunisticWorkOutcome,
+} from "../core/opportunistic-work-value";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import {
 	buildKanbanRuntimeUrl,
@@ -547,6 +553,39 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// the highest-value available opportunistic task. Today only the `review` picker is wired (a review-lane card whose
 	// review the event path missed) — its per-workspace idempotency set stops re-reviewing the same card each tick.
 	const opportunisticIdleWorkTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	// F1.36: background-budget bookkeeping + realized-value retention for the idle sweep.
+	const opportunisticDispatchAtsByWorkspaceId = new Map<string, number[]>();
+	const opportunisticActiveCountByWorkspaceId = new Map<string, number>();
+	const bumpOpportunisticActive = (workspaceId: string, delta: number): void => {
+		const next = (opportunisticActiveCountByWorkspaceId.get(workspaceId) ?? 0) + delta;
+		opportunisticActiveCountByWorkspaceId.set(workspaceId, Math.max(0, next));
+	};
+	const recordOpportunisticDispatch = (workspaceId: string, now: number): void => {
+		const ats = opportunisticDispatchAtsByWorkspaceId.get(workspaceId) ?? [];
+		ats.push(now);
+		// Keep only the trailing hour + change — the budget window never looks further back.
+		opportunisticDispatchAtsByWorkspaceId.set(
+			workspaceId,
+			ats.filter((at) => at > now - 2 * 3_600_000),
+		);
+	};
+	const recordOpportunisticOutcome = (
+		workspacePath: string,
+		kind: OpportunisticWorkKind,
+		targetRef: string,
+		outcome: OpportunisticWorkOutcome,
+		detail?: string,
+	): void => {
+		void appendAgentLedgerEvent(
+			buildOpportunisticWorkOutcomeEvent({
+				workspacePathHash: hashWorkspacePathForLedger(workspacePath),
+				kind,
+				targetRef,
+				outcome,
+				detail: detail ?? null,
+			}),
+		).catch(() => {});
+	};
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	/** §5.AB idle re-eval rail: eval cellKeys with a dispatch IN FLIGHT (cleared on completion so thin cells top up). */
 	const idleReEvalDispatchedByWorkspaceId = new Map<string, Set<string>>();
@@ -3126,6 +3165,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							if (!isTruthyEnv(process.env.NKLEIN_OPPORTUNISTIC_IDLE_WORK)) {
 								return;
 							}
+							// F1.36 background-budget gate: idle work never exceeds its concurrency + trailing-hour caps.
+							const opportunisticBudget = decideOpportunisticBudget({
+								now: Date.now(),
+								recentDispatchAts: opportunisticDispatchAtsByWorkspaceId.get(scope.workspaceId) ?? [],
+								activeCount: opportunisticActiveCountByWorkspaceId.get(scope.workspaceId) ?? 0,
+							});
+							if (!opportunisticBudget.allow) {
+								return;
+							}
 							const sessions = trackedService.listModelEndpointSessions();
 							const runningWorkerSessions = sessions.filter(
 								(session) =>
@@ -3169,19 +3217,39 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Opportunistic idle review: swarm idle, dispatching a review for ${decision.reviewTaskId}.`,
 								);
+								const idleReviewTaskId = decision.reviewTaskId;
+								recordOpportunisticDispatch(scope.workspaceId, Date.now());
+								bumpOpportunisticActive(scope.workspaceId, 1);
 								void runSecondOpinionReviewForTask({
 									workspacePath: scope.workspacePath,
-									taskId: decision.reviewTaskId,
+									taskId: idleReviewTaskId,
 									service: trackedService,
 									warn: deps.warn,
 									onRedecomposeCardSpawned: (redecomposeTaskId) =>
 										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
 								})
+									.then(() => {
+										recordOpportunisticOutcome(
+											scope.workspacePath,
+											"review",
+											idleReviewTaskId,
+											"realized",
+											"idle review completed",
+										);
+									})
 									.catch((error) => {
 										const message = error instanceof Error ? error.message : String(error);
-										deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
+										deps.warn(`Opportunistic idle review for ${idleReviewTaskId} errored: ${message}`);
+										recordOpportunisticOutcome(
+											scope.workspacePath,
+											"review",
+											idleReviewTaskId,
+											"error",
+											message,
+										);
 									})
 									.finally(() => {
+										bumpOpportunisticActive(scope.workspaceId, -1);
 										// The opportunistic review freed the endpoint — reuse the slot immediately (todo 11007).
 										drainQueuedTaskStarts(scope, { force: true });
 									});
@@ -3195,6 +3263,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// §5.AB stability judge accumulates the runs it is owed without ever competing with real work.
 							reEvalDispatched.add(reEval.cellKey);
 							idleReEvalDispatchedByWorkspaceId.set(scope.workspaceId, reEvalDispatched);
+							recordOpportunisticDispatch(scope.workspaceId, Date.now());
+							bumpOpportunisticActive(scope.workspaceId, 1);
 							deps.warn(
 								`Opportunistic idle re-eval: swarm idle, running eval cell ${reEval.cellKey} (${reEval.promptIds.length} prompt(s), runsOwed=${reEval.runsOwed}).`,
 							);
@@ -3229,10 +3299,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											},
 										},
 									);
+									let recordedCells = 0;
 									for (const cell of result.cells) {
 										if (cell.score === null) {
 											continue;
 										}
+										recordedCells += 1;
 										await recordTaskFitnessOutcome(
 											{
 												modelKey: reEval.modelId,
@@ -3247,10 +3319,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											{ now: Date.now() },
 										).catch(() => undefined);
 									}
+									recordOpportunisticOutcome(
+										scope.workspacePath,
+										"re_eval",
+										reEval.cellKey,
+										recordedCells > 0 ? "realized" : "no_value",
+										`${recordedCells}/${result.cells.length} cell run(s) recorded`,
+									);
 								} catch (error) {
 									const message = error instanceof Error ? error.message : String(error);
 									deps.warn(`Opportunistic idle re-eval for ${reEval.cellKey} errored: ${message}`);
+									recordOpportunisticOutcome(scope.workspacePath, "re_eval", reEval.cellKey, "error", message);
 								} finally {
+									bumpOpportunisticActive(scope.workspaceId, -1);
 									// The cell may still be thin (needs ≥4 samples) — allow the NEXT tick to top it up.
 									idleReEvalDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(reEval.cellKey);
 								}

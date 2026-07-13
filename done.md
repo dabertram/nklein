@@ -850,6 +850,16 @@
   cleanup errors, recent outcomes); `createRailStatusPublisher` — CHANGE-ONLY push (host notifies on tick/
   control/cleanup events; identical snapshots stay silent) so the surface needs no tight poll loop anywhere.
   7 tests. tsc 0, fast 9500 green.
+- [x] **F1.36a — idle-work background budget + realized-value recording** *(delivered 2026-07-13; the durable-
+  scheduler routing is F1.36b in todo).* `src/core/opportunistic-work-value.ts`: `decideOpportunisticBudget` —
+  the background-budget gate the live §5.AW sweep was missing (concurrency cap, default 1, checked first; then a
+  trailing-hour dispatch budget, default 6) — wired into the runtime's flag-gated idle tick BEFORE the ranker, so
+  idle work can never consume unbounded capacity even on an all-day-idle machine;
+  `buildOpportunisticWorkOutcomeEvent` + `summarizeOpportunisticValue` — every dispatched action (idle review,
+  idle re-eval) now retains its outcome in the §5.AF ledger (`opportunistic_realized|no_value|error`, keyed
+  `kind:targetRef`, the F1.26/F1.33 retention pattern) and the projection folds a per-kind realized-rate
+  scorecard for the eventual evidence-driven ranker. Dispatch bookkeeping (timestamps + active count) rides the
+  existing sweep sites; behavior with the flag OFF is unchanged. 4 core tests. tsc 0, fast 9504 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
