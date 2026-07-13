@@ -860,6 +860,19 @@
   `kind:targetRef`, the F1.26/F1.33 retention pattern) and the projection folds a per-kind realized-rate
   scorecard for the eventual evidence-driven ranker. Dispatch bookkeeping (timestamps + active count) rides the
   existing sweep sites; behavior with the flag OFF is unchanged. 4 core tests. tsc 0, fast 9504 green.
+- [x] **F1.37a — the orthogonal N-eyes review protocol layer** *(delivered 2026-07-13; the panel-runner mount is
+  F1.37b in todo).* `src/core/n-eyes-review-schedule.ts` composes the shipped lens core (orthogonal stances in
+  measured-failure-mass order + the marginal-value stop rule), the lineage-diverse judge selection, and the
+  majority+security-veto combine into the full F1.37 contract: **schedule** — `planNEyesSchedule`'s round-shifted
+  rotation guarantees every eye is a DISTINCT (judge, lens) pair (lenses advance eye-to-eye so orthogonality
+  comes first; judges rotate so consecutive eyes differ in family); **dedup/corroboration** — `dedupeEyeFindings`
+  keys findings case/punctuation-insensitively, corroborates duplicates (severity never averages down), and
+  emits the per-eye new-findings trace that `shouldScheduleAnotherEye` feeds to the shipped stop rule (stop when
+  the last eye added nothing); **blind-then-confer** — `buildConferAssignments` hands each eye only the OTHER
+  eyes' findings (no self-confirmation), and `resolveConferredFindings` drops a finding only when disputes
+  out-vote confirms, surfaces any dispute as `disputed`, and NEVER silently drops a veto-class (high/critical
+  security/correctness) finding — fail-closed so the panel's security veto survives conferring. 8 tests. tsc 0,
+  fast 9512 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

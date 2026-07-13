@@ -794,8 +794,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (admission via F1.19 `planDurableAdmission` + F1.24 reservations so they never displace or double-book real
   work) instead of the side-channel interval; feed `summarizeOpportunisticValue` into the ranker's priorities
   once enough outcomes accumulate.
-- [ ] **F1.37 — Complete orthogonal N-eyes review scheduling** *(legacy §5.AW).* Assign distinct lenses and model
-  families, run blind-then-confer, deduplicate/dispute findings, and stop adding eyes when marginal value collapses.
+- [ ] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
+  `src/core/n-eyes-review-schedule.ts` completes the F1.37 brain over the shipped lens/panel/verdict cores:
+  `planNEyesSchedule` (round-shifted rotation — every eye a DISTINCT (judge, lens) pair, lenses advance first in
+  failure-mass order, judges rotate for family diversity), `dedupeEyeFindings` (case/punctuation-insensitive
+  keying, corroboration, highest-severity-wins, and the per-eye new-findings trace) + `shouldScheduleAnotherEye`
+  (composing the shipped marginal-value stop), and blind-then-confer (`buildConferAssignments` excludes an eye's
+  own findings; `resolveConferredFindings` = out-vote drops, any dispute surfaces, and a veto-class high/critical
+  security/correctness finding is NEVER silently dropped — fail-closed for a stronger tie-break). REMAINING:
+  mount in `nklein-review-panel-runner` — one sequential judge session per eye carrying its lens stance (unique
+  reviewer session ids per the runner's parallelism warning), a confer round re-prompting each judge with the
+  others' findings, and the confirmed/disputed set feeding `combinePanelVerdicts`; live-validate on the fleet.
 - [ ] **F1.38 — Finish the hermetic Playwright smoke foundation** *(legacy §5.AK).* Add the shared mock helper,
   de-stale existing Settings/Chat specs, and create a strict-port `reuseExistingServer:false` smoke config so UI gates
   never pass against a stale server.
