@@ -41,6 +41,9 @@ export interface RuntimeCreateTaskInput {
 	agentId?: RuntimeAgentId;
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
+	/** F1.9 work-package bounds, copied from the plan task at decompose-apply (globs the card may / must not write). */
+	writeScope?: string[];
+	forbiddenPaths?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
 	/** §5.AU: the stream/epic this card belongs to (set by the decomposition write-path). */
 	streamId?: string;
@@ -294,6 +297,8 @@ export function addTaskToColumn(
 		throw new Error(`Task "${explicitTaskId}" already exists.`);
 	}
 	const filesLikelyTouched = normalizeFilesLikelyTouched(input.filesLikelyTouched);
+	const writeScope = normalizeFilesLikelyTouched(input.writeScope);
+	const forbiddenPaths = normalizeFilesLikelyTouched(input.forbiddenPaths);
 	const task: RuntimeBoardCard = {
 		id: explicitTaskId || createUniqueTaskId(existingIds, randomUuid),
 		title: resolveTaskTitle(input.title, prompt),
@@ -305,6 +310,8 @@ export function addTaskToColumn(
 		...(input.agentId ? { agentId: input.agentId } : {}),
 		...(input.nkleinSettings !== undefined ? { nkleinSettings: cloneTaskNKleinSettings(input.nkleinSettings) } : {}),
 		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
+		...(writeScope ? { writeScope } : {}),
+		...(forbiddenPaths ? { forbiddenPaths } : {}),
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
 		...(input.streamId ? { streamId: input.streamId } : {}),
 		baseRef,

@@ -187,6 +187,9 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 					{ powerMultiplier: input.powerMultiplier },
 				),
 				filesLikelyTouched: task.filesLikelyTouched,
+				// F1.9: the card carries its work-package bounds so dispatch/review enforce without re-reading artifacts.
+				...(task.writeScope ? { writeScope: [...task.writeScope] } : {}),
+				...(task.forbiddenPaths ? { forbiddenPaths: [...task.forbiddenPaths] } : {}),
 				generatedFromPlan: {
 					artifactKind: "decomposition",
 					planSlug: taskGraph.slug,

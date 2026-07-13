@@ -185,6 +185,26 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		expect(result.createdTasks.every((task) => task.streamId === "stream-habit-tracker")).toBe(true);
 	});
 
+	it("F1.9: copies the plan task's work-package bounds (writeScope/forbiddenPaths) onto the generated card", () => {
+		const taskGraph = createTaskGraph();
+		const first = taskGraph.tasks[0];
+		if (!first) {
+			throw new Error("expected a task");
+		}
+		first.writeScope = ["src/storage/**"];
+		first.forbiddenPaths = ["src/ui/**"];
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+		expect(result.createdTasks[0]?.writeScope).toEqual(["src/storage/**"]);
+		expect(result.createdTasks[0]?.forbiddenPaths).toEqual(["src/ui/**"]);
+		expect(result.createdTasks[1]?.writeScope).toBeUndefined(); // unbounded plan task stays unbounded
+	});
+
 	// Live-found 2026-07-02: a 120B architect decomposed `complex_dag` into a graph where EVERY card had a
 	// dependency (incl. a 2-cycle), so `rootTaskIds` was empty and the auto-start cascade never began (dead board).
 	// The apply path now breaks the minimal back-edges so there is always a startable root.

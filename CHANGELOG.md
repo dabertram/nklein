@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Card guard rails are now enforced when work is scheduled.** Cards generated from a plan carry their write bounds
+  onto the board, and the auto-start scheduler uses the full parallel-write safety classification: two cards that
+  would write the same specific file — or where one would write inside paths the other declares off-limits — no
+  longer run at the same time (the second waits its turn), while cards that only share a low-signal manifest like
+  package.json still run in parallel.
+
 - **Decomposed cards now carry their own guard rails.** Every generated card states which files it may modify (derived
   automatically from the plan when the architect doesn't bound it explicitly), which paths are off limits, and which
   interfaces it must not break — and workers see these bounds in their card brief. The plan also classifies "hot

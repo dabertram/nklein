@@ -1,4 +1,5 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskSessionSummary } from "./api-contract";
+import { classifyPackagePairConflict, type PackagePairConflict, type WorkPackage } from "./work-package-dispatch";
 
 const ACTIVE_SESSION_STATES = new Set<RuntimeTaskSessionSummary["state"]>(["queued", "running", "awaiting_review"]);
 
@@ -70,14 +71,39 @@ export function getSharedSpecificLikelyTouchedPaths(left: RuntimeBoardCard, righ
 }
 
 /**
- * Whether two tasks have a SERIALIZING file overlap. Only a shared SPECIFIC source path counts — a shared coarse file
- * (a defensively-listed `package.json`/lockfile/config) does NOT serialize, so a wide DAG fans out instead of queueing
- * behind one card (§5.AF/C5 scout fix). A genuine manifest conflict is rare and handled downstream (merge + §5.AK
- * conflict classification), not by blocking auto-start. Use {@link getSharedLikelyTouchedPaths} to LOG every shared
- * path (incl. coarse) for diagnostics.
+ * F1.9: a board card as the §5.AK {@link WorkPackage} the dispatch classifier consumes — the card's effective write
+ * scope (explicit `writeScope` from the shaped decomposition, else `filesLikelyTouched`) plus its forbidden paths.
+ */
+/** Strip a trailing glob segment (`/**`, `/*`) so the classifier's directory-prefix containment sees the directory. */
+function stripGlobTail(path: string): string {
+	return path.replace(/\/\*\*?$/u, "").replace(/\/+$/u, "");
+}
+
+export function boardCardToWorkPackage(card: RuntimeBoardCard): WorkPackage {
+	const clean = (paths: readonly string[] | undefined): string[] =>
+		(paths ?? []).map((path) => stripGlobTail(path.trim())).filter((path) => path.length > 0);
+	const writeScope = card.writeScope?.length ? clean(card.writeScope) : clean(card.filesLikelyTouched);
+	const forbiddenScope = clean(card.forbiddenPaths);
+	return {
+		id: card.id,
+		writeScope,
+		...(forbiddenScope.length > 0 ? { forbiddenScope } : {}),
+	};
+}
+
+/** F1.9: the full §5.AK pair classification for two cards (green / yellow / red with the concrete reasons). */
+export function classifyCardPairConflict(left: RuntimeBoardCard, right: RuntimeBoardCard): PackagePairConflict {
+	return classifyPackagePairConflict(boardCardToWorkPackage(left), boardCardToWorkPackage(right));
+}
+
+/**
+ * Whether two tasks have a SERIALIZING file overlap — F1.9: the §5.AK dispatch classifier's RED class. Red means a
+ * shared SPECIFIC write path (a shared coarse manifest/lockfile/config stays yellow and does NOT serialize — the
+ * §5.AF/C5 scout fix — so a wide DAG fans out) or either card writing inside the other's `forbiddenPaths` (glob-aware,
+ * new with the work-package bounds). Use {@link getSharedLikelyTouchedPaths} to LOG every shared path for diagnostics.
  */
 export function tasksHaveLikelyTouchedFileOverlap(left: RuntimeBoardCard, right: RuntimeBoardCard): boolean {
-	return getSharedSpecificLikelyTouchedPaths(left, right).length > 0;
+	return classifyCardPairConflict(left, right).conflictClass === "red";
 }
 
 export function findActiveTaskLikelyTouchedFileOverlap(input: {

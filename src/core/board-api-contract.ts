@@ -146,6 +146,10 @@ export const runtimeBoardCardSchema = z
 		agentId: runtimeAgentIdWithLegacyMigrationSchema.optional(),
 		nkleinSettings: runtimeTaskNKleinSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
+		// F1.9 work-package bounds (additive optional, CRDT whole-object LWW): copied from the plan task at
+		// decompose-apply so dispatch/review can enforce them without re-reading plan artifacts.
+		writeScope: z.array(z.string()).optional(),
+		forbiddenPaths: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
 		// §5.AU: the stream/epic this card belongs to (single-parent). Additive optional (CRDT whole-object LWW) so older
 		// boards load as-is; a manual `set_card_stream` override wins over the derived membership (see `deriveStreams`).

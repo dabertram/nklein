@@ -423,6 +423,19 @@
   transitive yellow vs red classification, populate + projection, warnings, brief sections, normalizer shaping
   end-to-end incl. hot-file classification on the emitted graph).
 
+- [x] **F1.9a — Enforce work-package boundaries at DISPATCH** *(delivered 2026-07-13; review half narrowed into
+  F1.9b).* Board cards now CARRY their work-package bounds: `writeScope`/`forbiddenPaths` are additive-optional
+  card fields (board contract + `addTaskToColumn`), copied from the shaped plan task at decompose-apply — dispatch
+  and review enforce without re-reading plan artifacts. The auto-start overlap gate upgraded from exact-path
+  `filesLikelyTouched` intersection to the §5.AK dispatch classifier: `boardCardToWorkPackage` (effective scope =
+  explicit writeScope else filesLikelyTouched; glob tails stripped so directory-prefix containment works) +
+  `classifyCardPairConflict`, and `tasksHaveLikelyTouchedFileOverlap` = RED (shared specific write path OR either
+  card writing inside the other's forbiddenPaths, both directions, glob-aware — NEW enforcement; a shared coarse
+  manifest stays YELLOW and fans out, preserving the §5.AF/C5 fix byte-for-byte). Green/Yellow/Red ownership
+  proven on a representative DAG through the live dispatch entry point (`findActiveTaskLikelyTouchedFileOverlap`).
+  5 new tests (projection incl. glob-tail strip, bidirectional forbidden serialization, representative-DAG
+  green-fans-out/yellow-fans-out/red-serializes, bounds copied onto generated cards, unbounded stays unbounded).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

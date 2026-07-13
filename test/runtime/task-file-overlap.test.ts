@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
 import {
+	boardCardToWorkPackage,
+	classifyCardPairConflict,
 	findActiveTaskLikelyTouchedFileOverlap,
 	getSharedLikelyTouchedPaths,
 	getSharedSpecificLikelyTouchedPaths,
@@ -8,7 +10,11 @@ import {
 	tasksHaveLikelyTouchedFileOverlap,
 } from "../../src/core/task-file-overlap";
 
-function createTask(id: string, filesLikelyTouched?: string[]): RuntimeBoardCard {
+function createTask(
+	id: string,
+	filesLikelyTouched?: string[],
+	bounds: { writeScope?: string[]; forbiddenPaths?: string[] } = {},
+): RuntimeBoardCard {
 	return {
 		id,
 		title: id,
@@ -17,6 +23,7 @@ function createTask(id: string, filesLikelyTouched?: string[]): RuntimeBoardCard
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		filesLikelyTouched,
+		...bounds,
 		baseRef: "main",
 		createdAt: 1,
 		updatedAt: 1,
@@ -121,5 +128,80 @@ describe("coarse vs specific likely-touched paths (§5.AF/C5 over-serialization 
 		expect(getSharedSpecificLikelyTouchedPaths(a, b)).toEqual(["src/shared.ts"]);
 		// getSharedLikelyTouchedPaths still returns ALL shared (incl. coarse) for logging the culprit.
 		expect(getSharedLikelyTouchedPaths(a, b)).toEqual(["package.json", "src/shared.ts", "tsconfig.json"]);
+	});
+});
+
+describe("F1.9 work-package boundary enforcement at dispatch (§5.AK classifier)", () => {
+	it("projects a card to a WorkPackage: explicit writeScope wins, glob tails stripped, forbidden carried", () => {
+		expect(
+			boardCardToWorkPackage(
+				createTask("a", ["src/legacy.ts"], { writeScope: ["src/orders/**"], forbiddenPaths: ["src/auth/**"] }),
+			),
+		).toEqual({ id: "a", writeScope: ["src/orders"], forbiddenScope: ["src/auth"] });
+		expect(boardCardToWorkPackage(createTask("b", ["src/b.ts"]))).toEqual({ id: "b", writeScope: ["src/b.ts"] });
+	});
+
+	it("serializes a card that writes inside an active card's forbiddenPaths (both directions, glob-aware)", () => {
+		const guard = createTask("guard", undefined, {
+			writeScope: ["src/auth/session.ts"],
+			forbiddenPaths: ["src/payments/**"],
+		});
+		const intruder = createTask("intruder", ["src/payments/checkout.ts"]);
+		expect(tasksHaveLikelyTouchedFileOverlap(guard, intruder)).toBe(true);
+		expect(tasksHaveLikelyTouchedFileOverlap(intruder, guard)).toBe(true);
+		expect(classifyCardPairConflict(guard, intruder).conflictClass).toBe("red");
+		// Disjoint scopes with no forbidden violation stay green (parallel-safe).
+		expect(classifyCardPairConflict(createTask("x", ["src/x.ts"]), createTask("y", ["src/y.ts"])).conflictClass).toBe(
+			"green",
+		);
+	});
+
+	it("proves Green/Yellow/Red ownership on a representative DAG: green fans out, yellow fans out, red serializes", () => {
+		// A representative decomposed DAG: four workers off one root.
+		//  - api + ui: disjoint specific scopes, shared coarse package.json ⇒ YELLOW ⇒ parallel-safe at dispatch.
+		//  - api + migrations: both write src/db/schema.ts ⇒ RED ⇒ serialize.
+		//  - docs writes inside api's forbidden src/api/** ⇒ RED ⇒ serialize.
+		const api = createTask("api", ["src/api/routes.ts", "package.json", "src/db/schema.ts"], {
+			forbiddenPaths: ["src/api/internal"],
+		});
+		const ui = createTask("ui", ["src/ui/app.tsx", "package.json"]);
+		const migrations = createTask("migrations", ["src/db/schema.ts"]);
+		const docs = createTask("docs", ["docs/api.md", "src/api/internal/notes.md"]);
+
+		expect(classifyCardPairConflict(api, ui).conflictClass).toBe("yellow");
+		expect(tasksHaveLikelyTouchedFileOverlap(api, ui)).toBe(false); // yellow fans out
+		expect(classifyCardPairConflict(api, migrations).conflictClass).toBe("red");
+		expect(tasksHaveLikelyTouchedFileOverlap(api, migrations)).toBe(true); // red serializes
+		expect(classifyCardPairConflict(api, docs).forbiddenViolations[0]).toContain("forbidden");
+		expect(tasksHaveLikelyTouchedFileOverlap(api, docs)).toBe(true); // forbidden write serializes
+		expect(classifyCardPairConflict(ui, migrations).conflictClass).toBe("green");
+		expect(tasksHaveLikelyTouchedFileOverlap(ui, migrations)).toBe(false); // green fans out
+
+		// The live dispatch entry point sees the RED pair through the same classifier.
+		const board: RuntimeBoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [migrations] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [api] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [],
+		};
+		expect(
+			findActiveTaskLikelyTouchedFileOverlap({
+				board,
+				sessions: { api: createSession("api", "running") },
+				task: migrations,
+			})?.id,
+		).toBe("api");
+		expect(
+			findActiveTaskLikelyTouchedFileOverlap({
+				board,
+				sessions: { api: createSession("api", "running") },
+				task: ui,
+			}),
+		).toBeNull();
 	});
 });
