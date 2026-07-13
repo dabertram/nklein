@@ -326,6 +326,19 @@
   threaded service → session-runtime → tool. 4 new tests (confident answer skips the reviewer, null-turn keep-open
   + question cap, budget-expiry give-up assumption, similarity properties).
 
+- [x] **F1.4 — The clarification dialog** *(delivered 2026-07-13, on the F1.3 data layer).* New
+  `PlanQuestionsPanel` (card detail, rendered for plan-born cards): every OPEN plan question renders its prepared
+  option set via the §5.S `prepareClarificationOptionSet` core — ≥4 explained choices (recommended first, generic
+  fall-backs synthesised when the agent under-supplied; a selected fall-back submits as free text so the plan
+  revision stays meaningful), a free-text field, single-select radios by default with checkbox semantics on
+  "select all that apply" wording. Submissions flow through `answerNKleinPlanQuestion` (durable
+  `clarification_resolved` revision + exact-card resume, surfaced in the success toast); empty submissions are
+  blocked client-side. Durable answer review: resolved questions stay visible behind a toggle with their
+  answer/assumption. Accessibility: native inputs with label association, fieldset/legend, radiogroup role,
+  aria-expanded — inherently keyboard-operable. 4 component tests (option floor + explanations + a11y wiring,
+  submit + resume surfacing + reload, resolved review + empty-plan hiding, empty-submission guard); web-ui 1046
+  unit + all 72 Playwright e2e green.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

@@ -1,8 +1,11 @@
 // Browser-side query helpers: NKlein plan artifacts (list/apply/reject/gap/expand) + the advisor / dogfood / smoke eval.
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeAnswerPlanQuestionRequest,
+	RuntimeAnswerPlanQuestionResponse,
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
+	RuntimeListPlanQuestionsResponse,
 	RuntimeNKleinAdvisorBuildRequest,
 	RuntimeNKleinAdvisorRequest,
 	RuntimeNKleinAdvisorSendResponse,
@@ -82,4 +85,22 @@ export async function expandNKleinPlanTask(
 ): Promise<RuntimeExpandNKleinPlanTaskResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.expandNKleinPlanTask.mutate(input);
+}
+
+/** F1.4 — list a plan's questions (open-only by default) for the clarification dialog. */
+export async function listNKleinPlanQuestions(
+	workspaceId: string | null,
+	input: { planSlug: string; openOnly?: boolean },
+): Promise<RuntimeListPlanQuestionsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.listNKleinPlanQuestions.query(input);
+}
+
+/** F1.4 — persist an operator's answer to a plan question; resumes the blocked card when one is parked on it. */
+export async function answerNKleinPlanQuestion(
+	workspaceId: string | null,
+	input: RuntimeAnswerPlanQuestionRequest,
+): Promise<RuntimeAnswerPlanQuestionResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.answerNKleinPlanQuestion.mutate(input);
 }

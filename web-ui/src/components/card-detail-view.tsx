@@ -16,6 +16,7 @@ import {
 } from "@/components/detail-panels/nklein-agent-chat-panel";
 import { PendingPlanArtifactsPanel } from "@/components/detail-panels/pending-plan-artifacts-panel";
 import { PlanGapActionsPanel } from "@/components/detail-panels/plan-gap-actions-panel";
+import { PlanQuestionsPanel } from "@/components/detail-panels/plan-questions-panel";
 import { PlanningDagReviewPanel } from "@/components/detail-panels/planning-dag-review-panel";
 import { SecondOpinionReviewPanel } from "@/components/detail-panels/second-opinion-review-panel";
 import { buildTaskActivitySteps, getActivityToneClassName } from "@/components/detail-panels/task-activity-model";
@@ -832,6 +833,12 @@ export function CardDetailView({
 								taskId={selection.card.id}
 								onWorkspaceStateApplied={onWorkspaceStateApplied}
 							/>
+							{selection.card.generatedFromPlan ? (
+								<PlanQuestionsPanel
+									workspaceId={currentProjectId}
+									planSlug={selection.card.generatedFromPlan.planSlug}
+								/>
+							) : null}
 							{selection.column.id === "planning" || selection.column.id === "review" ? (
 								<PlanGapActionsPanel
 									workspaceId={currentProjectId}
@@ -1009,6 +1016,12 @@ export function CardDetailView({
 									taskId={selection.card.id}
 									onWorkspaceStateApplied={onWorkspaceStateApplied}
 								/>
+								{selection.card.generatedFromPlan ? (
+									<PlanQuestionsPanel
+										workspaceId={currentProjectId}
+										planSlug={selection.card.generatedFromPlan.planSlug}
+									/>
+								) : null}
 								{selection.column.id === "planning" || selection.column.id === "review" ? (
 									<PlanGapActionsPanel
 										workspaceId={currentProjectId}

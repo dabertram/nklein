@@ -151,7 +151,7 @@ function synthesiseOptions(needed: number, takenLabels: ReadonlySet<string>): Pr
 	const synthesised: PreparedClarificationOption[] = [];
 	for (let index = 0; index < SYNTHESISED_OPTION_LABELS.length && synthesised.length < needed; index++) {
 		const label = SYNTHESISED_OPTION_LABELS[index];
-		if (takenLabels.has(label.toLowerCase())) {
+		if (!label || takenLabels.has(label.toLowerCase())) {
 			continue;
 		}
 		synthesised.push({
