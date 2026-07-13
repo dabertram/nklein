@@ -44,7 +44,9 @@ describe.sequential("deterministic swarm harness — bounce → re-work → appr
 		server = await startTsBackend({
 			cwd,
 			homeDir,
-			extraEnv: { NODE_ENV: "development" },
+			// This race was deterministic only when the durable controller observed the same awaiting-review edge as
+			// review finalization. Keep the controller ON here so the scheduler/review interleave stays regression-pinned.
+			extraEnv: { NODE_ENV: "development", NKLEIN_DURABLE_SCHEDULER: "1" },
 			onLog: (chunk) => {
 				for (const line of chunk.split("\n")) {
 					if (

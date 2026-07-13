@@ -70,6 +70,10 @@
   and an older WebSocket handshake cannot finish afterward and overwrite the active project's Settings config. Project
   selection is latest-wins and commits its id, path, and config atomically, so board, task chat, and Settings converge
   without a reload even during fast A→B→A→B navigation.
+- **The bounce/rework delivery race now has a permanent durable-scheduler regression.** The underlying fixes already
+  isolate every overlapping acceptance check in its own sandbox and coalesce same-card review finalization by owning
+  workspace; the end-to-end bounce→rework→approve→acceptance→merge scenario now always enables the durable controller,
+  preserving the scheduler/review timing that originally exposed the failure.
 
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard

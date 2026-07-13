@@ -632,9 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.7 — Close the deterministic-bounce acceptance-workspace race** *(from the retired autonomous run log).* Make
-  acceptance/finalization bind to the result branch and owning workspace atomically; add the scheduler/review regression
-  that previously exposed the race.
 - [ ] **P0.8 — Resolve the genuine no-result-branch/evidence failure class** *(legacy §5.AI).* Reproduce the intermittent
   dev-test outcome, distinguish “agent made no change” from capture/reaper/assembly failure, fix the proven cause, and
   make evidence creation return a typed actionable result.
@@ -679,7 +676,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F1.27 — Land the workflow-kernel/durable-queue interface.** Isolate workflow state transitions from CLI/tRPC/UI
   adapters so schedulers and agents share one typed command/event seam.
 - [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
-  transitions to the ledger; restart without duplicate work or lost capacity.
+  transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
+  dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,
+  with a multi-card bounce regression before the scheduler becomes default-on.
 - [ ] **F1.19 — Feed endpoint/pool saturation into durable admission.** Replace retry polling with event-driven wakeups,
   fairness, and starvation bounds.
 - [ ] **F1.20 — Complete the tool-capability manifest.** Add run-state, taint source/sink, semantic-error, replay,
@@ -1219,14 +1218,14 @@ The checkbox count is an implementation-package count, not a raw Markdown-marker
 rg -c '^\s*- \[( |>|\?|-)\]' todo.md
 ```
 
-The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **233 remaining packages**:
+The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **229 remaining packages**:
 
-- **157** implementation-first packages in phases 0–5 (the path to feature-complete);
+- **153** implementation-first packages in phases 0–5 (the path to feature-complete);
 - **15** feature-completeness proof gates in phase 6;
 - **47** deep-hardening, visual-polish, and release packages in phases 7–9;
 - **14** research/decision/manual/deferred-tail packages in phase 10.
 
-Status totals are **159 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
+Status totals are **155 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
 The larger package count than the prior ~154 estimate reflects finer, top-down-executable slicing plus tasks recovered
 from secondary Markdown files; it does not represent a proportional scope increase.
 

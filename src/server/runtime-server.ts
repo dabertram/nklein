@@ -1149,18 +1149,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// `startCard` port re-enters the start path with the durable guard bypassed (the controller already decided the lease);
 	// `appendEvent`/`readLedger` are the §5.AF agent-ledger store (persist-before-dispatch + boot-replay). Disabled by
 	// default (NKLEIN_DURABLE_SCHEDULER off) ⇒ every method is inert and the runtime is byte-identical.
-	// DEFAULT-ON DEFERRED (2026-07-04): the concurrency-defer fix is proven (deterministic guard + cap=1/cap=2 real-model
-	// PASS), but SWEEP-to-validate flipping the default found swarm-deterministic-BOUNCE fails under the flag. DIAGNOSIS
-	// (from the preserved task-run: gamma reaches awaiting_review, re-works to awaiting_review AGAIN, then is INTERRUPTED):
-	// the re-work DOES run — the failure is the SECOND review firing `not_reviewable` (the known finalize-again-while-the-
-	// bounce-round-still-persists race, guarded at finalizeHeadlessAutoReviewTask ~L995) → card HELD → session stopped →
-	// interrupted → the round-2 review never lands → stuck in Review. The durable `observeSummary` on the first
-	// awaiting_review runs CONCURRENTLY with the review finalization (both fire on the same onSummary) and deterministically
-	// shifts the bounce→re-work→re-review timing past the in-flight guard. So the fix is NOT a durable reopen-on-bounce
-	// (an earlier wrong hypothesis — the re-work runs); it's making the finalization re-run robust to the durable-shifted
-	// timing (e.g. the durable observeSummary should not race the finalization for the same task, or the finalize in-flight
-	// guard must re-run reliably after a bounce persist). Subtle timing fix — needs a focused pass. See todo §5.AF.
-	// (The 3-file swarm integration batch also flakes on parallel Docker-pool contention under the flag; hold passes ALONE.)
+	// The durable-shifted bounce/re-review race found by the first default-on sweep is closed: finalization remembers a
+	// same-card request received while the prior round settles, defers only while the worker is actively re-driving, and
+	// reruns for quiescent/fresh review states. Acceptance runs also own unique synthetic sandbox sessions, so overlapping
+	// checks cannot dispose one another. The deterministic bounce integration keeps this controller ON permanently.
 	const durableSchedulerEnabled = isTruthyEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,

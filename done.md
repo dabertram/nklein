@@ -125,6 +125,16 @@
   the destination board, task chat, and Settings config all settle without reload. Deferred-config unit tests pin both
   server and browser latest-wins behavior; the 9 registry tests, all 1,052 web tests, 130 protected tests, and both
   navigation e2e cases (three consecutive laps each) pass.
+- [x] **P0.7 — Close the deterministic-bounce acceptance-workspace race** *(reconciled 2026-07-13).* This was reopened
+  from an early diagnosis in the retired autonomous log even though the same log later recorded the root cause and fix.
+  Concurrent acceptance checks for one card reused `<task>::acceptance`; one check's `finally` cleanup could destroy the
+  other's live sandbox placement. Commit `9b80d20f` gave every invocation a distinct monotonic
+  `<task>::acceptance-<seq>` identity, while acceptance resolution pins the delivered result commit to the explicit
+  owning repository and finalization/rerun guards are scoped by workspace plus task. Later finalization hardening
+  (`decbb772`, `fc36dd67`) made durable-controller-shifted re-review requests latest-round safe. The existing full
+  bounce→rework→approve→fresh-acceptance→merge regression now always starts the durable scheduler instead of relying on
+  an external environment override. Repeated scheduler-off and scheduler-on laps pass; the focused acceptance race
+  suite remains green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
