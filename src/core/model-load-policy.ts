@@ -68,3 +68,58 @@ export function decideModelLoadAction(input: ModelLoadPolicyInput): ModelLoadAct
 		reason: `Need ~${needed.toFixed(1)}GB with ${input.freeGb.toFixed(1)}GB free, and every loaded model is resident, busy, or of unknown size — refusing to evict (resident models are never unloaded).`,
 	};
 }
+
+// ---------------------------------------------------------------------------
+// F1.23 — idle-TTL eviction with current-task-need awareness (the scheduler's unload side).
+// ---------------------------------------------------------------------------
+
+export interface IdleModelState extends LoadedModelState {
+	/** Last time a request touched this model (epoch ms); null = never observed → idle since it was loaded. */
+	lastUsedAtMs: number | null;
+	/** When the model was loaded (epoch ms); the idle clock starts here when no use was ever observed. */
+	loadedAtMs: number;
+}
+
+export interface IdleEvictionInput {
+	/** ONLY the models !Klein autonomously loaded — operator-loaded (resident) models are never candidates. */
+	autoLoaded: readonly IdleModelState[];
+	/** Models QUEUED/READY cards will need soon (current task need) — never evicted even when idle. */
+	neededModelIds: readonly string[];
+	now: number;
+	/** Idle time after which an unneeded auto-loaded model is reclaimed (default 30 min). */
+	idleTtlMs?: number;
+}
+
+export const DEFAULT_MODEL_IDLE_TTL_MS = 1_800_000;
+
+export interface IdleEvictionPlan {
+	/** Models to unload, LARGEST first (the caller unloads one, re-reads state, and re-consults). */
+	unloadModelIds: string[];
+	reasons: Record<string, string>;
+}
+
+/**
+ * Which auto-loaded models the scheduler should reclaim: idle past the TTL, not busy, and not needed by any
+ * queued/ready card. Pure; safe by construction — the input is ALREADY restricted to !Klein-loaded models, so an
+ * operator's resident set can never appear here (prime directive: resident models are sacred).
+ */
+export function decideIdleEvictions(input: IdleEvictionInput): IdleEvictionPlan {
+	const ttl = input.idleTtlMs ?? DEFAULT_MODEL_IDLE_TTL_MS;
+	const needed = new Set(input.neededModelIds);
+	const reasons: Record<string, string> = {};
+	const victims = input.autoLoaded
+		.filter((model) => {
+			if (model.busy || needed.has(model.id)) {
+				return false;
+			}
+			const idleSince = model.lastUsedAtMs ?? model.loadedAtMs;
+			return input.now - idleSince >= ttl;
+		})
+		.sort((left, right) => (right.sizeGb ?? 0) - (left.sizeGb ?? 0));
+	for (const victim of victims) {
+		const idleMinutes = Math.round((input.now - (victim.lastUsedAtMs ?? victim.loadedAtMs)) / 60_000);
+		reasons[victim.id] =
+			`auto-loaded, idle ${idleMinutes} min (TTL ${Math.round(ttl / 60_000)} min), not busy, no queued/ready card needs it`;
+	}
+	return { unloadModelIds: victims.map((victim) => victim.id), reasons };
+}

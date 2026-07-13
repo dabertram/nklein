@@ -701,6 +701,20 @@
   (null; the enablement policy layer owns unknowns) while MCP-declared names resolve (F1.21); (5) the current
   capability + delivery ruleset tier tables + fully_open defaults as a snapshot. 5 tests.
 
+- [x] **F1.23 — model load/unload policy wired into the scheduler** *(delivered 2026-07-13).* Headroom, resident
+  budget, safe eviction, and task-need at LOAD time were already live (`decideModelLoadAction` + the
+  NKLEIN_DEVICE_RAM_GB machine-aware loader at the start path); this closes the UNLOAD side: (1)
+  `decideIdleEvictions` (pure, in model-load-policy.ts) — only models !Klein AUTONOMOUSLY loaded, idle past the
+  TTL (default 30 min), not busy, and not needed by any non-terminal card's configured model are reclaimed,
+  largest first; (2) `createAutoLoadedModelRegistry` — the loader records its successful loads and a session
+  start on the model resets its idle clock; operator-loaded models NEVER enter the registry, so the resident set
+  is sacred BY CONSTRUCTION (and a restart forgetting the registry fails SAFE: previously-auto-loaded models
+  become resident-protected); (3) the board-liveness watchdog tick runs the eviction (opt-in via the SAME
+  deviceRamGb knob as the loader — autonomous loads imply autonomous reclaim), one unload per tick through the
+  guarded REST client, observed via self-observation; an externally-unloaded victim is simply forgotten. No
+  autonomous downloads anywhere (prime directive 8 untouched). 2 new tests (eviction filter/order/TTL semantics
+  incl. never-used-idles-since-load; registry idempotent-load/use-reset/forget + unknown-model no-op).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

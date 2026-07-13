@@ -49,9 +49,11 @@ import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { createLmStudioRestModelClient } from "../core/lmstudio-rest-model-client";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
+import { decideIdleEvictions } from "../core/model-load-policy";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import {
 	decideOpportunisticIdleWork,
@@ -148,6 +150,7 @@ import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
+import { autoLoadedModels } from "../trpc/runtime-api/auto-loaded-models";
 import { dispatchWorkflowCommands, getWorkspaceWorkflowQueue } from "../trpc/runtime-api/workflow-queue-registry";
 import {
 	createRuntimeTaskStartQueue,
@@ -2664,6 +2667,76 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										.catch(() => null);
 								}
 							}
+						}
+						// F1.23: reclaim IDLE auto-loaded models (opt-in via the same deviceRamGb knob as the loader —
+						// autonomous loads imply autonomous reclaim). Candidates are ONLY models !Klein itself loaded;
+						// a model with an active session is busy, and any non-terminal card's configured model counts
+						// as NEEDED (current task need). One unload per tick; re-consult next tick.
+						try {
+							const evictionConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+							if (evictionConfig?.deviceRamGb) {
+								const busyModelIds = new Set(
+									trackedService
+										.listSummaries()
+										.filter((summary) => summary.state === "running" || summary.state === "queued")
+										.map((summary) => summary.modelId)
+										.filter((modelId): modelId is string => Boolean(modelId)),
+								);
+								const neededModelIds = new Set<string>();
+								for (const column of board.columns) {
+									if (column.id === "completed" || column.id === "trash") {
+										continue;
+									}
+									for (const card of column.cards) {
+										const modelId = card.nkleinSettings?.modelId;
+										if (modelId) {
+											neededModelIds.add(modelId);
+										}
+									}
+								}
+								const plan = decideIdleEvictions({
+									autoLoaded: autoLoadedModels.list().map((record) => ({
+										id: record.modelId,
+										sizeGb: null,
+										busy: busyModelIds.has(record.modelId),
+										lastUsedAtMs: record.lastUsedAtMs,
+										loadedAtMs: record.loadedAtMs,
+									})),
+									neededModelIds: [...neededModelIds],
+									now: Date.now(),
+								});
+								const victim = plan.unloadModelIds[0];
+								if (victim) {
+									const restClient = createLmStudioRestModelClient({ baseUrl: DEFAULT_LOCAL_MODEL_BASE_URL });
+									const listed = await restClient.listModels();
+									const loadedVictim = listed.ok
+										? listed.value.find((model) => model.key === victim && model.loadedInstanceIds.length > 0)
+										: undefined;
+									if (loadedVictim) {
+										const unloaded = await restClient.unloadModel({
+											instanceId: loadedVictim.loadedInstanceIds[0] ?? victim,
+										});
+										if (unloaded.ok) {
+											autoLoadedModels.forget(victim);
+											deps.warn(
+												`Idle-TTL eviction: unloaded auto-loaded model ${victim} (${plan.reasons[victim]}).`,
+											);
+											recordSelfObservation({
+												signal: "custom",
+												severity: "info",
+												message: `Idle-TTL eviction reclaimed auto-loaded model ${victim}.`,
+												workspacePath: scope.workspacePath,
+												metadata: { category: "model_idle_eviction", modelId: victim },
+											});
+										}
+									} else {
+										// Already gone (someone else unloaded it) — just forget it.
+										autoLoadedModels.forget(victim);
+									}
+								}
+							}
+						} catch {
+							// Eviction is opportunistic housekeeping — never let it break the watchdog tick.
 						}
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending

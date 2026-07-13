@@ -92,6 +92,7 @@ import { readSelfObservationEvents } from "../../telemetry/self-observation-sink
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
+import { autoLoadedModels } from "./auto-loaded-models";
 import { countActiveProjectTaskSessions, createConcurrencyLimitStartError } from "./task-concurrency-gate.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./task-timeout-settings.js";
 import { getWorkspaceWorkflowQueue } from "./workflow-queue-registry";
@@ -311,8 +312,8 @@ export async function handleStartTaskSession(
 			deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
 		// §5.AB autonomous loader closure: LOAD a model on a linked device that FITS (opt-in NKLEIN_DEVICE_RAM_GB,
 		// fail-safe). Used both here (before resolveLaunchConfig's residency gate) and at the later start block.
-		const attemptAutonomousModelLoad = (modelId: string, contextLength: number) =>
-			ensureModelLoadedOnFittingDevice(
+		const attemptAutonomousModelLoad = async (modelId: string, contextLength: number) => {
+			const outcome = await ensureModelLoadedOnFittingDevice(
 				{ modelId, contextLength },
 				{
 					configuredDeviceRamGb: scopedRuntimeConfig.deviceRamGb,
@@ -342,6 +343,12 @@ export async function handleStartTaskSession(
 					},
 				},
 			).catch(() => ({ loaded: false as const, reason: "autonomous load error" }));
+			if (outcome.loaded) {
+				// F1.23: only what !Klein itself loaded is ever an idle-TTL eviction candidate.
+				autoLoadedModels.recordLoad(modelId, Date.now());
+			}
+			return outcome;
+		};
 		let nkleinLaunchConfig: ResolvedNKleinLaunchConfig;
 		try {
 			nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig(resolveOverrides);
@@ -1327,6 +1334,11 @@ export async function handleStartTaskSession(
 			summary,
 		});
 
+		// F1.23: the started session USES its model — reset the auto-loaded idle clock (no-op for models
+		// !Klein didn't load).
+		if (nkleinLaunchConfig.modelId) {
+			autoLoadedModels.markUsed(nkleinLaunchConfig.modelId, Date.now());
+		}
 		// F1.27b (leaf 2): the session is RUNNING — every admission grant has effectively happened. Held
 		// duplicates absorb the queued-start re-entry; the mirror lands on `planning` (§5.B entry lane).
 		dispatchWorkflowStartCommands(workspaceScope, body.taskId, [
