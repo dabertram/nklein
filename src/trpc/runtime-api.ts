@@ -89,7 +89,7 @@ import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profil
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
-import { handleAnswerPlanQuestion } from "./runtime-api/answer-plan-question.js";
+import { handleAnswerPlanQuestion, handleListPlanQuestions } from "./runtime-api/answer-plan-question.js";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
@@ -567,6 +567,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				artifacts: artifacts.map(toRuntimePlanArtifactSummary),
 			};
 		},
+		listNKleinPlanQuestions: async (workspaceScope, input) => handleListPlanQuestions(workspaceScope, input),
 		answerNKleinPlanQuestion: async (workspaceScope, input) =>
 			handleAnswerPlanQuestion(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,

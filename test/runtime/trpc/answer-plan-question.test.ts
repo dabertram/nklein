@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { nkleinPlanTaskGraphSchema, writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import type { NKleinTaskSessionService } from "../../../src/nklein-agent/nklein-task-session-service";
-import { handleAnswerPlanQuestion } from "../../../src/trpc/runtime-api/answer-plan-question";
+import { handleAnswerPlanQuestion, handleListPlanQuestions } from "../../../src/trpc/runtime-api/answer-plan-question";
 
 const selfObservationMocks = vi.hoisted(() => ({
 	recordSelfObservation: vi.fn(),
@@ -99,6 +99,37 @@ describe("handleAnswerPlanQuestion (F1.3d)", () => {
 			{ planSlug: "plan", questionId: "q-nope", freeText: "x" },
 			{ getScopedNKleinTaskSessionService: async () => service },
 		);
+		expect(missing.ok).toBe(false);
+	});
+});
+
+describe("handleListPlanQuestions (F1.4 data layer)", () => {
+	it("lists open questions by default and everything with openOnly false; unknown plan fails", async () => {
+		const workspacePath = await createPlanWorkspace(null);
+		const openOnly = await handleListPlanQuestions({ workspaceId: "ws", workspacePath } as never, {
+			planSlug: "plan",
+		});
+		expect(openOnly.ok).toBe(true);
+		expect(openOnly.questions.map((question) => question.id)).toEqual(["q-1"]);
+
+		await handleAnswerPlanQuestion(
+			{ workspaceId: "ws", workspacePath } as never,
+			{ planSlug: "plan", questionId: "q-1", freeText: "4173." },
+			{ getScopedNKleinTaskSessionService: async () => ({ getSummary: () => null }) as never },
+		);
+		const afterAnswer = await handleListPlanQuestions({ workspaceId: "ws", workspacePath } as never, {
+			planSlug: "plan",
+		});
+		expect(afterAnswer.questions).toEqual([]);
+		const all = await handleListPlanQuestions({ workspaceId: "ws", workspacePath } as never, {
+			planSlug: "plan",
+			openOnly: false,
+		});
+		expect(all.questions[0]).toMatchObject({ id: "q-1", status: "answered", answer: "4173." });
+
+		const missing = await handleListPlanQuestions({ workspaceId: "ws", workspacePath } as never, {
+			planSlug: "no-such-plan",
+		});
 		expect(missing.ok).toBe(false);
 	});
 });

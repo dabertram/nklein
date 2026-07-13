@@ -39,6 +39,8 @@ import type {
 	RuntimeGitSyncResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeListPlanQuestionsRequest,
+	RuntimeListPlanQuestionsResponse,
 	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeLlmfitCatalogUpdatePullResponse,
 	RuntimeMergeHistoryResponse,
@@ -265,6 +267,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeAnswerPlanQuestionRequest,
 		) => Promise<RuntimeAnswerPlanQuestionResponse>;
+		listNKleinPlanQuestions: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeListPlanQuestionsRequest,
+		) => Promise<RuntimeListPlanQuestionsResponse>;
 		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,

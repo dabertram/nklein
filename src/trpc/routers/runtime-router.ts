@@ -21,6 +21,8 @@ import {
 	runtimeFleetStatusResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
+	runtimeListPlanQuestionsRequestSchema,
+	runtimeListPlanQuestionsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
 	runtimeLlmfitCatalogUpdatePullResponseSchema,
 	runtimeMergeHistoryResponseSchema,
@@ -240,6 +242,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeNKleinPlanArtifactsResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.listNKleinPlanArtifacts(ctx.workspaceScope, input);
+			}),
+		listNKleinPlanQuestions: workspaceProcedure
+			.input(runtimeListPlanQuestionsRequestSchema)
+			.output(runtimeListPlanQuestionsResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.listNKleinPlanQuestions(ctx.workspaceScope, input);
 			}),
 		answerNKleinPlanQuestion: workspaceProcedure
 			.input(runtimeAnswerPlanQuestionRequestSchema)

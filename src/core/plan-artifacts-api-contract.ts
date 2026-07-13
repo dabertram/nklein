@@ -36,6 +36,40 @@ export const runtimeNKleinPlanArtifactsResponseSchema = z.object({
 });
 export type RuntimeNKleinPlanArtifactsResponse = z.infer<typeof runtimeNKleinPlanArtifactsResponseSchema>;
 
+// F1.4 data layer — the wire shape of one plan question (mirrors the plan-artifact schema; kept here so the
+// web-ui dialog consumes the contract, never the nklein-agent module).
+export const runtimePlanQuestionSchema = z.object({
+	id: z.string(),
+	question: z.string(),
+	status: z.enum(["open", "answered", "assumed-default"]),
+	options: z.array(
+		z.object({
+			id: z.string(),
+			label: z.string(),
+			description: z.string().nullable(),
+			recommended: z.boolean(),
+		}),
+	),
+	answer: z.string().nullable(),
+	assumption: z.string().nullable(),
+	blockedTaskId: z.string().nullable(),
+});
+export type RuntimePlanQuestion = z.infer<typeof runtimePlanQuestionSchema>;
+
+export const runtimeListPlanQuestionsRequestSchema = z.object({
+	planSlug: z.string().min(1),
+	/** When true (default), only `open` questions are returned — the clarification dialog's working set. */
+	openOnly: z.boolean().optional(),
+});
+export type RuntimeListPlanQuestionsRequest = z.infer<typeof runtimeListPlanQuestionsRequestSchema>;
+
+export const runtimeListPlanQuestionsResponseSchema = z.object({
+	ok: z.boolean(),
+	questions: z.array(runtimePlanQuestionSchema),
+	error: z.string().optional(),
+});
+export type RuntimeListPlanQuestionsResponse = z.infer<typeof runtimeListPlanQuestionsResponseSchema>;
+
 // F1.3d — answer one open plan question (operator path). Resolution persists through the plan artifacts
 // (questions.md rewrite + clarification_resolved revision) and resumes the exact card parked on the question.
 export const runtimeAnswerPlanQuestionRequestSchema = z.object({

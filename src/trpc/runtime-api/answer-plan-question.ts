@@ -6,7 +6,10 @@
 import type {
 	RuntimeAnswerPlanQuestionRequest,
 	RuntimeAnswerPlanQuestionResponse,
+	RuntimeListPlanQuestionsRequest,
+	RuntimeListPlanQuestionsResponse,
 } from "../../core/plan-artifacts-api-contract";
+import { readNKleinPlanArtifacts } from "../../nklein-agent/nklein-plan-artifacts";
 import { buildClarificationResumePrompt, resolvePlanQuestion } from "../../nklein-agent/nklein-plan-clarification";
 import { canReturnToRunning } from "../../nklein-agent/nklein-session-state";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
@@ -61,4 +64,22 @@ export async function handleAnswerPlanQuestion(
 			? {}
 			: { error: `The answer was recorded, but resuming task ${resolved.blockedTaskId} did not start a turn.` }),
 	};
+}
+
+/** F1.4 data layer — list a plan's questions (default: open only) for the clarification dialog. */
+export async function handleListPlanQuestions(
+	workspaceScope: RuntimeTrpcWorkspaceScope | null,
+	input: RuntimeListPlanQuestionsRequest,
+): Promise<RuntimeListPlanQuestionsResponse> {
+	if (!workspaceScope) {
+		return { ok: false, questions: [], error: "No workspace is selected." };
+	}
+	try {
+		const artifacts = await readNKleinPlanArtifacts(workspaceScope.workspacePath, input.planSlug);
+		const openOnly = input.openOnly ?? true;
+		const questions = artifacts.questions.filter((question) => !openOnly || question.status === "open");
+		return { ok: true, questions };
+	} catch (error) {
+		return { ok: false, questions: [], error: `Could not read plan "${input.planSlug}": ${String(error)}` };
+	}
 }

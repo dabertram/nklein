@@ -650,6 +650,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
     apply its decision via `resolvePlanQuestion`; a `keep_asking` outcome escalates to the operator by PARKING the
     relevant card (`awaiting_review`/`attention`) and setting the question's `blockedTaskId` — the F1.3d
     answer→resume path (shipped) then resumes exactly that card when `answerNKleinPlanQuestion` lands.
+    *Design sketch (2026-07-13):* mirror `nklein-plan-critique-runner.ts` — a bounded synthetic-session runner is
+    the turn primitive. Either generalize `runPlanCritiqueSession(seedPrompt, critic)` into a shared bounded-turn
+    helper, or add a sibling `clarify runner` with two seeds: PROPOSE (architect's own model: "propose a confident
+    answer to this plan question; say RESOLVED when certain") and REVIEW (lineage-diverse §5.K pick via
+    `pickEscalationModel`). Map turns onto `AutoClarifyTurnDeps` {propose, review, similarity}; similarity v1 =
+    token-Jaccard (embedder later). Trigger from the decompose tool's post-apply seam (where the F1.3c pass
+    returns `openQuestionIds`), budgeted like the critique (per-run cap; every degraded path = keep the question
+    open, never block). `keep_asking` ⇒ set `blockedTaskId` on the question (F1.3a updater) + park via the park
+    controller; validate the reviewer turn against a REAL local model before closing (working-loop rule 3).
 - [ ] **F1.4 — Complete the clarification dialog.** Support at least four explained choices plus free text,
   single/multi-select semantics, durable answer review, and keyboard/accessibility coverage.
 - [ ] **F1.5 — Make focus chains durable across every agent surface.** Persist ordered steps and state transitions,
