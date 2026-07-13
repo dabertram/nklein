@@ -8,6 +8,7 @@ import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import {
 	buildPlanCritiqueSeedPrompt,
+	type NKleinClarifyTurnHandler,
 	type NKleinPlanCritiqueRequestHandler,
 	type NKleinPlanCritiqueResult,
 } from "./nklein-plan-critique-tool";
@@ -56,7 +57,12 @@ export interface PlanCritiqueRunner {
 		timeoutMs?: number;
 		critic?: { providerId: string; modelId: string } | null;
 	}): Promise<NKleinPlanCritiqueResult | null>;
+	/** F1.3e — the bounded clarify-turn executor (see the factory doc), or undefined for synthetic sessions. */
+	buildClarifyTurnHandler(taskId: string, projectRepoPath: string): NKleinClarifyTurnHandler | undefined;
 }
+
+/** F1.3e per-run cap on clarify turns (each auto-clarify round is 1-2 bounded sessions). */
+const CLARIFY_TURN_RUN_BUDGET = 6;
 
 /**
  * §5.U: the W4.3 plan-critique session, extracted verbatim from InMemoryNKleinTaskSessionService as a standalone
@@ -67,6 +73,8 @@ export interface PlanCritiqueRunner {
 export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCritiqueRunner {
 	/** W4.3 per-run critique budget: deliberation is rare by design (high-stakes × unclean quality only). */
 	let planCritiqueRunsUsed = 0;
+	/** F1.3e per-run clarify-turn budget: each auto-clarify round costs 1-2 bounded sessions; cap the total. */
+	let clarifyTurnsUsed = 0;
 
 	function buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined {
 		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
@@ -179,5 +187,41 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 		);
 	}
 
-	return { buildRequestHandler, runPlanCritiqueSession };
+	/**
+	 * F1.3e — build the bounded clarify-turn executor for a session's decompose tool (undefined for synthetic
+	 * sessions, mirroring the critique handler). `propose` turns run on the ARCHITECT's own model; `review` turns
+	 * take the default lineage-diverse path inside `runPlanCritiqueSession`. Shares the session machinery but has
+	 * its OWN per-run budget; every degraded path resolves to null (keep the question open, never block).
+	 */
+	function buildClarifyTurnHandler(taskId: string, projectRepoPath: string): NKleinClarifyTurnHandler | undefined {
+		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
+			return undefined;
+		}
+		return async (input) => {
+			if (clarifyTurnsUsed >= CLARIFY_TURN_RUN_BUDGET) {
+				return null;
+			}
+			if (!deps.getAgentSandboxManager()) {
+				return null;
+			}
+			const architectLaunch = deps.getLaunchConfig(taskId) ?? null;
+			if (!architectLaunch?.providerId || !architectLaunch.modelId) {
+				return null;
+			}
+			clarifyTurnsUsed += 1;
+			return await runPlanCritiqueSession({
+				taskId,
+				projectRepoPath,
+				baseRef: deps.getBaseRef(taskId) ?? "HEAD",
+				seedPrompt: input.seedPrompt,
+				// propose = the architect's own model; review = the diverse §5.K pick (the session's default path).
+				critic:
+					input.role === "propose"
+						? { providerId: architectLaunch.providerId, modelId: architectLaunch.modelId }
+						: undefined,
+			}).catch(() => null);
+		};
+	}
+
+	return { buildRequestHandler, buildClarifyTurnHandler, runPlanCritiqueSession };
 }

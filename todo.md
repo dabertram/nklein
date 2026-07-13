@@ -645,20 +645,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   — clarification-need, auto-clarify loop, option-set, answer projection, count — are built + tested but unwired).*
   Run the question-quality/reviewer pass wherever decomposition or execution raises questions, persist answers into
   plan revisions, and resume the exact blocked card.
-  - [ ] **F1.3e — Model-backed auto-clarify loop + the park that sets the block.** For questions the deterministic
-    F1.3c pass keeps open, run `runAutoClarifyLoop` (architect ↔ real §5.K reviewer turn + embedder similarity) and
-    apply its decision via `resolvePlanQuestion`; a `keep_asking` outcome escalates to the operator by PARKING the
-    relevant card (`awaiting_review`/`attention`) and setting the question's `blockedTaskId` — the F1.3d
-    answer→resume path (shipped) then resumes exactly that card when `answerNKleinPlanQuestion` lands.
-    *Design sketch (2026-07-13):* mirror `nklein-plan-critique-runner.ts` — a bounded synthetic-session runner is
-    the turn primitive. Either generalize `runPlanCritiqueSession(seedPrompt, critic)` into a shared bounded-turn
-    helper, or add a sibling `clarify runner` with two seeds: PROPOSE (architect's own model: "propose a confident
-    answer to this plan question; say RESOLVED when certain") and REVIEW (lineage-diverse §5.K pick via
-    `pickEscalationModel`). Map turns onto `AutoClarifyTurnDeps` {propose, review, similarity}; similarity v1 =
-    token-Jaccard (embedder later). Trigger from the decompose tool's post-apply seam (where the F1.3c pass
-    returns `openQuestionIds`), budgeted like the critique (per-run cap; every degraded path = keep the question
-    open, never block). `keep_asking` ⇒ set `blockedTaskId` on the question (F1.3a updater) + park via the park
-    controller; validate the reviewer turn against a REAL local model before closing (working-loop rule 3).
+  - [ ] **F1.3e — residuals: live validation + the execution-side block setter.** The model-backed loop is
+    IMPLEMENTED and wired (2026-07-13): `buildClarifyTurnHandler` on the plan-critique runner (own 6-turn budget;
+    propose = architect's model, review = lineage-diverse §5.K pick, both via the existing bounded critique
+    session — a proposal critique IS a critique), `runModelBackedClarifyLoop` (2-round budget, token-Jaccard
+    no-progress similarity, every degraded path keeps the question open), run inside `decompose_project` after the
+    deterministic pass. REMAINING: (1) validate the propose/review turns against a REAL local model (working-loop
+    rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
+    block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
+    ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
 - [ ] **F1.4 — Complete the clarification dialog.** Support at least four explained choices plus free text,
   single/multi-select semantics, durable answer review, and keyboard/accessibility coverage.
 - [ ] **F1.5 — Make focus chains durable across every agent surface.** Persist ordered steps and state transitions,

@@ -286,6 +286,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				sourceTaskId: request.taskId,
 				onApplied: request.onDecompositionApplied,
 				requestPlanCritique: request.requestPlanCritique,
+				requestClarifyTurn: request.requestClarifyTurn,
 			}),
 			...workspaceExtraTools,
 			...(mcpToolBundle?.tools ?? []),

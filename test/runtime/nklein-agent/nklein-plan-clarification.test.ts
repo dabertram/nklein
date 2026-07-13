@@ -9,8 +9,10 @@ import {
 	writeNKleinPlanArtifacts,
 } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
+	clarifyTextSimilarity,
 	resolvePlanQuestion,
 	runDecompositionClarificationPass,
+	runModelBackedClarifyLoop,
 } from "../../../src/nklein-agent/nklein-plan-clarification";
 
 const selfObservationMocks = vi.hoisted(() => ({
@@ -268,5 +270,116 @@ describe("resolvePlanQuestion block linkage (F1.3d)", () => {
 			answer: "Port 4173.",
 			blockedTaskId: null, // released
 		});
+	});
+});
+
+describe("runModelBackedClarifyLoop (F1.3e)", () => {
+	async function createLoopWorkspace(): Promise<string> {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-clarify-loop-"));
+		await writeNKleinPlanArtifacts({
+			workspacePath,
+			slug: "loop",
+			spec: "spec",
+			plan: "plan",
+			questions: [
+				{
+					id: "q-a",
+					question: "Which of the four proposed navigation structures should the app use?",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: null,
+					blockedTaskId: null,
+				},
+				{
+					id: "q-b",
+					question: "Which chart library should the dashboard use?",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: null,
+					blockedTaskId: null,
+				},
+			],
+			taskGraph: nkleinPlanTaskGraphSchema.parse({
+				schemaVersion: 1,
+				slug: "loop",
+				title: "Loop",
+				tasks: [{ id: "t1", title: "Task 1", prompt: "Do task 1" }],
+			}),
+		});
+		return workspacePath;
+	}
+
+	it("persists a confident architect answer (reviewer unconsulted on a resolved proposal)", async () => {
+		const workspacePath = await createLoopWorkspace();
+		const turns: string[] = [];
+		const summary = await runModelBackedClarifyLoop({
+			workspacePath,
+			slug: "loop",
+			questionIds: ["q-a"],
+			requestClarifyTurn: async ({ role }) => {
+				turns.push(role);
+				return { verdict: "proceed", summary: "Use a tab bar with four tabs.", feedback: null };
+			},
+		});
+		expect(summary).toEqual({ resolvedCount: 1, keptOpenIds: [] });
+		expect(turns).toEqual(["propose"]); // confident proposal skips the reviewer
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "loop");
+		expect(artifacts.questions[0]).toMatchObject({
+			id: "q-a",
+			status: "answered",
+			answer: "Use a tab bar with four tabs.",
+		});
+	});
+
+	it("keeps a question open when no turn is available, and respects the per-decomposition question cap", async () => {
+		const workspacePath = await createLoopWorkspace();
+		const summary = await runModelBackedClarifyLoop({
+			workspacePath,
+			slug: "loop",
+			questionIds: ["q-a", "q-b"],
+			maxQuestions: 1,
+			requestClarifyTurn: async () => null, // budget spent / no model
+		});
+		expect(summary.resolvedCount).toBe(0);
+		expect(summary.keptOpenIds).toEqual(["q-a", "q-b"]);
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "loop");
+		expect(artifacts.questions.every((question) => question.status === "open")).toBe(true);
+	});
+
+	it("adopts the give-up assumption when the reviewer keeps objecting through the tight round budget", async () => {
+		const workspacePath = await createLoopWorkspace();
+		let proposeCount = 0;
+		const summary = await runModelBackedClarifyLoop({
+			workspacePath,
+			slug: "loop",
+			questionIds: ["q-b"],
+			requestClarifyTurn: async ({ role }) => {
+				if (role === "propose") {
+					proposeCount += 1;
+					return {
+						verdict: "revise",
+						summary: `Unsure round ${proposeCount}`,
+						feedback: `Leaning toward ECharts (round ${proposeCount}).`,
+					};
+				}
+				return { verdict: "revise", summary: "Objection", feedback: "Consider the bundle size." };
+			},
+		});
+		// The 2-round budget expires ⇒ give_up_with_assumption on the latest proposal — planning never blocks.
+		expect(summary).toEqual({ resolvedCount: 1, keptOpenIds: [] });
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "loop");
+		expect(artifacts.questions[1]).toMatchObject({ id: "q-b", status: "assumed-default" });
+	});
+});
+
+describe("clarifyTextSimilarity", () => {
+	it("is 1 for identical token sets, 0 for disjoint, and symmetric in between", () => {
+		expect(clarifyTextSimilarity("use sqlite storage", "use sqlite storage")).toBe(1);
+		expect(clarifyTextSimilarity("alpha beta", "gamma delta")).toBe(0);
+		const ab = clarifyTextSimilarity("alpha beta gamma", "beta gamma delta");
+		expect(ab).toBeCloseTo(0.5, 5);
+		expect(ab).toBe(clarifyTextSimilarity("beta gamma delta", "alpha beta gamma"));
 	});
 });

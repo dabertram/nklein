@@ -313,6 +313,19 @@
   The production SETTER of `blockedTaskId` ships with F1.3e's operator escalation (noted in the open leaf). 6 new
   tests (block release, resume happy path + prompt content, non-repromptable, empty submission, unknown question).
 
+- [x] **F1.3e (implementation) — the model-backed auto-clarify loop, wired end to end** *(delivered 2026-07-13;
+  live-model validation + the execution-side `blockedTaskId` setter remain in the narrowed leaf).* The bounded
+  critique session is reused as the turn primitive — a proposal critique IS a critique: `buildClarifyTurnHandler`
+  (plan-critique runner; separate 6-turn per-run budget; synthetic sessions excluded) runs `propose` turns on the
+  ARCHITECT's own model and `review` turns on the lineage-diverse §5.K pick, mapping `submit_plan_critique`
+  semantics onto `AutoClarifyTurnDeps` (`proceed` = confident answer / no objection; `revise` = what's missing /
+  the objection). `runModelBackedClarifyLoop` drives `runAutoClarifyLoop` per kept-open question (cap 2 questions,
+  2 rounds each, token-Jaccard no-progress similarity), persists decisions through `resolvePlanQuestion`, and
+  keeps a question open on EVERY degraded path (null turn, empty assumption, persistence failure) — the loop never
+  blocks an applied decomposition. Wired inside `decompose_project` after the deterministic F1.3c pass and
+  threaded service → session-runtime → tool. 4 new tests (confident answer skips the reviewer, null-turn keep-open
+  + question cap, budget-expiry give-up assumption, similarity properties).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

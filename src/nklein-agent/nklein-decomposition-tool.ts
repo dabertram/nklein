@@ -200,14 +200,15 @@ import {
 } from "./decomposition/plan-task-schemas";
 import { validateNKleinPlanTaskGraph } from "./decomposition/plan-task-validation";
 import { selectBestNKleinPlanTaskGraph } from "./nklein-decomposition-selection";
-import { runDecompositionClarificationPass } from "./nklein-plan-clarification";
-import type { NKleinPlanCritiqueRequestHandler } from "./nklein-plan-critique-tool";
+import { runDecompositionClarificationPass, runModelBackedClarifyLoop } from "./nklein-plan-clarification";
+import type { NKleinClarifyTurnHandler, NKleinPlanCritiqueRequestHandler } from "./nklein-plan-critique-tool";
 
 function createDecomposeProjectTool(
 	workspacePath: string,
 	sourceTaskId?: string | null,
 	onApplied?: NKleinDecompositionAppliedHandler,
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler,
+	requestClarifyTurn?: NKleinClarifyTurnHandler,
 ): AgentTool {
 	// W4.3: each plan slug gets AT MOST one diverse-critic round (revisions apply the feedback, never re-debate);
 	// the per-run count budget lives in the service handler (it spans sessions).
@@ -521,6 +522,22 @@ function createDecomposeProjectTool(
 						workspacePath,
 						slug: artifacts.taskGraph.slug,
 					});
+					// F1.3e: for the questions the deterministic pass kept open, one bounded model-backed
+					// auto-clarify loop (architect propose on its own model ↔ diverse §5.K review). Every degraded
+					// path keeps the question open for the operator; the loop never blocks the apply.
+					if (clarification.keptOpenCount > 0 && requestClarifyTurn) {
+						const modelLoop = await runModelBackedClarifyLoop({
+							workspacePath,
+							slug: artifacts.taskGraph.slug,
+							questionIds: clarification.openQuestionIds,
+							requestClarifyTurn,
+						}).catch(() => null);
+						if (modelLoop) {
+							clarification.assumedCount += modelLoop.resolvedCount;
+							clarification.keptOpenCount = modelLoop.keptOpenIds.length;
+							clarification.openQuestionIds = [...modelLoop.keptOpenIds];
+						}
+					}
 					if (clarification.openQuestionCount > 0) {
 						await recordSelfObservation({
 							signal: "custom",
@@ -629,6 +646,8 @@ export function createNKleinDecompositionTools(options: {
 	onApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes plan; absent ⇒ the critique gate never fires. */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
+	/** F1.3e: executes one bounded clarify turn; absent ⇒ kept-open questions go straight to the operator. */
+	requestClarifyTurn?: NKleinClarifyTurnHandler;
 }): AgentTool[] {
 	return [
 		createDecomposeProjectTool(
@@ -636,6 +655,7 @@ export function createNKleinDecompositionTools(options: {
 			options.sourceTaskId,
 			options.onApplied,
 			options.requestPlanCritique,
+			options.requestClarifyTurn,
 		),
 		createExpandTaskTool(),
 	];

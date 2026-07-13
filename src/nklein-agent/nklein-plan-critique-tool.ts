@@ -97,6 +97,18 @@ export function createNKleinPlanCritiqueTool(options: { onSubmitted?: NKleinPlan
 	};
 }
 
+/**
+ * F1.3e — one bounded clarify TURN, reusing the critique session as the turn primitive (a proposal critique IS a
+ * critique): `propose` runs on the architect's own model (summary = the proposed answer, verdict `proceed` = the
+ * architect is confident), `review` on the lineage-diverse §5.K pick (verdict `proceed` = no objection, `revise`
+ * + feedback = the reviewer's opinion). Null ⇒ no turn available (budget spent / no model) — the caller keeps the
+ * question open; a clarify turn never blocks.
+ */
+export type NKleinClarifyTurnHandler = (input: {
+	seedPrompt: string;
+	role: "propose" | "review";
+}) => Promise<NKleinPlanCritiqueResult | null>;
+
 /** What the decompose tool hands the critique executor — minimal, serializable plan facts. */
 export interface NKleinPlanCritiqueRequest {
 	slug: string;

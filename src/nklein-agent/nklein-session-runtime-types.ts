@@ -12,7 +12,11 @@ import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-t
 import type { NKleinFocusChainSubmittedHandler } from "./nklein-focus-chain-tool";
 import type { NKleinMcpRuntimeService } from "./nklein-mcp-runtime-service";
 import type { NKleinMergeResolutionSubmittedHandler } from "./nklein-merge-resolution-tool";
-import type { NKleinPlanCritiqueRequestHandler, NKleinPlanCritiqueSubmittedHandler } from "./nklein-plan-critique-tool";
+import type {
+	NKleinClarifyTurnHandler,
+	NKleinPlanCritiqueRequestHandler,
+	NKleinPlanCritiqueSubmittedHandler,
+} from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import type { AgentTool } from "./sdk-agent-types";
@@ -117,6 +121,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes decomposition (see createNKleinDecompositionTools). */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
+	/** F1.3e: the bounded clarify-turn executor for the decompose tool's model-backed clarify loop. */
+	requestClarifyTurn?: NKleinClarifyTurnHandler;
 	/**
 	 * When provided, the `begin_implementation` promotion tool (todo §5.B) is attached so a work card can move
 	 * itself from the Planning/Refinement lane to In Progress after its refinement pass. The service supplies this

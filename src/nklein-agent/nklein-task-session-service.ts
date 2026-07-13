@@ -1122,6 +1122,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					: runtimeSetup.toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
+				requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(input.taskId, hostWorkspaceRoot),
 				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
 				onReviewSubmitted: input.onReviewSubmitted,
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
@@ -1665,6 +1666,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								: runtimeSetup.toolPolicies,
 							onDecompositionApplied: this.onDecompositionApplied,
 							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
+							requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(request.taskId, request.cwd),
 							onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 							onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
 							onTeamEvent: (event, teamName) => {
