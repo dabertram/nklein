@@ -105,6 +105,14 @@
   typecheck, lint, SDK rebuild, the 9,290-test fast gate, and all 129 protected tests pass. A guarded live
   Qwen3-8B/40k high-power C0 lap then exercised the production SDK wrapper normally: it wrote and captured the exact
   `hello.txt`, reached review in about six seconds, and cleaned up its sandbox; the owned model was unloaded afterward.
+- [x] **P0.5 — Fix the remaining `task-command-exit` launch case** *(legacy §5.U; reconciled 2026-07-13).* This was a
+  stale backlog entry: the four-case integration is already fully green. The earlier fixes made spawned source commands
+  resolve the vendored SDK aliases, run the shared server from a neutral cwd, and identify !Klein's protected source
+  checkout from its install location rather than the server cwd (`a2a88586`, `b4a904dd`, `4967aa8e`). The final launch
+  fixture deliberately registers its project through the write path before exercising read-only `task list`
+  (`36b91973`): reads retain `autoCreateIfMissing:false`, bare launch does not silently add arbitrary git directories,
+  and self-project confirmation remains explicit. Re-verification passed all 4 task-command-exit integration cases and
+  all 11 invocation-parser cases without weakening either guard.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
@@ -616,7 +624,7 @@
 
 ### 5.U — `src/commands/task.ts` CLI decomposition ✅ COMPLETE (2026-06-27) *(a finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the "move finished sub-trees early" rule)*
 
-task.ts went from a ~2870-line monolith to ~568 lines (**−80%**): all command + helper logic extracted into 17 per-concern modules under `src/commands/task/`, and `registerTaskCommand` split into a thin dispatcher + 7 register helpers. Each slice below was tsc + biome + `test:fast` (2443) green. *(One open follow-up stays in todo.md §5.U: the `task-command-exit` integration test is 3/4 after this work; the 4th "opens only for launch" case is a guard-vs-launch design knot.)*
+task.ts went from a ~2870-line monolith to ~568 lines (**−80%**): all command + helper logic extracted into 17 per-concern modules under `src/commands/task/`, and `registerTaskCommand` split into a thin dispatcher + 7 register helpers. Each slice below was tsc + biome + `test:fast` (2443) green. *(The historical `task-command-exit` follow-up is now resolved and archived as P0.5 above.)*
 
   - **`src/commands/task.ts` (~2870 → 2751)** *(umbrella — slices below are the counted work; 5 done, the remaining
         slice is the open child)* — the `nklein task` CLI conflates many concerns: acceptance-failure +
@@ -735,11 +743,10 @@ task.ts went from a ~2870-line monolith to ~568 lines (**−80%**): all command 
               spawned with `cwd = projectPath`, and the self-improvement guard ([projects-api.ts](src/trpc/projects-api.ts)
               ~L434) keys "!Klein's own source repo" off `resolveGitRootIfAvailable(deps.serverCwd)` — so the server's git
               root == the project being added → false self-improvement block → fixed by running the server from the neutral
-              temp HOME (non-git → no source repo → guard skipped). NOT in the green gate. **Still owed (1/4):** the "opens
-              only for launch invocations" test — a launch/`--agent`/`--port` invocation in its loop exits 1 (server-from-
-              neutral-cwd may not resolve the cwd default workspace the launch path wants, OR an env-specific agent issue);
-              needs a focused look (likely thread a self-project confirmation so the server can keep cwd=project, or fix the
-              launch's workspace resolution).
+              temp HOME (non-git → no source repo → guard skipped). NOT in the green gate. **Resolved afterward:** the
+              launch-only case registers the fixture through a write command before read-only `task list` (`36b91973`),
+              while the source-workspace filter now uses the same install-location identity as the guard (`4967aa8e`).
+              The integration is 4/4 green without making reads or bare launches auto-register projects; see P0.5 above.
         - [x] the (then-pending) per-subcommand registration split + lifting **all** command implementations
               (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph + the merge / dependency / read /
               delete / verify / plan-gap commands) into per-concern modules — **all done** (slices 14–22 above).

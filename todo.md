@@ -632,8 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.5 — Fix the remaining `task-command-exit` launch case** *(legacy §5.U).* Reconcile neutral server cwd,
-  workspace resolution, and auto-open flag handling so all four integration cases pass without weakening the guard.
 - [ ] **P0.6 — Finish the project-switch stall investigation** *(legacy §5.V).* Reproduce rapid workspace navigation,
   identify the stale subscription/request, and prove board/chat/settings settle on the selected project without a
   reload.
