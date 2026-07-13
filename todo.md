@@ -878,8 +878,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
   the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
   package's e2e run.
-- [ ] **F2.7 — Complete capability-gated multimodal chat.** Accept images first, then audio/PDF only where a local model
-  and parser support them; bound storage/context and render input/output accessibly.
+- [ ] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** `src/core/chat-multimodal.ts`
+  carries the F2.7 policy: `decideChatAttachmentAcceptance` (images ONLY when the selected model claims the
+  llmfit `vision` capability; audio/PDF refused outright with an explanatory reason until a local parser is
+  integrated), `boundChatImageAttachments` (fail-closed count/per-image/total byte budgets — refuse with the
+  exact limit named, never silently truncate; png/jpeg/webp/gif only), and `buildMultimodalUserContent`
+  (OpenAI-compatible `text` + `image_url` data-URL parts). REMAINING: thread attachments through
+  `RuntimeChatSendMessageRequest` → the send pipeline → the local-LLM adapter (content-parts message shape) and
+  the transcript store (bounded storage), resolve the selected model's capability ids at the send seam, add the
+  web-ui composer attach control + accessible inline rendering (alt text, keyboard nav), and live-validate on a
+  vision-capable local model (e.g. a gemma/qwen-VL variant) before enabling by default.
 - [ ] **F2.8 — Complete chat execution-access modes.** Make isolated/read-only/confirming/full-risk postures explicit,
   persistent, enforced at every tool/host boundary, and understandable in the composer.
 - [ ] **F2.9 — Replace the half-wired chat-memory store with the selected memory projection.** Unify short-term session

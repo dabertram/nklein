@@ -957,6 +957,15 @@
   arbitrary site), must exist as a regular file. Legitimate local UI actions preserved exactly (VS Code/Finder/
   terminal targets; plan/evidence file opens). The 6 web-ui builder tests were PORTED to the core module, not
   dropped. Backend + web-ui tsc 0; fast 9543; web-ui 1047 green.
+- [x] **F2.7a — multimodal chat policy cores (images first)** *(delivered 2026-07-13; the end-to-end wiring +
+  UI + live vision-model validation are F2.7b in todo).* `src/core/chat-multimodal.ts`: the CAPABILITY gate
+  (`decideChatAttachmentAcceptance` — images accepted only when the selected model claims the llmfit `vision`
+  capability id; audio/PDF refused outright with a reason naming the missing local parser, per the F2.7
+  "only where a local model and parser support them" rule), the BOUNDS gate (`boundChatImageAttachments` —
+  count/per-image/total decoded-byte budgets, supported-mime check, fail-closed refusals naming the exact limit,
+  never a silent truncate/resize), and OpenAI-compatible content assembly (`buildMultimodalUserContent` — text
+  part first, then ordered `image_url` data-URL parts; mime lowercased; image-only messages carry no empty text
+  part). 6 tests. tsc 0.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
