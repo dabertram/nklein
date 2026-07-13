@@ -9,6 +9,7 @@
  */
 
 import type { AttemptToolCall } from "../core/agent-attempt-ledger";
+import { hashToolResultContent } from "../core/tool-result-record";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
 
@@ -32,6 +33,9 @@ export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMe
 				const call = index === undefined ? undefined : calls[index];
 				if (call) {
 					call.outcome = block.is_error ? "error" : "success";
+					// F1.16: the durable evidence hash of what the tool returned — replay can verify the recorded
+					// execution without re-running the side effect or persisting the payload.
+					call.resultHash = hashToolResultContent(block.content ?? null);
 				}
 			}
 		}

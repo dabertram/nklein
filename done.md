@@ -538,6 +538,21 @@
   (combined chronological fold with cutover + chat-flow + legacy exclusions asserted against the store-only fold;
   telemetry both-writes-gone).
 
+- [x] **F1.16 — Per-tool idempotency + durable result hashes/references** *(delivered 2026-07-13).* New pure core
+  `src/core/tool-result-record.ts`: (1) `deriveToolCallIdempotencyKey` — the stable sha256 identity of ONE logical
+  tool execution (workflow/task × tool × content-complete input fingerprint × OCCURRENCE, so a deliberate repeat of
+  an identical call is a distinct execution) — deterministic across machines and replays; (2)
+  `hashToolResultContent` — the canonical (key-order-independent) content hash of what the tool returned, now
+  RECORDED ONCE per completed tool call on the attempt event (`AttemptToolCall.resultHash`, optional so legacy
+  lines parse; stamped by `extractTerminalToolCalls` from the persisted transcript's tool_result blocks) — durable
+  evidence without persisting payloads; (3) `findRecordedToolCallResult` — the replay/resume lookup over the
+  ledger: every recorded execution of a logical call in occurrence order with outcome + result hash. A hit means
+  the side effect already ran (at-most-once); the F1.17 replay-policy layer (reuse/simulate/skip/reconfirm) decides
+  over exactly this substrate — that enforcement gate is F1.17's by design. Result REFERENCES (the result branch)
+  ride the attempt's `artifacts` since F1.14; scheduler-level at-most-once was already live (lease idempotency
+  keys). 4 new tests (canonical hash, identity-component key sensitivity, occurrence-ordered lookup across
+  attempts + first-execution empty, extractor stamps hashes from the transcript).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

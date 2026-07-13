@@ -656,8 +656,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
-- [ ] **F1.16 — Finish per-tool idempotency and durable result hashes/references.** Replayed or resumed work must neither
-  repeat side effects nor lose the original evidence.
 - [ ] **F1.17 — Implement replay policies end to end.** Support `reuse`, `simulate`, `skip`, and `reconfirm` per tool,
   persist the choice/result, and make simulator fixtures consume the same contract.
 - [ ] **F1.27 — Land the workflow-kernel/durable-queue interface.** Isolate workflow state transitions from CLI/tRPC/UI

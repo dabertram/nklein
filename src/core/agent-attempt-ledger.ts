@@ -68,6 +68,8 @@ const attemptToolCallSchema = z.object({
 	name: z.string(),
 	fingerprint: z.string().nullable(),
 	outcome: z.string().nullable(),
+	/** F1.16: durable content hash of what the tool returned (replay evidence); absent on legacy lines. */
+	resultHash: z.string().nullable().optional(),
 });
 export type AttemptToolCall = z.infer<typeof attemptToolCallSchema>;
 
