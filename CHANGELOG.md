@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Streamed chat replies work again.** A recent change to the streamed-turn continuation feature accidentally broke
+  every token-streamed chat turn with an internal error ("Cannot read properties of undefined") — the reply never
+  started streaming. Non-streamed chat was unaffected. Fixed, with a regression test that exercises the streaming
+  client exactly the way production constructs it.
+
 - **A finished task can no longer silently end with no result and no explanation.** An intermittent failure class let
   a card reach a terminal state with neither a result branch nor an actionable error: capture failures after a
   torn-down workspace were logged as benign "nothing to capture", explicitly stopping a task skipped the salvage

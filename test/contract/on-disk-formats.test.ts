@@ -137,7 +137,7 @@ afterEach(() => {
 // ── Test 1: board.json round-trip + raw shape ────────────────────────────────
 
 describe("board.json on-disk format", () => {
-	it("round-trip: saveWorkspaceState writes board.json with the 6 fixed columns in order, card fields, and a dependencies array", async () => {
+	it("round-trip: saveWorkspaceState writes board.json with the 7 fixed columns in order, card fields, and a dependencies array", async () => {
 		const board = makeBoard("card-abc", "My Task", "Do the thing");
 		await saveWorkspaceState(repoDir, { board });
 
@@ -153,8 +153,8 @@ describe("board.json on-disk format", () => {
 		const columns = rawJson.columns as Array<{ id: string; title: string; cards: unknown[] }>;
 		const columnIds = columns.map((c) => c.id);
 
-		// The 6 fixed column IDs must be present and in canonical order.
-		expect(columnIds).toEqual(["backlog", "planning", "in_progress", "review", "completed", "trash"]);
+		// The 7 fixed column IDs must be present and in canonical order (Ready lane added by todo 11116).
+		expect(columnIds).toEqual(["backlog", "planning", "ready", "in_progress", "review", "completed", "trash"]);
 
 		// The backlog column must contain our card with the expected fields.
 		const backlogCol = columns.find((c) => c.id === "backlog");

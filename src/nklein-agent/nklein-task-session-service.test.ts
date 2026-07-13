@@ -149,6 +149,10 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 		const estimatedPromptTokens = Math.ceil(rules.length / 4);
 
-		expect(estimatedPromptTokens).toBeLessThanOrEqual(2_300);
+		// Deliberately re-baselined 2_300 → 2_500 (2026-07-13): the rules grew ~110 estimated tokens on 2026-07-08
+		// (f61ad6c4, one-based read_files guidance for a sweep-run-1 root cause) and this guard lives only in the slow
+		// suite, so the miss surfaced late. The guard's job is unchanged: catch unbounded prompt growth, not block
+		// root-caused rule additions.
+		expect(estimatedPromptTokens).toBeLessThanOrEqual(2_500);
 	});
 });

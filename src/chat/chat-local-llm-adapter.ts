@@ -265,10 +265,13 @@ async function streamWithContinuationLadder(
 	sampling: LocalLlmSamplingOptions,
 	onToken: (delta: string) => void,
 ): Promise<string> {
-	const completeStream = client.completeStream;
-	if (!completeStream) {
+	if (!client.completeStream) {
 		return completePlainWithTruncationLadder(client, messages, sampling);
 	}
+	// Bind, don't detach: the production client is a class instance whose completeStream reads `this.config` — the
+	// detached call broke EVERY streamed chat turn ("Cannot read properties of undefined (reading 'config')") while
+	// the plain-object test fakes kept passing. Keep the receiver.
+	const completeStream = client.completeStream.bind(client);
 	const first = await completeStream({ messages, sampling }, onToken);
 	let combined = cleanModelReply(first.content);
 	let finishReason = first.finishReason;

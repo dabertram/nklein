@@ -15,7 +15,7 @@
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { BackendUnderTest } from "../contract/helpers/index.js";
 import { initGitRepository, requestJson, startTsBackend } from "../contract/helpers/index.js";
 import { type MockLlmServer, startMockLlm } from "../contract/helpers/mock-llm";
@@ -171,8 +171,10 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 			// THE INVARIANT (W0.1 + W4.2a): a no-op worker is re-driven, then HELD in review — never completed.
 			expect(lanes.get(alphaId)).toBe("review");
 			expect(lanes.get(betaId)).toBe("review");
-			// And the mock actually served multi-turn traffic (decompose + worker turns + re-drives).
-			expect(mock.requests.length).toBeGreaterThanOrEqual(4);
+			// And the mock actually served multi-turn traffic (decompose + worker turns + re-drives). The board can
+			// reach the HOLD shape while a re-drive turn is still completing against the mock, so WAIT for the
+			// traffic instead of sampling it (raced ~1 in 3 runs: 3 requests observed at the instant of HOLD).
+			await vi.waitFor(() => expect(mock.requests.length).toBeGreaterThanOrEqual(4), { timeout: 20_000 });
 		},
 		TEST_TIMEOUT_MS,
 	);

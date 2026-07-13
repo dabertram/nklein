@@ -1371,6 +1371,28 @@ describe("§10c#12 streamed-turn truncation — append-continuation ladder", () 
 		expect(calls.messages).toHaveLength(1);
 	});
 
+	it("preserves the client's `this` binding — a class-instance client streams without crashing", async () => {
+		// Regression (live 2026-07-13): the ladder detached `client.completeStream` into a local, so the PRODUCTION
+		// class-instance client (LocalLlmClient reads `this.config.baseUrl`) crashed every streamed chat turn with
+		// "Cannot read properties of undefined (reading 'config')" — while plain-object arrow-fn fakes kept passing.
+		class InstanceClient implements ChatCompletionClient {
+			private readonly reply = "instance reply";
+			complete = async () => ({ content: "unused", finishReason: "stop", raw: {} });
+			async completeStream(
+				_request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
+				onChunk: (delta: string) => void,
+			) {
+				onChunk(this.reply); // throws if the method was detached from the instance
+				return { content: this.reply, finishReason: "stop", raw: {} };
+			}
+		}
+		const deps = createChatModelDeps(new InstanceClient(), { sampling: { maxTokens: 512 } });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "hi" }], (delta) => streamed.push(delta));
+		expect(streamed).toEqual(["instance reply"]);
+		expect(reply).toBe("instance reply");
+	});
+
 	it("a clean stream (finish stop) never triggers a continuation", async () => {
 		const client: ChatCompletionClient = {
 			complete: async () => ({ content: "unused", finishReason: "stop", raw: {} }),
