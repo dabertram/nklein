@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Card guard rails are enforced end to end: while the worker works and before the result merges.** The live write
+  gate now understands directory-scoped bounds — a card scoped to `src/orders/**` may create new files inside that
+  directory (previously only pre-declared files were allowed), and paths a card declares off-limits are blocked
+  outright. At delivery, the result's actually-changed files are checked against the card's bounds: an
+  out-of-bounds result gets one automatic retry telling the worker exactly which files to revert, then is held in
+  Review for you instead of merging.
+
 - **Card guard rails are now enforced when work is scheduled.** Cards generated from a plan carry their write bounds
   onto the board, and the auto-start scheduler uses the full parallel-write safety classification: two cards that
   would write the same specific file — or where one would write inside paths the other declares off-limits — no

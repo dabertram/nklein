@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	classifyPlanHotFiles,
 	deriveTaskWriteScope,
+	findWorkPackageBoundaryViolations,
 	formatHotFileWarnings,
 	planTaskToWorkPackage,
 	populateWorkPackageShape,
@@ -78,6 +79,38 @@ describe("populateWorkPackageShape + projection", () => {
 			id: "b",
 			writeScope: ["src/b.ts"],
 		});
+	});
+
+	it("F1.9b: flags forbidden and out-of-scope changed files, exempts coarse paths, skips unbounded cards", () => {
+		const task = {
+			id: "orders",
+			writeScope: ["src/orders/**"],
+			forbiddenPaths: ["src/auth/**"],
+		};
+		const violations = findWorkPackageBoundaryViolations(task, [
+			"src/orders/api.ts", // in scope — clean
+			"src/auth/session.ts", // forbidden — most severe, reported once
+			"src/payments/checkout.ts", // outside scope
+			"package.json", // coarse — a dependency add is legitimate, exempt from out-of-scope
+		]);
+		expect(violations).toEqual([
+			{
+				path: "src/auth/session.ts",
+				kind: "forbidden_write",
+				message: expect.stringContaining("forbidden paths"),
+			},
+			{
+				path: "src/payments/checkout.ts",
+				kind: "out_of_scope_write",
+				message: expect.stringContaining("outside this card's declared write scope"),
+			},
+		]);
+		// Legacy unbounded card: nothing to enforce.
+		expect(findWorkPackageBoundaryViolations({ id: "legacy" }, ["anything/at/all.ts"])).toEqual([]);
+		// filesLikelyTouched is the fallback scope basis.
+		expect(
+			findWorkPackageBoundaryViolations({ id: "f", filesLikelyTouched: ["src/f.ts"] }, ["src/g.ts"])[0]?.kind,
+		).toBe("out_of_scope_write");
 	});
 
 	it("formats warnings for RED hot files only", () => {

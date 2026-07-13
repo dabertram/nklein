@@ -51,6 +51,9 @@ export interface StartNKleinTaskSessionRequest {
 	/** W1.1a: optional per-turn output-token budget → the SDK's maxTokensPerTurn (absent ⇒ provider default). */
 	maxTokensPerTurn?: number | null;
 	filesLikelyTouched?: readonly string[] | null;
+	/** F1.9b work-package bounds — enforced glob-aware by the tool-approval write gate. */
+	writeScope?: readonly string[] | null;
+	forbiddenPaths?: readonly string[] | null;
 	resumeFromTrash?: boolean;
 	resumeFromPersistence?: boolean;
 	providerId?: string | null;

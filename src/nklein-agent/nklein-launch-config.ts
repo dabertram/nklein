@@ -10,6 +10,8 @@ export interface NKleinTaskLaunchConfigOverrides {
 	modelId: string;
 	workspaceRoot?: string | null;
 	filesLikelyTouched?: readonly string[] | null;
+	writeScope?: readonly string[] | null;
+	forbiddenPaths?: readonly string[] | null;
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
@@ -37,6 +39,8 @@ export function normalizeLaunchConfig(launchConfig: NKleinTaskRestartLaunchConfi
 		...(Object.hasOwn(launchConfig, "workspaceRoot")
 			? { workspaceRoot: launchConfig.workspaceRoot?.trim() || null }
 			: {}),
+		...(Object.hasOwn(launchConfig, "writeScope") ? { writeScope: launchConfig.writeScope ?? null } : {}),
+		...(Object.hasOwn(launchConfig, "forbiddenPaths") ? { forbiddenPaths: launchConfig.forbiddenPaths ?? null } : {}),
 		...(Object.hasOwn(launchConfig, "filesLikelyTouched")
 			? { filesLikelyTouched: launchConfig.filesLikelyTouched ?? null }
 			: {}),

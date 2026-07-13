@@ -1,4 +1,4 @@
-import type { WorkPackage } from "./work-package-dispatch.js";
+import { isCoarseScopePath, normalizeScopeGlob, type WorkPackage } from "./work-package-dispatch.js";
 
 /**
  * F1.8 (§5.AK) — emit WORK-PACKAGE-SHAPED cards BY CONSTRUCTION: the pure derivation that turns a decomposed task
@@ -164,6 +164,82 @@ export function planTaskToWorkPackage(task: WorkPackageShapedTaskInput): WorkPac
 		...(forbidden.length > 0 ? { forbiddenScope: forbidden } : {}),
 		...(dependsOn.length > 0 ? { dependsOn } : {}),
 	};
+}
+
+// ---------------------------------------------------------------------------
+// F1.9b — review-seam boundary check: the card's ACTUAL changed files vs its declared bounds.
+// ---------------------------------------------------------------------------
+
+/** Strip a trailing glob segment (`/**`, `/*`) so a directory glob compares as its directory. */
+function stripScopeGlobTail(normalized: string): string {
+	return normalized.replace(/\/\*\*?$/u, "").replace(/\/+$/u, "");
+}
+
+/** Directory-prefix containment on the shared normalization (`src/a/b.ts` is inside `src/a` and inside itself). */
+function isPathWithinScopeGlob(normalizedPath: string, scopeGlob: string): boolean {
+	const normalizedScope = stripScopeGlobTail(normalizeScopeGlob(scopeGlob));
+	if (normalizedScope.length === 0) {
+		return false;
+	}
+	return normalizedPath === normalizedScope || normalizedPath.startsWith(`${normalizedScope}/`);
+}
+
+export interface WorkPackageBoundaryViolation {
+	path: string;
+	kind: "forbidden_write" | "out_of_scope_write";
+	message: string;
+}
+
+/**
+ * Check a delivered result's ACTUAL changed files against the card's work-package bounds (F1.9b review-seam
+ * enforcement; the dispatch half gates auto-start). Two findings, most severe first per file:
+ *
+ *  - `forbidden_write` — the file is inside the card's `forbiddenPaths` (always a violation when declared);
+ *  - `out_of_scope_write` — the card HAS a write scope (explicit `writeScope`, else `filesLikelyTouched`) and the
+ *    file is outside every scope glob. COARSE paths (manifests/lockfiles/root configs) are exempt — a worker
+ *    adding a dependency legitimately touches `package.json` without it being in scope (the same yellow-not-red
+ *    philosophy as dispatch).
+ *
+ * A card with NO bounds at all returns no violations (legacy unbounded cards are unenforced by design). Pure.
+ */
+export function findWorkPackageBoundaryViolations(
+	task: WorkPackageShapedTaskInput,
+	changedFiles: readonly string[],
+): WorkPackageBoundaryViolation[] {
+	const writeScope = deriveTaskWriteScope(task);
+	const forbidden = Array.isArray(task.forbiddenPaths)
+		? task.forbiddenPaths.filter((path) => typeof path === "string" && path.trim().length > 0)
+		: [];
+	if (writeScope.length === 0 && forbidden.length === 0) {
+		return [];
+	}
+	const violations: WorkPackageBoundaryViolation[] = [];
+	for (const rawPath of changedFiles) {
+		const normalizedPath = stripScopeGlobTail(normalizeScopeGlob(rawPath));
+		if (normalizedPath.length === 0) {
+			continue;
+		}
+		if (forbidden.some((glob) => isPathWithinScopeGlob(normalizedPath, glob))) {
+			violations.push({
+				path: normalizedPath,
+				kind: "forbidden_write",
+				message: `changed file "${normalizedPath}" is inside this card's forbidden paths`,
+			});
+			continue;
+		}
+		if (
+			writeScope.length > 0 &&
+			!isCoarseScopePath(normalizedPath) &&
+			!writeScope.some((glob) => isPathWithinScopeGlob(normalizedPath, glob))
+		) {
+			violations.push({
+				path: normalizedPath,
+				kind: "out_of_scope_write",
+				message: `changed file "${normalizedPath}" is outside this card's declared write scope`,
+			});
+		}
+	}
+	return violations;
 }
 
 /** Human-readable quality warnings for the RED hot files (surfaced with the decompose result). */

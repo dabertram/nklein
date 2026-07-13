@@ -654,16 +654,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
     block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
-- [ ] **F1.9b — Enforce work-package boundaries at REVIEW (dispatch half shipped 2026-07-13).** Dispatch-side
-  enforcement is DONE: cards carry `writeScope`/`forbiddenPaths` onto the board, the auto-start overlap gate runs
-  the §5.AK `classifyPackagePairConflict` (RED = shared specific path OR either card writing inside the other's
-  forbidden scope, glob-aware ⇒ serialize; YELLOW coarse-manifest overlap fans out), Green/Yellow/Red proven on a
-  representative DAG. REMAINING (this leaf): the REVIEW/delivery seam — check the result branch's ACTUAL changed
-  files against the card's writeScope/forbiddenPaths (the pure `assessMergeReadiness` scope checks in
-  `work-package-merge-readiness.ts` are ready but unwired) and PARK delivery (hold, like the fail-closed gate) on
-  unauthorized overlap, with a recovery rung (bounce the worker with the violation named). Note: the live
-  tool-approval scope gate (`approveScopedWriteTargets`, keyed on filesLikelyTouched exact paths) should learn the
-  glob-aware writeScope/forbiddenPaths bounds at the same time.
 - [ ] **F1.10 — Wire first-class stuck/at-risk signals into worker and runtime loops.** Generalize fixture flips,
   read/tool loops, host-path confusion, no-progress, and repeated failures into early escalation rather than grinding.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*

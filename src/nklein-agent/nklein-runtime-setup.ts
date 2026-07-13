@@ -41,6 +41,9 @@ export interface KanbanToolApprovalOptions {
 	maxAgentWritableFileLines?: number | null;
 	taskId?: string | null;
 	filesLikelyTouched?: readonly string[] | null;
+	/** F1.9b work-package bounds: glob write scope (wins over filesLikelyTouched) + forbidden paths (always denied). */
+	writeScope?: readonly string[] | null;
+	forbiddenPaths?: readonly string[] | null;
 	protectedTestApprovals?: ProtectedTestApprovalStore;
 }
 
@@ -162,13 +165,35 @@ function approveToolPathContainment(
 	return null;
 }
 
+/** Strip a trailing glob segment (`/**`, `/*`) so a directory glob compares as its directory. */
+function stripWriteScopeGlobTail(normalized: string): string {
+	return normalized.replace(/\/\*\*?$/u, "").replace(/\/+$/u, "");
+}
+
+/** Directory-prefix containment: `a/b/c.ts` is inside `a`, `a/b`, and itself; `ab/c.ts` is not inside `a`. */
+function isTargetWithinScopeGlob(normalizedTarget: string, normalizedScopeGlob: string): boolean {
+	const scope = stripWriteScopeGlobTail(normalizedScopeGlob);
+	if (scope.length === 0) {
+		return false;
+	}
+	return normalizedTarget === scope || normalizedTarget.startsWith(`${scope}/`);
+}
+
 function approveScopedWriteTargets(
 	workspacePath: string,
 	request: NKleinSdkToolApprovalRequest,
 	options: KanbanToolApprovalOptions,
 ): NKleinSdkToolApprovalResult | null {
-	const allowedPaths = normalizeWriteScope(workspacePath, options.taskId, options.filesLikelyTouched);
-	if (allowedPaths.size === 0) {
+	// F1.9b: the card's effective write scope — the shaped `writeScope` globs win (directory-prefix containment,
+	// so `src/orders/**` permits a NEW file inside the directory), else the legacy exact `filesLikelyTouched` set.
+	// `forbiddenPaths` are denied regardless of which scope form is present.
+	const scopeGlobs = normalizeWriteScope(workspacePath, options.taskId, options.writeScope);
+	const allowedPaths =
+		scopeGlobs.size > 0
+			? new Set<string>()
+			: normalizeWriteScope(workspacePath, options.taskId, options.filesLikelyTouched);
+	const forbiddenGlobs = normalizeWriteScope(workspacePath, options.taskId, options.forbiddenPaths);
+	if (scopeGlobs.size === 0 && allowedPaths.size === 0 && forbiddenGlobs.size === 0) {
 		return null;
 	}
 	const targetPaths = extractScopedWriteTargetPaths(request);
@@ -176,8 +201,25 @@ function approveScopedWriteTargets(
 		return null;
 	}
 	for (const targetPath of targetPaths) {
-		const normalizedTarget = normalizeScopePath(targetPath, workspacePath, options.taskId);
-		if (!allowedPaths.has(normalizedTarget)) {
+		const normalizedTarget = stripWriteScopeGlobTail(normalizeScopePath(targetPath, workspacePath, options.taskId));
+		for (const forbiddenGlob of forbiddenGlobs) {
+			if (isTargetWithinScopeGlob(normalizedTarget, forbiddenGlob)) {
+				return {
+					approved: false,
+					reason: `Blocked ${request.toolName}: ${targetPath} is inside this card's FORBIDDEN paths (${Array.from(forbiddenGlobs).join(", ")}). Those files belong to another card — do not touch them.`,
+				};
+			}
+		}
+		if (scopeGlobs.size > 0) {
+			if (![...scopeGlobs].some((scopeGlob) => isTargetWithinScopeGlob(normalizedTarget, scopeGlob))) {
+				return {
+					approved: false,
+					reason: `Blocked ${request.toolName}: ${targetPath} is outside this card's write scope (${Array.from(scopeGlobs).join(", ")}). Update only files within the scope for this card.`,
+				};
+			}
+			continue;
+		}
+		if (allowedPaths.size > 0 && !allowedPaths.has(normalizedTarget)) {
 			return {
 				approved: false,
 				reason: `Blocked ${request.toolName}: ${targetPath} is outside this card's declared file scope (${Array.from(allowedPaths).join(", ")}). Update only the scoped files for this card, or revise the card's likely touched files before starting it.`,

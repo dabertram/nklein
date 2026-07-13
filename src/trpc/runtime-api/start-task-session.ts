@@ -1229,6 +1229,8 @@ export async function handleStartTaskSession(
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,
+			writeScope: body.writeScope,
+			forbiddenPaths: body.forbiddenPaths,
 			resumeFromTrash: body.resumeFromTrash,
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: nkleinLaunchConfig.modelId,

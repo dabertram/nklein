@@ -436,6 +436,22 @@
   5 new tests (projection incl. glob-tail strip, bidirectional forbidden serialization, representative-DAG
   green-fans-out/yellow-fans-out/red-serializes, bounds copied onto generated cards, unbounded stays unbounded).
 
+- [x] **F1.9b — Enforce work-package boundaries at REVIEW + the live write gate (closes F1.9)** *(delivered
+  2026-07-13).* REVIEW seam: `findWorkPackageBoundaryViolations` (pure, `work-package-card-shape.ts`) checks the
+  delivered result's ACTUAL changed files against the card's bounds — `forbidden_write` (inside forbiddenPaths,
+  always) and `out_of_scope_write` (card has a scope — explicit writeScope else filesLikelyTouched — and the file
+  is outside every glob; COARSE manifest paths exempt, a dependency add legitimately touches package.json); a
+  card with no bounds returns none (legacy unenforced). Wired into the delivery gate BEFORE the tier decision:
+  violation ⇒ self-observation + ledger transition (`review → delivery_boundary_hold`) + ONE re-drive naming the
+  violating paths and demanding the out-of-bounds changes be reverted (mirrors the #28 rung), then a fail-closed
+  HOLD in Review with the session stopped (slot freed, #33). LIVE tool gate: `approveScopedWriteTargets` now takes
+  the work-package bounds plumbed through the whole start pipeline (lifecycle contract → start-task-session →
+  service request → launch config → approval options) — a glob `writeScope` WINS over the legacy exact
+  `filesLikelyTouched` set and permits NEW files inside a scoped directory (fixes the brief-vs-gate incoherence),
+  and `forbiddenPaths` are denied glob-aware regardless of scope form. 7 new tests (pure violations incl. coarse
+  exemption + fallback scope + unbounded skip; gate glob-scope new-file allow + out-of-scope deny + forbidden deny
+  inside allowed scope).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

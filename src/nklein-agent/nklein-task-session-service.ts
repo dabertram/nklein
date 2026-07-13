@@ -1157,6 +1157,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					contextWindow: requestContextWindow,
 					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 					filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
+					writeScope: launchConfig.writeScope ?? null,
+					forbiddenPaths: launchConfig.forbiddenPaths ?? null,
 				}),
 				// A decompose/plan seed only PLANS (calls decompose_project) — strip execution + write tools so a weak
 				// model can't rabbit-hole on run_commands/edits instead of decomposing (sweep run 7, §5.B).
@@ -1392,6 +1394,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			modelId,
 			workspaceRoot: request.workspaceRoot,
 			filesLikelyTouched: request.filesLikelyTouched ?? null,
+			writeScope: request.writeScope ?? null,
+			forbiddenPaths: request.forbiddenPaths ?? null,
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
@@ -1692,6 +1696,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								contextWindow: requestContextWindow,
 								maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 								filesLikelyTouched: request.filesLikelyTouched ?? null,
+								writeScope: request.writeScope ?? null,
+								forbiddenPaths: request.forbiddenPaths ?? null,
 							}),
 							toolExecutors: sandboxWorkspace
 								? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {

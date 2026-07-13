@@ -184,6 +184,60 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(patchResult.reason).toContain("outside this card's declared file scope");
 	});
 
+	it("F1.9b: a glob writeScope permits NEW files inside the scoped directory and wins over filesLikelyTouched", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			filesLikelyTouched: ["src/orders/api.ts"],
+			writeScope: ["src/orders/**"],
+		});
+
+		const inScopeNewFile = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "/workspaces/task-2/src/orders/new-view.ts", content: "export const ok = true;\n" },
+			}),
+		);
+		expect(inScopeNewFile.approved).toBe(true);
+
+		const outOfScope = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "/workspaces/task-2/src/auth/session.ts", content: "export const nope = true;\n" },
+			}),
+		);
+		expect(outOfScope.approved).toBe(false);
+		expect(outOfScope.reason).toContain("outside this card's write scope");
+	});
+
+	it("F1.9b: forbiddenPaths deny writes glob-aware, even inside an otherwise-allowed scope", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			writeScope: ["src/**"],
+			forbiddenPaths: ["src/auth"],
+		});
+
+		const forbidden = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "/workspaces/task-2/src/auth/session.ts", content: "export const nope = true;\n" },
+			}),
+		);
+		expect(forbidden.approved).toBe(false);
+		expect(forbidden.reason).toContain("FORBIDDEN paths");
+
+		const allowed = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "/workspaces/task-2/src/orders/api.ts", content: "export const ok = true;\n" },
+			}),
+		);
+		expect(allowed.approved).toBe(true);
+	});
+
 	it("blocks editor writes to the protected test suite", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

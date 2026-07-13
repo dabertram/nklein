@@ -90,6 +90,7 @@ import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
+import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
@@ -471,6 +472,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// held in Review forever with the whole fleet idle. ONE re-drive carries the failing acceptance output back
 	// to the worker; a second failure leaves the hold for the operator.
 	const acceptanceFailureRedriveAttemptsByTaskKey = new Map<string, number>();
+	// F1.9b: a result whose ACTUAL changed files violate the card's work-package bounds gets ONE re-drive naming
+	// the violating paths (mirrors the #28 rung), then holds in Review for the operator.
+	const boundaryViolationRedriveAttemptsByTaskKey = new Map<string, number>();
 	// run16 live finding: recovery (deferred-retry + ready-sweep) only fired on COMPLETION — a card that dies
 	// (interrupted/failed, e.g. mid-write on a slow model) produces NO completion, so the board froze with
 	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
@@ -883,6 +887,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					taskTitle: task.title,
 					images: task.images,
 					filesLikelyTouched: task.filesLikelyTouched,
+					writeScope: task.writeScope,
+					forbiddenPaths: task.forbiddenPaths,
 					startInPlanMode: task.startInPlanMode,
 					baseRef: task.baseRef,
 					agentId: task.agentId,
@@ -1731,6 +1737,83 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								controllerDecision: `gates:review=${evidence.reviewApproved ? "pass" : "fail"},tests=${evidence.testsPassed ? "pass" : "fail"},protected=${changedFiles.some(isTrustedAutoMergeProtectedPath) ? "touched" : "clear"}`,
 							}),
 						).catch(() => {});
+						// F1.9b review-seam boundary enforcement: the delivered result's ACTUAL changed files must respect
+						// the card's work-package bounds (writeScope/forbiddenPaths — dispatch already gates on them).
+						// Violation ⇒ ONE re-drive naming the paths, then a fail-closed hold in Review. Unbounded legacy
+						// cards return no violations and are unaffected.
+						const boundaryViolations = deliveryCard
+							? findWorkPackageBoundaryViolations(
+									{
+										id: taskId,
+										writeScope: deliveryCard.writeScope,
+										forbiddenPaths: deliveryCard.forbiddenPaths,
+										filesLikelyTouched: deliveryCard.filesLikelyTouched,
+									},
+									changedFiles,
+								)
+							: [];
+						if (boundaryViolations.length > 0) {
+							const violationSummary = boundaryViolations
+								.map((violation) => `${violation.path} (${violation.kind})`)
+								.join(", ");
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Delivery boundary violation for ${taskId}: ${violationSummary}`,
+								taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "work_package_boundary_violation",
+									violations: boundaryViolations.map((violation) => `${violation.kind}:${violation.path}`),
+								},
+							});
+							void appendAgentLedgerEvent(
+								buildTransitionEvent({
+									workflowId: taskId,
+									taskId,
+									workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+									from: "review",
+									to: "delivery_boundary_hold",
+									reason: violationSummary,
+									controllerDecision: "work_package_boundary",
+								}),
+							).catch(() => {});
+							const boundaryRedrives = boundaryViolationRedriveAttemptsByTaskKey.get(inFlightKey) ?? 0;
+							if (boundaryRedrives < 1) {
+								boundaryViolationRedriveAttemptsByTaskKey.set(inFlightKey, boundaryRedrives + 1);
+								deps.warn(
+									`Boundary-violating card ${taskId}: re-driving the worker once (${violationSummary}) before holding.`,
+								);
+								await retryWorkspaceStateLock(() =>
+									mutateWorkspaceState(scope.workspacePath, (latestState) => {
+										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+										return { board: movement.board, save: movement.moved, value: null };
+									}),
+								);
+								await service
+									.sendTaskSessionInput(
+										taskId,
+										`Your result changed files OUTSIDE this card's declared bounds and cannot merge: ${boundaryViolations
+											.map((violation) => violation.message)
+											.join(
+												"; ",
+											)}. Revert the out-of-bounds changes (leave those files exactly as they were) and finish the task strictly within the card's write scope.`,
+										"act",
+									)
+									.catch((error) => {
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(
+											`Boundary-violation re-drive of ${taskId} failed (${message}); holding in Review.`,
+										);
+									});
+								return;
+							}
+							deps.warn(
+								`Delivery held for ${taskId} (work-package boundary): ${violationSummary}. Left in Review for the operator.`,
+							);
+							await service.stopTaskSession(taskId).catch(() => null);
+							return;
+						}
 						if (deliveryDecision.action !== "merge") {
 							// #28: the reviewer APPROVED but the fresh acceptance failed ⇒ the worker never learns why the
 							// card is stuck. Re-drive ONCE with the acceptance failure (mirrors the W4.2a empty-patch

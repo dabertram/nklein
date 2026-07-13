@@ -110,6 +110,9 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	taskTitle: z.string().optional(),
 	images: z.array(runtimeTaskImageSchema).optional(),
 	filesLikelyTouched: z.array(z.string()).optional(),
+	// F1.9b: the card's work-package bounds — the tool-approval write gate enforces them glob-aware.
+	writeScope: z.array(z.string()).optional(),
+	forbiddenPaths: z.array(z.string()).optional(),
 	startInPlanMode: z.boolean().optional(),
 	mode: runtimeTaskSessionModeSchema.optional(),
 	resumeFromTrash: z.boolean().optional(),
