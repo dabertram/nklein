@@ -1050,6 +1050,17 @@
   emits `protectedWrites[]`, and the Set-based `total` counts a card held for BOTH delivery and protected-write
   exactly once (tested — the "without double counting" bar). Plumbed through the signal type, classifier,
   overrides, and `mapSessionSummaryToOperatorSignals` (defaults false). 20 tests. tsc 0, fast 9569 green.
+- [x] **F2.18a — the escalation → resume-action mapping (re-enter the exact suspended state)** *(delivered
+  2026-07-13; the panel buttons + redrive dispatch are F2.18b in todo).* Rendering suggestions beside the attempt
+  chain + evidence-backed prioritization already existed (`task-escalation-panel` + `hard-stuck-escalation`'s
+  CONTEXT_PRIORITY promoting clarify/approve/environment from real signals). F2.18's missing "approved actions
+  re-enter the exact suspended state" now has its core: `src/core/escalation-resume-action.ts` maps every
+  suggestion kind to a typed resume action — `direct_redrive` (approve-blocked / more-capable-model /
+  fix-environment: the approval itself unblocks), `input_then_redrive` (clarify / context / constraint, each
+  naming the input the operator must supply first), and `manual` ONLY for re-scope (which spawns new cards, so
+  there is no single suspended state to resume). Every resumable kind asserts `resumesSuspendedState: true` — the
+  contract that the redrive resumes from the parked result branch, never a cold restart. 2 tests over all seven
+  kinds. tsc 0, fast 9571 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

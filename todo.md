@@ -980,9 +980,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (tested). The signal defaults false through `mapSessionSummaryToOperatorSignals` + `OperatorSignalOverrides`.
   REMAINING (b-leaf, needs a producer): the F1.9b boundary hold in runtime-server must mark the session summary
   distinguishably (today `reviewReason` is only attention/error/hook/interrupted — no protected-path variant),
-  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.- [ ] **F2.18 — Surface hard-stuck recovery suggestions.** Render `buildEscalationSuggestions` beside the attempt chain,
-  prioritize evidence-backed actions, and make approved actions re-enter the exact suspended state.
-- [ ] **F2.19 — Ground read-only !Klein self-awareness.** Index current source plus `todo.md`/`done.md`/maintained docs,
+  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.- [ ] **F2.18b — Render per-suggestion resume buttons wired to redrive (resume-action mapping SHIPPED
+  2026-07-13).** Rendering `buildEscalationSuggestions` beside the attempt chain + evidence-backed prioritization
+  already exist (`task-escalation-panel.tsx` + `hard-stuck-escalation.ts`'s CONTEXT_PRIORITY). The missing F2.18
+  piece — "approved actions re-enter the EXACT suspended state" — now has its core:
+  `src/core/escalation-resume-action.ts` maps each suggestion kind to a typed resume action
+  (`direct_redrive` for approve/model/env, `input_then_redrive` for clarify/context/constraint naming the
+  required input, `manual` only for re-scope which spawns new cards), every resumable kind asserting
+  `resumesSuspendedState` (the redrive resumes from the parked result branch, not a cold restart). REMAINING:
+  render an action button per suggestion in the panel (label from the descriptor), collect the required input
+  for the input-first kinds, and dispatch the redrive (`redrive_task` ops action already resumes from the result
+  branch) — then Playwright.- [ ] **F2.19 — Ground read-only !Klein self-awareness.** Index current source plus `todo.md`/`done.md`/maintained docs,
   expose freshness/provenance, and prevent self-write tools in `klein_self` mode.
 - [ ] **F2.20 — Package self-awareness as a skill/retrieval bundle.** Reuse dynamic skills and online/local retrieval so
   “how does !Klein work?” answers cite current code and do not rely on stale prompt prose.
