@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapabilityTier, SandboxNetworkPolicy } from "../../../src/core/agent-rulesets";
 import {
+	allowlistForRoleFromScoped,
 	parseEgressAllowlist,
+	parseRoleScopedEgressAllowlist,
 	resolveEgressProxyRoleSnapshot,
 } from "../../../src/nklein-agent/egress-proxy-role-snapshot";
 
@@ -109,5 +111,33 @@ describe("parseEgressAllowlist (§6 I3 config parser)", () => {
 
 	it("drops blank entries and de-duplicates (first occurrence wins, order preserved)", () => {
 		expect(parseEgressAllowlist("a.com,,a.com,\nb.com, a.com \n c.com")).toEqual(["a.com", "b.com", "c.com"]);
+	});
+});
+
+describe("parseRoleScopedEgressAllowlist + allowlistForRoleFromScoped (F2.4)", () => {
+	it("plain entries stay global (every v1 string parses byte-identically)", () => {
+		const scoped = parseRoleScopedEgressAllowlist("api.example.com, pkg.example.org");
+		expect(scoped.global).toEqual(["api.example.com", "pkg.example.org"]);
+		expect(scoped.byRole).toEqual({});
+	});
+
+	it("role-prefixed entries scope to exactly that role; unknown prefixes stay global (fail-safe-narrow)", () => {
+		const scoped = parseRoleScopedEgressAllowlist(
+			"registry.npmjs.org, worker:api.github.com\narchitect:docs.example.com, wrocker:typo.example.com",
+		);
+		expect(scoped.global).toEqual(["registry.npmjs.org", "wrocker:typo.example.com"]);
+		expect(scoped.byRole).toEqual({
+			worker: ["api.github.com"],
+			architect: ["docs.example.com"],
+		});
+	});
+
+	it("a role reaches global + its own scoped hosts, NEVER another role's", () => {
+		const forRole = allowlistForRoleFromScoped(
+			parseRoleScopedEgressAllowlist("registry.npmjs.org, worker:api.github.com, architect:docs.example.com"),
+		);
+		expect(forRole("worker")).toEqual(["registry.npmjs.org", "api.github.com"]);
+		expect(forRole("architect")).toEqual(["registry.npmjs.org", "docs.example.com"]);
+		expect(forRole("reviewer")).toEqual(["registry.npmjs.org"]); // no scoped extras
 	});
 });

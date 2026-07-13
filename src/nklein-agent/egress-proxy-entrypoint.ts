@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { AGENT_RULESET_ROLES, type AgentCapabilityRulesetConfig, type AgentRulesetRole } from "../core/agent-rulesets";
 import type { EgressProxyAuditRecord } from "../core/egress-proxy-audit";
 import { createEgressProxyDnsStub, type EgressProxyDnsSocketFactory } from "./egress-proxy-dns-stub";
-import { parseEgressAllowlist, resolveEgressProxyRoleSnapshot } from "./egress-proxy-role-snapshot";
+import {
+	allowlistForRoleFromScoped,
+	parseRoleScopedEgressAllowlist,
+	resolveEgressProxyRoleSnapshot,
+} from "./egress-proxy-role-snapshot";
 import {
 	createEgressProxyServer,
 	type EgressProxyConnectionContext,
@@ -163,10 +167,14 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 	// egress-proxy-lifecycle → startEgressProxyContainer from the persisted `sandboxEgressAllowlist` config).
 	// `parseEgressAllowlist` is the canonical parser; v1 binds ONE global allowlist to EVERY role (per-role lists later).
 	// Absent ⇒ empty ⇒ default-deny (fail-closed, R2).
-	const allowlist = parseEgressAllowlist(process.env[EGRESS_PROXY_ALLOWLIST_ENV]);
+	// F2.4: the same env now carries optional ROLE-SCOPED entries (`worker:host`); plain entries stay global,
+	// so every v1 string binds byte-identically. Each role's listener resolves ONLY its own snapshot — a worker
+	// can never use an architect-scoped host.
+	const scoped = parseRoleScopedEgressAllowlist(process.env[EGRESS_PROXY_ALLOWLIST_ENV]);
+	const hasEntries = scoped.global.length > 0 || Object.keys(scoped.byRole).length > 0;
 	const runtime = createEgressProxyRuntime({
 		auditRootDir: process.env.NKLEIN_EGRESS_PROXY_AUDIT_DIR?.trim() || undefined,
-		allowlistForRole: allowlist.length > 0 ? () => allowlist : undefined,
+		allowlistForRole: hasEntries ? allowlistForRoleFromScoped(scoped) : undefined,
 	});
 	await runtime.start();
 	return runtime;

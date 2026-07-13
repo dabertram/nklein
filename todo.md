@@ -846,8 +846,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   locked by the existing 18 proxy tests. REMAINING: the LOOPBACK-ONLY control channel (a 127.0.0.1 HTTP surface
   on the proxy lifecycle exposing list/approve/deny over the queue), the operator UI (chat/board confirm
   prompt), wiring `confirmQueue` in `egress-proxy-lifecycle`, and live validation of an approved CONNECT.
-- [ ] **F2.4 — Add per-role egress allowlists.** Resolve architect/worker/reviewer policy snapshots into isolated proxy
-  listeners and settings, with tightening applied immediately.
+- [ ] **F2.4b — Settings UI hint + live validation (per-role allowlists SHIPPED 2026-07-13).** The SAME
+  `sandboxEgressAllowlist` string now supports role-scoped entries (`worker:api.github.com` grants ONE role;
+  plain entries stay global — every v1 string parses byte-identically; an unknown role prefix stays a plain
+  global entry, fail-safe-narrow). `parseRoleScopedEgressAllowlist` + `allowlistForRoleFromScoped` bind in the
+  container entrypoint, composing with the per-role listeners that already isolate each role's snapshot — a
+  worker can never use an architect-scoped host. TIGHTENING APPLIES IMMEDIATELY: `ensureEgressProxyAvailable`
+  compares the running container's allowlist env against the desired value and replaces the container on ANY
+  drift (a stale wider policy never keeps serving; tested both directions). REMAINING: document the role-scoped
+  syntax in the Settings field hint (web-ui), and live-validate on the fleet (a worker CONNECT to a
+  worker-scoped host succeeds while a reviewer CONNECT to it is denied + audited).
 - [ ] **F2.5 — Add per-task egress attribution.** Use authenticated proxy identity to associate every DNS/CONNECT verdict
   with task/attempt/ledger records; prevent co-tenant spoofing.
 - [ ] **F2.6 — Replace raw host `runCommand`/`openFile` with typed allowlisted intents.** Preserve legitimate local UI

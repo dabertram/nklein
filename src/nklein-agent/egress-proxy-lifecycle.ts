@@ -261,6 +261,29 @@ export async function resolveEgressProxyInternalIp(
 	return ip.length > 0 ? ip : null;
 }
 
+/**
+ * F2.4: the allowlist env value the RUNNING proxy container was started with (null when unreadable/absent).
+ * Compared against the desired value so an allowlist CHANGE — especially a tightening — restarts the container
+ * immediately instead of letting a stale wider policy keep serving.
+ */
+export async function readRunningEgressProxyAllowlist(
+	runDocker: EgressProxyRunDocker,
+	containerName: string,
+): Promise<string | null> {
+	const format = `{{range .Config.Env}}{{println .}}{{end}}`;
+	const result = await runDocker(["inspect", "-f", format, containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS });
+	if (result.exitCode !== 0) {
+		return null;
+	}
+	const prefix = `${EGRESS_PROXY_ALLOWLIST_ENV}=`;
+	for (const line of result.stdout.split("\n")) {
+		if (line.startsWith(prefix)) {
+			return line.slice(prefix.length).trim();
+		}
+	}
+	return null;
+}
+
 /** Whether the proxy container currently exists AND is running (idempotent-start guard). */
 export async function isEgressProxyRunning(runDocker: EgressProxyRunDocker, containerName: string): Promise<boolean> {
 	const result = await runDocker(["inspect", "-f", "{{.State.Running}}", containerName], {
@@ -325,6 +348,16 @@ export async function ensureEgressProxyAvailable(
 	}
 	try {
 		await ensureEgressNetwork(runDocker, networkName);
+		// F2.4: apply allowlist changes IMMEDIATELY — if the running container was started with a different
+		// allowlist than the config now resolves (tightened OR loosened), replace it before proceeding. A brief
+		// proxy restart only affects new connections; a stale WIDER policy staying live is the real risk.
+		const desiredAllowlist = options.allowlist && options.allowlist.length > 0 ? options.allowlist.join(",") : null;
+		if (await isEgressProxyRunning(runDocker, containerName)) {
+			const runningAllowlist = await readRunningEgressProxyAllowlist(runDocker, containerName);
+			if ((runningAllowlist ?? null) !== desiredAllowlist) {
+				await runDocker(["rm", "-f", containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
+			}
+		}
 		if (!(await isEgressProxyRunning(runDocker, containerName))) {
 			// Clear any dead/exited leftover of the same name before a fresh start (idempotent restart).
 			await runDocker(["rm", "-f", containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);

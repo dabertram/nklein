@@ -920,6 +920,18 @@
   approval wait); deny/expiry/timeout refuse. Without the dep the v1 refuse-immediately behavior is
   byte-identical (locked by the existing 18 proxy-server tests, all green unchanged). 5 queue tests.
   tsc 0, fast 9525 green.
+- [x] **F2.4a — per-role egress allowlists + immediate tightening** *(delivered 2026-07-13; the Settings hint +
+  live fleet validation are F2.4b in todo).* The SAME `sandboxEgressAllowlist` Settings string (no new config
+  plumbing) now carries role-scoped entries: `worker:api.github.com` grants a host to exactly one role, plain
+  entries stay global — every v1 string parses byte-identically, and an unknown role prefix degrades to a plain
+  global entry (fail-safe-narrow: a typo grants nobody anything extra). `parseRoleScopedEgressAllowlist` +
+  `allowlistForRoleFromScoped` (in the canonical role-snapshot module) bind in `runEgressProxyMain`, composing
+  with the per-role listeners the entrypoint already isolates — each role's listener resolves ONLY its own
+  snapshot, so cross-role use is structurally impossible. TIGHTENING APPLIES IMMEDIATELY:
+  `ensureEgressProxyAvailable` reads the RUNNING container's allowlist env (`readRunningEgressProxyAllowlist`)
+  and replaces the container on ANY drift before health-probing — a stale wider policy never keeps serving
+  (tested: tightened ⇒ `rm -f` + fresh start; unchanged ⇒ untouched). 5 new tests; all 43 egress tests green.
+  tsc 0, fast 9530 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

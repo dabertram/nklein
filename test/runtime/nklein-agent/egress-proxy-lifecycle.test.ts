@@ -275,3 +275,45 @@ describe("resolveEgressProxyBundleHostPath — §6 I4 auto-discovery + override"
 		expect(resolved).toBe(shippedPath);
 	});
 });
+
+describe("F2.4 — allowlist changes apply immediately (restart on drift)", () => {
+	const ENV_ON = { NKLEIN_SANDBOX_EGRESS_PROXY: "1" };
+
+	function routerWithRunningProxy(runningAllowlist: string | null) {
+		return (argv: readonly string[]) => {
+			if (has(argv, "network", "inspect")) {
+				return OK;
+			}
+			if (has(argv, "inspect", "-f") && argv.some((a) => a.includes("State.Running"))) {
+				return { exitCode: 0, stdout: "true\n", stderr: "" };
+			}
+			if (has(argv, "inspect", "-f") && argv.some((a) => a.includes("Config.Env"))) {
+				const line = runningAllowlist === null ? "" : `NKLEIN_EGRESS_PROXY_ALLOWLIST=${runningAllowlist}\n`;
+				return { exitCode: 0, stdout: `PATH=/usr/bin\n${line}`, stderr: "" };
+			}
+			return undefined;
+		};
+	}
+
+	it("a TIGHTENED allowlist replaces the running container before health probing", async () => {
+		const docker = makeDocker(routerWithRunningProxy("a.com,worker:b.com"));
+		await ensureEgressProxyAvailable(docker.runDocker, {
+			namespace: "t",
+			bundleHostPath: "/tmp/bundle.js",
+			env: ENV_ON,
+			allowlist: ["a.com"], // tightened: worker:b.com removed
+		});
+		expect(docker.calls.some((argv) => has(argv, "rm", "-f"))).toBe(true); // stale wider policy replaced
+	});
+
+	it("an UNCHANGED allowlist leaves the running container alone", async () => {
+		const docker = makeDocker(routerWithRunningProxy("a.com,worker:b.com"));
+		await ensureEgressProxyAvailable(docker.runDocker, {
+			namespace: "t",
+			bundleHostPath: "/tmp/bundle.js",
+			env: ENV_ON,
+			allowlist: ["a.com", "worker:b.com"],
+		});
+		expect(docker.calls.some((argv) => has(argv, "rm", "-f"))).toBe(false);
+	});
+});

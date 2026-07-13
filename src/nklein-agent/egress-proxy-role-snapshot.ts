@@ -82,3 +82,59 @@ export function parseEgressAllowlist(raw: string | null | undefined): string[] {
 	}
 	return hosts;
 }
+
+/** The parsed role-scoped allowlist: hosts every role may reach + per-role additions. */
+export interface RoleScopedEgressAllowlist {
+	/** Unscoped entries — reachable by EVERY role (the v1 global semantics, unchanged). */
+	global: string[];
+	/** `role:host` entries — reachable by exactly that role (in addition to the global set). */
+	byRole: Partial<Record<AgentRulesetRole, string[]>>;
+}
+
+/**
+ * F2.4 (§6 I3 roleOverrides) — parse the SAME `sandboxEgressAllowlist` Settings string with optional
+ * ROLE-SCOPED entries: `worker:api.github.com` grants a host to ONE role; a plain `api.github.com` stays global
+ * (every role), so every v1 string parses byte-identically to the global-only shape. An entry scoped to an
+ * UNKNOWN role prefix is treated as a PLAIN host (the prefix is part of the name — e.g. `svc:8080`-style names
+ * never silently vanish), keeping the parse total and fail-safe-narrow: a typo'd role name grants the host to
+ * nobody extra, it just stays a (probably unreachable) global entry. Trim/dedupe rules mirror
+ * {@link parseEgressAllowlist}.
+ */
+export function parseRoleScopedEgressAllowlist(raw: string | null | undefined): RoleScopedEgressAllowlist {
+	const parsed: RoleScopedEgressAllowlist = { global: [], byRole: {} };
+	const seen = new Set<string>();
+	for (const entry of parseEgressAllowlist(raw)) {
+		if (seen.has(entry)) {
+			continue;
+		}
+		seen.add(entry);
+		const colon = entry.indexOf(":");
+		if (colon > 0) {
+			const prefix = entry.slice(0, colon).trim();
+			const host = entry.slice(colon + 1).trim();
+			if (isAgentRulesetRole(prefix) && host.length > 0) {
+				const bucket = parsed.byRole[prefix] ?? [];
+				bucket.push(host);
+				parsed.byRole[prefix] = bucket;
+				continue;
+			}
+		}
+		parsed.global.push(entry);
+	}
+	return parsed;
+}
+
+/**
+ * The `allowlistForRole` source over a role-scoped parse: a role reaches the GLOBAL hosts plus its own scoped
+ * additions (order: global first, then role-specific; de-duplicated). The F2.4 per-role listener isolation comes
+ * from composing this with the per-role listeners the entrypoint already binds — each role's listener resolves
+ * ONLY its own snapshot, so a worker can never use an architect-scoped host.
+ */
+export function allowlistForRoleFromScoped(
+	scoped: RoleScopedEgressAllowlist,
+): (role: AgentRulesetRole) => readonly string[] {
+	return (role) => {
+		const combined = [...scoped.global, ...(scoped.byRole[role] ?? [])];
+		return [...new Set(combined)];
+	};
+}
