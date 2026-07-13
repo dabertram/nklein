@@ -120,6 +120,8 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		decompositionAutoApplyEnabled: true,
 		hardTaskRoutingMode: "attempt_with_available",
 		testDrivenModeEnabled: false,
+		testDrivenModeOverride: null,
+		effectiveTestDrivenMode: false,
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		readyForReviewNotificationsEnabled: true,

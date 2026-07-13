@@ -24,6 +24,7 @@ import type {
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
@@ -125,6 +126,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	/** §5.V test-driven delivery gate (default false until live-validated; then default ON per the design). */
 	testDrivenModeEnabled?: boolean;
+	/** F1.34: per-project test-driven override (true/false both meaningful; null/omitted → inherit the global). */
+	testDrivenModeOverride?: boolean | null;
 	secondOpinionReviewEnabled: boolean;
 	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
@@ -150,6 +153,18 @@ export interface RuntimeConfigStateFromValuesInput {
 	deviceRamGb: string | null;
 	sandboxEgressProxyEnabled: boolean;
 	sandboxEgressAllowlist: string | null;
+}
+
+/** F1.34: the test-driven override block (`effective = override ?? global`), mirroring the other override resolvers. */
+function deriveTestDrivenFields(
+	defaultValue: boolean | undefined,
+	overrideValue: boolean | null | undefined,
+): Pick<RuntimeConfigState, "testDrivenModeOverride" | "effectiveTestDrivenMode"> {
+	const testDrivenModeOverride = overrideValue === true || overrideValue === false ? overrideValue : null;
+	return {
+		testDrivenModeOverride,
+		effectiveTestDrivenMode: resolveEffectiveTestDrivenMode(defaultValue, testDrivenModeOverride),
+	};
 }
 
 export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFromValuesInput): RuntimeConfigState {
@@ -224,6 +239,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		hardTaskRoutingMode: input.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		testDrivenModeEnabled: input.testDrivenModeEnabled === true,
+		...deriveTestDrivenFields(input.testDrivenModeEnabled, input.testDrivenModeOverride),
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled: input.secondOpinionReviewEnabled,

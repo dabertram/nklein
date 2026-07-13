@@ -763,8 +763,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   PROPOSE-ONLY — never writes todo.md). REMAINING: mount it — extend `nklein dev rail-evidence` to print
   findings + proposals (and optionally retain to the ledger with `--retain`), and let the F1.31b rail tick feed
   fresh reports through it so the operator surface (F1.35) can show "what the rail found" without re-analysis.
-- [ ] **F1.34 — Finish full test-driven delivery mode.** Add the per-project override, make the intended safe default
-  explicit, and prove no-test changes bounce while test-backed changes reach review without identical-loop churn.
+- [ ] **F1.34b — Live-validate test-driven mode, then decide the default flip (mode COMPLETE 2026-07-13).** The
+  per-project override shipped (`testDrivenModeOverride` true/false/null-inherit through the full config stack:
+  types → state factory `effectiveTestDrivenMode` → load/update/save/file-io/change-detection → contract; the
+  review runner gates on the EFFECTIVE mode), the safe default is explicit (`TEST_DRIVEN_MODE_DEFAULT = false` in
+  test-driven-delivery.ts, documented: intended eventual default ON, gated on live validation), and the
+  bounce/no-churn contract is proven at the pure seam (testless blocked with a byte-identical deterministic
+  reason → the identical-feedback park guard's precondition; test-backed passes clean) + the config round-trip
+  (override wins BOTH ways, null inherits) + the existing preReviewVerdict bounce-without-reviewer runner test.
+  REMAINING (fleet): drive one real testless card and one test-backed card through a live swarm (bounce → re-work
+  → park vs. clean review), then decide whether to flip the global default ON; optionally expose the override in
+  the Settings project section (rides F1.29b).
 - [ ] **F1.35 — Add evaluation-rail controls and status.** Expose enable/pause, cadence, background cap, long-timeout
   profile, active leases, latest outcomes, and cleanup errors without a tight poll loop.
 - [ ] **F1.36 — Wire opportunistic idle work into durable scheduling** *(legacy §5.AW).* When a suitable model becomes

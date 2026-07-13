@@ -28,6 +28,29 @@ export function isLikelyTestFile(path: string): boolean {
 	return false;
 }
 
+/**
+ * F1.34 — the EXPLICIT intended default for test-driven mode: **OFF**. The eventual intent is stricter (a
+ * test-backed change is the safe delivery), but flipping the default ON is gated on live fleet validation that
+ * no-test changes bounce → re-drive → park correctly at scale; until then the safe default is the one that
+ * cannot strand a board (OFF), and enabling is a deliberate global setting or per-project override.
+ */
+export const TEST_DRIVEN_MODE_DEFAULT = false;
+
+/**
+ * F1.34 — resolve the EFFECTIVE test-driven mode for a project: the per-project override wins when set (`true`/
+ * `false` both meaningful — a project can opt OUT of a globally-on mode), else the global setting, else the
+ * explicit default. Same `override ?? default` shape as every other per-project config override.
+ */
+export function resolveEffectiveTestDrivenMode(
+	globalEnabled: boolean | undefined,
+	projectOverride: boolean | null | undefined,
+): boolean {
+	if (projectOverride === true || projectOverride === false) {
+		return projectOverride;
+	}
+	return globalEnabled === true ? true : TEST_DRIVEN_MODE_DEFAULT;
+}
+
 export interface TestDrivenDeliveryInput {
 	/** Whether test-driven mode is enabled for this task (resolved: per-project override over the global default). */
 	enabled: boolean;

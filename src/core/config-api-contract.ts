@@ -87,6 +87,8 @@ export const runtimeConfigResponseSchema = z.object({
 	/** §5.V test-driven delivery: a change that touched no test file bounces back to the worker before review.
 	 *  Ships default OFF until the live bounce-vs-deliver validation; the design intent is default ON after. */
 	testDrivenModeEnabled: z.boolean(),
+	testDrivenModeOverride: z.boolean().nullable(),
+	effectiveTestDrivenMode: z.boolean(),
 	secondOpinionReviewEnabled: z.boolean(),
 	reviewMaxRounds: z.number().int().positive(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
@@ -198,6 +200,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	decompositionAutoApplyEnabled: z.boolean().optional(),
 	hardTaskRoutingMode: z.enum(["wait_for_best", "attempt_with_available"]).optional(),
 	testDrivenModeEnabled: z.boolean().optional(),
+	testDrivenModeOverride: z.boolean().nullable().optional(),
 	secondOpinionReviewEnabled: z.boolean().optional(),
 	reviewMaxRounds: z.number().int().positive().optional(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),

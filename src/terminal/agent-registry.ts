@@ -162,6 +162,8 @@ export function buildRuntimeConfigResponse(
 		decompositionAutoApplyEnabled: runtimeConfig.decompositionAutoApplyEnabled,
 		hardTaskRoutingMode: runtimeConfig.hardTaskRoutingMode,
 		testDrivenModeEnabled: runtimeConfig.testDrivenModeEnabled,
+		testDrivenModeOverride: runtimeConfig.testDrivenModeOverride,
+		effectiveTestDrivenMode: runtimeConfig.effectiveTestDrivenMode,
 		secondOpinionReviewEnabled: runtimeConfig.secondOpinionReviewEnabled,
 		reviewMaxRounds: runtimeConfig.reviewMaxRounds,
 		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,

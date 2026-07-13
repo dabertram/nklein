@@ -26,6 +26,7 @@ import {
 	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
 	normalizeSkillDynamicsLevelOverride,
+	normalizeTestDrivenModeOverride,
 } from "./runtime-config-normalizers";
 import { normalizeFileOverlapParallelismOverride } from "./runtime-config-overlap-resolver";
 import { normalizeRuntimeSandboxIsolationProfileOverride } from "./runtime-config-sandbox-resolver";
@@ -98,6 +99,7 @@ export async function writeRuntimeProjectConfigFile(
 		agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 		modelRolesOverride?: RuntimeModelRoles | null;
 		sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
+		testDrivenModeOverride?: boolean | null;
 	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
@@ -118,6 +120,7 @@ export async function writeRuntimeProjectConfigFile(
 	const sandboxIsolationProfileOverride = normalizeRuntimeSandboxIsolationProfileOverride(
 		config.sandboxIsolationProfileOverride,
 	);
+	const testDrivenModeOverride = normalizeTestDrivenModeOverride(config.testDrivenModeOverride);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
@@ -152,6 +155,9 @@ export async function writeRuntimeProjectConfigFile(
 		if (sandboxIsolationProfileOverride !== null) {
 			throw new Error("Cannot save project sandbox isolation override without a selected project.");
 		}
+		if (testDrivenModeOverride !== null) {
+			throw new Error("Cannot save project test-driven override without a selected project.");
+		}
 		return;
 	}
 	if (
@@ -166,7 +172,8 @@ export async function writeRuntimeProjectConfigFile(
 		selectedAgentIdOverride === null &&
 		agentRulesetsOverride === null &&
 		modelRolesOverride === null &&
-		sandboxIsolationProfileOverride === null
+		sandboxIsolationProfileOverride === null &&
+		testDrivenModeOverride === null
 	) {
 		await rm(configPath, { force: true });
 		try {
@@ -191,6 +198,7 @@ export async function writeRuntimeProjectConfigFile(
 			...(agentRulesetsOverride !== null ? { agentRulesetsOverride } : {}),
 			...(modelRolesOverride !== null ? { modelRolesOverride } : {}),
 			...(sandboxIsolationProfileOverride !== null ? { sandboxIsolationProfileOverride } : {}),
+			...(testDrivenModeOverride !== null ? { testDrivenModeOverride } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,

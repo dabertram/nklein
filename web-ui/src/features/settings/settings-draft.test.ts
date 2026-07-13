@@ -40,6 +40,8 @@ const representativeConfig = {
 	lostHeartbeatPolicy: "fail",
 	decompositionAutoApplyEnabled: false,
 	testDrivenModeEnabled: true,
+	testDrivenModeOverride: null,
+	effectiveTestDrivenMode: true,
 	hardTaskRoutingMode: "wait_for_best",
 	secondOpinionReviewEnabled: false,
 	reviewMaxRounds: 7,

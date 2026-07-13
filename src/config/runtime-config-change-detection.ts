@@ -22,6 +22,7 @@ export type RuntimeConfigChangeComparable = Omit<
 	| "effectiveCodeEmbeddingSettings"
 	| "effectiveModelSuitabilityPolicy"
 	| "effectiveSkillDynamicsLevel"
+	| "effectiveTestDrivenMode"
 	| "effectiveFileOverlapParallelism"
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
@@ -114,6 +115,7 @@ export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeF
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),
+	runtimeConfigChangeField("testDrivenModeOverride"),
 	runtimeConfigChangeField("fileOverlapParallelismOverride"),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
@@ -131,6 +133,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveCodeEmbeddingSettings",
 	"effectiveModelSuitabilityPolicy",
 	"effectiveSkillDynamicsLevel",
+	"effectiveTestDrivenMode",
 	"effectiveFileOverlapParallelism",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",

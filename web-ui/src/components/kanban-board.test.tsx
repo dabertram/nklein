@@ -182,6 +182,8 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		decompositionAutoApplyEnabled: true,
 		hardTaskRoutingMode: "attempt_with_available",
 		testDrivenModeEnabled: false,
+		testDrivenModeOverride: null,
+		effectiveTestDrivenMode: false,
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		codeEmbeddingDefaults: {

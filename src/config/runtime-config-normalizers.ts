@@ -391,6 +391,10 @@ export function normalizeSkillDynamicsLevel(
 	const parsed = runtimeSkillDynamicsLevelSchema.safeParse(value);
 	return parsed.success ? parsed.data : fallback;
 }
+/** F1.34: per-project test-driven override — only literal true/false persist; anything else clears to null (inherit). */
+export function normalizeTestDrivenModeOverride(value: unknown): boolean | null {
+	return value === true || value === false ? value : null;
+}
 export function normalizeSkillDynamicsLevelOverride(value: unknown): RuntimeSkillDynamicsLevel | null {
 	if (value === null || value === undefined) {
 		return null;

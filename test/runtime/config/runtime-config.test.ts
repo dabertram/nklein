@@ -338,6 +338,42 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("F1.34: test-driven mode defaults OFF and the per-project override round-trips + wins both ways", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-tdd-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-tdd-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.testDrivenModeEnabled).toBe(false); // the explicit safe default
+				expect(defaults.testDrivenModeOverride).toBeNull();
+				expect(defaults.effectiveTestDrivenMode).toBe(false);
+
+				// Project opts IN while the global stays off.
+				await updateRuntimeConfig(tempProject, { testDrivenModeOverride: true });
+				const optedIn = await loadRuntimeConfig(tempProject);
+				expect(optedIn.testDrivenModeEnabled).toBe(false);
+				expect(optedIn.testDrivenModeOverride).toBe(true);
+				expect(optedIn.effectiveTestDrivenMode).toBe(true);
+
+				// Global turns ON, project opts OUT — the override wins in the other direction too.
+				await updateRuntimeConfig(tempProject, { testDrivenModeEnabled: true, testDrivenModeOverride: false });
+				const optedOut = await loadRuntimeConfig(tempProject);
+				expect(optedOut.testDrivenModeEnabled).toBe(true);
+				expect(optedOut.testDrivenModeOverride).toBe(false);
+				expect(optedOut.effectiveTestDrivenMode).toBe(false);
+
+				// Clearing the override inherits the global again.
+				await updateRuntimeConfig(tempProject, { testDrivenModeOverride: null });
+				const inherited = await loadRuntimeConfig(tempProject);
+				expect(inherited.testDrivenModeOverride).toBeNull();
+				expect(inherited.effectiveTestDrivenMode).toBe(true);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults empty concurrency config and round-trips the global default + per-project override (§5.W)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-concurrency-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir(

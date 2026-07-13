@@ -398,7 +398,7 @@ export async function runSecondOpinionReviewForTask(
 	// list is parsed from the same result-branch diff the reviewer sees (`+++ b/<path>` headers).
 	let preReviewVerdict: ReviewSubmissionInput | null = null;
 	// Slice 2: the persisted config field ORs with the env flag (either enables; default OFF until live-validated).
-	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE) || config.testDrivenModeEnabled) {
+	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE) || config.effectiveTestDrivenMode) {
 		const gateDiff = await getDiff({
 			repoPath: input.workspacePath,
 			taskId: input.taskId,

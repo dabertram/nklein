@@ -825,6 +825,21 @@
   the F1.26 pattern), and `proposeRailBacklogPackages` drafts ONE proposal per project at the worst bundled
   severity, deduplicated against already-proposed ids and PROPOSE-ONLY (a human moves it into todo.md; the rail
   never writes the backlog). 8 tests. tsc 0, fast 9488 green.
+- [x] **F1.34a — test-driven delivery mode completed (override + explicit default + proof)** *(delivered
+  2026-07-13; live fleet validation + the default-ON decision is F1.34b in todo).* The per-project
+  `testDrivenModeOverride` (true/false both meaningful — a project can opt OUT of a globally-on mode; null
+  inherits) is plumbed through the ENTIRE config stack: `runtime-config-types` (state + update + project-file
+  shapes), the state factory (`deriveTestDrivenFields` → `effectiveTestDrivenMode`, mirroring the other override
+  resolvers), load/update/save in `runtime-config.ts` (keepNormalizedValue merge; global-save clears it like
+  every override), `runtime-config-file-io` (project-file write incl. the no-project guard + empty-file
+  deletion), change detection (override registered; effective marked derived — the drift-guard test enforces
+  both), the zod config contract, and `agent-registry`. The REVIEW RUNNER now gates on the EFFECTIVE mode (env
+  `NKLEIN_TEST_DRIVEN_MODE` still force-enables). The intended safe default is EXPLICIT:
+  `TEST_DRIVEN_MODE_DEFAULT = false` with the documented intent to flip ON after live validation. Proof: pure
+  seam (testless change blocked with a BYTE-IDENTICAL deterministic reason across attempts — exactly what the
+  identical-feedback park guard needs to stop churn; test-backed change passes clean), config round-trip
+  (default OFF → project opt-in → global-on + project opt-out → clear-inherits), plus the existing
+  bounce-without-calling-the-reviewer runner test. Backend + web-ui + desktop tsc 0; fast 9493; web-ui 1053.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

@@ -134,6 +134,7 @@ export interface SaveRuntimeConfigInput {
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	testDrivenModeEnabled?: boolean;
+	testDrivenModeOverride?: boolean | null;
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled: boolean;
@@ -259,6 +260,7 @@ export function buildProjectConfigFilePayload(config: SaveRuntimeConfigInput) {
 		codeEmbeddingOverride: config.codeEmbeddingOverride,
 		modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
 		skillDynamicsLevelOverride: config.skillDynamicsLevelOverride,
+		testDrivenModeOverride: config.testDrivenModeOverride ?? null,
 		fileOverlapParallelismOverride: config.fileOverlapParallelismOverride,
 		maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 		selectedAgentIdOverride: config.selectedAgentIdOverride,
@@ -366,6 +368,7 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride ?? null,
 		skillDynamicsLevelDefault: config.skillDynamicsLevelDefault ?? DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
 		skillDynamicsLevelOverride: config.skillDynamicsLevelOverride ?? null,
+		testDrivenModeOverride: config.testDrivenModeOverride ?? null,
 		concurrencyDefaults: config.concurrencyDefaults ?? DEFAULT_CONCURRENCY_CONFIG,
 		concurrencyOverride: config.concurrencyOverride ?? null,
 		modelRoles: normalizeModelRoles(config.modelRoles),

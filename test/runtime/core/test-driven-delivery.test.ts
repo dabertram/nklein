@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { decideTestDrivenDelivery, isLikelyTestFile } from "../../../src/core/test-driven-delivery";
+import {
+	decideTestDrivenDelivery,
+	isLikelyTestFile,
+	resolveEffectiveTestDrivenMode,
+	TEST_DRIVEN_MODE_DEFAULT,
+} from "../../../src/core/test-driven-delivery";
 
 describe("isLikelyTestFile", () => {
 	it("recognizes .test./.spec. infix files across extensions", () => {
@@ -44,5 +49,35 @@ describe("decideTestDrivenDelivery", () => {
 	});
 	it("enabled + empty change ⇒ blocked", () => {
 		expect(decideTestDrivenDelivery({ enabled: true, changedFilePaths: [] }).allowReview).toBe(false);
+	});
+});
+
+describe("resolveEffectiveTestDrivenMode (F1.34)", () => {
+	it("the intended safe default is explicit and OFF", () => {
+		expect(TEST_DRIVEN_MODE_DEFAULT).toBe(false);
+		expect(resolveEffectiveTestDrivenMode(undefined, undefined)).toBe(false);
+		expect(resolveEffectiveTestDrivenMode(undefined, null)).toBe(false);
+	});
+	it("the per-project override wins in BOTH directions (a project can opt out of a global ON)", () => {
+		expect(resolveEffectiveTestDrivenMode(false, true)).toBe(true);
+		expect(resolveEffectiveTestDrivenMode(true, false)).toBe(false);
+	});
+	it("null/omitted override inherits the global setting", () => {
+		expect(resolveEffectiveTestDrivenMode(true, null)).toBe(true);
+		expect(resolveEffectiveTestDrivenMode(false, null)).toBe(false);
+		expect(resolveEffectiveTestDrivenMode(true, undefined)).toBe(true);
+	});
+});
+
+describe("no identical-loop churn (F1.34)", () => {
+	it("a test-backed change passes cleanly while the SAME testless change is blocked with a byte-identical reason every time — the identical-feedback park guard's precondition", () => {
+		const testless = ["src/a.ts", "src/b.ts"];
+		const first = decideTestDrivenDelivery({ enabled: true, changedFilePaths: testless });
+		const second = decideTestDrivenDelivery({ enabled: true, changedFilePaths: testless });
+		expect(first.allowReview).toBe(false);
+		expect(second.reason).toBe(first.reason); // deterministic ⇒ repeat testless bounces trip the park guard, never loop
+		const backed = decideTestDrivenDelivery({ enabled: true, changedFilePaths: [...testless, "test/a.test.ts"] });
+		expect(backed.allowReview).toBe(true);
+		expect(backed.reason).toBe("");
 	});
 });

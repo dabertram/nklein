@@ -28,6 +28,7 @@ import {
 	normalizeConcurrencyOverride,
 } from "../core/concurrency-config";
 import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -105,6 +106,7 @@ import {
 	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
 	normalizeSkillDynamicsLevelOverride,
+	normalizeTestDrivenModeOverride,
 } from "./runtime-config-normalizers";
 import {
 	normalizeFileOverlapParallelism,
@@ -235,6 +237,11 @@ function toRuntimeConfigState({
 		hardTaskRoutingMode:
 			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled === true,
+		testDrivenModeOverride: normalizeTestDrivenModeOverride(projectConfig?.testDrivenModeOverride),
+		effectiveTestDrivenMode: resolveEffectiveTestDrivenMode(
+			globalConfig?.testDrivenModeEnabled,
+			normalizeTestDrivenModeOverride(projectConfig?.testDrivenModeOverride),
+		),
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
@@ -354,6 +361,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
 		hardTaskRoutingMode: current.hardTaskRoutingMode,
 		testDrivenModeEnabled: current.testDrivenModeEnabled,
+		testDrivenModeOverride: null,
 		secondOpinionReviewEnabled: current.secondOpinionReviewEnabled,
 		reviewMaxRounds: current.reviewMaxRounds,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
@@ -477,6 +485,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.sandboxIsolationProfileOverride,
 				normalizeRuntimeSandboxIsolationProfileOverride,
 			),
+			testDrivenModeOverride: keepNormalizedValue(
+				updates.testDrivenModeOverride,
+				current.testDrivenModeOverride,
+				normalizeTestDrivenModeOverride,
+			),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 		};
 
@@ -518,6 +531,7 @@ export async function updateGlobalRuntimeConfig(
 				agentRulesetsOverride: null,
 				modelRolesOverride: null,
 				sandboxIsolationProfileOverride: null,
+				testDrivenModeOverride: null,
 				shortcuts: current.shortcuts,
 			};
 
