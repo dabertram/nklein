@@ -701,7 +701,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
   fallback-only). REMAINING: the LIVE wiring — supply pool states from the endpoint gate/`lms ps` occupancy
   (poolKey = endpoint × model), map jobs→pools in durable-run-wiring, and hook `capacityFreed` at the
   session-terminal + model-unload seams (replacing the retry-poll timers for durable runs). Fleet-adjacent; wire
-  with F1.18b's live validation.
+  with F1.18b's live validation. Also wire the F1.24 reservation ledger here (SHIPPED 2026-07-13:
+  `dispatch-reservations.ts` — all-or-nothing per-task holds over endpoint_slot/sandbox_slot/kv_bytes/disk_bytes
+  counters, blind-safe release, `reservationAwarePools` folds holds into the admission pool view): instantiate at
+  the dispatch path with capacities from `lms ps`/config, reserve before start, release at every terminal seam.
 
 - [ ] **F1.21b — Flip the delivery taint gate from record-only to enforcing (routes SHIPPED 2026-07-13).** All four
   action families now run through the manifest broker: chat (decideManifestChatAccess + broker, pre-existing),
@@ -712,8 +715,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
-- [ ] **F1.24 — Add resource reservations to dispatch.** Reserve fast memory, context KV, endpoint capacity, sandbox
-  slots, and disk budget before admission; release them on every terminal/error path.
 - [ ] **F1.25 — Finish the quarantined self-improvement delivery pipeline** *(legacy §5.AF/M4).* Require protected/full
   gates, coverage delta, taint/capability review, human approval where specified, and an auditable merge decision.
 - [>] **F1.26 — Add deterministic replay evaluation for self-improvement patches** *(after F1.17 and F1.25).* Compare the

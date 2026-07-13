@@ -715,6 +715,19 @@
   autonomous downloads anywhere (prime directive 8 untouched). 2 new tests (eviction filter/order/TTL semantics
   incl. never-used-idles-since-load; registry idempotent-load/use-reset/forget + unknown-model no-op).
 
+- [x] **F1.24 — resource reservations for dispatch (core)** *(delivered 2026-07-13; live capacity wiring rides the
+  F1.19b fleet leaf — the two wire together).* New `src/core/dispatch-reservations.ts`: a generic (kind, key)
+  reservation ledger covering the five named resources on one accounting (`endpoint_slot`/pool,
+  `sandbox_slot`/global, `kv_bytes`/device for fast-memory/context-KV, `disk_bytes`/device). Semantics designed
+  for the terminal/error paths: `tryReserve` is ALL-OR-NOTHING (a partial grant would leak on the caller's error
+  path) and IDEMPOTENT per task (a retry REPLACES the prior holds, never double-counts; a failed re-reserve keeps
+  the prior holds intact); `release` is blind-safe (idempotent, unknown-task no-op) so EVERY terminal/error path
+  can call it unconditionally; undeclared counters are unlimited (fail open — the live gates still apply).
+  `reservationAwarePools` folds endpoint holds into the F1.19 admission pool view, closing the TOCTOU window
+  between the admission read and the started session actually occupying capacity — proven end-to-end: a reserved
+  slot saturates the pool and the planner excludes its candidates. 4 tests (grant/shortfall/all-or-nothing +
+  blind release, retry-replace semantics, fail-open, the admission fold).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
