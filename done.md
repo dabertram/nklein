@@ -975,6 +975,15 @@
   auto-approve") — from the SAME persisted controls the gates enforce, with chip label, summary, capabilities,
   boundaries (incl. the browsing state), and the escalation hint that names the control changing it.
   Derivation-only by construction. 3 tests over every (scope × risk-ack) combination. tsc 0, fast 9552 green.
+- [x] **F2.9a — the unified chat-memory projection (provenance + typed delete controls)** *(delivered
+  2026-07-13; the turn-context wiring + delete-control mount + UI provenance are F2.9b in todo).*
+  `src/chat/chat-memory-projection.ts` replaces the chat-memory store's solo act with ONE read model over every
+  recall source: session memories (deletable — the user owns them), the §5.M four-layer projection over live
+  state/ledger/facts/skills (NOT deletable, with the reason stated: a projection of immutable evidence),
+  Basic Memory notes (deletable via permalink), and the active focus-chain step (edited as a plan, not forgotten
+  as a memory). Every record carries provenance ("why recalled") and a TYPED delete control so the UI offers
+  exactly the deletions that are real. `selectMemoryBand` bounds the recall band deterministically with
+  per-source floors — a chatty source can never crowd the others out. 4 tests. tsc 0, fast 9556 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

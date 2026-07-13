@@ -897,8 +897,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   hint) — derivation-only, no enforcement change. REMAINING: render it — a composer posture chip + tooltip
   (replacing the scattered-toggle guesswork), expose via the chat-session contract, Playwright over the chip on
   scope/risk-ack changes.
-- [ ] **F2.9 — Replace the half-wired chat-memory store with the selected memory projection.** Unify short-term session
-  recall, durable project/global Basic Memory, focus chains, and ledger evidence with provenance and delete controls.
+- [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
+  `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
+  session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
+  semantic/procedural — NOT deletable: projections of immutable substrate, with the reason saying so), Basic
+  Memory notes (deletable via permalink), and the active focus-chain step. `selectMemoryBand` ranks
+  salience-first into a bounded band with per-source floors (a chatty source can never crowd out the rest;
+  deterministic). REMAINING: feed it at the turn-context assembly seam (replace the chat-memory store's solo
+  recall with the projection: store recall + memory-layers + basic-memory search + focus chain as inputs), mount
+  the delete controls (chat-memory delete + basic-memory delete_note) behind the chat surface, and show
+  provenance in the UI ("why recalled").
 - [ ] **F2.10 — Gate broad memory recall on a LongMemEval-style internal test.** Measure relevance, contradiction,
   privacy, and recency; refuse broadening when the model/store pair fails.
 - [ ] **F2.11 — Finish the unified chat surface.** Cover session create/select/delete/relabel, streaming, reasoning,
