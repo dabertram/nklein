@@ -226,8 +226,10 @@ const SIGNATURE_RULES: readonly SignatureRule[] = [
 	{
 		signature: "aborted_request",
 		outcome: "aborted",
-		remediable: true,
-		reason: "The request/stream was aborted (user-stopped / cancelled) — re-run the turn.",
+		// Raw abort text has no provenance. Treat it as terminal here: the model-call seam may retry ONLY when it also
+		// knows the caller's AbortSignal is still live, proving this was a provider/runtime abort rather than user control.
+		remediable: false,
+		reason: "The request/stream was explicitly stopped or cancelled — preserve cancellation as terminal.",
 		matches: has(
 			"aborterror",
 			"the operation was aborted",

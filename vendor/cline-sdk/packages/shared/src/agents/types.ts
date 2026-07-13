@@ -11,7 +11,7 @@
  */
 
 import { z } from "zod";
-import type { AgentRuntimeHooks, AgentTool } from "../agent";
+import type { AgentModel, AgentRuntimeHooks, AgentTool } from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -683,6 +683,8 @@ export interface AgentConfig {
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */
 	providerConfig?: unknown;
+	/** Host-local decorator applied to the resolved provider model before an agent turn uses it. */
+	modelWrapper?: (model: AgentModel) => AgentModel;
 	/**
 	 * Optional preloaded conversation history for resume flows.
 	 * When provided, start by calling continue() to preserve history.

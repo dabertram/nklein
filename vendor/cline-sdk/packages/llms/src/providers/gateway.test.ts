@@ -659,6 +659,51 @@ describe("sdk-gateway", () => {
 		]);
 	});
 
+	it("preserves an AI SDK abort part as finish:aborted for host-side provenance handling", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "abort", reason: "provider runtime stopped" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toEqual([{ type: "finish", reason: "aborted" }]);
+	});
+
+	it("lets a host model wrapper disable nested provider retries through AgentModel options", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const model = gateway.createAgentModel({ providerId: "openai-native", modelId: "gpt-5-mini" });
+
+		await collect(
+			await model.stream({
+				messages: baseMessages,
+				tools: [],
+				options: { metadata: { nkleinProviderMaxRetries: 0 } },
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenLastCalledWith(expect.objectContaining({ maxRetries: 0 }));
+	});
+
 	it("surfaces API detail fields from OpenAI-compatible error bodies", async () => {
 		const apiError = Object.assign(new Error("Bad Request"), {
 			statusCode: 400,

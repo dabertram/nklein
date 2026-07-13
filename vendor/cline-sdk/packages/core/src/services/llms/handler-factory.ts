@@ -152,6 +152,10 @@ export function createAgentModelFromConfig(
 	logger: BasicLogger | undefined,
 	telemetry?: ITelemetryService,
 ): AgentModel {
+	// The vendored build's declaration pass can resolve `AgentConfig` through the previously-built public package while
+	// shared is being rebuilt in the same script. Keep the additive host-local socket structurally narrowed here so the
+	// core build is order-independent; the canonical field remains declared on shared's AgentConfig source.
+	const modelWrapper = (config as AgentConfig & { modelWrapper?: (model: AgentModel) => AgentModel }).modelWrapper;
 	const pc = config.providerConfig as ProviderConfig | undefined;
 	const baseProviderConfig =
 		pc?.providerId === config.providerId ? pc : undefined;
@@ -182,12 +186,13 @@ export function createAgentModelFromConfig(
 			normalizeProviderId(normalizedProviderConfig.providerId),
 		)
 	) {
-		return createAgentModelFromApiHandler(() =>
+		const model = createAgentModelFromApiHandler(() =>
 			createHandlerAsync(normalizedProviderConfig),
 		);
+		return modelWrapper?.(model) ?? model;
 	}
 
-	return createGateway({
+	const model = createGateway({
 		// Forward the host-provided fetch so inference honors proxy/CA config on
 		// JetBrains and CLI, where the global fetch is not proxy-aware. Without
 		// this the agent loop falls back to bare global fetch and corporate
@@ -218,4 +223,5 @@ export function createAgentModelFromConfig(
 		},
 		{ maxTokens: normalizedProviderConfig.maxOutputTokens },
 	);
+	return modelWrapper?.(model) ?? model;
 }

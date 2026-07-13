@@ -88,6 +88,23 @@
   and drains the recovered seed and child through review/delivery. The child deliberately delays its first response
   across several watchdog ticks but inside the lease and is not interrupted. Detector tests (10), the end-to-end rail
   (1), typecheck, lint, and the full fast gate are green.
+- [x] **P0.4 — Execute transient-`aborted` retries at the shared model-call seam** *(legacy §5.AA/§5.Z).* Swarm model
+  turns now pass through the previously-built buffered `AgentModel` recovery decorator at the actual SDK model-call
+  boundary. A provider/runtime `finish:aborted`, transient `finish:error`, or thrown transport failure gets two bounded
+  same-model retries; discarded text, reasoning, usage, and partial output never reach the agent loop. The request's
+  outer abort signal is authoritative, so user/session cancellation is terminal, and any emitted tool call suppresses
+  replay to avoid duplicated side effects. Raw cancellation text with no signal provenance is terminal too. Wrapped
+  turns disable the AI SDK's nested retry loop, leaving one authoritative initial-plus-two total budget instead of a
+  possible 3×3 request multiplication. Buffered tokens renew liveness out of band, so safe replacement does not
+  create a false zero-token zombie. The AI SDK bridge now preserves abort parts instead of collapsing them to `stop`,
+  and the vendored local runtime exposes a narrowly-scoped, non-serializable model-wrapper socket recorded in its patch
+  ledger. Interactive/non-stream calls share the same abort-aware classifier: plain and tool completions retry safely;
+  immediate chat streaming retries only before the first visible chunk. The real SDK `AgentRuntime` regression proves
+  one recovered assistant message, explicit cancellation/tool-call/budget guards are pinned, the spawned-runtime Docker
+  zero-token rail remains green, focused runtime tests (221), vendored gateway (88) and wrapper-socket (12) tests,
+  typecheck, lint, SDK rebuild, the 9,290-test fast gate, and all 129 protected tests pass. A guarded live
+  Qwen3-8B/40k high-power C0 lap then exercised the production SDK wrapper normally: it wrote and captured the exact
+  `hello.txt`, reached review in about six seconds, and cleaned up its sandbox; the owned model was unloaded afterward.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

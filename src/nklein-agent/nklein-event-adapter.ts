@@ -127,6 +127,13 @@ export function extractNKleinSessionId(event: unknown): string | null {
 // Translate raw SDK events into !Klein summary and chat mutations so the session service can stay focused on host ownership.
 export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): void {
 	const { entry, event, taskId } = input;
+	const eventRecord = asRecord(event);
+	if (eventRecord?.type === "nklein_buffered_model_token") {
+		// The swarm retry decorator withholds model deltas until it knows whether an aborted attempt must be replaced.
+		// Renew liveness out-of-band so buffering cannot look like a zero-token zombie or trip the stream watchdog.
+		emitSummary(input, withHeartbeat({ lastOutputAt: now() }, { token: true }));
+		return;
+	}
 	const agentEvent = readAgentEvent(event);
 	const chunkEvent = readChunkEvent(event);
 	const hookEvent = readHookEvent(event);

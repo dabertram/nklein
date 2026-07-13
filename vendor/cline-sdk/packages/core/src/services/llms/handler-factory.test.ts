@@ -92,6 +92,29 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("applies a host-local model wrapper once after gateway model resolution", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const base = {} as AgentModel;
+		const wrapped = {} as AgentModel;
+		const modelWrapper = vi.fn(() => wrapped);
+		gatewayMock.createAgentModel.mockReturnValue(base);
+
+		const result = createAgentModelFromConfig(
+			{
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				systemPrompt: "",
+				tools: [],
+				modelWrapper,
+			},
+			undefined,
+		);
+
+		expect(result).toBe(wrapped);
+		expect(modelWrapper).toHaveBeenCalledOnce();
+		expect(modelWrapper).toHaveBeenCalledWith(base);
+	});
+
 	it("forwards a host-provided fetch into the gateway (top-level and per-provider)", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 		const hostFetch = vi.fn() as unknown as typeof fetch;

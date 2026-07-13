@@ -1,5 +1,6 @@
 import type * as LlmsProviders from "@cline/llms";
 import type {
+	AgentModel,
 	AgentMode,
 	AgentResult,
 	RuntimeConfigExtensionKind,
@@ -54,7 +55,8 @@ type LocalOnlyCoreSessionConfigKeys =
 	| "extraTools"
 	| "extensions"
 	| "onTeamEvent"
-	| "onConsecutiveMistakeLimitReached";
+	| "onConsecutiveMistakeLimitReached"
+	| "modelWrapper";
 
 export type RuntimeSessionConfig = Omit<
 	CoreSessionConfig,
@@ -89,6 +91,8 @@ export interface LocalRuntimeStartOptions {
 	extensions?: LocalRuntimeBootstrapConfig["extensions"];
 	onTeamEvent?: LocalRuntimeBootstrapConfig["onTeamEvent"];
 	onConsecutiveMistakeLimitReached?: LocalRuntimeBootstrapConfig["onConsecutiveMistakeLimitReached"];
+	/** In-process model decorator; deliberately excluded from transport-neutral session config. */
+	modelWrapper?: (model: AgentModel) => AgentModel;
 	checkpoint?: LocalRuntimeBootstrapConfig["checkpoint"];
 	compaction?: LocalRuntimeBootstrapConfig["compaction"];
 	modelCatalogDefaults?: Partial<NonNullable<ProviderSettings["modelCatalog"]>>;
@@ -129,6 +133,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 		extensions,
 		onTeamEvent,
 		onConsecutiveMistakeLimitReached,
+		modelWrapper,
 		checkpoint,
 		compaction,
 		...transportConfig
@@ -147,6 +152,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 		localConfigOverrides.onConsecutiveMistakeLimitReached =
 			onConsecutiveMistakeLimitReached;
 	}
+	if (modelWrapper) localConfigOverrides.modelWrapper = modelWrapper;
 	if (checkpoint?.createCheckpoint) {
 		localConfigOverrides.checkpoint = checkpoint;
 	}

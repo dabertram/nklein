@@ -2,6 +2,7 @@ import type { ModelInfo } from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentHooks,
+	AgentModel,
 	AgentMode,
 	AgentTool,
 	BasicLogger,
@@ -194,6 +195,8 @@ export interface CoreSessionConfig
 	 */
 	sessionId?: string;
 	workspaceRoot?: string;
+	/** Host-local decorator applied after provider model resolution; never crosses a remote runtime transport. */
+	modelWrapper?: (model: AgentModel) => AgentModel;
 	systemPrompt: string;
 	teamName?: string;
 	missionLogIntervalSteps?: number;

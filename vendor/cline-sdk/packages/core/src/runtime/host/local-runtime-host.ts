@@ -465,6 +465,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			headers: providerConfig.headers,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
+			modelWrapper: configWithProvider.modelWrapper,
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,

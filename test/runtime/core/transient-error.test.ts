@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { isTransientNetworkError, withTransientRetry } from "../../../src/core/transient-error";
+import {
+	isRetryableModelCallError,
+	isTransientNetworkError,
+	RetryableModelCallAbortError,
+	withTransientRetry,
+} from "../../../src/core/transient-error";
 
 describe("isTransientNetworkError", () => {
 	it("flags the undici timeouts a live scout actually hit", () => {
@@ -27,6 +32,37 @@ describe("isTransientNetworkError", () => {
 		expect(isTransientNetworkError(null)).toBe(false);
 		expect(isTransientNetworkError(undefined)).toBe(false);
 		expect(isTransientNetworkError(42)).toBe(false);
+	});
+});
+
+describe("isRetryableModelCallError", () => {
+	it("retries provider/runtime aborts and the existing transient network failures", () => {
+		const liveCaller = new AbortController();
+		const abort = new DOMException("The operation was aborted", "AbortError");
+		expect(isRetryableModelCallError(abort, { callerSignal: liveCaller.signal })).toBe(true);
+		expect(isRetryableModelCallError(new RetryableModelCallAbortError("runtime timeout"))).toBe(true);
+		expect(isRetryableModelCallError(new Error("ECONNRESET"))).toBe(true);
+	});
+
+	it("treats raw cancellation/abort text without signal provenance as terminal", () => {
+		expect(isRetryableModelCallError(new DOMException("The operation was aborted", "AbortError"))).toBe(false);
+		expect(isRetryableModelCallError(new Error("user stopped"))).toBe(false);
+		expect(isRetryableModelCallError(new Error("cancelled"))).toBe(false);
+	});
+
+	it("keeps caller cancellation terminal even though it is abort-shaped", () => {
+		const caller = new AbortController();
+		caller.abort();
+		expect(
+			isRetryableModelCallError(new DOMException("The operation was aborted", "AbortError"), {
+				callerSignal: caller.signal,
+			}),
+		).toBe(false);
+	});
+
+	it("does not replay a stream after output became visible", () => {
+		expect(isRetryableModelCallError(new Error("fetch failed"), { visibleOutput: true })).toBe(false);
+		expect(isRetryableModelCallError(new Error("Type validation failed"))).toBe(false);
 	});
 });
 

@@ -58,6 +58,13 @@
   after the generous low-power-safe bound, a still-running turn with no token is interrupted, releases its model slot,
   and retries through the normal card recovery path. A spawned-runtime/Docker rail proves the full recovery and also
   proves that a merely slow first token inside the lease is left alone.
+- **Transient local-model aborts now retry without replaying output—or ignoring Stop.** Swarm turns retry at the shared
+  SDK model-stream boundary, where a failed attempt can be buffered and replaced before any partial text, reasoning,
+  usage, or tool activity escapes. Retries are bounded, stop after any tool call, and never fire when the caller's abort
+  signal says the user/session cancelled the turn—or when unproven raw text merely says “cancelled.” The wrapper owns
+  one initial-plus-two total budget instead of multiplying an inner retry loop. Buffered tokens still renew the liveness
+  lease. Direct chat and structured calls use the same provenance rule; live chat streaming retries only before its
+  first visible chunk, so a prefix is never printed twice.
 
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard

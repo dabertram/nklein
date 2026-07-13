@@ -66,6 +66,7 @@ import {
 	type NKleinSdkStartSessionInput,
 	type NKleinSdkTeamEvent,
 } from "./sdk-runtime-boundary";
+import { createTransientAbortRecoveryModel } from "./transient-abort-recovery-model";
 import { createOpenAiCompatPhaseOnePickCaller } from "./two-phase-before-model";
 
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -430,6 +431,13 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: NKLEIN_MODEL_CATALOG_DEFAULTS,
+					// P0.4: buffer at the shared AgentModel seam so a provider/runtime abort can be replaced by a bounded
+					// same-model retry before any text/reasoning/usage event becomes visible. The wrapper refuses retries
+					// when the outer signal was cancelled or a tool-call delta appeared.
+					modelWrapper: (base) =>
+						createTransientAbortRecoveryModel(base, {
+							onBufferedToken: () => this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
+						}),
 					extensions: [
 						createKanbanContextFocusExtension(
 							requestedSessionId,

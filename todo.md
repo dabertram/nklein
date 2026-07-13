@@ -632,9 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.4 — Execute transient-`aborted` retries at the shared model-call seam** *(legacy §5.AA/§5.Z).* Preserve user
-  cancellation as terminal while retrying transport/runtime aborts through the bounded policy; cover stream and
-  non-stream paths without duplicating visible output.
 - [ ] **P0.5 — Fix the remaining `task-command-exit` launch case** *(legacy §5.U).* Reconcile neutral server cwd,
   workspace resolution, and auto-open flag handling so all four integration cases pass without weakening the guard.
 - [ ] **P0.6 — Finish the project-switch stall investigation** *(legacy §5.V).* Reproduce rapid workspace navigation,

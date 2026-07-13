@@ -8,6 +8,18 @@ function jsonResponse(content: string, finishReason = "stop"): Response {
 	});
 }
 
+function abortError(): DOMException {
+	return new DOMException("The operation was aborted", "AbortError");
+}
+
+function sseResponse(content: string, finishReason = "stop"): Response {
+	const payload = JSON.stringify({ choices: [{ delta: { content }, finish_reason: finishReason }] });
+	return new Response(`data: ${payload}\n\ndata: [DONE]\n\n`, {
+		status: 200,
+		headers: { "content-type": "text/event-stream" },
+	});
+}
+
 describe("LocalLlmClient local-only enforcement", () => {
 	it("refuses a non-local (cloud) endpoint", () => {
 		expect(
@@ -23,6 +35,93 @@ describe("LocalLlmClient local-only enforcement", () => {
 });
 
 describe("LocalLlmClient.complete", () => {
+	it("retries an abort-shaped provider/runtime failure then succeeds", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn().mockRejectedValueOnce(abortError()).mockResolvedValueOnce(jsonResponse("recovered"));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({ messages: [{ role: "user", content: "hi" }], signal: caller.signal }),
+		).resolves.toMatchObject({
+			content: "recovered",
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("retries a non-stream finish_reason:aborted response before returning content", async () => {
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse("discarded partial", "aborted"))
+			.mockResolvedValueOnce(jsonResponse("recovered"));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(client.complete({ messages: [{ role: "user", content: "hi" }] })).resolves.toMatchObject({
+			content: "recovered",
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("bounds persistent abort retries to two retries after the first attempt", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn(async () => {
+			throw abortError();
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({ messages: [{ role: "user", content: "hi" }], signal: caller.signal }),
+		).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
+	});
+
+	it("does not retry an explicit caller cancellation", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn(async () => {
+			caller.abort();
+			throw abortError();
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({ messages: [{ role: "user", content: "hi" }], signal: caller.signal }),
+		).rejects.toMatchObject({ name: "AbortError" });
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not guess that raw cancellation text is transient when the caller supplied no signal", async () => {
+		const fetchImpl = vi.fn(async () => {
+			throw new Error("user stopped / cancelled");
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(client.complete({ messages: [{ role: "user", content: "hi" }] })).rejects.toThrow("cancelled");
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
 	it("retries a transient failure then succeeds (§5.AF), with a fresh request per attempt", async () => {
 		let calls = 0;
 		const fetchImpl = vi.fn(async () => {
@@ -236,6 +335,80 @@ describe("LocalLlmClient.completeWithTools", () => {
 			{ status: 200, headers: { "content-type": "application/json" } },
 		);
 	}
+
+	it("retries a finish_reason:aborted tools response before parsing any partial call", async () => {
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse("partial", "aborted"))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: "",
+									tool_calls: [{ id: "call-1", function: { name: "read_file", arguments: '{"path":"a"}' } }],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "read" }] }, [
+			{ name: "read_file", description: "Read", parameters: { type: "object" } },
+		]);
+		expect(result.toolCalls).toEqual([{ id: "call-1", name: "read_file", arguments: { path: "a" } }]);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("retries an abort-shaped provider/runtime failure before returning a tool call", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi
+			.fn()
+			.mockRejectedValueOnce(abortError())
+			.mockImplementationOnce(async () => toolCallResponse());
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools(
+			{ messages: [{ role: "user", content: "read it" }], signal: caller.signal },
+			[{ name: "read_file", description: "Read a file", parameters: { type: "object" } }],
+		);
+		expect(result.toolCalls[0]).toMatchObject({ name: "read_file", arguments: { path: "README.md" } });
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry a tools call after explicit caller cancellation", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn(async () => {
+			caller.abort();
+			throw abortError();
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.completeWithTools({ messages: [{ role: "user", content: "read it" }], signal: caller.signal }, [
+				{ name: "read_file", description: "Read a file", parameters: { type: "object" } },
+			]),
+		).rejects.toMatchObject({ name: "AbortError" });
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
 
 	it("offers tools to the endpoint and parses tool_calls (decoding JSON-string args; malformed → {})", async () => {
 		const fetchImpl = vi.fn(async () => toolCallResponse());
@@ -621,6 +794,95 @@ describe("LocalLlmClient.completeWithTools", () => {
 });
 
 describe("LocalLlmClient.completeStream", () => {
+	it("retries an abort before the first visible chunk and emits only the recovered stream", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn().mockRejectedValueOnce(abortError()).mockResolvedValueOnce(sseResponse("recovered"));
+		const chunks: string[] = [];
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeStream(
+			{ messages: [{ role: "user", content: "hi" }], signal: caller.signal },
+			(delta) => chunks.push(delta),
+		);
+		expect(result.content).toBe("recovered");
+		expect(chunks).toEqual(["recovered"]);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("retries stream finish_reason:aborted when it arrived before visible content", async () => {
+		const abortedPayload = JSON.stringify({ choices: [{ delta: {}, finish_reason: "aborted" }] });
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(`data: ${abortedPayload}\n\ndata: [DONE]\n\n`, {
+					status: 200,
+					headers: { "content-type": "text/event-stream" },
+				}),
+			)
+			.mockResolvedValueOnce(sseResponse("recovered"));
+		const chunks: string[] = [];
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const result = await client.completeStream({ messages: [{ role: "user", content: "hi" }] }, (delta) =>
+			chunks.push(delta),
+		);
+		expect(result.content).toBe("recovered");
+		expect(chunks).toEqual(["recovered"]);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry after a partial chunk was visible (no duplicated stream prefix)", async () => {
+		const encoded = new TextEncoder().encode(
+			`data: ${JSON.stringify({ choices: [{ delta: { content: "partial" }, finish_reason: null }] })}\n\n`,
+		);
+		const fakeReader = {
+			read: vi.fn().mockResolvedValueOnce({ done: false, value: encoded }).mockRejectedValueOnce(abortError()),
+			cancel: vi.fn(async () => undefined),
+		};
+		const fakeResponse = { ok: true, status: 200, body: { getReader: () => fakeReader } } as unknown as Response;
+		const fetchImpl = vi.fn(async () => fakeResponse);
+		const chunks: string[] = [];
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.completeStream({ messages: [{ role: "user", content: "hi" }] }, (delta) => chunks.push(delta)),
+		).rejects.toMatchObject({ name: "AbortError" });
+		expect(chunks).toEqual(["partial"]);
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+		expect(fakeReader.cancel).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not retry a stream canceled by the caller before output", async () => {
+		const caller = new AbortController();
+		const fetchImpl = vi.fn(async () => {
+			caller.abort();
+			throw abortError();
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.completeStream({ messages: [{ role: "user", content: "hi" }], signal: caller.signal }, () => undefined),
+		).rejects.toMatchObject({ name: "AbortError" });
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
 	it("cancels the stream reader when a read errors mid-stream (no leaked reader/connection)", async () => {
 		// Old finally only cleared the timeout, so a rejected reader.read() left the reader locked + the undici
 		// socket checked out of the keep-alive pool until GC. The finally must reader.cancel() on the throw path.

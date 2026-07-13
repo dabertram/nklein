@@ -70,6 +70,56 @@ export function isTransientNetworkError(error: unknown): boolean {
 	return TRANSIENT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
+export interface RetryableModelCallErrorOptions {
+	/** The caller-owned cancellation signal. Once aborted, cancellation is terminal and must never be retried. */
+	callerSignal?: AbortSignal;
+	/** Whether this attempt already exposed output to the caller. Replaying it would duplicate visible stream content. */
+	visibleOutput?: boolean;
+}
+
+/** Typed provenance for an abort owned by the model/runtime rather than by the outer caller. */
+export class RetryableModelCallAbortError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "RetryableModelCallAbortError";
+	}
+}
+
+/** True when an unknown error is an abort-shaped model/runtime failure rather than a regular network error. */
+function isAbortLikeError(error: unknown): boolean {
+	const name = error instanceof Error ? error.name.toLowerCase() : "";
+	if (name === "aborterror" || name === "agentruntimeaborterror") {
+		return true;
+	}
+	const message = errorMessage(error);
+	return [
+		"aborterror",
+		"the operation was aborted",
+		"request aborted",
+		"runtime aborted",
+		"agent runtime aborted",
+	].some((pattern) => message.includes(pattern));
+}
+
+/**
+ * Shared retry classifier for model-call seams. Provider/runtime aborts are transient when the caller did not request
+ * cancellation and the attempt has not exposed output. The two terminal guards are intentionally checked first:
+ * abort-shaped errors are also how fetch/provider adapters report an explicit user stop, and replaying an immediate
+ * stream after its first visible delta would duplicate output. Otherwise the existing network classifier remains the
+ * source of truth for timeout/connection/5xx retryability.
+ */
+export function isRetryableModelCallError(error: unknown, options: RetryableModelCallErrorOptions = {}): boolean {
+	if (options.callerSignal?.aborted || options.visibleOutput) {
+		return false;
+	}
+	if (error instanceof RetryableModelCallAbortError || isTransientNetworkError(error)) {
+		return true;
+	}
+	// A plain AbortError is ambiguous when no caller signal exists: it may be an explicit endpoint/user cancellation.
+	// Only a supplied, still-live caller signal proves that this abort came from below the caller boundary.
+	return options.callerSignal !== undefined && isAbortLikeError(error);
+}
+
 export interface TransientRetryOptions {
 	/** Max RETRIES after the first attempt (so total attempts ≤ maxRetries + 1). Default 3. */
 	maxRetries?: number;

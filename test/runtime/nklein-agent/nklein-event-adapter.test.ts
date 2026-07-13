@@ -70,6 +70,21 @@ function runtimeSnapshot(iteration = 1) {
 }
 
 describe("applyNKleinSessionEvent", () => {
+	it("renews token liveness for a buffered model delta without exposing a message", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		entry.summary.lastTokenAt = null;
+
+		const result = applyEvent({ entry, event: { type: "nklein_buffered_model_token" } });
+
+		expect(result.entry.summary.state).toBe("running");
+		expect(result.entry.summary.lastTokenAt).not.toBeNull();
+		expect(result.entry.summary.lastHeartbeatAt).not.toBeNull();
+		expect(result.entry.summary.heartbeatStatus).toBe("healthy");
+		expect(result.messages).toEqual([]);
+		expect(result.entry.messages).toEqual([]);
+	});
+
 	it("streams assistant text deltas into the active assistant message", () => {
 		const entry = createEntry("task-1");
 

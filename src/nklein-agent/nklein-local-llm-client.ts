@@ -1,7 +1,7 @@
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
-import { withTransientRetry } from "../core/transient-error";
+import { isRetryableModelCallError, RetryableModelCallAbortError, withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
 	parseNarratedToolCalls,
@@ -143,6 +143,23 @@ export class LocalLlmRequestError extends Error {
 	}
 }
 
+function modelRuntimeAbortError(): Error {
+	return new RetryableModelCallAbortError("The model runtime aborted the call before completion.");
+}
+
+function rethrowWithAbortProvenance(
+	error: unknown,
+	internalSignal: AbortSignal,
+	callerSignal: AbortSignal | undefined,
+): never {
+	if (internalSignal.aborted && callerSignal?.aborted !== true) {
+		throw new RetryableModelCallAbortError("The local model call hit its internal runtime timeout.", {
+			cause: error,
+		});
+	}
+	throw error;
+}
+
 export class LocalLlmClient {
 	private readonly config: LocalLlmClientConfig;
 	private readonly fetchImpl: typeof fetch;
@@ -200,8 +217,8 @@ export class LocalLlmClient {
 	async complete(request: LocalLlmCompletionRequest): Promise<LocalLlmCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
 		// §5.AF transient survivability: retry only TRANSIENT failures (undici timeout / connection blip / 5xx),
-		// bounded, with a FRESH internal timeout per attempt. A caller-cancel or our hard-timeout abort is not transient
-		// ⇒ not retried; a successful call returns on the first attempt (behavior unchanged).
+		// bounded, with a FRESH internal timeout per attempt. An explicit caller-cancel stays terminal; an internal/provider
+		// abort is retryable while no output has escaped. A successful call returns on the first attempt (unchanged).
 		const attempt = async (): Promise<LocalLlmCompletion> => {
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -227,16 +244,24 @@ export class LocalLlmClient {
 					choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }>;
 				};
 				const choice = json.choices?.[0];
+				if (choice?.finish_reason === "aborted") {
+					throw modelRuntimeAbortError();
+				}
 				return {
 					content: choice?.message?.content ?? "",
 					finishReason: choice?.finish_reason ?? null,
 					raw: json,
 				};
+			} catch (error) {
+				rethrowWithAbortProvenance(error, controller.signal, request.signal);
 			} finally {
 				clearTimeout(timeout);
 			}
 		};
-		return withTransientRetry(attempt, { maxRetries: 2 });
+		return withTransientRetry(attempt, {
+			maxRetries: 2,
+			isTransient: (error) => isRetryableModelCallError(error, { callerSignal: request.signal }),
+		});
 	}
 
 	/**
@@ -294,82 +319,95 @@ export class LocalLlmClient {
 		onChunk: (delta: string) => void,
 	): Promise<LocalLlmCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
-		// Hoisted so the finally can release it: if reader.read() rejects (abort/timeout/network error mid-stream),
-		// the throw unwinds straight past the read loop and the reader would otherwise keep its lock on the response
-		// body — leaving the undici socket checked out of the keep-alive pool until GC.
-		let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-		try {
-			const response = await this.fetchImpl(url, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
-				},
-				body: JSON.stringify({ ...this.buildBody(request), stream: true }),
-				signal,
-			});
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				throw new LocalLlmRequestError(
-					`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
-					response.status,
-				);
-			}
-			const body = response.body;
-			if (!body) {
-				throw new LocalLlmRequestError("Streaming response had no body.", response.status);
-			}
-			reader = body.getReader();
-			const decoder = new TextDecoder();
-			let buffer = "";
-			let content = "";
-			let finishReason: string | null = null;
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) {
-					break;
+		let visibleOutput = false;
+		const attempt = async (): Promise<LocalLlmCompletion> => {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+			const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+			// Hoisted so the finally can release it: if reader.read() rejects (abort/timeout/network error mid-stream),
+			// the throw unwinds straight past the read loop and the reader would otherwise keep its lock on the response
+			// body — leaving the undici socket checked out of the keep-alive pool until GC.
+			let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+			try {
+				const response = await this.fetchImpl(url, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
+					},
+					body: JSON.stringify({ ...this.buildBody(request), stream: true }),
+					signal,
+				});
+				if (!response.ok) {
+					const text = await response.text().catch(() => "");
+					throw new LocalLlmRequestError(
+						`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
+						response.status,
+					);
 				}
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split("\n");
-				buffer = lines.pop() ?? "";
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed.startsWith("data:")) {
-						continue;
+				const body = response.body;
+				if (!body) {
+					throw new LocalLlmRequestError("Streaming response had no body.", response.status);
+				}
+				reader = body.getReader();
+				const decoder = new TextDecoder();
+				let buffer = "";
+				let content = "";
+				let finishReason: string | null = null;
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) {
+						break;
 					}
-					const data = trimmed.slice(5).trim();
-					if (data === "[DONE]") {
-						continue;
-					}
-					try {
-						const json = JSON.parse(data) as {
-							choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
-						};
-						const choice = json.choices?.[0];
-						const delta = choice?.delta?.content;
-						if (delta) {
-							content += delta;
-							onChunk(delta);
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split("\n");
+					buffer = lines.pop() ?? "";
+					for (const line of lines) {
+						const trimmed = line.trim();
+						if (!trimmed.startsWith("data:")) {
+							continue;
 						}
-						if (choice?.finish_reason) {
-							finishReason = choice.finish_reason;
+						const data = trimmed.slice(5).trim();
+						if (data === "[DONE]") {
+							continue;
 						}
-					} catch {
-						// Skip a malformed SSE line rather than failing the stream.
+						try {
+							const json = JSON.parse(data) as {
+								choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+							};
+							const choice = json.choices?.[0];
+							const delta = choice?.delta?.content;
+							if (delta) {
+								content += delta;
+								visibleOutput = true;
+								onChunk(delta);
+							}
+							if (choice?.finish_reason) {
+								finishReason = choice.finish_reason;
+							}
+						} catch {
+							// Skip a malformed SSE line rather than failing the stream.
+						}
 					}
 				}
+				if (finishReason === "aborted" && !visibleOutput) {
+					throw modelRuntimeAbortError();
+				}
+				return { content, finishReason, raw: null };
+			} catch (error) {
+				rethrowWithAbortProvenance(error, controller.signal, request.signal);
+			} finally {
+				clearTimeout(timeout);
+				// Release the reader on EVERY exit — most importantly the throw path (a rejected reader.read() unwinds
+				// here). cancel() releases the lock and signals the producer to stop, returning the undici socket to the
+				// keep-alive pool instead of leaking it until GC. No-op on the already-drained success path.
+				reader?.cancel().catch(() => {});
 			}
-			return { content, finishReason, raw: null };
-		} finally {
-			clearTimeout(timeout);
-			// Release the reader on EVERY exit — most importantly the throw path (a rejected reader.read() unwinds
-			// here). cancel() releases the lock and signals the producer to stop, returning the undici socket to the
-			// keep-alive pool instead of leaking it until GC. No-op on the already-drained success path.
-			reader?.cancel().catch(() => {});
-		}
+		};
+		return withTransientRetry(attempt, {
+			maxRetries: 2,
+			isTransient: (error) => isRetryableModelCallError(error, { callerSignal: request.signal, visibleOutput }),
+		});
 	}
 
 	/**
@@ -389,117 +427,128 @@ export class LocalLlmClient {
 		opts?: { toolChoice?: "auto" | "required" },
 	): Promise<LocalLlmToolCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
-		try {
-			const body: Record<string, unknown> = { ...this.buildBody(request) };
-			if (tools.length > 0) {
-				body.tools = tools.map((tool) => ({
-					type: "function",
-					function: { name: tool.name, description: tool.description, parameters: tool.parameters },
-				}));
-				body.tool_choice = opts?.toolChoice ?? "auto";
-			}
-			const response = await this.fetchImpl(url, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
-				},
-				body: JSON.stringify(body),
-				signal,
-			});
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				throw new LocalLlmRequestError(
-					`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
-					response.status,
-				);
-			}
-			const json = (await response.json()) as {
-				choices?: Array<{
-					message?: {
-						content?: string;
-						reasoning_content?: string;
-						tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
-					};
-					finish_reason?: string | null;
-				}>;
-				usage?: { total_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
-			};
-			const choice = json.choices?.[0];
-			let toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
-				.map((call, index) => ({
-					id: call.id ?? `call_${index}`,
-					name: call.function?.name ?? "",
-					arguments: parseToolCallArguments(call.function?.arguments),
-				}))
-				.filter((call) => call.name.length > 0);
-			// §5.Z: the chat path has no `afterModel` hook, so recover a NARRATED tool call here. When tools were offered
-			// but the model returned NO structured tool_call, a weak/quantized model may have printed the call as text in
-			// its content OR its reasoning channel (Hermes/Qwen/Llama/Mistral/DeepSeek/Phi-`[TOOL_REQUEST]`/… formats) —
-			// reasoning models (phi-4-reasoning, deepseek-r1) put it in `reasoning_content`. Mirror the swarm path's
-			// recoverNarratedToolCalls so those models drive chat tools too (todo §5.O: recover, don't re-prompt the model).
-			// §5.AB: `tool_choice:"required"` is meant to force a call FROM THE OFFERED SET, but the LM Studio/MLX endpoint
-			// does NOT constrain to `tools` — a fixated reasoning model returns a STRUCTURED call for an un-offered tool
-			// (live 2026-07-01: offered ONLY run_command, qwopus3.6-27b returned a structured read_file). On the force path
-			// we offer exactly the next undone tool, so a call naming anything else is off-menu — drop it, else it would
-			// dedupe to "no progress" and stall the chain. Scoped to the forced path so the normal `auto` turn is untouched.
-			if (opts?.toolChoice === "required" && toolCalls.length > 0) {
-				const offeredNames = new Set(tools.map((tool) => tool.name));
-				toolCalls = toolCalls.filter((call) => offeredNames.has(call.name));
-			}
-			if (toolCalls.length === 0 && tools.length > 0) {
-				// §5.AN: scan BOTH channels for a narrated call via the shared reasoning-channel-split core — this now also
-				// surfaces an inline-`<think>` model's reasoning (the old concat only saw the SEPARATE reasoning_content field).
-				const narratable = reasoningAndAnswerText({
-					content: choice?.message?.content,
-					reasoning_content: choice?.message?.reasoning_content,
+		const attempt = async (): Promise<LocalLlmToolCompletion> => {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+			const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+			try {
+				const body: Record<string, unknown> = { ...this.buildBody(request) };
+				if (tools.length > 0) {
+					body.tools = tools.map((tool) => ({
+						type: "function",
+						function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+					}));
+					body.tool_choice = opts?.toolChoice ?? "auto";
+				}
+				const response = await this.fetchImpl(url, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
+					},
+					body: JSON.stringify(body),
+					signal,
 				});
-				let recovered = parseNarratedToolCalls(narratable);
-				// §5.AA last tier (2026-06-29): small models (≤4B: nemotron-4b, gemma) narrate a `{"tool":…,"parameters":…}`
-				// object with NO recognized marker. Recover it SAFELY by validating the tool name against the offered set.
-				if (recovered.length === 0) {
-					recovered = parseToolValidatedNarration(
-						narratable,
-						tools.map((tool) => tool.name),
+				if (!response.ok) {
+					const text = await response.text().catch(() => "");
+					throw new LocalLlmRequestError(
+						`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
+						response.status,
 					);
 				}
-				// §5.AB: a recovered call must name a tool we actually OFFERED this turn. Marker-based recovery
-				// (parseNarratedToolCalls) doesn't validate against the offered set, so a model that narrates a call to a
-				// tool we deliberately did NOT offer would otherwise land it. That defeats the force-advance steer: when we
-				// FORCE the next step with a REDUCED tool set (already-done tools excluded, tool_choice:"required"), a
-				// reasoning model that keeps narrating the done tool (live: qwopus3.6-27b re-narrated `read_file(...)` after
-				// run_command) must be rejected so the loop dedupe doesn't collapse it to "no progress". On a normal turn all
-				// real tools are offered, so nothing legitimate is dropped — this only bites the excluded-tool case.
-				const offeredNames = tools.map((tool) => tool.name);
-				const structuredOfferedNames = new Set(offeredNames);
-				toolCalls = recovered.flatMap((call, index) => {
-					const resolvedToolName = resolveNarratedToolName(call.toolName, offeredNames);
-					if (!resolvedToolName || !structuredOfferedNames.has(resolvedToolName)) {
-						return [];
+				const json = (await response.json()) as {
+					choices?: Array<{
+						message?: {
+							content?: string;
+							reasoning_content?: string;
+							tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
+						};
+						finish_reason?: string | null;
+					}>;
+					usage?: { total_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
+				};
+				const choice = json.choices?.[0];
+				if (choice?.finish_reason === "aborted") {
+					throw modelRuntimeAbortError();
+				}
+				let toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
+					.map((call, index) => ({
+						id: call.id ?? `call_${index}`,
+						name: call.function?.name ?? "",
+						arguments: parseToolCallArguments(call.function?.arguments),
+					}))
+					.filter((call) => call.name.length > 0);
+				// §5.Z: the chat path has no `afterModel` hook, so recover a NARRATED tool call here. When tools were offered
+				// but the model returned NO structured tool_call, a weak/quantized model may have printed the call as text in
+				// its content OR its reasoning channel (Hermes/Qwen/Llama/Mistral/DeepSeek/Phi-`[TOOL_REQUEST]`/… formats) —
+				// reasoning models (phi-4-reasoning, deepseek-r1) put it in `reasoning_content`. Mirror the swarm path's
+				// recoverNarratedToolCalls so those models drive chat tools too (todo §5.O: recover, don't re-prompt the model).
+				// §5.AB: `tool_choice:"required"` is meant to force a call FROM THE OFFERED SET, but the LM Studio/MLX endpoint
+				// does NOT constrain to `tools` — a fixated reasoning model returns a STRUCTURED call for an un-offered tool
+				// (live 2026-07-01: offered ONLY run_command, qwopus3.6-27b returned a structured read_file). On the force path
+				// we offer exactly the next undone tool, so a call naming anything else is off-menu — drop it, else it would
+				// dedupe to "no progress" and stall the chain. Scoped to the forced path so the normal `auto` turn is untouched.
+				if (opts?.toolChoice === "required" && toolCalls.length > 0) {
+					const offeredNames = new Set(tools.map((tool) => tool.name));
+					toolCalls = toolCalls.filter((call) => offeredNames.has(call.name));
+				}
+				if (toolCalls.length === 0 && tools.length > 0) {
+					// §5.AN: scan BOTH channels for a narrated call via the shared reasoning-channel-split core — this now also
+					// surfaces an inline-`<think>` model's reasoning (the old concat only saw the SEPARATE reasoning_content field).
+					const narratable = reasoningAndAnswerText({
+						content: choice?.message?.content,
+						reasoning_content: choice?.message?.reasoning_content,
+					});
+					let recovered = parseNarratedToolCalls(narratable);
+					// §5.AA last tier (2026-06-29): small models (≤4B: nemotron-4b, gemma) narrate a `{"tool":…,"parameters":…}`
+					// object with NO recognized marker. Recover it SAFELY by validating the tool name against the offered set.
+					if (recovered.length === 0) {
+						recovered = parseToolValidatedNarration(
+							narratable,
+							tools.map((tool) => tool.name),
+						);
 					}
-					return [
-						{
-							id: `narrated_${index}`,
-							name: resolvedToolName,
-							arguments: parseToolCallArguments(call.input),
-						},
-					];
-				});
+					// §5.AB: a recovered call must name a tool we actually OFFERED this turn. Marker-based recovery
+					// (parseNarratedToolCalls) doesn't validate against the offered set, so a model that narrates a call to a
+					// tool we deliberately did NOT offer would otherwise land it. That defeats the force-advance steer: when we
+					// FORCE the next step with a REDUCED tool set (already-done tools excluded, tool_choice:"required"), a
+					// reasoning model that keeps narrating the done tool (live: qwopus3.6-27b re-narrated `read_file(...)` after
+					// run_command) must be rejected so the loop dedupe doesn't collapse it to "no progress". On a normal turn all
+					// real tools are offered, so nothing legitimate is dropped — this only bites the excluded-tool case.
+					const offeredNames = tools.map((tool) => tool.name);
+					const structuredOfferedNames = new Set(offeredNames);
+					toolCalls = recovered.flatMap((call, index) => {
+						const resolvedToolName = resolveNarratedToolName(call.toolName, offeredNames);
+						if (!resolvedToolName || !structuredOfferedNames.has(resolvedToolName)) {
+							return [];
+						}
+						return [
+							{
+								id: `narrated_${index}`,
+								name: resolvedToolName,
+								arguments: parseToolCallArguments(call.input),
+							},
+						];
+					});
+				}
+				return {
+					content: choice?.message?.content ?? "",
+					toolCalls,
+					finishReason: choice?.finish_reason ?? null,
+					reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+					totalTokens: json.usage?.total_tokens ?? null,
+					raw: json,
+				};
+			} catch (error) {
+				rethrowWithAbortProvenance(error, controller.signal, request.signal);
+			} finally {
+				clearTimeout(timeout);
 			}
-			return {
-				content: choice?.message?.content ?? "",
-				toolCalls,
-				finishReason: choice?.finish_reason ?? null,
-				reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens ?? null,
-				totalTokens: json.usage?.total_tokens ?? null,
-				raw: json,
-			};
-		} finally {
-			clearTimeout(timeout);
-		}
+		};
+		return withTransientRetry(attempt, {
+			maxRetries: 2,
+			isTransient: (error) => isRetryableModelCallError(error, { callerSignal: request.signal }),
+		});
 	}
 }
 

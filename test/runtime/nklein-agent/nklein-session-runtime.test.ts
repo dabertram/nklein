@@ -737,6 +737,7 @@ describe("InMemoryNKleinSessionRuntime", () => {
 					]),
 				}),
 				localRuntime: expect.objectContaining({
+					modelWrapper: expect.any(Function),
 					compaction: expect.objectContaining({
 						compact: expect.any(Function),
 					}),

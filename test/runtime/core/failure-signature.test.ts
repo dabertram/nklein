@@ -122,11 +122,11 @@ describe("classifyFailureSignature — aborted request", () => {
 		"request aborted",
 		"userStopped",
 		"cancelled",
-	])("routes %j to aborted_request / aborted / remediable", (message) => {
+	])("routes %j to aborted_request / aborted / terminal without provenance", (message) => {
 		const verdict = classifyFailureSignature(message);
 		expect(verdict.signature).toBe("aborted_request");
 		expect(verdict.outcome).toBe("aborted");
-		expect(verdict.remediable).toBe(true);
+		expect(verdict.remediable).toBe(false);
 	});
 
 	it("classifies a DOMException-shaped AbortError by its name", () => {

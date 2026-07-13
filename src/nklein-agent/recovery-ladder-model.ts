@@ -31,6 +31,12 @@ export interface RecoveryTurnSignal {
 	offeredTools: boolean;
 	/** 0-based count of recovery re-invokes ALREADY taken this turn (0 on the first, real attempt). */
 	attempt: number;
+	/** Error text carried by a terminal `finish:error`, when the provider supplied one. */
+	finishError: string | null;
+	/** Exception thrown while creating or consuming the base stream, when that path failed. */
+	thrownError: unknown | null;
+	/** True only when the OUTER request signal was cancelled (user/session control); never retry that provenance. */
+	callerAborted: boolean;
 }
 
 export interface RecoveryLadderModelDeps {
@@ -42,6 +48,8 @@ export interface RecoveryLadderModelDeps {
 	shouldRecover(signal: RecoveryTurnSignal): boolean;
 	/** Re-frame the request for the next attempt (e.g. bump the token budget, re-word the last instruction). Pure. */
 	reframe(request: AgentModelRequest, attempt: number): AgentModelRequest;
+	/** Optional out-of-band activity observer; buffered events remain hidden from the model consumer. */
+	onBufferedEvent?: (event: AgentModelEvent) => void;
 }
 
 /**
@@ -67,20 +75,40 @@ async function* streamWithRecovery(
 	const buffered: AgentModelEvent[] = [];
 	let hadToolCall = false;
 	let finishReason: AgentModelFinishReason | null = null;
+	let finishError: string | null = null;
+	let thrownError: unknown | null = null;
 
-	const iterable = await deps.base.stream(request);
-	for await (const event of iterable) {
-		buffered.push(event);
-		if (event.type === "tool-call-delta") {
-			hadToolCall = true;
-		} else if (event.type === "finish") {
-			finishReason = event.reason;
+	try {
+		const iterable = await deps.base.stream(request);
+		for await (const event of iterable) {
+			buffered.push(event);
+			try {
+				deps.onBufferedEvent?.(event);
+			} catch {
+				// Observability must never turn a healthy model stream into a failed/retried attempt.
+			}
+			if (event.type === "tool-call-delta") {
+				hadToolCall = true;
+			} else if (event.type === "finish") {
+				finishReason = event.reason;
+				finishError = event.error ?? null;
+			}
 		}
+	} catch (error) {
+		thrownError = error;
 	}
 
 	if (
 		attempt < maxAttempts &&
-		deps.shouldRecover({ finishReason, hadToolCall, offeredTools: request.tools.length > 0, attempt })
+		deps.shouldRecover({
+			finishReason,
+			hadToolCall,
+			offeredTools: request.tools.length > 0,
+			attempt,
+			finishError,
+			thrownError,
+			callerAborted: request.signal?.aborted === true,
+		})
 	) {
 		// Re-invoke with a re-framed request; the recovered turn REPLACES this one (buffered events discarded).
 		yield* streamWithRecovery(deps, deps.reframe(request, attempt), attempt + 1, maxAttempts);
@@ -90,5 +118,8 @@ async function* streamWithRecovery(
 	// No recovery — replay the base turn verbatim (byte-identical to the bare model).
 	for (const event of buffered) {
 		yield event;
+	}
+	if (thrownError !== null) {
+		throw thrownError;
 	}
 }

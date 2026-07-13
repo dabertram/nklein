@@ -483,6 +483,9 @@ function mapFinishReason(
 	if (value === "error") {
 		return "error";
 	}
+	if (value === "aborted" || value === "abort") {
+		return "aborted";
+	}
 	return "stop";
 }
 
@@ -978,7 +981,9 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "abort") {
-					// abort
+					// Preserve abort provenance at the AgentModel seam. The host-side buffered wrapper uses the OUTER
+					// request signal to distinguish explicit cancellation (terminal) from a provider/runtime abort (retryable).
+					finishReason = "aborted";
 					break;
 				}
 			}
@@ -1161,6 +1166,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						? { maxOutputTokens: request.maxTokens }
 						: {}),
 					abortSignal: request.signal,
+					...(typeof request.metadata?.nkleinProviderMaxRetries === "number"
+						? { maxRetries: Math.max(0, Math.trunc(request.metadata.nkleinProviderMaxRetries)) }
+						: {}),
 					// !Klein §5.BD tool-NAME aliasing: when a model calls a near-miss name (read_file→read_files,
 					// grep→search_codebase, camelCase, singular/plural) the AI SDK raises NoSuchToolError before
 					// execution. Redirect to a REAL available tool (keeping the arguments) instead of rejecting — the
