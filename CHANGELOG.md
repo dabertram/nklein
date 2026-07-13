@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Decomposed cards now carry their own guard rails.** Every generated card states which files it may modify (derived
+  automatically from the plan when the architect doesn't bound it explicitly), which paths are off limits, and which
+  interfaces it must not break — and workers see these bounds in their card brief. The plan also classifies "hot
+  files" that several cards want to write: overlaps that are safely ordered by dependencies are noted, and overlaps
+  that could run in parallel (a merge conflict waiting to happen) are flagged as warnings on the decomposition.
+
 - **Planning agents can now build the task graph step by step, with each step validated.** New `add_task` and
   `add_dependency` tools let the decomposing agent declare tasks and dependencies one at a time; every operation is
   checked immediately (unknown tasks, duplicates, self-dependencies, and anything that would create a cycle are

@@ -654,8 +654,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
     block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
-- [ ] **F1.8 — Emit work-package-shaped cards by construction.** Populate intent, bounded write scope, forbidden paths,
-  interfaces, acceptance gates, evidence, and hot-file classification in generated cards and refinements.
 - [ ] **F1.9 — Enforce work-package boundaries at dispatch and review.** Reject or park unauthorized file overlap and
   prove small workers remain within Green/Yellow/Red ownership on representative DAGs.
 - [ ] **F1.10 — Wire first-class stuck/at-risk signals into worker and runtime loops.** Generalize fixture flips,

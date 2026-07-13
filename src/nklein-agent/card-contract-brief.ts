@@ -15,6 +15,10 @@ const CONTRACT_SECTIONS: ReadonlyArray<{ key: keyof NKleinPlanTask; heading: str
 	{ key: "expectedOutputs", heading: "Expected outputs" },
 	{ key: "acceptanceChecks", heading: "Acceptance checks" },
 	{ key: "nonGoals", heading: "Non-goals" },
+	// F1.8 work-package bounds — the card's parallel-write safety contract.
+	{ key: "writeScope", heading: "Write scope (files you may modify)" },
+	{ key: "forbiddenPaths", heading: "Forbidden paths (do NOT touch)" },
+	{ key: "interfaces", heading: "Interfaces to honor (do not break)" },
 	{ key: "dependencyOutputsConsumed", heading: "Dependency outputs consumed" },
 	{ key: "rollbackOrRepairHints", heading: "Rollback / repair hints" },
 	{ key: "downstreamInvalidationRules", heading: "Downstream invalidation rules" },

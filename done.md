@@ -406,6 +406,23 @@
   cycle reasons, assembly + injection + one-shot precedence + reset, end-to-end tasks-less decompose through the
   real toolset, nudger progress-tool exemption).
 
+- [x] **F1.8 — Emit work-package-shaped cards by construction** *(delivered 2026-07-13).* Every decomposed card now
+  carries its §5.AK contract bounds, populated in `normalizeDecomposeProjectToolInput` so BOTH decompose modes
+  (one-shot and the F1.7 incremental protocol) flow through the shaping. New per-task fields (all optional,
+  backward compatible): `writeScope` (globs the card may write — explicit wins, else DERIVED from
+  `filesLikelyTouched`, the field models already emit reliably), `forbiddenPaths`, `interfaces`; intent/acceptance/
+  evidence were already covered by prompt/expectedOutputs/acceptanceChecks/acceptanceCommand/nonGoals. New pure core
+  `src/core/work-package-card-shape.ts`: `deriveTaskWriteScope`, `classifyPlanHotFiles` (a path written by ≥2 cards
+  is HOT — `yellow` when every touching pair is transitively dependency-ordered, `red` when any pair can run in
+  parallel), `populateWorkPackageShape`, `planTaskToWorkPackage` (the projection the §5.AK dispatch classifier
+  consumes — the F1.9 bridge), `formatHotFileWarnings`. The task graph persists `hotFiles` (optional field on
+  `nkleinPlanTaskGraphSchema`, absent on legacy graphs); RED hot files ride the decompose result's
+  `graphQualityWarnings` + a self-observation (record-only — enforcement is F1.9). Worker consumption:
+  `renderCardContractBrief` renders Write scope / Forbidden paths / Interfaces sections, and the decompose_project
+  task JSON schema advertises the three fields so architect models can emit them directly. 11 new tests (derivation,
+  transitive yellow vs red classification, populate + projection, warnings, brief sections, normalizer shaping
+  end-to-end incl. hot-file classification on the emitted graph).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

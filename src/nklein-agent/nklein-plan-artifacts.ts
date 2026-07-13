@@ -40,14 +40,29 @@ export const nkleinPlanTaskSchema = z.object({
 	dependencyOutputsConsumed: z.array(z.string()).optional(),
 	rollbackOrRepairHints: z.array(z.string()).optional(),
 	downstreamInvalidationRules: z.array(z.string()).optional(),
+	// F1.8 work-package BOUNDS (all optional) — populated by construction at decompose time (writeScope derived
+	// from filesLikelyTouched when the architect does not bound it explicitly). Enforcement at dispatch/review is F1.9.
+	writeScope: z.array(z.string()).optional(),
+	forbiddenPaths: z.array(z.string()).optional(),
+	interfaces: z.array(z.string()).optional(),
 });
 export type NKleinPlanTask = z.infer<typeof nkleinPlanTaskSchema>;
+
+/** F1.8: one hot file — a path ≥2 cards write, with the parallel-write safety class of the overlap. */
+export const nkleinPlanHotFileSchema = z.object({
+	path: z.string().min(1),
+	taskIds: z.array(z.string()),
+	classification: z.enum(["yellow", "red"]),
+});
+export type NKleinPlanHotFile = z.infer<typeof nkleinPlanHotFileSchema>;
 
 export const nkleinPlanTaskGraphSchema = z.object({
 	schemaVersion: z.literal(1),
 	slug: z.string().min(1),
 	title: z.string().min(1),
 	tasks: z.array(nkleinPlanTaskSchema),
+	/** F1.8: the graph's hot-file classification (absent on legacy graphs; recomputed at decompose time). */
+	hotFiles: z.array(nkleinPlanHotFileSchema).optional(),
 });
 export type NKleinPlanTaskGraph = z.infer<typeof nkleinPlanTaskGraphSchema>;
 

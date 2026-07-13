@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { toSlug } from "../../core/slugify";
+import { populateWorkPackageShape } from "../../core/work-package-card-shape";
 import type { NKleinPlanQuestion, NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { expandDecomposeProjectTasks } from "./plan-task-expansion";
 import { decomposeProjectToolInputSchema } from "./plan-task-schemas";
@@ -200,11 +201,16 @@ export function normalizeDecomposeProjectToolInput(input: unknown): DecomposePro
 			`decompose_project requires at least ${minimumTaskCount} task leaves; received ${tasks.length}. Split the plan into more independently reviewable tasks.`,
 		);
 	}
+	// F1.8: work-package shape BY CONSTRUCTION — every card gets a bounded writeScope (explicit, else derived
+	// from filesLikelyTouched) and the graph carries its hot-file classification. Both decompose modes (one-shot
+	// and the incremental add_task protocol) flow through here, so no emitted graph skips the shaping.
+	const shaped = populateWorkPackageShape(tasks);
 	const taskGraph = {
 		schemaVersion: 1 as const,
 		slug: parsed.slug,
 		title: parsed.title.trim() || parsed.slug,
-		tasks,
+		tasks: shaped.tasks,
+		...(shaped.hotFiles.length > 0 ? { hotFiles: shaped.hotFiles } : {}),
 	};
 	return {
 		slug: parsed.slug,
@@ -213,7 +219,7 @@ export function normalizeDecomposeProjectToolInput(input: unknown): DecomposePro
 		summary: parsed.summary?.trim() || null,
 		questions,
 		title: parsed.title,
-		tasks,
+		tasks: shaped.tasks,
 		taskGraph,
 		defaultAcceptanceCommand,
 		minimumTaskCount,

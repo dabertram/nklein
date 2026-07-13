@@ -250,6 +250,65 @@ describe("decompose_project plan-quality guardrails", () => {
 	});
 });
 
+/** F1.8 — the normalizer shapes every graph into work packages: writeScope populated, hot files classified. */
+describe("decompose_project work-package shaping (F1.8)", () => {
+	it("derives writeScope from filesLikelyTouched by construction and keeps an explicit writeScope", () => {
+		const normalized = normalizeDecomposeProjectToolInput(
+			basePayload({
+				tasks: [
+					{ ...VALID_TASKS[0] },
+					{ ...VALID_TASKS[1], writeScope: ["src/views/**"] }, // explicit wins over filesLikelyTouched
+				],
+			}),
+		);
+		expect(normalized.tasks[0]?.writeScope).toEqual(["src/storage.ts"]);
+		expect(normalized.tasks[1]?.writeScope).toEqual(["src/views/**"]);
+		expect(normalized.taskGraph.hotFiles).toBeUndefined(); // disjoint scopes ⇒ no hot files, field absent
+	});
+
+	it("classifies hot files on the graph: ordered overlap yellow, unordered overlap red", () => {
+		const normalized = normalizeDecomposeProjectToolInput(
+			basePayload({
+				tasks: [
+					{
+						id: "a",
+						title: "A",
+						prompt: "Do a.",
+						acceptanceCommand: "npm test",
+						filesLikelyTouched: ["src/x.ts"],
+					},
+					{
+						id: "b",
+						title: "B",
+						prompt: "Do b.",
+						acceptanceCommand: "npm test",
+						dependsOn: ["a"],
+						filesLikelyTouched: ["src/x.ts"],
+					},
+					{
+						id: "c",
+						title: "C",
+						prompt: "Do c.",
+						acceptanceCommand: "npm test",
+						filesLikelyTouched: ["src/y.ts"],
+					},
+					{
+						id: "d",
+						title: "D",
+						prompt: "Do d.",
+						acceptanceCommand: "npm test",
+						filesLikelyTouched: ["src/y.ts"],
+					},
+				],
+			}),
+		);
+		expect(normalized.taskGraph.hotFiles).toEqual([
+			{ path: "src/x.ts", taskIds: ["a", "b"], classification: "yellow" },
+			{ path: "src/y.ts", taskIds: ["c", "d"], classification: "red" },
+		]);
+	});
+});
+
 /**
  * The SDK validates the tool's inputSchema BEFORE our handler runs. If any node in that tree is a closed object
  * (`additionalProperties: false`) or has `required`, the SDK pre-rejects a slightly-malformed call with a raw

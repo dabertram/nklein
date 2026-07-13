@@ -183,6 +183,7 @@ import { decideRedecomposeTrigger, parseRedecomposeRound } from "../core/decompo
 import type { DecomposedSubtask } from "../core/decomposition-subtask-dag";
 import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
+import { formatHotFileWarnings } from "../core/work-package-card-shape";
 import { didTaskConsultKnowledge } from "../telemetry/knowledge-tool-usage-stats";
 import {
 	createIncrementalDagSessionState,
@@ -341,6 +342,26 @@ function createDecomposeProjectTool(
 						planSlug: slug,
 						candidateCount: candidates.length,
 						bestIndex: best.bestIndex,
+					},
+				});
+			}
+			// F1.8: RED hot files (parallel writers with no dependency order) are surfaced as quality warnings and a
+			// self-observation — record-only here; F1.9 enforces the boundary at dispatch/review.
+			const hotFileWarnings = formatHotFileWarnings(taskGraph.hotFiles ?? []);
+			if (hotFileWarnings.length > 0) {
+				await recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `decompose_project hot-file classification for plan ${slug}: ${hotFileWarnings.length} RED hot file(s)`,
+					taskId: sourceTaskId ?? null,
+					workspacePath,
+					metadata: {
+						operation: "decompose_project_hot_files",
+						planSlug: slug,
+						hotFiles: (taskGraph.hotFiles ?? []).map(
+							(hotFile) => `${hotFile.classification}:${hotFile.path}:${hotFile.taskIds.join("+")}`,
+						),
+						warnings: hotFileWarnings,
 					},
 				});
 			}
@@ -603,7 +624,8 @@ function createDecomposeProjectTool(
 				slug: artifacts.taskGraph.slug,
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
-				graphQualityWarnings: validation.quality.warnings,
+				graphQualityWarnings: [...validation.quality.warnings, ...hotFileWarnings],
+				hotFiles: taskGraph.hotFiles ?? [],
 				applied: applied.applied,
 				createdTaskCount: applied.createdTaskCount,
 				createdDependencyCount: applied.createdDependencyCount,

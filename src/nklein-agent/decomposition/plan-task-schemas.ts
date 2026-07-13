@@ -70,6 +70,22 @@ export const decomposeProjectTaskJsonSchema = {
 			items: { type: "string" },
 			description: "What downstream work becomes invalid if this card's interface/outputs change.",
 		},
+		// F1.8 work-package bounds — parallel-write safety. writeScope defaults to filesLikelyTouched when omitted.
+		writeScope: {
+			type: "array",
+			items: { type: "string" },
+			description: "Path globs this card MAY write. Omit to default to filesLikelyTouched.",
+		},
+		forbiddenPaths: {
+			type: "array",
+			items: { type: "string" },
+			description: "Path globs this card must NOT touch (protected/hot files owned by other cards).",
+		},
+		interfaces: {
+			type: "array",
+			items: { type: "string" },
+			description: "Interface contracts the card must keep working (function signatures, endpoints, events).",
+		},
 	},
 	required: ["id", "title", "prompt"],
 	additionalProperties: false,

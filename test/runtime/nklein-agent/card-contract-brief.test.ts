@@ -71,4 +71,20 @@ describe("renderCardContractBrief", () => {
 		// inputs (earlier) precedes downstream-invalidation (later) in the rendered output.
 		expect(brief.indexOf("Inputs")).toBeLessThan(brief.indexOf("Downstream invalidation"));
 	});
+
+	it("renders the F1.8 work-package bounds (write scope, forbidden paths, interfaces)", () => {
+		const brief = renderCardContractBrief(
+			task({
+				writeScope: ["src/orders/**"],
+				forbiddenPaths: ["src/auth/**"],
+				interfaces: ["createOrder(input): Order — signature frozen"],
+			}),
+		);
+		expect(brief).toContain("**Write scope (files you may modify):**\n- src/orders/**");
+		expect(brief).toContain("**Forbidden paths (do NOT touch):**\n- src/auth/**");
+		expect(brief).toContain(
+			"**Interfaces to honor (do not break):**\n- createOrder(input): Order — signature frozen",
+		);
+		expect(hasCardContract(task({ writeScope: ["src/x.ts"] }))).toBe(true);
+	});
 });
