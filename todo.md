@@ -656,8 +656,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
-- [ ] **F1.27 — Land the workflow-kernel/durable-queue interface.** Isolate workflow state transitions from CLI/tRPC/UI
-  adapters so schedulers and agents share one typed command/event seam.
+- [ ] **F1.27b — Migrate adapter call sites onto the workflow command queue (interface LANDED 2026-07-13).** The
+  typed command/event seam exists: `createWorkflowCommandQueue` (src/core/workflow-command-queue.ts) over the pure
+  kernel reducer — typed dispatch with held/terminal/persist_failed outcomes, per-task serialization,
+  persist-before-notify ledger durability (`wf:<phase> → wf:<phase>` transitions), subscriber events carrying the
+  kernel effects, and exact boot replay (`replayWorkflowPhaseFromLedger`). REMAINING: migrate the actual adapter
+  call sites (tRPC start/stop/complete paths in runtime-api + runtime-server recovery rungs + CLI task commands)
+  to emit commands through the queue instead of mutating stores directly, wiring the queue's effect events to the
+  proven implementations; then the durable scheduler (F1.18) subscribes to the same seam. Migrate incrementally,
+  one adapter path per leaf, behind behavior-identical tests.
 - [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
   transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
   dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,

@@ -570,6 +570,19 @@
   tests (resolution precedence, first-execution rule, transcript contract incl. incomplete-call omission, reuse
   incl. error-replay + occurrence exhaustion, skip, simulate fallback, reconfirm match/drift persistence).
 
+- [x] **F1.27a — the workflow-kernel/durable-queue INTERFACE landed** *(delivered 2026-07-13; adapter-call-site
+  migration narrowed into F1.27b).* `createWorkflowCommandQueue` (`src/core/workflow-command-queue.ts`) is the
+  typed command/event seam over the existing pure kernel reducer (`applyWorkflowCommand`, the July-7 seed that had
+  zero consumers): adapters `dispatch(taskId, command)` and get a TYPED outcome — applied (with the transition +
+  the kernel's effects), `held` (a duplicate/out-of-order command holds the phase, replay-proof by construction),
+  `terminal`, or `persist_failed` (a failed durable append changes nothing and notifies no one) — never a throw.
+  Commands for the same card serialize strictly in arrival order; different cards run concurrently. Every APPLIED
+  command persists to the §5.AF ledger BEFORE subscribers are notified (`wf:<from> → wf:<to>`, reason = command
+  kind), and `replayWorkflowPhaseFromLedger` folds the log back to the exact phase at boot (`seedPhases` resumes a
+  new queue mid-lifecycle). Subscribers (schedulers/agents/the board bridge) observe transitions with the kernel's
+  effect names instead of polling stores. 4 tests (full lifecycle drive with effect + persistence assertions,
+  hold/terminal rejections, persist-before-notify failure atomicity, replay + seeded resume).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
