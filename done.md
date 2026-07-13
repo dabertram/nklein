@@ -883,6 +883,18 @@
   drifting ports), so a UI gate can never green against a stale dev server; mounted as `npm run e2e:smoke`.
   Migrating the 8 ad-hoc-mocked specs onto the shared harness was deliberately NOT done — they pass, and §5.U's
   stop rule says no churn without a cohesion win (adopt opportunistically when a spec is next touched).
+- [x] **F2.1a — session-persistent chat taint (the summary-launder hole closed)** *(delivered 2026-07-13;
+  restart-persistence + retrieval-synthesize labeling are F2.1b in todo).* The gated executor's taint window was
+  per-TURN (one executor per turn), but untrusted content a turn ingests STAYS in the session's context — kept
+  verbatim or folded into the rolling summary — so a protected-sink call one turn later executed against a clean
+  window (test-demonstrated: the pre-F2.1 behavior runs the host write; the seeded one blocks it).
+  `src/chat/chat-session-taint.ts` keeps each session's accumulated labels (accumulate-only `propagateTaint`
+  fold, per-session isolation, cleared on session DELETE alongside the transcript); the executor gained
+  `initialTaint` (seeds the window) + `onTaintChange` (persists folds back) seams — absent ⇒ byte-identical; the
+  resolver wires both, gated on `capabilityBrokerEnabled` (broker off ⇒ registry stays empty, fully inert).
+  Summaries can no longer launder taint BY CONSTRUCTION: labels live at session granularity, not message
+  granularity, so consolidating the transcript never drops them. 3 tests incl. the cross-turn block + the
+  inert-when-off lock. tsc 0, fast 9515 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

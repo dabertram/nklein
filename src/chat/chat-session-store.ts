@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { parseValidatedJsonl } from "../state/jsonl-store";
+import { chatSessionTaintRegistry } from "./chat-session-taint";
 import { clearChatTranscript } from "./chat-transcript-store";
 
 /**
@@ -456,6 +457,8 @@ export async function deleteChatSession(id: string, options: DeleteChatSessionOp
 	// Deleting a session must also drop its transcript — a deleted chat leaving its full transcript on disk was
 	// the "cleanup is not consistent in every detail" class of leak (David 2026-07-10).
 	await clearChatTranscript(id, { rootDir: options.transcriptRootDir });
+	// F2.1: the session's accumulated taint dies with the session (its transcript — the tainted content — is gone).
+	chatSessionTaintRegistry.clear(id);
 	return true;
 }
 

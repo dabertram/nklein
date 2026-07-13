@@ -21,6 +21,7 @@ import { isSandboxWritePathApproved, resolveSandboxWritablePathMounts } from "..
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import type { ChatSession } from "../../chat/chat-session-store";
+import { chatSessionTaintRegistry } from "../../chat/chat-session-taint";
 import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
 import type { ChatPromptMessage } from "../../chat/chat-turn-context";
@@ -197,6 +198,13 @@ export function buildChatAgentToolDepsResolver(input: {
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
 			mode,
+			// F2.1: session-persistent taint — untrusted content ingested by EARLIER turns (still in context, verbatim
+			// or summarized) seeds this turn's window, and this turn's additions persist back. Inert when the broker is
+			// off (the executor never folds), and the registry then stays empty too.
+			initialTaint: capabilityBrokerEnabled ? chatSessionTaintRegistry.get(session.id) : [],
+			onTaintChange: (labels) => {
+				chatSessionTaintRegistry.fold(session.id, labels);
+			},
 			// §5.L: opt-in capability broker — when on, a protected-sink tool call made after untrusted content entered the
 			// turn is refused fail-closed (prompt-injection defense). Default off ⇒ byte-identical (the executor skips it).
 			capabilityBrokerEnabled,

@@ -78,6 +78,14 @@ export interface GatedChatToolExecutorInput {
 	 * blocked, and with the flag off none of this runs.
 	 */
 	capabilityBrokerEnabled?: boolean;
+	/**
+	 * F2.1: seed the turn's taint window with the SESSION's accumulated labels (untrusted content ingested by
+	 * earlier turns stays in context — verbatim or summarized — so its taint must carry into this turn's gating).
+	 * Absent ⇒ the window starts empty, exactly as before this seam existed.
+	 */
+	initialTaint?: readonly TaintLabel[];
+	/** F2.1: observe the window after each fold — the wiring persists it back to the session registry. */
+	onTaintChange?: (labels: readonly TaintLabel[]) => void;
 }
 
 export function createGatedChatToolExecutor(
@@ -86,7 +94,7 @@ export function createGatedChatToolExecutor(
 	// §5.L per-executor taint window: the accumulated labels of prior tool outputs this executor has run. The resolver
 	// builds one executor per turn, so this is the turn's trust window — a tainted page read then a protected-sink call
 	// within the SAME turn is caught. Accumulate-only (never launders); empty + inert unless capabilityBrokerEnabled.
-	let accumulatedTaint: readonly TaintLabel[] = [];
+	let accumulatedTaint: readonly TaintLabel[] = input.initialTaint ? [...input.initialTaint] : [];
 	return async (call) => {
 		const tool = input.tools.find((candidate) => candidate.name === call.name);
 		if (!tool) {
@@ -178,6 +186,7 @@ export function createGatedChatToolExecutor(
 		const outputTaint = executed ? outputTaintForToolResult(tool, content, args) : [];
 		if (input.capabilityBrokerEnabled && outputTaint.length > 0) {
 			accumulatedTaint = propagateTaint(accumulatedTaint, outputTaint);
+			input.onTaintChange?.(accumulatedTaint);
 		}
 
 		return { callId: call.id, content };
