@@ -4,6 +4,7 @@
 // should stay in focused services instead of accumulating here.
 
 import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
@@ -23,7 +24,6 @@ import type {
 	RuntimeTaskEvidenceResponse,
 } from "../core/api-contract";
 import {
-	parseCommandRunRequest,
 	parseNKleinAccountSwitchRequest,
 	parseNKleinAdvisorBuildRequest,
 	parseNKleinAdvisorSendRequest,
@@ -41,6 +41,12 @@ import {
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
+import {
+	buildHostOpenCommand,
+	hostOpenPlatformFromProcess,
+	isHostOpenTargetId,
+	validateHostOpenFilePath,
+} from "../core/host-open-intents";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -1068,16 +1074,25 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 		},
-		runCommand: async (workspaceScope, input) => {
+		openWorkspaceIn: async (workspaceScope, input) => {
 			if (deps.isRemoteMode) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "Host-local action unavailable in remote mode — runs on the server host, not your machine.",
 				});
 			}
+			// F2.6: the client names a TYPED target; the server builds the command from its own platform and the
+			// workspace path it already knows — no arbitrary command string ever crosses the wire.
+			if (!isHostOpenTargetId(input.targetId)) {
+				throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown open target: ${input.targetId}` });
+			}
 			try {
-				const body = parseCommandRunRequest(input);
-				return await deps.runCommand(body.command, workspaceScope.workspacePath);
+				const command = buildHostOpenCommand(
+					input.targetId,
+					workspaceScope.workspacePath,
+					hostOpenPlatformFromProcess(process.platform),
+				);
+				return await deps.runCommand(command, workspaceScope.workspacePath);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				throw new TRPCError({
@@ -1105,14 +1120,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: "Host-local action unavailable in remote mode — runs on the server host, not your machine.",
 				});
 			}
-			const filePath = input.filePath.trim();
-			if (!filePath) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "File path cannot be empty.",
-				});
+			// F2.6 server-side target validation: absolute plain path (no URL schemes), and it must exist as a
+			// regular file — the host opener never launches arbitrary URLs or guessed paths.
+			const validated = validateHostOpenFilePath(input.filePath);
+			if (!validated.ok) {
+				throw new TRPCError({ code: "BAD_REQUEST", message: validated.reason });
 			}
-			openInBrowser(filePath);
+			let isFile = false;
+			try {
+				isFile = statSync(validated.path).isFile();
+			} catch {
+				isFile = false;
+			}
+			if (!isFile) {
+				throw new TRPCError({ code: "BAD_REQUEST", message: "File does not exist on the host." });
+			}
+			openInBrowser(validated.path);
 			return { ok: true };
 		},
 		getUpdateStatus: async () => {

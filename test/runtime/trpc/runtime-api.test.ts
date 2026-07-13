@@ -6428,7 +6428,7 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 		};
 	}
 
-	it("runCommand executes in local mode (isRemoteMode omitted)", async () => {
+	it("openWorkspaceIn builds the command SERVER-side from the typed target + known workspace path (F2.6)", async () => {
 		const runCommandDep = vi.fn(async () => ({
 			exitCode: 0,
 			stdout: "hello",
@@ -6438,13 +6438,15 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 		}));
 		const api = createTestRuntimeApi(makeBaseApiDeps({ runCommand: runCommandDep }));
 
-		const result = await api.runCommand(workspaceScope, { command: "echo hello" });
+		const result = await api.openWorkspaceIn(workspaceScope, { targetId: "vscode" });
 		expect(result.exitCode).toBe(0);
-		expect(result.stdout).toBe("hello");
-		expect(runCommandDep).toHaveBeenCalledWith("echo hello", "/tmp/repo");
+		expect(runCommandDep).toHaveBeenCalledOnce();
+		const [command, cwd] = runCommandDep.mock.calls[0] as unknown as [string, string];
+		expect(cwd).toBe("/tmp/repo");
+		expect(command).toContain("'/tmp/repo'"); // the server-quoted workspace path — never a client string
 	});
 
-	it("runCommand executes in local mode (isRemoteMode: false)", async () => {
+	it("openWorkspaceIn executes in local mode (isRemoteMode: false)", async () => {
 		const runCommandDep = vi.fn(async () => ({
 			exitCode: 0,
 			stdout: "hello",
@@ -6471,12 +6473,12 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 			isRemoteMode: false,
 		});
 
-		const result = await api.runCommand(workspaceScope, { command: "echo hello" });
+		const result = await api.openWorkspaceIn(workspaceScope, { targetId: "finder" });
 		expect(result.exitCode).toBe(0);
 		expect(runCommandDep).toHaveBeenCalledOnce();
 	});
 
-	it("runCommand refuses in remote mode (isRemoteMode: true)", async () => {
+	it("openWorkspaceIn refuses in remote mode (isRemoteMode: true)", async () => {
 		const runCommandDep = vi.fn();
 		const api = createRuntimeApi({
 			...makeBaseApiDeps({ runCommand: runCommandDep }),
@@ -6497,18 +6499,21 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 			isRemoteMode: true,
 		});
 
-		await expect(api.runCommand(workspaceScope, { command: "echo hello" })).rejects.toThrow(
+		await expect(api.openWorkspaceIn(workspaceScope, { targetId: "vscode" })).rejects.toThrow(
 			"Host-local action unavailable in remote mode",
 		);
 		expect(runCommandDep).not.toHaveBeenCalled();
 	});
 
-	it("openFile executes in local mode (isRemoteMode omitted)", async () => {
+	it("openFile executes in local mode (isRemoteMode omitted) for an EXISTING regular file", async () => {
 		const api = createTestRuntimeApi(makeBaseApiDeps());
+		const realFile = join(tmpdir(), `open-file-f26-${Date.now()}.txt`);
+		writeFileSync(realFile, "x");
 
-		const result = await api.openFile({ filePath: "/tmp/some-file.txt" });
+		const result = await api.openFile({ filePath: realFile });
 		expect(result.ok).toBe(true);
-		expect(browserMocks.openInBrowser).toHaveBeenCalledWith("/tmp/some-file.txt");
+		expect(browserMocks.openInBrowser).toHaveBeenCalledWith(realFile);
+		rmSync(realFile, { force: true });
 	});
 
 	it("openFile executes in local mode (isRemoteMode: false)", async () => {
@@ -6531,9 +6536,22 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 			isRemoteMode: false,
 		});
 
-		const result = await api.openFile({ filePath: "/tmp/some-file.txt" });
+		const realFile = join(tmpdir(), `open-file-f26b-${Date.now()}.txt`);
+		writeFileSync(realFile, "x");
+		const result = await api.openFile({ filePath: realFile });
 		expect(result.ok).toBe(true);
-		expect(browserMocks.openInBrowser).toHaveBeenCalledWith("/tmp/some-file.txt");
+		expect(browserMocks.openInBrowser).toHaveBeenCalledWith(realFile);
+		rmSync(realFile, { force: true });
+	});
+
+	it("openFile refuses URLs, relative paths, and missing files (F2.6 server-side validation)", async () => {
+		const api = createTestRuntimeApi(makeBaseApiDeps());
+		await expect(api.openFile({ filePath: "https://evil.example.com" })).rejects.toThrow(/URLs are not openable/);
+		await expect(api.openFile({ filePath: "relative/path.txt" })).rejects.toThrow(/absolute file paths/);
+		await expect(api.openFile({ filePath: join(tmpdir(), "definitely-missing-f26.txt") })).rejects.toThrow(
+			/does not exist/,
+		);
+		expect(browserMocks.openInBrowser).not.toHaveBeenCalled();
 	});
 
 	it("openFile refuses in remote mode (isRemoteMode: true)", async () => {

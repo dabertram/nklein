@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from "react";
 import { showAppToast } from "@/components/app-toaster";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import {
-	buildOpenCommand,
 	getOpenTargetOption,
 	getOpenTargetOptions,
 	normalizeOpenTargetId,
@@ -87,8 +86,10 @@ export function useOpenWorkspace({ currentProjectId, workspacePath }: UseOpenWor
 			setIsOpeningWorkspace(true);
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const payload = await trpcClient.runtime.runCommand.mutate({
-					command: buildOpenCommand(selectedOpenTarget.id, workspacePath, openTargetPlatform),
+				// F2.6: only the TYPED target id crosses the wire — the server builds the command from its own
+				// platform + the workspace path it already knows.
+				const payload = await trpcClient.runtime.openWorkspaceIn.mutate({
+					targetId: selectedOpenTarget.id,
 				});
 				if (payload.exitCode !== 0) {
 					const details = getFirstOutputLine(payload.combinedOutput) ?? `Exited with code ${payload.exitCode}.`;

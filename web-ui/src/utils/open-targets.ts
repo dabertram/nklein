@@ -186,73 +186,8 @@ export function normalizeOpenTargetId(value: string | null): OpenTargetId | null
 	return null;
 }
 
-function quoteShellArgument(value: string): string {
-	return `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
-function quoteWindowsShellArgument(value: string): string {
-	return `"${value.replaceAll('"', '""')}"`;
-}
-
-function buildOpenAppCommand(path: string, ...appNames: string[]): string {
-	const quotedPath = quoteShellArgument(path);
-	if (appNames.length === 0) {
-		return `open ${quotedPath}`;
-	}
-	const openAttempts = appNames.map((appName) => `open -a ${quoteShellArgument(appName)} ${quotedPath}`);
-	if (openAttempts.length === 1) {
-		const command = openAttempts[0];
-		return command ?? `open ${quotedPath}`;
-	}
-	return `(${openAttempts.join(" || ")})`;
-}
-
-function buildOpenLinuxCommand(targetId: OpenTargetId, path: string): string {
-	const quotedPath = quoteShellArgument(path);
-	if (targetId === "finder") {
-		return `xdg-open ${quotedPath}`;
-	}
-	if (targetId === "vscode") {
-		return `code ${quotedPath}`;
-	}
-	if (targetId === "vscode-insiders") {
-		return `code-insiders ${quotedPath}`;
-	}
-	if (targetId === "cursor") {
-		return `cursor ${quotedPath}`;
-	}
-	if (targetId === "windsurf") {
-		return `windsurf ${quotedPath}`;
-	}
-	if (targetId === "zed") {
-		return `zed ${quotedPath}`;
-	}
-	return `xdg-open ${quotedPath}`;
-}
-
-function buildOpenWindowsCommand(targetId: OpenTargetId, path: string): string {
-	const quotedPath = quoteWindowsShellArgument(path);
-	if (targetId === "finder") {
-		return `explorer ${quotedPath}`;
-	}
-	if (targetId === "vscode") {
-		return `code ${quotedPath}`;
-	}
-	if (targetId === "vscode-insiders") {
-		return `code-insiders ${quotedPath}`;
-	}
-	if (targetId === "cursor") {
-		return `cursor ${quotedPath}`;
-	}
-	if (targetId === "windsurf") {
-		return `windsurf ${quotedPath}`;
-	}
-	if (targetId === "zed") {
-		return `zed ${quotedPath}`;
-	}
-	return `explorer ${quotedPath}`;
-}
-
+// F2.6: the open COMMANDS are built server-side from the typed target id (src/core/host-open-intents.ts);
+// this module keeps only the picker metadata (ids, labels, icons, platform support, persistence).
 export function getOpenTargetOptions(platform: OpenTargetPlatform): readonly OpenTargetOption[] {
 	return OPEN_TARGET_IDS_BY_PLATFORM[platform].map((targetId) => {
 		const option = openTargetById.get(targetId) ?? DEFAULT_OPEN_TARGET;
@@ -288,53 +223,4 @@ export function loadPersistedOpenTarget(platform: OpenTargetPlatform): OpenTarge
 
 export function persistOpenTarget(targetId: OpenTargetId): void {
 	writeLocalStorageItem(PREFERRED_OPEN_TARGET_STORAGE_KEY, targetId);
-}
-
-export function buildOpenCommand(targetId: OpenTargetId, path: string, platform: OpenTargetPlatform): string {
-	if (!isOpenTargetSupported(targetId, platform)) {
-		return buildOpenCommand(getDefaultOpenTargetId(platform), path, platform);
-	}
-
-	if (platform === "windows") {
-		return buildOpenWindowsCommand(targetId, path);
-	}
-
-	if (platform === "linux" || platform === "other") {
-		return buildOpenLinuxCommand(targetId, path);
-	}
-
-	if (targetId === "vscode") {
-		return buildOpenAppCommand(path, "Visual Studio Code");
-	}
-	if (targetId === "vscode-insiders") {
-		return buildOpenAppCommand(path, "Visual Studio Code - Insiders");
-	}
-	if (targetId === "cursor") {
-		return buildOpenAppCommand(path, "Cursor");
-	}
-	if (targetId === "windsurf") {
-		return buildOpenAppCommand(path, "Windsurf");
-	}
-	if (targetId === "finder") {
-		return buildOpenAppCommand(path);
-	}
-	if (targetId === "terminal") {
-		return buildOpenAppCommand(path, "Terminal");
-	}
-	if (targetId === "iterm2") {
-		return buildOpenAppCommand(path, "iTerm", "iTerm2");
-	}
-	if (targetId === "ghostty") {
-		return buildOpenAppCommand(path, "Ghostty", "Ghostie");
-	}
-	if (targetId === "warp") {
-		return buildOpenAppCommand(path, "Warp");
-	}
-	if (targetId === "xcode") {
-		return buildOpenAppCommand(path, "Xcode");
-	}
-	if (targetId === "intellijidea") {
-		return buildOpenAppCommand(path, "IntelliJ IDEA", "IntelliJ IDEA CE");
-	}
-	return buildOpenAppCommand(path, "Zed");
 }

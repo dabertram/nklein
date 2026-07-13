@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	parseCommandRunRequest,
 	parseNKleinModelContextWindowOverrideRequest,
 	parseTaskArtifactsDeleteRequest,
 	parseTaskChatSendRequest,
@@ -9,20 +8,6 @@ import {
 // §5.V — these tRPC boundary parsers layer post-schema business rules (trim + emptiness + normalization) on top of the
 // Zod schema; the trim-check is deliberately STRICTER than the schema (a whitespace value passes the schema but is
 // rejected here). Characterizing that so a dropped trim / emptiness guard can't silently regress.
-
-describe("parseCommandRunRequest (§5.V coverage)", () => {
-	it("trims the command", () => {
-		expect(parseCommandRunRequest({ command: "  ls -la  " })).toEqual({ command: "ls -la" });
-	});
-
-	it("rejects an empty / whitespace-only command", () => {
-		expect(() => parseCommandRunRequest({ command: "   " })).toThrow(/Command cannot be empty/);
-	});
-
-	it("rejects a payload missing the command field (schema layer)", () => {
-		expect(() => parseCommandRunRequest({})).toThrow();
-	});
-});
 
 describe("parseTaskChatSendRequest (§5.V coverage)", () => {
 	it("trims taskId + text on the happy path", () => {

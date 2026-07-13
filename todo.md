@@ -868,8 +868,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   allowlist), DNS-stub attribution (role-less shared UDP listener — needs a design), and the later policy
   decision whether unauthenticated egress should be DENIED rather than merely unattributed (live-validate
   first).
-- [ ] **F2.6 — Replace raw host `runCommand`/`openFile` with typed allowlisted intents.** Preserve legitimate local UI
-  actions while removing arbitrary local-mode strings and adding server-side target validation.
+- [ ] **F2.6b — Playwright re-validation of the open-workspace picker (typed intents SHIPPED 2026-07-13).**
+  F2.6 is functionally COMPLETE: the raw `runtime.runCommand` tRPC surface is GONE (contract schema, validator,
+  router procedure, handler, and the client-side shell-string builder all removed); the replacement
+  `openWorkspaceIn` takes ONLY a typed target-id enum and the SERVER builds the command from its own
+  `process.platform` + the workspace path it already knows (`src/core/host-open-intents.ts`, the proven web-ui
+  builder ported verbatim incl. shell quoting — hostile-path injection test added), so no arbitrary local-mode
+  string ever crosses the wire; `openFile` now server-validates its target (absolute plain path — URLs refused —
+  and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
+  the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
+  package's e2e run.
 - [ ] **F2.7 — Complete capability-gated multimodal chat.** Accept images first, then audio/PDF only where a local model
   and parser support them; bound storage/context and render input/output accessibly.
 - [ ] **F2.8 — Complete chat execution-access modes.** Make isolated/read-only/confirming/full-risk postures explicit,

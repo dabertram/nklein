@@ -9,7 +9,6 @@ import type {
 	RuntimeAnswerPlanQuestionResponse,
 	RuntimeCardMailboxCountsRequest,
 	RuntimeCardMailboxCountsResponse,
-	RuntimeCommandRunRequest,
 	RuntimeCommandRunResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
@@ -100,6 +99,7 @@ import type {
 	RuntimeNKleinUpdateProviderResponse,
 	RuntimeOpenFileRequest,
 	RuntimeOpenFileResponse,
+	RuntimeOpenWorkspaceInRequest,
 	RuntimeProjectAddRequest,
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationRequest,
@@ -436,9 +436,9 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeShellSessionStartRequest,
 		) => Promise<RuntimeShellSessionStartResponse>;
-		runCommand: (
+		openWorkspaceIn: (
 			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeCommandRunRequest,
+			input: RuntimeOpenWorkspaceInRequest,
 		) => Promise<RuntimeCommandRunResponse>;
 		resetAllState: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeDebugResetAllStateResponse>;
 		openFile: (input: RuntimeOpenFileRequest) => Promise<RuntimeOpenFileResponse>;

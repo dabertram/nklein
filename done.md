@@ -945,6 +945,18 @@
   after live validation. 8 new tests (claim parser edge cases, registry, URL encoding, and the server
   integration proving a valid claim attributes while invalid/absent stay null and never gate); all 84 egress
   tests green. tsc 0, fast 9536 green.
+- [x] **F2.6 — raw host `runCommand`/`openFile` replaced with typed allowlisted intents** *(delivered
+  2026-07-13; only a Playwright picker re-validation rides as F2.6b).* The raw `command: string` tRPC surface is
+  REMOVED end-to-end (contract schema + `parseCommandRunRequest` + router procedure + handler + the web-ui
+  shell-string builder and its quote helpers): the only caller — open-workspace-in-editor — now sends a TYPED
+  target id from a closed 12-entry enum, and the SERVER builds the command from its own `process.platform` plus
+  the workspace path it already knows (`src/core/host-open-intents.ts`, the proven web-ui builder ported
+  verbatim: platform support fallbacks, `open -a` multi-app attempts, POSIX/Windows shell quoting — with a new
+  hostile-path injection test proving single quotes cannot escape). `openFile` gained server-side target
+  validation: absolute plain paths only (URL schemes refused — `openInBrowser` can no longer be steered to an
+  arbitrary site), must exist as a regular file. Legitimate local UI actions preserved exactly (VS Code/Finder/
+  terminal targets; plan/evidence file opens). The 6 web-ui builder tests were PORTED to the core module, not
+  dropped. Backend + web-ui tsc 0; fast 9543; web-ui 1047 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

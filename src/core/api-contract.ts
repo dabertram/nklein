@@ -67,10 +67,25 @@ export {
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
 
-export const runtimeCommandRunRequestSchema = z.object({
-	command: z.string(),
+// F2.6: the raw `command: string` request is GONE — the client sends only a typed target id; the server
+// builds the command from its own platform + the workspace path it already knows.
+export const runtimeOpenWorkspaceInRequestSchema = z.object({
+	targetId: z.enum([
+		"vscode",
+		"vscode-insiders",
+		"cursor",
+		"windsurf",
+		"finder",
+		"terminal",
+		"iterm2",
+		"ghostty",
+		"warp",
+		"xcode",
+		"intellijidea",
+		"zed",
+	]),
 });
-export type RuntimeCommandRunRequest = z.infer<typeof runtimeCommandRunRequestSchema>;
+export type RuntimeOpenWorkspaceInRequest = z.infer<typeof runtimeOpenWorkspaceInRequestSchema>;
 
 export const runtimeCommandRunResponseSchema = z.object({
 	exitCode: z.number(),

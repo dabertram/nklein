@@ -8,7 +8,6 @@ import {
 	runtimeAnswerPlanQuestionResponseSchema,
 	runtimeCardMailboxCountsRequestSchema,
 	runtimeCardMailboxCountsResponseSchema,
-	runtimeCommandRunRequestSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
@@ -82,6 +81,7 @@ import {
 	runtimeNKleinUpdateProviderResponseSchema,
 	runtimeOpenFileRequestSchema,
 	runtimeOpenFileResponseSchema,
+	runtimeOpenWorkspaceInRequestSchema,
 	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeProtectedTestApprovalGrantResponseSchema,
 	runtimeRecordNKleinPlanGapRequestSchema,
@@ -512,11 +512,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.startShellSession(ctx.workspaceScope, input);
 			}),
-		runCommand: workspaceProcedure
-			.input(runtimeCommandRunRequestSchema)
+		openWorkspaceIn: workspaceProcedure
+			.input(runtimeOpenWorkspaceInRequestSchema)
 			.output(runtimeCommandRunResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.runCommand(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.openWorkspaceIn(ctx.workspaceScope, input);
 			}),
 		resetAllState: t.procedure.output(runtimeDebugResetAllStateResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.runtimeApi.resetAllState(ctx.workspaceScope);
