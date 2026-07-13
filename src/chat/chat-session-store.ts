@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { parseValidatedJsonl } from "../state/jsonl-store";
+import { chatSessionGrantStore } from "./chat-session-grants";
 import { chatSessionTaintRegistry } from "./chat-session-taint";
 import { clearChatTranscript } from "./chat-transcript-store";
 
@@ -459,6 +460,7 @@ export async function deleteChatSession(id: string, options: DeleteChatSessionOp
 	await clearChatTranscript(id, { rootDir: options.transcriptRootDir });
 	// F2.1: the session's accumulated taint dies with the session (its transcript — the tainted content — is gone).
 	chatSessionTaintRegistry.clear(id);
+	chatSessionGrantStore.clear(id); // F2.2: grants die with the session too
 	return true;
 }
 

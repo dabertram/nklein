@@ -20,6 +20,7 @@ import { buildChatPhaseToolPlan } from "../../chat/chat-phase-tool-plan";
 import { isSandboxWritePathApproved, resolveSandboxWritablePathMounts } from "../../chat/chat-sandbox-workspace-tools";
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
+import { chatSessionGrantStore } from "../../chat/chat-session-grants";
 import type { ChatSession } from "../../chat/chat-session-store";
 import { chatSessionTaintRegistry } from "../../chat/chat-session-taint";
 import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
@@ -205,6 +206,17 @@ export function buildChatAgentToolDepsResolver(input: {
 			onTaintChange: (labels) => {
 				chatSessionTaintRegistry.fold(session.id, labels);
 			},
+			// F2.2: least-scope confirmation grants (exact scope key, bounded TTL) — a widened retry re-confirms.
+			...(capabilityBrokerEnabled
+				? {
+						grants: {
+							covers: (scopeKey: string) => chatSessionGrantStore.covers(session.id, scopeKey, Date.now()),
+							record: (scopeKey: string) => {
+								chatSessionGrantStore.record(session.id, scopeKey, Date.now());
+							},
+						},
+					}
+				: {}),
 			// §5.L: opt-in capability broker — when on, a protected-sink tool call made after untrusted content entered the
 			// turn is refused fail-closed (prompt-injection defense). Default off ⇒ byte-identical (the executor skips it).
 			capabilityBrokerEnabled,

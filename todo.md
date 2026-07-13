@@ -823,8 +823,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   clears taint while the persisted transcript survives (a launder window); persist labels alongside the chat
   session and re-seed on load. Also thread the retrieval loop's `synthesize` output labels explicitly when that
   adapter lands (F1-era note: synthesize is model-coupled, not yet live).
-- [ ] **F2.2 — Wire capability escalation decisions into live execution.** Park and explain denied/escalated actions,
-  persist grants with least scope/duration, and never let a retry silently widen capability.
+- [ ] **F2.2b — Interactive confirm surface + swarm-side escalation park (grants core SHIPPED 2026-07-13).**
+  Least-scope capability grants are live at the chat seam: `src/core/capability-grants.ts`
+  (`scopeKeyForChatCall` — the exact command/path/host is the grant's identity, so a retry that widens ANYTHING
+  produces a different key and re-enters the full confirm path: silent widening is string-inequality-impossible;
+  bounded TTL 15 min; per-session isolation) + the executor's opt-in `grants` seam (grant reuse skips the
+  re-prompt, a fresh confirmation records exactly the confirmed scope, absent ⇒ byte-identical) + session-scoped
+  wiring gated on `capabilityBrokerEnabled` (`chat-session-grants.ts`, cleared on session delete; in-memory is
+  deliberately FAIL-CLOSED — a restart just re-confirms). Deny/escalate already explains (broker + access
+  reasons in the result + audit). REMAINING: a real web-ui confirm dialog (today `confirm` resolves from session
+  flags — the §5.M note "no web-ui confirm dialog yet"), grant surfacing/revocation in the UI, and the SWARM-side
+  escalation park (a denied protected action parks the card with the explanation via the attention path instead
+  of burning retries).
 - [ ] **F2.3 — Implement the egress proxy confirm flow (I5).** Queue `confirm` attempts on a loopback-only control
   channel, bind the decision to attempt+target+role, expose approve/deny, and keep denial/default timeouts fail-closed.
 - [ ] **F2.4 — Add per-role egress allowlists.** Resolve architect/worker/reviewer policy snapshots into isolated proxy

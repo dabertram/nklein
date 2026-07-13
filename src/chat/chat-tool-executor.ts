@@ -1,4 +1,5 @@
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
+import { scopeKeyForChatCall } from "../core/capability-grants";
 import { propagateTaint, type TaintLabel } from "../core/taint-labels";
 import {
 	assessToolArgumentRepair,
@@ -86,6 +87,13 @@ export interface GatedChatToolExecutorInput {
 	initialTaint?: readonly TaintLabel[];
 	/** F2.1: observe the window after each fold — the wiring persists it back to the session registry. */
 	onTaintChange?: (labels: readonly TaintLabel[]) => void;
+	/**
+	 * F2.2 (OPT-IN): least-scope capability grants. When a confirm-gated call's exact scope key is covered by an
+	 * unexpired grant, it runs without re-prompting; a fresh user confirmation records a grant for EXACTLY that
+	 * key. A retry that widens anything (command/path/host/kind) produces a different key, matches nothing, and
+	 * re-enters the full confirm path — silent widening is structurally impossible. Absent ⇒ byte-identical.
+	 */
+	grants?: { covers: (scopeKey: string) => boolean; record: (scopeKey: string) => void };
 }
 
 export function createGatedChatToolExecutor(
@@ -157,8 +165,14 @@ export function createGatedChatToolExecutor(
 		if (access.decision === "deny") {
 			content = `Denied: ${access.reason}`;
 		} else if (access.decision === "confirm") {
-			confirmed = input.confirm ? await input.confirm(call, tool) : false;
+			// F2.2: an unexpired grant for EXACTLY this scope skips the re-prompt; a fresh confirmation records one.
+			const scopeKey = scopeKeyForChatCall(tool.actionKind, tool.name, args);
+			const grantCovered = input.grants?.covers(scopeKey) ?? false;
+			confirmed = grantCovered || (input.confirm ? await input.confirm(call, tool) : false);
 			if (confirmed) {
+				if (!grantCovered) {
+					input.grants?.record(scopeKey);
+				}
 				content = await tool.run(args);
 				executed = true;
 			} else {

@@ -895,6 +895,19 @@
   Summaries can no longer launder taint BY CONSTRUCTION: labels live at session granularity, not message
   granularity, so consolidating the transcript never drops them. 3 tests incl. the cross-turn block + the
   inert-when-off lock. tsc 0, fast 9515 green.
+- [x] **F2.2a — least-scope capability grants with the retry-never-widens rule** *(delivered 2026-07-13; the
+  interactive confirm dialog + swarm-side escalation park are F2.2b in todo).* `src/core/capability-grants.ts`:
+  a grant covers EXACTLY the scope the user confirmed — `scopeKeyForChatCall` keys the narrowest stable identity
+  (the exact command string for `host_command`, the exact path for host/sandbox writes, the exact host for
+  `egress_read`; unknown shapes fall back to whole-tool scope) — for a bounded TTL (15 min default), per session.
+  Coverage is exact string equality, never subsumption, so a retry that widens ANYTHING (command, path, host,
+  kind) produces a different key, matches no grant, and re-enters the full confirm path — test-proven with a
+  `npm test` grant NOT covering `npm test && curl evil` while the user declines. The executor's opt-in `grants`
+  seam reuses a covering grant without re-prompting and records exactly the confirmed scope on a fresh approval
+  (absent ⇒ byte-identical legacy confirm-every-time, locked by test); wiring is session-scoped
+  (`chat-session-grants.ts`, cleared on session delete) and gated on `capabilityBrokerEnabled`. In-memory is
+  deliberate: forgetting grants on restart FAILS CLOSED (re-confirm), unlike taint where forgetting fails open.
+  5 tests. tsc 0, fast 9520 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
