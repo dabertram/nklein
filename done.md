@@ -623,6 +623,18 @@
   by the leaf-2 test when the first cut prefixed unconditionally). 1 new test (fail → reopen → restart, fresh-card
   hold, completed-never-reopens with the terminal reason).
 
+- [x] **F1.27b leaf 5 — the review/delivery seams** *(delivered 2026-07-13).* The finalization gate now speaks the
+  kernel's vocabulary: a review BOUNCE dispatches `acceptance_passed` + `review_started` +
+  `review_changes_requested` (the kernel routes the card back to `implementing`, matching the live re-work
+  round); a DELIVERY walks the full `acceptance_passed → review_started → review_passed → delivery_requested →
+  delivered` ladder to `completed` right after the board completion persists (holds absorb whatever prefix an
+  earlier bounced round already applied); and the #28 approved-but-acceptance-failed redrive dispatches
+  `acceptance_failed` (→ `implementing`, matching the re-drive). New `dispatchWorkflowCommands` sequence helper on
+  the registry. With leaves 1–5 the mirror covers the FULL lifecycle — admission, planning, implementation,
+  acceptance, review, bounce/re-work, delivery, completion, failure, interrupt-reopen, cancel — leaving only the
+  low-priority manual-complete/CLI paths as residue. 1 new test (bounce → re-work → deliver walk incl. re-round
+  prefix holds + the acceptance-failure route).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

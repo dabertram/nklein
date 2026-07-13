@@ -4,6 +4,7 @@ import { readAgentLedger } from "../../../src/state/agent-attempt-ledger-store";
 import { dispatchWorkflowStartCommands } from "../../../src/trpc/runtime-api/start-task-session";
 import { handleStopTaskSession } from "../../../src/trpc/runtime-api/task-session-io";
 import {
+	dispatchWorkflowCommands,
 	getWorkspaceWorkflowQueue,
 	resetWorkspaceWorkflowQueuesForTest,
 } from "../../../src/trpc/runtime-api/workflow-queue-registry";
@@ -86,6 +87,52 @@ describe("promotion + terminal seams (F1.27b leaf 3 semantics)", () => {
 		await vi.waitFor(() => expect(queue.phaseOf("t-decompose")).toBe("planning"));
 		const heldTerminal = await queue.dispatch("t-decompose", { kind: "implementation_finished" });
 		expect(heldTerminal).toMatchObject({ applied: false, reason: "held" });
+	});
+});
+
+describe("review/delivery seams (F1.27b leaf 5 semantics)", () => {
+	it("a bounce routes back to implementing; a delivery walks to completed; a re-round re-delivers cleanly", async () => {
+		const workspacePath = "/tmp/ws-review-adapter";
+		const scope = { workspaceId: "ws-review", workspacePath };
+		const queue = getWorkspaceWorkflowQueue(workspacePath, "ws-review");
+		dispatchWorkflowStartCommands(scope, "t-1", [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("planning"));
+		await queue.dispatch("t-1", { kind: "begin_implementation" });
+		await queue.dispatch("t-1", { kind: "implementation_finished" });
+		// The BOUNCE seam: acceptance implicit, review requests changes → back to implementing.
+		dispatchWorkflowCommands(workspacePath, "ws-review", "t-1", [
+			{ kind: "acceptance_passed" },
+			{ kind: "review_started" },
+			{ kind: "review_changes_requested" },
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("implementing"));
+		// The re-worked round finishes and DELIVERS — the full walk lands completed (holds absorb the prefix).
+		await queue.dispatch("t-1", { kind: "implementation_finished" });
+		dispatchWorkflowCommands(workspacePath, "ws-review", "t-1", [
+			{ kind: "acceptance_passed" },
+			{ kind: "review_started" },
+			{ kind: "review_passed" },
+			{ kind: "delivery_requested" },
+			{ kind: "delivered" },
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("completed"));
+		// The acceptance-failure redrive seam: from awaiting_acceptance, acceptance_failed → implementing.
+		dispatchWorkflowStartCommands(scope, "t-2", [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-2")).toBe("planning"));
+		await queue.dispatch("t-2", { kind: "begin_implementation" });
+		await queue.dispatch("t-2", { kind: "implementation_finished" });
+		dispatchWorkflowCommands(workspacePath, "ws-review", "t-2", [{ kind: "acceptance_failed" }]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-2")).toBe("implementing"));
 	});
 });
 

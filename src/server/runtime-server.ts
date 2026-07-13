@@ -145,7 +145,7 @@ import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
-import { getWorkspaceWorkflowQueue } from "../trpc/runtime-api/workflow-queue-registry";
+import { dispatchWorkflowCommands, getWorkspaceWorkflowQueue } from "../trpc/runtime-api/workflow-queue-registry";
 import {
 	createRuntimeTaskStartQueue,
 	type RuntimeTaskStartQueue,
@@ -1469,6 +1469,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						reviewOutcome.type === "escalated" ||
 						reviewOutcome.type === "blocked"
 					) {
+						if (reviewOutcome.type === "bounced") {
+							// F1.27b (leaf 5): a bounce IS review_changes_requested — the kernel routes the card back
+							// to implementing (the acceptance step is implicit in reaching review; holds keep order safe).
+							dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
+								{ kind: "acceptance_passed" },
+								{ kind: "review_started" },
+								{ kind: "review_changes_requested" },
+							]);
+						}
 						return;
 					}
 					const summaryAfterReview = service.getSummary(taskId);
@@ -1838,6 +1847,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
 								);
+								// F1.27b (leaf 5): the fresh acceptance FAILED — kernel routes back to implementing.
+								dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
+									{ kind: "acceptance_failed" },
+								]);
 								service.noteNextAttemptStrategy(taskId, "redrive_acceptance_failure");
 								await retryWorkspaceStateLock(() =>
 									mutateWorkspaceState(scope.workspacePath, (latestState) => {
@@ -1975,6 +1988,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							};
 						}),
 					);
+					// F1.27b (leaf 5): the card DELIVERED — the kernel walks acceptance → review → delivery → completed
+					// (holds absorb whatever prefix already applied on earlier rounds).
+					dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
+						{ kind: "acceptance_passed" },
+						{ kind: "review_started" },
+						{ kind: "review_passed" },
+						{ kind: "delivery_requested" },
+						{ kind: "delivered" },
+					]);
 					// §5.0.5 plan-level integration gate: if this delivery completed a decomposition's LAST card, run
 					// the plan's project-level acceptance on the fully-merged tree (fire-and-forget + per-slug debounced
 					// inside — must not delay releasing dependents below).

@@ -1,4 +1,5 @@
 import { createWorkflowCommandQueue, type WorkflowCommandQueue } from "../../core/workflow-command-queue";
+import type { WorkflowCommand } from "../../core/workflow-kernel";
 import { hashWorkspacePathForLedger } from "../../nklein-agent/nklein-ledger-attempt";
 import { appendAgentLedgerEvent } from "../../state/agent-attempt-ledger-store";
 
@@ -24,6 +25,24 @@ export function getWorkspaceWorkflowQueue(workspacePath: string, workspaceId: st
 	});
 	queueByWorkspacePath.set(workspacePath, queue);
 	return queue;
+}
+
+/**
+ * Dispatch a SEQUENCE of workflow commands for one task, fire-and-forget (per-task serialized; the kernel's holds
+ * absorb duplicates/out-of-order deliveries). The adapter seams use this for multi-step lifecycle moments.
+ */
+export function dispatchWorkflowCommands(
+	workspacePath: string,
+	workspaceId: string,
+	taskId: string,
+	commands: readonly WorkflowCommand[],
+): void {
+	const queue = getWorkspaceWorkflowQueue(workspacePath, workspaceId);
+	void (async () => {
+		for (const command of commands) {
+			await queue.dispatch(taskId, command);
+		}
+	})().catch(() => {});
 }
 
 /** Test-only: drop all cached queues so isolated HOMEs never share a mirror across test files. */
