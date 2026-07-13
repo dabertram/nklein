@@ -92,6 +92,16 @@ const SCOPE_MODE_CAPTIONS: Record<RuntimeChatSessionScope, string> = {
 /** Scopes where the agent can run commands (not read-only). The risk toggle is only relevant here. */
 const CAN_ACT_SCOPES = new Set<RuntimeChatSessionScope>(["project_sandboxed", "all_projects", "host_access"]);
 
+// §5.AT / F2.14: how chatty the board→chat feedback is. `feedbackVerbosity` tiers the deterministic digests and
+// activity ticks; `feedbackQuiet` suppresses the softer asks while always keeping hard blocks/escalations. Both
+// persist per session and only matter for an owning chat, so they sit beside the mute toggle.
+const VERBOSITY_OPTIONS: ReadonlyArray<{ value: RuntimeChatSession["feedbackVerbosity"]; label: string }> = [
+	{ value: "silent", label: "Silent" },
+	{ value: "concise", label: "Concise" },
+	{ value: "normal", label: "Normal" },
+	{ value: "verbose", label: "Verbose" },
+];
+
 // §5.AE the user-selectable per-session skills (ids mirror the backend SKILL_REGISTRY). A skill's merged apiProfile
 // (reasoning intensity / structured output / temperature) is folded into this session's model call.
 const SKILL_OPTIONS: readonly { id: string; label: string; icon: string }[] = [
@@ -241,6 +251,8 @@ function SessionHeader({
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
 		feedbackMuted?: boolean;
+		feedbackVerbosity?: RuntimeChatSession["feedbackVerbosity"];
+		feedbackQuiet?: boolean;
 		selectedSkillIds?: string[];
 	}) => void;
 }): React.ReactElement {
@@ -273,6 +285,14 @@ function SessionHeader({
 	const ownsWorkspace = session.ownedWorkspaceId !== null && session.ownedWorkspaceId !== undefined;
 	const handleFeedbackMuteToggle = (): void => {
 		onUpdate({ id: session.id, feedbackMuted: !session.feedbackMuted });
+	};
+	// F2.14: verbosity tiers the feedback cadence; quiet keeps hard blocks/escalations but drops the softer asks.
+	// Both are only meaningful while board updates are NOT muted, so their controls disable under mute.
+	const handleVerbosityChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
+		onUpdate({ id: session.id, feedbackVerbosity: event.target.value as RuntimeChatSession["feedbackVerbosity"] });
+	};
+	const handleFeedbackQuietToggle = (): void => {
+		onUpdate({ id: session.id, feedbackQuiet: !session.feedbackQuiet });
 	};
 
 	const handleRiskToggle = (): void => {
@@ -398,22 +418,57 @@ function SessionHeader({
 					</div>
 				) : null}
 				{ownsWorkspace ? (
-					<button
-						type="button"
-						role="checkbox"
-						aria-checked={session.feedbackMuted}
-						data-testid="chat-feedback-mute-toggle"
-						onClick={handleFeedbackMuteToggle}
-						className={cn(
-							"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer self-start",
-							session.feedbackMuted
-								? "border-status-orange text-status-orange bg-surface-2 hover:bg-surface-3"
-								: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
-						)}
-					>
-						<span aria-hidden="true">{session.feedbackMuted ? "🔕" : "🔔"}</span>
-						<span>{session.feedbackMuted ? "Board updates muted" : "Mute board updates"}</span>
-					</button>
+					<div className="flex items-center gap-1.5 flex-wrap min-w-0" data-testid="chat-feedback-controls">
+						<button
+							type="button"
+							role="checkbox"
+							aria-checked={session.feedbackMuted}
+							data-testid="chat-feedback-mute-toggle"
+							onClick={handleFeedbackMuteToggle}
+							className={cn(
+								"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer",
+								session.feedbackMuted
+									? "border-status-orange text-status-orange bg-surface-2 hover:bg-surface-3"
+									: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+							)}
+						>
+							<span aria-hidden="true">{session.feedbackMuted ? "🔕" : "🔔"}</span>
+							<span>{session.feedbackMuted ? "Board updates muted" : "Mute board updates"}</span>
+						</button>
+						<ElementTooltip id="chat.feedback-verbosity" side="bottom">
+							<NativeSelect
+								size="sm"
+								aria-label="Board feedback verbosity"
+								data-testid="chat-feedback-verbosity"
+								value={session.feedbackVerbosity}
+								disabled={session.feedbackMuted}
+								onChange={handleVerbosityChange}
+							>
+								{VERBOSITY_OPTIONS.map((option) => (
+									<option key={option.value} value={option.value}>
+										{option.label}
+									</option>
+								))}
+							</NativeSelect>
+						</ElementTooltip>
+						<button
+							type="button"
+							role="checkbox"
+							aria-checked={session.feedbackQuiet}
+							data-testid="chat-feedback-quiet-toggle"
+							disabled={session.feedbackMuted}
+							onClick={handleFeedbackQuietToggle}
+							className={cn(
+								"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
+								session.feedbackQuiet
+									? "border-status-blue text-status-blue bg-surface-2 hover:bg-surface-3"
+									: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+							)}
+						>
+							<span aria-hidden="true">{session.feedbackQuiet ? "🤫" : "💬"}</span>
+							<span>{session.feedbackQuiet ? "Quiet: asks only" : "Quiet mode"}</span>
+						</button>
+					</div>
 				) : null}
 				<div className="flex flex-wrap items-center gap-1.5" data-testid="chat-skill-selector">
 					<span className="text-[11px] text-text-tertiary select-none">Skills:</span>

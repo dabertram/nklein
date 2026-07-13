@@ -1024,6 +1024,18 @@
   `.default()`s keep it back-compatible for the UI + create/update requests) and `chat-service`'s map/create/
   update. Store round-trip + create-with-verbosity tests; the bridge already consumed these fields, so no
   behavior forked. Backend + web-ui tsc 0; fast 9563.
+- [x] **F2.14b — the verbosity/quiet controls surfaced in the chat sidebar** *(delivered 2026-07-14; completes
+  F2.14).* The F2.14a persistence+application already flowed `feedbackVerbosity`/`feedbackQuiet` through the
+  session store, tRPC contract, and `resolveOwningChat` — the only gap was the UI. `SessionHeader`
+  (`chat-sidebar.tsx`) now renders, for a chat that OWNS a workspace (the same gate as the pre-existing mute
+  toggle), a grouped `chat-feedback-controls` row: the mute toggle + a verbosity `NativeSelect`
+  (silent/concise/normal/verbose, `VERBOSITY_OPTIONS`) + a quiet toggle, all wired to the existing
+  `updateSession` mutation (which already accepted both fields). The verbosity select and quiet toggle DISABLE
+  while board updates are muted (they only matter while feedback is flowing). A `chat.feedback-verbosity`
+  `ElementTooltip` entry documents the tiers + how quiet mode relates. New Playwright spec
+  `chat-feedback-controls.spec.ts` — 5 tests: visible when owning / hidden when not, verbosity change dispatches
+  `feedbackVerbosity`, quiet toggle dispatches `feedbackQuiet:true`, both disabled under mute. web-ui tsc 0;
+  lint 0; e2e 5/5.
 - [x] **F2.15a — the ASK-tier notification decision core** *(delivered 2026-07-13; the hook wiring is F2.15b in
   todo).* `web-ui/src/utils/ask-notification-decision.ts`: `decideAskNotification` generalizes the single
   review-ready OS-notification path to EVERY actionable needs-you ASK, gating on all five F2.15 conditions —

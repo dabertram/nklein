@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **You can now dial in how chatty each chat's board updates are, right from the sidebar.** A chat that owns a
+  project shows, beside the existing mute button, a verbosity selector (silent / concise / normal / verbose) and a
+  quiet toggle. Verbosity sets the cadence of the board→chat updates; quiet mode keeps the hard "needs you" stops
+  (blocks and escalations) while suppressing the softer asks. Both settings are remembered per chat. While a chat's
+  board updates are fully muted, the two controls disable, since there's nothing to tune.
+
 - **Grinding workers are now caught early, not after they burn their whole run.** The runtime continuously watches
   every running card for the known trouble patterns — repeated attempts with no measurable progress, the same
   failure recurring across different approaches, response loops that recovery couldn't clear, and a run gone

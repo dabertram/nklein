@@ -120,6 +120,11 @@ export const ELEMENT_TOOLTIPS = {
 		description:
 			"chat-only: read-only browsing, no host access. The other three all run commands on your HOST machine (filesystem + shell — not Docker-sandboxed), gated by the session's risk acknowledgement: current (host) = this project, all (host) = every loaded project, ⚠️ host = anywhere on the host (most powerful).",
 	},
+	"chat.feedback-verbosity": {
+		name: "Board feedback verbosity",
+		description:
+			"How chatty this chat's board→chat updates are: silent = only 'needs you' asks, concise = brief digests, normal = the default cadence, verbose = every activity tick. Quiet mode (beside this) keeps hard blocks/escalations while suppressing the softer asks.",
+	},
 	"model-registry.prune-stale": {
 		name: "Clear stale models",
 		description: "Remove model-registry rows whose endpoint no longer serves them, keeping the telemetry current.",

@@ -945,14 +945,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
-- [ ] **F2.14b — Surface the verbosity/quiet controls in the sidebar (persistence + application SHIPPED
-  2026-07-13).** Per-session `feedbackVerbosity` (silent/concise/normal/verbose) and `feedbackQuiet` now PERSIST
-  on the chat session (store schema + back-compat normalize + create/update patch, mirroring `feedbackMuted`)
-  and are APPLIED live: the board→chat wiring's `resolveOwningChat` reads them from the session instead of the
-  old hard-coded `verbosity:"normal"`/`quiet:false`, so the `decideBoardChatFeedback` tiers (deterministic
-  digests, activity ticks, ASK events, reconnect replay) all honor them. Plumbed through the tRPC chat contract
-  (session schema `.default()` + create/update requests) and `chat-service`. REMAINING: the sidebar UI control
-  (a verbosity select + quiet toggle beside the existing mute button in `chat-sidebar.tsx`) + a Playwright pass.- [ ] **F2.15b — Wire the ASK-tier notifier hook over the decision core (core SHIPPED 2026-07-13).**
+- [ ] **F2.15b — Wire the ASK-tier notifier hook over the decision core (core SHIPPED 2026-07-13).**
   `web-ui/src/utils/ask-notification-decision.ts` (`decideAskNotification`) is the pure gate: fires an OS
   notification ONLY for an actionable ASK kind (needs_input / escalated_to_operator / delivery_gate_held /
   blocked / review_ready) when OS permission is granted, the owning chat is NOT visible, the session is not
