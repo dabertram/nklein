@@ -665,10 +665,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   events to the proven implementations; then the durable scheduler (F1.18) subscribes to the same seam. Migrate
   incrementally, one adapter path per leaf, behind behavior-identical tests. *(Leaf 1 SHIPPED 2026-07-13: the
   runtime mounts one queue per workspace — `workflow-queue-registry.ts` — and the operator STOP path
-  (`handleStopTaskSession`) emits `cancel_requested` through it, audit-mode: the proven stop effect is untouched,
-  the command lands as a wf:* ledger transition + phase-mirror update.)* Remaining paths: tRPC start/complete,
-  runtime-server auto-start + promotion + terminal + review/delivery seams (these give the mirror full lifecycle
-  fidelity), CLI task commands.
+  (`handleStopTaskSession`) emits `cancel_requested` through it, audit-mode. Leaf 2 SHIPPED 2026-07-13: the START
+  path — `handleStartTaskSession` emits the admission ladder through `dispatchWorkflowStartCommands`: an
+  endpoint-busy queued start lands `queued_for_endpoint` (request + capacity grant), a successful start fires the
+  full four-grant ladder to `planning`, and the kernel's hold semantics absorb the queued-start re-entry's
+  duplicates — both operator and auto-start funnel through this one handler.)* Remaining paths: promotion
+  (begin_implementation via onCardPromoted), terminal (implementation_finished/failed at the session terminal
+  seam), review/delivery seams (review_started/passed/changes, delivery_requested/delivered at the finalization
+  gate), tRPC complete, CLI task commands.
 - [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
   transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
   dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,

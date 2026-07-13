@@ -592,6 +592,16 @@
   those leaves are enumerated in the todo entry. 3 tests (per-workspace instance identity + mirror isolation,
   stop → wf:cancelled ledger transition + mirror agreement + byte-identical effect path, failed-stop no-dispatch).
 
+- [x] **F1.27b leaf 2 — the START path emits the admission ladder** *(delivered 2026-07-13).*
+  `handleStartTaskSession` (the ONE funnel both operator and auto-start use) now emits workflow commands via
+  `dispatchWorkflowStartCommands` (fire-and-forget, per-task serialized): an endpoint-busy QUEUED start emits
+  `start_requested` + `board_capacity_granted` (mirror: `queued_for_endpoint` — kernel-truth for "admitted,
+  waiting on the endpoint"), and a SUCCESSFUL start fires the full four-grant ladder to `planning` (§5.B entry
+  lane) — the kernel's hold semantics absorb the queued-start re-entry's duplicate commands by construction, so
+  the ledger records exactly the applied transitions with no double-counting. Behavior unchanged (audit-mode).
+  1 new test (queued → drained-retry sequence: phase queued_for_endpoint → planning, exactly 4 applied ledger
+  transitions).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

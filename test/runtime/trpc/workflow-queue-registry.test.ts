@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashWorkspacePathForLedger } from "../../../src/nklein-agent/nklein-ledger-attempt";
 import { readAgentLedger } from "../../../src/state/agent-attempt-ledger-store";
+import { dispatchWorkflowStartCommands } from "../../../src/trpc/runtime-api/start-task-session";
 import { handleStopTaskSession } from "../../../src/trpc/runtime-api/task-session-io";
 import {
 	getWorkspaceWorkflowQueue,
@@ -26,6 +27,32 @@ describe("getWorkspaceWorkflowQueue", () => {
 		await a1.dispatch("t-1", { kind: "start_requested" });
 		expect(a2.phaseOf("t-1")).toBe("queued_for_board_capacity"); // same mirror
 		expect(b.phaseOf("t-1")).toBe("idle");
+	});
+});
+
+describe("dispatchWorkflowStartCommands (F1.27b leaf 2 — the start path)", () => {
+	it("a queued start lands queued_for_endpoint; the later successful start completes the ladder (holds absorb duplicates)", async () => {
+		const workspacePath = "/tmp/ws-start-adapter";
+		const scope = { workspaceId: "ws-start", workspacePath };
+		// Endpoint-busy queue: request + capacity grant only.
+		dispatchWorkflowStartCommands(scope, "t-1", ["start_requested", "board_capacity_granted"]);
+		const queue = getWorkspaceWorkflowQueue(workspacePath, "ws-start");
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("queued_for_endpoint"));
+		// The drained retry re-enters the handler and fires the FULL ladder — the first two hold silently.
+		dispatchWorkflowStartCommands(scope, "t-1", [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("planning"));
+		// The ledger recorded exactly the APPLIED transitions (4 total), no duplicates.
+		const events = await readAgentLedger({ workspacePathHash: hashWorkspacePathForLedger(workspacePath) });
+		const applied = events.filter(
+			(event) =>
+				event.kind === "transition" && event.taskId === "t-1" && event.controllerDecision === "workflow_kernel",
+		);
+		expect(applied).toHaveLength(4);
 	});
 });
 

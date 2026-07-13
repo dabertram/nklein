@@ -94,6 +94,7 @@ import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
 import { countActiveProjectTaskSessions, createConcurrencyLimitStartError } from "./task-concurrency-gate.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./task-timeout-settings.js";
+import { getWorkspaceWorkflowQueue } from "./workflow-queue-registry";
 
 // §5.AB wait_for_best: redrive cadence for a hard card parked waiting on its busy best model (15s).
 const HARD_TASK_WAIT_RETRY_MS = 15_000;
@@ -203,6 +204,24 @@ export async function resolveLoadedFallbackLaunchConfig(input: {
 		}
 	}
 	return null;
+}
+
+/**
+ * F1.27b (leaf 2): emit the start path's workflow commands, fire-and-forget. Commands are dispatched in order on
+ * the per-task serialized queue; the kernel HOLDS duplicates, so a queued-then-drained start (which re-enters this
+ * handler) simply re-applies the missing grants — replay-proof by construction.
+ */
+export function dispatchWorkflowStartCommands(
+	workspaceScope: RuntimeTrpcWorkspaceScope,
+	taskId: string,
+	kinds: readonly ("start_requested" | "board_capacity_granted" | "endpoint_granted" | "sandbox_granted")[],
+): void {
+	const queue = getWorkspaceWorkflowQueue(workspaceScope.workspacePath, workspaceScope.workspaceId);
+	void (async () => {
+		for (const kind of kinds) {
+			await queue.dispatch(taskId, { kind });
+		}
+	})().catch(() => {});
 }
 
 export async function handleStartTaskSession(
@@ -831,6 +850,10 @@ export async function handleStartTaskSession(
 					error: waitReason,
 				});
 			}
+			if (body.queueOnEndpointBusy) {
+				// The card is admitted (board capacity held) but waiting on the endpoint — kernel-truth for the queue.
+				dispatchWorkflowStartCommands(workspaceScope, body.taskId, ["start_requested", "board_capacity_granted"]);
+			}
 			return {
 				ok: false,
 				summary: null,
@@ -1201,6 +1224,10 @@ export async function handleStartTaskSession(
 					error: endpointDecision.reason,
 				});
 			}
+			if (body.queueOnEndpointBusy) {
+				// The card is admitted (board capacity held) but waiting on the endpoint — kernel-truth for the queue.
+				dispatchWorkflowStartCommands(workspaceScope, body.taskId, ["start_requested", "board_capacity_granted"]);
+			}
 			return {
 				ok: false,
 				summary: null,
@@ -1292,6 +1319,14 @@ export async function handleStartTaskSession(
 			summary,
 		});
 
+		// F1.27b (leaf 2): the session is RUNNING — every admission grant has effectively happened. Held
+		// duplicates absorb the queued-start re-entry; the mirror lands on `planning` (§5.B entry lane).
+		dispatchWorkflowStartCommands(workspaceScope, body.taskId, [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
 		return {
 			ok: true,
 			summary,
