@@ -10,7 +10,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { type AgentAttemptEvent, type AttemptToolCall, buildAttemptEvent } from "../core/agent-attempt-ledger";
+import {
+	type AgentAttemptEvent,
+	type AttemptKnowledgeUsage,
+	type AttemptToolCall,
+	buildAttemptEvent,
+} from "../core/agent-attempt-ledger";
 import type { ModelOutcomeKind } from "../core/model-behavior-profile";
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry";
 
@@ -58,6 +63,7 @@ export interface TerminalAttemptInput {
 	timeoutReason: string | null;
 	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
 	toolCalls?: AttemptToolCall[];
+	knowledge?: AttemptKnowledgeUsage | null;
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -89,5 +95,6 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		qualityOk: outcome === "success",
 		salvage: input.timeoutReason,
 		toolCalls: input.toolCalls,
+		knowledge: input.knowledge ?? null,
 	});
 }

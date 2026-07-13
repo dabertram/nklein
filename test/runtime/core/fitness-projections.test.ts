@@ -18,6 +18,8 @@ const row = (
 	meanWallTimeSamples: 0,
 	tokensPerSec: null,
 	tokensPerSecSamples: 0,
+	knowledgeUseCount: 0,
+	knowledgeSkipCount: 0,
 	updatedAt: null,
 	...over,
 });
@@ -84,5 +86,26 @@ describe("rankFitnessCandidatesForCell (model-selection read side)", () => {
 	it("bestFitnessCandidateForCell returns the top model or null when none has evidence", () => {
 		expect(bestFitnessCandidateForCell(rows, { role: "worker", difficultyTier: "medium" })?.modelKey).toBe("strong");
 		expect(bestFitnessCandidateForCell(rows, { role: "architect", difficultyTier: "easy" })).toBeNull();
+	});
+});
+
+describe("knowledge-use tiebreak (F1.1)", () => {
+	it("ranks the knowledge-consulting model above an otherwise-identical one; unknown sorts last", () => {
+		const tied = [
+			row({ modelKey: "blind", sampleCount: 10, successCount: 8, knowledgeUseCount: 0, knowledgeSkipCount: 10 }),
+			row({ modelKey: "grounded", sampleCount: 10, successCount: 8, knowledgeUseCount: 9, knowledgeSkipCount: 1 }),
+			row({ modelKey: "unknown", sampleCount: 10, successCount: 8 }),
+		];
+		const ranked = rankFitnessCandidatesForCell(tied, { role: "worker", difficultyTier: "medium" });
+		expect(ranked.map((candidate) => candidate.modelKey)).toEqual(["grounded", "blind", "unknown"]);
+	});
+
+	it("never outranks a higher success rate", () => {
+		const rows2 = [
+			row({ modelKey: "better", sampleCount: 10, successCount: 9 }),
+			row({ modelKey: "grounded", sampleCount: 10, successCount: 8, knowledgeUseCount: 10 }),
+		];
+		const ranked = rankFitnessCandidatesForCell(rows2, { role: "worker", difficultyTier: "medium" });
+		expect(ranked[0]?.modelKey).toBe("better");
 	});
 });

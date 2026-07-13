@@ -5,7 +5,7 @@ import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attemp
 import { deriveTaskFitnessRecord } from "../nklein-agent/task-fitness-recording";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
-import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
+import { didTaskConsultKnowledge, recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { persistModelBehaviorOutcome } from "../telemetry/model-behavior-profile-store";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import type { RuntimeTrpcWorkspaceScope } from "../trpc/app-router";
@@ -63,7 +63,14 @@ export function createRuntimeTerminalTelemetryRecorders(
 			const terminalRunKey = `${summary.taskId}|${summary.startedAt ?? 0}`;
 			if (fitnessRecord && !recordedTerminalRuns.has(terminalRunKey)) {
 				recordedTerminalRuns.remember(terminalRunKey);
-				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
+				// F1.1: fold whether the run consulted knowledge tools into the fitness cell. The observation log is
+				// written per tool hook DURING the run, so it is complete here; null (no observations at all for the
+				// task) stays "unknown" and advances neither tally.
+				const usedKnowledgeTools = await didTaskConsultKnowledge(summary.taskId).catch(() => null);
+				await recordTaskFitnessOutcome(fitnessRecord.key, {
+					...fitnessRecord.outcome,
+					usedKnowledgeTools,
+				}).catch(() => {});
 				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
 				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.
 				await persistModelBehaviorOutcome(fitnessRecord.key.modelKey, {

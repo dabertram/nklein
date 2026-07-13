@@ -47,6 +47,7 @@ import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-pro
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
+import { summarizeAttemptKnowledgeUsage } from "../telemetry/attempt-knowledge-usage";
 import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
@@ -2724,6 +2725,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			try {
 				const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
 				const toolCalls = extractTerminalToolCalls(snapshot?.messages ?? []);
+				// F1.1: distill the knowledge-tool usage summary here, where the transcript's tool calls are in hand —
+				// projections correlate it with the attempt outcome without re-reading transcripts.
+				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls);
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,
@@ -2748,6 +2752,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						completionTokens,
 						timeoutReason,
 						toolCalls,
+						knowledge,
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

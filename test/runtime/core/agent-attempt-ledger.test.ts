@@ -9,6 +9,7 @@ import {
 	selectAttempts,
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
+	summarizeKnowledgeOutcomeByModel,
 	summarizeModelContextUsage,
 	summarizeModelOutcomes,
 	summarizeModelSpeed,
@@ -311,5 +312,61 @@ describe("summarizeModelContextUsage", () => {
 
 	it("ignores attempts with no prompt-token count", () => {
 		expect(summarizeModelContextUsage([ctxAttempt("m", null, 4000)])).toEqual([]);
+	});
+});
+
+describe("summarizeKnowledgeOutcomeByModel (F1.1)", () => {
+	const knowledgeAttempt = (
+		attemptId: string,
+		outcome: "success" | "timeout",
+		retrievalCallCount: number,
+		role = "worker",
+	) =>
+		buildAttemptEvent({
+			...base,
+			role,
+			attemptId,
+			modelId: "model-K",
+			outcome,
+			knowledge: {
+				retrievalCallCount,
+				localizationCallCount: 0,
+				knowledgeErrorCount: 0,
+				categoriesUsed: retrievalCallCount > 0 ? ["code_index"] : [],
+			},
+		});
+
+	it("correlates knowledge consultation with delivery outcome and computes the lift", () => {
+		const rows = summarizeKnowledgeOutcomeByModel([
+			knowledgeAttempt("k1", "success", 2),
+			knowledgeAttempt("k2", "success", 1),
+			knowledgeAttempt("k3", "timeout", 3),
+			knowledgeAttempt("k4", "success", 0),
+			knowledgeAttempt("k5", "timeout", 0),
+			knowledgeAttempt("k6", "timeout", 0),
+			// An event WITHOUT a knowledge summary (pre-F1.1 line) must not be counted as "no knowledge".
+			buildAttemptEvent({ ...base, attemptId: "old", modelId: "model-K", outcome: "success" }),
+		]);
+		expect(rows).toHaveLength(1);
+		const row = rows[0];
+		expect(row).toMatchObject({
+			modelId: "model-K",
+			attemptsWithKnowledge: 3,
+			successesWithKnowledge: 2,
+			attemptsWithoutKnowledge: 3,
+			successesWithoutKnowledge: 1,
+		});
+		// with: 2/3 ≈ 0.667; without: 1/3 ≈ 0.333 → lift ≈ +0.333
+		expect(row?.knowledgeLift ?? 0).toBeCloseTo(1 / 3, 5);
+	});
+
+	it("leaves the lift null until BOTH sides have evidence, and splits rows by role", () => {
+		const rows = summarizeKnowledgeOutcomeByModel([
+			knowledgeAttempt("k1", "success", 1, "worker"),
+			knowledgeAttempt("k2", "success", 1, "reviewer"),
+		]);
+		expect(rows).toHaveLength(2);
+		expect(rows.every((row) => row.knowledgeLift === null)).toBe(true);
+		expect(rows.map((row) => row.role).sort()).toEqual(["reviewer", "worker"]);
 	});
 });

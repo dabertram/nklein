@@ -231,6 +231,22 @@
   this branch. A §4A note now records that the slow suite is not in pre-commit and must be run at least once per
   work package.
 
+- [x] **F1.1 (first slice) — knowledge-tool use correlated with delivery outcome, feeding fitness + expansion**
+  *(delivered 2026-07-13; the knowledge-debt + graph-revision correlation legs stay in the open F1.1 package).* The
+  Agent Attempt Ledger `attempt` event now carries an F1.1 `knowledge` summary (retrieval vs localization call
+  counts, error count, distinct categories — distilled from the attempt's extracted `toolCalls` at write time via
+  the shared `classifyKnowledgeTool`; null on pre-existing lines). New pure projection
+  `summarizeKnowledgeOutcomeByModel` correlates consultation with outcome per (model × role) and computes the
+  knowledge lift (success-rate delta, null until both sides have evidence; summary-less events are skipped, never
+  counted as "no knowledge"). Fitness: `FitnessRow` gains `knowledgeUseCount`/`knowledgeSkipCount` (unknown attempts
+  advance neither), folded live at the terminal-telemetry seam via the new `didTaskConsultKnowledge` probe over the
+  observation log (written per tool hook during the run, so complete by terminal time; "no observations" stays
+  unknown), and `rankFitnessCandidatesForCell` breaks exact ties toward the knowledge-consulting model (never
+  outranking success rate or sample count). Expansion: `RedecomposeTriggerInput.consultedKnowledgeTools` — a BLIND
+  decomposition with semantic defects escalates `refine` → `redo` ("the edges were guessed; redraw with retrieval"),
+  with the loop-safety cap staying authoritative and unknown never escalating. 11 new tests; full suite green
+  (9797).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

@@ -44,6 +44,10 @@ export const fitnessRowSchema = fitnessKeySchema.extend({
 	tokensPerSec: z.number().nonnegative().nullable().default(null),
 	/** How many attempts actually CONTRIBUTED a throughput to the mean. */
 	tokensPerSecSamples: z.number().int().nonnegative().default(0),
+	/** F1.1 — attempts KNOWN to have consulted knowledge tools (code search / repo map / architecture knowledge). */
+	knowledgeUseCount: z.number().int().nonnegative().default(0),
+	/** F1.1 — attempts KNOWN to have skipped knowledge tools ("unknown" attempts advance neither count). */
+	knowledgeSkipCount: z.number().int().nonnegative().default(0),
 	/** Last-updated timestamp (ms), or null. */
 	updatedAt: z.number().nullable().default(null),
 });
@@ -62,6 +66,20 @@ export function fitnessSuccessRate(row: Pick<FitnessRow, "sampleCount" | "succes
 	return Math.min(1, Math.max(0, row.successCount / row.sampleCount));
 }
 
+/**
+ * F1.1 — share of KNOWN attempts that consulted knowledge tools, or null when no attempt reported either way.
+ * Read-side tiebreak input: all else equal, a model that grounds its work in retrieval is preferred.
+ */
+export function fitnessKnowledgeUseRate(
+	row: Pick<FitnessRow, "knowledgeUseCount" | "knowledgeSkipCount">,
+): number | null {
+	const known = row.knowledgeUseCount + row.knowledgeSkipCount;
+	if (known <= 0) {
+		return null;
+	}
+	return Math.min(1, Math.max(0, row.knowledgeUseCount / known));
+}
+
 /** One recorded attempt outcome for a fitness cell — the write-side input the (harness/live-task) wiring folds in. */
 export interface FitnessOutcome {
 	success: boolean;
@@ -71,6 +89,8 @@ export interface FitnessOutcome {
 	wallTimeMs?: number | null;
 	/** Throughput this attempt sustained (tokens/sec), when measured — folded into the rolling mean. */
 	tokensPerSec?: number | null;
+	/** F1.1 — whether the attempt consulted knowledge tools; null/undefined = unknown (advances neither tally). */
+	usedKnowledgeTools?: boolean | null;
 }
 
 /**
@@ -116,8 +136,12 @@ export function recordFitnessOutcome(row: FitnessRow, outcome: FitnessOutcome, n
 	}
 	const wall = foldMean(row.meanWallTimeMs, row.meanWallTimeSamples, outcome.wallTimeMs);
 	const tps = foldMean(row.tokensPerSec, row.tokensPerSecSamples, outcome.tokensPerSec);
+	const knowledgeUseCount = row.knowledgeUseCount + (outcome.usedKnowledgeTools === true ? 1 : 0);
+	const knowledgeSkipCount = row.knowledgeSkipCount + (outcome.usedKnowledgeTools === false ? 1 : 0);
 	return {
 		...row,
+		knowledgeUseCount,
+		knowledgeSkipCount,
 		sampleCount: priorCount + 1,
 		successCount: row.successCount + (outcome.success ? 1 : 0),
 		failureModes,
@@ -141,6 +165,8 @@ export function emptyFitnessRow(key: FitnessKey): FitnessRow {
 		meanWallTimeSamples: 0,
 		tokensPerSec: null,
 		tokensPerSecSamples: 0,
+		knowledgeUseCount: 0,
+		knowledgeSkipCount: 0,
 		updatedAt: null,
 	};
 }

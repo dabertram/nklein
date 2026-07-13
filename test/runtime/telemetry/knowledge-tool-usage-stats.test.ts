@@ -8,6 +8,7 @@ import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract
 import {
 	buildKnowledgeToolUsageObservation,
 	classifyKnowledgeTool,
+	didTaskConsultKnowledge,
 	readKnowledgeToolUsageStats,
 	recordKnowledgeToolUsageObservation,
 } from "../../../src/telemetry/knowledge-tool-usage-stats";
@@ -357,5 +358,45 @@ describe("knowledge tool usage stats", () => {
 		});
 		expect(scopedToA.observations).toHaveLength(1);
 		expect(scopedToA.observations[0]?.projectName).toBe("audio-project-a");
+	});
+});
+
+describe("didTaskConsultKnowledge (F1.1)", () => {
+	it("answers true for a task with a consulting observation, false for localization-only, null for unseen", async () => {
+		const rootDir = await createStatsRoot();
+		const runtimeConfig = createRuntimeConfig();
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project",
+			card: createCard("audio-synth"),
+			runtimeConfig,
+			summary: createSummary(), // search_code ⇒ code_index (consulting)
+			now: 4_000,
+		});
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project",
+			card: createCard("reader-task"),
+			runtimeConfig,
+			summary: createSummary({
+				taskId: "reader-task",
+				latestHookActivity: {
+					activityText: "Completed read_files(src/osc.ts)",
+					toolName: "read_files",
+					toolInputSummary: null,
+					finalMessage: null,
+					hookEventName: "tool_result",
+					notificationType: null,
+					source: "nklein",
+				},
+			}),
+			now: 4_500,
+		});
+
+		await expect(didTaskConsultKnowledge("audio-synth", { rootDir })).resolves.toBe(true);
+		await expect(didTaskConsultKnowledge("reader-task", { rootDir })).resolves.toBe(false);
+		await expect(didTaskConsultKnowledge("never-seen", { rootDir })).resolves.toBeNull();
 	});
 });

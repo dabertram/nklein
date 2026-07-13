@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	emptyFitnessRow,
 	fitnessCellKey,
+	fitnessKnowledgeUseRate,
 	fitnessRowSchema,
 	fitnessSuccessRate,
 	recordFitnessOutcome,
@@ -110,5 +111,25 @@ describe("recordFitnessOutcome (write-side fold)", () => {
 		expect(r.sampleCount).toBe(4);
 		expect(r.meanWallTimeMs).toBe(2000);
 		expect(r.meanWallTimeSamples).toBe(2);
+	});
+});
+
+describe("knowledge tallies (F1.1)", () => {
+	const key = { modelKey: "prov:m:e", role: "worker", difficultyTier: "medium" } as const;
+
+	it("folds known consultation/skip outcomes and leaves unknown attempts out of both tallies", () => {
+		let row = emptyFitnessRow(key);
+		row = recordFitnessOutcome(row, { success: true, usedKnowledgeTools: true });
+		row = recordFitnessOutcome(row, { success: false, failureMode: "timeout", usedKnowledgeTools: false });
+		row = recordFitnessOutcome(row, { success: true }); // unknown — advances neither tally
+		row = recordFitnessOutcome(row, { success: true, usedKnowledgeTools: null });
+		expect(row.knowledgeUseCount).toBe(1);
+		expect(row.knowledgeSkipCount).toBe(1);
+		expect(row.sampleCount).toBe(4);
+		expect(fitnessKnowledgeUseRate(row)).toBeCloseTo(0.5, 5);
+	});
+
+	it("reports a null knowledge-use rate when no attempt answered either way", () => {
+		expect(fitnessKnowledgeUseRate(emptyFitnessRow(key))).toBeNull();
 	});
 });

@@ -5,7 +5,12 @@
  * means the scheduler + model selector read live evidence, never a stale curated list. Pure + total.
  */
 
-import { type FitnessDifficultyTier, type FitnessRow, fitnessSuccessRate } from "./fitness-table-schema.js";
+import {
+	type FitnessDifficultyTier,
+	type FitnessRow,
+	fitnessKnowledgeUseRate,
+	fitnessSuccessRate,
+} from "./fitness-table-schema.js";
 
 export interface BelowBarCriteria {
 	/** The success-rate bar; a well-sampled cell below this is "failing". */
@@ -41,9 +46,11 @@ export interface FitnessSelectionQuery {
 
 /**
  * The model-selection READ SIDE (§5.AB): rank the models with evidence for a specific (role × difficulty) cell,
- * BEST-FIRST. Tie-break order: success rate desc → sample count desc (more evidence is more trustworthy) → mean wall
- * time asc (faster wins a further tie; unmeasured sorts last). Cells below `minSamples` are excluded. Pure + total —
- * the swarm scheduler / model selector reads LIVE evidence, never a stale curated list.
+ * BEST-FIRST. Tie-break order: success rate desc → sample count desc (more evidence is more trustworthy) →
+ * knowledge-use rate desc (F1.1: all else equal, a model that grounds its work in retrieval is preferred; unknown
+ * sorts below known) → mean wall time asc (faster wins a further tie; unmeasured sorts last). Cells below
+ * `minSamples` are excluded. Pure + total — the swarm scheduler / model selector reads LIVE evidence, never a stale
+ * curated list.
  */
 export function rankFitnessCandidatesForCell(rows: readonly FitnessRow[], query: FitnessSelectionQuery): FitnessRow[] {
 	const minSamples = query.minSamples ?? 1;
@@ -59,6 +66,12 @@ export function rankFitnessCandidatesForCell(rows: readonly FitnessRow[], query:
 			}
 			if (b.sampleCount !== a.sampleCount) {
 				return b.sampleCount - a.sampleCount;
+			}
+			// F1.1: a known knowledge-use rate ranks above unknown; higher rate wins among known.
+			const aKnowledge = fitnessKnowledgeUseRate(a) ?? -1;
+			const bKnowledge = fitnessKnowledgeUseRate(b) ?? -1;
+			if (aKnowledge !== bKnowledge) {
+				return bKnowledge - aKnowledge;
 			}
 			const aWall = a.meanWallTimeMs ?? Number.POSITIVE_INFINITY;
 			const bWall = b.meanWallTimeMs ?? Number.POSITIVE_INFINITY;

@@ -25,6 +25,8 @@ const row = (over: Partial<FitnessRow> = {}): FitnessRow => ({
 	meanWallTimeSamples: 3,
 	tokensPerSec: 40,
 	tokensPerSecSamples: 3,
+	knowledgeUseCount: 0,
+	knowledgeSkipCount: 0,
 	updatedAt: 1000,
 	...over,
 });

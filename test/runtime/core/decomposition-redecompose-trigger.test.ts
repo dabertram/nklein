@@ -36,6 +36,7 @@ function baseInput(overrides: Partial<RedecomposeTriggerInput> = {}): Redecompos
 		semanticViolationCount: overrides.semanticViolationCount,
 		semanticWarningCount: overrides.semanticWarningCount,
 		priorRedecomposeAttempts: overrides.priorRedecomposeAttempts,
+		consultedKnowledgeTools: overrides.consultedKnowledgeTools,
 	};
 }
 
@@ -230,6 +231,41 @@ describe("decideRedecomposeTrigger — refine", () => {
 	it("clamps negative semantic counts to 0 (no spurious refine)", () => {
 		const verdict = decideRedecomposeTrigger(baseInput({ semanticViolationCount: -1, semanticWarningCount: -5 }));
 		expect(verdict.action).toBe("accept");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// F1.1 — knowledge signal: a BLIND defective decomposition escalates refine → redo.
+// ---------------------------------------------------------------------------
+
+describe("decideRedecomposeTrigger — knowledge signal (F1.1)", () => {
+	it("escalates a blind semantic-defect refine to redo, with the blind reason listed", () => {
+		const verdict = decideRedecomposeTrigger(
+			baseInput({ semanticViolationCount: 1, consultedKnowledgeTools: false }),
+		);
+		expect(verdict.action).toBe("redo");
+		expect(verdict.reasons.join(" ")).toMatch(/WITHOUT consulting knowledge tools/);
+		expect(verdict.shouldHaltRedecomposition).toBe(false);
+	});
+
+	it("keeps refine when knowledge WAS consulted, and when the signal is unknown", () => {
+		expect(
+			decideRedecomposeTrigger(baseInput({ semanticViolationCount: 1, consultedKnowledgeTools: true })).action,
+		).toBe("refine");
+		expect(decideRedecomposeTrigger(baseInput({ semanticViolationCount: 1 })).action).toBe("refine");
+	});
+
+	it("never converts a budget-exhausted refine into another decompose round", () => {
+		const verdict = decideRedecomposeTrigger(
+			baseInput({ semanticViolationCount: 1, consultedKnowledgeTools: false, priorRedecomposeAttempts: 3 }),
+		);
+		expect(verdict.action).toBe("refine");
+	});
+
+	it("a blind but defect-free decomposition is accepted without a blind reason", () => {
+		const verdict = decideRedecomposeTrigger(baseInput({ consultedKnowledgeTools: false }));
+		expect(verdict.action).toBe("accept");
+		expect(verdict.reasons).toEqual([]);
 	});
 });
 

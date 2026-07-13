@@ -117,6 +117,13 @@ export interface RedecomposeTriggerInput {
 	 */
 	readonly semanticWarningCount?: number;
 	/**
+	 * F1.1 — whether the ARCHITECT consulted knowledge tools (code search / repo map / architecture knowledge) before
+	 * emitting this decomposition (from the knowledge-tool usage log / ledger attempt summary). `false` on a defective
+	 * decomposition escalates `refine` → `redo`: the graph was drawn blind, so redrawing it WITH retrieval beats
+	 * patching edges on guesses. `null`/omitted = unknown — never escalates.
+	 */
+	readonly consultedKnowledgeTools?: boolean | null;
+	/**
 	 * How many re-decompose attempts have ALREADY been spent on this task. Loop-safety: once it reaches
 	 * `maxRedecomposeAttempts`, a would-be `redo` is downgraded and `shouldHaltRedecomposition` is set — the caller
 	 * must stop re-decomposing and escalate (park / clarify / hand to a stronger model) instead of looping.
@@ -226,6 +233,7 @@ export function decideRedecomposeTrigger(
 	const semanticViolationCount = Math.max(0, input.semanticViolationCount ?? 0);
 	const semanticWarningCount = Math.max(0, input.semanticWarningCount ?? 0);
 	const priorRedecomposeAttempts = Math.max(0, input.priorRedecomposeAttempts ?? 0);
+	const decomposedBlind = input.consultedKnowledgeTools === false;
 
 	// ---- Sizing classification (drives split/merge, computed once). ----
 	const oversized: string[] = [];
@@ -278,6 +286,19 @@ export function decideRedecomposeTrigger(
 	if (semanticWarningCount > 0) {
 		reasons.push(
 			`${semanticWarningCount} semantic warning(s) (sparsity / isolated cards / likely-reversed edges) — review, though the graph may still be valid.`,
+		);
+	}
+	const hasActionableDefect =
+		uncoveredGoalAspectCount > 0 ||
+		structure.hasBlockingStructuralDefect ||
+		fragmentedIntoIslands ||
+		oversized.length > 0 ||
+		undersized.length >= opts.minUndersizedForMerge ||
+		semanticViolationCount > 0 ||
+		semanticWarningCount > 0;
+	if (decomposedBlind && hasActionableDefect) {
+		reasons.push(
+			"The decomposition was produced WITHOUT consulting knowledge tools (no code search / repo map / architecture retrieval) — its defects likely stem from guessing at the codebase; re-decompose with retrieval first.",
 		);
 	}
 
@@ -336,6 +357,18 @@ export function decideRedecomposeTrigger(
 	}
 
 	if (semanticViolationCount > 0 || semanticWarningCount > 0) {
+		// F1.1: a BLIND decomposition with semantic defects is worth redoing WITH retrieval, not patching — the edges
+		// were guessed, so refining them compounds the guess. The loop-safety cap stays authoritative: with the budget
+		// exhausted the refine stands (never converts into another decompose round).
+		if (decomposedBlind && priorRedecomposeAttempts < opts.maxRedecomposeAttempts) {
+			return {
+				action: "redo",
+				reasons,
+				oversizedSubtaskIds: oversized,
+				undersizedSubtaskIds: undersized,
+				shouldHaltRedecomposition: false,
+			};
+		}
 		return {
 			action: "refine",
 			reasons,

@@ -353,6 +353,38 @@ function groupByAggregate(records: RuntimeKnowledgeToolUsageObservation[]): Runt
 		.sort((left, right) => right.calls - left.calls || right.lastObservedAt - left.lastObservedAt);
 }
 
+/** The categories that count as CONSULTING knowledge for the F1.1 decomposition/fitness signals. */
+const KNOWLEDGE_CONSULTING_CATEGORIES = new Set<RuntimeKnowledgeToolCategory>([
+	"codebase_retrieval",
+	"code_index",
+	"architecture_knowledge",
+]);
+
+/**
+ * F1.1 — did this task consult knowledge tools (code search / repo map / architecture knowledge) during its run?
+ * Reads the observation log (written per tool hook DURING the run, so it is complete by terminal time) and answers
+ * for one taskId. Returns null when the log carries no observations for the task at all — "unknown" must not be
+ * folded into fitness as "did not consult".
+ */
+export async function didTaskConsultKnowledge(
+	taskId: string,
+	options: ReadKnowledgeToolUsageStatsOptions = {},
+): Promise<boolean | null> {
+	const rootDir = resolveRootDir(options.rootDir);
+	const observations = await readAllObservations(rootDir);
+	let sawTask = false;
+	for (const observation of observations) {
+		if (observation.taskId !== taskId) {
+			continue;
+		}
+		sawTask = true;
+		if (KNOWLEDGE_CONSULTING_CATEGORIES.has(observation.toolCategory)) {
+			return true;
+		}
+	}
+	return sawTask ? false : null;
+}
+
 export async function recordKnowledgeToolUsageObservation(
 	input: RecordKnowledgeToolUsageObservationInput,
 ): Promise<RuntimeKnowledgeToolUsageObservation | null> {

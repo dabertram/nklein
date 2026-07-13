@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
 	loadRuntimeConfig: vi.fn(async (_p: string) => ({ cfg: true })),
 	recordModelPerformanceObservation: vi.fn(async (_i: unknown) => {}),
 	recordKnowledgeToolUsageObservation: vi.fn(async (_i: unknown) => {}),
+	didTaskConsultKnowledge: vi.fn(async (_taskId: string) => true),
 	deriveTaskFitnessRecord: vi.fn(
 		(_i: unknown) =>
 			({
@@ -23,6 +24,7 @@ vi.mock("../../../src/telemetry/model-performance-stats", () => ({
 }));
 vi.mock("../../../src/telemetry/knowledge-tool-usage-stats", () => ({
 	recordKnowledgeToolUsageObservation: h.recordKnowledgeToolUsageObservation,
+	didTaskConsultKnowledge: h.didTaskConsultKnowledge,
 }));
 vi.mock("../../../src/nklein-agent/task-fitness-recording", () => ({
 	deriveTaskFitnessRecord: h.deriveTaskFitnessRecord,
@@ -48,6 +50,11 @@ describe("createRuntimeTerminalTelemetryRecorders", () => {
 		await flush();
 		expect(h.recordModelPerformanceObservation).toHaveBeenCalledOnce();
 		expect(h.recordTaskFitnessOutcome).toHaveBeenCalledOnce();
+		// F1.1: the knowledge-consultation flag rides the fitness fold.
+		expect(h.recordTaskFitnessOutcome).toHaveBeenCalledWith(
+			{ modelKey: "lmstudio/m" },
+			{ success: true, usedKnowledgeTools: true },
+		);
 		expect(h.persistModelBehaviorOutcome).toHaveBeenCalledWith("lmstudio/m", { kind: "success" });
 		expect(warn).not.toHaveBeenCalled();
 	});

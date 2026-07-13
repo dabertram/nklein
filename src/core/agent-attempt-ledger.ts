@@ -96,6 +96,23 @@ const ledgerEnvelopeShape = {
 	role: z.string().nullable(),
 } as const;
 
+/**
+ * F1.1 — the per-attempt KNOWLEDGE-TOOL usage summary. Distilled from the attempt's `toolCalls` at write time
+ * (retrieval = codebase_retrieval/code_index/architecture_knowledge; localization = file_discovery/file_read) so
+ * projections can correlate knowledge consultation with delivery outcome without re-classifying transcripts.
+ */
+const attemptKnowledgeUsageSchema = z.object({
+	/** Calls that CONSULT knowledge (code search / repo map / architecture knowledge). */
+	retrievalCallCount: z.number().int().nonnegative(),
+	/** Calls that LOCALIZE (file discovery + file reads). */
+	localizationCallCount: z.number().int().nonnegative(),
+	/** Retrieval/localization calls that errored. */
+	knowledgeErrorCount: z.number().int().nonnegative(),
+	/** Distinct knowledge/localization categories observed, sorted. */
+	categoriesUsed: z.array(z.string()),
+});
+export type AttemptKnowledgeUsage = z.infer<typeof attemptKnowledgeUsageSchema>;
+
 /** kind="attempt" — one model invocation toward a task/turn (including its retry rung). The richest event family. */
 const attemptEventSchema = z.object({
 	...ledgerEnvelopeShape,
@@ -132,6 +149,8 @@ const attemptEventSchema = z.object({
 	/** What recovery fired (looped→salvaged, recovered-narrated-call, …), when any. */
 	salvage: z.string().nullable(),
 	artifacts: attemptArtifactsSchema.nullable(),
+	/** F1.1 knowledge-tool usage summary; null on events written before the field existed. */
+	knowledge: attemptKnowledgeUsageSchema.nullable().default(null),
 });
 
 /** kind="transition" — a controller finite-state transition (§5.AF #2: the harness owns global process transitions). */
@@ -249,6 +268,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	retriesBefore?: number;
 	salvage?: string | null;
 	artifacts?: AttemptArtifacts | null;
+	knowledge?: AttemptKnowledgeUsage | null;
 }
 
 /** Build a validated `attempt` event, filling unspecified fields with nulls/empties. */
@@ -279,6 +299,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		retriesBefore: input.retriesBefore ?? 0,
 		salvage: input.salvage ?? null,
 		artifacts: input.artifacts ? { ...input.artifacts } : null,
+		knowledge: input.knowledge ? { ...input.knowledge, categoriesUsed: [...input.knowledge.categoriesUsed] } : null,
 	};
 }
 
@@ -625,6 +646,69 @@ export interface ModelToolUsageRollup {
  * weak model that reliably errors on a specific tool is a parse-and-recover / tool-simplification target, not just a
  * "bad model". Sorted by calls desc, then modelId, then toolName.
  */
+/** F1.1 — one (model × role) row correlating knowledge consultation with delivery outcome. */
+export interface KnowledgeOutcomeSummaryRow {
+	modelId: string;
+	role: string;
+	/** Attempts that consulted knowledge tools (retrievalCallCount > 0). */
+	attemptsWithKnowledge: number;
+	successesWithKnowledge: number;
+	/** Attempts with a knowledge summary that did NOT consult knowledge tools. */
+	attemptsWithoutKnowledge: number;
+	successesWithoutKnowledge: number;
+	/** successRate(with) − successRate(without); null until BOTH sides have evidence. */
+	knowledgeLift: number | null;
+}
+
+/**
+ * F1.1 — correlate knowledge-tool consultation with delivery outcome, per (model × role). Only attempts that CARRY a
+ * knowledge summary contribute (events written before the field existed are skipped, never counted as "no knowledge").
+ * Pure projection over the ledger — the join key is the attempt event itself, which holds both sides.
+ */
+export function summarizeKnowledgeOutcomeByModel(events: readonly AgentLedgerEvent[]): KnowledgeOutcomeSummaryRow[] {
+	const rows = new Map<string, KnowledgeOutcomeSummaryRow>();
+	for (const event of events) {
+		if (event.kind !== "attempt" || !event.knowledge) {
+			continue;
+		}
+		const role = event.role ?? "unknown";
+		const key = `${event.modelId}::${role}`;
+		const existing = rows.get(key);
+		const row: KnowledgeOutcomeSummaryRow = existing ?? {
+			modelId: event.modelId,
+			role,
+			attemptsWithKnowledge: 0,
+			successesWithKnowledge: 0,
+			attemptsWithoutKnowledge: 0,
+			successesWithoutKnowledge: 0,
+			knowledgeLift: null,
+		};
+		if (!existing) {
+			rows.set(key, row);
+		}
+		const succeeded = event.outcome === "success";
+		if (event.knowledge.retrievalCallCount > 0) {
+			row.attemptsWithKnowledge += 1;
+			if (succeeded) {
+				row.successesWithKnowledge += 1;
+			}
+		} else {
+			row.attemptsWithoutKnowledge += 1;
+			if (succeeded) {
+				row.successesWithoutKnowledge += 1;
+			}
+		}
+	}
+	for (const row of rows.values()) {
+		if (row.attemptsWithKnowledge > 0 && row.attemptsWithoutKnowledge > 0) {
+			row.knowledgeLift =
+				row.successesWithKnowledge / row.attemptsWithKnowledge -
+				row.successesWithoutKnowledge / row.attemptsWithoutKnowledge;
+		}
+	}
+	return [...rows.values()].sort((a, b) => `${a.modelId}::${a.role}`.localeCompare(`${b.modelId}::${b.role}`));
+}
+
 export function summarizeToolUsageByModel(events: readonly AgentLedgerEvent[]): ModelToolUsageRollup[] {
 	const byKey = new Map<string, ModelToolUsageRollup>();
 	for (const attempt of selectAttempts(events)) {
