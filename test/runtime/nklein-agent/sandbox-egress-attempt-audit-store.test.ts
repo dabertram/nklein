@@ -23,6 +23,7 @@ function makeRecord(over: Partial<EgressProxyAuditRecord> = {}): EgressProxyAudi
 		policy: "allowlist",
 		listenerPort: 3129,
 		transport: "connect",
+		taskId: null,
 		target: "example.com:443",
 		host: "example.com",
 		port: 443,

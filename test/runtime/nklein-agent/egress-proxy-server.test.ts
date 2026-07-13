@@ -501,3 +501,42 @@ describe("createEgressProxyServer — §5 enforcement flow", () => {
 		expect(client.destroyed).toBe(true);
 	});
 });
+
+describe("F2.5 — per-task attribution (Proxy-Authorization identity)", () => {
+	function connectHeadWithAuth(credentials: string | null): string {
+		const auth =
+			credentials === null
+				? ""
+				: `Proxy-Authorization: Basic ${Buffer.from(credentials, "latin1").toString("base64")}\r\n`;
+		return `CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n${auth}\r\n`;
+	}
+
+	async function runWithAuth(credentials: string | null): Promise<EgressProxyAuditRecord> {
+		const harness = buildHarness({
+			depsOverride: {
+				validateTaskIdentity: (taskId, token) => taskId === "task-7" && token === "tok",
+			},
+		});
+		const server = createEgressProxyServer(harness.deps);
+		const client = new FakeSocket();
+		const done = server.handleConnection(client, WORKER_CTX);
+		client.feed(connectHeadWithAuth(credentials));
+		await flush();
+		client.eof();
+		harness.upstream.eof();
+		await done;
+		expect(harness.audits).toHaveLength(1);
+		return harness.audits[0];
+	}
+
+	it("a VALID claim attributes the audit record to the task", async () => {
+		const record = await runWithAuth("task-7:tok");
+		expect(record.taskId).toBe("task-7");
+		expect(record.decision).toBe("allow"); // attribution never changes the verdict
+	});
+
+	it("an INVALID or absent claim audits unattributed (and still never gates)", async () => {
+		expect((await runWithAuth("task-7:wrong")).taskId).toBeNull();
+		expect((await runWithAuth(null)).taskId).toBeNull();
+	});
+});

@@ -14,6 +14,7 @@ import {
 	EGRESS_PROXY_MAX_HEAD_BYTES,
 	type EgressProxyHeadParseResult,
 	parseHttpConnectHead,
+	parseProxyAuthorizationHeader,
 } from "../core/egress-proxy-protocol";
 import {
 	decideProxyVerdict,
@@ -102,6 +103,11 @@ export interface EgressProxyServerDeps {
 	 */
 	confirmQueue?: EgressConfirmQueue;
 	confirmTimeoutMs?: number;
+	/**
+	 * F2.5: validate a claimed (taskId, token) proxy identity. Present => a valid claim attributes the attempt's
+	 * audit record to that task; absent/invalid claims audit unattributed. Attribution-only - never gates.
+	 */
+	validateTaskIdentity?: (taskId: string, token: string) => boolean;
 }
 
 export interface EgressProxyServer {
@@ -114,6 +120,8 @@ export interface EgressProxyServer {
 interface HeadReadResult {
 	parsed: EgressProxyHeadParseResult;
 	leftover: Buffer;
+	/** The raw bytes read for the head (F2.5: parsed separately for the Proxy-Authorization identity claim). */
+	rawHead: Buffer;
 }
 
 const defaultScheduler: EgressProxyScheduler = (delayMs, onFire) => {
@@ -302,7 +310,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 			let total = 0;
 			let done = false;
 
-			const settle = (parsed: EgressProxyHeadParseResult, leftover: Buffer): void => {
+			const settle = (parsed: EgressProxyHeadParseResult, leftover: Buffer, rawHead: Buffer = EMPTY): void => {
 				if (done) {
 					return;
 				}
@@ -312,7 +320,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 				client.removeListener("end", onEnd);
 				client.removeListener("error", onError);
 				client.removeListener("close", onEnd);
-				resolve({ parsed, leftover });
+				resolve({ parsed, leftover, rawHead });
 			};
 
 			const onData = (chunk: Buffer): void => {
@@ -333,13 +341,15 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 				// Terminal parse. Stop consuming as head; carry any pipelined tunnel bytes as leftover.
 				client.pause();
 				let leftover = EMPTY;
+				let rawHead = buffer;
 				if (parsed.ok) {
 					const term = buffer.indexOf("\r\n\r\n");
 					if (term !== -1) {
 						leftover = buffer.subarray(term + 4);
+						rawHead = buffer.subarray(0, term + 4);
 					}
 				}
-				settle(parsed, leftover);
+				settle(parsed, leftover, rawHead);
 			};
 
 			const onEnd = (): void => {
@@ -368,6 +378,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 		const snapshot = deps.resolveRoleSnapshot(context) ?? undefined;
 
 		let audited = false;
+		let attributedTaskId: string | null = null; // F2.5 identity attribution
 		let settled = false;
 		let idleTimer: EgressProxyTimerHandle | undefined;
 		let upstream: Duplex | undefined;
@@ -414,6 +425,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 						target,
 						verdict,
 						resolvedIps,
+						taskId: attributedTaskId,
 						executed,
 						bytesIn: bytesToClient,
 						bytesOut: bytesToUpstream,
@@ -491,6 +503,11 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 				try {
 					const head = await readHead(client);
 					const parsed = head.parsed;
+					// F2.5: attribution-only identity — a VALID claimed (taskId, token) attributes this attempt's audit.
+					const identityClaim = parseProxyAuthorizationHeader(head.rawHead);
+					if (identityClaim && deps.validateTaskIdentity?.(identityClaim.taskId, identityClaim.token)) {
+						attributedTaskId = identityClaim.taskId;
+					}
 					const transport: EgressProxyAuditTransport = parsed.ok
 						? egressProxyTransportForParsedKind(parsed.kind)
 						: "connect";

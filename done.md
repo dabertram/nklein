@@ -932,6 +932,19 @@
   and replaces the container on ANY drift before health-probing — a stale wider policy never keeps serving
   (tested: tightened ⇒ `rm -f` + fresh start; unchanged ⇒ untouched). 5 new tests; all 43 egress tests green.
   tsc 0, fast 9530 green.
+- [x] **F2.5a — per-task egress attribution via authenticated proxy identity** *(delivered 2026-07-13; sandbox
+  credential issuance + the require-auth policy decision are F2.5b in todo).* Every CONNECT verdict can now be
+  attributed to the TASK that caused it: the sandbox receives a standard credentialed proxy URL
+  (`buildTaskProxyUrl` — HTTP clients emit `Proxy-Authorization: Basic taskId:token` automatically, zero
+  in-sandbox cooperation), `parseProxyAuthorizationHeader` (pure, in the protocol module) extracts the claim
+  from the request head WITHOUT touching the target parse, the server validates it via the injected
+  `validateTaskIdentity` seam (`createEgressTaskIdentityRegistry`: issue/validate/revoke, constant-shape token
+  compare), and the audit record gains `taskId` (zod-optional with a null default so every pre-F2.5 JSONL line
+  still parses). ATTRIBUTION-ONLY by design: an invalid or absent claim audits `taskId: null` and the
+  role/allowlist policy gates exactly as before — flipping auth to REQUIRED is the recorded F2.5b decision,
+  after live validation. 8 new tests (claim parser edge cases, registry, URL encoding, and the server
+  integration proving a valid claim attributes while invalid/absent stay null and never gate); all 84 egress
+  tests green. tsc 0, fast 9536 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

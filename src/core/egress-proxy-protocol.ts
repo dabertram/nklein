@@ -416,3 +416,47 @@ function parseServerNameExtensionBody(record: Uint8Array, start: number, end: nu
 	}
 	return null;
 }
+
+/** A parsed proxy identity claim from the request head (F2.5). Not yet validated — just the stated credentials. */
+export interface EgressProxyIdentityClaim {
+	taskId: string;
+	token: string;
+}
+
+/**
+ * F2.5 — extract the `Proxy-Authorization: Basic <base64(taskId:token)>` claim from a COMPLETE request head.
+ * Attribution-only: malformed/absent auth returns null and never affects the target parse or the verdict. The
+ * first colon splits taskId from token (task ids never contain colons; tokens may). Case-insensitive header
+ * name and scheme per RFC 7235.
+ */
+export function parseProxyAuthorizationHeader(head: Buffer | string): EgressProxyIdentityClaim | null {
+	const text = typeof head === "string" ? head : head.toString("latin1");
+	const terminator = text.indexOf("\r\n\r\n");
+	const headText = terminator === -1 ? text : text.slice(0, terminator);
+	for (const line of headText.split("\r\n").slice(1)) {
+		const colon = line.indexOf(":");
+		if (colon <= 0) {
+			continue;
+		}
+		if (line.slice(0, colon).trim().toLowerCase() !== "proxy-authorization") {
+			continue;
+		}
+		const value = line.slice(colon + 1).trim();
+		const match = /^basic\s+([a-z0-9+/=]+)$/i.exec(value);
+		if (!match) {
+			return null;
+		}
+		let decoded: string;
+		try {
+			decoded = Buffer.from(match[1], "base64").toString("latin1");
+		} catch {
+			return null;
+		}
+		const split = decoded.indexOf(":");
+		if (split <= 0 || split === decoded.length - 1) {
+			return null;
+		}
+		return { taskId: decoded.slice(0, split), token: decoded.slice(split + 1) };
+	}
+	return null;
+}

@@ -56,6 +56,7 @@ describe("buildEgressProxyAuditRecord", () => {
 			reason: "The host is on the egress allowlist.",
 			resolvedIps: ["93.184.216.34"],
 			executed: true,
+			taskId: null,
 			bytesIn: 4096,
 			bytesOut: 512,
 			durationMs: 2,

@@ -33,6 +33,8 @@ export interface EgressProxyAuditRecord {
 	reasonCode: EgressProxyReasonCode | null;
 	reason: string;
 	resolvedIps: readonly string[] | null;
+	/** F2.5: the AUTHENTICATED task this attempt is attributed to, or null (no/invalid identity claim). */
+	taskId: string | null;
 	/** Whether bytes actually flowed (a tunnel was established) — always false for deny/confirm in v1. */
 	executed: boolean;
 	bytesIn: number;
@@ -71,6 +73,7 @@ export const egressProxyAuditRecordSchema = z.object({
 	reasonCode: z.enum(EGRESS_PROXY_AUDIT_REASON_CODES).nullable(),
 	reason: z.string(),
 	resolvedIps: z.array(z.string()).nullable(),
+	taskId: z.string().nullable().optional().default(null),
 	executed: z.boolean(),
 	bytesIn: z.number(),
 	bytesOut: z.number(),
@@ -89,6 +92,7 @@ export interface EgressProxyAuditRecordInput {
 	target: string;
 	verdict: EgressProxyVerdict;
 	resolvedIps?: readonly string[] | null;
+	taskId?: string | null;
 	executed?: boolean;
 	bytesIn?: number;
 	bytesOut?: number;
@@ -111,6 +115,7 @@ export function buildEgressProxyAuditRecord(input: EgressProxyAuditRecordInput):
 		reasonCode: input.verdict.reasonCode,
 		reason: input.verdict.reason,
 		resolvedIps: input.resolvedIps ?? null,
+		taskId: input.taskId ?? null,
 		executed: input.executed ?? false,
 		bytesIn: input.bytesIn ?? 0,
 		bytesOut: input.bytesOut ?? 0,

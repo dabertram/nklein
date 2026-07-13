@@ -856,8 +856,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   drift (a stale wider policy never keeps serving; tested both directions). REMAINING: document the role-scoped
   syntax in the Settings field hint (web-ui), and live-validate on the fleet (a worker CONNECT to a
   worker-scoped host succeeds while a reviewer CONNECT to it is denied + audited).
-- [ ] **F2.5 — Add per-task egress attribution.** Use authenticated proxy identity to associate every DNS/CONNECT verdict
-  with task/attempt/ledger records; prevent co-tenant spoofing.
+- [ ] **F2.5b — Issue per-task credentials at sandbox creation + require-auth decision (attribution SHIPPED
+  2026-07-13).** The proxy now ATTRIBUTES every CONNECT verdict: `parseProxyAuthorizationHeader` (pure,
+  attribution-only — malformed/absent claims never affect the verdict) extracts the `Basic taskId:token` claim
+  the sandbox's standard credentialed proxy URL emits automatically (`buildTaskProxyUrl` — no in-sandbox
+  cooperation needed); the server validates via the injected `validateTaskIdentity` and stamps `taskId` on the
+  audit record (schema extended, old lines parse with null). `createEgressTaskIdentityRegistry` is the host-side
+  issue/validate/revoke store (constant-shape token compare). REMAINING: wire issuance at sandbox creation (the
+  lifecycle passes the credentialed URL as HTTP(S)_PROXY env; revoke on teardown; the registry bridged into the
+  proxy container — the validate seam is in-container, so credentials ride an env/file handoff like the
+  allowlist), DNS-stub attribution (role-less shared UDP listener — needs a design), and the later policy
+  decision whether unauthenticated egress should be DENIED rather than merely unattributed (live-validate
+  first).
 - [ ] **F2.6 — Replace raw host `runCommand`/`openFile` with typed allowlisted intents.** Preserve legitimate local UI
   actions while removing arbitrary local-mode strings and adding server-side target validation.
 - [ ] **F2.7 — Complete capability-gated multimodal chat.** Accept images first, then audio/PDF only where a local model
