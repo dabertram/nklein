@@ -15,6 +15,14 @@ export function parseRemovedProjectPathFromStreamError(streamError: string | nul
 	return streamError.slice(REMOVED_PROJECT_ERROR_PREFIX.length).trim();
 }
 
+export function shouldRequestProjectNavigation(
+	projectId: string,
+	currentProjectId: string | null,
+	requestedProjectId: string | null,
+): boolean {
+	return projectId.length > 0 && projectId !== (requestedProjectId ?? currentProjectId);
+}
+
 interface UseProjectNavigationInput {
 	onProjectSwitchStart: () => void;
 }
@@ -84,13 +92,15 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 
 	const handleSelectProject = useCallback(
 		(projectId: string) => {
-			if (!projectId || projectId === currentProjectId) {
+			// Compare with the navigation target, not only the last streamed project. During a pending A→B switch the
+			// stream still reports A; clicking A again must cancel B instead of being mistaken for a no-op.
+			if (!shouldRequestProjectNavigation(projectId, currentProjectId, requestedProjectId)) {
 				return;
 			}
 			onProjectSwitchStart();
 			setRequestedProjectId(projectId);
 		},
-		[currentProjectId, onProjectSwitchStart],
+		[currentProjectId, onProjectSwitchStart, requestedProjectId],
 	);
 
 	const handleAddProjectSuccess = useCallback(

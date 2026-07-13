@@ -182,6 +182,9 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	let activeRuntimeConfig = activeWorkspacePath
 		? await deps.loadRuntimeConfig(activeWorkspacePath)
 		: globalRuntimeConfig;
+	// Project selection can be requested by overlapping WebSocket handshakes. Keep the whole active tuple
+	// (id/path/config) latest-wins: an older async config load must never commit after a newer navigation request.
+	let activeWorkspaceSelectionEpoch = 0;
 	const workspacePathsById = new Map<string, string>(
 		activeWorkspaceId && activeWorkspacePath ? [[activeWorkspaceId, activeWorkspacePath]] : [],
 	);
@@ -238,16 +241,37 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 		return loaded;
 	};
 
-	const setActiveWorkspace = async (workspaceId: string, repoPath: string): Promise<void> => {
+	const beginActiveWorkspaceSelection = (): number => {
+		activeWorkspaceSelectionEpoch += 1;
+		return activeWorkspaceSelectionEpoch;
+	};
+
+	const applyActiveWorkspaceSelection = async (
+		workspaceId: string,
+		repoPath: string,
+		selectionEpoch: number,
+	): Promise<void> => {
+		rememberWorkspace(workspaceId, repoPath);
+		if (selectionEpoch !== activeWorkspaceSelectionEpoch) {
+			return;
+		}
+		await ensureTerminalManagerForWorkspace(workspaceId, repoPath);
+		const nextRuntimeConfig = await deps.loadRuntimeConfig(repoPath);
+		if (selectionEpoch !== activeWorkspaceSelectionEpoch) {
+			return;
+		}
 		activeWorkspaceId = workspaceId;
 		activeWorkspacePath = repoPath;
-		rememberWorkspace(workspaceId, repoPath);
-		await ensureTerminalManagerForWorkspace(workspaceId, repoPath);
-		activeRuntimeConfig = await deps.loadRuntimeConfig(repoPath);
-		globalRuntimeConfig = toGlobalRuntimeConfigState(activeRuntimeConfig);
+		activeRuntimeConfig = nextRuntimeConfig;
+		globalRuntimeConfig = toGlobalRuntimeConfigState(nextRuntimeConfig);
+	};
+
+	const setActiveWorkspace = async (workspaceId: string, repoPath: string): Promise<void> => {
+		await applyActiveWorkspaceSelection(workspaceId, repoPath, beginActiveWorkspaceSelection());
 	};
 
 	const clearActiveWorkspace = (): void => {
+		beginActiveWorkspaceSelection();
 		activeWorkspaceId = null;
 		activeWorkspacePath = null;
 		activeRuntimeConfig = globalRuntimeConfig;
@@ -378,6 +402,9 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 			onRemovedWorkspace?: (workspace: RemovedWorkspaceNotice) => void;
 		},
 	): Promise<ResolvedWorkspaceStreamTarget> => {
+		// Reserve every stream's selection intent before any filesystem/index await. A later A→B→A request therefore
+		// supersedes B even when A is still committed, and an older unscoped handshake cannot reserve its epoch late.
+		const streamSelectionEpoch = beginActiveWorkspaceSelection();
 		const allProjects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
 		const existingProjects: RuntimeWorkspaceIndexEntry[] = [];
 		const removedProjects: RuntimeWorkspaceIndexEntry[] = [];
@@ -410,15 +437,6 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 			? (removedProjects.find((project) => project.workspaceId === requestedWorkspaceId)?.repoPath ?? null)
 			: null;
 
-		const activeWorkspaceMissing = !existingProjects.some((project) => project.workspaceId === activeWorkspaceId);
-		if (activeWorkspaceMissing) {
-			if (existingProjects[0]) {
-				await setActiveWorkspace(existingProjects[0].workspaceId, existingProjects[0].repoPath);
-			} else {
-				clearActiveWorkspace();
-			}
-		}
-
 		if (requestedWorkspaceId) {
 			const requestedWorkspace = existingProjects.find((project) => project.workspaceId === requestedWorkspaceId);
 			if (requestedWorkspace) {
@@ -426,7 +444,11 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					activeWorkspaceId !== requestedWorkspace.workspaceId ||
 					activeWorkspacePath !== requestedWorkspace.repoPath
 				) {
-					await setActiveWorkspace(requestedWorkspace.workspaceId, requestedWorkspace.repoPath);
+					await applyActiveWorkspaceSelection(
+						requestedWorkspace.workspaceId,
+						requestedWorkspace.repoPath,
+						streamSelectionEpoch,
+					);
 				}
 				return {
 					workspaceId: requestedWorkspace.workspaceId,
@@ -434,6 +456,19 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					removedRequestedWorkspacePath,
 					didPruneProjects: removedProjects.length > 0,
 				};
+			}
+		}
+
+		const activeWorkspaceMissing = !existingProjects.some((project) => project.workspaceId === activeWorkspaceId);
+		if (activeWorkspaceMissing) {
+			if (existingProjects[0]) {
+				await applyActiveWorkspaceSelection(
+					existingProjects[0].workspaceId,
+					existingProjects[0].repoPath,
+					streamSelectionEpoch,
+				);
+			} else if (streamSelectionEpoch === activeWorkspaceSelectionEpoch) {
+				clearActiveWorkspace();
 			}
 		}
 

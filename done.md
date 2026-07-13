@@ -113,6 +113,18 @@
   (`36b91973`): reads retain `autoCreateIfMissing:false`, bare launch does not silently add arbitrary git directories,
   and self-project confirmation remains explicit. Re-verification passed all 4 task-command-exit integration cases and
   all 11 invocation-parser cases without weakening either guard.
+- [x] **P0.6 — Finish the project-switch stall investigation** *(legacy §5.V).* The original empty-board stall was
+  traced and fixed in `204f2c18`: snapshots identify the stream's resolved workspace, stale mismatches reconnect with
+  bounded backoff, and workspace-tagged frames cannot leak across projects. The final rapid-navigation pass found two
+  additional races. First, while A remained the last streamed project and B was pending, clicking A to reverse course
+  was discarded as a no-op; navigation now compares against the requested target, so the last click wins. Second,
+  overlapping WebSocket handshakes could finish config loads out of order and leave the registry's active
+  id/path/config tuple split across projects; a monotonic selection epoch now commits that tuple atomically and makes
+  stale handshakes inert (clearing a project invalidates in-flight selections too). A deterministic A→B→A→B Playwright
+  regression records the actual socket sequence, injects a stale snapshot and late old-project chat frame, and proves
+  the destination board, task chat, and Settings config all settle without reload. Deferred-config unit tests pin both
+  server and browser latest-wins behavior; the 9 registry tests, all 1,052 web tests, 130 protected tests, and both
+  navigation e2e cases (three consecutive laps each) pass.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

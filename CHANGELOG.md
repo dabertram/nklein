@@ -65,6 +65,11 @@
   one initial-plus-two total budget instead of multiplying an inner retry loop. Buffered tokens still renew the liveness
   lease. Direct chat and structured calls use the same provenance rule; live chat streaming retries only before its
   first visible chunk, so a prefix is never printed twice.
+- **Rapid project switching now reliably lands on the last project you chose.** Reversing an in-flight switch no longer
+  gets mistaken for clicking the already-open project, late board/chat frames from the previous project are ignored,
+  and an older WebSocket handshake cannot finish afterward and overwrite the active project's Settings config. Project
+  selection is latest-wins and commits its id, path, and config atomically, so board, task chat, and Settings converge
+  without a reload even during fast A→B→A→B navigation.
 
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard

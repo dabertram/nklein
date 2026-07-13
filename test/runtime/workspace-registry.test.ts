@@ -52,6 +52,14 @@ async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
 	}
 }
 
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((nextResolve) => {
+		resolve = nextResolve;
+	});
+	return { promise, resolve };
+}
+
 describe("collectProjectWorktreeTaskIdsForRemoval", () => {
 	it("includes tasks from every board column during project cleanup", () => {
 		const board = {
@@ -192,6 +200,67 @@ describe("createWorkspaceRegistry", () => {
 				);
 			} finally {
 				rmSync(repoPath, { recursive: true, force: true });
+			}
+		});
+	});
+
+	it("keeps rapid stream selections atomic and latest-wins when config loads finish out of order", async () => {
+		await withTemporaryHome(async () => {
+			const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			const repoA = join(tmpdir(), `kanban-registry-switch-a-${suffix}`);
+			const repoB = join(tmpdir(), `kanban-registry-switch-b-${suffix}`);
+			const repoC = join(tmpdir(), `kanban-registry-switch-c-${suffix}`);
+			for (const path of [repoA, repoB, repoC]) {
+				mkdirSync(path, { recursive: true });
+				initGitRepository(path);
+			}
+
+			try {
+				const [workspaceA, workspaceB, workspaceC] = await Promise.all(
+					[repoA, repoB, repoC].map(async (path) => await loadWorkspaceContext(path)),
+				);
+				const baseConfig = await loadGlobalRuntimeConfig();
+				const pendingB = createDeferred<typeof baseConfig>();
+				const pendingC = createDeferred<typeof baseConfig>();
+				let deferSelectionLoads = false;
+				const loadScopedConfig = vi.fn(async (path: string) => {
+					if (deferSelectionLoads && path === workspaceB.repoPath) {
+						return await pendingB.promise;
+					}
+					if (deferSelectionLoads && path === workspaceC.repoPath) {
+						return await pendingC.promise;
+					}
+					return { ...baseConfig, maxConcurrentTasks: 1 };
+				});
+				const registry = await createWorkspaceRegistry({
+					cwd: workspaceA.repoPath,
+					loadGlobalRuntimeConfig: async () => baseConfig,
+					loadRuntimeConfig: loadScopedConfig,
+					hasGitRepository: (path) =>
+						[workspaceA.repoPath, workspaceB.repoPath, workspaceC.repoPath].includes(path),
+					pathIsDirectory: async () => true,
+					resolveSourceRepoPath: async () => null,
+				});
+				deferSelectionLoads = true;
+
+				const selectB = registry.resolveWorkspaceForStream(workspaceB.workspaceId);
+				await vi.waitFor(() => expect(loadScopedConfig).toHaveBeenCalledWith(workspaceB.repoPath));
+				const selectC = registry.resolveWorkspaceForStream(workspaceC.workspaceId);
+				await vi.waitFor(() => expect(loadScopedConfig).toHaveBeenCalledWith(workspaceC.repoPath));
+
+				pendingC.resolve({ ...baseConfig, maxConcurrentTasks: 3 });
+				await selectC;
+				pendingB.resolve({ ...baseConfig, maxConcurrentTasks: 2 });
+				await selectB;
+
+				expect(registry.getActiveWorkspaceId()).toBe(workspaceC.workspaceId);
+				expect(registry.getActiveWorkspacePath()).toBe(workspaceC.repoPath);
+				expect(registry.getActiveRuntimeConfig().maxConcurrentTasks).toBe(3);
+				expect(registry.getActiveWorkspaceId()).not.toBe(workspaceA.workspaceId);
+			} finally {
+				for (const path of [repoA, repoB, repoC]) {
+					rmSync(path, { recursive: true, force: true });
+				}
 			}
 		});
 	});

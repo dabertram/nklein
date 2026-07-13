@@ -632,9 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.6 — Finish the project-switch stall investigation** *(legacy §5.V).* Reproduce rapid workspace navigation,
-  identify the stale subscription/request, and prove board/chat/settings settle on the selected project without a
-  reload.
 - [ ] **P0.7 — Close the deterministic-bounce acceptance-workspace race** *(from the retired autonomous run log).* Make
   acceptance/finalization bind to the result branch and owning workspace atomically; add the scheduler/review regression
   that previously exposed the race.

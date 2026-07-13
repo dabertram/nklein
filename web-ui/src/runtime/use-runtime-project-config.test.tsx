@@ -237,6 +237,41 @@ describe("useRuntimeProjectConfig", () => {
 		expect(snapshots.at(-1)?.config?.shortcuts).toEqual([]);
 	});
 
+	it("ignores an old project's config response when it resolves after the selected project", async () => {
+		const projectADeferred = createDeferred<RuntimeConfigResponse>();
+		const projectBDeferred = createDeferred<RuntimeConfigResponse>();
+		fetchRuntimeConfigMock.mockImplementation((workspaceId: string | null) =>
+			workspaceId === "project-a" ? projectADeferred.promise : projectBDeferred.promise,
+		);
+		let snapshots: HookSnapshot[] = [];
+		const onSnapshot = (snapshot: HookSnapshot) => {
+			snapshots = [...snapshots, snapshot];
+		};
+
+		await act(async () => {
+			root.render(<HookHarness workspaceId="project-a" onSnapshot={onSnapshot} />);
+		});
+		await act(async () => {
+			root.render(<HookHarness workspaceId="project-b" onSnapshot={onSnapshot} />);
+		});
+
+		await act(async () => {
+			projectBDeferred.resolve(createRuntimeConfigResponse("codex", []));
+			await projectBDeferred.promise;
+		});
+		expect(snapshots.at(-1)?.config?.selectedAgentId).toBe("codex");
+
+		await act(async () => {
+			projectADeferred.resolve(
+				createRuntimeConfigResponse("claude", [{ label: "Stale A", command: "npm run stale", icon: "clock" }]),
+			);
+			await projectADeferred.promise;
+		});
+
+		expect(snapshots.at(-1)?.config?.selectedAgentId).toBe("codex");
+		expect(snapshots.at(-1)?.config?.shortcuts).toEqual([]);
+	});
+
 	it("loads runtime config without a selected project", async () => {
 		const startupConfig = createRuntimeConfigResponse("codex", []);
 		fetchRuntimeConfigMock.mockResolvedValue(startupConfig);
