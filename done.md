@@ -1042,6 +1042,14 @@
   load→probe→unload, machine restored):** 4/4 — "finish the login form" → the auth card, "use port 8080" → the
   API-port answer candidate, an unrelated weather question and a vague "do the thing" both → ABSTAIN, and it
   NEVER invented a route (each 2s, clean parse). 5 core tests. tsc 0, fast 9568 green.
+- [x] **F2.17a — protected-write threaded into the operator inbox as its own no-double-count source**
+  *(delivered 2026-07-13; the live boundary-hold producer is F2.17b in todo).* The §5.AG inbox already covered
+  clarification / host-ack / held-delivery / setup blockers; F2.17's missing PROTECTED-WRITE source is now
+  first-class: `OperatorTaskSignals.protectedPathHeld` (distinct from `deliveryGateHeld` — the remediation is
+  "allow/deny this protected write", not "approve the delivery") classifies `risky`, `collectOperatorInbox`
+  emits `protectedWrites[]`, and the Set-based `total` counts a card held for BOTH delivery and protected-write
+  exactly once (tested — the "without double counting" bar). Plumbed through the signal type, classifier,
+  overrides, and `mapSessionSummaryToOperatorSignals` (defaults false). 20 tests. tsc 0, fast 9569 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

@@ -11,6 +11,7 @@ function signals(over: Partial<OperatorTaskSignals> = {}): OperatorTaskSignals {
 		blockedKind: null,
 		awaitingHostActionAck: false,
 		deliveryGateHeld: false,
+		protectedPathHeld: false,
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
 		approachingBudgetCeiling: false,

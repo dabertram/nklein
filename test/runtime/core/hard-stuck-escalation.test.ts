@@ -49,6 +49,7 @@ function operatorSignals(overrides: Partial<OperatorTaskSignals> = {}): Operator
 		blockedKind: null,
 		awaitingHostActionAck: false,
 		deliveryGateHeld: false,
+		protectedPathHeld: false,
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
 		approachingBudgetCeiling: false,

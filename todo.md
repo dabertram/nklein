@@ -972,9 +972,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   4/4 — clear messages picked the right card / answer candidate, unrelated + genuinely-ambiguous messages
   ABSTAINed, and it NEVER invented a route. REMAINING: call it from the caller when `resolveMessageTarget` returns
   `source:"ambiguous"` — run an ISOLATED model turn (no tools/board/history) with the prompt, parse strictly, and
-  on abstain fall back to today's `needs_clarify` operator ask (never auto-route or start a card).- [ ] **F2.17 — Complete the operator inbox signal sources.** Thread unresolved clarification, host-action ack,
-  held-delivery, protected-write, and setup blockers into the existing board/chat inbox without double counting.
-- [ ] **F2.18 — Surface hard-stuck recovery suggestions.** Render `buildEscalationSuggestions` beside the attempt chain,
+  on abstain fall back to today's `needs_clarify` operator ask (never auto-route or start a card).- [ ] **F2.17b — Light up the protected-write inbox source from the live boundary hold (inbox source SHIPPED
+  2026-07-13).** The operator inbox already threaded unresolved clarification, host-action ack, held-delivery,
+  and setup blockers; the missing F2.17 source — PROTECTED-WRITE — is now a first-class inbox entry:
+  `OperatorTaskSignals.protectedPathHeld` classifies `risky`, `collectOperatorInbox` emits `protectedWrites[]`,
+  and the no-double-count `total` (Set-based) counts a card held for both delivery AND protected-write once
+  (tested). The signal defaults false through `mapSessionSummaryToOperatorSignals` + `OperatorSignalOverrides`.
+  REMAINING (b-leaf, needs a producer): the F1.9b boundary hold in runtime-server must mark the session summary
+  distinguishably (today `reviewReason` is only attention/error/hook/interrupted — no protected-path variant),
+  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.- [ ] **F2.18 — Surface hard-stuck recovery suggestions.** Render `buildEscalationSuggestions` beside the attempt chain,
   prioritize evidence-backed actions, and make approved actions re-enter the exact suspended state.
 - [ ] **F2.19 — Ground read-only !Klein self-awareness.** Index current source plus `todo.md`/`done.md`/maintained docs,
   expose freshness/provenance, and prevent self-write tools in `klein_self` mode.

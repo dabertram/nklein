@@ -35,6 +35,12 @@ export interface OperatorTaskSignals {
 	awaitingHostActionAck: boolean;
 	/** A delivery (commit/PR) is held pending the operator (§5.L gate). */
 	deliveryGateHeld: boolean;
+	/**
+	 * F2.17: a delivery is held because the result touched a PROTECTED PATH outside the card's declared write
+	 * boundary (§5.L F1.9b/F1.21). Distinct from `deliveryGateHeld` — the remediation is "allow/deny this
+	 * protected write", not "approve the delivery" — so it is its own inbox source.
+	 */
+	protectedPathHeld: boolean;
 	/** A clarifying question is pending the operator's answer (§5.S). */
 	clarifyingQuestionPending: boolean;
 	/** The run is parked / making no progress / was loop-salvaged (§5.AA). */
@@ -51,6 +57,7 @@ export function classifyOperatorTaskState(signals: OperatorTaskSignals): Operato
 	if (
 		signals.awaitingHostActionAck ||
 		signals.deliveryGateHeld ||
+		signals.protectedPathHeld ||
 		signals.escalatedToOperator ||
 		signals.blockedKind === "agent_sandbox_unavailable"
 	) {
@@ -99,6 +106,8 @@ export interface OperatorInbox {
 	clarifyingQuestions: string[];
 	/** Deliveries (commit/PR) held pending the operator (§5.L gate). */
 	heldDeliveries: string[];
+	/** F2.17: deliveries held because the result touched a protected path outside its write boundary (§5.L F1.9b). */
+	protectedWrites: string[];
 	/** Cards blocked on setup before they can run (needs-decomposition / local-model-required / sandbox-unavailable). */
 	blockedOnSetup: string[];
 	/** Cards parked by the review ladder or escalated to the user — needing an operator decision (§5.AB/§5.AW). */
@@ -111,6 +120,7 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 	const unsafeActionAcks: string[] = [];
 	const clarifyingQuestions: string[] = [];
 	const heldDeliveries: string[] = [];
+	const protectedWrites: string[] = [];
 	const blockedOnSetup: string[] = [];
 	const escalatedToOperator: string[] = [];
 	const needingAction = new Set<string>();
@@ -127,6 +137,10 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 			heldDeliveries.push(task.taskId);
 			needingAction.add(task.taskId);
 		}
+		if (task.signals.protectedPathHeld) {
+			protectedWrites.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
 		if (task.signals.blockedKind !== null) {
 			blockedOnSetup.push(task.taskId);
 			needingAction.add(task.taskId);
@@ -140,6 +154,7 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 		unsafeActionAcks,
 		clarifyingQuestions,
 		heldDeliveries,
+		protectedWrites,
 		blockedOnSetup,
 		escalatedToOperator,
 		total: needingAction.size,
@@ -191,6 +206,7 @@ export interface OperatorSignalOverrides {
 	blockedKind?: OperatorTaskSignals["blockedKind"];
 	awaitingHostActionAck?: boolean;
 	deliveryGateHeld?: boolean;
+	protectedPathHeld?: boolean;
 	clarifyingQuestionPending?: boolean;
 	noProgressOrLoop?: boolean;
 	approachingBudgetCeiling?: boolean;
@@ -215,6 +231,7 @@ export function mapSessionSummaryToOperatorSignals(
 		blockedKind: overrides.blockedKind ?? null,
 		awaitingHostActionAck: overrides.awaitingHostActionAck ?? false,
 		deliveryGateHeld: overrides.deliveryGateHeld ?? false,
+		protectedPathHeld: overrides.protectedPathHeld ?? false,
 		clarifyingQuestionPending: overrides.clarifyingQuestionPending ?? false,
 		noProgressOrLoop: overrides.noProgressOrLoop ?? false,
 		approachingBudgetCeiling: overrides.approachingBudgetCeiling ?? false,

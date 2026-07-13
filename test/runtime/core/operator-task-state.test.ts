@@ -15,6 +15,7 @@ const HEALTHY: OperatorTaskSignals = {
 	blockedKind: null,
 	awaitingHostActionAck: false,
 	deliveryGateHeld: false,
+	protectedPathHeld: false,
 	clarifyingQuestionPending: false,
 	noProgressOrLoop: false,
 	approachingBudgetCeiling: false,
@@ -74,6 +75,7 @@ describe("collectOperatorInbox", () => {
 			{ taskId: "t-ack", signals: { ...HEALTHY, awaitingHostActionAck: true } },
 			{ taskId: "t-clarify", signals: { ...HEALTHY, clarifyingQuestionPending: true } },
 			{ taskId: "t-delivery", signals: { ...HEALTHY, deliveryGateHeld: true } },
+			{ taskId: "t-protected", signals: { ...HEALTHY, protectedPathHeld: true } },
 			{ taskId: "t-blocked", signals: { ...HEALTHY, blockedKind: "agent_sandbox_unavailable" } },
 			{ taskId: "t-escalated", signals: { ...HEALTHY, escalatedToOperator: true } },
 			{ taskId: "t-fine", signals: HEALTHY },
@@ -81,9 +83,20 @@ describe("collectOperatorInbox", () => {
 		expect(inbox.unsafeActionAcks).toEqual(["t-ack"]);
 		expect(inbox.clarifyingQuestions).toEqual(["t-clarify"]);
 		expect(inbox.heldDeliveries).toEqual(["t-delivery"]);
+		expect(inbox.protectedWrites).toEqual(["t-protected"]); // F2.17: its own source
 		expect(inbox.blockedOnSetup).toEqual(["t-blocked"]);
 		expect(inbox.escalatedToOperator).toEqual(["t-escalated"]);
-		expect(inbox.total).toBe(5); // t-fine needs nothing
+		expect(inbox.total).toBe(6); // t-fine needs nothing
+	});
+
+	it("F2.17: a protected-path hold classifies risky and a card held for BOTH reasons counts once", () => {
+		expect(classifyOperatorTaskState({ ...HEALTHY, protectedPathHeld: true })).toBe("risky");
+		const inbox = collectOperatorInbox([
+			{ taskId: "t-both", signals: { ...HEALTHY, deliveryGateHeld: true, protectedPathHeld: true } },
+		]);
+		expect(inbox.heldDeliveries).toEqual(["t-both"]);
+		expect(inbox.protectedWrites).toEqual(["t-both"]);
+		expect(inbox.total).toBe(1); // no double count
 	});
 
 	it("counts a task needing multiple actions once in total but in each relevant list", () => {
