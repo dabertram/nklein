@@ -916,8 +916,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   dimension failure refuses broadening). REMAINING: run the benchmark against the REAL recall stack (the F2.9
   unified projection + the chat-memory store's embedder) per model/store pair via the live-eval harness, persist
   the verdict (the F1.26 retention pattern), and consult it at the scope-broadening seam in the chat surface.
-- [ ] **F2.11 — Finish the unified chat surface.** Cover session create/select/delete/relabel, streaming, reasoning,
-  tools, knowledge, attachments, execution mode, history replay, errors, and reconnection with one shared renderer.
+- [ ] **F2.11 (narrowed by audit 2026-07-13) — Unified chat surface: residue only.** The audit found the
+  checklist substantially LIVE and e2e-verified (hermetic 72/72): session create/select/DELETE/RELABEL (the
+  sidebar's editable `chat-session-title` commits on blur/Enter; delete has a tooltip control; role + scope
+  selects), streaming + reasoning + tools (chat-agent-stream spec), knowledge/skills, execution mode as the
+  scope select, history replay via the transcript poll, inline error rendering, and the state-stream reconnect
+  with stale-workspace-id guards. REMAINING (true residue): (1) attachments UI — gated on F2.7b's wiring;
+  (2) the posture chip — F2.8b; (3) a RECONNECTION e2e spec (kill/restart the mocked ws mid-session, assert the
+  chat surface recovers without losing the transcript); (4) a "one shared renderer" consistency pass — verify
+  the sidebar chat + card-detail chat + main panel all render through `nklein-chat-message-item` (spot-check
+  suggested they do; pin it with a test or fold the stragglers).
 - [ ] **F2.12 — Complete host-action permission and audit UX.** Typed confirmations must name action, target, scope,
   consequence, and duration; history must be filterable and secret-safe.
 - [ ] **F2.13 — Finish auto-clarification wiring in chat.** Bind questions and answers to card/plan state, resume the
