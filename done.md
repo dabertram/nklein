@@ -1032,6 +1032,16 @@
   hard escalated_to_operator / blocked / delivery_gate_held) — with per-`${taskId}:${kind}` dedupe and typed
   suppression reasons. Consumes the F2.14 mute/quiet flags. 5 tests over every gate + the quiet split + the
   precedence order. web-ui tsc 0; web-ui 1052 green.
+- [x] **F2.16a — the isolated LLM target picker (rung 5) — pure core + LIVE-VALIDATED** *(delivered 2026-07-13;
+  caller wiring is F2.16b in todo).* `src/core/message-target-picker.ts` runs ONLY after the deterministic
+  `resolveMessageTarget` ladder returns `source:"ambiguous"`. `buildTargetPickerPrompt` shows the model only the
+  message + enumerated candidates and demands a candidate id or ABSTAIN; `parseTargetPickerChoice` is STRICT —
+  it accepts a chosen id ONLY when it is a member of the supplied set, so an unknown id, a hallucinated route,
+  empty output, a tie, or extra prose ALL resolve to abstain. Safety by construction: the model can never
+  escalate ambiguity into a wrong action; the worst it can do is decline. **LIVE-VALIDATED on qwen3-8b (m5max,
+  load→probe→unload, machine restored):** 4/4 — "finish the login form" → the auth card, "use port 8080" → the
+  API-port answer candidate, an unrelated weather question and a vague "do the thing" both → ABSTAIN, and it
+  NEVER invented a route (each 2s, clean parse). 5 core tests. tsc 0, fast 9568 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

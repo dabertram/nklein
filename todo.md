@@ -960,12 +960,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   hard stop); dedupes by the `${taskId}:${kind}` ASK key. Honors the F2.14 mute/quiet flags. REMAINING: generalize
   the existing `use-review-ready-notifications` hook (or add a sibling) to feed EVERY needs-you ASK signal
   through this core and fire `new Notification` on `notify:true` (reusing the review-ready hook's tab-presence +
-  badge-sync + click-to-focus machinery), then a Playwright/mocked-Notification pass.- [ ] **F2.16 — Complete stream drill-down.** Navigate stream → DAG → card → thread with stable focus/back behavior and
-  accessible keyboard controls.
-- [ ] **F2.16a — Add residual target disambiguation for card messages** *(legacy §5.AU rung 5).* Keep deterministic
-  exact/name/id/stream matching first; only when several candidates remain, ask an isolated LLM picker to choose among
-  those candidates or abstain. Never let it invent a route or start a card.
-- [ ] **F2.17 — Complete the operator inbox signal sources.** Thread unresolved clarification, host-action ack,
+  badge-sync + click-to-focus machinery), then a Playwright/mocked-Notification pass.- [ ] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
+  substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
+  DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
+  stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
+  pass over stream→DAG→card→thread→back; fold any gap found there.- [ ] **F2.16b — Wire the isolated target picker into the ambiguous-resolution path (core SHIPPED + LIVE-VALIDATED
+  2026-07-13).** `src/core/message-target-picker.ts`: `buildTargetPickerPrompt` (names ONLY the enumerated
+  candidates, instructs pick-one-id-or-ABSTAIN, forbids inventing) + `parseTargetPickerChoice` (STRICT — accepts
+  only an id in the supplied set, everything else → abstain: an unknown/hallucinated id, empty, ties, or prose
+  all abstain, so the model can never escalate ambiguity into a wrong action). LIVE-VALIDATED on qwen3-8b (m5max):
+  4/4 — clear messages picked the right card / answer candidate, unrelated + genuinely-ambiguous messages
+  ABSTAINed, and it NEVER invented a route. REMAINING: call it from the caller when `resolveMessageTarget` returns
+  `source:"ambiguous"` — run an ISOLATED model turn (no tools/board/history) with the prompt, parse strictly, and
+  on abstain fall back to today's `needs_clarify` operator ask (never auto-route or start a card).- [ ] **F2.17 — Complete the operator inbox signal sources.** Thread unresolved clarification, host-action ack,
   held-delivery, protected-write, and setup blockers into the existing board/chat inbox without double counting.
 - [ ] **F2.18 — Surface hard-stuck recovery suggestions.** Render `buildEscalationSuggestions` beside the attempt chain,
   prioritize evidence-backed actions, and make approved actions re-enter the exact suspended state.
