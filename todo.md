@@ -661,10 +661,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   kernel reducer — typed dispatch with held/terminal/persist_failed outcomes, per-task serialization,
   persist-before-notify ledger durability (`wf:<phase> → wf:<phase>` transitions), subscriber events carrying the
   kernel effects, and exact boot replay (`replayWorkflowPhaseFromLedger`). REMAINING: migrate the actual adapter
-  call sites (tRPC start/stop/complete paths in runtime-api + runtime-server recovery rungs + CLI task commands)
-  to emit commands through the queue instead of mutating stores directly, wiring the queue's effect events to the
-  proven implementations; then the durable scheduler (F1.18) subscribes to the same seam. Migrate incrementally,
-  one adapter path per leaf, behind behavior-identical tests.
+  call sites to emit commands through the queue instead of mutating stores directly, wiring the queue's effect
+  events to the proven implementations; then the durable scheduler (F1.18) subscribes to the same seam. Migrate
+  incrementally, one adapter path per leaf, behind behavior-identical tests. *(Leaf 1 SHIPPED 2026-07-13: the
+  runtime mounts one queue per workspace — `workflow-queue-registry.ts` — and the operator STOP path
+  (`handleStopTaskSession`) emits `cancel_requested` through it, audit-mode: the proven stop effect is untouched,
+  the command lands as a wf:* ledger transition + phase-mirror update.)* Remaining paths: tRPC start/complete,
+  runtime-server auto-start + promotion + terminal + review/delivery seams (these give the mirror full lifecycle
+  fidelity), CLI task commands.
 - [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
   transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
   dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,

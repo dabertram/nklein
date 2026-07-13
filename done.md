@@ -583,6 +583,15 @@
   effect names instead of polling stores. 4 tests (full lifecycle drive with effect + persistence assertions,
   hold/terminal rejections, persist-before-notify failure atomicity, replay + seeded resume).
 
+- [x] **F1.27b leaf 1 — queue mounted live + the operator stop path migrated** *(delivered 2026-07-13).* The
+  runtime now holds one `WorkflowCommandQueue` per workspace (`workflow-queue-registry.ts`, lazy, ledger-backed),
+  and the FIRST adapter path emits through the seam: `handleStopTaskSession` dispatches `cancel_requested`
+  (audit-mode — the proven service stop effect is untouched; a stop of a task the kernel never saw start cancels
+  from idle, which is kernel-truth for an operator stop; a failed stop dispatches nothing). The phase mirror is
+  documented as PARTIAL until the remaining lifecycle seams (start/promotion/terminal/review/delivery) migrate —
+  those leaves are enumerated in the todo entry. 3 tests (per-workspace instance identity + mirror isolation,
+  stop → wf:cancelled ledger transition + mirror agreement + byte-identical effect path, failed-stop no-dispatch).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

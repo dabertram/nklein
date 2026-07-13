@@ -10,6 +10,7 @@ import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconc
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 import { withTaskPausedState } from "../runtime-task-paused-state";
+import { getWorkspaceWorkflowQueue } from "./workflow-queue-registry";
 
 interface TaskSessionIoDeps {
 	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
@@ -29,6 +30,15 @@ export async function handleStopTaskSession(
 		const body = parseTaskSessionStopRequest(input);
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 		const nkleinSummary = await nkleinTaskSessionService.stopTaskSession(body.taskId);
+		// F1.27b (leaf 1): the operator stop emits a `cancel_requested` through the workflow command queue —
+		// fire-and-forget audit + phase mirror (a stop IS a cancel in the kernel's vocabulary; a task the kernel
+		// never saw start cancels from idle, which is kernel-truth for an operator stop). Zero behavior change:
+		// the stop effect above already ran through the proven service path.
+		if (nkleinSummary) {
+			void getWorkspaceWorkflowQueue(workspaceScope.workspacePath, workspaceScope.workspaceId)
+				.dispatch(body.taskId, { kind: "cancel_requested" })
+				.catch(() => {});
+		}
 		const pausedTaskIds = await setCardPaused({
 			workspacePath: workspaceScope.workspacePath,
 			taskId: body.taskId,
