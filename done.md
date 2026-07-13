@@ -742,6 +742,16 @@
   plus a self-observation naming the blockers. 2 new tests (signal derivation: coverage/taint/bounds + the
   never-unsupervised invariant; slug identity).
 
+- [x] **F1.26a — deterministic replay evaluation: the contract + M4 feed** *(delivered 2026-07-13; the
+  fixture-run orchestrator is F1.26b in todo).* `evaluateSelfImprovementReplay` composes the §5.AF determinism
+  comparator (`compareLedgerReplayDeterminism`) over a proposal's captured-vs-replayed ledgers — a deterministic
+  replay passes, a drift fails with the first divergence localized to a causal index. The verdict is RETAINED IN
+  THE LEDGER (`buildReplayEvalRetentionEvent` → `review → replay_eval_pass|fail` transition; a later re-run
+  supersedes), and the M4 delivery gate now READS it (`readRetainedReplayEvalVerdict` feeds
+  `replayEvalPass`; null = never run stays a blocker — fail-closed exactly as before until an evaluation actually
+  runs). 2 new tests (deterministic-pass/drift-localization; ledger round-trip incl. supersede + never-run-null +
+  the M4 signal feed).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

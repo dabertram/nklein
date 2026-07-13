@@ -14,6 +14,9 @@
  * auto-activate" keystone.
  */
 
+import { type AgentLedgerEvent, type AgentTransitionEvent, buildTransitionEvent } from "./agent-attempt-ledger.js";
+import { compareLedgerReplayDeterminism, type ReplayEventView } from "./ledger-replay-determinism.js";
+
 export interface SelfImprovementSignals {
 	/** The full protected + fast suite passed on the patched tree. */
 	protectedTestsPass: boolean;
@@ -125,4 +128,83 @@ export function collectSelfImprovementSignals(input: CollectSelfImprovementSigna
 		humanReviewApproved: input.humanReviewApproved ?? null,
 		humanMergeApproved: input.humanMergeApproved ?? false,
 	};
+}
+
+// ---------------------------------------------------------------------------
+// F1.26 — deterministic replay EVALUATION for a self-improvement patch, retained in the ledger.
+// ---------------------------------------------------------------------------
+
+export interface SelfImprovementReplayEvaluation {
+	pass: boolean;
+	divergenceIndex: number | null;
+	summary: string;
+}
+
+/**
+ * Evaluate a self-improvement proposal against its BASELINE fixtures: the captured (pre-patch fixture) run's
+ * ledger vs the replayed (patched-tree) run's ledger, compared with the §5.AF determinism primitive. A
+ * deterministic replay (same canonical state) passes; a drift fails with the first divergence localized.
+ */
+export function evaluateSelfImprovementReplay(input: {
+	captured: readonly ReplayEventView[];
+	replayed: readonly ReplayEventView[];
+}): SelfImprovementReplayEvaluation {
+	const report = compareLedgerReplayDeterminism(input.captured, input.replayed);
+	if (report.deterministic) {
+		return {
+			pass: true,
+			divergenceIndex: null,
+			summary: `replay deterministic (${report.capturedCount} captured / ${report.replayedCount} replayed events, same canonical state)`,
+		};
+	}
+	const divergence = report.firstDivergence;
+	return {
+		pass: false,
+		divergenceIndex: divergence?.index ?? null,
+		summary: divergence
+			? `replay diverged at causal index ${divergence.index} (${divergence.kind})`
+			: "replay state fingerprints differ",
+	};
+}
+
+const REPLAY_EVAL_DECISION = "replay_eval";
+const REPLAY_EVAL_PASS = "replay_eval_pass";
+const REPLAY_EVAL_FAIL = "replay_eval_fail";
+
+/** Retain the evaluation in the ledger — the M4 gate reads it back via {@link readRetainedReplayEvalVerdict}. */
+export function buildReplayEvalRetentionEvent(input: {
+	workflowId: string;
+	taskId: string;
+	workspacePathHash: string;
+	evaluation: SelfImprovementReplayEvaluation;
+	recordedAt?: number;
+}): AgentTransitionEvent {
+	return buildTransitionEvent({
+		workflowId: input.workflowId,
+		taskId: input.taskId,
+		workspacePathHash: input.workspacePathHash,
+		from: "review",
+		to: input.evaluation.pass ? REPLAY_EVAL_PASS : REPLAY_EVAL_FAIL,
+		reason: input.evaluation.summary.slice(0, 900),
+		controllerDecision: REPLAY_EVAL_DECISION,
+		...(input.recordedAt !== undefined ? { recordedAt: input.recordedAt } : {}),
+	});
+}
+
+/** The task's LATEST retained replay-eval verdict from the ledger, or null when none was ever retained. */
+export function readRetainedReplayEvalVerdict(events: readonly AgentLedgerEvent[], taskId: string): boolean | null {
+	const retained = events
+		.filter(
+			(event): event is AgentTransitionEvent =>
+				event.kind === "transition" &&
+				event.taskId === taskId &&
+				event.controllerDecision === REPLAY_EVAL_DECISION &&
+				(event.to === REPLAY_EVAL_PASS || event.to === REPLAY_EVAL_FAIL),
+		)
+		.sort((left, right) => left.recordedAt - right.recordedAt)
+		.at(-1);
+	if (!retained) {
+		return null;
+	}
+	return retained.to === REPLAY_EVAL_PASS;
 }

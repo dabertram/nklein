@@ -715,8 +715,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
-- [>] **F1.26 — Add deterministic replay evaluation for self-improvement patches** *(after F1.17 and F1.25).* Compare the
-  proposal against baseline fixtures before approval and retain the result in the ledger.
+- [ ] **F1.26b — Orchestrate the baseline-fixture replay run for a dogfood card (evaluation contract SHIPPED
+  2026-07-13).** The comparison + retention machinery is complete: `evaluateSelfImprovementReplay` (the §5.AF
+  determinism comparator over captured-vs-replayed ledgers, divergence localized),
+  `buildReplayEvalRetentionEvent` (retained as a `replay_eval_pass|fail` ledger transition; a later re-run
+  supersedes), and the M4 gate READS the retained verdict at the delivery seam (`readRetainedReplayEvalVerdict` —
+  null = never run = a blocker, so the gate stays fail-closed). REMAINING: the orchestrator that PRODUCES the
+  two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
+  suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
+  retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
 - [ ] **F1.28 — Complete the runtime-config facade split.** Move read/write/resolve/change-notify concerns behind stable
   modules without changing config semantics; keep legacy load compatibility tests.
 - [ ] **F1.29 — Extract the Settings draft boundary.** Give each section an independent typed draft/dirty/reset/save

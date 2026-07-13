@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildReplayEvalRetentionEvent,
 	collectSelfImprovementSignals,
 	decideSelfImprovementApproval,
+	evaluateSelfImprovementReplay,
 	isSelfImprovementPlanSlug,
+	readRetainedReplayEvalVerdict,
 	type SelfImprovementSignals,
 } from "../../../src/core/self-improvement-gate";
 
@@ -107,6 +110,61 @@ describe("M4 self-improvement gate (§5.AF safety keystone)", () => {
 			expect(isSelfImprovementPlanSlug("dogfood-2026-07-13")).toBe(true);
 			expect(isSelfImprovementPlanSlug("habit-tracker")).toBe(false);
 			expect(isSelfImprovementPlanSlug(null)).toBe(false);
+		});
+	});
+
+	describe("F1.26 — deterministic replay evaluation, retained in the ledger", () => {
+		const attempt = (outcome: string, at: number) => ({
+			kind: "attempt",
+			workflowId: "wf",
+			taskId: "t-1",
+			recordedAt: at,
+			modelId: "m",
+			outcome,
+		});
+
+		it("a deterministic replay passes; a drifted one fails with the divergence localized", () => {
+			const captured = [attempt("success", 100), attempt("other_failure", 200)];
+			expect(evaluateSelfImprovementReplay({ captured, replayed: captured })).toMatchObject({
+				pass: true,
+				divergenceIndex: null,
+			});
+			const drifted = evaluateSelfImprovementReplay({
+				captured,
+				replayed: [attempt("success", 100), attempt("timeout", 200)],
+			});
+			expect(drifted.pass).toBe(false);
+			expect(drifted.divergenceIndex).toBe(1);
+			expect(drifted.summary).toContain("index 1");
+		});
+
+		it("the retained verdict round-trips through the ledger and feeds the M4 signal", () => {
+			const failEvent = buildReplayEvalRetentionEvent({
+				workflowId: "wf",
+				taskId: "t-1",
+				workspacePathHash: "hash",
+				evaluation: { pass: false, divergenceIndex: 3, summary: "replay diverged at causal index 3" },
+				recordedAt: 100,
+			});
+			const passEvent = buildReplayEvalRetentionEvent({
+				workflowId: "wf",
+				taskId: "t-1",
+				workspacePathHash: "hash",
+				evaluation: { pass: true, divergenceIndex: null, summary: "replay deterministic" },
+				recordedAt: 200, // a later re-run supersedes
+			});
+			expect(readRetainedReplayEvalVerdict([failEvent, passEvent], "t-1")).toBe(true);
+			expect(readRetainedReplayEvalVerdict([failEvent], "t-1")).toBe(false);
+			expect(readRetainedReplayEvalVerdict([], "t-1")).toBeNull(); // never run — stays an M4 blocker
+			// The verdict lands in the gate exactly where replayEvalPass expects it.
+			const signals = collectSelfImprovementSignals({
+				changedFiles: ["test/x.test.ts"],
+				fullSuitePassed: true,
+				replayEvalPass: readRetainedReplayEvalVerdict([failEvent, passEvent], "t-1"),
+				taintLabels: [],
+				hadBoundaryViolations: false,
+			});
+			expect(signals.replayEvalPass).toBe(true);
 		});
 	});
 });

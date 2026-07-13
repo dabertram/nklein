@@ -75,6 +75,7 @@ import {
 	collectSelfImprovementSignals,
 	decideSelfImprovementApproval,
 	isSelfImprovementPlanSlug,
+	readRetainedReplayEvalVerdict,
 } from "../core/self-improvement-gate";
 import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
@@ -1842,6 +1843,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								collectSelfImprovementSignals({
 									changedFiles,
 									fullSuitePassed: evidence.testsPassed,
+									// F1.26: the retained deterministic replay-eval verdict (null = never run — a blocker).
+									replayEvalPass: readRetainedReplayEvalVerdict(selfLedgerEvents, taskId),
 									taintLabels:
 										selfLastAttempt && selfLastAttempt.kind === "attempt"
 											? (selfLastAttempt.taintLabels ?? [])
