@@ -336,7 +336,7 @@ function normaliseCycleKey(loop: readonly string[]): string {
 		}
 	}
 	const rotated = [...nodes.slice(minIndex), ...nodes.slice(0, minIndex)];
-	return rotated.join(" ");
+	return rotated.join("\u0000");
 }
 
 /**

@@ -304,7 +304,7 @@ function clearsTier(maxDifficultyCleared: number, tier: EvalDifficultyTier): boo
 	return maxDifficultyCleared >= TIER_DIFFICULTY[tier];
 }
 
-const COVERAGE_KEY_SEP = " ";
+const COVERAGE_KEY_SEP = "\u0000";
 
 function coverageKey(role: string, tier: string): string {
 	return `${role}${COVERAGE_KEY_SEP}${tier}`;

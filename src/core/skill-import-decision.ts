@@ -266,14 +266,14 @@ export function buildSkillContentPreimage(parts: {
 	const paths = Array.isArray(parts.bundledPaths)
 		? [...parts.bundledPaths].filter((p): p is string => typeof p === "string").sort()
 		: [];
-	// `field field …` with an explicit byte length per field so no field's content can forge a delimiter.
+	// `field\u0000field\u0000…` with an explicit byte length per field so no field's content can forge a delimiter.
 	const fields = [
 		`manifest:${manifest.length}:${manifest}`,
 		`body:${body.length}:${body}`,
 		`bundled:${paths.length}`,
 		...paths,
 	];
-	return fields.join(" ");
+	return fields.join("\u0000");
 }
 
 /** Construct a TOFU pin from an approved import. `pinnedAt` is injected (no clock in a pure core). */
