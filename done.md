@@ -801,6 +801,18 @@
   `getStatus()` is the F1.35 controls/status surface in waiting. All effects stay injected → the full lifecycle
   is unit-tested with fakes (8 tests: recovery-reap, admit→complete→clean, shutdown teardown, error collection,
   tick serialization, yield-to-interactive, tick-error survival, idempotence). tsc 0, fast 9470 green.
+- [x] **F1.32a — the rail's (project, model) target-selection policy** *(delivered 2026-07-13; live-candidate
+  wiring folded into F1.31b/F1.32b in todo).* `src/core/background-eval-selection.ts` —
+  `selectBackgroundEvalTarget`, pure + deterministic (injected seed, no `Math.random`), four modes per the F1.32
+  contract: **pinned** is exact-or-nothing (an ineligible pin fails `pin_unavailable` rather than silently
+  substituting — the board's never-invent-a-pin rule; an unpinned dimension falls through to evidence);
+  **evidence** ranks models by coverage NEED (`deriveBackgroundEvalModelEvidence` folds a `planEvalCoverage`
+  probe plan to top-priority-then-count, so gaps outrank staleness by the probe bands' construction) and pairs
+  the winner with its least-recently-covered project; **rotation** is pair-level LRU (never-run first, stable
+  order); **random** is a seeded LCG over the stable pair order. Every mode honors the hard gates — capability
+  and resource fit on model candidates, and the RECENT-COVERAGE window excluding just-run (project, model) pairs
+  — with typed failure reasons (`no_projects` / `no_capable_model` / `no_resource_fit` / `all_recently_covered` /
+  `pin_unavailable`) ready for the F1.35 status surface. 10 tests. tsc 0, fast 9480 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

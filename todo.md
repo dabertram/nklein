@@ -743,8 +743,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   a classified outcome); `cleanupProject` deleting the throwaway workspace (reuse the dev-cleanup machinery);
   scenario choice = minimal rotation until F1.32. Validate live on the fleet (rail admits when idle, yields on a
   real card, survives a runtime restart mid-run, leaves zero throwaway workspaces after exit).
-- [ ] **F1.32 — Complete evaluation-rail project/model selection.** Support user pin, deterministic rotation/random,
-  and evidence-driven agent selection while honoring capability, freshness, resource, and recent-coverage constraints.
+- [ ] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
+  `src/core/background-eval-selection.ts` (`selectBackgroundEvalTarget`) is the pure picker: pinned
+  (exact-or-nothing, never substitutes) / evidence (top coverage-probe priority via
+  `deriveBackgroundEvalModelEvidence` over `planEvalCoverage`, then per-model project LRU) / rotation (pair-level
+  LRU) / random (seeded LCG, no `Math.random`), all behind the capability + resource hard gates and the
+  recent-coverage window, with typed failure reasons for F1.35. REMAINING (part of the F1.31b wiring pass): feed
+  it live candidates (scenario presets as projects; loaded/catalog models with capability from the model-gate
+  verdicts + context floor, resource fit from `NKLEIN_DEVICE_RAM_GB` headroom, evidence from the fitness store via
+  `planEvalCoverage`), persist rail run history for the recent-coverage window, and expose the mode + pins in
+  config/Settings.
 - [ ] **F1.33 — Auto-analyse rail evidence into typed findings.** Harvest success and failure, classify regressions,
   flakes, quality gaps, and ideas, write ledger evidence, and propose deduplicated backlog packages for review.
 - [ ] **F1.34 — Finish full test-driven delivery mode.** Add the per-project override, make the intended safe default
