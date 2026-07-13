@@ -67,6 +67,15 @@ export interface TerminalAttemptInput {
 	toolCalls?: AttemptToolCall[];
 	knowledge?: AttemptKnowledgeUsage | null;
 	focusStep?: string | null;
+	// F1.14 completion — the fields the terminal write previously left at their defaults:
+	/** The captured result branch ref (durable output pointer), when the run produced one. */
+	resultBranch?: string | null;
+	/** The session's configured context window (the budget the contextTokens usage is measured against). */
+	contextBudgetTarget?: number | null;
+	/** Rung index: how many attempts this task recorded BEFORE this one (0 = first try). */
+	retriesBefore?: number;
+	/** The recovery rung that produced this attempt (redrive_empty_patch, steer_no_progress, …); null = baseline. */
+	promptStrategy?: string | null;
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -92,14 +101,18 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		endpoint: input.endpoint,
 		startedAt: input.startedAt,
 		completedAt: input.endedAt,
+		promptStrategy: input.promptStrategy ?? null,
 		contextTokens: input.promptTokens,
+		contextBudgetTarget: input.contextBudgetTarget ?? null,
 		tokensPerSec,
 		outcome,
 		qualityOk: outcome === "success",
+		retriesBefore: input.retriesBefore ?? 0,
 		salvage: input.timeoutReason,
 		toolCalls: input.toolCalls,
 		knowledge: input.knowledge ?? null,
 		focusStep: input.focusStep ?? null,
+		artifacts: input.resultBranch ? { resultBranch: input.resultBranch, patchRef: null, evidenceBundle: null } : null,
 	});
 }
 

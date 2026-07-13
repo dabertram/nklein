@@ -45,7 +45,7 @@ import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
 import { summarizeAttemptKnowledgeUsage } from "../telemetry/attempt-knowledge-usage";
@@ -237,6 +237,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
+	// F1.14: the recovery-rung label for the task's NEXT terminal attempt event (promptStrategy) — stamped by the
+	// runtime's re-drive/steer rungs via noteNextAttemptStrategy, consumed (and cleared) at the terminal write.
+	private readonly nextAttemptStrategyByTaskId = new Map<string, string>();
 	/** §5.AN opt-in residency heartbeats, one per running task (auto-cleaned on session end). */
 	private readonly modelResidencyWatcher = createModelResidencyWatcher({
 		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId),
@@ -1973,6 +1976,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 	}
 
+	/** F1.14: label the task's NEXT attempt event with the recovery rung that produced it (e.g. redrive_empty_patch). */
+	noteNextAttemptStrategy(taskId: string, strategy: string): void {
+		this.nextAttemptStrategyByTaskId.set(taskId, strategy);
+	}
+
 	async sendTaskSessionInput(
 		taskId: string,
 		text: string,
@@ -2801,6 +2809,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls, { knowledgeDebtPresent });
 				// F1.5: the ledger and the reviewer prompt derive "the current step" from the SAME core helper.
 				const focusStep = currentFocusChainStep(this.focusChainStore.get(taskId))?.text ?? null;
+				// F1.14: the rung index = attempts this task already recorded (durable across restarts, so a re-driven
+				// round is never mistaken for a first try); the captured result branch is the attempt's durable output
+				// pointer; the configured context window is the budget its contextTokens are measured against.
+				const attemptStrategy = this.nextAttemptStrategyByTaskId.get(taskId) ?? null;
+				this.nextAttemptStrategyByTaskId.delete(taskId);
+				const priorAttempts = await readAgentLedger({
+					workspacePathHash: hashWorkspacePathForLedger(summary.workspacePath ?? null),
+					rootDir: this.diagnosticStoreRoot,
+				})
+					.then((events) => events.filter((event) => event.kind === "attempt" && event.taskId === taskId).length)
+					.catch(() => 0);
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,
@@ -2827,6 +2846,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						toolCalls,
 						knowledge,
 						focusStep,
+						resultBranch: this.sandboxState.getResultBranch(taskId)?.refName ?? null,
+						contextBudgetTarget: this.launchConfigByTaskId.get(taskId)?.contextWindow ?? null,
+						retriesBefore: priorAttempts,
+						promptStrategy: attemptStrategy,
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

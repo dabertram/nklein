@@ -79,6 +79,24 @@ describe("buildTerminalAttemptEvent", () => {
 		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
 	});
 
+	it("F1.14: records the rung, the result-branch artifact, and the context budget target", () => {
+		const event = buildTerminalAttemptEvent({
+			...base,
+			retriesBefore: 2,
+			resultBranch: "refs/nklein/tasks/t-1",
+			contextBudgetTarget: 32_768,
+		});
+		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
+		expect(event.retriesBefore).toBe(2);
+		expect(event.artifacts).toEqual({ resultBranch: "refs/nklein/tasks/t-1", patchRef: null, evidenceBundle: null });
+		expect(event.contextBudgetTarget).toBe(32_768);
+		// Defaults stay backward-compatible: no rung/branch/budget supplied ⇒ 0 / null / null.
+		const plain = buildTerminalAttemptEvent(base);
+		expect(plain.retriesBefore).toBe(0);
+		expect(plain.artifacts).toBeNull();
+		expect(plain.contextBudgetTarget).toBeNull();
+	});
+
 	it("tolerates missing timing/usage (null tok/s, no crash)", () => {
 		const event = buildTerminalAttemptEvent({
 			...base,

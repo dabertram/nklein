@@ -113,6 +113,8 @@ export interface NKleinTaskSessionService {
 	completeTaskSessionAfterDecomposition(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	cancelTaskTurn(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
+	/** F1.14: label the task's NEXT terminal attempt event with the recovery rung that produced it. */
+	noteNextAttemptStrategy(taskId: string, strategy: string): void;
 	sendTaskSessionInput(
 		taskId: string,
 		text: string,

@@ -470,6 +470,21 @@
   re-arms. 7 new tests (snapshot mapper, none/no_progress/hard_stuck/silent verdicts, pre-first-token exemption,
   slow-but-alive low-power non-trouble, steer messages incl. silent→null).
 
+- [x] **F1.14 — Finish production writes to the Agent Attempt Ledger** *(delivered 2026-07-13).* The terminal
+  attempt write (the ledger's production chokepoint — one event per terminal task run, incl. every re-driven
+  round) now records the fields it previously left at defaults: **rung** (`retriesBefore` = the count of attempts
+  this task already recorded in the durable ledger, so a re-driven round is never mistaken for a first try, robust
+  across restarts), **tool result reference** (`artifacts.resultBranch` = the captured result-branch ref — also
+  makes the F1.10 progress signal real for producing attempts), **resource observation**
+  (`contextBudgetTarget` = the session's configured context window alongside the already-recorded contextTokens
+  usage), and **prompt/profile** (`promptStrategy` = the recovery rung that produced the attempt: the runtime's
+  re-drive/steer rungs stamp `noteNextAttemptStrategy` — redrive_empty_patch / redrive_acceptance_failure /
+  redrive_boundary_violation / steer_no_progress|hard_stuck — consumed and cleared at the terminal write; null =
+  baseline). Endpoint/model/outcome/salvage/tool-calls/knowledge/focusStep were already recorded (F1.1/F1.5);
+  delivery decisions land as ledger transitions since the §5.AF gate event + F1.9b boundary hold. 1 new test
+  (rung + artifact + budget recorded; defaults stay backward-compatible) + the strategy plumb typechecked through
+  the service interface.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

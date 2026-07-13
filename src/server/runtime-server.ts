@@ -1664,6 +1664,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Empty-patch card ${taskId}: re-driving the worker once before holding (no file changes were captured).`,
 							);
+							service.noteNextAttemptStrategy(taskId, "redrive_empty_patch");
 							await retryWorkspaceStateLock(() =>
 								mutateWorkspaceState(scope.workspacePath, (latestState) => {
 									const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
@@ -1788,6 +1789,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Boundary-violating card ${taskId}: re-driving the worker once (${violationSummary}) before holding.`,
 								);
+								service.noteNextAttemptStrategy(taskId, "redrive_boundary_violation");
 								await retryWorkspaceStateLock(() =>
 									mutateWorkspaceState(scope.workspacePath, (latestState) => {
 										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
@@ -1835,6 +1837,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
 								);
+								service.noteNextAttemptStrategy(taskId, "redrive_acceptance_failure");
 								await retryWorkspaceStateLock(() =>
 									mutateWorkspaceState(scope.workspacePath, (latestState) => {
 										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
@@ -2551,6 +2554,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								).catch(() => {});
 								const steer = buildTroubleSteeringMessage(verdict);
 								if (steer) {
+									trackedService.noteNextAttemptStrategy(summary.taskId, `steer_${verdict.kind}`);
 									// The turn-loop guard's proven mid-session sequence: cancel the in-flight turn, then
 									// inject the steer. A session that ended on its own cancels to null — drop the nudge.
 									void trackedService
