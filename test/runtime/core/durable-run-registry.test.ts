@@ -44,17 +44,51 @@ describe("DurableRunRegistry", () => {
 		expect(registry.get("ws")).toBeNull();
 	});
 
-	it("reactToTaskSummary(awaiting_review) reports succeeded + ticks + auto-disposes a finished run", async () => {
+	it("F1.18: awaiting_review only heartbeats; reportDelivered is the dependency-releasing success", async () => {
 		const registry = new DurableRunRegistry();
 		const { controller } = controllerFor(["a"]);
 		registry.register("ws", controller);
 		await controller.tick(); // lease a
 
 		await registry.reactToTaskSummary("ws", "a", "awaiting_review");
+		// Review is NOT success: the job stays leased (alive, in review) and the run stays active.
+		expect(controller.jobsSnapshot()[0]?.state).toBe("leased");
+		expect(controller.isComplete()).toBe(false);
+		expect(registry.has("ws")).toBe(true);
+
+		// The DELIVERY completing is the real success — ticks + auto-disposes the finished run.
+		await registry.reportDelivered("ws", "a");
 		expect(controller.jobsSnapshot()[0]?.state).toBe("succeeded");
 		expect(controller.isComplete()).toBe(true);
-		// finished → auto-disposed so the registry doesn't leak it.
 		expect(registry.has("ws")).toBe(false);
+	});
+
+	it("F1.18 multi-card BOUNCE regression: dependents stay blocked through review + bounce; only delivery releases", async () => {
+		const registry = new DurableRunRegistry();
+		// B depends on A.
+		const graph = buildDurableJobGraph({ taskIds: ["a", "b"], dependencies: [{ fromTaskId: "b", toTaskId: "a" }] });
+		const fake = fakePorts();
+		const controller = new DurableRunController(graph, config, fake.ports);
+		registry.register("ws", controller);
+		await controller.tick();
+		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a"]); // only A leased; B blocked
+
+		// A reaches review — B must NOT start (review is not success).
+		await registry.reactToTaskSummary("ws", "a", "awaiting_review");
+		await controller.tick();
+		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a"]);
+		expect(controller.jobsSnapshot().find((j) => j.jobId === "b")?.state).toBe("blocked");
+
+		// Review BOUNCES A: the worker re-drives on the same lease (running heartbeats), reaches review again.
+		await registry.reactToTaskSummary("ws", "a", "running");
+		await registry.reactToTaskSummary("ws", "a", "awaiting_review");
+		await controller.tick();
+		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a"]); // B STILL blocked through the whole bounce round
+
+		// Only the DELIVERY completing releases B.
+		await registry.reportDelivered("ws", "a");
+		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a", "b"]);
+		expect(controller.jobsSnapshot().find((j) => j.jobId === "a")?.state).toBe("succeeded");
 	});
 
 	it("reactToTaskSummary(failed, transient) routes to a retry via the controller", async () => {

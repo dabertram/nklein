@@ -681,10 +681,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   completion persists, and the #28 acceptance-failure redrive dispatches acceptance_failed (→ implementing);
   holds absorb re-round prefixes. Remaining paths (LOW-priority residue — the mirror now covers the full happy +
   bounce + failure lifecycle): tRPC manual complete, CLI task commands.
-- [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
-  transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
-  dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,
-  with a multi-card bounce regression before the scheduler becomes default-on.
+- [ ] **F1.18b — Flip the durable scheduler default-on after a LIVE restart-mid-run validation (engineering
+  substance shipped 2026-07-13).** The F1.18 acceptance items are DONE: `awaiting_review` no longer releases
+  dependents (it heartbeats the lease; `DurableRunRegistry.reportDelivered` — called at the runtime's delivery
+  completion seam — is the ONLY dependency-releasing success), the multi-card bounce regression is locked
+  (dependents stay blocked through review + a full bounce/re-work round; only delivery cascades them), transitions
+  checkpoint to the ledger (scheduler events + the F1.27 wf:* stream), and boot-resume replays without duplicate
+  work (lease idempotency keys). REMAINING: the default-on flip itself — the controller-vs-cascade interaction
+  wants ONE live Docker restart-mid-run validation on a real multi-card decompose (kill the runtime mid-run,
+  restart, assert resumed leases + no duplicate starts + held reviews stay held) before removing the
+  NKLEIN_DURABLE_SCHEDULER opt-in. Fleet-adjacent; run with the real-model rail.
+
 - [ ] **F1.19 — Feed endpoint/pool saturation into durable admission.** Replace retry polling with event-driven wakeups,
   fairness, and starvation bounds.
 - [ ] **F1.20 — Complete the tool-capability manifest.** Add run-state, taint source/sink, semantic-error, replay,

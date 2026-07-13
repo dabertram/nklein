@@ -2,12 +2,8 @@ import { describe, expect, it } from "vitest";
 import { mapTaskSessionStateToDurableRunReaction } from "../../../src/core/durable-run-reaction";
 
 describe("mapTaskSessionStateToDurableRunReaction", () => {
-	it("awaiting_review (agent finished) → report succeeded", () => {
-		expect(mapTaskSessionStateToDurableRunReaction("awaiting_review")).toEqual({
-			type: "report",
-			outcome: "succeeded",
-			error: null,
-		});
+	it("F1.18: awaiting_review is NOT a dependency-releasing success — it heartbeats the lease", () => {
+		expect(mapTaskSessionStateToDurableRunReaction("awaiting_review")).toEqual({ type: "heartbeat" });
 	});
 
 	it("failed / interrupted → report failed, carrying the error text for transient classification", () => {

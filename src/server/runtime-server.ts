@@ -1988,6 +1988,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							};
 						}),
 					);
+					// F1.18: the DELIVERY is the durable run's dependency-releasing success (awaiting_review only
+					// heartbeats) — report it so the controller cascades the freed dependents.
+					void durableRunWiring?.observeDelivered(scope.workspaceId, taskId);
 					// F1.27b (leaf 5): the card DELIVERED — the kernel walks acceptance → review → delivery → completed
 					// (holds absorb whatever prefix already applied on earlier rounds).
 					dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [

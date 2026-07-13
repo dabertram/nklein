@@ -97,13 +97,15 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
 	});
 
-	it("completing a prerequisite cascades: the newly-unblocked dependent is dispatched", async () => {
+	it("F1.18: review does NOT cascade — only the delivery completing dispatches the dependent", async () => {
 		const { wiring, dispatches } = harness();
 		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] }, [{ fromTaskId: "b", toTaskId: "a" }]));
 		expect(dispatches.map((d) => d.taskId)).toEqual(["a"]); // b blocked
 
-		await wiring.observeSummary("ws1", "a", "awaiting_review"); // a's agent-job succeeded
-		expect(dispatches.map((d) => d.taskId)).toEqual(["a", "b"]); // b now dispatched
+		await wiring.observeSummary("ws1", "a", "awaiting_review"); // review is NOT success — b stays blocked
+		expect(dispatches.map((d) => d.taskId)).toEqual(["a"]);
+		await wiring.observeDelivered("ws1", "a"); // the delivery completing is the release
+		expect(dispatches.map((d) => d.taskId)).toEqual(["a", "b"]);
 	});
 
 	it("a running summary heartbeats the lease (no new dispatch)", async () => {
@@ -240,11 +242,9 @@ describe("createDurableRunWiring", () => {
 	it("serializes concurrent controller access per workspace (no double-lease under a summary/tick race)", async () => {
 		const { wiring, dispatches } = harness({ config: { maxConcurrentLeases: 1 } });
 		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] })); // cap 1 ⇒ one dispatched
-		// Fire a summary (completes a) and a timer tick CONCURRENTLY — serialization must prevent a double-lease.
-		await Promise.all([
-			wiring.observeSummary("ws1", dispatches[0]?.taskId ?? "a", "awaiting_review"),
-			wiring.tickAll(),
-		]);
+		// Fire a delivery report (completes a) and a timer tick CONCURRENTLY — serialization must prevent a
+		// double-lease (F1.18: the delivery report is the completing event, not the review summary).
+		await Promise.all([wiring.observeDelivered("ws1", dispatches[0]?.taskId ?? "a"), wiring.tickAll()]);
 		// Exactly the two cards start once each, never more (a double-lease would push dispatches past 2).
 		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "b"]);
 	});

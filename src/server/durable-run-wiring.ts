@@ -137,6 +137,8 @@ export interface DurableRunWiring {
 		state: RuntimeTaskSessionState,
 		error?: string | null,
 	): Promise<void>;
+	/** F1.18: the task's DELIVERY completed — the only dependency-releasing success (review alone never releases). */
+	observeDelivered(workspaceId: string, taskId: string): Promise<void>;
 	/**
 	 * Tick every active run (the timer path) — reclaims dead-lease workers and dispatches freed dependents. `liveTaskIdsFor`
 	 * (when supplied) reports which of a workspace's leased cards STILL have a live session; those leases are HEARTBEATED
@@ -256,6 +258,12 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 				return;
 			}
 			await runSerial(workspaceId, () => registry.reactToTaskSummary(workspaceId, taskId, state, error));
+		},
+		async observeDelivered(workspaceId, taskId) {
+			if (!deps.enabled) {
+				return;
+			}
+			await runSerial(workspaceId, () => registry.reportDelivered(workspaceId, taskId));
 		},
 
 		async tickAll(liveTaskIdsFor) {

@@ -68,4 +68,21 @@ export class DurableRunRegistry {
 			controller.heartbeat(taskId);
 		}
 	}
+
+	/**
+	 * F1.18: the DELIVERY completed (review approved + acceptance passed + merged/completed) — the job's real
+	 * success. This is the ONLY path that releases dependents; `awaiting_review` merely heartbeats (see
+	 * `mapTaskSessionStateToDurableRunReaction`).
+	 */
+	async reportDelivered(workspaceId: string, taskId: string): Promise<void> {
+		const controller = this.runs.get(workspaceId);
+		if (!controller) {
+			return;
+		}
+		await controller.reportCompletion(taskId, "succeeded", null);
+		await controller.tick();
+		if (controller.isComplete()) {
+			this.runs.delete(workspaceId);
+		}
+	}
 }

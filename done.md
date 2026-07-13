@@ -635,6 +635,18 @@
   low-priority manual-complete/CLI paths as residue. 1 new test (bounce → re-work → deliver walk incl. re-round
   prefix holds + the acceptance-failure route).
 
+- [x] **F1.18a — the durable scheduler's review-blocking semantics + the multi-card bounce regression** *(delivered
+  2026-07-13; the default-on flip is F1.18b, gated on a live restart-mid-run validation).* The package's central
+  correctness demand is implemented: `awaiting_review` is NO LONGER a dependency-releasing success —
+  `mapTaskSessionStateToDurableRunReaction` now HEARTBEATS the lease for a review-bound session (the job is alive,
+  in review; the review ladder can bounce it), and the ONLY success path is `DurableRunRegistry.reportDelivered`
+  (new), called from the runtime's delivery-completion seam via `durableRunWiring.observeDelivered` — i.e. after
+  review approval + fresh acceptance + merge + board completion. The named MULTI-CARD BOUNCE REGRESSION is locked:
+  a dependent stays `blocked` while its prerequisite sits in review, through a full bounce → re-work → re-review
+  round, and cascades ONLY on delivery. Checkpoints (scheduler lease events + the F1.27 wf:* transitions) and
+  boot-resume idempotency were already in place. 3 tests updated/new (reaction heartbeat, review-not-success +
+  delivered-releases with auto-dispose, the 2-card bounce regression).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
