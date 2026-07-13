@@ -62,6 +62,16 @@ export interface DurableRunPorts {
 	 * be lost: never reclaimed, never rerun). May be sync (tests) or async (real ledger I/O).
 	 */
 	appendLog(entry: DurableSchedulerLogEntry): void | Promise<void>;
+	/**
+	 * F1.19 OPTIONAL saturation-aware admission: given the current jobs + clock, return which ready jobs to
+	 * consider first (fairness/starvation order) and which to EXCLUDE this tick (their endpoint/pool is
+	 * saturated). Absent ⇒ the depth-priority default. The wiring implements it over `planDurableAdmission`
+	 * with live pool occupancy.
+	 */
+	planAdmission?(
+		jobs: readonly DurableJob[],
+		now: number,
+	): { readyOrder?: readonly string[]; excludedJobIds?: readonly string[] };
 	/** Start running a leased job (enqueue the card's session start). Fire-and-forget; completion returns via `reportCompletion`. */
 	dispatch(dispatch: DurableDispatch): void;
 }
@@ -143,9 +153,15 @@ export class DurableRunController {
 		// input order ⇒ readyOrder undefined). Rank the READY jobs by unblock value + anti-starvation so a high-fan-out
 		// prerequisite wins a scarce slot ahead of a cheap leaf; the scheduler still owns every eligibility gate — this
 		// only reorders which eligible job it considers first.
-		const readyOrder = isEnabledByDefaultEnv(process.env[DEPTH_PRIORITY_FLAG])
+		const depthOrder = isEnabledByDefaultEnv(process.env[DEPTH_PRIORITY_FLAG])
 			? orderReadyJobs({ jobs: this.jobs, now }).ordered.map((job) => job.jobId)
 			: undefined;
+		// F1.19: the saturation-aware admission plan (when the wiring supplies one) owns the candidate order and
+		// may EXCLUDE jobs whose pool is saturated this tick; its order wins over the depth priority.
+		const admission = this.ports.planAdmission?.(
+			this.jobs.map((job) => ({ ...job })),
+			now,
+		);
 		const actions = decideDurableSchedulerActions({
 			jobs: this.jobs,
 			now,
@@ -154,7 +170,8 @@ export class DurableRunController {
 			maxAttempts: this.config.maxAttempts,
 			reclaimBackoffMs: this.config.reclaimBackoffMs,
 			mintWorkerId: this.ports.mintWorkerId,
-			readyOrder,
+			readyOrder: admission?.readyOrder ?? depthOrder,
+			...(admission?.excludedJobIds ? { excludedJobIds: admission.excludedJobIds } : {}),
 		});
 		await this.commit(actions, now);
 		return actions;

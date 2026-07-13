@@ -692,8 +692,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   restart, assert resumed leases + no duplicate starts + held reviews stay held) before removing the
   NKLEIN_DURABLE_SCHEDULER opt-in. Fleet-adjacent; run with the real-model rail.
 
-- [ ] **F1.19 — Feed endpoint/pool saturation into durable admission.** Replace retry polling with event-driven wakeups,
-  fairness, and starvation bounds.
+- [ ] **F1.19b — Wire live pool occupancy into the admission planner (core SHIPPED 2026-07-13).** The
+  saturation-aware admission layer exists: `planDurableAdmission` (saturated pools exclude their candidates this
+  wake; fairness round-robins across pools longest-waiting-first; a starvation bound jumps a long-waiting
+  candidate to the front), the controller's optional `planAdmission` port (admission order wins over depth
+  priority; excluded jobs never lease — proven through a real controller), the scheduler's `excludedJobIds` gate,
+  and `createAdmissionWakeCoordinator` (capacity-freed/job-ready events → ONE debounced tick; the interval stays
+  fallback-only). REMAINING: the LIVE wiring — supply pool states from the endpoint gate/`lms ps` occupancy
+  (poolKey = endpoint × model), map jobs→pools in durable-run-wiring, and hook `capacityFreed` at the
+  session-terminal + model-unload seams (replacing the retry-poll timers for durable runs). Fleet-adjacent; wire
+  with F1.18b's live validation.
 - [ ] **F1.20 — Complete the tool-capability manifest.** Add run-state, taint source/sink, semantic-error, replay,
   idempotency, cost, and approval metadata for every offered tool.
 - [ ] **F1.21 — Make the manifest the single live access gate.** Route chat, NKlein, sandbox MCP, and delivery actions

@@ -84,6 +84,12 @@ export interface DurableSchedulerInput {
 	 * job that only became eligible this tick via reclaim/unblock is still leased, just after the pre-ranked ready set).
 	 */
 	readyOrder?: readonly string[];
+	/**
+	 * F1.19: jobIds that must NOT lease THIS tick — their endpoint/pool is saturated (the admission planner's
+	 * verdict). Every other gate is unchanged; an excluded job simply waits for a capacity-freed wake. Absent ⇒ no
+	 * exclusions (byte-identical to before).
+	 */
+	excludedJobIds?: readonly string[];
 }
 
 /**
@@ -199,11 +205,12 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 	// is unchanged, so under a scarce slot count the higher-unblock-value job wins instead of whichever sat earlier.
 	const leaseCandidates =
 		input.readyOrder === undefined ? input.jobs : orderLeaseCandidates(input.jobs, input.readyOrder);
+	const excluded = new Set(input.excludedJobIds ?? []);
 	for (const job of leaseCandidates) {
 		if (activeLeases >= maxConcurrent) {
 			break;
 		}
-		if (failedThisTick.has(job.jobId)) {
+		if (failedThisTick.has(job.jobId) || excluded.has(job.jobId)) {
 			continue;
 		}
 		const willBeReady = job.state === "ready" || reclaimedThisTick.has(job.jobId) || unblockedThisTick.has(job.jobId);

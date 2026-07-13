@@ -647,6 +647,19 @@
   boot-resume idempotency were already in place. 3 tests updated/new (reaction heartbeat, review-not-success +
   delivered-releases with auto-dispose, the 2-card bounce regression).
 
+- [x] **F1.19a — saturation-aware durable admission (core + controller hook)** *(delivered 2026-07-13; the live
+  pool-occupancy wiring is F1.19b, fleet-adjacent).* New `src/core/durable-admission.ts`:
+  `planDurableAdmission` — a saturated pool EXCLUDES its candidates this wake (leasing against a busy endpoint is
+  the retry-poll waste this replaces), admissible candidates interleave round-robin ACROSS pools
+  (longest-waiting-first within each — one hot pool can't monopolize the slots), and a STARVATION BOUND (default
+  10 min) jumps a long-waiting candidate to the front + flags it; unknown/unpooled candidates fail open. The
+  controller gains an optional `planAdmission` port (its order wins over the depth priority; the scheduler core
+  gains the `excludedJobIds` gate — an excluded job simply isn't leased this tick, proven through a real
+  controller: saturated ⇒ not leased despite a free slot, freed ⇒ leased next tick). Event-driven wakes:
+  `createAdmissionWakeCoordinator` coalesces capacity-freed/job-ready bursts into ONE debounced tick, demoting the
+  interval to a fallback heartbeat. 4 tests (exclusion + fairness interleave + unpooled, starvation front-jump
+  incl. saturated-flagged, controller integration, wake coalescing + dispose).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
