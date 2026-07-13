@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { decideSelfImprovementApproval, type SelfImprovementSignals } from "../../../src/core/self-improvement-gate";
+import {
+	collectSelfImprovementSignals,
+	decideSelfImprovementApproval,
+	isSelfImprovementPlanSlug,
+	type SelfImprovementSignals,
+} from "../../../src/core/self-improvement-gate";
 
 /** All gates green (the ONLY approving state). */
 function allPass(overrides: Partial<SelfImprovementSignals> = {}): SelfImprovementSignals {
@@ -64,5 +69,44 @@ describe("M4 self-improvement gate (§5.AF safety keystone)", () => {
 		expect(d.approve).toBe(false);
 		expect(d.blockers).toHaveLength(6);
 		expect(d.reason).toContain("BLOCKED");
+	});
+
+	describe("F1.25 — the delivery seam's signal collection", () => {
+		it("derives coverage from touched test files and the security check from taint + bounds", () => {
+			const clean = collectSelfImprovementSignals({
+				changedFiles: ["src/core/x.ts", "test/runtime/core/x.test.ts"],
+				fullSuitePassed: true,
+				taintLabels: [],
+				hadBoundaryViolations: false,
+			});
+			expect(clean.newTestCoverageAdded).toBe(true);
+			expect(clean.securityCheckPass).toBe(true);
+			// Auto-delivery can never satisfy the human gates — M4 never self-merges unsupervised.
+			expect(clean.humanMergeApproved).toBe(false);
+			expect(clean.humanReviewApproved).toBeNull();
+			expect(decideSelfImprovementApproval(clean).approve).toBe(false);
+
+			const noTests = collectSelfImprovementSignals({
+				changedFiles: ["src/core/x.ts"],
+				fullSuitePassed: true,
+				taintLabels: [],
+				hadBoundaryViolations: false,
+			});
+			expect(noTests.newTestCoverageAdded).toBe(false);
+
+			const tainted = collectSelfImprovementSignals({
+				changedFiles: ["src/core/x.ts", "test/x.test.ts"],
+				fullSuitePassed: true,
+				taintLabels: ["web"],
+				hadBoundaryViolations: false,
+			});
+			expect(tainted.securityCheckPass).toBe(false);
+		});
+
+		it("identifies self-improvement cards by the dogfood plan slug", () => {
+			expect(isSelfImprovementPlanSlug("dogfood-2026-07-13")).toBe(true);
+			expect(isSelfImprovementPlanSlug("habit-tracker")).toBe(false);
+			expect(isSelfImprovementPlanSlug(null)).toBe(false);
+		});
 	});
 });

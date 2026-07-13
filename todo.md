@@ -715,8 +715,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
-- [ ] **F1.25 — Finish the quarantined self-improvement delivery pipeline** *(legacy §5.AF/M4).* Require protected/full
-  gates, coverage delta, taint/capability review, human approval where specified, and an auditable merge decision.
 - [>] **F1.26 — Add deterministic replay evaluation for self-improvement patches** *(after F1.17 and F1.25).* Compare the
   proposal against baseline fixtures before approval and retain the result in the ledger.
 - [ ] **F1.28 — Complete the runtime-config facade split.** Move read/write/resolve/change-notify concerns behind stable

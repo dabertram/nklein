@@ -71,6 +71,11 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import {
+	collectSelfImprovementSignals,
+	decideSelfImprovementApproval,
+	isSelfImprovementPlanSlug,
+} from "../core/self-improvement-gate";
 import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
@@ -1820,6 +1825,56 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 						} catch {
 							// Observational only — never block delivery on a gate-evaluation failure.
+						}
+						// F1.25 (§5.AF M4): a SELF-IMPROVEMENT card (a dogfood plan targeting !Klein itself) may NEVER
+						// self-merge unsupervised — the fail-closed M4 gate runs on the delivery seam's real evidence and
+						// auto-delivery always lacks the human approvals, so the card HOLDS in Review with the blockers
+						// enumerated; the operator's reviewed MANUAL merge is the human-approval channel. Every decision
+						// is auditable (ledger transition + self-observation).
+						if (isSelfImprovementPlanSlug(deliveryCard?.generatedFromPlan?.planSlug)) {
+							const selfLedgerEvents = await readAgentLedger({
+								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+							}).catch(() => []);
+							const selfLastAttempt = selfLedgerEvents
+								.filter((event) => event.kind === "attempt" && event.taskId === taskId)
+								.at(-1);
+							const selfDecision = decideSelfImprovementApproval(
+								collectSelfImprovementSignals({
+									changedFiles,
+									fullSuitePassed: evidence.testsPassed,
+									taintLabels:
+										selfLastAttempt && selfLastAttempt.kind === "attempt"
+											? (selfLastAttempt.taintLabels ?? [])
+											: [],
+									hadBoundaryViolations: boundaryViolations.length > 0,
+								}),
+							);
+							void appendAgentLedgerEvent(
+								buildTransitionEvent({
+									workflowId: taskId,
+									taskId,
+									workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+									from: "review",
+									to: selfDecision.approve ? "self_improvement_approved" : "self_improvement_hold",
+									reason: selfDecision.reason.slice(0, 900),
+									controllerDecision: "m4_gate",
+								}),
+							).catch(() => {});
+							if (!selfDecision.approve) {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "info",
+									message: `M4 self-improvement gate held ${taskId} for the operator: ${selfDecision.blockers.join("; ")}`,
+									taskId,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "self_improvement_gate", blockers: selfDecision.blockers },
+								});
+								deps.warn(
+									`Self-improvement card ${taskId} held in Review (M4 fail-closed): ${selfDecision.blockers.join("; ")}. Review and merge manually.`,
+								);
+								await service.stopTaskSession(taskId).catch(() => null);
+								return;
+							}
 						}
 						if (boundaryViolations.length > 0) {
 							const violationSummary = boundaryViolations

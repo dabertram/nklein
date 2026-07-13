@@ -78,3 +78,51 @@ export function decideSelfImprovementApproval(signals: SelfImprovementSignals): 
 		reason: `M4 self-improvement patch BLOCKED (fail-closed) — unmet gate(s): ${blockers.join("; ")}.`,
 	};
 }
+
+// ---------------------------------------------------------------------------
+// F1.25 — the effectful pipeline's SIGNAL COLLECTION + card identity (the gate above only classifies).
+// ---------------------------------------------------------------------------
+
+/** A self-improvement card is identified by its dogfood plan slug (the §5.AF dogfood engine's naming). */
+export function isSelfImprovementPlanSlug(planSlug: string | null | undefined): boolean {
+	return typeof planSlug === "string" && planSlug.startsWith("dogfood-");
+}
+
+export interface CollectSelfImprovementSignalsInput {
+	/** The delivered result's ACTUAL changed files (the coverage-delta basis). */
+	changedFiles: readonly string[];
+	/** The FRESH full-suite acceptance verdict at the delivery seam. */
+	fullSuitePassed: boolean;
+	/** Deterministic replay/dev-test verdict; null = not run (a blocker — honest fail-closed). */
+	replayEvalPass?: boolean | null;
+	/** Taint labels the producing session accumulated (F1.21 terminal attempt record). */
+	taintLabels: readonly string[];
+	/** Whether the result violated its work-package bounds (F1.9b) — a capability red flag. */
+	hadBoundaryViolations: boolean;
+	/** Human decisions, when captured; absent = pending (a blocker). */
+	humanReviewApproved?: boolean | null;
+	humanMergeApproved?: boolean;
+}
+
+/**
+ * Map the delivery seam's REAL evidence into the M4 gate's signals:
+ *  - coverage delta = the patch touches at least one test file (a fix with no test is unproven);
+ *  - the automated taint/capability check passes only when the session accumulated NO untrusted taint AND the
+ *    result stayed inside its work-package bounds;
+ *  - human review/merge approvals default to pending/missing — auto-delivery can never satisfy them, which is
+ *    exactly M4's "never self-merges unsupervised" (the operator's reviewed MANUAL merge is the approval channel).
+ */
+export function collectSelfImprovementSignals(input: CollectSelfImprovementSignalsInput): SelfImprovementSignals {
+	const touchesTests = input.changedFiles.some((path) => {
+		const normalized = path.replace(/\\/g, "/");
+		return /(^|\/)test(s)?\//.test(normalized) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(normalized);
+	});
+	return {
+		protectedTestsPass: input.fullSuitePassed,
+		newTestCoverageAdded: touchesTests,
+		replayEvalPass: input.replayEvalPass ?? null,
+		securityCheckPass: input.taintLabels.length === 0 && !input.hadBoundaryViolations,
+		humanReviewApproved: input.humanReviewApproved ?? null,
+		humanMergeApproved: input.humanMergeApproved ?? false,
+	};
+}

@@ -728,6 +728,20 @@
   slot saturates the pool and the planner excludes its candidates. 4 tests (grant/shortfall/all-or-nothing +
   blind release, retry-replace semantics, fail-open, the admission fold).
 
+- [x] **F1.25 — the quarantined self-improvement delivery pipeline** *(delivered 2026-07-13).* The M4 fail-closed
+  gate (`decideSelfImprovementApproval` — a pure keystone with zero consumers until now) is LIVE at the delivery
+  seam: a card born from a DOGFOOD plan (`isSelfImprovementPlanSlug` — the §5.AF dogfood engine's `dogfood-*`
+  naming) runs the gate on the seam's REAL evidence via `collectSelfImprovementSignals` — protected/full gates
+  from the fresh acceptance verdict, COVERAGE DELTA derived from whether the patch touches any test file,
+  TAINT/CAPABILITY review as an automated signal (the F1.21 session taint record must be empty AND the F1.9b
+  boundary check clean), replay-eval honestly `null` (a blocker) until the F1.26 replay evaluation lands, and the
+  human review/merge approvals default pending/missing — so AUTO-delivery of a self-improvement patch ALWAYS
+  holds in Review with the blockers enumerated ("M4 never self-merges unsupervised" BY CONSTRUCTION), and the
+  operator's reviewed MANUAL merge is the human-approval channel. Every decision is AUDITABLE: a ledger
+  transition (`review → self_improvement_approved|hold`, controllerDecision m4_gate, reason = the gate's verdict)
+  plus a self-observation naming the blockers. 2 new tests (signal derivation: coverage/taint/bounds + the
+  never-unsupervised invariant; slug identity).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
