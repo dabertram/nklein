@@ -1,8 +1,10 @@
 import {
 	applyFocusChainStepTiming,
 	applyFocusChainStepTouches,
+	diffFocusChainTransitions,
 	type FocusChain,
 	type FocusChainStepTouchDelta,
+	type FocusChainStepTransition,
 	type FocusChainSummary,
 	normalizeFocusChain,
 	repairFocusChainRegression,
@@ -36,6 +38,8 @@ export function createFocusChainStore(deps: {
 	onUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
 	/** F1.5 — a destructive re-emit was rejected (the prior chain was kept); surface it, e.g. as an observation. */
 	onRepaired?: (taskId: string, reason: string) => void;
+	/** F1.5 — per-step status transitions of an accepted update (durable history; e.g. appended to the ledger). */
+	onTransitions?: (taskId: string, transitions: FocusChainStepTransition[]) => void;
 }): FocusChainStore {
 	const chainByTaskId = new Map<string, FocusChain>();
 
@@ -71,6 +75,12 @@ export function createFocusChainStore(deps: {
 			const timed = applyFocusChainStepTiming(previous, chain, deps.now());
 			const withTouches = applyFocusChainStepTouches(previous, timed);
 			chainByTaskId.set(taskId, withTouches);
+			if (deps.onTransitions) {
+				const transitions = diffFocusChainTransitions(previous, withTouches);
+				if (transitions.length > 0) {
+					deps.onTransitions(taskId, transitions);
+				}
+			}
 			void deps.onUpdated?.(taskId, withTouches);
 		},
 		applyTouches(taskId, delta) {

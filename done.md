@@ -359,6 +359,19 @@
   rejects the emit with an explanatory tool result ("re-emit the FULL list including finished steps") so the model
   can self-correct. 5 new tests across core verdicts, board-store rejection semantics, and the chat tool.
 
+- [x] **F1.5 — Focus chains durable across every agent surface (COMPLETE)** *(third leaf delivered 2026-07-13;
+  closes the package).* Seeding: `seedFocusChainFromPlanTask` builds an implement/produce/verify chain from a plan
+  task's contract fields (expected outputs, acceptance checks) — a fresh plan-born card starts verification-aware,
+  applied through the normal path so it persists to the card and renders immediately; a card with a persisted
+  chain rehydrates silently instead (the leaf-1 path, now `{chain, source}`-tagged); contract-less tasks keep the
+  draft-your-own flow. Transition history: `diffFocusChainTransitions` (text-matched, `from: null` for new steps)
+  runs inside `applyStep` and every accepted step-status change lands durably in the attempt ledger as a
+  `transition` event (`focus:<from>` → `focus:<to>`, reason `focus_step: <text>`) — step HISTORY survives beyond
+  the snapshot, and rejected destructive re-emits produce none. Chat's per-session JSON store stays as-is
+  deliberately (it is already durable; the surfaces share the pure core — unifying the stores is hygiene, not
+  acceptance). With leaf 1 (canonical current step + rehydration) and leaf 2 (repair guard) this completes:
+  persisted steps ✓, transitions ✓, seed/repair on board + chat ✓, reviewer/ledger agreement ✓. 5 new tests.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

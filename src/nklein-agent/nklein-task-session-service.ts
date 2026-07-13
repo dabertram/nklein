@@ -23,6 +23,7 @@ import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
+import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import { buildAttemptRetryNoteFromLedger } from "../core/agent-ledger-projections";
 import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
@@ -79,7 +80,11 @@ import {
 	type NKleinTaskRestartLaunchConfig,
 	normalizeLaunchConfig,
 } from "./nklein-launch-config";
-import { buildTerminalAttemptEvent, resolveTaskKnowledgeDebtPresent } from "./nklein-ledger-attempt";
+import {
+	buildTerminalAttemptEvent,
+	hashWorkspacePathForLedger,
+	resolveTaskKnowledgeDebtPresent,
+} from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
@@ -400,7 +405,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	/** F1.5 — loads the card's persisted focus chain so the live store rehydrates on session start/rebind. */
-	private readonly loadPersistedFocusChain: ((taskId: string) => Promise<FocusChain | null>) | undefined;
+	private readonly loadPersistedFocusChain:
+		| ((taskId: string) => Promise<{ chain: FocusChain; source: "persisted" | "seeded" } | null>)
+		| undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
 	/** §5.AC "knows today" runtime-config switch (off by default); live-updated with config, OR-ed with the env override. */
 	private knowsTodayEnabled: boolean;
@@ -432,6 +439,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				taskId,
 				metadata: { category: "focus_chain_repair" },
 			});
+		},
+		// F1.5 transition history: every accepted step-status change lands durably in the attempt ledger (one
+		// `transition` event per step change, reason "focus_step"), so step history survives beyond the snapshot.
+		onTransitions: (taskId, transitions) => {
+			const entry = this.messageRepository.getTaskEntry(taskId);
+			for (const transition of transitions) {
+				void appendAgentLedgerEvent(
+					buildTransitionEvent({
+						workflowId: taskId,
+						taskId,
+						workspacePathHash: hashWorkspacePathForLedger(entry?.summary.workspacePath ?? null),
+						role: null,
+						from: transition.from ? `focus:${transition.from}` : null,
+						to: `focus:${transition.to}`,
+						reason: `focus_step: ${transition.stepText}`,
+					}),
+					{ rootDir: this.diagnosticStoreRoot },
+				).catch(() => undefined);
+			}
 		},
 	});
 	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
@@ -1303,14 +1329,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
-		// F1.5 rehydration: the card's persisted focus chain survives restarts, but the LIVE store starts empty —
-		// reseed it (fire-and-forget; seed never clobbers a chain the session emits first) so per-step timing and
-		// the ledger's current-step reference survive a runtime restart or rebind.
+		// F1.5 rehydration + seeding: the card's persisted focus chain survives restarts, but the LIVE store starts
+		// empty — reseed it (never clobbers a chain the session emits first). A fresh plan-born card with NO chain
+		// yet gets an initial one from its plan task's contract, applied through the normal path so it persists to
+		// the card and shows in the UI immediately.
 		void this.loadPersistedFocusChain?.(request.taskId)
-			.then((chain) => {
-				if (chain) {
-					this.focusChainStore.seed(request.taskId, chain);
+			.then((loaded) => {
+				if (!loaded) {
+					return;
 				}
+				if (loaded.source === "seeded") {
+					if (!this.focusChainStore.get(request.taskId)) {
+						this.focusChainStore.applyStep(request.taskId, loaded.chain);
+					}
+					return;
+				}
+				this.focusChainStore.seed(request.taskId, loaded.chain);
 			})
 			.catch(() => undefined);
 		const existing = this.messageRepository.getTaskEntry(request.taskId);

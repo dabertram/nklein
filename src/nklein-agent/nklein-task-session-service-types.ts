@@ -247,8 +247,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	onCardPromoted?: NKleinCardPromotedHandler;
 	/** Persist an agent's focus chain (todo §5.N) when it calls `update_focus_chain`. */
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
-	/** F1.5 — load the card's persisted focus chain for live-store rehydration on session start/rebind. */
-	loadPersistedFocusChain?: (taskId: string) => Promise<FocusChain | null>;
+	/**
+	 * F1.5 — load the task's focus chain for session start: the card's PERSISTED chain (source "persisted",
+	 * rehydrates the live store silently) or a fresh SEED from the plan task's contract (source "seeded", applied
+	 * through the normal path so it persists + renders). Null when neither exists.
+	 */
+	loadPersistedFocusChain?: (taskId: string) => Promise<{ chain: FocusChain; source: "persisted" | "seeded" } | null>;
 	/**
 	 * §12 turn-loop ladder, escalate-model rung: a running agent confirmed LOOPING on a boundary it cannot resolve,
 	 * with a lineage-diverse loaded model available. The runtime effects the §5.AG routing (card-mailbox boundary

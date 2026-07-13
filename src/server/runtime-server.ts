@@ -41,6 +41,7 @@ import {
 } from "../core/delivery-evidence";
 import { isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
+import { seedFocusChainFromPlanTask } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
@@ -101,6 +102,7 @@ import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attemp
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
+import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import {
 	createInMemoryNKleinTaskSessionService,
 	type NKleinModelTurnAdmissionGate,
@@ -2179,12 +2181,30 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						);
 					}
 				},
-				// F1.5 rehydration read-side: the card's persisted chain reseeds the service's live store on session
-				// start, so per-step timing and the ledger's current-step survive a runtime restart.
+				// F1.5 rehydration + seeding read-side: the card's persisted chain reseeds the service's live store on
+				// session start (timing survives restarts); a fresh plan-born card with no chain yet gets an initial
+				// one from its plan task's contract fields (expected outputs → Produce steps, acceptance checks →
+				// Verify steps) so the worker starts verification-aware.
 				loadPersistedFocusChain: async (taskId) => {
 					const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
 					const card = state?.board.columns.flatMap((column) => column.cards).find((c) => c.id === taskId);
-					return card?.focusChain ?? null;
+					if (card?.focusChain) {
+						return { chain: card.focusChain, source: "persisted" as const };
+					}
+					const origin = card?.generatedFromPlan;
+					if (!origin) {
+						return null;
+					}
+					const artifacts = await readNKleinPlanArtifacts(scope.workspacePath, origin.planSlug).catch(() => null);
+					const planTask = artifacts?.taskGraph.tasks.find((task) => task.id === origin.planTaskId);
+					const seeded = planTask
+						? seedFocusChainFromPlanTask({
+								title: planTask.title,
+								expectedOutputs: planTask.expectedOutputs,
+								acceptanceChecks: planTask.acceptanceChecks,
+							})
+						: null;
+					return seeded ? { chain: seeded, source: "seeded" as const } : null;
 				},
 				onFocusChainUpdated: async (taskId, chain) => {
 					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.

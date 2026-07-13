@@ -3,12 +3,14 @@ import {
 	applyFocusChainStepTiming,
 	applyFocusChainStepTouches,
 	currentFocusChainStep,
+	diffFocusChainTransitions,
 	formatFocusChainForPrompt,
 	MAX_FOCUS_CHAIN_STEP_TEXT,
 	MAX_FOCUS_CHAIN_STEP_TOUCHES,
 	MAX_FOCUS_CHAIN_STEPS,
 	normalizeFocusChain,
 	repairFocusChainRegression,
+	seedFocusChainFromPlanTask,
 	summarizeFocusChain,
 } from "../../src/core/focus-chain";
 
@@ -318,5 +320,50 @@ describe("repairFocusChainRegression (F1.5 destructive-re-emit guard)", () => {
 			updatedAt: 1,
 		});
 		expect(noPrior.repaired).toBe(false);
+	});
+});
+
+describe("seedFocusChainFromPlanTask (F1.5 seeding)", () => {
+	it("builds implement/produce/verify steps from the plan task's contract", () => {
+		const chain = seedFocusChainFromPlanTask(
+			{
+				title: "Build the habit store",
+				expectedOutputs: ["src/habit-store.ts", "  "],
+				acceptanceChecks: ["npm test passes"],
+			},
+			500,
+		);
+		expect(chain?.updatedAt).toBe(500);
+		expect(chain?.steps.map((step) => `${step.status}:${step.text}`)).toEqual([
+			"in_progress:Implement: Build the habit store",
+			"pending:Produce: src/habit-store.ts",
+			"pending:Verify: npm test passes",
+		]);
+	});
+
+	it("returns null when the plan task carries no contract (the agent drafts its own chain)", () => {
+		expect(seedFocusChainFromPlanTask({ title: "Bare card" })).toBeNull();
+		expect(
+			seedFocusChainFromPlanTask({ title: "Bare card", expectedOutputs: [], acceptanceChecks: ["  "] }),
+		).toBeNull();
+	});
+});
+
+describe("diffFocusChainTransitions (F1.5 transition history)", () => {
+	it("reports new steps (from null) and status changes, matched by text", () => {
+		const previous = normalizeFocusChain([
+			{ text: "A", status: "in_progress" },
+			{ text: "B", status: "pending" },
+		]);
+		const next = normalizeFocusChain([
+			{ text: "A", status: "done" },
+			{ text: "B", status: "pending" },
+			{ text: "C", status: "in_progress" },
+		]) as NonNullable<ReturnType<typeof normalizeFocusChain>>;
+		expect(diffFocusChainTransitions(previous, next)).toEqual([
+			{ stepText: "A", from: "in_progress", to: "done" },
+			{ stepText: "C", from: null, to: "in_progress" },
+		]);
+		expect(diffFocusChainTransitions(next, next)).toEqual([]);
 	});
 });

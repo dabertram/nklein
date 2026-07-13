@@ -186,6 +186,63 @@ export function summarizeFocusChain(chain: FocusChain | null | undefined): Focus
 	};
 }
 
+/**
+ * F1.5 — seed an initial focus chain from a plan task's CONTRACT fields (a plan-born card starts with a concrete,
+ * verification-aware plan instead of waiting for the agent to draft one). Steps: implement the card, produce each
+ * expected output, verify each acceptance check — capped by the normalizer. Returns null when the plan task
+ * carries no contract at all (the agent drafts its own chain, exactly as before).
+ */
+export function seedFocusChainFromPlanTask(
+	planTask: {
+		title: string;
+		expectedOutputs?: readonly string[];
+		acceptanceChecks?: readonly string[];
+	},
+	now: number = Date.now(),
+): FocusChain | null {
+	const outputs = (planTask.expectedOutputs ?? []).map((output) => output.trim()).filter(Boolean);
+	const checks = (planTask.acceptanceChecks ?? []).map((check) => check.trim()).filter(Boolean);
+	if (outputs.length === 0 && checks.length === 0) {
+		return null;
+	}
+	return normalizeFocusChain(
+		[
+			{ text: `Implement: ${planTask.title}`, status: "in_progress" },
+			...outputs.map((output) => ({ text: `Produce: ${output}`, status: "pending" as const })),
+			...checks.map((check) => ({ text: `Verify: ${check}`, status: "pending" as const })),
+		],
+		now,
+	);
+}
+
+/** F1.5 — one step's status transition between two chain snapshots (matched by step text, like the timing carry). */
+export interface FocusChainStepTransition {
+	stepText: string;
+	from: FocusChainStepStatus | null;
+	to: FocusChainStepStatus;
+}
+
+/**
+ * F1.5 — diff two chain snapshots into per-step STATUS transitions (new steps report `from: null`; removed steps
+ * report nothing — removal is visible as the next snapshot's absence, and the repair guard already blocks
+ * destructive removals). The store's applyStep has both snapshots in hand; the wiring appends these to the attempt
+ * ledger so step history is durable and reviewer/ledger consumers can reconstruct the path, not just the endpoint.
+ */
+export function diffFocusChainTransitions(
+	previous: FocusChain | null | undefined,
+	next: FocusChain,
+): FocusChainStepTransition[] {
+	const previousByText = new Map((previous?.steps ?? []).map((step) => [step.text, step.status]));
+	const transitions: FocusChainStepTransition[] = [];
+	for (const step of next.steps) {
+		const before = previousByText.get(step.text) ?? null;
+		if (before !== step.status) {
+			transitions.push({ stepText: step.text, from: before, to: step.status });
+		}
+	}
+	return transitions;
+}
+
 /** The verdict of the F1.5 destructive-re-emit guard: the chain to keep, and why a repair fired (null = accepted). */
 export interface FocusChainRepairVerdict {
 	chain: FocusChain;

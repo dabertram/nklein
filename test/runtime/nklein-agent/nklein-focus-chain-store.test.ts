@@ -131,3 +131,26 @@ describe("focus chain store repair guard (F1.5)", () => {
 		expect(store.get("task-1")?.steps.map((step) => step.text)).toEqual(["Done step", "Active step"]);
 	});
 });
+
+describe("focus chain store transition hook (F1.5)", () => {
+	it("emits per-step transitions for accepted updates only", () => {
+		const transitions: string[] = [];
+		const store = createFocusChainStore({
+			now: () => 1_000,
+			onTransitions: (_taskId, changes) => {
+				transitions.push(...changes.map((change) => `${change.stepText}:${change.from ?? "new"}→${change.to}`));
+			},
+		});
+		store.applyStep("task-1", { steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 });
+		store.applyStep("task-1", {
+			steps: [
+				{ text: "A", status: "done" },
+				{ text: "B", status: "pending" },
+			],
+			updatedAt: 2,
+		});
+		// A destructive re-emit is rejected — no transitions for it.
+		store.applyStep("task-1", { steps: [], updatedAt: 3 });
+		expect(transitions).toEqual(["A:new→in_progress", "A:in_progress→done", "B:new→pending"]);
+	});
+});
