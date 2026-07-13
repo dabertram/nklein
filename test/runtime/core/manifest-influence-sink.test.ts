@@ -114,4 +114,17 @@ describe("manifestProtectedInfluenceKinds", () => {
 			expect(isProtectedInfluence(kind)).toBe(true);
 		}
 	});
+
+	it("F1.20: manifest-DECLARED sinks (secrets/git_delivery/capabilities) union into the projection", () => {
+		const kinds = manifestProtectedInfluenceKinds({
+			mutationLevel: "sandbox_write",
+			networkLevel: "none",
+			fsScope: "workspace",
+			approval: "confirm",
+			replayable: false,
+			taintSinks: ["git_delivery", "secrets"],
+		});
+		expect(kinds).toContain("git_delivery");
+		expect(kinds).toContain("secrets");
+	});
 });

@@ -8,8 +8,12 @@ import {
 	auditDetailForManifest,
 	decideManifestChatAccess,
 	KANBAN_TOOL_MANIFESTS,
+	manifestCost,
 	manifestForChatAction,
 	manifestForKanbanTool,
+	manifestIdempotent,
+	manifestReplayPolicy,
+	manifestTaintSource,
 	type ToolCapabilityManifest,
 	toolPoliciesFromManifests,
 } from "../../../src/core/tool-capability-manifest";
@@ -237,6 +241,34 @@ describe("toolPoliciesFromManifests (§5.AF slice 3 — NKlein static tool-polic
 		expect(toolPoliciesFromManifests(synthetic)).toEqual({
 			some_host_egress_tool: { enabled: true, autoApprove: false },
 			some_read_tool: { enabled: true, autoApprove: false },
+		});
+	});
+
+	describe("F1.20 completed metadata (defaulted accessors + per-tool population)", () => {
+		it("defaults: reads are idempotent/reconfirm, mutations are not/reuse; egress ingests untrusted content", () => {
+			const read = manifestForKanbanTool("find_files");
+			const write = manifestForKanbanTool("apply_patch");
+			if (!read || !write) {
+				throw new Error("expected manifests");
+			}
+			expect(manifestIdempotent(read)).toBe(true);
+			expect(manifestReplayPolicy(read)).toBe("reconfirm");
+			expect(manifestTaintSource(read)).toBe("none");
+			expect(manifestIdempotent(write)).toBe(false); // relative patch — repeat double-applies
+			expect(manifestReplayPolicy(write)).toBe("reuse"); // a side effect never re-fires on replay
+			expect(manifestTaintSource(manifestForChatAction("egress_read"))).toBe("untrusted_content");
+		});
+
+		it("per-tool population: absolute writes are idempotent, relative edits are not; costs + semantic errors set", () => {
+			expect(manifestIdempotent(manifestForKanbanTool("write_file") ?? ({} as never))).toBe(true);
+			expect(manifestIdempotent(manifestForKanbanTool("edit_file") ?? ({} as never))).toBe(false);
+			expect(manifestCost(manifestForKanbanTool("read_large_file") ?? ({} as never))).toBe("expensive");
+			expect(manifestCost(manifestForKanbanTool("list_files") ?? ({} as never))).toBe("trivial");
+			expect(manifestForKanbanTool("edit_file")?.semanticErrors).toContain("search_not_found");
+			// EVERY offered kanban tool now declares semantic-error metadata.
+			for (const [name, manifest] of Object.entries(KANBAN_TOOL_MANIFESTS)) {
+				expect(manifest.semanticErrors?.length, name).toBeGreaterThan(0);
+			}
 		});
 	});
 });

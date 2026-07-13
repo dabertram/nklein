@@ -660,6 +660,21 @@
   interval to a fallback heartbeat. 4 tests (exclusion + fairness interleave + unpooled, starvation front-jump
   incl. saturated-flagged, controller integration, wake coalescing + dispose).
 
+- [x] **F1.20 — Complete the tool-capability manifest** *(delivered 2026-07-13).* The manifest gains the metadata
+  its three axes could not express, each with ONE defaulted accessor so consumers never re-derive:
+  `taintSource` (does the tool INGEST attacker-authorable content; default: egress ⇒ untrusted_content —
+  `egress_read` now declares it explicitly), `taintSinks` (the §5.L sinks the axis projection can't derive —
+  secrets/git_delivery/capabilities — now DECLARABLE and unioned into `manifestProtectedInfluenceKinds`, closing
+  the slice that module's header owed), `semanticErrors` (recovery-routing classes, populated for EVERY kanban
+  tool — locked by a test), `replayPolicy` (the F1.17 vocabulary; default replayable ⇒ reconfirm else reuse),
+  `idempotent` (default: reads yes, mutations no — POPULATED per tool: absolute-content writes
+  write_file/write_files/editor ARE idempotent, relative apply_patch/edit_file are NOT), and `cost`
+  (trivial/moderate/expensive; read_large_file + egress reads marked expensive, listings trivial). Run-state
+  metadata is deliberately NOT duplicated: `mutationLevel` already fully determines phase availability
+  (`runPhasePolicy`/`isToolAllowedInPhase` + `manifest-phase-gate`) — a second field would drift. Approval was
+  already first-class. 3 new tests (default rules, per-tool population incl. the all-tools semantic-error lock,
+  declared-sink union).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

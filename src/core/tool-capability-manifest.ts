@@ -49,6 +49,12 @@ export type ToolApproval =
 	/** Needs the typed host-escape phrase (whole-session host access). */
 	| "typed_host";
 
+/** F1.20: whether the tool INGESTS content an attacker could author (web pages, external/untrusted files). */
+export type ToolTaintSource = "none" | "untrusted_content";
+
+/** F1.20: coarse cost class (context/tokens/wall) for budgeting + phase tool selection. */
+export type ToolCostClass = "trivial" | "moderate" | "expensive";
+
 export interface ToolCapabilityManifest {
 	mutationLevel: ToolMutationLevel;
 	networkLevel: ToolNetworkLevel;
@@ -57,6 +63,44 @@ export interface ToolCapabilityManifest {
 	approval: ToolApproval;
 	/** Whether the action is deterministically replayable (no external side effects) — for §5.V replay + audit. */
 	replayable: boolean;
+	// ── F1.20 completion — the metadata the three-axis manifest could not express. All OPTIONAL with defaulted
+	// accessors below, so existing literals stay valid and every consumer reads ONE defaulting rule.
+	// (Run-state metadata is deliberately NOT duplicated here: `mutationLevel` already fully determines phase
+	// availability via `runPhasePolicy`/`isToolAllowedInPhase` + `manifest-phase-gate` — a second field would drift.)
+	/** Taint SOURCE role (the sink side is derived — `manifestProtectedInfluenceKinds` + `taintSinks` below). */
+	taintSource?: ToolTaintSource;
+	/** §5.L protected sinks the axis projection cannot derive (secrets / git_delivery / capabilities), when touched. */
+	taintSinks?: readonly ("secrets" | "git_delivery" | "capabilities")[];
+	/** Coarse semantic-error classes the tool can produce, for recovery routing (e.g. "not_found", "out_of_scope"). */
+	semanticErrors?: readonly string[];
+	/** F1.17 replay policy default (reuse|simulate|skip|reconfirm); absent ⇒ replayable ? reconfirm : reuse. */
+	replayPolicy?: "reuse" | "simulate" | "skip" | "reconfirm";
+	/** Whether re-executing the SAME call is safe; absent ⇒ reads are idempotent, mutations are not. */
+	idempotent?: boolean;
+	/** Coarse cost class; absent ⇒ moderate. */
+	cost?: ToolCostClass;
+}
+
+// ── F1.20 defaulted accessors: the ONE defaulting rule every consumer shares. ─────────────────────────────────
+
+export function manifestTaintSource(manifest: ToolCapabilityManifest): ToolTaintSource {
+	if (manifest.taintSource !== undefined) {
+		return manifest.taintSource;
+	}
+	// A network read ingests attacker-authorable content by construction.
+	return manifest.networkLevel === "egress" || manifest.networkLevel === "egress_read" ? "untrusted_content" : "none";
+}
+
+export function manifestReplayPolicy(manifest: ToolCapabilityManifest): "reuse" | "simulate" | "skip" | "reconfirm" {
+	return manifest.replayPolicy ?? (manifest.replayable ? "reconfirm" : "reuse");
+}
+
+export function manifestIdempotent(manifest: ToolCapabilityManifest): boolean {
+	return manifest.idempotent ?? manifest.mutationLevel === "read";
+}
+
+export function manifestCost(manifest: ToolCapabilityManifest): ToolCostClass {
+	return manifest.cost ?? "moderate";
 }
 
 /**
@@ -98,6 +142,8 @@ export function manifestForChatAction(action: ChatActionKind): ToolCapabilityMan
 				fsScope: "workspace",
 				approval: "confirm",
 				replayable: true,
+				taintSource: "untrusted_content",
+				cost: "expensive",
 			};
 		case "host_read":
 			return { mutationLevel: "read", networkLevel: "none", fsScope: "host", approval: "confirm", replayable: true };
@@ -142,18 +188,43 @@ const SANDBOX_WRITE_TOOL_MANIFEST: ToolCapabilityManifest = {
  * on top; unifying THOSE is a later slice. The tiers are cross-checkable through {@link decideManifestChatAccess}.
  */
 export const KANBAN_TOOL_MANIFESTS: Readonly<Record<string, ToolCapabilityManifest>> = {
-	find_files: READ_TOOL_MANIFEST,
-	list_files: READ_TOOL_MANIFEST,
-	get_file_size: READ_TOOL_MANIFEST,
-	read_files: READ_TOOL_MANIFEST,
-	read_large_file: READ_TOOL_MANIFEST,
-	write_file: SANDBOX_WRITE_TOOL_MANIFEST,
-	write_files: SANDBOX_WRITE_TOOL_MANIFEST,
-	editor: SANDBOX_WRITE_TOOL_MANIFEST,
-	apply_patch: SANDBOX_WRITE_TOOL_MANIFEST,
+	// F1.20: reads — idempotent, cheap-to-reverify (reconfirm on replay); workspace file CONTENT is repo-trusted
+	// (repo_instruction taint is the content scanner's concern, not the tool's ingestion role).
+	find_files: { ...READ_TOOL_MANIFEST, cost: "trivial", semanticErrors: ["not_found"] },
+	list_files: { ...READ_TOOL_MANIFEST, cost: "trivial", semanticErrors: ["not_found"] },
+	get_file_size: { ...READ_TOOL_MANIFEST, cost: "trivial", semanticErrors: ["not_found"] },
+	read_files: { ...READ_TOOL_MANIFEST, semanticErrors: ["not_found", "out_of_scope", "too_large"] },
+	read_large_file: { ...READ_TOOL_MANIFEST, cost: "expensive", semanticErrors: ["not_found", "out_of_scope"] },
+	// F1.20: writes — never re-fire on replay (reuse). write_file/write_files/editor set ABSOLUTE content, so a
+	// repeat of the identical call is idempotent; apply_patch/edit_file are RELATIVE (context/search-replace) —
+	// a repeat against the mutated file fails or double-applies, so they are NOT idempotent.
+	write_file: {
+		...SANDBOX_WRITE_TOOL_MANIFEST,
+		idempotent: true,
+		semanticErrors: ["out_of_scope", "too_large", "secret_detected"],
+	},
+	write_files: {
+		...SANDBOX_WRITE_TOOL_MANIFEST,
+		idempotent: true,
+		semanticErrors: ["out_of_scope", "too_large", "secret_detected"],
+	},
+	editor: {
+		...SANDBOX_WRITE_TOOL_MANIFEST,
+		idempotent: true,
+		semanticErrors: ["out_of_scope", "too_large", "secret_detected"],
+	},
+	apply_patch: {
+		...SANDBOX_WRITE_TOOL_MANIFEST,
+		idempotent: false,
+		semanticErrors: ["out_of_scope", "patch_context_mismatch", "secret_detected"],
+	},
 	// edit_file — the token-efficient search/replace edit tool: same sandbox-write tier as the other write tools
 	// (§5.BF follow-up 2026-07-11: it is now an approval-required policy tool, so it needs its manifest + card too).
-	edit_file: SANDBOX_WRITE_TOOL_MANIFEST,
+	edit_file: {
+		...SANDBOX_WRITE_TOOL_MANIFEST,
+		idempotent: false,
+		semanticErrors: ["out_of_scope", "search_not_found", "secret_detected"],
+	},
 };
 
 /** The capability manifest for a kanban task tool by name, or `null` when the name isn't a declared kanban tool. */

@@ -702,8 +702,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (poolKey = endpoint × model), map jobs→pools in durable-run-wiring, and hook `capacityFreed` at the
   session-terminal + model-unload seams (replacing the retry-poll timers for durable runs). Fleet-adjacent; wire
   with F1.18b's live validation.
-- [ ] **F1.20 — Complete the tool-capability manifest.** Add run-state, taint source/sink, semantic-error, replay,
-  idempotency, cost, and approval metadata for every offered tool.
+
 - [ ] **F1.21 — Make the manifest the single live access gate.** Route chat, NKlein, sandbox MCP, and delivery actions
   through `decideManifestAccess` while preserving delivery-autonomy rules as a separate axis.
 - [>] **F1.22 — Prove manifest behavior parity** *(after F1.20–F1.21).* Lock all mode×action cells, current rulesets,

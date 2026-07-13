@@ -18,9 +18,9 @@
  * `taint-labels.ts` (which has zero imports → zero cycle risk) and reads the manifest type from
  * `tool-capability-manifest.ts`. It does NOT decide whether the influence is PERMITTED (that is the taint rule / the
  * broker) — it only names the sinks the action's declared power lands on. A plain sandbox read touches no protected
- * sink and yields `[]`. NOTE the deliberate NON-mappings: `capabilities`, `secrets`, and `git_delivery` are §5.L sinks
- * that the current three-axis manifest cannot express (they are per-action / content-scope concerns layered on top),
- * so they are never returned here — they belong to a later manifest slice, not to this projection.
+ * sink and yields `[]`. F1.20: `capabilities`, `secrets`, and `git_delivery` — the sinks the
+ * three-axis projection cannot derive — are now DECLARABLE on the manifest (`taintSinks`) and unioned into the
+ * result, closing the slice this header previously owed.
  */
 
 import { isProtectedInfluence, type ProtectedInfluenceKind } from "./taint-labels";
@@ -61,6 +61,13 @@ export function manifestProtectedInfluenceKinds(manifest: ToolCapabilityManifest
 	// approvals sink (a plain `auto`/`confirm` gate is not a protected-sink escalation).
 	if (manifest.approval === "typed_host" || manifest.approval === "risk_ack") {
 		kinds.add("approvals");
+	}
+
+	// F1.20: the manifest can now DECLARE the sinks the three-axis projection cannot derive (secrets /
+	// git_delivery / capabilities) — the "later manifest slice" this module's header owed. Declared sinks are
+	// unioned with the derived ones.
+	for (const declared of manifest.taintSinks ?? []) {
+		kinds.add(declared);
 	}
 
 	// Total by construction: every added member is a ProtectedInfluenceKind, so the filter is a belt-and-braces
