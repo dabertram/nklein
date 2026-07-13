@@ -763,6 +763,17 @@
   proven by the untouched config suite: all 30 test files / 211 tests (including the legacy load compatibility
   tests) pass without modification.
 
+- [x] **F1.29a — the per-section Settings draft boundary** *(delivered 2026-07-13; dialog adoption is F1.29b in
+  todo).* `web-ui/src/features/settings/settings-sections.ts` gives each Settings section an independent typed
+  contract over the PROVEN whole-dialog draft machinery: 9 sections (agent / timeouts / concurrency / sandbox /
+  planning_review / models / rulesets_guardrails / features / shortcuts_templates) partition the ~70
+  `SettingsDraft` fields — COMPLETENESS + DISJOINTNESS are LOCKED by a test over the real draft shape (a new
+  field must be assigned to exactly one section or the suite fails). `isSectionDirty` / `dirtySections` /
+  `resetSection` mirror `isSettingsDraftDirty`'s comparison rules exactly (trimmed numeric-string inputs, deep
+  structured compare, the swarm-guardrail structural equality), and section reset restores ONLY that section —
+  other sections' edits survive (tested). No dialog behavior changes yet; adoption (per-section dirty nav
+  indicators + Reset/Save) is one section per F1.29b leaf with Playwright re-validation. 4 tests.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

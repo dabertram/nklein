@@ -724,8 +724,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
   suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
   retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
-- [ ] **F1.29 — Extract the Settings draft boundary.** Give each section an independent typed draft/dirty/reset/save
-  contract so config-heavy work no longer edits the monolithic dialog state.
+- [ ] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13).** The typed
+  contract exists: `web-ui/src/features/settings/settings-sections.ts` — every `SettingsDraft` field belongs to
+  exactly ONE of 9 sections (completeness + disjointness LOCKED by a test over the real draft shape), with
+  `isSectionDirty` / `dirtySections` / `resetSection` mirroring the whole-dialog dirty rules (trimmed
+  numeric-strings, deep structured compare, the guardrail-inputs structural equality). REMAINING: adopt it in
+  `runtime-settings-dialog.tsx` — per-section dirty indicators in the nav, per-section Reset (and optionally
+  per-section Save via the existing settings-save path), one section per leaf with Playwright re-validation
+  (settings.spec.ts) since the dialog UI changes.
 - [ ] **F1.30 — Finish the provider-service split at its proven seams.** Separate discovery/cache, registry mutation,
   load control, health, and response shaping; retain request throttling and stable behavior tests.
 - [ ] **F1.31 — Integrate the continuous evaluation rail as a production background service** *(legacy §5.AI).* Reuse
