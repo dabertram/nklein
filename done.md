@@ -553,6 +553,23 @@
   keys). 4 new tests (canonical hash, identity-component key sensitivity, occurrence-ordered lookup across
   attempts + first-execution empty, extractor stamps hashes from the transcript).
 
+- [x] **F1.17 — Replay policies end to end** *(delivered 2026-07-13).* The four per-tool policies over the F1.16
+  substrate: `reuse` (return the recorded payload, the side effect never re-fires; an errored recording replays as
+  a THROW so the original control flow is preserved), `simulate` (an injected fixture answers; absent fixture
+  falls back to live), `skip` (marker result, nothing executes), `reconfirm` (execute live + COMPARE the fresh
+  hash to the recording — drift lands as `matched=false`). A call with no recording ALWAYS executes live — a
+  policy governs replays, never firsts. Pieces: `tool-replay-policy.ts` (policy resolution: explicit config >
+  per-tool defaults [mutating tools reuse, read tools reconfirm] > reuse fail-safe; the decision engine; the
+  reconfirm comparator; `buildReplayDecisionEvent` — every decision persists as a ledger `replay_<action>`
+  transition, same evidence stream as everything else), `buildRecordedToolExecutions` (the persisted transcript →
+  occurrence-indexed `RecordedToolExecution`s with full payloads — the SAME contract simulator fixtures supply:
+  one shape, two sources; incomplete calls omitted so a replay executes them live), and `wrapToolsForReplay` (the
+  replay-aware executor: wraps a session's tools, counts occurrences per (tool × input fingerprint) across the
+  run so the n-th identical call replays the n-th recording). Inert unless mounted — the replay orchestrator that
+  decides "this run IS a replay" belongs to the durable-scheduler work (F1.18/F1.26 consume this layer). 6 new
+  tests (resolution precedence, first-execution rule, transcript contract incl. incomplete-call omission, reuse
+  incl. error-replay + occurrence exhaustion, skip, simulate fallback, reconfirm match/drift persistence).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
