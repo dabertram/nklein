@@ -118,6 +118,48 @@ describe("board→chat feedback bridge (§5.AT/§5.AU)", () => {
 		expect(h.appended).toHaveLength(2);
 	});
 
+	it("F2.13: does NOT re-surface an ASK that is still outstanding on the session after a restart", async () => {
+		// Simulate a restart: a fresh bridge whose in-memory dedup set is empty, but the session already carries
+		// the persisted outstanding ASK from before the restart. The seed dep must suppress the duplicate prompt.
+		const h = harness({
+			getOutstandingAskKeys: async () => ["t1:needs_input"],
+		});
+		const asking = tx({
+			columnId: "in_progress",
+			prevSummary: { state: "running" },
+			nextSummary: { state: "running" },
+			overrides: { clarifyingQuestionPending: true },
+		});
+		await h.bridge.onTransition(asking); // still-pending after restart ⇒ already surfaced ⇒ suppressed
+		expect(h.appended).toHaveLength(0);
+
+		// Once it resolves, the seeded key is cleared, so a genuinely NEW later ask surfaces normally.
+		await h.bridge.onTransition(
+			tx({
+				columnId: "in_progress",
+				prevSummary: { state: "running" },
+				nextSummary: { state: "running" },
+				overrides: { clarifyingQuestionPending: false },
+			}),
+		);
+		expect(h.cleared).toEqual([{ sessionId: "chat-1", signalKey: "t1:needs_input" }]);
+		await h.bridge.onTransition(asking); // a fresh re-raise after resolution ⇒ surfaces
+		expect(h.appended).toHaveLength(1);
+	});
+
+	it("without the seed dep, behavior is unchanged (a restart re-surfaces — the pre-F2.13 baseline)", async () => {
+		const h = harness(); // no getOutstandingAskKeys
+		await h.bridge.onTransition(
+			tx({
+				columnId: "in_progress",
+				prevSummary: { state: "running" },
+				nextSummary: { state: "running" },
+				overrides: { clarifyingQuestionPending: true },
+			}),
+		);
+		expect(h.appended).toHaveLength(1); // empty seed ⇒ surfaces (byte-identical to before this seam)
+	});
+
 	it("clears a resolved escalated_to_operator ASK so a re-escalation re-notifies the operator", async () => {
 		// Regression: the clear-loop's hand-maintained regex omitted `escalated_to_operator`, so a resolved
 		// escalation key was never cleared and a later re-escalation was deduped away — the operator was never

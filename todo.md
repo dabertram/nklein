@@ -934,9 +934,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   time/text/executed, newest first) over the already-secret-safe records (`chat-audit-detail.ts` masks secrets
   before persistence — the secret-safety half is done). REMAINING: the web-ui confirm DIALOG rendering the five
   fields (replacing the current session-flag resolve — ties F2.2b), an audit history panel with the filter
-  controls, and Playwright over both.- [ ] **F2.13 — Finish auto-clarification wiring in chat.** Bind questions and answers to card/plan state, resume the
-  correct work, and avoid duplicate prompts after restart.
-
+  controls, and Playwright over both.- [x] **F2.13 — auto-clarification wiring finished (the restart-dedup bug fixed 2026-07-13).** The bind
+  questions↔plan-state + resume-the-correct-card machinery was already complete (`resolvePlanQuestion` projects
+  the answer, releases the parked `blockedTaskId`, records a `clarification_resolved` revision; `answer-plan-
+  question` tRPC wired). The named residue — "avoid duplicate prompts after restart" — was a real bug:
+  `board-chat-feedback-bridge`'s `surfacedKeysBySession` dedup set was a fresh empty Map on every process start,
+  while the outstanding asks it dedupes against ARE persisted on the session, so the first post-restart
+  transition re-posted a still-outstanding clarification. Fixed by hydrating the dedup set once per session from
+  the persisted `outstandingAsks` (new optional `getOutstandingAskKeys` dep, wired to `getChatSession` in
+  board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
 - [ ] **F2.14 — Finish board-chat verbosity controls.** Persist per-session quiet/normal/detailed levels and apply them

@@ -177,6 +177,13 @@ export function createBoardChatFeedbackWiring(overrides?: {
 			clearOutstandingAsk: async (sessionId, signalKey) => {
 				await clearChatOutstandingAsk(sessionId, signalKey);
 			},
+			// F2.13: on the first transition for a session AFTER a restart, seed the in-memory dedup set from the
+			// asks still persisted on the session — so an already-surfaced, still-unresolved clarification is not
+			// re-posted to the operator's chat.
+			getOutstandingAskKeys: async (sessionId) => {
+				const session = await getChatSession(sessionId);
+				return session?.outstandingAsks.map((ask) => ask.signalKey) ?? [];
+			},
 		});
 
 	const observeNKleinSummary = (input: ObserveNKleinSummaryInput): void => {

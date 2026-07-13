@@ -47,6 +47,12 @@ export interface BoardChatFeedbackBridgeDeps {
 	) => Promise<void>;
 	/** Clear an outstanding ASK once its signal resolves; optional. */
 	clearOutstandingAsk?: (sessionId: string, signalKey: string) => Promise<void>;
+	/**
+	 * F2.13: the signal keys ALREADY outstanding on a session (persisted). Read ONCE per session to seed the
+	 * in-memory dedup set, so a runtime restart does not re-surface an ASK the operator was already prompted for
+	 * (the "avoid duplicate prompts after restart" guarantee). Absent ⇒ the set starts empty (pre-F2.13 behavior).
+	 */
+	getOutstandingAskKeys?: (sessionId: string) => Promise<readonly string[]>;
 	/** Coalescing window (ms) for quiet-mode deferred NOTIFY digests. Default 15s. */
 	digestDelayMs?: number;
 	/** Best-effort error sink; never rethrown. */
@@ -91,13 +97,25 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 	const pendingDigestBySession = new Map<string, BoardChatDigestItem[]>();
 	const schedulerBySession = new Map<string, CoalescingScheduler<string>>();
 
-	const surfacedKeys = (sessionId: string): Set<string> => {
+	// F2.13: seed the dedup set from the session's PERSISTED outstanding asks the first time a session is seen,
+	// so a restart never re-prompts an already-surfaced still-unresolved ASK. Hydration happens at most once per
+	// session (the map entry, once created, is authoritative); the persisted read is best-effort.
+	const ensureSurfacedKeys = async (sessionId: string): Promise<Set<string>> => {
 		const existing = surfacedKeysBySession.get(sessionId);
 		if (existing) {
 			return existing;
 		}
 		const created = new Set<string>();
 		surfacedKeysBySession.set(sessionId, created);
+		if (deps.getOutstandingAskKeys) {
+			try {
+				for (const key of await deps.getOutstandingAskKeys(sessionId)) {
+					created.add(key);
+				}
+			} catch (error) {
+				deps.onError?.(error);
+			}
+		}
 		return created;
 	};
 
@@ -143,7 +161,7 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 			prevSignalsByTask.set(transition.taskId, next);
 
 			const owner = await deps.resolveOwningChat(transition.workspaceId);
-			const keys = owner ? surfacedKeys(owner.sessionId) : new Set<string>();
+			const keys = owner ? await ensureSurfacedKeys(owner.sessionId) : new Set<string>();
 
 			const verdict = decideBoardChatFeedback({
 				taskId: transition.taskId,

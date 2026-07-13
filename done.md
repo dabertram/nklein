@@ -1004,6 +1004,16 @@
   substring / executed, newest first). Secret-safety was already enforced upstream (`chat-audit-detail.ts`
   masks secret-bearing values before persistence), so the history is safe to surface by construction. 3 tests.
   tsc 0, fast 9560 green.
+- [x] **F2.13 — auto-clarification wiring finished; duplicate-prompt-after-restart bug fixed** *(delivered
+  2026-07-13).* The answer→plan-state binding + resume-the-parked-card path was already complete
+  (`resolvePlanQuestion` releases `blockedTaskId` + records a `clarification_resolved` revision). The real gap
+  was the named "no duplicate prompts after restart": the board→chat bridge's `surfacedKeysBySession` dedup set
+  reset to empty on every process start, yet the asks it dedupes against persist on the session — so the first
+  transition after a restart re-posted a clarification the operator had already been asked. Fixed by hydrating
+  the dedup set once per session from the persisted `outstandingAsks` (optional `getOutstandingAskKeys` dep,
+  wired to `getChatSession`); the hydration is best-effort and at-most-once per session, and with the dep absent
+  the behavior is byte-identical to before (both paths tested, plus the still-outstanding-suppressed +
+  resolve-then-re-raise-surfaces cycle). tsc 0, fast 9562 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
