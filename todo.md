@@ -661,14 +661,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   *(Split 2026-07-13; leaf (a) SHIPPED: the terminal attempt event now records `difficulty` via
   `deriveTaskDifficultyTier` — the SAME derivation the fitness fold uses — so ledger cells are keyable
   model × role × difficulty like the fitness table.)* Remaining leaves:
-  - [ ] **F1.15b — `buildFitnessTableFromLedger` + fixture-locked equivalence.** Project attempt events into
-    `FitnessRow` cells with the SAME fold (`recordFitnessOutcome`); lock equivalence against
-    `deriveTaskFitnessRecord`+store on shared fixtures. Known divergences to resolve (decide + document):
-    (1) the fitness fold SKIPS `interrupted` entirely, but a timed-out interrupt becomes ledger outcome
-    `timeout` — the projection must exclude `aborted` and decide on interrupted-timeouts; (2) model keying:
-    fitness uses `summary.modelKey ?? modelId` (stable publisher key) while the ledger write uses
-    `resolveStableRoutingModelId(runtimeModelId)` under NKLEIN_STABLE_ROUTING_KEY — align or map; (3) synthetic
-    (`::`) sessions: fitness skips them, the terminal write records them — filter in the projection.
+  - [x] **F1.15b — SHIPPED 2026-07-13:** `buildFitnessTableFromLedger` projects attempt events into `FitnessRow`
+    cells through the SAME fold; fixture lock asserts EXACT equality with the store path on the shared domain,
+    plus the resolved divergences: synthetic + interrupted skipped identically, chat-flow excluded, a timed-out
+    interrupt counts in the projection (documented superset), tokensPerSec is a projection enrichment, legacy
+    no-difficulty events skipped (F1.15c migration seeds them).
   - [ ] **F1.15c — flip the fitness READ side to the ledger projection + migrate.** `rankFitnessCandidatesForCell`
     consumers read projection-backed cells; existing `fitness-table.json` rows become seed evidence (or are
     imported as synthetic attempts); then remove the parallel `recordTaskFitnessOutcome` write.

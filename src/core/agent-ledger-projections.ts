@@ -26,6 +26,14 @@ import type { AgentStucknessSignals } from "./agent-stuckness";
 import type { AttemptProgressSnapshot } from "./attempt-progress-tracker";
 import { buildFailureCapsule, type FailureCapsule, summarizeFailureCapsules } from "./failure-capsule";
 import {
+	emptyFitnessRow,
+	type FitnessKey,
+	type FitnessRow,
+	fitnessCellKey,
+	fitnessDifficultyTierSchema,
+	recordFitnessOutcome,
+} from "./fitness-table-schema";
+import {
 	emptyModelBehaviorProfile,
 	type ModelAttemptOutcome,
 	type ModelBehaviorProfile,
@@ -40,6 +48,7 @@ import {
 	penalizeFitnessByRuntimeVerdict,
 	type RuntimeRunOutcome,
 } from "./runtime-model-verdict";
+import { isDerivedTaskSessionId } from "./synthetic-task-id";
 
 /**
  * Derive a `ModelBehaviorProfile` per model by folding that model's ledger attempts (chronologically) through the
@@ -240,6 +249,65 @@ export function buildModelFitnessFromLedger(events: readonly AgentLedgerEvent[])
 				left.modelId.localeCompare(right.modelId) ||
 				left.role.localeCompare(right.role),
 		);
+}
+
+/**
+ * F1.15b — project the ledger's attempt stream into the §5.AB fitness TABLE's cells (model × role × difficulty),
+ * using the SAME fold (`recordFitnessOutcome`) the live store uses, so equivalence with the parallel
+ * `deriveTaskFitnessRecord` → `recordTaskFitnessOutcome` path is by construction on the shared classifiable domain:
+ *
+ *  - synthetic (`::`) sessions are skipped (the fitness fold never records them);
+ *  - only BOARD attempts count (`flow` null = board; chat/autonomous attempts are not board fitness);
+ *  - success = outcome `success`; failure = `other_failure` | `timeout` (the two outcomes a FAILED terminal state
+ *    produces), recorded as the fold's `task_failed` mode. `aborted` (a transient interrupt) and the chat-only
+ *    format-slip kinds are skipped like the fold skips non-classifiable states. Known, documented divergence: a
+ *    timed-out INTERRUPT also lands as ledger `timeout` and counts here as a failure, while the store's fold skips
+ *    interrupted runs entirely — the projection is deliberately a superset on that edge (a timed-out run is
+ *    capability evidence);
+ *  - attempts without a recorded `difficulty` (pre-F1.15a events) cannot key a cell and are skipped — the F1.15c
+ *    migration seeds those from the legacy store.
+ */
+export function buildFitnessTableFromLedger(events: readonly AgentLedgerEvent[]): Record<string, FitnessRow> {
+	const rows: Record<string, FitnessRow> = {};
+	for (const attempt of selectAttempts(events)) {
+		if (isDerivedTaskSessionId(attempt.taskId)) {
+			continue;
+		}
+		if (attempt.flow !== null && attempt.flow !== "board") {
+			continue;
+		}
+		const success = attempt.outcome === "success";
+		const failure = attempt.outcome === "other_failure" || attempt.outcome === "timeout";
+		if (!success && !failure) {
+			continue;
+		}
+		const tier = fitnessDifficultyTierSchema.safeParse(attempt.difficulty);
+		if (!tier.success) {
+			continue;
+		}
+		const key: FitnessKey = {
+			modelKey: attempt.modelId,
+			role: attempt.role ?? "worker",
+			difficultyTier: tier.data,
+		};
+		const wallTimeMs =
+			attempt.startedAt !== null && attempt.completedAt !== null && attempt.completedAt >= attempt.startedAt
+				? attempt.completedAt - attempt.startedAt
+				: null;
+		const cell = fitnessCellKey(key);
+		rows[cell] = recordFitnessOutcome(
+			rows[cell] ?? emptyFitnessRow(key),
+			{
+				success,
+				...(failure ? { failureMode: "task_failed" } : {}),
+				wallTimeMs,
+				tokensPerSec: attempt.tokensPerSec,
+				usedKnowledgeTools: attempt.knowledge ? attempt.knowledge.retrievalCallCount > 0 : null,
+			},
+			attempt.completedAt ?? attempt.recordedAt,
+		);
+	}
+	return rows;
 }
 
 /** A ledger-fitness record with its computed §5.AB fitness score — the data-driven routing recommendation. */

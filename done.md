@@ -497,6 +497,18 @@
   recorded in todo with the divergence analysis. 2 new tests (tier agreement between streams incl. card-less
   fallback; difficulty recorded on the event).
 
+- [x] **F1.15b — `buildFitnessTableFromLedger` + the fixture-locked equivalence** *(delivered 2026-07-13).* The
+  ledger projection reproduces the §5.AB fitness table's cells (model × role × difficulty `FitnessRow`s) by
+  folding attempt events through the STORE'S OWN fold (`recordFitnessOutcome`) — equivalence by construction,
+  LOCKED by a fixture test asserting exact `toEqual` equality between the store path
+  (`deriveTaskFitnessRecord` → fold) and the ledger path (F1.14 terminal attempt event → projection) on the same
+  terminal runs. The three analyzed divergences are resolved + asserted: synthetic (`::`) and interrupted runs are
+  skipped identically by both paths; chat/autonomous-flow attempts are excluded (board fitness only); a timed-out
+  INTERRUPT counts as failure in the projection only (documented superset — a timed-out run is capability
+  evidence); tokensPerSec folds from the attempt's throughput as a strict enrichment the store path never had;
+  pre-F1.15a events without a recorded difficulty are skipped (the F1.15c migration seeds those from the legacy
+  store). 3 new tests. F1.15c (read flip + migration) and F1.15d (behavior profile/MCSR/eval views) remain in todo.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
