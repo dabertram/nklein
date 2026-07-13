@@ -1,6 +1,9 @@
 # Host-side egress proxy — design (§5.L per-role network allowlists, GREENLIT §10c#18)
 
-> **Status: DESIGN, greenlit 2026-07-12 (todo §10c#18) — build the full §5.L vision.** This document specifies the
+> Maintained design/provenance reference, not a task list. Remaining implementation is tracked only in `todo.md`
+> F2.3–F2.5; I1–I4 history below describes the shipped baseline.
+>
+> **Status:** I1–I4 shipped; F2.3–F2.5 own the remaining confirm/per-role/per-task work. This document specifies the
 > host-side egress proxy + sandbox network topology that makes the `allowlist` network tier REAL: DNS/SNI-level
 > enforcement that calls the existing pure [`decideEgressPolicy`](../../src/core/egress-policy-decision.ts) at connect
 > time, per-ROLE allowlists keyed to the capability tiers, a per-attempt audit trail, and (optionally) per-action

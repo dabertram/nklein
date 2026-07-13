@@ -51,8 +51,8 @@ Validated by `devTestProjectConfigSchema` (zod, `.strict()`). Unknown keys are r
 - **`NN_<name>/` enhanced specs** — a graduated set of domain-heavy decomposition challenges (rising complexity
   tier) used to evaluate how well an agent decomposes a real domain, tracks knowledge debt, and builds a verifiable
   foundation. They all use `acceptanceCommand: npm test` and `startInPlanMode: true`.
-- **`_ENHANCEMENT_GUIDELINES.md`** — the authoring guidelines those enhanced specs were written against (reference
-  only; not a project).
+- All 36 numbered specifications include the completed v2 enrichment and 3B-ready build guide. The one-off authoring
+  prompts were retired after the 2026-07-13 backlog consolidation.
 
 ## Fixtures / starting code
 
@@ -71,7 +71,7 @@ generated output, but the reference gives guidance + comparability.
 
 **It is agent-INVISIBLE by construction:** the scaffolder copies only the `fixtureTemplate` + `specification.md` into
 the agent's workspace — never the rest of `dev-test-projects/<id>/` — so a `_REFERENCE_SOLUTION.md` is never seen by
-the model under test (the `_` prefix also marks it as meta, like `_ENHANCEMENT_GUIDELINES.md`). The 7 active habit/smoke
+the model under test (the `_` prefix marks it as meta). The 7 active habit/smoke
 sweep presets (`small-model-smoke`, `habit-insights-mid`, `habit-product-nklein-complex`, and the four DAG presets
 `habit-{deep-chain,mixed-dag,many-small,wide-fanout}`) have reference solutions (2026-06-28); the big enterprise
 registry projects + `dschinn` are intentionally left without (long-runners — judge them by deep inspection).

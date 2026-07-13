@@ -17,7 +17,7 @@ import {
 
 // Regression tests for the 5 defects the durable/ledger reliability bug-hunt confirmed (2026-07-05).
 // (bug #4 — the jsonl-store dropping a forward-incompatible terminal event — is collected, not fixed: speculative /
-// design decision. See docs/dev/autonomous-run-2026-07-05.md.)
+// design decision. The remaining acceptance-workspace race is tracked by todo.md P0.7.)
 
 const job = (over: Partial<DurableJob> & { jobId: string }): DurableJob => ({
 	state: "ready",

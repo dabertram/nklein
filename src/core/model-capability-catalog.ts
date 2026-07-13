@@ -14,7 +14,7 @@ import { normalizeModelId } from "./model-identity.js";
  * community reports AND hardened by our own empirical sweeps, and gate on it before use.
  *
  * This catalog is INTENTIONALLY code (persistent, shipped with !Klein, reviewed in diffs). The working-mode
- * rule (goal.md / todo.md §4A) is: whenever a sweep or live run surfaces a new capability fact about a model,
+ * rule (todo.md §4A) is: whenever a sweep or live run surfaces a new capability fact about a model,
  * ADD it here — flip a verdict, append a note, cite the source. The catalog is a living artifact.
  *
  * The matching layer ({@link lookupModelCapability}) is deliberately family-level (regex on the normalized

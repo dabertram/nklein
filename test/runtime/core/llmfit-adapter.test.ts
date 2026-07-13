@@ -8,7 +8,7 @@ import {
 	parseLlmfitSystemReport,
 } from "../../../src/core/llmfit-adapter";
 
-// Real shapes captured in docs/dev/llmfit-spike.md (2026-06-29).
+// Real llmfit 0.5.2 CLI shapes captured during the 2026-06-29 spike.
 const recommendJson = {
 	models: [
 		{

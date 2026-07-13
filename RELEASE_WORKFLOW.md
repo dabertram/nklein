@@ -2,7 +2,7 @@
 
 > **Status (2026-06-28):** we are on the initial fork-off branch with **no CI and no published release yet**. The
 > inherited Cline GitHub Actions workflows were removed; our own CI/publish pipeline is deferred until the product is
-> mature (todo.md §5.J "set up our own CI"). Until then, releasing is **fully manual + local**. This doc describes that
+> mature (`todo.md` R9.3–R9.4). Until then, releasing is **fully manual + local**. This doc describes that
 > manual process; revisit it when CI lands.
 
 Version naming follows the fork split:
@@ -40,7 +40,7 @@ Version naming follows the fork split:
 - `CHANGELOG.md` is missing, or its section for that version is missing/empty (breaks `extract-changelog-entry.mjs`).
 - Build / tests / checks fail.
 
-## When CI is set up (deferred — todo.md §5.J)
+## When CI is set up (tracked by `todo.md` R9.3–R9.4)
 
 Automate the above: run the full green gate on push/PR, and a manual-dispatch publish that validates the tag, runs the
 gate, publishes with provenance, and creates a GitHub Release from the extracted changelog section. The

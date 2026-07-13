@@ -16,11 +16,11 @@
  *      NKLEIN_SWEEP_SPACING_MS (pause between models so consecutive-load fatigue doesn't suppress weaker models; default 0)
  *      NKLEIN_VERIFY_TIMEOUT_MS (forwarded to the harness's own internal budget; default 300000)
  *
- * Result symbols (matches cross-model-verification.md): ✅ PASS (exit 0) · ❌ FAIL (exit 1/2 — triage parse-gap→harden
+ * Result symbols: ✅ PASS (exit 0) · ❌ FAIL (exit 1/2 — triage parse-gap→harden
  * vs capability-floor→⚠️ CANT by hand) · ⏱ TIMEOUT (outer cap hit) · 💥 DROPPED (model gone from /v1/models).
  */
 import { spawn } from "node:child_process";
-import { appendFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fetchLoadedModelIds } from "../src/core/lmstudio-loaded-models";
 import { join } from "node:path";
@@ -33,7 +33,6 @@ const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1
 const OUTER_TIMEOUT_MS = Number(process.env.NKLEIN_SWEEP_TIMEOUT_MS ?? "960000"); // 16 min outer hard cap
 const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "840000"; // 14 min harness-internal budget
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const MATRIX_LOG = join(REPO_ROOT, "docs", "dev", "cross-model-verification.md");
 
 type Outcome = "PASS" | "PARTIAL" | "FAIL" | "TIMEOUT" | "DROPPED";
 const SYMBOL: Record<Outcome, string> = { PASS: "✅", PARTIAL: "◑", FAIL: "❌", TIMEOUT: "⏱", DROPPED: "💥" };
@@ -179,12 +178,8 @@ async function main(): Promise<void> {
 	].join("\n");
 	console.log(summary);
 
-	const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-	const logBlock =
-		`\n### ${stamp} · ${harness}\n` +
-		results.map((r) => `- ${SYMBOL[r.outcome]} **${r.outcome}** · \`${r.model}\` · ${Math.round(r.elapsedMs / 1000)}s · ${r.lastLine}`).join("\n") +
-		`\n  - matrix row: ${rowCells}\n`;
-	await appendFile(MATRIX_LOG, logBlock, "utf8").catch((e) => console.error(`(could not append to ${MATRIX_LOG}: ${e})`));
+	// The former Markdown matrix was retired in the 2026-07-13 backlog consolidation. Keep the harness side-effect-free:
+	// stdout/CI owns this run until the typed Agent Attempt Ledger projection (todo.md F1.14/F1.15) becomes the durable sink.
 
 	// Exit non-zero only if EVERY model failed outright (a sweep with some passes/partials is a successful sweep).
 	const anyPass = results.some((r) => r.outcome === "PASS" || r.outcome === "PARTIAL");

@@ -1,6 +1,8 @@
 # Scenario set: 01_clinical_medication_safety_platform
 
-Design-time mock-LLM scripts (Claude-authored flawless baseline, 2026-07-10) conforming to `packages/llm-simulator/src/scenario/track-types.ts`. To be hardened later with real local-model telemetry via the record→distill loop.
+Design-time mock-LLM scripts (Claude-authored flawless baseline, 2026-07-10) conforming to
+`packages/llm-simulator/src/scenario/track-types.ts`. This README records scenario provenance; remaining simulator
+implementation/hardening is tracked only in `todo.md` H7.1–H7.4.
 
 **perfect-run.json** (seed 101, chaos 0) — 85 tracks: 1 decompose emitting a 41-card graph (s00–s40: the spec's S01–S22 slice split per-rule plus breadth recipes — class breadth, audit projections, LASA, FHIR-shaped import, knowledge-debt ledger, README), 41 worker tracks (one per card, 2–4 turns: `read_files`/`list_files` → `write_files`/`editor`/`apply_patch` with real compact TypeScript → optional `run_commands ["npm test"]` → text summary), 41 review tracks (37 approve; 4 request_changes-then-approve on s03/s15/s20/s28 with critiques mirroring the spec's pitfalls), 2 chat tracks.
 
@@ -16,7 +18,10 @@ Design-time mock-LLM scripts (Claude-authored flawless baseline, 2026-07-10) con
 
 Tool shapes were confirmed from source: `decompose_project` args per `src/nklein-agent/decomposition/plan-task-schemas.ts` (deps are inline `dependsOn` task-id arrays — no separate edge channel); `read_files {paths}`, `write_files {files:[{path,content}]}`, `editor {path, edits:[{search,replace}]}`, `apply_patch {input}`, `run_commands {commands}` per the kanban tool registrations; review verdicts as `submit_review {verdict: approve|request_changes, summary, feedback}` tool calls (how !Klein actually parses reviews — not prose).
 
-**Assumptions to verify when the compiler/driver lands:** (1) the driver prefers the most specific `userMessageIncludes` match within a request class — worker/review tracks key on exact card titles (unique strings; the review seed prompt embeds the title); (2) `t-sse-stall-mid` is approximated with the `stall` behavior (TTFT-style dead stream) because the behavior union has no mid-stream-stall knob yet; (3) `c-trunc-tool-json` is expressed as a truncated string argument value, since `tool_calls.arguments` is parsed JSON by construction.
+**Compiler/driver wire truths:** specificity ordering, compilation, and scenario coverage are implemented/tested.
+`c-trunc-tool-json` is expressed as a truncated string argument value because `tool_calls.arguments` is parsed JSON by
+construction. The current `t-sse-stall-mid` track uses TTFT/dead-stream `stall`; a true partial-delta-then-stall behavior
+is the distinct `todo.md` H7.1 package.
 
 Validated with a structural checker (JSON.parse + field asserts incl. behavior-union fields, unique ids, dep resolution, per-card worker/review coverage, complexity ≤ 75, filesLikelyTouched ≤ 3, failure-track shapes).
 

@@ -1,8 +1,9 @@
 # GPU offload & MoE expert-CPU-offload — a fleet reference
 
 > Maintained reference (2026-07-01 research pass, user-requested). How GPU **offload** and **MoE expert-CPU-offload** work,
-> and the **per-machine load policy** they imply for our fleet (m5max · m4mini · davidlegion5pro). Companion to
-> [model-sweep-log.md](model-sweep-log.md) (the time-series) and the `model-lab`/`lms-model-runner` guard that applies it.
+> and the **per-machine load policy** they imply for our fleet (m5max · m4mini · davidlegion5pro). Stable empirical
+> facts live in the typed model catalog/fitness ledger; `model-lab`/`lms-model-runner` applies this policy. Historical
+> time-series evidence was archived during the 2026-07-13 `todo.md`/`done.md` consolidation.
 
 ## TL;DR for our fleet
 

@@ -175,7 +175,7 @@ export function planNextAttempt(input: {
  * `RELEVANT_STRATEGIES_BY_OUTCOME`, and the chat model-call seam already applies this to the truncation-retry
  * `maxTokens` (see `raisedTokenBudget` usage in chat-local-llm-adapter). The remaining engine-adoption gap is that the
  * chat seam runs its own live-tuned INLINE ladder rather than routing rung choice through `decideNextRetryStrategy` —
- * a behavior-changing rewire that needs cross-model live validation (see docs/dev/backlog-audit-2026-07-07.md §retry).
+ * a behavior-changing rewire that needs representative cross-model validation (todo.md F3.8–F3.11 and H7.5–H7.11).
  */
 export function raisedTokenBudget(input: { current: number; attempt: number; ceiling?: number }): number {
 	const base = Math.max(1, Math.trunc(input.current));

@@ -1,5 +1,8 @@
 # Prompt-cache optimization for the !Klein swarm — deep research (2026-07-02)
 
+> Maintained research reference, not a task list. Remaining local measurements and implementation are tracked only in
+> `todo.md` H7.14 and H7.19–H7.32 (with the feature-level prompt layout in F4.37–F4.40).
+>
 > Adversarially-verified deep-research run (107 agents; every claim below survived 3-vote refutation; refuted claims listed at the end). Question: how does a local multi-agent swarm (LM Studio, llama.cpp + MLX backends, 3 machines) maximize throughput by making prefill cache-efficient — measured baseline ~8% byte-prefix reuse between same-model session starts.
 
 ## Summary

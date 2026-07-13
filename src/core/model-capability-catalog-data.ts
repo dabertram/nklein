@@ -87,7 +87,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 15,
 		note: "Gemma 4 26B-A4B-qat (26B MoE, ~4B active, quantization-aware-trained). NEW to the catalog. Live 2026-07-01 model-lab guarded e2e: drove ALL 4 tools (read_file+run_command+create_card+update_focus_chain) + PERSISTED the card — NATIVELY, no force rung — with WEAK synthesis (final reply didn't echo the marker), fast (~34s). FAR stronger multi-tool chaining than its e4b/e2b EDGE siblings (which fail the chain at ≤4B) — the MoE 26B clears the chaining floor comfortably. structuredOutput not probed (omitted — left honest). Verdict TOOL_CAPABLE (chain ✓; only synthesis is weak).",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — google/gemma-4-26b-a4b-qat: all 4 tools + persist, weak synth, ~34s); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — google/gemma-4-26b-a4b-qat: all 4 tools + persist, weak synth, ~34s); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -105,7 +105,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 7,
 		note: "gemma-4-12b-it-qat (12B, quantization-aware-trained). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LAPTOP 8 GB-VRAM box): CLEAN PASS (~21s) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis. Here even cleaner than the 26B-A4B sibling (which had weak synth), and far above the e2b/e4b EDGE variants (which drop the chain). A capable small all-rounder that runs FAST even on the laptop's discrete 8 GB GPU.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — gemma-4-12b-it-qat CLEAN PASS, ~21s, full synth); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — gemma-4-12b-it-qat CLEAN PASS, ~21s, full synth); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -156,7 +156,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sources: [
 			"https://community.n8n.io/t/nvidia-llama-3-1-nemotron-nano-4b-v1-1-tool-calling-issue/135282",
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — nemotron-3-nano-4b: single-tool only, dropped the chain, false 'all steps done')",
-			"eval-harness 2026-07-11 (m5max HIGH power, nemotron-3-nano-4b: mean 0.875/12 — decompose 1.0, REVIEWER 0.833 incl. the hard trio, ~90s total = fastest; worker context-8k 0.000 glitch); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, nemotron-3-nano-4b: mean 0.875/12 — decompose 1.0, REVIEWER 0.833 incl. the hard trio, ~90s total = fastest; worker context-8k 0.000 glitch); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "both",
 		verified: true,
@@ -171,7 +171,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 86,
 		note: "nvidia/nemotron-3-super (~86 GB). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call): the HIGHEST mean of the whole sweep — 0.958/12, ALL cells scored (no over-think NO-ANSWERs). Decompose 1.000 all 3 tiers + worker/tool-use + context probes 1.000; REVIEWER 0.833 (caught the hard race/leak/injection trio). This CONFIRMS the nemotron-reviews-well pattern AT SCALE: both nemotron-3-nano-4b (0.833) and this super (0.833) catch the hard trio, so strong review recall is a NEMOTRON reasoning-RL family trait (robust 4B→super), unlike the qwen-family ~0.72 ceiling — the reviewer weakness is TRAINING-gated, not size-gated. Efficient for its size (whole eval ~6min, faster than the 35B qwq's ~22min). CAVEAT: at ~86 GB it leaves only ~42 GB free on the 128 GB box (near the 25% reserve) and can't coexist with other residents — impractical as a routine reviewer vs the tiny nemotron-nano-4b (same 0.833 review, 2.8 GB); reserve it for a dedicated big-box architect/reviewer. basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, nvidia/nemotron-3-super: mean 0.958/12 — decompose 1.0, worker 1.0, reviewer 0.833, all cells scored, ~6min); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, nvidia/nemotron-3-super: mean 0.958/12 — decompose 1.0, worker 1.0, reviewer 0.833, all cells scored, ~6min); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
 		],
 		basis: "empirical",
@@ -186,7 +186,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		note: 'Reasoning distill: card claims "enhanced function calling" but ships no parser/template; calls leak into content and </think> tags break parsers. Poor fit for unattended tool chaining. SWEEP-CONFIRMED (§11 2026-07-11, HIGH power, eval-harness mean 0.867/10): DECOMPOSE is FLAKY — 2 of 3 architect cells NO ANSWER (easy+medium; only hard landed), i.e. it over-thinks / leaks the structured decompose call — while every OTHER reasoning model swept (qwq-32b, qwen3.6-35b-a3b, nemotron) decomposed 1.0, so "reasoning flakes on tool-call" is R1-SPECIFIC, not a reasoning-family trait. Reviewer weak (0.556 — medium 0.000, hard 0.667). Worker single-tool/context is fine (1.0) WHEN it emits. So: avoid r1 for decompose/review; its distill-specific call-leakage is the culprit. basis: both.',
 		sources: [
 			"https://github.com/vllm-project/vllm/issues/19001",
-			"eval-harness 2026-07-11 (m5max HIGH power, deepseek-r1-0528-qwen3-8b: mean 0.867/10 — decompose 2/3 NO-ANSWER flaky, reviewer 0.556, worker 1.0); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, deepseek-r1-0528-qwen3-8b: mean 0.867/10 — decompose 2/3 NO-ANSWER flaky, reviewer 0.556, worker 1.0); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "both",
 		verified: true,
@@ -218,7 +218,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		note: "Ornith-1.0-35B MoE (DeepReinforce, 2026-06, MIT) — a SELF-SCAFFOLDING agentic CODING model: it RL-learns to jointly produce the solution AND its OWN scaffold (task plan / tool calls / error recovery); at inference it PROPOSES a refined scaffold, then solves. Research-STRONG: the 35B MoE (~3B active/token) beats Qwen-3.5-397B on Terminal-Bench 2.1 (64.2 vs 53.5) — top-tier agentic coder on paper. ⚠ NOT verified by us — our LOCAL MLX checkpoints (`@4bit` AND `@8bit`) LOAD-FAIL (`lms load` exits 1 at ~2%, 3/3, 2026-07-01: a broken/incompatible QUANT CONVERSION, NOT headroom/guard). LOAD FIX: use the official `leonsarmiento/Ornith-1.0-35B-5bit-mlx` (mixed 5/8-bit) OR the GGUF/FP8/bf16 weights (`deepreinforce-ai/Ornith-1.0-35B`) — not the @4bit/@8bit MLX. ⚠ HANDLING (§5.AB-E): it SELF-SCAFFOLDS, so !Klein's force-advance + aggressive decomposition may CONFLICT with its own orchestration — let it author its own workflow (decompose LESS; give it room/budget to plan first; may need a warm-up turn to author the scaffold). Corrected from a WRONG TOOL_UNSUITABLE+reject (that conflated a load-fail with incapability — user caught it 2026-07-01; the 9B sibling loads + passed C0/C1/C2).",
 		sources: [
 			"deep-reinforce.com/ornith_1_0.html; marktechpost.com/2026/06/25 Ornith-1.0 release; huggingface.co/deepreinforce-ai/Ornith-1.0-35B; huggingface.co/leonsarmiento/Ornith-1.0-35B-5bit-mlx (official MLX)",
-			"live model-lab sweep 2026-07-01: the @4bit/@8bit MLX checkpoints load-fail 3/3 (docs/dev/model-sweep-log.md) — a CHECKPOINT issue, not a capability verdict",
+			"live model-lab sweep 2026-07-01: the @4bit/@8bit MLX checkpoints load-fail 3/3 (historical evidence archived in done.md) — a CHECKPOINT issue, not a capability verdict",
 		],
 		basis: "both",
 		verified: false,
@@ -235,7 +235,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 5.6,
 		note: "Ornith-1.0-9B (DeepReinforce self-scaffolding agentic coder, the 9B sibling of the 35B — and unlike the 35B it LOADS fine, e.g. `ornith-1.0-9b@q4_k_m`). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 all 3 tiers + worker/tool-use + context probes 1.000; reviewer 0.722 (the small-model ceiling). STANDOUT: FAST + reliable — ~8-13s per decompose cell, the WHOLE 12-cell eval in ~3 MINUTES (vs qwable-9b ~19min, qwq-32b ~22min), and it scored every cell (no over-think NO-ANSWERs). So the 9B ornith is a FAST, reliable decompose+worker all-rounder (ties qwen3-8b/qwable-9b at 0.931 quality but among the FASTEST) — a strong local worker/architect pick, weak only as a reviewer. Also chat-agent-tools single-tool PASS. NOTE the 35B sibling's self-scaffolding caveat may apply (give it room to plan), though the 9B chained cleanly in-harness. NOTE on quant + review NOISE (the 0.722 above is @q4_k_m): the @q8_0 quant caught the hard trio (reviewer 0.833) where @q4 didn't (0.722) — but it is UNRESOLVED whether that is a real quant effect or a fluke: since per-model review scores are DETERMINISTIC (a settled REPEATS=4 phi-4-mini run had spread 0), the ornith @q8-vs-@q4 gap is MORE LIKELY a real quant effect than run-variance — BUT ornith itself was not settled (REPEATS=1 each), and qwopus3.5-9b showed NO quant gap (@8bit=@4bit=0.722 in matched runs), so quant-sensitivity for review is at most MODEL-SPECIFIC, not universal. Decompose+worker ARE quant-robust (1.0 on both). To rank a borderline model's review firmly, settle it at REPEATS≥4. basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, ornith-1.0-9b@q4_k_m: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ~3min total = FAST); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, ornith-1.0-9b@q4_k_m: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ~3min total = FAST); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
 		],
 		basis: "empirical",
@@ -289,7 +289,9 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		toolUse: "TOOL_CAPABLE",
 		kind: "instruct",
 		note: "Local qwen3.6×opus merge fine-tunes (MLX). qwopus3.6-27b-v2-mlx is the capable-model-first driver (user 2026-06-29). Live-verified 2026-06-29: clean single-tool call (finish_reason=tool_calls, correct name+args; reasoning-capable, ~186 reasoning tokens on a trivial call). Multi-tool CHAINING not yet sweep-verified — promote to TOOL_NATIVE once a full e2e chain passes.",
-		sources: ["live probe 2026-06-29 (todo §5.AL capable-model-first pivot); see docs/dev/model-sweep-log.md"],
+		sources: [
+			"live probe 2026-06-29 (todo §5.AL capable-model-first pivot); historical evidence archived in done.md (2026-07-13 consolidation)",
+		],
 		basis: "empirical",
 		verified: true,
 	},
@@ -305,7 +307,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 7,
 		note: "qwable-9b-claude-fable-5-mlx (David's local qwen×claude-fable-5 merge, ~7 GB MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 across all 3 tiers (n=3, no timeouts) + worker/tool-use + context probes 1.000; reviewer 0.722 (easy 1.0, medium 0.5, hard 0.667 — the same small-model reviewer ceiling, misses subtle null/race defects). STANDOUT RELIABILITY: it scored EVERY one of the 12 cells — unlike the bigger reasoning models (qwq-32b, qwen3.6-35b-a3b) which NO-ANSWER'd cells by over-thinking. So David's fable merge is a solid, RELIABLE decompose+worker all-rounder (ties qwen3-8b's 0.931) at 9B, weak only as a reviewer. Also chat-agent-tools single-tool PASS (call+synth). Moderate latency (~57-180s/cell — slower than qwen3-8b but always answers). basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, qwable-9b-claude-fable-5-mlx: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ZERO no-answers); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, qwable-9b-claude-fable-5-mlx: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ZERO no-answers); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
 		],
 		basis: "empirical",
@@ -368,7 +370,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 69,
 		note: "qwen3.5-122b-a10b (arch qwen3_5, 122B MoE / ~10B active). The STRONGEST all-round result of the 2026-07-01 model-lab sweep: live e2e = CLEAN PASS (exit 0) — drove ALL 4 tools (read_file+run_command+create_card+update_focus_chain), PERSISTED the card, AND echoed the marker = FULL synthesis — NATIVELY (no §5.AB force-advance rung needed, unlike the smaller qwen3.5-9b reasoning row which only completes via the rung with weak synth). Medium speed (~77s, healthy for a 122B thanks to the A10B active-param MoE). ~69 GB resident (@4bit) — a real footprint cost, but headroom-safe on the 128 GB box (111.9 GiB free after load, ≥25% reserve). Being a reasoning family, json_schema structured output is expected to dead-end (§4A) — native tool_choice:required is the working lever. A distinct HIGH-TIER entry so the 122B is never scored against the 9B verdict.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen3.5-122b-a10b@4bit CLEAN PASS, exit 0, full synth, ~77s); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen3.5-122b-a10b@4bit CLEAN PASS, exit 0, full synth, ~77s); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -419,7 +421,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn chaining is STOCHASTIC — live 2026-06-29 (HIGH power, fresh-loaded, back-to-back e2e): run 1 narrated steps 2-4 as prose → INCOMPLETE (the evidence-gate correctly refused the false 'done'), run 2 drove the full chain + persisted → PASS. Our best small performer, but don't assume a single run is representative. EVAL-HARNESS FITNESS (§11 sweep 2026-07-11, m5max low-power, native_tool_call, mean 0.931/12 cells): architect/decompose 1.000 (PERFECT — easy+medium+hard all landed via the tool channel, ~10.7s avg) and worker/tool-use+context 1.000 (perfect: simple/multi-select/irrelevance tool-use AND 2k/8k/24k context probes) — but reviewer quality 0.722 / reliability 0.667 (easy 1.0, medium 0.5 = missed part of the null/unhandled-rejection pair, hard 0.667 = partial on the race/leak/injection trio). So qwen3-8b is a TOP architect/decompose + worker pick but a WEAK reviewer (misses subtle null/concurrency defects — the same small-model reviewer ceiling as coder-14b 0.556 and qwopus3.5-9b 0.833); pair it with review lenses or route review to a stronger model. basis: empirical.",
 		sources: [
 			"https://qwenlm.github.io/blog/qwen3/",
-			"eval-harness 2026-07-11 (m5max low-power, qwen/qwen3-8b: mean 0.931/12 — decompose 1.0, worker 1.0, reviewer 0.722); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max low-power, qwen/qwen3-8b: mean 0.931/12 — decompose 1.0, worker 1.0, reviewer 0.722); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "both",
 		verified: true,
@@ -438,7 +440,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 45,
 		note: "Qwen3-Coder-Next (arch qwen3_next, ~80B MoE agentic coder). Live e2e 2026-07-01 (model-lab guarded sweep, m5): CLEAN PASS (exit 0) — drove ALL 4 tools (read+command+create_card+focus_chain) + PERSISTED the card + echoed the marker = FULL synthesis, FAST (~25s). Purpose-built for agentic coding and behaves like it — a top-tier local DRIVER candidate. ~45 GB resident, headroom-safe on the 128 GB box.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen3-coder-next CLEAN PASS, exit 0, full synth, ~25s); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen3-coder-next CLEAN PASS, exit 0, full synth, ~25s); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -455,7 +457,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 9,
 		note: "qwen3-14b (arch qwen3). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LAPTOP 8 GB-VRAM box): ❌ INCOMPLETE (122s) — card not persisted (dropped the chain). ODDLY weaker than the coder-7b + gemma-4-12b that PASS on the same box, so possibly a stochastic miss rather than a hard ceiling — n=1, verdict PROVISIONAL (verified:false; ×3 re-run owed, ideally on faster HW to rule out a speed confound).",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — qwen3-14b ❌ INCOMPLETE 122s, n=1); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — qwen3-14b ❌ INCOMPLETE 122s, n=1); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: false,
@@ -471,7 +473,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 17,
 		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE has its own row). SETTLED eval evidence 2026-07-10 (§5.AB harness, 4 repeats/cell, m5max LOW-POWER): TOOL USE PERFECT — 12/12 across easy/medium/hard incl. the irrelevance probe (settled_pass, spread 0). DECOMPOSE strong easy+medium (settled 1.0). HARD-DECOMPOSE CAVEAT RESOLVED (§11 sweep 2026-07-11, HIGH power re-run, mean 0.894/11): the hard cell was NOT a power timeout — at high power it finished in 121s (well under the cap) yet still produced **NO ANSWER**, so the hard-decompose gap is a GENUINE ceiling for the 27b base, not a latency artifact. REVIEWER WEAKNESS CONFIRMED real (not power-masked): high power reviewer 0.611 quality / 0.333 reliability (medium 0.5, HARD 0.333 — caught only 1 of race/leak/injection), matching the low-power settled numbers. So the 27b BASE is a WEAK reviewer — and note the intra-family split: the qwen3.6-35b-a3b MoE reviews at 0.833 (catches the hard trio) while this 27b base sits at 0.333, so within qwen3.6 route review to the 35b-a3b MoE (or nemotron-nano-4b), never the 27b base. Prefer a different family for the reviewer role or pair with review lenses.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (laptop, speed-confounded INCOMPLETE @840s); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (laptop, speed-confounded INCOMPLETE @840s); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"eval harness 2026-07-10 (scripts/eval-harness.mts, NKLEIN_EVAL_REPEATS=4, persisted to fitness-table): mean 0.854/32 cells — worker 1.0/1.0, architect 1.0 quality @maxDiff 0.66, reviewer 0.611 quality/0.333 reliability",
 		],
 		basis: "both",
@@ -489,7 +491,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 69,
 		note: "ravenx-cyberagent-qwen3.6-35b-a3b-opus-4.7-openmythos-pentester-bughunter merge (~69 GB, MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness, mean 0.833/9 SCORED): the security-tuning-boosts-review hypothesis is REFUTED, and the merge is STRICTLY WORSE than its base qwen3.6-35b-a3b. DECOMPOSE BROKEN: all 3 architect cells NO ANSWER (the heavy merge disrupted the structured decompose_project tool-call — the base scores 1.0 here). REVIEWER 0.833 = IDENTICAL to the base (caught the hard trio, missed the medium null-deref) — the pentester/bughunter tuning added NOTHING to review recall over the base 35b-a3b. Worker mostly 1.0 but tooluse-simple-weather 0.000. So: do NOT route decompose (or reliable tool-work) here; it reviews only as well as its base at 3× the base's footprint. Lesson: a heavy multi-way capability merge can DEGRADE the base's structured-output/tool-calling without improving the target skill — prefer the clean base (qwen3.6-35b-a3b) for both decompose AND review. basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, ravenx-…-pentester-bughunter: mean 0.833/9 — decompose ALL NO-ANSWER, reviewer 0.833 = same as base, worker 0.833); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, ravenx-…-pentester-bughunter: mean 0.833/9 — decompose ALL NO-ANSWER, reviewer 0.833 = same as base, worker 0.833); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS — single-tool works; the STRUCTURED decompose call is what the merge broke)",
 		],
 		basis: "empirical",
@@ -505,7 +507,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 22,
 		note: "qwen3.6-35b-a3b (base qwen3.6 reasoning MoE, ~3B active). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.955/11 scored cells): worker/tool-use + all context probes 1.000; decompose 1.000 on medium+hard (easy cell NO-ANSWER — a reasoning over-think on the trivial prompt, ~41s, not a refusal); and — the standout — REVIEWER quality 0.833 (easy 1.0, medium 0.5, HARD 1.0: it CAUGHT the full race/leak/injection trio). That is a REAL reviewer UPGRADE over the qwen3.6-27b base (0.333 on the hard trio) and over the small-model ceiling (~0.72): the bigger a3b MoE is the strongest REVIEWER swept so far — a viable route for the reviewer role the smaller models fail. Also chat-agent-tools single-tool PASS. Cost: slow reasoning cells (~40s decompose, ~25s review) even at high power. basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwen3.6-35b-a3b: mean 0.955/11 — worker 1.0, decompose 1.0 med+hard, reviewer 0.833 incl. the hard trio); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwen3.6-35b-a3b: mean 0.955/11 — worker 1.0, decompose 1.0 med+hard, reviewer 0.833 incl. the hard trio); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
 		],
 		basis: "empirical",
@@ -521,7 +523,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 35,
 		note: "QwQ-32B (Qwen dense reasoning). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.955/11): worker/tool-use + context probes 1.000; decompose 1.000 on easy+hard (medium NO-ANSWER — reasoning over-think, hit the harness cell cap); REVIEWER quality 0.833 (caught the hard race/leak/injection trio — a STRONG reviewer, ties qwen3.6-35b-a3b). Also chat-agent-tools single-tool PASS. BUT PROHIBITIVELY SLOW: decompose cells took 191-272s EACH and review cells ~140-168s — the full 12-cell eval ran ~22 MINUTES even at HIGH power (it over-thinks massively). Same quality as qwen3.6-35b-a3b (both 0.955, both reviewer 0.833) at 4-6× the latency, so PREFER qwen3.6-35b-a3b for the reviewer role — QwQ's quality is real but its latency makes it impractical for unattended/interactive use. speed:slow is an understatement. basis: empirical.",
 		sources: [
-			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwq-32b: mean 0.955/11 — reviewer 0.833, but ~3-4min/decompose cell, ~22min total); see docs/dev/model-sweep-log.md",
+			"eval-harness 2026-07-11 (m5max HIGH power, qwen/qwq-32b: mean 0.955/11 — reviewer 0.833, but ~3-4min/decompose cell, ~22min total); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
 		],
 		basis: "empirical",
@@ -540,7 +542,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 63,
 		note: "OpenAI gpt-oss-120b (open-weight MoE, ~116B total / ~5.1B active). Live e2e 2026-07-01 (model-lab guarded sweep, m5): CLEAN PASS (exit 0) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis, and FAST (~22s, thanks to the ~5B active-param MoE). ~63 GB resident, headroom-safe on the 128 GB box. A high-tier winner. KEY CONTRAST with the gpt-oss-20b sibling (TOOL_WEAK): gpt-oss chaining tracks ACTIVE params — 5.1B here clears the full chain, 3.6B on the 20b does not. EVAL-HARNESS FITNESS (§11 sweep 2026-07-11, HIGH power, first eval-harness scores for it — mean 0.875/12): decompose 1.000 all tiers (fast ~5s/cell) + REVIEWER 0.833 (caught the hard race/leak/injection trio) — another NON-qwen model that BREAKS the reviewer ceiling, reinforcing that strong review recall is model-specific (the qwen instruct/coder family is the one that under-catches). Worker mostly 1.0 but context-probe-8k scored 0.000 — CONFIRMED a HARNESS BUG (the same non-breaking-hyphen typography issue that hit nemotron-nano; fixed 2026-07-11), NOT a model gap, so its true worker is 1.0 and mean ~0.958. Good reviewer but 63 GB — impractical vs phi-4-mini-instruct@8bit (same 0.833 review at 3.8 GB). basis: empirical.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-120b CLEAN PASS, exit 0, full synth, ~22s); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-120b CLEAN PASS, exit 0, full synth, ~22s); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -556,7 +558,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sizeGb: 22,
 		note: "OpenAI gpt-oss-20b (open-weight MoE, ~21B total / ~3.6B active). Live e2e 2026-07-01 ×3 (model-lab guarded sweep, m5): 0/3 — drives read_file + run_command then DROPS create_card + update_focus_chain (card never persisted), INCOMPLETE every run (~39-59s). A multi-tool CHAIN-dropper despite 20B total — consistent with the ≤~4B-active chaining floor (only ~3.6B active), while its 120b sibling (~5.1B active) clears the chain cleanly. Fine for single-tool use; not a reliable multi-step tool-chainer. ⭐ BUT the TOOL_WEAK verdict is ONLY about multi-tool CHAINING — on SINGLE-STRUCTURED-CALL roles it is STRONG (§11 sweep 2026-07-11, HIGH power, eval-harness mean 0.958/12): DECOMPOSE 1.000 all tiers + worker/tool-use + all context probes 1.000, and REVIEWER 0.833 (caught the hard race/leak/injection trio — another non-qwen breaking the reviewer ceiling). Same shape as nemotron-nano: chain-weak, single-call-strong. So gpt-oss-20b is a viable fast DECOMPOSE/REVIEW/single-tool-worker model (0.958) — just never a multi-tool chainer. basis: empirical.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 ×3 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-20b-mlx 0/3, chain-drop); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 ×3 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-20b-mlx 0/3, chain-drop); historical evidence archived in done.md (2026-07-13 consolidation)",
 		],
 		basis: "empirical",
 		verified: true,

@@ -1,5 +1,8 @@
 # LLM Failure-Mode Catalog (simulator test scenarios)
 
+> Maintained simulator test specification, not a backlog. Coverage automation and the real mid-stream SSE stall are
+> tracked only in `todo.md` H7.1–H7.2.
+
 Researched 2026-07-10 (web agent; every mode carries a real-world citation — see Sources). This is the scenario
 inventory for the §13 LLM simulator: every `id` becomes a simulator track + an expected-harness-behavior assertion.
 

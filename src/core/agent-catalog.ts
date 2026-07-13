@@ -105,7 +105,7 @@ export function getRuntimeAgentCatalogEntry(agentId: RuntimeAgentId): RuntimeAge
  * clamped to `nklein`, so for all *reachable* tasks this returns false and **no host worktree is ever created
  * on a new task start**. The remaining host-worktree code paths are read-only legacy compatibility for any
  * pre-existing worktree-backed tasks. Any code deciding "should I touch a host task worktree?" must call this
- * predicate rather than re-deriving the boundary (see plan.md §2.B — host worktree retirement).
+ * predicate rather than re-deriving the boundary (see todo.md P0.9 — host worktree retirement).
  */
 export function usesLegacyHostTaskWorkspace(agentId: RuntimeAgentId | null | undefined): boolean {
 	return agentId !== undefined && agentId !== null && agentId !== "nklein";

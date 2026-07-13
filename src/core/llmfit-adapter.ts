@@ -2,8 +2,8 @@
  * Adapter for `llmfit` (todo §5.AB; MIT, https://github.com/AlexsJones/llmfit) — a local CLI that scores models for
  * FIT (VRAM/RAM, per-quant, MoE-offload-aware) + SPEED (tok/s) + ranking against detected (or simulated) hardware.
  *
- * This module is the PURE half: tolerant parsers for its `--json` output (shapes captured in
- * [docs/dev/llmfit-spike.md](../../docs/dev/llmfit-spike.md)) + the small mappings !Klein consumes — so the effectful
+ * This module is the PURE half: tolerant parsers for its `--json` output (llmfit 0.5.2 shapes captured by the adjacent
+ * tests) + the small mappings !Klein consumes — so the effectful
  * shell-out (`uvx llmfit --json …` / a resolved binary, mirroring the guarded `lms` runner) stays a thin wrapper that
  * just feeds raw JSON in. llmfit owns FIT/SPEED; the §5.AL `MODEL_CAPABILITY_CATALOG` owns the EMPIRICAL tool-use
  * verdict (llmfit's `tool_use` is only a claimed-support tag) — they compose: llmfit narrows to fits+fast per pool,

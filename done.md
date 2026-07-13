@@ -5,29 +5,59 @@
 > *remaining* work while preserving the full record of what already exists so an agent **knows what's built and does
 > not rebuild it** (the original purpose of the old "§6 SHIPPED" section, now the heart of this file).
 >
-> **The standing rule that fills this file (do NOT re-litigate — mirrored authoritatively in `todo.md`):** when a
-> top-level item or a whole section in `todo.md` becomes **fully `[x]`** (delivered + verified), it is **moved here —
-> as a complete subtree, keeping its `§x.y` id and nesting — in the SAME commit that ships the code** (alongside the
-> `CHANGELOG.md` `## [Upcoming]` bullet). So a feature lands in `done.md` exactly when its code lands in `git`.
+> **The standing rule that fills this file (mirrored authoritatively in `todo.md`):** when a current work package is
+> delivered and verified, move it here in the same commit (alongside any user-facing `CHANGELOG.md` entry). Keep its
+> current id and mention the legacy `§5.*` topic when useful.
 >
 > **Anti-chaos invariants:**
-> - **Section ids are STABLE across the split.** A completed `§5.x` keeps its id here; `§6.x` keeps its id here. So
->   every cross-reference in `todo.md` (e.g. "reuse §5.K", "the scheduler §6.5") still resolves — it just resolves
->   into this file. Conversely, references here to **open** work (`§5.A`, `§5.M`, …) resolve into `todo.md`.
+> - **Package ids are stable after the 2026-07-13 consolidation.** Older `§5.*` ids remain searchable through the
+>   alias map in `todo.md` and the legacy headings preserved below.
 > - **Append-only archive.** Group by the same section ids; don't rewrite a migrated item except to fix a stale
 >   cross-reference. The verbose per-commit detail is preserved as-moved (it's already the historical record).
-> - **A `[~]` partial item is NOT done** — it stays whole in `todo.md` (its done children are in-flight context)
->   until its top box flips to `[x]`, then the whole subtree migrates here. `[-]` deferred/superseded items also stay
->   in `todo.md` (deferred ≠ done).
+> - **No open status belongs here.** A shipped baseline may be `[x]` with its genuine residue cross-linked to a distinct
+>   package in `todo.md`; `[ ]`, `[~]`, `[>]`, and `[?]` are reserved for the current queue.
 > - **Counts live in `todo.md`.** The ready/blocked greps run on `todo.md` only; `done.md` is not counted.
 >
-> **Status legend (same as `todo.md`):** `[x]` done (shipped & verified) · `[~]` shipped baseline with a cross-linked
-> open follow-up still tracked in `todo.md` §5.
+> **Status legend:** `[x]` shipped and verified. Historical prose is evidence, not an active task list.
 >
-> **Last reconciled:** 2026-06-27 (initial split — migrated `## 6. SHIPPED` wholesale + the fully-`[x]` open-work
-> sections §5.E, §5.K, §5.Q, §5.T, §5.Y out of `todo.md`).
+> **Last reconciled:** 2026-07-13 against `feat/nklein-upcoming` at `0bfbbb02`; all secondary Markdown task trackers
+> were consolidated into the ordered queue and this archive.
 
 ---
+
+## 2026-07-13 backlog consolidation archive
+
+- [x] **Branch and Markdown reconciliation.** Fetched `origin`/`upstream`; confirmed the branch was 63 ahead and 0
+  behind; audited all 177 tracked Markdown files; separated 18 secondary task/handoff prompts from maintained product,
+  legal, operational, research, vendor, fixture, and scenario documentation.
+- [x] **C0–C2 milestone foundation.** Single-card delivery, planning/decomposition, and review/delivery challenge
+  baselines were completed; C3–C8/CAP remain as explicit gates in `todo.md` phases 6–7.
+- [x] **Simulator foundation.** The local simulator, LM Studio-compatible shim, 20 perfect + 20 flaky scenario sets,
+  record/distill proxy, runtime flow harness, and multi-card verifier exist and pass their focused suites. Remaining UI,
+  failure-coverage, mid-stream-stall, and telemetry-hardening work is tracked in H7.1–H7.4.
+- [x] **Wave 3 operator/chat UI.** Shared rich chat renderer, stop/stall controls, five zoom levels, focus-chain strip,
+  board DAG, needs-you badge/inbox path, mailbox counts, truncation indicator, and approved dependency-edge treatment
+  shipped and were verified in the Fable pass.
+- [x] **Desktop baseline and LAN serving.** Electron shell, tray activity/pause/open controls, autostart, one-project
+  auto-resume, packaged macOS build pipeline, safe opt-in LAN bind, loopback trust, passcode display/auth, restart flow,
+  and Settings controls are code-complete (`4b43ba32`). Packaged interaction and updater/migration work remain queued.
+- [x] **Zero-token liveness detector.** `listZeroTokenWedgedSessions` and its runtime caller interrupt pre-first-turn
+  zombie sessions and release poisoned model capacity (`d68e7a9f`); root-cause/watchdog integration proofs are P0.1–P0.3.
+- [x] **Agent Skills safety cores.** Source-trust classification (`fc8a8f3b`), import/TOFU decision composition
+  (`50f64af9`), and no-auto-execute bundle gating (`2d53faf4`) shipped with pure tests. Effectful import/execution flows
+  remain F4.20–F4.27.
+- [x] **Recent correctness/cleanup.** Local-model crash guidance (`347d441f`), deferred workspace-metadata store
+  notifications (`47e08165`), obsolete Linear preset removal (`6eba9f4b`), and zero-token liveness shipped.
+- [x] **Release command pointers.** `.claude/commands/release.md` and `.nkleinrules/workflows/release.md` are pure
+  pointers to `RELEASE_WORKFLOW.md`, removing the former duplicated workflow decision.
+- [x] **Python sidecar endpoint phases.** `/v1/compress`, `/v1/embed`, `/v1/repomap`, `/v1/decompose/select`, and
+  `/v1/agent/run` are implemented and tested. The final product architecture remains TypeScript; the sidecar is an
+  optional local capability, not a migration roadmap.
+- [x] **Dev-test specification enrichment.** All 36 numbered benchmark specs contain the v2 extensions and 3B-ready
+  build guides; the two one-off authoring prompts were retired after completion.
+- [x] **Historical planning files retired.** Vision/rules still in force moved to `todo.md`; completed outcomes and
+  representative evidence moved here; remaining work became one of the ordered packages. Full verbose history remains
+  available in Git at `0bfbbb02` and its ancestors without acting as a second backlog.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
@@ -392,9 +422,8 @@
       OpenAI-compatible local embedding endpoints, hybrid lexical+semantic+repo-map search, cache GC. Settings
       Code-intelligence panel + board chip; global + per-project embedding overrides. Knowledge/tool-usage JSONL
       telemetry aggregated by project/version/model/role/tool/category/outcome, shown in the stats view.
-- [~] Knowledge-expansion loop *(started 2026-06-21)*: decomposition mandates knowledge-acquisition +
-      scope-pressure and cards record `knowledgeDebt`. **Open:** correlate actual knowledge-tool use into a
-      decomposition-quality signal — see `todo.md` §5.B.
+- [x] Knowledge-expansion baseline *(started 2026-06-21)*: decomposition mandates knowledge-acquisition +
+      scope-pressure and cards record `knowledgeDebt`. The distinct correlation follow-up is `todo.md` F1.1.
 
 ### 6.8 Operator UI & observability (swarm cockpit)
 - [x] Running cards show role/model, token bar, tok/s, elapsed, current tool, turn count; global swarm header
@@ -426,8 +455,8 @@
       classification, failing file/hunk extraction, failing patch preserved under `patch-failures/`, structured
       stream/tool inactivity-timeout card note (last activity/tool, captured?, resume safety).
       ([src/workspace/task-patch-capture-diagnostics.ts](src/workspace/task-patch-capture-diagnostics.ts))
-- [~] **In progress:** host-worktree retirement — creation machinery retired (no live path creates/reads a
-      worktree); only legacy cleanup + dead terminal-CLI scaffolding remain (C7d/C7e/C8 + verify). See `todo.md` §5.A.
+- [x] **Host-worktree creation retirement baseline:** no live path creates/reads a task worktree; task work is captured
+      from Docker into result branches. The distinct migrated-board cleanup/module-removal follow-up is `todo.md` P0.9.
 
 ### 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*
 - [x] **Python core sidecar** (`core-py/`, FastAPI, local-only): constrained generation (`/v1/generate`,
@@ -480,14 +509,14 @@
       resolution, accidental-project repair, board-vs-runtime persistence split, board-save conflict
       rebase/retry). Add-Project UX (one controlled dialog; Existing-Folder + New-Folder flows). Guidance skills
       (`security`/`ui`/`ts`) as on-demand `/nklein-*` workflows.
-- [~] **Project portability baseline:** runtime-home stays the fast local index/cache, but board state, session
+- [x] **Project portability baseline:** runtime-home stays the fast local index/cache, but board state, session
       summaries, revision metadata, and workspace identity mirror into `<project>/.nklein/nklein/workspace/` and
       can recover from that mirror. **Full portable CRDT state** (per-field LWW board CRDT
       [src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts), committed store
       [src/state/portable-board-store.ts](src/state/portable-board-store.ts), export/import with machine-local
       `nkleinSettings` stripped on import, live wiring into save/load, card-trash tombstones, per-machine
-      `replica-id`, cross-machine-recovery integration test) is shipped. **Open:** schema migration + browser
-      verify — see `todo.md` §5.F.
+      `replica-id`, cross-machine-recovery integration test) is shipped. The distinct schema/browser proof is
+      `todo.md` G6.5a.
 
 ### 6.12 SDK vendoring & repo integration *(2026-06-22)*
 - [x] The agent SDK is vendored fully in-repo under `vendor/nklein-sdk/{core,agents,llms,shared}` (committed

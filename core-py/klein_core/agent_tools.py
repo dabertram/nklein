@@ -34,7 +34,8 @@ class WorkspaceTools:
 
     ``allow_commands`` enables a ``run_command`` tool (build/test execution) needed for a real
     implement->build->test loop. It runs host-side in the workspace, so it is opt-in; under !Klein's isolation
-    invariant this must move into the Docker sandbox tool-runner before production use (tracked in plan.md).
+    invariant it must remain disabled in production unless it moves into the Docker sandbox tool-runner and passes the
+    same isolation gates as todo.md H7.35.
     """
 
     def __init__(

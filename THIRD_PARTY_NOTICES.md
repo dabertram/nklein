@@ -1,7 +1,7 @@
 # Third-party notices & attribution
 
 !Klein is licensed under **Apache-2.0** (see `LICENSE`). This file records (1) the deliberate decision to grow
-!Klein beyond a Cline-SDK-only runtime into its own native agent core, and (2) every external agent/tool whose
+!Klein beyond a Cline-SDK-only runtime while keeping the final product architecture TypeScript, and (2) every external agent/tool whose
 **ideas or code** influenced !Klein, with each project's license and how it was used. We respect every
 upstream license; where a license is incompatible with Apache-2.0 redistribution we take **no code** from it.
 
@@ -11,10 +11,11 @@ upstream license; where a license is incompatible with Apache-2.0 redistribution
 boundary for small/quantized local models — most importantly that the SDK's LLM layer forwards only
 `temperature`/`max_tokens`/`stop` and cannot send grammar / JSON-schema constrained decoding or `min_p` /
 `top_k` / `repetition_penalty`. Rather than fork the SDK (which the upstream-clean invariant forbids), we
-decided to build **!Klein's own agent core** (`src/agent-core/`) on top of our own local model client
+decided to build **!Klein's own TypeScript agent core** (`src/agent-core/`) on top of our own local model client
 (`src/nklein-agent/nklein-local-llm-client.ts`), and to adopt the best implementations from the wider local-agent
-ecosystem directly into our codebase. The Cline SDK remains supported as one runtime; it is no longer the only
-one.
+ecosystem directly into our codebase. The Cline SDK remains the production engine while the TypeScript native core is
+prepared for later integration behind a compatible boundary, after the SDK-backed product paths have adequate coverage.
+The optional `core-py/` sidecar supplies local ML experiments; it is not a backend-port roadmap.
 
 How we adopt third-party work:
 - We **re-implement concepts in TypeScript** against our own interfaces rather than copying source verbatim.
@@ -69,14 +70,11 @@ These are implemented from published research, independent of the projects above
 - **LLMLingua-2** prompt compression (arXiv:2403.12968) — `nklein-prompt-compression.ts`.
 - **ReAct** tool-use loop (arXiv:2210.03629) — `src/agent-core/agent-loop.ts`.
 
-## Polyglot architecture (2026-06-21)
+## Optional Python sidecar (decision updated 2026-07-12)
 
-!Klein is moving to a polyglot split: a local-only **Python core sidecar** (`core-py/`, Apache-2.0) owns ML +
-the native agent core; the **TypeScript runtime** keeps the server/tRPC/state/terminal and serves the React UI.
-This lets !Klein use Python's ML ecosystem (constrained decoding via `outlines`/`xgrammar`, LLMLingua-2,
-`sentence-transformers`, `tree-sitter`, `llama-cpp-python`) and adopt the Apache/MIT **Python** agents (aider,
-OpenHands) directly in the sidecar — while AGPL Open Interpreter remains concepts-only. The Python core is
-opt-in (`NKLEIN_CORE_PY`) with automatic fallback to the TS path until parity is proven.
+The final product architecture remains TypeScript. The local-only **Python sidecar** (`core-py/`, Apache-2.0) is an
+optional boundary for ML experiments and capabilities that are genuinely impractical in TypeScript; it does not own the
+native agent core and is not a backend-port plan. AGPL Open Interpreter remains concepts-only.
 
 ## Maintenance rule
 

@@ -1,7 +1,7 @@
 # !Klein Python core (`klein-core`)
 
-Local-only Python sidecar that owns !Klein's ML + native-agent capabilities, called by the TypeScript runtime
-over a small versioned HTTP/JSON contract. See the migration plan and `THIRD_PARTY_NOTICES.md`.
+Optional local-only Python sidecar for ML/native-agent experiments, called by the TypeScript runtime over a small
+versioned HTTP/JSON contract. !Klein's final product architecture remains TypeScript; this is not a migration target.
 
 **Why this exists:** the NKlein SDK's LLM layer can only forward `temperature`/`max_tokens`/`stop`. The Python
 core can send full sampling + **grammar / JSON-schema constrained decoding** (the biggest small/quantized-model
@@ -9,9 +9,9 @@ reliability win), and unlocks the Python ML ecosystem (LLMLingua-2, sentence-tra
 llama-cpp-python) and direct reuse of Apache/MIT Python agents (aider, OpenHands).
 
 ## Status
-- Phase 0 (scaffold) + Phase 1 (constrained generation) endpoints: `/health`, `/v1/generate`,
-  `/v1/generate_structured`. Later phases add `/v1/compress`, `/v1/embed`, `/v1/repomap`, `/v1/decompose`,
-  `/v1/agent/run`.
+- Implemented/tested endpoints: `/health`, `/v1/generate`, `/v1/generate_structured`, `/v1/compress`, `/v1/embed`,
+  `/v1/repomap`, `/v1/decompose/select`, and `/v1/agent/run`.
+- The TypeScript runtime remains authoritative and falls back safely when the opt-in sidecar is unavailable.
 
 ## Generation backends (decision: "both")
 - **Proxy** an existing local OpenAI-compatible server (LM Studio / Ollama / llama.cpp) — set `base_url`.

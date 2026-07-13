@@ -246,8 +246,8 @@ async function main(): Promise<void> {
 	}
 
 	log("");
-	// A structured, paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard) — the harness collects the
-	// facts; a human/agent adds the judgment note (🚀/🐢/🐞/…).
+	// A structured row for stdout/CI capture — the harness collects facts; the typed evaluation ledger is the durable
+	// destination once todo.md F1.14/F1.15 lands.
 	// A clean PASS requires BOTH reaching a terminal lane AND actually delivering the deliverable (the hello.txt result
 	// branch). Reaching `awaiting_review` without a result branch is a PARTIAL — the agent declared done but produced
 	// nothing (exactly the "deeply check the result, not just the lane" case).
