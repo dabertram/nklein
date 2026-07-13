@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Planning agents can now build the task graph step by step, with each step validated.** New `add_task` and
+  `add_dependency` tools let the decomposing agent declare tasks and dependencies one at a time; every operation is
+  checked immediately (unknown tasks, duplicates, self-dependencies, and anything that would create a cycle are
+  rejected with a precise explanation), so an invalid graph can't accumulate — the agent fixes the one bad step
+  instead of redoing the whole plan. Finishing is calling `decompose_project` without a task list: the accumulated
+  graph is submitted as-is. The classic one-shot task list keeps working unchanged.
+
 - **The focus chain is now fully operator-controllable, with an audit trail.** A card's focus-chain panel marks the
   step the agent is on with a "current" chip and can show the step's full status history (every recorded
   pending/in-progress/done/skipped transition, from the durable attempt ledger). The chat plan strip is editable too:

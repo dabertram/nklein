@@ -185,6 +185,13 @@ import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
 import { didTaskConsultKnowledge } from "../telemetry/knowledge-tool-usage-stats";
 import {
+	createIncrementalDagSessionState,
+	createIncrementalDagTools,
+	type IncrementalDagSessionState,
+	injectIncrementalTasksIntoDecomposeInput,
+	resetIncrementalDagSessionState,
+} from "./decomposition/incremental-dag-tools";
+import {
 	applyDecomposeProjectArtifactsToWorkspace,
 	redactWorkspacePathForAgent,
 	toWorkspaceRelativeArtifactPath,
@@ -209,6 +216,7 @@ function createDecomposeProjectTool(
 	onApplied?: NKleinDecompositionAppliedHandler,
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler,
 	requestClarifyTurn?: NKleinClarifyTurnHandler,
+	incrementalState?: IncrementalDagSessionState,
 ): AgentTool {
 	// W4.3: each plan slug gets AT MOST one diverse-critic round (revisions apply the feedback, never re-debate);
 	// the per-run count budget lives in the service handler (it spans sessions).
@@ -272,7 +280,7 @@ function createDecomposeProjectTool(
 				tasks: {
 					anyOf: [decomposeProjectTaskArrayJsonSchema, decomposeProjectStringifiedTaskArrayJsonSchema],
 					description:
-						"Task leaves. May be an array or a JSON-stringified array. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
+						"Task leaves. May be an array or a JSON-stringified array. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts. OMIT this field to submit the graph you built incrementally with add_task/add_dependency.",
 				},
 				defaultAcceptanceCommand: {
 					type: "string",
@@ -293,8 +301,13 @@ function createDecomposeProjectTool(
 			additionalProperties: false,
 		}),
 		async execute(input) {
+			// F1.7 incremental completion route: a call WITHOUT `tasks` submits the add_task/add_dependency
+			// construction accumulated this session; an explicit `tasks` array is one-shot mode, unchanged.
+			const effectiveInput = incrementalState
+				? injectIncrementalTasksIntoDecomposeInput(input, incrementalState)
+				: input;
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
-				normalizeDecomposeProjectToolInput(input);
+				normalizeDecomposeProjectToolInput(effectiveInput);
 			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;
 			let appliedBestOfRejected = false;
 			try {
@@ -579,6 +592,11 @@ function createDecomposeProjectTool(
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 				});
 			}
+			if (incrementalState) {
+				// The construction was consumed (or superseded by an explicit one-shot tasks array); a later
+				// decomposition in the same session starts from a clean slate either way.
+				resetIncrementalDagSessionState(incrementalState);
+			}
 			return {
 				ok: true,
 				artifactId: artifacts.artifactId,
@@ -649,6 +667,9 @@ export function createNKleinDecompositionTools(options: {
 	/** F1.3e: executes one bounded clarify turn; absent ⇒ kept-open questions go straight to the operator. */
 	requestClarifyTurn?: NKleinClarifyTurnHandler;
 }): AgentTool[] {
+	// F1.7 (§5.AV): one incremental construction per session, shared by decompose_project (the completion route)
+	// and the add_task/add_dependency tools below. One-shot mode (an explicit tasks array) is untouched.
+	const incrementalState = createIncrementalDagSessionState();
 	return [
 		createDecomposeProjectTool(
 			options.artifactWorkspacePath?.trim() || options.workspacePath,
@@ -656,7 +677,9 @@ export function createNKleinDecompositionTools(options: {
 			options.onApplied,
 			options.requestPlanCritique,
 			options.requestClarifyTurn,
+			incrementalState,
 		),
 		createExpandTaskTool(),
+		...createIncrementalDagTools(incrementalState),
 	];
 }

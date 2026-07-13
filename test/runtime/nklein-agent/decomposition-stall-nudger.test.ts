@@ -3,6 +3,7 @@ import type { RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "../../.
 import {
 	DecompositionStallNudger,
 	isChatOnlyDecompositionActivity,
+	isDecompositionProgressTool,
 } from "../../../src/nklein-agent/decomposition-stall-nudger";
 
 function activity(over: Partial<RuntimeTaskHookActivity> = {}): RuntimeTaskHookActivity {
@@ -72,6 +73,17 @@ describe("isChatOnlyDecompositionActivity", () => {
 				summary(activity({ toolName: "decompose_project", activityText: "task graph" })),
 			),
 		).toBe(false);
+	});
+
+	it("is false while the model drives the F1.7 incremental construction (add_task/add_dependency)", () => {
+		for (const toolName of ["add_task", "add_dependency", " Add_Task "]) {
+			expect(isChatOnlyDecompositionActivity(summary(activity({ toolName, activityText: "task graph" })))).toBe(
+				false,
+			);
+		}
+		expect(isDecompositionProgressTool("decompose_project")).toBe(true);
+		expect(isDecompositionProgressTool("read_files")).toBe(false);
+		expect(isDecompositionProgressTool(null)).toBe(false);
 	});
 
 	it("is false for the wrong source, the wrong hook event, or no matching prose", () => {

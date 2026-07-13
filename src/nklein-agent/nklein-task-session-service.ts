@@ -55,7 +55,11 @@ import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../works
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
 import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
 import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
-import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
+import {
+	DecompositionStallNudger,
+	isChatOnlyDecompositionActivity,
+	isDecompositionProgressTool,
+} from "./decomposition-stall-nudger";
 import { createAcceptanceVerifier } from "./nklein-acceptance-verifier";
 import { createAdaptiveBudgetController } from "./nklein-adaptive-budget-controller";
 import {
@@ -2940,14 +2944,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.activeToolTaskIds.delete(taskId);
 			this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
 		} else if (hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
-			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
+			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.add(taskId);
 			this.clearTaskTimeout(taskId, "stream");
 			this.timeoutController.scheduleToolTimeout(taskId);
 		} else if (hookEventName === "tool_result") {
-			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
+			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.delete(taskId);

@@ -32,7 +32,9 @@ const DECOMPOSE_PROJECT_RECOVERY_HINT =
 	"Call decompose_project once with: slug (short string), spec (brief markdown), plan (brief markdown), " +
 	"and tasks (a JSON array of objects, each with id, title, prompt). title is optional — it defaults to the " +
 	"slug when omitted. Start small — 3 to 6 top-level tasks is fine and you can expand later; keep spec and " +
-	"plan to a few sentences (longer text is truncated). Do not resend an empty or partial call.";
+	"plan to a few sentences (longer text is truncated). Do not resend an empty or partial call. " +
+	"Alternatively, build the graph first with add_task/add_dependency (validated step by step) and then call " +
+	"decompose_project without tasks.";
 
 export function decomposeProjectFieldIsUsable(value: unknown): boolean {
 	if (typeof value === "string") {

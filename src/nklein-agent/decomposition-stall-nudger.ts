@@ -51,6 +51,16 @@ const DECOMPOSITION_CHAT_REPORT_PATTERN =
 	/\b(?:decompose_project|decompose this (?:project|into)|decompose the (?:project|spec|specification|codebase)|let me decompose|i(?:'ll| will| am going to|'m going to| can) decompose|i(?:'ve| have) a clear picture|clear picture of the spec|decomposition tool|based on my (?:analysis|review)|current (?:state|codebase state)|specification summary|implementation plan|task graph|domain analysis)\b/i;
 
 /**
+ * F1.7: the tool calls that ARE decomposition progress — the final submission plus the incremental
+ * add_task/add_dependency construction protocol. A session actively driving any of these must never be
+ * treated as chat-only prose stalling.
+ */
+export function isDecompositionProgressTool(toolName: string | null | undefined): boolean {
+	const normalized = (toolName ?? "").trim().toLowerCase();
+	return normalized === "decompose_project" || normalized === "add_task" || normalized === "add_dependency";
+}
+
+/**
  * True when the task is *running* and the latest assistant delta looks like a chat-only
  * decomposition prose response (not a tool call). Mirrors `isChatOnlyDecompositionActivity`.
  */
@@ -59,8 +69,7 @@ export function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSumma
 	if (activity?.source !== "nklein-sdk" || activity.hookEventName !== "assistant_delta") {
 		return false;
 	}
-	const toolName = activity.toolName?.trim().toLowerCase();
-	if (toolName === "decompose_project") {
+	if (isDecompositionProgressTool(activity.toolName)) {
 		return false;
 	}
 	const text = `${activity.activityText ?? ""}\n${activity.finalMessage ?? ""}`;

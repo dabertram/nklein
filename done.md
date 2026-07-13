@@ -388,6 +388,24 @@
   regression test. 9 new tests (history projection + scope/empty guards, operator accept/clear/reject×2, panel
   current chip + lazy history + empty placeholder).
 
+- [x] **F1.7 — Wire incremental valid-DAG construction into decomposition** *(delivered 2026-07-13).* The §5.AV
+  pure core (`applyDagOp`, valid-by-construction: acyclic, no dangling/duplicate/self-loop edges) is now LIVE:
+  `createIncrementalDagTools` (new `decomposition/incremental-dag-tools.ts`) exposes `add_task` (one validated
+  task leaf; inline `dependsOn` validated PER EDGE — a bad one is reported with the precise core reason, never
+  silently dropped, never blocks the accepted task) and `add_dependency` (`taskId` depends on `dependsOn`; reject
+  messages re-voiced in the tool's own argument vocabulary so unknown_from/unknown_to point at the right
+  argument). One shared per-planning-session state holder; every result echoes running graph size + the
+  completion instruction. Completion route: `decompose_project` WITHOUT `tasks` consumes the construction —
+  `dependsOn` is DERIVED from accepted edges (a rejected inline dep can never sneak back in) — then the state
+  resets. One-shot mode (explicit `tasks` array) is untouched and remains the default/evaluator baseline (the
+  §5.AB decompose eval scores it; `dagConstructionToGraph` drops a constructed graph into the same scorer for
+  comparison). Stall-nudger integration: `isDecompositionProgressTool` (decompose_project | add_task |
+  add_dependency) — a session actively driving the incremental protocol is decomposition PROGRESS, never
+  chat-only-prose stalling, and its tool calls clear the chat nudge like decompose_project's do. 8 new tests
+  (accept/duplicate/invalid-input, per-edge inline-dep reporting, dependency vocabulary + duplicate/self-loop/
+  cycle reasons, assembly + injection + one-shot precedence + reset, end-to-end tasks-less decompose through the
+  real toolset, nudger progress-tool exemption).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
