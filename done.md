@@ -1099,6 +1099,17 @@
   (none/low/medium/high by sample volume), threaded onto `FitnessTableViewRow` and the wire contract
   (`.default()`-guarded so existing readers/fixtures stay compatible; web-ui tsc 0). 8 tests (bounds, sample-size
   monotonicity, banding). tsc 0, fast 9579.
+- [x] **F2.22b — the confidence column + richer filters rendered in the fitness browser** *(delivered 2026-07-14;
+  completes F2.22).* The F2.22a data (Wilson lower bound + band) is now surfaced in
+  `model-performance-stats-dialog.tsx`: a **Confidence** column shows the band (color-coded high→green / medium→blue
+  / low→orange / none→tertiary via `fitnessBandClassName`) with its lower-bound % beside it, and a new `confidence`
+  sort option ranks by "how sure". Three filters added beside the existing role/sort controls: a confidence-band
+  select, a freshness select (fresh/stale on a 14-day `FITNESS_STALE_AFTER_MS` window; unknown eval time fails
+  cautious to stale), and a below-bar-only checkbox. The filter/sort logic is extracted to a pure exported
+  `filterAndSortFitnessRows` (+ `isFitnessRowStale`) so it is tested independently of the render — matching this
+  dialog's convention (its test file exercises pure helpers, not JSX; no e2e opens this nested telemetry dialog, and
+  the dev backend has no fitness rows to render). 10 new unit tests (each filter, both new sorts with sample-count
+  tie-breaks, staleness split incl. unknown-time). web-ui tsc 0; lint 0; dialog suite 14/14.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

@@ -36,6 +36,21 @@ function formatPercent(value: number | null | undefined): string {
 	return `${Math.round(value * 100)}%`;
 }
 
+// F2.22: color the confidence band so a glance separates well-evidenced cells (green/high) from thin ones
+// (tertiary/none), matching the app's status palette.
+function fitnessBandClassName(band: "none" | "low" | "medium" | "high"): string {
+	if (band === "high") {
+		return "text-status-green";
+	}
+	if (band === "medium") {
+		return "text-status-blue";
+	}
+	if (band === "low") {
+		return "text-status-orange";
+	}
+	return "text-text-tertiary";
+}
+
 function formatDuration(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return "n/a";
@@ -191,6 +206,76 @@ export function summarizeDecompositionKnowledge(aggregates: readonly RuntimeDeco
 	return { decompositions, withKnowledgeTools, rate: decompositions > 0 ? withKnowledgeTools / decompositions : 0 };
 }
 
+// F2.22: a fitness cell is STALE when its last evaluation is older than this window (or its time is unknown — an
+// unknown evaluation time fails cautious to stale, mirroring the §5.AC provenance staleness gate). 14 days keeps
+// the browser honest about evidence that predates recent model/prompt changes.
+export const FITNESS_STALE_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+
+type FitnessRow = RuntimeFitnessTableResponse["rows"][number];
+export type FitnessConfidenceBand = FitnessRow["confidenceBand"];
+export type FitnessSortMode = "successRate" | "sampleCount" | "confidence";
+
+export interface FitnessRowFilterOptions {
+	/** `"all"` or a concrete role. */
+	roleFilter: string;
+	/** Keep only cells in the failing-LLM projection. */
+	belowBarOnly: boolean;
+	/** `"all"` or a concrete confidence band. */
+	bandFilter: FitnessConfidenceBand | "all";
+	/** `"all"` keeps everything; `"fresh"`/`"stale"` split on {@link FITNESS_STALE_AFTER_MS}. */
+	stalenessFilter: "all" | "fresh" | "stale";
+	sort: FitnessSortMode;
+	/** Reference time for staleness (pass `Date.now()` at the call site; injected so the sort/filter stays pure). */
+	now: number;
+	/** Staleness window; defaults to {@link FITNESS_STALE_AFTER_MS}. */
+	staleAfterMs?: number;
+}
+
+/** F2.22: a cell is stale when it was last evaluated before the window, or its evaluation time is unknown. */
+export function isFitnessRowStale(row: FitnessRow, now: number, staleAfterMs = FITNESS_STALE_AFTER_MS): boolean {
+	if (row.updatedAt === null) {
+		return true;
+	}
+	return now - row.updatedAt > staleAfterMs;
+}
+
+/**
+ * F2.22 fitness-browser projection: filter the stored rows by role / below-bar / confidence band / staleness, then
+ * sort by success rate, sample count, or confidence (Wilson lower bound). Pure + total so the browser's controls are
+ * one tested place, separate from the dialog's render. Every sort breaks ties on sample count so a well-sampled cell
+ * ranks ahead of a one-off with the same headline number.
+ */
+export function filterAndSortFitnessRows(rows: readonly FitnessRow[], options: FitnessRowFilterOptions): FitnessRow[] {
+	const staleAfterMs = options.staleAfterMs ?? FITNESS_STALE_AFTER_MS;
+	const filtered = rows.filter((row) => {
+		if (options.roleFilter !== "all" && row.role !== options.roleFilter) {
+			return false;
+		}
+		if (options.belowBarOnly && !row.belowBar) {
+			return false;
+		}
+		if (options.bandFilter !== "all" && row.confidenceBand !== options.bandFilter) {
+			return false;
+		}
+		if (options.stalenessFilter !== "all") {
+			const stale = isFitnessRowStale(row, options.now, staleAfterMs);
+			if (options.stalenessFilter === "stale" ? !stale : stale) {
+				return false;
+			}
+		}
+		return true;
+	});
+	return filtered.sort((left, right) => {
+		if (options.sort === "confidence") {
+			return right.confidenceLowerBound - left.confidenceLowerBound || right.sampleCount - left.sampleCount;
+		}
+		if (options.sort === "sampleCount") {
+			return right.sampleCount - left.sampleCount || right.successRate - left.successRate;
+		}
+		return right.successRate - left.successRate || right.sampleCount - left.sampleCount;
+	});
+}
+
 function summarizeObservations(observations: RuntimeModelPerformanceObservation[]): {
 	totalRuns: number;
 	completedRuns: number;
@@ -235,9 +320,13 @@ export function ModelPerformanceStatsDialog({
 	const [knowledgeStats, setKnowledgeStats] = useState<RuntimeKnowledgeToolUsageStatsResponse | null>(null);
 	const [behaviorProfiles, setBehaviorProfiles] = useState<RuntimeModelBehaviorProfilesResponse | null>(null);
 	const [fitnessTable, setFitnessTable] = useState<RuntimeFitnessTableResponse | null>(null);
-	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) or samples.
+	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) / samples / confidence.
 	const [fitnessRoleFilter, setFitnessRoleFilter] = useState<string>("all");
-	const [fitnessSort, setFitnessSort] = useState<"successRate" | "sampleCount">("successRate");
+	const [fitnessSort, setFitnessSort] = useState<FitnessSortMode>("successRate");
+	// F2.22 filters: below-bar-only, confidence band, and staleness.
+	const [fitnessBelowBarOnly, setFitnessBelowBarOnly] = useState(false);
+	const [fitnessBandFilter, setFitnessBandFilter] = useState<FitnessConfidenceBand | "all">("all");
+	const [fitnessStalenessFilter, setFitnessStalenessFilter] = useState<"all" | "fresh" | "stale">("all");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	// §5.AB "Evaluate connected models" (todo 6544): on-demand eval of every LOADED model + fitness persist.
@@ -319,16 +408,25 @@ export function ModelPerformanceStatsDialog({
 		() => [...new Set((fitnessTable?.rows ?? []).map((row) => row.role))].sort(),
 		[fitnessTable?.rows],
 	);
-	const fitnessRows = useMemo(() => {
-		const rows = (fitnessTable?.rows ?? []).filter(
-			(row) => fitnessRoleFilter === "all" || row.role === fitnessRoleFilter,
-		);
-		return [...rows].sort((left, right) =>
-			fitnessSort === "successRate"
-				? right.successRate - left.successRate || right.sampleCount - left.sampleCount
-				: right.sampleCount - left.sampleCount || right.successRate - left.successRate,
-		);
-	}, [fitnessTable?.rows, fitnessRoleFilter, fitnessSort]);
+	const fitnessRows = useMemo(
+		() =>
+			filterAndSortFitnessRows(fitnessTable?.rows ?? [], {
+				roleFilter: fitnessRoleFilter,
+				belowBarOnly: fitnessBelowBarOnly,
+				bandFilter: fitnessBandFilter,
+				stalenessFilter: fitnessStalenessFilter,
+				sort: fitnessSort,
+				now: Date.now(),
+			}),
+		[
+			fitnessTable?.rows,
+			fitnessRoleFilter,
+			fitnessBelowBarOnly,
+			fitnessBandFilter,
+			fitnessStalenessFilter,
+			fitnessSort,
+		],
+	);
 	const recentKnowledgeObservations = knowledgeStats?.observations.slice(0, 20) ?? [];
 	const knowledgeTotals = summarizeKnowledgeToolObservations(knowledgeStats?.observations ?? []);
 	const topDecompositionKnowledgeAggregates = useMemo(
@@ -495,11 +593,50 @@ export function ModelPerformanceStatsDialog({
 						<select
 							className="rounded border border-border bg-surface-0 px-1.5 py-0.5 text-text-primary"
 							value={fitnessSort}
-							onChange={(event) => setFitnessSort(event.target.value as "successRate" | "sampleCount")}
+							data-testid="fitness-sort"
+							onChange={(event) => setFitnessSort(event.target.value as FitnessSortMode)}
 						>
 							<option value="successRate">fitness (success rate)</option>
 							<option value="sampleCount">samples</option>
+							<option value="confidence">confidence</option>
 						</select>
+					</label>
+					<label className="flex items-center gap-1.5">
+						Confidence
+						<select
+							className="rounded border border-border bg-surface-0 px-1.5 py-0.5 text-text-primary"
+							value={fitnessBandFilter}
+							data-testid="fitness-band-filter"
+							onChange={(event) => setFitnessBandFilter(event.target.value as FitnessConfidenceBand | "all")}
+						>
+							<option value="all">any</option>
+							<option value="high">high</option>
+							<option value="medium">medium</option>
+							<option value="low">low</option>
+							<option value="none">none</option>
+						</select>
+					</label>
+					<label className="flex items-center gap-1.5">
+						Freshness
+						<select
+							className="rounded border border-border bg-surface-0 px-1.5 py-0.5 text-text-primary"
+							value={fitnessStalenessFilter}
+							data-testid="fitness-staleness-filter"
+							onChange={(event) => setFitnessStalenessFilter(event.target.value as "all" | "fresh" | "stale")}
+						>
+							<option value="all">any</option>
+							<option value="fresh">fresh</option>
+							<option value="stale">stale</option>
+						</select>
+					</label>
+					<label className="flex items-center gap-1.5">
+						<input
+							type="checkbox"
+							checked={fitnessBelowBarOnly}
+							data-testid="fitness-below-bar-only"
+							onChange={(event) => setFitnessBelowBarOnly(event.target.checked)}
+						/>
+						Below bar only
 					</label>
 				</div>
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
@@ -511,6 +648,7 @@ export function ModelPerformanceStatsDialog({
 								<TableHead>Difficulty</TableHead>
 								<TableHead>Samples</TableHead>
 								<TableHead>Success</TableHead>
+								<TableHead>Confidence</TableHead>
 								<TableHead>Retry Budget</TableHead>
 								<TableHead>Speed</TableHead>
 								<TableHead>Status</TableHead>
@@ -527,6 +665,15 @@ export function ModelPerformanceStatsDialog({
 									<TableCell>{row.difficultyTier}</TableCell>
 									<TableCell>{formatNumber(row.sampleCount)}</TableCell>
 									<TableCell>{formatPercent(row.successRate)}</TableCell>
+									<TableCell>
+										<span
+											className={fitnessBandClassName(row.confidenceBand)}
+											data-testid="fitness-confidence-band"
+										>
+											{row.confidenceBand}
+										</span>{" "}
+										<span className="text-text-tertiary">({formatPercent(row.confidenceLowerBound)})</span>
+									</TableCell>
 									<TableCell>{row.retryBudget}</TableCell>
 									<TableCell>
 										{row.tokensPerSec === null ? "—" : `${Math.round(row.tokensPerSec)} tok/s`}
@@ -538,7 +685,7 @@ export function ModelPerformanceStatsDialog({
 							))}
 							{fitnessRows.length === 0 ? (
 								<tr className="border-t border-border bg-surface-2">
-									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={8}>
+									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={9}>
 										No fitness cells recorded yet — cells fill as terminal task runs fold into the §5.AB
 										store.
 									</td>

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The model-fitness browser now shows how sure each score is, and lets you filter to what matters.** Every
+  model × role × difficulty cell gets a confidence column — a sample-size-aware band (high/medium/low/none) with its
+  lower-bound score, so a model that went 1-for-1 no longer looks as trustworthy as one that went 45-for-50. You can
+  sort by confidence and filter the table to just the below-bar cells, a specific confidence band, or by freshness
+  (cells whose last evaluation is over two weeks old, or never dated, count as stale).
+
 - **You can now dial in how chatty each chat's board updates are, right from the sidebar.** A chat that owns a
   project shows, beside the existing mute button, a verbosity selector (silent / concise / normal / verbose) and a
   quiet toggle. Verbosity sets the cadence of the board→chat updates; quiet mode keeps the hard "needs you" stops

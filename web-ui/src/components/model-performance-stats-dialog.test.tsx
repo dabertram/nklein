@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeDecompositionKnowledgeUsageAggregate, RuntimeModelPerformanceAggregate } from "@/runtime/types";
+import type {
+	RuntimeDecompositionKnowledgeUsageAggregate,
+	RuntimeFitnessTableResponse,
+	RuntimeModelPerformanceAggregate,
+} from "@/runtime/types";
 import {
+	FITNESS_STALE_AFTER_MS,
+	filterAndSortFitnessRows,
+	isFitnessRowStale,
 	rollUpAggregatesByModel,
 	selectModelRollups,
 	summarizeDecompositionKnowledge,
@@ -165,5 +172,109 @@ describe("summarizeDecompositionKnowledge (todo §5.B)", () => {
 
 	it("returns zeros when there are no aggregates", () => {
 		expect(summarizeDecompositionKnowledge([])).toEqual({ decompositions: 0, withKnowledgeTools: 0, rate: 0 });
+	});
+});
+
+type FitnessRow = RuntimeFitnessTableResponse["rows"][number];
+
+function fitnessRow(overrides: Partial<FitnessRow>): FitnessRow {
+	return {
+		modelKey: "qwen3-8b",
+		role: "worker",
+		difficultyTier: "medium",
+		sampleCount: 10,
+		successCount: 6,
+		successRate: 0.6,
+		confidenceLowerBound: 0.3,
+		confidenceBand: "medium",
+		retryBudget: 1,
+		failureModes: [],
+		meanWallTimeMs: null,
+		tokensPerSec: null,
+		updatedAt: 1000,
+		belowBar: false,
+		...overrides,
+	};
+}
+
+const NOW = 10_000_000_000;
+
+describe("isFitnessRowStale (F2.22)", () => {
+	it("treats an unknown evaluation time as stale (fails cautious)", () => {
+		expect(isFitnessRowStale(fitnessRow({ updatedAt: null }), NOW)).toBe(true);
+	});
+
+	it("is fresh within the window and stale past it", () => {
+		expect(isFitnessRowStale(fitnessRow({ updatedAt: NOW - 1000 }), NOW)).toBe(false);
+		expect(isFitnessRowStale(fitnessRow({ updatedAt: NOW - FITNESS_STALE_AFTER_MS - 1 }), NOW)).toBe(true);
+	});
+});
+
+describe("filterAndSortFitnessRows (F2.22)", () => {
+	const baseOptions = {
+		roleFilter: "all" as const,
+		belowBarOnly: false,
+		bandFilter: "all" as const,
+		stalenessFilter: "all" as const,
+		sort: "successRate" as const,
+		now: NOW,
+	};
+
+	it("filters by role", () => {
+		const rows = [fitnessRow({ role: "worker" }), fitnessRow({ role: "reviewer" })];
+		const result = filterAndSortFitnessRows(rows, { ...baseOptions, roleFilter: "reviewer" });
+		expect(result).toHaveLength(1);
+		expect(result[0]?.role).toBe("reviewer");
+	});
+
+	it("filters to below-bar cells only", () => {
+		const rows = [fitnessRow({ modelKey: "a", belowBar: true }), fitnessRow({ modelKey: "b", belowBar: false })];
+		const result = filterAndSortFitnessRows(rows, { ...baseOptions, belowBarOnly: true });
+		expect(result.map((row) => row.modelKey)).toEqual(["a"]);
+	});
+
+	it("filters by confidence band", () => {
+		const rows = [
+			fitnessRow({ modelKey: "hi", confidenceBand: "high" }),
+			fitnessRow({ modelKey: "lo", confidenceBand: "low" }),
+		];
+		const result = filterAndSortFitnessRows(rows, { ...baseOptions, bandFilter: "high" });
+		expect(result.map((row) => row.modelKey)).toEqual(["hi"]);
+	});
+
+	it("splits fresh vs stale on the window", () => {
+		const rows = [
+			fitnessRow({ modelKey: "fresh", updatedAt: NOW - 1000 }),
+			fitnessRow({ modelKey: "stale", updatedAt: NOW - FITNESS_STALE_AFTER_MS - 1 }),
+			fitnessRow({ modelKey: "unknown", updatedAt: null }),
+		];
+		expect(
+			filterAndSortFitnessRows(rows, { ...baseOptions, stalenessFilter: "fresh" }).map((r) => r.modelKey),
+		).toEqual(["fresh"]);
+		expect(
+			filterAndSortFitnessRows(rows, { ...baseOptions, stalenessFilter: "stale" })
+				.map((r) => r.modelKey)
+				.sort(),
+		).toEqual(["stale", "unknown"]);
+	});
+
+	it("sorts by confidence lower bound (highest first), breaking ties on sample count", () => {
+		const rows = [
+			fitnessRow({ modelKey: "low-conf", confidenceLowerBound: 0.1, sampleCount: 5 }),
+			fitnessRow({ modelKey: "high-conf", confidenceLowerBound: 0.8, sampleCount: 5 }),
+			fitnessRow({ modelKey: "tie-more-samples", confidenceLowerBound: 0.8, sampleCount: 50 }),
+		];
+		const result = filterAndSortFitnessRows(rows, { ...baseOptions, sort: "confidence" });
+		expect(result.map((row) => row.modelKey)).toEqual(["tie-more-samples", "high-conf", "low-conf"]);
+	});
+
+	it("sorts by success rate by default, breaking ties on sample count", () => {
+		const rows = [
+			fitnessRow({ modelKey: "worst", successRate: 0.2, sampleCount: 5 }),
+			fitnessRow({ modelKey: "best", successRate: 0.9, sampleCount: 5 }),
+			fitnessRow({ modelKey: "best-more-samples", successRate: 0.9, sampleCount: 40 }),
+		];
+		const result = filterAndSortFitnessRows(rows, baseOptions);
+		expect(result.map((row) => row.modelKey)).toEqual(["best-more-samples", "best", "worst"]);
 	});
 });
