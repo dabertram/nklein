@@ -166,6 +166,18 @@
   recovery panel surface the status and action in the UI. Full gate green: typecheck, web:typecheck, lint, test:fast
   (9328), protected (134), web-ui vitest (1052), affected Playwright specs (25).
 
+- [x] **P0.9a — Presence-keyed legacy-worktree sweep at startup** *(first P0.9 leaf; delivered 2026-07-13).* New
+  `src/workspace/legacy-worktree-sweep.ts`: a one-shot startup sweep, keyed purely on the existence of the global
+  `~/…/worktrees` home (a clean machine no-ops on one `access()` miss). Each `<taskId>/<label>` entry resolves its
+  parent repository from the worktree's own `.git` file — not from board/agent ids — snapshots uncommitted work into
+  the trashed-task-patches store (same naming the trash cleanup understands), `git worktree remove --force`s it
+  (prune + raw-remove fallback), then removes empty parents, the home dir, the retired `worktree-sync-state` store,
+  and pre-§5.A setup locks (for both discovered repos and the registered workspaces passed by `runtime-server`).
+  The shutdown coordinator's agent-id-keyed (`usesLegacyHostTaskWorkspace`) interrupted-task worktree cleanup and its
+  shutdown-time lock sweep are deleted — shutdown now only persists interrupted state. Covered by
+  `legacy-worktree-sweep.test.ts` (clean no-op + lock clear, live worktree with tracked+untracked snapshot,
+  unresolvable-entry raw removal) and the updated shutdown-coordinator integration suite.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

@@ -2,13 +2,12 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { RuntimeAgentId, RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
 import { shutdownRuntimeServer } from "../../src/server/shutdown-coordinator";
 import { loadWorkspaceState, saveWorkspaceState } from "../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../src/terminal/session-manager";
-import type { deleteTaskWorktree } from "../../src/workspace/task-worktree";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
@@ -200,7 +199,7 @@ describe.sequential("shutdown coordinator integration", () => {
 		});
 	}, 30_000);
 
-	it("cleans up host task workspaces only for explicit legacy agents", async () => {
+	it("persists interrupted state without touching task workspaces (legacy cleanup moved to the startup sweep)", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-shutdown-legacy-workspace-");
 			try {
@@ -248,11 +247,6 @@ describe.sequential("shutdown coordinator integration", () => {
 						return null;
 					},
 				} as unknown as TerminalSessionManager;
-				const deleteTaskWorkspace = vi.fn<typeof deleteTaskWorktree>(async () => ({
-					ok: true,
-					removed: true,
-				}));
-
 				await shutdownRuntimeServer({
 					workspaceRegistry: {
 						listManagedWorkspaces: () => [
@@ -265,15 +259,12 @@ describe.sequential("shutdown coordinator integration", () => {
 					},
 					warn: () => {},
 					closeRuntimeServer: async () => {},
-					deleteTaskWorkspace,
 				});
 
-				expect(deleteTaskWorkspace.mock.calls.map(([input]) => input.taskId).sort()).toEqual(
-					["legacy-card-only", "legacy-codex"].sort(),
-				);
 				const after = await loadWorkspaceState(projectPath);
-				// W2.2 reconcile-don't-destroy: interrupted in-progress cards park in Review (never trash); the
-				// legacy-agent WORKTREE cleanup above is independent of the board lane.
+				// W2.2 reconcile-don't-destroy: interrupted in-progress cards park in Review (never trash).
+				// P0.9a: legacy worktree cleanup is presence-keyed at STARTUP (sweepLegacyTaskWorktrees), so a
+				// legacy agent id on a card no longer triggers any workspace deletion here.
 				const trash = after.board.columns.find((column) => column.id === "trash")?.cards ?? [];
 				expect(trash).toEqual([]);
 				const review = after.board.columns.find((column) => column.id === "review")?.cards ?? [];

@@ -632,9 +632,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.9 — Finish legacy host-worktree retirement** *(legacy §5.A/§2.B).* Re-home migrated-board cleanup away from
-  agent-id predicates, delete the remaining cleanup-only worktree modules/schema/catalog residue, and verify upgrades,
-  shell-on-task, shutdown, and result-branch delivery.
+- [ ] **P0.9 — Finish legacy host-worktree retirement** *(legacy §5.A/§2.B; split into leaves 2026-07-13).* Re-home
+  migrated-board cleanup away from agent-id predicates, delete the remaining cleanup-only worktree modules/schema/catalog
+  residue, and verify upgrades, shell-on-task, shutdown, and result-branch delivery.
+  - [ ] **P0.9b — Re-home trash/removal artifact cleanup; delete the worktree cleanup modules.** Replace the
+    `deleteWorktree` tRPC / trash / project-removal per-task `deleteTaskWorktree` calls with a worktree-free task
+    artifact cleanup (result branches + trashed patch files); delete `task-worktree.ts`/`task-worktree-sync.ts`, the
+    `RuntimeWorktreeDeleteResponse`/`removedTaskWorktrees` schema residue, and the dead `ensureWorktree` flag. The
+    presence-keyed add-project guard and `task_worktree_project` health migration stay (they are the upgrade path).
+  - [ ] **P0.9c — Shrink the agent catalog to nklein-only** *(legacy §2.B).* Reduce `RUNTIME_AGENT_CATALOG`/
+    `runtimeAgentIdSchema` to `nklein` with a load-time migration that normalizes persisted legacy agent ids, delete
+    `usesLegacyHostTaskWorkspace` and the web-ui legacy worktree-path display, and update CLI/web-ui contract
+    couplings (UI verification required).
+  - [ ] **P0.9d — Retirement verification lap.** Prove upgrades (fixture with a populated legacy worktrees home +
+    legacy agent ids), shell-on-task, shutdown, and result-branch delivery are intact; then retire the §4A
+    "legacy cleanup only" tribal-knowledge note.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 

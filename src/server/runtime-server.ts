@@ -150,6 +150,7 @@ import {
 import { loadQueuedTaskStartsFromDisk, saveQueuedTaskStartsToDisk } from "../trpc/runtime-task-start-queue-store";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
+import { sweepLegacyTaskWorktrees } from "../workspace/legacy-worktree-sweep";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import {
 	deleteTaskResultBranch,
@@ -252,6 +253,21 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		configuredWorkspaceBaseDir: globalConfig.workspaceBaseDir,
 	});
 	const webUiDir = getWebUiDir();
+	// P0.9a: presence-keyed migration for machines that still carry the retired host-worktree subsystem on disk —
+	// replaces the old shutdown-time, agent-id-predicated per-task cleanup. Best-effort; a clean machine no-ops on a
+	// single access() miss.
+	void (async () => {
+		const registeredRepoPaths = (await listWorkspaceIndexEntries()).map((entry) => entry.repoPath);
+		const sweep = await sweepLegacyTaskWorktrees({ repoPaths: registeredRepoPaths });
+		if (sweep.removedWorktrees > 0) {
+			deps.warn(`Removed ${sweep.removedWorktrees} legacy host task worktree(s) left by a pre-sandbox build.`);
+		}
+		for (const warning of sweep.warnings) {
+			deps.warn(warning);
+		}
+	})().catch((error) => {
+		deps.warn(`Legacy task-worktree sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+	});
 	const startupAgentSandboxManager = new AgentSandboxManager();
 	let agentSandboxStatus = createCheckingAgentSandboxStatus();
 	const refreshAgentSandboxStatus = async (): Promise<RuntimeAgentSandboxStatus> => {

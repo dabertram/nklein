@@ -1,6 +1,5 @@
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardColumnId,
@@ -11,7 +10,6 @@ import type {
 import { moveTaskToColumn } from "../core/task-board-mutations";
 import { listWorkspaceIndexEntries, loadWorkspaceState, saveWorkspaceState } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { deleteTaskWorktree, removeTaskWorktreeSetupLock } from "../workspace/task-worktree";
 import type { WorkspaceRegistry } from "./workspace-registry";
 
 export interface RuntimeShutdownCoordinatorDependencies {
@@ -19,7 +17,6 @@ export interface RuntimeShutdownCoordinatorDependencies {
 	warn: (message: string) => void;
 	closeRuntimeServer: () => Promise<void>;
 	skipSessionCleanup?: boolean;
-	deleteTaskWorkspace?: typeof deleteTaskWorktree;
 }
 
 const SHUTDOWN_ACTIVE_COLUMN_IDS = new Set<RuntimeBoardColumnId>(["planning", "in_progress", "review"]);
@@ -35,10 +32,6 @@ function normalizeWorkspacePathForShutdown(path: string): string {
 interface ShutdownActiveBoardTask {
 	taskId: string;
 	agentId?: RuntimeAgentId;
-}
-
-interface ShutdownPersistenceResult {
-	legacyHostWorkspaceTaskIds: string[];
 }
 
 function collectActiveBoardTasksForShutdown(board: RuntimeBoardData): ShutdownActiveBoardTask[] {
@@ -92,29 +85,20 @@ async function persistInterruptedSessions(
 		workspaceState?: RuntimeWorkspaceStateResponse;
 		resolveSummary?: (taskId: string) => RuntimeTaskSessionSummary | null;
 	},
-): Promise<ShutdownPersistenceResult> {
+): Promise<void> {
 	const workspaceState = options?.workspaceState ?? (await loadWorkspaceState(workspacePath));
 	const activeBoardTasks = collectActiveBoardTasksForShutdown(workspaceState.board);
-	const activeBoardTaskById = new Map(activeBoardTasks.map((task) => [task.taskId, task]));
 	const activeBoardTaskIds = activeBoardTasks.map((task) => task.taskId);
 	const taskIdsToInterrupt = Array.from(new Set([...interruptedTaskIds, ...activeBoardTaskIds]));
 	if (taskIdsToInterrupt.length === 0) {
-		return {
-			legacyHostWorkspaceTaskIds: [],
-		};
+		return;
 	}
 	const now = Date.now();
 	const nextSessions = {
 		...workspaceState.sessions,
 	};
-	const legacyHostWorkspaceTaskIds = new Set<string>();
 	for (const taskId of taskIdsToInterrupt) {
 		const summary = options?.resolveSummary?.(taskId) ?? workspaceState.sessions[taskId] ?? null;
-		const activeBoardTask = activeBoardTaskById.get(taskId) ?? null;
-		const agentId = summary?.agentId ?? activeBoardTask?.agentId ?? null;
-		if (usesLegacyHostTaskWorkspace(agentId)) {
-			legacyHostWorkspaceTaskIds.add(taskId);
-		}
 		if (summary) {
 			nextSessions[taskId] = {
 				...summary,
@@ -130,52 +114,6 @@ async function persistInterruptedSessions(
 		board: nextBoard,
 		sessions: nextSessions,
 	});
-	return {
-		legacyHostWorkspaceTaskIds: Array.from(legacyHostWorkspaceTaskIds),
-	};
-}
-
-async function cleanupInterruptedTaskWorktrees(
-	repoPath: string,
-	taskIds: string[],
-	warn: (message: string) => void,
-	deleteTaskWorkspace: typeof deleteTaskWorktree,
-): Promise<void> {
-	if (taskIds.length === 0) {
-		return;
-	}
-	const deletions = await Promise.all(
-		taskIds.map(async (taskId) => ({
-			taskId,
-			deleted: await deleteTaskWorkspace({
-				repoPath,
-				taskId,
-			}),
-		})),
-	);
-	for (const { taskId, deleted } of deletions) {
-		if (deleted.ok) {
-			continue;
-		}
-		const message = deleted.error ?? `Could not delete task workspace for task "${taskId}" during shutdown.`;
-		warn(message);
-	}
-}
-
-async function cleanupTaskWorktreeSetupLocks(
-	repoPaths: Iterable<string>,
-	warn: (message: string) => void,
-): Promise<void> {
-	await Promise.all(
-		Array.from(new Set(repoPaths)).map(async (repoPath) => {
-			try {
-				await removeTaskWorktreeSetupLock(repoPath);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				warn(`Could not remove task worktree setup lock for ${repoPath} during shutdown cleanup. ${message}`);
-			}
-		}),
-	);
 }
 
 function shouldInterruptSessionOnShutdown(summary: RuntimeTaskSessionSummary): boolean {
@@ -262,22 +200,16 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 		}
 	}
 
+	// Legacy host-worktree cleanup no longer happens here (P0.9a): the presence-keyed startup sweep
+	// (`sweepLegacyTaskWorktrees`) owns migrated-board worktree/lock removal, so shutdown only persists state.
 	await Promise.all(
 		interruptedByWorkspace.map(async (workspace) => {
-			const persisted = await persistInterruptedSessions(workspace.workspacePath, workspace.interruptedTaskIds, {
+			await persistInterruptedSessions(workspace.workspacePath, workspace.interruptedTaskIds, {
 				workspaceState: workspace.workspaceState,
 				resolveSummary: workspace.resolveSummary,
 			});
-			await cleanupInterruptedTaskWorktrees(
-				workspace.workspacePath,
-				persisted.legacyHostWorkspaceTaskIds,
-				deps.warn,
-				deps.deleteTaskWorkspace ?? deleteTaskWorktree,
-			);
 		}),
 	);
 
 	await deps.closeRuntimeServer();
-
-	await cleanupTaskWorktreeSetupLocks(managedWorkspacePaths, deps.warn);
 }
