@@ -813,6 +813,18 @@
   and resource fit on model candidates, and the RECENT-COVERAGE window excluding just-run (project, model) pairs
   — with typed failure reasons (`no_projects` / `no_capable_model` / `no_resource_fit` / `all_recently_covered` /
   `pin_unavailable`) ready for the F1.35 status surface. 10 tests. tsc 0, fast 9480 green.
+- [x] **F1.33a — rail evidence auto-analysed into typed findings + backlog proposals** *(delivered 2026-07-13;
+  the CLI/rail mount is F1.33b in todo).* `src/core/rail-findings.ts` composes the shipped aggregation +
+  delivery-trend cores into the F1.33 contract: `classifyRailFindings` emits the four typed finding kinds —
+  **regression** (trend `regressing`; HIGH severity when newly-broken: delivered at baseline, zero recent),
+  **flake** (mixed outcomes with a STABLE trend — a real slide stays a regression), **quality_gap** (delivers at/
+  above the floor but with narration-leak/hot-repeat anomaly runs), **idea** (start-failure-dominated → harness/
+  env investigation, not model capability) — thresholds injectable, ordering severity→kind→project, ids
+  (`kind:project`) doubling as dedup keys. `buildRailFindingRetentionEvent`/`readRetainedRailFindingEvents`
+  retain findings as §5.AF ledger transitions (controllerDecision `rail_analysis`, latest per finding id wins —
+  the F1.26 pattern), and `proposeRailBacklogPackages` drafts ONE proposal per project at the worst bundled
+  severity, deduplicated against already-proposed ids and PROPOSE-ONLY (a human moves it into todo.md; the rail
+  never writes the backlog). 8 tests. tsc 0, fast 9488 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

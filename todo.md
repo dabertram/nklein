@@ -754,8 +754,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   verdicts + context floor, resource fit from `NKLEIN_DEVICE_RAM_GB` headroom, evidence from the fitness store via
   `planEvalCoverage`), persist rail run history for the recent-coverage window, and expose the mode + pins in
   config/Settings.
-- [ ] **F1.33 — Auto-analyse rail evidence into typed findings.** Harvest success and failure, classify regressions,
-  flakes, quality gaps, and ideas, write ledger evidence, and propose deduplicated backlog packages for review.
+- [ ] **F1.33b — Mount the rail-findings analysis (cores SHIPPED 2026-07-13).** `src/core/rail-findings.ts` does
+  the full F1.33 brain: `classifyRailFindings` (regression [high when newly-broken] / flake [mixed outcomes,
+  stable trend] / quality_gap [delivers ≥floor with anomaly runs] / idea [start-failure-dominated → harness
+  work], thresholds injectable, severity-first order, ids = dedup keys), `buildRailFindingRetentionEvent` +
+  `readRetainedRailFindingEvents` (F1.26-style latest-wins ledger retention, controllerDecision `rail_analysis`),
+  and `proposeRailBacklogPackages` (ONE proposal per project at worst severity, deduped vs existing proposal ids,
+  PROPOSE-ONLY — never writes todo.md). REMAINING: mount it — extend `nklein dev rail-evidence` to print
+  findings + proposals (and optionally retain to the ledger with `--retain`), and let the F1.31b rail tick feed
+  fresh reports through it so the operator surface (F1.35) can show "what the rail found" without re-analysis.
 - [ ] **F1.34 — Finish full test-driven delivery mode.** Add the per-project override, make the intended safe default
   explicit, and prove no-test changes bounce while test-backed changes reach review without identical-loop churn.
 - [ ] **F1.35 — Add evaluation-rail controls and status.** Expose enable/pause, cadence, background cap, long-timeout
