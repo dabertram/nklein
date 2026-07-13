@@ -752,6 +752,17 @@
   runs). 2 new tests (deterministic-pass/drift-localization; ledger round-trip incl. supersede + never-run-null +
   the M4 signal feed).
 
+- [x] **F1.28 — the runtime-config facade split completed** *(delivered 2026-07-13).* The read (file-io), resolve
+  (25 per-concern resolver modules), and change-notify concerns were already extracted; the last inline concern —
+  the ~280-line WRITE payload assembly inside `saveRuntimeConfig` — now lives in
+  `runtime-config-save-payload.ts`: the typed `SaveRuntimeConfigInput` plus three pure builders
+  (`buildGlobalConfigFilePayload` / `buildProjectConfigFilePayload` / `buildSavedRuntimeConfigStateValues`),
+  extracted VERBATIM (every normalization + default byte-identical; the one change was `as const` on the
+  hardTaskRoutingMode ternary to preserve the literal type outside its contextual position). The facade shrank
+  814 → 539 lines and now owns only composition, locking, path resolution, and the writes. Semantics unchanged,
+  proven by the untouched config suite: all 30 test files / 211 tests (including the legacy load compatibility
+  tests) pass without modification.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

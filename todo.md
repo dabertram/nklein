@@ -724,8 +724,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
   suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
   retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
-- [ ] **F1.28 — Complete the runtime-config facade split.** Move read/write/resolve/change-notify concerns behind stable
-  modules without changing config semantics; keep legacy load compatibility tests.
 - [ ] **F1.29 — Extract the Settings draft boundary.** Give each section an independent typed draft/dirty/reset/save
   contract so config-heavy work no longer edits the monolithic dialog state.
 - [ ] **F1.30 — Finish the provider-service split at its proven seams.** Separate discovery/cache, registry mutation,
