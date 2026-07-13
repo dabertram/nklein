@@ -15,8 +15,10 @@ function summary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTas
 		updatedAt: NOW,
 		lastOutputAt: null,
 		lastTokenAt: null,
-		lastHeartbeatAt: null,
-		heartbeatStatus: null,
+		// Production primary starts optimistically stamp this before the SDK call. It is a renewable timestamp, not
+		// permanent evidence that the first turn is alive.
+		lastHeartbeatAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS - 60_000,
+		heartbeatStatus: "healthy",
 		reviewReason: null,
 		exitCode: null,
 		lastHookAt: null,
@@ -26,7 +28,7 @@ function summary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTas
 }
 
 describe("listZeroTokenWedgedSessions", () => {
-	it("flags the live-found shape: running past the bound with no token, no heartbeat", () => {
+	it("flags the production start shape once its optimistic heartbeat expires without a first token", () => {
 		const findings = listZeroTokenWedgedSessions([summary()], NOW);
 		expect(findings).toHaveLength(1);
 		expect(findings[0]?.taskId).toBe("task-1");
@@ -43,9 +45,16 @@ describe("listZeroTokenWedgedSessions", () => {
 		expect(listZeroTokenWedgedSessions([summary({ lastTokenAt: NOW - 20 * 60_000 })], NOW)).toHaveLength(0);
 	});
 
-	it("leaves a session with an armed heartbeat (any status) to the heartbeat machinery", () => {
+	it("leaves a recent pre-token heartbeat alone (a slow first token is still making lifecycle progress)", () => {
 		expect(listZeroTokenWedgedSessions([summary({ lastHeartbeatAt: NOW - 60_000 })], NOW)).toHaveLength(0);
-		expect(listZeroTokenWedgedSessions([summary({ heartbeatStatus: "lost" })], NOW)).toHaveLength(0);
+	});
+
+	it("does not let a stale/lost label permanently exempt a still-running token-less session", () => {
+		expect(listZeroTokenWedgedSessions([summary({ heartbeatStatus: "stale" })], NOW)).toHaveLength(1);
+		expect(listZeroTokenWedgedSessions([summary({ heartbeatStatus: "lost" })], NOW)).toHaveLength(1);
+		expect(
+			listZeroTokenWedgedSessions([summary({ heartbeatStatus: "stale", lastHeartbeatAt: NOW - 1_000 })], NOW),
+		).toHaveLength(0);
 	});
 
 	it("skips non-running and paused sessions", () => {

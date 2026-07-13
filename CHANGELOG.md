@@ -52,6 +52,12 @@
   watchdog reads its known board directly on a bounded cadence. Each tick records entry and load-stage telemetry, so
   a timer that never fired, a stale workspace scope, and a state-load timeout are now distinct failures; the next tick
   still runs after an injected hung read, and shutdown clears every watchdog/idle timer instead of forcing process exit.
+- **Pre-first-token model stalls now self-heal for real session shapes.** A primary turn optimistically records a
+  healthy heartbeat before calling the model; the zero-token detector previously treated that one historical stamp as
+  permanent proof of life, so it could never detect a production zombie. Heartbeats now expire like renewable leases:
+  after the generous low-power-safe bound, a still-running turn with no token is interrupted, releases its model slot,
+  and retries through the normal card recovery path. A spawned-runtime/Docker rail proves the full recovery and also
+  proves that a merely slow first token inside the lease is left alone.
 
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard

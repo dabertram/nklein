@@ -632,9 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.3 — Prove zero-token self-healing end to end** *(legacy §12).* The detector and runtime caller shipped in
-  `d68e7a9f`; add a runtime integration that creates a pre-first-turn zombie and proves automatic interruption,
-  capacity release, card recovery, and no false positive for a merely slow first token.
 - [ ] **P0.4 — Execute transient-`aborted` retries at the shared model-call seam** *(legacy §5.AA/§5.Z).* Preserve user
   cancellation as terminal while retrying transport/runtime aborts through the bounded policy; cover stream and
   non-stream paths without duplicating visible output.
@@ -1230,14 +1227,14 @@ The checkbox count is an implementation-package count, not a raw Markdown-marker
 rg -c '^\s*- \[( |>|\?|-)\]' todo.md
 ```
 
-The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **234 remaining packages**:
+The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **233 remaining packages**:
 
-- **158** implementation-first packages in phases 0–5 (the path to feature-complete);
+- **157** implementation-first packages in phases 0–5 (the path to feature-complete);
 - **15** feature-completeness proof gates in phase 6;
 - **47** deep-hardening, visual-polish, and release packages in phases 7–9;
 - **14** research/decision/manual/deferred-tail packages in phase 10.
 
-Status totals are **160 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
+Status totals are **159 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
 The larger package count than the prior ~154 estimate reflects finer, top-down-executable slicing plus tasks recovered
 from secondary Markdown files; it does not represent a proportional scope increase.
 

@@ -27,6 +27,8 @@ export interface MockLlmResponse {
 	toolCalls?: MockLlmToolCall[];
 	/** Defaults to "tool_calls" when toolCalls are present, else "stop". */
 	finishReason?: string;
+	/** Hold the response before its first byte; canceled when the client closes the request. */
+	delayMs?: number;
 }
 
 export interface MockLlmRequestRecord {
@@ -167,6 +169,28 @@ function writeStreaming(res: ServerResponse, modelId: string, reply: MockLlmResp
 	res.end();
 }
 
+async function waitBeforeReply(res: ServerResponse, delayMs: number | undefined): Promise<boolean> {
+	if (typeof delayMs !== "number" || !Number.isFinite(delayMs) || delayMs <= 0) {
+		return true;
+	}
+	return await new Promise<boolean>((resolve) => {
+		let settled = false;
+		const finish = (canWrite: boolean): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timer);
+			res.off("close", onClose);
+			resolve(canWrite);
+		};
+		const onClose = (): void => finish(false);
+		const timer = setTimeout(() => finish(!res.destroyed && !res.writableEnded), delayMs);
+		timer.unref?.();
+		res.once("close", onClose);
+	});
+}
+
 export async function startMockLlm(options: { modelId?: string } = {}): Promise<MockLlmServer> {
 	const modelId = options.modelId ?? "mock-model";
 	const queue: MockLlmResponse[] = [];
@@ -214,6 +238,9 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 			};
 			requests.push(record);
 			const reply = router?.(record) ?? queue.shift() ?? defaultResponse;
+			if (!(await waitBeforeReply(res, reply.delayMs))) {
+				return;
+			}
 			if (stream) {
 				writeStreaming(res, modelId, reply);
 			} else {

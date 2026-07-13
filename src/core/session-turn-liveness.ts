@@ -2,13 +2,14 @@
  * ZERO-TOKEN TURN LIVENESS (live-found 2026-07-13, real-model rail run — the "planning freeze" root cause).
  *
  * A task session can wedge BEFORE ITS FIRST MODEL TURN ever produces output: state `running`, `lastTokenAt` null,
- * no heartbeat armed (the heartbeat machinery only starts once output starts), zero sockets to the endpoint —
- * live-seen when the queued-start drain raced the decompose seed's teardown. Such a ZOMBIE session is invisible to
- * every existing liveness signal, yet it OWNS a per-machine concurrency slot (cap=1 on a small fleet), so every
- * subsequent start fails `endpoint_busy` naming it and the whole cascade deadlocks with an idle fleet.
+ * no continuing heartbeat, zero sockets to the endpoint — live-seen when the queued-start drain raced the decompose
+ * seed's teardown. Primary starts stamp one optimistic `turn_start` heartbeat before the SDK call, so the detector
+ * must expire that timestamp like a lease rather than treating its historical existence as permanent liveness. Such
+ * a ZOMBIE session owns a per-machine concurrency slot (cap=1 on a small fleet), so every subsequent start fails
+ * `endpoint_busy` naming it and the whole cascade deadlocks with an idle fleet.
  *
  * This module is the pure detector: given the live summaries, list the sessions that have been `running` for longer
- * than a GENEROUS bound without EVER producing a token or arming a heartbeat. The caller (the board-liveness
+ * than a GENEROUS bound without producing a token or renewing its pre-token heartbeat. The caller (the board-liveness
  * watchdog) interrupts them — the summary event then drives the existing retry machinery, which is healthy once the
  * poisoned slot clears (live-proven: a manual stop resumed the cascade instantly).
  *
@@ -42,10 +43,11 @@ export interface ZeroTokenWedgeOptions {
 export const DEFAULT_ZERO_TOKEN_WEDGE_MS = 15 * 60 * 1000;
 
 /**
- * List the sessions wedged pre-first-token. A session qualifies only when EVERY liveness signal is absent:
- * `running`, not paused, started long enough ago, never produced a token, and never armed a heartbeat. A session
- * with ANY token or heartbeat history is left to the existing heartbeat/stale machinery — this detector owns only
- * the shape that machinery cannot see.
+ * List the sessions wedged pre-first-token. A session qualifies only when it is `running`, not paused, has never
+ * produced a token, and neither its start nor its latest pre-token heartbeat was inside the generous bound. Heartbeat
+ * status is qualitative, not a lease: even a stale/lost status cannot permanently exempt a still-running, token-less
+ * session when no service-level recovery has changed its state. Any token history remains owned by the normal stream
+ * heartbeat machinery.
  */
 export function listZeroTokenWedgedSessions(
 	summaries: readonly RuntimeTaskSessionSummary[],
@@ -65,19 +67,26 @@ export function listZeroTokenWedgedSessions(
 		if (typeof summary.startedAt !== "number" || !Number.isFinite(summary.startedAt)) {
 			continue; // no start stamp — cannot age it; leave to other machinery
 		}
-		if (summary.lastTokenAt != null || summary.lastHeartbeatAt != null || summary.heartbeatStatus != null) {
-			continue; // some liveness signal exists — the heartbeat machinery owns it
+		if (summary.lastTokenAt != null) {
+			continue; // token history exists — the normal heartbeat/stream machinery owns it
 		}
 		const ageMs = Math.max(0, nowMs - summary.startedAt);
-		if (ageMs <= bound) {
+		const lastHeartbeatAt =
+			typeof summary.lastHeartbeatAt === "number" && Number.isFinite(summary.lastHeartbeatAt)
+				? summary.lastHeartbeatAt
+				: summary.startedAt;
+		const silentSinceMs = Math.max(summary.startedAt, lastHeartbeatAt);
+		const silentMs = Math.max(0, nowMs - silentSinceMs);
+		if (silentMs <= bound) {
 			continue;
 		}
 		findings.push({
 			taskId: summary.taskId,
 			ageMs,
 			reason:
-				`session has been "running" for ${Math.round(ageMs / 60_000)} min without a first token or heartbeat ` +
-				"(pre-first-turn wedge) — it is holding an endpoint slot while doing nothing",
+				`session has been "running" for ${Math.round(ageMs / 60_000)} min without a first token and its ` +
+				`last pre-token heartbeat was ${Math.round(silentMs / 60_000)} min ago (pre-first-turn wedge) — ` +
+				"it is holding an endpoint slot while doing nothing",
 		});
 	}
 	return findings;

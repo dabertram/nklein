@@ -68,7 +68,7 @@ import {
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
 import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
-import { listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
+import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -469,7 +469,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const boardLivenessWatchdogByWorkspaceId = new Map<string, BoardLivenessWatchdogHandle>();
 	// 30s (was 60s): run36 gave the watchdog exactly ONE tick inside the harness's 90s dead-stall window — a
 	// single swallowed error meant no rescue. Halving the tick doubles the chances and the sweep is cheap.
-	const BOARD_LIVENESS_TICK_MS = 30_000;
+	const readTestTimingOverride = (name: string, fallbackMs: number): number => {
+		if (process.env.VITEST !== "true") {
+			return fallbackMs;
+		}
+		const parsed = Number.parseInt(process.env[name] ?? "", 10);
+		return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+	};
+	// Vitest-only overrides make liveness rails deterministic without exposing unsafe production knobs that could
+	// accidentally kill legitimate low-power prefills or overlap watchdog rescue work.
+	const BOARD_LIVENESS_TICK_MS = readTestTimingOverride("NKLEIN_TEST_BOARD_LIVENESS_TICK_MS", 30_000);
+	const ZERO_TOKEN_WEDGE_MS = readTestTimingOverride("NKLEIN_TEST_ZERO_TOKEN_WEDGE_MS", DEFAULT_ZERO_TOKEN_WEDGE_MS);
 	// Snapshot loading is read-only and should take milliseconds. Ten seconds leaves ample room for a busy/low-power
 	// host while bounding a poisoned index/gate/filesystem path well before the following 30-second tick.
 	const BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS = 10_000;
@@ -2217,7 +2227,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// so every other start fails endpoint_busy naming it and the cascade deadlocks on an idle
 						// fleet. Interrupt it; the summary event drives the normal terminal-retry machinery
 						// (live-proven: clearing the zombie resumed the frozen cascade instantly).
-						for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now())) {
+						for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now(), {
+							wedgeAfterMs: ZERO_TOKEN_WEDGE_MS,
+						})) {
 							deps.warn(
 								`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
 							);

@@ -78,6 +78,16 @@
   proves the next tick recovers after an injected never-settling snapshot, and shutdown now disposes watchdog,
   speculative, idle-work, and deferred-retry timers. The focused watchdog (3), workspace-state (18), and typecheck gates
   pass; the state suite's surfaced stale Ready-lane expectations were corrected in the same increment.
+- [x] **P0.3 — Prove zero-token self-healing end to end** *(legacy §12).* Production primary/re-drive turns stamp an
+  optimistic healthy heartbeat before their SDK/model call; the original detector treated any historical heartbeat or
+  status as permanent liveness, so its null-heartbeat unit fixture could pass while every real zombie was excluded.
+  Pre-token heartbeats now expire as renewable leases: a recent heartbeat protects slow prefill, while a still-running,
+  token-less session beyond the generous bound is recoverable regardless of its stale qualitative status. A spawned
+  runtime + real Docker sandbox integration holds the first mock-model response before its first byte, observes the
+  watchdog interrupt the production-shaped session, proves admission capacity release through a second model request,
+  and drains the recovered seed and child through review/delivery. The child deliberately delays its first response
+  across several watchdog ticks but inside the lease and is not interrupted. Detector tests (10), the end-to-end rail
+  (1), typecheck, lint, and the full fast gate are green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
