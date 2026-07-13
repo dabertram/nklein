@@ -35,6 +35,12 @@ describe("resolveSelectedSkillsApiProfile", () => {
 	});
 
 	it("SELECTABLE_CHAT_SKILL_IDS lists the real registry skills", () => {
-		expect(SELECTABLE_CHAT_SKILL_IDS).toEqual(["code_editing", "planning", "review", "web_retrieval"]);
+		expect(SELECTABLE_CHAT_SKILL_IDS).toEqual([
+			"code_editing",
+			"planning",
+			"review",
+			"web_retrieval",
+			"self_awareness",
+		]);
 	});
 });

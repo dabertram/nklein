@@ -21,9 +21,10 @@ export type ContextFragmentId =
 	| "refinement_preamble"
 	| "efficiency_rules"
 	| "freshness_rail"
-	| "online_retrieval";
+	| "online_retrieval"
+	| "klein_self_corpus";
 
-export type SkillId = "code_editing" | "planning" | "review" | "web_retrieval";
+export type SkillId = "code_editing" | "planning" | "review" | "web_retrieval" | "self_awareness";
 
 /**
  * §5.AE/§5.AN per-skill API-feature profile — declares the BEST-MATCH LM Studio API configuration for this skill's work
@@ -104,6 +105,29 @@ export const SKILL_REGISTRY: readonly Skill[] = [
 		temporalSensitive: true,
 		// Retrieval results are consumed structured; prefer constrained JSON output.
 		apiProfile: { structuredOutput: true },
+	},
+	{
+		id: "self_awareness",
+		description:
+			"Answer 'how does !Klein work?' from CURRENT source + docs (the read-only klein_self bundle), citing freshness/provenance instead of stale prompt prose.",
+		defaultRoles: ["system_operator"],
+		// F2.19/F2.20: the klein-self corpus (done/todo/agents/changelog/docs, routed + provenance-stamped) plus the
+		// repo map; freshness_rail so answers flag staleness. Read-only by construction (klein_self = isolated_readonly).
+		contextFragments: ["klein_self_corpus", "repo_map", "freshness_rail"],
+		tools: ["read_file", "list_dir"],
+		preamble:
+			"Ground every answer in the current !Klein source and maintained docs, and cite where it came from; never rely on remembered prose that may be stale.",
+		keywords: [
+			"how does !klein",
+			"how does klein",
+			"!klein",
+			"your architecture",
+			"how do you work",
+			"self",
+			"codebase",
+		],
+		temporalSensitive: true,
+		apiProfile: { reasoning: "inherit" },
 	},
 ];
 

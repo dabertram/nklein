@@ -12,6 +12,7 @@ const ALL_FRAGMENT_IDS: ContextFragmentId[] = [
 	"efficiency_rules",
 	"freshness_rail",
 	"online_retrieval",
+	"klein_self_corpus",
 ];
 
 describe("skill-fragment mapping (decision-10, APPROVED)", () => {

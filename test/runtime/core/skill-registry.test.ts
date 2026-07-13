@@ -23,6 +23,7 @@ describe("SKILL_REGISTRY", () => {
 		expect(byRole("architect")).toEqual(["planning"]);
 		expect(byRole("reviewer")).toEqual(["review"]);
 		expect(byRole("retriever")).toEqual(["web_retrieval"]);
+		expect(byRole("system_operator")).toEqual(["self_awareness"]);
 	});
 });
 

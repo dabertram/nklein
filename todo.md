@@ -998,9 +998,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (unknown time fails cautious to stale), and carries the commit sha, producing a one-line citation an answer
   surfaces so it grounds in CURRENT source. REMAINING: feed real last-modified/commit data (a stat or
   `git log -1` per doc) at the self-scope answer seam and attach the citations to the routed corpus; add a test
-  asserting `klein_self` genuinely offers no write tool (the mode gate already denies, but pin it explicitly).- [ ] **F2.20 — Package self-awareness as a skill/retrieval bundle.** Reuse dynamic skills and online/local retrieval so
-  “how does !Klein work?” answers cite current code and do not rely on stale prompt prose.
-- [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity.** Use provider+canonical endpoint+model for
+  asserting `klein_self` genuinely offers no write tool (the mode gate already denies, but pin it explicitly).- [ ] **F2.20b — Wire the self-awareness skill's corpus producer (skill bundle SHIPPED 2026-07-13).** The
+  self-awareness capability is now a first-class SKILL: `self_awareness` in `SKILL_REGISTRY` (default role
+  `system_operator`, fragments `klein_self_corpus` + `repo_map` + `freshness_rail`, read-only tools, temporal-
+  sensitive, a preamble that mandates citing current source over remembered prose), with its `SKILL_AFFINITY`
+  (reasoning + code) and a `klein_self_corpus` context fragment registered in the mapping table (parity-locked).
+  It composes the F2.19 routing + provenance cores. REMAINING: build the `klein_self_corpus` fragment PRODUCER
+  (marked `needs_producer`) — assemble the routed + provenance-stamped corpus text at the self-scope answer seam
+  so the skill actually injects current-source citations; reuse the online/local retrieval tools already in the
+  bundle.- [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity.** Use provider+canonical endpoint+model for
   non-routing views/stores while retaining runtime aliases only for display and historical migration.
 - [ ] **F2.22 — Build the fitness/failing-model browser.** Add a read-only tRPC projection and filterable UI showing
   role verdicts, evidence age, confidence, failure reasons, and last evaluation.

@@ -1070,6 +1070,15 @@
   threshold — and UNKNOWN last-modified time fails CAUTIOUS to stale, so an answer warns when it can't prove
   freshness), and the commit sha when supplied — the grounding that keeps a self-scope answer citing current
   source instead of stale prompt prose. 5 tests. tsc 0, fast 9576 green.
+- [x] **F2.20a — self-awareness packaged as a skill/retrieval bundle** *(delivered 2026-07-13; the corpus
+  fragment producer is F2.20b in todo).* The §5.AE skill registry gains `self_awareness` (default role
+  `system_operator`): fragments `klein_self_corpus` + `repo_map` + `freshness_rail`, read-only tools,
+  temporal-sensitive, and a preamble mandating that answers cite current source instead of stale prompt prose —
+  the F2.20 intent, composed over the F2.19 routing + provenance cores. The new `klein_self_corpus`
+  `ContextFragmentId` is registered in the parity-locked `SKILL_FRAGMENT_MAPPINGS` (as `needs_producer`) and the
+  `SKILL_AFFINITY` record (reasoning + code); `SELECTABLE_CHAT_SKILL_IDS` picks it up automatically (registry-
+  derived). Registry / affinity / fragment-parity / selectable-skills tests updated. Backend + web-ui tsc 0;
+  fast 9576.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

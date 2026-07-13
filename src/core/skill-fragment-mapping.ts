@@ -64,6 +64,14 @@ export const SKILL_FRAGMENT_MAPPINGS: readonly SkillFragmentMapping[] = [
 	{ fragmentId: "focus_chain", assemblerKey: "focus-chain", volatility: "turn", producer: "needs_producer" },
 	// Only a tool DESCRIPTION exists (the research tool), no system-prompt block producer.
 	{ fragmentId: "online_retrieval", assemblerKey: "online-retrieval", volatility: "turn", producer: "needs_producer" },
+	// F2.19/F2.20: the klein_self corpus (routeKleinSelfCorpus + buildKleinCorpusProvenance exist as cores) reaches
+	// the prompt via the self-scope answer seam, not the static assembler — needs_producer until that seam routes it.
+	{
+		fragmentId: "klein_self_corpus",
+		assemblerKey: "klein-self-corpus",
+		volatility: "task",
+		producer: "needs_producer",
+	},
 ];
 
 const BY_ID: ReadonlyMap<ContextFragmentId, SkillFragmentMapping> = new Map(

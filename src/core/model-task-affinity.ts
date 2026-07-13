@@ -34,6 +34,8 @@ const SKILL_AFFINITY: Record<SkillId, readonly AffinityTag[]> = {
 	planning: ["reasoning"],
 	review: ["reasoning", "code"],
 	web_retrieval: ["agentic", "web"],
+	// Self-awareness reads/reasons over the repo — a reasoning-capable model that can navigate code.
+	self_awareness: ["reasoning", "code"],
 };
 
 /** The affinity tags a model of this kind carries (empty for an unknown/absent kind — no affinity preference). */
