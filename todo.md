@@ -635,10 +635,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **P0.9 — Finish legacy host-worktree retirement** *(legacy §5.A/§2.B; split into leaves 2026-07-13).* Re-home
   migrated-board cleanup away from agent-id predicates, delete the remaining cleanup-only worktree modules/schema/catalog
   residue, and verify upgrades, shell-on-task, shutdown, and result-branch delivery.
-  - [ ] **P0.9c — Shrink the agent catalog to nklein-only** *(legacy §2.B).* Reduce `RUNTIME_AGENT_CATALOG`/
-    `runtimeAgentIdSchema` to `nklein` with a load-time migration that normalizes persisted legacy agent ids, delete
-    `usesLegacyHostTaskWorkspace` and the web-ui legacy worktree-path display, and update CLI/web-ui contract
-    couplings (UI verification required).
   - [ ] **P0.9d — Retirement verification lap.** Prove upgrades (fixture with a populated legacy worktrees home +
     legacy agent ids), shell-on-task, shutdown, and result-branch delivery are intact; then retire the §4A
     "legacy cleanup only" tribal-knowledge note.

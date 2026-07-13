@@ -79,13 +79,13 @@ describe("renderAppendSystemPrompt", () => {
 
 	it("renders only the active-agent Linear MCP guidance when an agent is provided", () => {
 		const rendered = renderAppendSystemPrompt("nklein", {
-			agentId: "codex",
+			agentId: "nklein",
 		});
 
-		expect(rendered).toContain("Current home agent: `codex`");
-		expect(rendered).toContain("codex mcp add linear --url https://mcp.linear.app/mcp");
+		expect(rendered).toContain("Current home agent: `nklein`");
+		expect(rendered).toContain("add an MCP server named `linear` with the HTTP URL `https://mcp.linear.app/mcp`");
 		expect(rendered).not.toContain("claude mcp add --transport http --scope user linear https://mcp.linear.app/mcp");
-		expect(rendered).not.toContain("droid mcp add linear https://mcp.linear.app/mcp --type http");
+		expect(rendered).not.toContain("codex mcp add linear --url https://mcp.linear.app/mcp");
 	});
 });
 
@@ -95,7 +95,7 @@ describe("resolveHomeAgentAppendSystemPrompt", () => {
 	});
 
 	it("returns the appended prompt for current home sidebar sessions", () => {
-		const prompt = resolveHomeAgentAppendSystemPrompt("__home_agent__:workspace-1:codex", {
+		const prompt = resolveHomeAgentAppendSystemPrompt("__home_agent__:workspace-1:nklein", {
 			currentVersion: "0.1.10",
 			cwd: "/Users/example/repo",
 			execPath: "/usr/local/bin/node",
@@ -105,13 +105,14 @@ describe("resolveHomeAgentAppendSystemPrompt", () => {
 		});
 		expect(prompt).toContain("!Klein sidebar agent");
 		expect(prompt).toContain("'/usr/local/bin/node' '/Users/example/repo/dist/cli.js' task list");
-		expect(prompt).toContain("Current home agent: `codex`");
-		expect(prompt).toContain("codex mcp add linear --url https://mcp.linear.app/mcp");
-		expect(prompt).not.toContain("claude mcp add --transport http --scope user linear https://mcp.linear.app/mcp");
+		expect(prompt).toContain("Current home agent: `nklein`");
+		expect(prompt).toContain("add an MCP server named `linear` with the HTTP URL `https://mcp.linear.app/mcp`");
 	});
 
-	it("returns active-agent guidance for droid home sidebar sessions", () => {
-		const prompt = resolveHomeAgentAppendSystemPrompt("__home_agent__:workspace-1:droid", {
+	it("falls back to generic Linear guidance for a legacy (retired-agent) home session id", () => {
+		// P0.9c: pre-lockdown home sessions could be suffixed with terminal-CLI agent ids; those ids are no longer
+		// RuntimeAgentIds, so the resolver treats them as unknown and the generic guidance renders.
+		const prompt = resolveHomeAgentAppendSystemPrompt("__home_agent__:workspace-1:codex", {
 			currentVersion: "0.1.10",
 			cwd: "/Users/example/repo",
 			execPath: "/usr/local/bin/node",
@@ -119,21 +120,7 @@ describe("resolveHomeAgentAppendSystemPrompt", () => {
 			argv: ["node", "/Users/example/repo/dist/cli.js"],
 			resolveRealPath: (path) => path,
 		});
-		expect(prompt).toContain("Current home agent: `droid`");
-		expect(prompt).toContain("droid mcp add linear https://mcp.linear.app/mcp --type http");
-	});
-
-	it("returns active-agent guidance for kiro home sidebar sessions", () => {
-		const prompt = resolveHomeAgentAppendSystemPrompt("__home_agent__:workspace-1:kiro", {
-			currentVersion: "0.1.10",
-			cwd: "/Users/example/repo",
-			execPath: "/usr/local/bin/node",
-			execArgv: [],
-			argv: ["node", "/Users/example/repo/dist/cli.js"],
-			resolveRealPath: (path) => path,
-		});
-		expect(prompt).toContain("Current home agent: `kiro`");
-		expect(prompt).toContain("kiro-cli mcp add --name linear --url https://mcp.linear.app/mcp --scope global");
-		expect(prompt).not.toContain("--scope user");
+		expect(prompt).toContain("Current home agent: `unknown`");
+		expect(prompt).toContain("If Linear MCP is not available, provide setup instructions for the active agent only");
 	});
 });

@@ -1,7 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
-import { getRuntimeAgentCatalogEntry, usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
+import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { formatNKleinToolCallLabel } from "@runtime-nklein-tool-call-display";
-import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -309,17 +308,6 @@ const DESCRIPTION_COLLAPSE_LABEL = "Less";
 const DESCRIPTION_COLLAPSE_SUFFIX = `… ${DESCRIPTION_EXPAND_LABEL}`;
 const DESCRIPTION_EXPANDED_SUFFIX = `… ${DESCRIPTION_COLLAPSE_LABEL}`;
 
-function reconstructTaskWorktreeDisplayPath(taskId: string, workspacePath: string | null | undefined): string | null {
-	if (!workspacePath) {
-		return null;
-	}
-	try {
-		return buildTaskWorktreeDisplayPath(taskId, workspacePath);
-	} catch {
-		return null;
-	}
-}
-
 function extractToolInputSummaryFromActivityText(activityText: string, toolName: string): string | null {
 	const escapedToolName = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const match = activityText.match(
@@ -556,7 +544,6 @@ export function BoardCard({
 	isDependencyTarget = false,
 	isDependencyLinking = false,
 	onManageDependencies,
-	workspacePath,
 	defaultAgentId = null,
 	pendingMailboxCount = 0,
 	reasoningSnippet = null,
@@ -596,7 +583,6 @@ export function BoardCard({
 	isDependencyLinking?: boolean;
 	/** Opens the DependencyPickerDialog for this card. Shown on hover for all non-trash cards. */
 	onManageDependencies?: (taskId: string) => void;
-	workspacePath?: string | null;
 	/** The workspace's selected agent — the agent chip only shows when the card DIFFERS from it. */
 	defaultAgentId?: string | null;
 }): React.ReactElement {
@@ -760,11 +746,7 @@ export function BoardCard({
 	};
 	const statusMarker = renderStatusMarker();
 	const showWorkspaceStatus = columnId === "in_progress" || columnId === "review" || isTrashCard;
-	const reviewWorkspacePath = reviewWorkspaceSnapshot
-		? formatPathForDisplay(reviewWorkspaceSnapshot.path)
-		: isTrashCard && usesLegacyHostTaskWorkspace(card.agentId)
-			? reconstructTaskWorktreeDisplayPath(card.id, workspacePath)
-			: null;
+	const reviewWorkspacePath = reviewWorkspaceSnapshot ? formatPathForDisplay(reviewWorkspaceSnapshot.path) : null;
 	const reviewRefLabel = reviewWorkspaceSnapshot?.branch ?? reviewWorkspaceSnapshot?.headCommit?.slice(0, 8) ?? "HEAD";
 	const reviewChangeSummary = reviewWorkspaceSnapshot
 		? reviewWorkspaceSnapshot.changedFiles == null

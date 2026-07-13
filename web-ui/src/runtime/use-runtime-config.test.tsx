@@ -15,10 +15,12 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 
 type HookSnapshot = UseRuntimeConfigResult;
 
-function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["selectedAgentId"]): RuntimeConfigResponse {
+// P0.9c: agent ids are nklein-only, so responses are distinguished by a shortcut-label MARKER instead.
+function createRuntimeConfigResponse(marker: string): RuntimeConfigResponse {
+	const selectedAgentId = "nklein" as const;
 	return {
 		selectedAgentId,
-		selectedShortcutLabel: null,
+		selectedShortcutLabel: marker,
 		workspaceBaseDir: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
@@ -83,22 +85,13 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 		detectedCommands: [selectedAgentId],
 		agents: [
 			{
-				id: "claude",
-				label: "Claude Code",
-				binary: "claude",
-				command: "claude",
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "nklein",
 				defaultArgs: [],
-				installed: selectedAgentId === "claude",
-				configured: selectedAgentId === "claude",
-			},
-			{
-				id: "codex",
-				label: "OpenAI Codex",
-				binary: "codex",
-				command: "codex",
-				defaultArgs: [],
-				installed: selectedAgentId === "codex",
-				configured: selectedAgentId === "codex",
+				installed: true,
+				configured: true,
 			},
 		],
 		shortcuts: [],
@@ -172,8 +165,8 @@ describe("useRuntimeConfig", () => {
 	});
 
 	it("seeds the dialog with initial config and refreshes when opened", async () => {
-		const initialConfig = createRuntimeConfigResponse("claude");
-		const refreshedConfig = createRuntimeConfigResponse("codex");
+		const initialConfig = createRuntimeConfigResponse("marker-initial");
+		const refreshedConfig = createRuntimeConfigResponse("marker-refreshed");
 		fetchRuntimeConfigMock.mockResolvedValue(refreshedConfig);
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -194,7 +187,7 @@ describe("useRuntimeConfig", () => {
 			throw new Error("Expected an initial hook snapshot.");
 		}
 		const initialSnapshot = latestSnapshot as HookSnapshot;
-		expect(initialSnapshot.config?.selectedAgentId).toBe("claude");
+		expect(initialSnapshot.config?.selectedShortcutLabel).toBe("marker-initial");
 		expect(fetchRuntimeConfigMock).not.toHaveBeenCalled();
 
 		await act(async () => {
@@ -216,12 +209,12 @@ describe("useRuntimeConfig", () => {
 		}
 		const refreshedSnapshot = latestSnapshot as HookSnapshot;
 		expect(fetchRuntimeConfigMock).toHaveBeenCalledWith("project-1");
-		expect(refreshedSnapshot.config?.selectedAgentId).toBe("codex");
+		expect(refreshedSnapshot.config?.selectedShortcutLabel).toBe("marker-refreshed");
 		expect(refreshedSnapshot.isLoading).toBe(false);
 	});
 
 	it("fetches runtime config without a selected workspace when the dialog opens", async () => {
-		const startupConfig = createRuntimeConfigResponse("codex");
+		const startupConfig = createRuntimeConfigResponse("marker-refreshed");
 		fetchRuntimeConfigMock.mockResolvedValue(startupConfig);
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -243,12 +236,12 @@ describe("useRuntimeConfig", () => {
 			throw new Error("Expected a runtime config snapshot.");
 		}
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.config?.selectedAgentId).toBe("codex");
+		expect(snapshot.config?.selectedShortcutLabel).toBe("marker-refreshed");
 		expect(snapshot.isLoading).toBe(false);
 	});
 
 	it("retries once after an initial load error while settings stay open", async () => {
-		const startupConfig = createRuntimeConfigResponse("codex");
+		const startupConfig = createRuntimeConfigResponse("marker-refreshed");
 		fetchRuntimeConfigMock.mockRejectedValueOnce(new Error("Runtime not ready."));
 		fetchRuntimeConfigMock.mockResolvedValueOnce(startupConfig);
 		let latestSnapshot: HookSnapshot | null = null;
@@ -274,13 +267,13 @@ describe("useRuntimeConfig", () => {
 			throw new Error("Expected a runtime config snapshot after retry.");
 		}
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.config?.selectedAgentId).toBe("codex");
+		expect(snapshot.config?.selectedShortcutLabel).toBe("marker-refreshed");
 		expect(snapshot.isLoading).toBe(false);
 	});
 
 	it("retries once again after workspace changes", async () => {
-		const projectConfig = createRuntimeConfigResponse("claude");
-		const globalConfig = createRuntimeConfigResponse("codex");
+		const projectConfig = createRuntimeConfigResponse("marker-initial");
+		const globalConfig = createRuntimeConfigResponse("marker-refreshed");
 		fetchRuntimeConfigMock
 			.mockRejectedValueOnce(new Error("Project runtime not ready."))
 			.mockResolvedValueOnce(projectConfig)
@@ -325,7 +318,7 @@ describe("useRuntimeConfig", () => {
 			throw new Error("Expected a runtime config snapshot after workspace switch retry.");
 		}
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.config?.selectedAgentId).toBe("codex");
+		expect(snapshot.config?.selectedShortcutLabel).toBe("marker-refreshed");
 		expect(snapshot.isLoading).toBe(false);
 	});
 });

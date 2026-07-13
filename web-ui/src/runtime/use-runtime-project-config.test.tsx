@@ -93,22 +93,13 @@ function createRuntimeConfigResponse(
 		detectedCommands: [selectedAgentId],
 		agents: [
 			{
-				id: "claude",
-				label: "Claude Code",
-				binary: "claude",
-				command: "claude",
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "nklein",
 				defaultArgs: [],
-				installed: selectedAgentId === "claude",
-				configured: selectedAgentId === "claude",
-			},
-			{
-				id: "codex",
-				label: "OpenAI Codex",
-				binary: "codex",
-				command: "codex",
-				defaultArgs: [],
-				installed: selectedAgentId === "codex",
-				configured: selectedAgentId === "codex",
+				installed: selectedAgentId === "nklein",
+				configured: selectedAgentId === "nklein",
 			},
 		],
 		shortcuts,
@@ -190,7 +181,7 @@ describe("useRuntimeProjectConfig", () => {
 	});
 
 	it("clears the previous project config immediately when switching workspaces", async () => {
-		const projectAConfig = createRuntimeConfigResponse("claude", [
+		const projectAConfig = createRuntimeConfigResponse("nklein", [
 			{ label: "Ship it", command: "npm run ship", icon: "rocket" },
 		]);
 		const projectBDeferred = createDeferred<RuntimeConfigResponse>();
@@ -230,7 +221,7 @@ describe("useRuntimeProjectConfig", () => {
 		expect(snapshots.at(-1)?.config).toBeNull();
 
 		await act(async () => {
-			projectBDeferred.resolve(createRuntimeConfigResponse("codex", []));
+			projectBDeferred.resolve(createRuntimeConfigResponse("nklein", []));
 			await projectBDeferred.promise;
 		});
 
@@ -256,24 +247,24 @@ describe("useRuntimeProjectConfig", () => {
 		});
 
 		await act(async () => {
-			projectBDeferred.resolve(createRuntimeConfigResponse("codex", []));
+			projectBDeferred.resolve(createRuntimeConfigResponse("nklein", []));
 			await projectBDeferred.promise;
 		});
-		expect(snapshots.at(-1)?.config?.selectedAgentId).toBe("codex");
+		expect(snapshots.at(-1)?.config?.shortcuts).toEqual([]);
 
 		await act(async () => {
 			projectADeferred.resolve(
-				createRuntimeConfigResponse("claude", [{ label: "Stale A", command: "npm run stale", icon: "clock" }]),
+				createRuntimeConfigResponse("nklein", [{ label: "Stale A", command: "npm run stale", icon: "clock" }]),
 			);
 			await projectADeferred.promise;
 		});
 
-		expect(snapshots.at(-1)?.config?.selectedAgentId).toBe("codex");
+		// Latest-wins: the stale project-A response (with its distinguishing shortcut) must NOT overwrite project-B's.
 		expect(snapshots.at(-1)?.config?.shortcuts).toEqual([]);
 	});
 
 	it("loads runtime config without a selected project", async () => {
-		const startupConfig = createRuntimeConfigResponse("codex", []);
+		const startupConfig = createRuntimeConfigResponse("nklein", []);
 		fetchRuntimeConfigMock.mockResolvedValue(startupConfig);
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -294,7 +285,7 @@ describe("useRuntimeProjectConfig", () => {
 			throw new Error("Expected a runtime project config snapshot.");
 		}
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.config?.selectedAgentId).toBe("codex");
+		expect(snapshot.config?.selectedAgentId).toBe("nklein");
 		expect(snapshot.isLoading).toBe(false);
 	});
 });

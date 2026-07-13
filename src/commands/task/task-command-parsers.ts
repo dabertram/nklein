@@ -1,4 +1,4 @@
-import { type RuntimeAgentId, runtimeAgentIdSchema } from "../../core/api-contract";
+import type { RuntimeAgentId } from "../../core/api-contract";
 import { toSlug } from "../../core/slugify";
 import type { TaskWorktreeAutoMergeColumn } from "../../workspace/task-worktree-auto-merge";
 
@@ -32,8 +32,6 @@ export function parseAutoReviewMode(value: string | undefined): "commit" | "pr" 
 	throw new Error(`Invalid auto review mode "${value}". Expected: commit, pr.`);
 }
 
-const VALID_AGENT_IDS = runtimeAgentIdSchema.options;
-
 export function parseAgentId(value: string | undefined): RuntimeAgentId | null | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -41,11 +39,12 @@ export function parseAgentId(value: string | undefined): RuntimeAgentId | null |
 	if (value === "default") {
 		return null;
 	}
-	const result = runtimeAgentIdSchema.safeParse(value);
-	if (result.success) {
-		return result.data;
+	// Strict on purpose: the schema's parse-time legacy migration (unknown → "nklein") must not make the CLI
+	// silently accept a typo'd --agent value.
+	if (value === "nklein") {
+		return "nklein";
 	}
-	throw new Error(`Invalid agent ID "${value}". Expected one of: ${VALID_AGENT_IDS.join(", ")}, default.`);
+	throw new Error(`Invalid agent ID "${value}". Expected one of: nklein, default.`);
 }
 
 export function parseOptionalStringOrDefault(value: string | undefined): string | null | undefined {

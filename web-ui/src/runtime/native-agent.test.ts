@@ -97,15 +97,6 @@ function createRuntimeConfigResponse(
 				installed: false,
 				configured: true,
 			},
-			{
-				id: "claude",
-				label: "Claude Code",
-				binary: "claude",
-				command: "claude",
-				defaultArgs: [],
-				installed: true,
-				configured: true,
-			},
 		],
 		shortcuts: [],
 		modelRoles: {},
@@ -199,7 +190,8 @@ const providerCatalog: RuntimeNKleinProviderCatalogItem[] = [
 describe("native-agent helpers", () => {
 	it("treats nklein as the native chat agent", () => {
 		expect(isNativeNKleinAgentSelected("nklein")).toBe(true);
-		expect(isNativeNKleinAgentSelected("codex")).toBe(false);
+		expect(isNativeNKleinAgentSelected(null)).toBe(false);
+		expect(isNativeNKleinAgentSelected(undefined)).toBe(false);
 	});
 
 	it("treats selected nklein as task-ready when nklein authentication is configured", () => {
@@ -376,22 +368,6 @@ describe("native-agent helpers", () => {
 				oauthExpiresAt: null,
 			}),
 		).toBe(true);
-	});
-
-	it("ignores non-launch agents when checking native CLI availability", () => {
-		const config = createRuntimeConfigResponse("claude");
-		config.agents = [
-			{
-				id: "gemini",
-				label: "Gemini CLI",
-				binary: "gemini",
-				command: "gemini",
-				defaultArgs: [],
-				installed: true,
-				configured: false,
-			},
-		];
-		expect(isTaskAgentSetupSatisfied(config)).toBe(false);
 	});
 
 	it("selects the latest incoming chat message only for the matching task", () => {

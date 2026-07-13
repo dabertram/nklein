@@ -20,7 +20,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 	return {
 		globalConfigPath: "/tmp/global-config.json",
 		projectConfigPath: "/tmp/project-config.json",
-		selectedAgentId: "claude",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
@@ -60,7 +60,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		maxConcurrentTasksOverride: null,
 		effectiveMaxConcurrentTasks: 3,
 		selectedAgentIdOverride: null,
-		effectiveSelectedAgentId: "claude",
+		effectiveSelectedAgentId: "nklein",
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 2048,
@@ -122,18 +122,19 @@ beforeEach(() => {
 
 describe("agent-registry", () => {
 	it("detects installed commands from the inherited PATH", () => {
-		commandDiscoveryMocks.isBinaryAvailableOnPath.mockImplementation((binary: string) => binary === "claude");
+		commandDiscoveryMocks.isBinaryAvailableOnPath.mockImplementation((binary: string) => binary === "nklein");
 
 		const detected = detectInstalledCommands();
 
-		expect(detected).toEqual(["claude"]);
-		expect(commandDiscoveryMocks.isBinaryAvailableOnPath).toHaveBeenCalledTimes(8);
+		expect(detected).toEqual(["nklein"]);
+		// One probe per catalog binary (nklein-only since P0.9c) + the npx shell fallback.
+		expect(commandDiscoveryMocks.isBinaryAvailableOnPath).toHaveBeenCalledTimes(2);
 	});
 
 	it("treats shell-only agents as unavailable", () => {
 		commandDiscoveryMocks.isBinaryAvailableOnPath.mockImplementation((binary: string) => binary === "npx");
 
-		const resolved = resolveAgentCommand(createRuntimeConfigState({ selectedAgentId: "claude" }));
+		const resolved = resolveAgentCommand(createRuntimeConfigState({ selectedAgentId: "nklein" }));
 
 		expect(resolved).toBeNull();
 	});

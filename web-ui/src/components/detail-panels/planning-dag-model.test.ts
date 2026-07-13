@@ -51,7 +51,6 @@ describe("formatDagModelLabel", () => {
 			"lmstudio / m",
 		);
 		expect(formatDagModelLabel(card("a", { agentId: "nklein" }))).toBe("!Klein local model");
-		expect(formatDagModelLabel(card("a", { agentId: "claude" }))).toBe("claude");
 		expect(formatDagModelLabel(card("a"))).toBe("Default agent");
 	});
 });

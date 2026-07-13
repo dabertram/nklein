@@ -172,7 +172,6 @@ export function KanbanBoard({
 	onManageDependencies,
 	onDragEnd,
 	onRequestProgrammaticCardMoveReady,
-	workspacePath,
 	currentProjectId,
 	runtimeConfig,
 	onRuntimeConfigChanged,
@@ -210,7 +209,6 @@ export function KanbanBoard({
 	onManageDependencies?: (taskId: string) => void;
 	onDragEnd: (result: DropResult) => void;
 	onRequestProgrammaticCardMoveReady?: (requestMove: RequestProgrammaticCardMove | null) => void;
-	workspacePath?: string | null;
 	currentProjectId?: string | null;
 	runtimeConfig?: RuntimeConfigResponse | null;
 	onRuntimeConfigChanged?: () => void;
@@ -1012,7 +1010,6 @@ export function KanbanBoard({
 			dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
 			isDependencyLinking={dependencyLinking.draft !== null}
 			onManageDependencies={onManageDependencies}
-			workspacePath={workspacePath}
 			replayCardsEnabled={replayCardsEnabled}
 			defaultAgentId={defaultAgentId}
 			mailboxCountByTaskId={mailboxCountByTaskId}

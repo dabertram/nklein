@@ -315,7 +315,7 @@ describe("useTaskEditor", () => {
 			requireSnapshot(latestSnapshot).setNewTaskPrompt("Create another task");
 		});
 		await act(async () => {
-			requireSnapshot(latestSnapshot).setNewTaskAgentId("codex");
+			requireSnapshot(latestSnapshot).setNewTaskAgentId("nklein");
 			requireSnapshot(latestSnapshot).setNewTaskNKleinSettings({
 				providerId: "provider-abc",
 				modelId: "model-xyz",
@@ -450,7 +450,7 @@ describe("useTaskEditor", () => {
 		});
 
 		await act(async () => {
-			requireSnapshot(latestSnapshot).setNewTaskAgentId("codex");
+			requireSnapshot(latestSnapshot).setNewTaskAgentId("nklein");
 			requireSnapshot(latestSnapshot).setNewTaskNKleinSettings({
 				providerId: "provider-abc",
 				modelId: "model-xyz",
@@ -467,7 +467,7 @@ describe("useTaskEditor", () => {
 		const backlogCards = requireSnapshot(latestSnapshot).board.columns[0]?.cards ?? [];
 		expect(backlogCards).toHaveLength(3);
 		for (const card of backlogCards) {
-			expect(card.agentId).toBe("codex");
+			expect(card.agentId).toBe("nklein");
 			expect(card.nkleinSettings).toEqual({
 				providerId: "provider-abc",
 				modelId: "model-xyz",

@@ -8,7 +8,7 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 	return {
 		taskId: "task-1",
 		state: "running",
-		agentId: "claude",
+		agentId: "nklein",
 		workspacePath: "/tmp/worktree",
 		pid: 1234,
 		startedAt: Date.now(),
@@ -40,7 +40,7 @@ describe("TerminalSessionManager", () => {
 
 		expect(recovered?.state).toBe("idle");
 		expect(recovered?.pid).toBeNull();
-		expect(recovered?.agentId).toBe("claude");
+		expect(recovered?.agentId).toBe("nklein");
 		expect(recovered?.workspacePath).toBeNull();
 		expect(recovered?.reviewReason).toBeNull();
 	});

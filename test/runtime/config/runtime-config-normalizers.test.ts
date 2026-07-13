@@ -109,13 +109,13 @@ describe("agent-id normalizers", () => {
 		expect(normalizeAgentId("bogus")).toBe(def);
 		expect(normalizeAgentId(undefined)).toBe(def);
 	});
-	it("normalizeSelectedAgentIdOverride: null for absent/unknown/default-equal, else the known id", () => {
+	it("normalizeSelectedAgentIdOverride: always null under the nklein-only contract (P0.9c)", () => {
 		expect(normalizeSelectedAgentIdOverride(null)).toBeNull();
 		expect(normalizeSelectedAgentIdOverride(undefined)).toBeNull();
 		expect(normalizeSelectedAgentIdOverride("bogus")).toBeNull();
-		// nklein is the local-only default ⇒ stored as null (no-op override); a different known id is preserved.
+		// nklein IS the only agent ⇒ a matching override is a no-op; retired terminal-CLI ids normalize away too.
 		expect(normalizeSelectedAgentIdOverride("nklein")).toBeNull();
-		expect(normalizeSelectedAgentIdOverride("codex")).toBe("codex");
+		expect(normalizeSelectedAgentIdOverride("codex")).toBeNull();
 	});
 });
 

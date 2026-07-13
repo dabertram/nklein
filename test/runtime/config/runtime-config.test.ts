@@ -1306,7 +1306,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
-	it("persists project selectedAgentIdOverride and derives effectiveSelectedAgentId (§5.W)", async () => {
+	it("normalizes any selectedAgentIdOverride to null under the nklein-only contract (P0.9c)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-agent-override-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
 			"kanban-project-runtime-config-agent-override-",
@@ -1316,13 +1316,15 @@ describe.sequential("runtime-config auto agent selection", () => {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				await updateRuntimeConfig(tempProject, { selectedAgentId: "nklein" });
 
+				// A persisted pre-lockdown override (e.g. "claude") is migrated by the schema and normalized away —
+				// nklein is the only agent, so an override can never change the effective agent.
 				const overridden = await updateRuntimeConfig(tempProject, {
-					selectedAgentIdOverride: "claude",
+					selectedAgentIdOverride: "nklein",
 				});
 
 				expect(overridden.selectedAgentId).toBe("nklein");
-				expect(overridden.selectedAgentIdOverride).toBe("claude");
-				expect(overridden.effectiveSelectedAgentId).toBe("claude");
+				expect(overridden.selectedAgentIdOverride).toBeNull();
+				expect(overridden.effectiveSelectedAgentId).toBe("nklein");
 
 				const reset = await updateRuntimeConfig(tempProject, {
 					selectedAgentIdOverride: null,

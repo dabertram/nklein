@@ -447,29 +447,6 @@ describe("useRuntimeSettingsNKleinMcpController", () => {
 		});
 	});
 
-	it("does not load MCP settings when a non-NKlein agent is selected", async () => {
-		let latestSnapshot: HookSnapshot | null = null;
-
-		await act(async () => {
-			root.render(
-				<HookHarness
-					open={true}
-					workspaceId="workspace-1"
-					selectedAgentId="claude"
-					onSnapshot={(snapshot) => {
-						latestSnapshot = snapshot;
-					}}
-				/>,
-			);
-			await flushAsyncWork();
-		});
-
-		expect(fetchNKleinMcpSettingsMock).not.toHaveBeenCalled();
-		expect(fetchNKleinMcpAuthStatusesMock).not.toHaveBeenCalled();
-		expect(requireSnapshot(latestSnapshot).mcpServers).toEqual([]);
-		expect(requireSnapshot(latestSnapshot).hasUnsavedChanges).toBe(false);
-	});
-
 	it("adds and persists an MCP server suggestion by name", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		fetchNKleinMcpSettingsMock.mockResolvedValue({

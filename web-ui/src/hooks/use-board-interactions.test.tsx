@@ -1804,7 +1804,7 @@ describe("useBoardInteractions", () => {
 			startInPlanMode: false,
 			autoReviewEnabled: false,
 			autoReviewMode: "commit",
-			agentId: "codex",
+			agentId: "nklein",
 			nkleinSettings: {
 				providerId: "my-provider",
 				modelId: "my-model",
@@ -1864,7 +1864,7 @@ describe("useBoardInteractions", () => {
 			providerId: "my-provider",
 			modelId: "my-model",
 		});
-		expect(restoredTask?.agentId).toBe("codex");
+		expect(restoredTask?.agentId).toBe("nklein");
 	});
 
 	it("ignores card selection requests for trashed tasks", async () => {

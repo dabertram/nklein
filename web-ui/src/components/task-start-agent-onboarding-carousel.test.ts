@@ -8,6 +8,6 @@ describe("resolveOnboardingAgentIds", () => {
 	});
 
 	it("keeps all onboarding agents when cloud providers are enabled", () => {
-		expect(resolveOnboardingAgentIds(true)).toEqual(["nklein", "claude", "codex", "droid", "kiro"]);
+		expect(resolveOnboardingAgentIds(true)).toEqual(["nklein"]);
 	});
 });

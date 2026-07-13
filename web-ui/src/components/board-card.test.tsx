@@ -494,38 +494,16 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("final hidden segment");
 	});
 
-	it("does not reconstruct a host worktree path for default trashed sandbox tasks", async () => {
+	it("never reconstructs a host worktree path for trashed tasks (legacy display retired, P0.9c)", async () => {
 		await act(async () => {
 			root.render(
 				<TooltipProvider>
-					<BoardCard
-						card={createCard({ id: "trash-task-1" })}
-						index={0}
-						columnId="trash"
-						workspacePath="/Users/alice/projects/kanban"
-					/>
+					<BoardCard card={createCard({ id: "trash-task-1" })} index={0} columnId="trash" />
 				</TooltipProvider>,
 			);
 		});
 
 		expect(container.textContent).not.toContain("~/.nklein/worktrees/trash-task-1/kanban");
-	});
-
-	it("reconstructs and shows trashed worktree path for legacy host-workspace agents", async () => {
-		await act(async () => {
-			root.render(
-				<TooltipProvider>
-					<BoardCard
-						card={createCard({ id: "trash-task-1", agentId: "codex" })}
-						index={0}
-						columnId="trash"
-						workspacePath="/Users/alice/projects/kanban"
-					/>
-				</TooltipProvider>,
-			);
-		});
-
-		expect(container.textContent).toContain("~/.nklein/worktrees/trash-task-1/kanban");
 	});
 
 	it("shows formatted agent override details with model name and reasoning effort", async () => {
@@ -718,7 +696,7 @@ describe("BoardCard", () => {
 					index={0}
 					columnId="in_progress"
 					sessionSummary={createSummary("running", {
-						agentId: "claude",
+						agentId: "nklein",
 						latestHookActivity: {
 							activityText: "Completed Read: src/index.ts",
 							toolName: "Read",
@@ -745,7 +723,7 @@ describe("BoardCard", () => {
 					index={0}
 					columnId="in_progress"
 					sessionSummary={createSummary("running", {
-						agentId: "kiro",
+						agentId: "nklein",
 						latestHookActivity: {
 							activityText: "Using fs_write: src/index.ts",
 							toolName: "fs_write",
@@ -771,7 +749,7 @@ describe("BoardCard", () => {
 					index={0}
 					columnId="in_progress"
 					sessionSummary={createSummary("running", {
-						agentId: "codex",
+						agentId: "nklein",
 						latestHookActivity: {
 							activityText: "Calling Read: src/index.ts",
 							toolName: null,
@@ -798,7 +776,7 @@ describe("BoardCard", () => {
 					index={0}
 					columnId="review"
 					sessionSummary={createSummary("awaiting_review", {
-						agentId: "kiro",
+						agentId: "nklein",
 						latestHookActivity: {
 							activityText: "Waiting for review",
 							toolName: "fs_write",
@@ -1088,7 +1066,7 @@ describe("BoardCard", () => {
 					index={0}
 					columnId="in_progress"
 					sessionSummary={createSummary("running", {
-						agentId: "codex",
+						agentId: "nklein",
 						latestHookActivity: {
 							activityText: "Agent: checking the next file",
 							toolName: null,

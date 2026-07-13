@@ -67,7 +67,7 @@ function createSummary(taskId: string): RuntimeTaskSessionSummary {
 	return {
 		taskId,
 		state: "running",
-		agentId: "codex",
+		agentId: "nklein",
 		workspacePath: `/tmp/${taskId}`,
 		pid: 123,
 		startedAt: 1,

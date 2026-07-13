@@ -8,9 +8,9 @@ import {
 } from "@/runtime/onboarding";
 
 describe("runtime onboarding helpers", () => {
-	it("treats non-nklein selections as authenticated", () => {
-		expect(isSelectedAgentAuthenticated("claude", null)).toBe(true);
-		expect(isSelectedAgentAuthenticated("codex", null)).toBe(true);
+	it("treats an unset selection as authenticated (nothing to configure yet)", () => {
+		expect(isSelectedAgentAuthenticated(null, null)).toBe(true);
+		expect(isSelectedAgentAuthenticated(undefined, null)).toBe(true);
 	});
 
 	it("checks nklein authentication from provider settings", () => {
@@ -54,7 +54,7 @@ describe("runtime onboarding helpers", () => {
 		expect(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog: true,
-				selectedAgentId: "codex",
+				selectedAgentId: null,
 			}),
 		).toBe(false);
 	});

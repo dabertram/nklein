@@ -203,11 +203,11 @@ describe("per-task agent/model/provider overrides", () => {
 		const created = addTaskToColumn(
 			createBoard(),
 			"backlog",
-			{ prompt: "Smart task", baseRef: "main", agentId: "claude" },
+			{ prompt: "Smart task", baseRef: "main", agentId: "nklein" },
 			() => "aaaaa111",
 		);
 
-		expect(created.task.agentId).toBe("claude");
+		expect(created.task.agentId).toBe("nklein");
 	});
 
 	it("persists task-level NKlein settings on the card when creating a task", () => {
@@ -254,11 +254,11 @@ describe("per-task agent/model/provider overrides", () => {
 		const updated = updateTask(created.board, created.task.id, {
 			prompt: "Task",
 			baseRef: "main",
-			agentId: "codex",
+			agentId: "nklein",
 		});
 
 		expect(updated.updated).toBe(true);
-		expect(updated.task?.agentId).toBe("codex");
+		expect(updated.task?.agentId).toBe("nklein");
 	});
 
 	it("updates nkleinModelId", () => {
@@ -285,7 +285,7 @@ describe("per-task agent/model/provider overrides", () => {
 			{
 				prompt: "Task",
 				baseRef: "main",
-				agentId: "claude",
+				agentId: "nklein",
 				nkleinSettings: {
 					providerId: "anthropic",
 					modelId: "claude-sonnet-4-20250514",
@@ -301,7 +301,7 @@ describe("per-task agent/model/provider overrides", () => {
 			// agentId and nkleinSettings are undefined, so existing overrides should persist
 		});
 
-		expect(updated.task?.agentId).toBe("claude");
+		expect(updated.task?.agentId).toBe("nklein");
 		expect(updated.task?.nkleinSettings).toEqual({
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-20250514",
@@ -316,7 +316,7 @@ describe("per-task agent/model/provider overrides", () => {
 			{
 				prompt: "Task",
 				baseRef: "main",
-				agentId: "codex",
+				agentId: "nklein",
 				nkleinSettings: {
 					providerId: "openai",
 					modelId: "gpt-4",
@@ -344,7 +344,7 @@ describe("per-task agent/model/provider overrides", () => {
 			{
 				prompt: "Movable task",
 				baseRef: "main",
-				agentId: "claude",
+				agentId: "nklein",
 				nkleinSettings: {
 					providerId: "anthropic",
 					modelId: "claude-sonnet-4-20250514",
@@ -357,7 +357,7 @@ describe("per-task agent/model/provider overrides", () => {
 		const moved = moveTaskToColumn(created.board, created.task.id, "in_progress");
 
 		expect(moved.moved).toBe(true);
-		expect(moved.task?.agentId).toBe("claude");
+		expect(moved.task?.agentId).toBe("nklein");
 		expect(moved.task?.nkleinSettings).toEqual({
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-20250514",

@@ -290,7 +290,7 @@ describe("buildRuntimeConfigSaveRequest", () => {
 			skillDynamicsLevel: "assigned_skills",
 			skillDynamicsLevelOverride: "fully_static",
 			maxConcurrentTasksOverride: 4,
-			selectedAgentIdOverride: "claude",
+			selectedAgentIdOverride: "nklein",
 			concurrencyDefaults: { perProvider: { lmstudio: 2 }, perModel: {}, perHost: {}, perEndpoint: {} },
 			concurrencyOverride: null,
 			commitPromptTemplate: "Commit body",
@@ -301,7 +301,7 @@ describe("buildRuntimeConfigSaveRequest", () => {
 		expect(payload.skillDynamicsLevelDefault).toBe("assigned_skills");
 		expect(payload.skillDynamicsLevelOverride).toBe("fully_static");
 		expect(payload.maxConcurrentTasksOverride).toBe(4);
-		expect(payload.selectedAgentIdOverride).toBe("claude");
+		expect(payload.selectedAgentIdOverride).toBe("nklein");
 		expect(payload.concurrencyDefaults).toEqual({
 			perProvider: { lmstudio: 2 },
 			perModel: {},

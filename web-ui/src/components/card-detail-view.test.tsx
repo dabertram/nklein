@@ -581,40 +581,13 @@ describe("CardDetailView", () => {
 		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeNull();
 	});
 
-	it("does not render native chat panel when the task explicitly uses a non-nklein agent", async () => {
-		const selection = createSelection();
-		selection.card.agentId = "codex";
-
-		await act(async () => {
-			root.render(
-				<CardDetailView
-					selection={selection}
-					currentProjectId="workspace-1"
-					selectedAgentId="nklein"
-					sessionSummary={null}
-					taskSessions={{}}
-					onSessionSummary={() => {}}
-					onCardSelect={() => {}}
-					onTaskDragEnd={() => {}}
-					onMoveToTrash={() => {}}
-					bottomTerminalOpen={false}
-					bottomTerminalTaskId={null}
-					bottomTerminalSummary={null}
-					onBottomTerminalClose={() => {}}
-				/>,
-			);
-		});
-
-		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeNull();
-	});
-
 	it("shows nklein chat panel when task session agentId is nklein even if global agent is claude", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="claude"
+					selectedAgentId={null}
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
@@ -1001,52 +974,13 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Marked the lost task session interrupted.");
 	});
 
-	it("shows terminal panel when task session agentId is claude even if global agent is nklein", async () => {
-		await act(async () => {
-			root.render(
-				<CardDetailView
-					selection={createSelection()}
-					currentProjectId="workspace-1"
-					selectedAgentId="nklein"
-					sessionSummary={{
-						taskId: "task-1",
-						state: "running",
-						agentId: "claude",
-						workspacePath: null,
-						pid: null,
-						startedAt: null,
-						updatedAt: Date.now(),
-						lastOutputAt: null,
-						reviewReason: null,
-						exitCode: null,
-						lastHookAt: null,
-						latestHookActivity: null,
-						warningMessage: null,
-					}}
-					taskSessions={{}}
-					onSessionSummary={() => {}}
-					onCardSelect={() => {}}
-					onTaskDragEnd={() => {}}
-					onMoveToTrash={() => {}}
-					bottomTerminalOpen={false}
-					bottomTerminalTaskId={null}
-					bottomTerminalSummary={null}
-					onBottomTerminalClose={() => {}}
-				/>,
-			);
-		});
-
-		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeNull();
-		expect(mockAgentTerminalPanel).toHaveBeenCalled();
-	});
-
 	it("uses surface-primary colors for the detail terminal panel", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="claude"
+					selectedAgentId={null}
 					sessionSummary={null}
 					taskSessions={{}}
 					onSessionSummary={() => {}}

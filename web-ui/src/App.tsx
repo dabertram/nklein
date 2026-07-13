@@ -1218,7 +1218,6 @@ export default function App(): ReactElement {
 												data={board}
 												taskSessions={sessions}
 												reasoningSnippetByTaskId={reasoningSnippetByTaskId}
-												workspacePath={workspacePath}
 												currentProjectId={currentProjectId}
 												runtimeConfig={runtimeProjectConfig ?? null}
 												onRuntimeConfigChanged={() => {
@@ -1308,7 +1307,6 @@ export default function App(): ReactElement {
 									selection={selectedCard}
 									dependencies={board.dependencies}
 									currentProjectId={currentProjectId}
-									workspacePath={workspacePath}
 									selectedAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 									runtimeConfig={runtimeProjectConfig ?? null}
 									sessionSummary={detailSession}

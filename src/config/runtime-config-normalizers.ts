@@ -31,7 +31,6 @@ import {
 	runtimeRoleModelSettingsSchema,
 	runtimeSkillDynamicsLevelSchema,
 } from "../core/api-contract";
-import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
 import {
 	DEFAULT_AGENT_ID,
@@ -51,19 +50,9 @@ import {
 import type { RuntimeGlobalConfigFileShape } from "./runtime-config-types";
 
 export function normalizeAgentId(agentId: RuntimeAgentId | string | null | undefined): RuntimeAgentId {
-	if (
-		(agentId === "claude" ||
-			agentId === "codex" ||
-			agentId === "gemini" ||
-			agentId === "opencode" ||
-			agentId === "droid" ||
-			agentId === "kiro" ||
-			agentId === "nklein") &&
-		isRuntimeAgentLaunchSupported(agentId)
-	) {
-		if (!CLOUD_ENABLED && agentId !== "nklein") {
-			return DEFAULT_AGENT_ID;
-		}
+	// P0.9c: nklein is the only agent id; anything else (incl. persisted pre-lockdown terminal-CLI ids) normalizes
+	// to the default. Launch support is still consulted so a future multi-agent phase re-widens in one place.
+	if (agentId === "nklein" && isRuntimeAgentLaunchSupported(agentId)) {
 		return agentId;
 	}
 	return DEFAULT_AGENT_ID;
@@ -319,24 +308,10 @@ export function normalizeMaxConcurrentTasksOverride(value: unknown): number | nu
 }
 
 export function normalizeSelectedAgentIdOverride(value: unknown): RuntimeAgentId | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	// Validate it's a known agent id string (without cloud-gating — the effective resolution handles that).
-	// We still want to persist "claude" or "codex" in the project file even when CLOUD_ENABLED is false,
-	// so a user who toggled cloud back on immediately gets the right agent. Only reject unknown strings.
-	if (
-		value === "claude" ||
-		value === "codex" ||
-		value === "gemini" ||
-		value === "opencode" ||
-		value === "droid" ||
-		value === "kiro" ||
-		value === "nklein"
-	) {
-		// Return null when it matches the global default — no point storing a no-op override.
-		return value === DEFAULT_AGENT_ID ? null : (value as RuntimeAgentId);
-	}
+	// P0.9c: with the agent contract shrunk to nklein-only, every persisted override (incl. pre-lockdown
+	// "claude"/"codex" values) normalizes to null — nklein IS the default, so a matching override is a no-op and
+	// anything else is a retired id. A future multi-agent phase re-widens this together with runtimeAgentIdSchema.
+	void value;
 	return null;
 }
 

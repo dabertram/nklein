@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The retired terminal-CLI agents are fully gone from the product surface.** !Klein's native agent has been the only
+  launchable agent since the local-only lockdown; now the leftover claude/codex/gemini/opencode/droid/kiro entries are
+  removed from onboarding, settings, and the wire contract too. Boards, sessions, and settings saved by very old
+  builds still load — any retired agent id is migrated to the native agent automatically — and the last traces of the
+  pre-sandbox host-worktree display went with it.
+
 - **Streamed chat replies work again.** A recent change to the streamed-turn continuation feature accidentally broke
   every token-streamed chat turn with an internal error ("Cannot read properties of undefined") — the reply never
   started streaming. Non-streamed chat was unaffected. Fixed, with a regression test that exercises the streaming

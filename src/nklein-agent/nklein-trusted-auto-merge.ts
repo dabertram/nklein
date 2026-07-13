@@ -6,9 +6,10 @@ const PROTECTED_AUTO_MERGE_PATH_PREFIXES = [
 	"src/security/",
 	"src/server/shutdown-coordinator.ts",
 	"src/workspace/path-sandbox.ts",
-	"src/workspace/task-worktree.ts",
+	// P0.9: the worktree cleanup modules were retired; the deletion-capable successors stay protected.
 	"src/workspace/task-worktree-path.ts",
-	"src/workspace/task-worktree-sync.ts",
+	"src/workspace/legacy-worktree-sweep.ts",
+	"src/workspace/task-artifact-cleanup.ts",
 	"src/telemetry/self-observation-sink.ts",
 	"src/nklein-agent/nklein-dogfood-engine.ts",
 	"src/nklein-agent/nklein-trusted-auto-merge.ts",

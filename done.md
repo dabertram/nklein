@@ -192,6 +192,21 @@
   add-project guard and `task_worktree_project` health migration stay (they are the upgrade path). Full gate green
   (backend 9329 fast + suites, web-ui 1052, protected 134).
 
+- [x] **P0.9c — Agent catalog shrunk to nklein-only** *(third P0.9 leaf; legacy §2.B; delivered 2026-07-13).*
+  `runtimeAgentIdSchema` is now `z.enum(["nklein"]).catch("nklein")` — the `.catch` IS the upgrade path: persisted
+  boards/sessions/config from pre-lockdown builds carrying terminal-CLI agent ids ("claude", "codex", …) migrate to
+  `nklein` at parse time instead of failing the load. `RUNTIME_AGENT_CATALOG` holds only the !Klein entry;
+  `usesLegacyHostTaskWorkspace` (the last agent-id worktree predicate) is deleted along with the web-ui trashed-card
+  legacy worktree-path display, `buildTaskWorktreeDisplayPath` + path-label helpers (`task-worktree-path.ts` is now
+  just the presence-keyed add-project guard), and the dead `workspacePath` prop plumbing (App→board→column→card).
+  The CLI `--agent` parser stays strict (the schema's catch must not make a typo silently valid);
+  `normalizeAgentId`/`normalizeSelectedAgentIdOverride` collapse to the nklein-only forms; unreachable per-CLI-agent
+  arms were pruned (append-system-prompt Linear guidance — the guidance itself stays per the 2026-07-12 directive —
+  onboarding carousel, settings agent order); the protected auto-merge path list tracks the module moves
+  (legacy-worktree-sweep + task-artifact-cleanup now protected). ~30 test files updated: unrepresentable non-nklein
+  scenarios removed, migration behavior pinned (`agent-catalog.test.ts`), fixtures swapped. Full gate green:
+  backend 9322 fast + 134 protected, web-ui 1042 unit + all 72 Playwright e2e.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

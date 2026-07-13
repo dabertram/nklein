@@ -47,7 +47,6 @@ export function BoardColumn({
 	dependencyTargetTaskId,
 	isDependencyLinking,
 	onManageDependencies,
-	workspacePath,
 	replayCardsEnabled = false,
 	defaultAgentId,
 	mailboxCountByTaskId,
@@ -92,7 +91,6 @@ export function BoardColumn({
 	dependencyTargetTaskId?: string | null;
 	isDependencyLinking?: boolean;
 	onManageDependencies?: (taskId: string) => void;
-	workspacePath?: string | null;
 	replayCardsEnabled?: boolean;
 	defaultAgentId?: string | null;
 }): React.ReactElement {
@@ -226,7 +224,6 @@ export function BoardColumn({
 											isDependencyTarget={dependencyTargetTaskId === card.id}
 											isDependencyLinking={isDependencyLinking}
 											onManageDependencies={onManageDependencies}
-											workspacePath={workspacePath}
 											defaultAgentId={defaultAgentId}
 											onSaveTitle={onSaveTitle}
 											onClick={() => {

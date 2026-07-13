@@ -93,7 +93,8 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	},
 ];
 
-const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
+// P0.9c: the agent contract is nklein-only; the cloud-agent carousel entries return with a future multi-agent phase.
+const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["nklein"];
 const FALLBACK_ONBOARDING_SLIDE: OnboardingSlide = {
 	kind: "agent-selection",
 	title: "",
@@ -494,19 +495,8 @@ function resolveInstallInstructions(agentId: RuntimeAgentId): string {
 	return "Install from the official docs.";
 }
 
-function getInstallLinkLabel(agentId: RuntimeAgentId): string {
-	if (agentId === "claude") {
-		return "Learn more";
-	}
-	if (agentId === "codex") {
-		return "Learn more";
-	}
-	if (agentId === "droid") {
-		return "Learn more";
-	}
-	if (agentId === "kiro") {
-		return "Learn more";
-	}
+function getInstallLinkLabel(_agentId: RuntimeAgentId): string {
+	// P0.9c: with the nklein-only agent contract the per-CLI-agent labels became unreachable.
 	return "Install guide";
 }
 

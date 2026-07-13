@@ -348,7 +348,6 @@ export function CardDetailView({
 	selection,
 	dependencies = [],
 	currentProjectId,
-	workspacePath,
 	selectedAgentId = null,
 	runtimeConfig = null,
 	sessionSummary,
@@ -414,7 +413,6 @@ export function CardDetailView({
 	selection: CardSelection;
 	dependencies?: BoardDependency[];
 	currentProjectId: string | null;
-	workspacePath?: string | null;
 	selectedAgentId?: RuntimeAgentId | null;
 	runtimeConfig?: RuntimeConfigResponse | null;
 	sessionSummary: RuntimeTaskSessionSummary | null;
@@ -923,7 +921,6 @@ export function CardDetailView({
 					<div className="flex min-h-0 min-w-0" style={{ width: taskCardsPanelPercent }}>
 						<ColumnContextPanel
 							selection={selection}
-							workspacePath={workspacePath}
 							onCardSelect={onCardSelect}
 							taskSessions={taskSessions}
 							onTaskDragEnd={onTaskDragEnd}

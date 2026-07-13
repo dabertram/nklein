@@ -33,7 +33,6 @@ function ColumnSection({
 	moveToTrashLoadingById,
 	activeDragSourceColumnId,
 	onManageDependencies,
-	workspacePath,
 }: {
 	column: BoardColumn;
 	selectedCardId: string;
@@ -57,7 +56,6 @@ function ColumnSection({
 	moveToTrashLoadingById?: Record<string, boolean>;
 	activeDragSourceColumnId?: BoardColumnId | null;
 	onManageDependencies?: (taskId: string) => void;
-	workspacePath?: string | null;
 }): React.ReactElement {
 	const [open, setOpen] = useState(defaultOpen);
 	const canCreate = column.id === "backlog" && onCreateTask;
@@ -199,7 +197,6 @@ function ColumnSection({
 												isOpenPrLoading={openPrTaskLoadingById?.[card.id] ?? false}
 												isMoveToTrashLoading={moveToTrashLoadingById?.[card.id] ?? false}
 												onManageDependencies={onManageDependencies}
-												workspacePath={workspacePath}
 												onSaveTitle={onSaveTitle}
 												onClick={() => {
 													if (column.id === "backlog") {
@@ -229,7 +226,6 @@ function ColumnSection({
 
 export function ColumnContextPanel({
 	selection,
-	workspacePath,
 	onCardSelect,
 	taskSessions,
 	onTaskDragEnd,
@@ -252,7 +248,6 @@ export function ColumnContextPanel({
 	panelWidth,
 }: {
 	selection: CardSelection;
-	workspacePath?: string | null;
 	onCardSelect: (taskId: string) => void;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
 	onTaskDragEnd: (result: DropResult) => void;
@@ -362,7 +357,6 @@ export function ColumnContextPanel({
 							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
 							activeDragSourceColumnId={activeDragSourceColumnId}
 							onManageDependencies={onManageDependencies}
-							workspacePath={workspacePath}
 						/>
 					))}
 				</div>

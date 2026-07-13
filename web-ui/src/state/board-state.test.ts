@@ -770,7 +770,7 @@ describe("board dependency state", () => {
 			prompt: "Task with model",
 			autoReviewEnabled: true,
 			autoReviewMode: "commit",
-			agentId: "codex",
+			agentId: "nklein",
 			nkleinSettings: {
 				providerId: "my-provider",
 				modelId: "my-model",
@@ -783,7 +783,7 @@ describe("board dependency state", () => {
 		if (!task) {
 			throw new Error("Expected review task to exist");
 		}
-		expect(task.agentId).toBe("codex");
+		expect(task.agentId).toBe("nklein");
 		expect(task.nkleinSettings).toEqual({
 			providerId: "my-provider",
 			modelId: "my-model",
@@ -795,7 +795,7 @@ describe("board dependency state", () => {
 
 		const updatedTask = disabled.board.columns.find((column) => column.id === "review")?.cards[0];
 		expect(updatedTask?.autoReviewEnabled).toBe(false);
-		expect(updatedTask?.agentId).toBe("codex");
+		expect(updatedTask?.agentId).toBe("nklein");
 		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "my-provider",
 			modelId: "my-model",
@@ -890,32 +890,6 @@ describe("board dependency state", () => {
 		expect(updatedTask?.nkleinSettings).toEqual({
 			reasoningEffort: "high",
 		});
-	});
-
-	it("does not treat non-nklein agent overrides as explicit nklein settings", () => {
-		let board = createInitialBoardData();
-		board = addTaskToColumn(board, "backlog", {
-			prompt: "Task with codex override",
-			agentId: "codex",
-			baseRef: "main",
-		});
-		const task = board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(task).toBeDefined();
-		if (!task) {
-			throw new Error("Expected backlog task to exist");
-		}
-
-		const result = applyTaskDetailNKleinSettingsSelection(board, task.id, {
-			agentId: "nklein",
-			nkleinSettings: {
-				providerId: "openrouter",
-				modelId: "anthropic/claude-opus-4.6",
-			},
-		});
-		expect(result.updated).toBe(false);
-		const unchangedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(unchangedTask?.agentId).toBe("codex");
-		expect(unchangedTask?.nkleinSettings).toBeUndefined();
 	});
 
 	it("materializes a concrete nklein override when saving task-level chat settings", () => {

@@ -80,7 +80,7 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"claude"}
+					selectedAgentId={null}
 					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,

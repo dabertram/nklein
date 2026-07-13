@@ -274,7 +274,7 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 	return {
 		taskId: "task-1",
 		state: "running",
-		agentId: "claude",
+		agentId: "nklein",
 		workspacePath: "/tmp/worktree",
 		pid: 1234,
 		startedAt: Date.now(),
@@ -729,7 +729,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		});
 
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "claude",
+			agentId: "nklein",
 			label: "Claude Code",
 			command: "claude",
 			binary: "claude",

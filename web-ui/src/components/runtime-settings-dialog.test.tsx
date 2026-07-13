@@ -1283,8 +1283,8 @@ describe("RuntimeSettingsDialog", () => {
 					initialConfig={
 						{
 							...savedNKleinOauthConfig,
-							selectedAgentId: "claude",
-							effectiveCommand: "claude",
+							selectedAgentId: "nklein",
+							effectiveCommand: "nklein",
 						} as RuntimeConfigResponse
 					}
 					onOpenChange={handleOpenChange}

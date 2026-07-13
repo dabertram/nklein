@@ -85,7 +85,7 @@ function createBoard(taskIds: { inProgress?: TestBoardTask[]; review?: TestBoard
 function createSession(
 	taskId: string,
 	state: "running" | "awaiting_review" | "idle",
-	agentId: RuntimeAgentId = "codex",
+	agentId: RuntimeAgentId = "nklein",
 ): RuntimeTaskSessionSummary {
 	return {
 		taskId,
@@ -213,14 +213,14 @@ describe.sequential("shutdown coordinator integration", () => {
 						inProgress: [
 							"default-nklein",
 							{ id: "explicit-nklein", agentId: "nklein" },
-							{ id: "legacy-codex", agentId: "codex" },
-							{ id: "legacy-card-only", agentId: "claude" },
+							{ id: "legacy-codex", agentId: "nklein" },
+							{ id: "legacy-card-only", agentId: "nklein" },
 						],
 					}),
 					sessions: {
 						"default-nklein": createSession("default-nklein", "running", "nklein"),
 						"explicit-nklein": createSession("explicit-nklein", "running", "nklein"),
-						"legacy-codex": createSession("legacy-codex", "running", "codex"),
+						"legacy-codex": createSession("legacy-codex", "running", "nklein"),
 					},
 					expectedRevision: initial.revision,
 				});
@@ -228,11 +228,11 @@ describe.sequential("shutdown coordinator integration", () => {
 				const managedTerminalManager = {
 					markInterruptedAndStopAll: () => [
 						createSession("default-nklein", "running", "nklein"),
-						createSession("legacy-codex", "running", "codex"),
+						createSession("legacy-codex", "running", "nklein"),
 					],
 					listSummaries: () => [
 						createSession("default-nklein", "running", "nklein"),
-						createSession("legacy-codex", "running", "codex"),
+						createSession("legacy-codex", "running", "nklein"),
 					],
 					getSummary: (taskId: string) => {
 						if (taskId === "default-nklein") {
@@ -242,7 +242,7 @@ describe.sequential("shutdown coordinator integration", () => {
 							return createSession("explicit-nklein", "running", "nklein");
 						}
 						if (taskId === "legacy-codex") {
-							return createSession("legacy-codex", "running", "codex");
+							return createSession("legacy-codex", "running", "nklein");
 						}
 						return null;
 					},

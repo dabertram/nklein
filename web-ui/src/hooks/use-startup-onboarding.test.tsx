@@ -83,16 +83,16 @@ function createRuntimeConfigResponse(
 		globalConfigPath: "/tmp/.nklein/nklein/config.json",
 		projectConfigPath: "/tmp/project/.nklein/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
-		detectedCommands: ["codex"],
+		detectedCommands: ["nklein"],
 		agents: [
 			{
-				id: "codex",
-				label: "OpenAI Codex",
-				binary: "codex",
-				command: "codex",
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "nklein",
 				defaultArgs: [],
 				installed: true,
-				configured: selectedAgentId === "codex",
+				configured: selectedAgentId === "nklein",
 			},
 		],
 		shortcuts: [],
@@ -155,7 +155,7 @@ describe("useStartupOnboarding", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		saveRuntimeConfigMock.mockReset();
-		saveRuntimeConfigMock.mockResolvedValue(createRuntimeConfigResponse("codex"));
+		saveRuntimeConfigMock.mockResolvedValue(createRuntimeConfigResponse("nklein"));
 		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
 			.IS_REACT_ACT_ENVIRONMENT;
 		(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -226,10 +226,10 @@ describe("useStartupOnboarding", () => {
 		}
 
 		const snapshot = latestSnapshot as HookSnapshot;
-		const result = await snapshot.handleSelectOnboardingAgent("codex");
+		const result = await snapshot.handleSelectOnboardingAgent("nklein");
 
 		expect(result).toEqual({ ok: true });
-		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(null, { selectedAgentId: "codex" });
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(null, { selectedAgentId: "nklein" });
 	});
 
 	it("waits for runtime config to finish loading before opening onboarding", async () => {
@@ -388,11 +388,28 @@ describe("useStartupOnboarding", () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
+		// P0.9c: nklein is the only agent, so "normal criteria satisfied" now requires a CONFIGURED local provider
+		// (an unconfigured one legitimately reopens onboarding).
+		const configuredConfig = {
+			...createRuntimeConfigResponse("nklein"),
+			nkleinProviderSettings: {
+				providerId: "lmstudio",
+				modelId: "qwen3.5-9b",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				apiKeyConfigured: false,
+				oauthProvider: null,
+				oauthAccessTokenConfigured: false,
+				oauthRefreshTokenConfigured: false,
+				oauthAccountId: null,
+				oauthExpiresAt: null,
+			},
+		};
+
 		await act(async () => {
 			root.render(
 				<HookHarness
 					currentProjectId={"project-1"}
-					runtimeProjectConfig={createRuntimeConfigResponse("codex")}
+					runtimeProjectConfig={configuredConfig}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={true}
 					onSnapshot={(snapshot) => {

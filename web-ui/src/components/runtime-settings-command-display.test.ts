@@ -34,23 +34,4 @@ describe("buildDisplayedAgentCommand", () => {
 		expect(buildDisplayedAgentCommand("nklein", "nklein", false)).toBe("");
 		expect(buildDisplayedAgentCommand("nklein", "nklein", true)).toBe("");
 	});
-
-	it("shows only the binary when autonomous mode is OFF (no auto flags)", () => {
-		expect(buildDisplayedAgentCommand("codex", "codex", false)).toBe("codex");
-	});
-
-	it("appends the agent's autonomous args when autonomous mode is ON", () => {
-		// The dangerous auto-flag must be visible to the user in the displayed command.
-		expect(buildDisplayedAgentCommand("codex", "codex", true)).toBe(
-			"codex --dangerously-bypass-approvals-and-sandbox",
-		);
-	});
-
-	it("joins multiple autonomous args (space-separated)", () => {
-		expect(buildDisplayedAgentCommand("droid", "droid", true)).toBe("droid --auto high");
-	});
-
-	it("shows just the binary for an autonomous agent that declares no auto args", () => {
-		expect(buildDisplayedAgentCommand("opencode", "opencode", true)).toBe("opencode");
-	});
 });
