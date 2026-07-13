@@ -186,6 +186,18 @@ export function summarizeFocusChain(chain: FocusChain | null | undefined): Focus
 	};
 }
 
+/**
+ * F1.5 — the CANONICAL current step: the first `in_progress` step, else the first `pending` one, else null (empty
+ * or fully done/skipped chain). Reviewer prompts and attempt-ledger events both derive "what step was being worked"
+ * from this one helper so they can never disagree.
+ */
+export function currentFocusChainStep(chain: FocusChain | null | undefined): FocusChainStep | null {
+	const steps = chain?.steps ?? [];
+	return (
+		steps.find((step) => step.status === "in_progress") ?? steps.find((step) => step.status === "pending") ?? null
+	);
+}
+
 const FOCUS_CHAIN_STATUS_MARK: Record<FocusChainStepStatus, string> = {
 	done: "[x]",
 	in_progress: "[~]",
@@ -199,5 +211,9 @@ export function formatFocusChainForPrompt(chain: FocusChain | null | undefined):
 	if (steps.length === 0) {
 		return "(no focus chain yet)";
 	}
-	return steps.map((step) => `${FOCUS_CHAIN_STATUS_MARK[step.status]} ${step.text}`).join("\n");
+	const list = steps.map((step) => `${FOCUS_CHAIN_STATUS_MARK[step.status]} ${step.text}`).join("\n");
+	// F1.5: name the canonical current step explicitly so every prompt consumer (reviewer, re-anchor) agrees with
+	// the attempt ledger on what "the current step" is — never re-derived per surface.
+	const current = currentFocusChainStep(chain);
+	return current ? `${list}\nCurrent step: ${current.text}` : list;
 }

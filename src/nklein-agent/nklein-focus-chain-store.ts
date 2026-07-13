@@ -4,6 +4,7 @@ import {
 	type FocusChain,
 	type FocusChainStepTouchDelta,
 	type FocusChainSummary,
+	normalizeFocusChain,
 	summarizeFocusChain,
 } from "../core/focus-chain";
 
@@ -13,6 +14,10 @@ import {
  * "focus chain updated" notification and the clock are injected. Self-contained apart from those two deps.
  */
 export interface FocusChainStore {
+	/** The live chain for a task, or null when none is tracked. */
+	get(taskId: string): FocusChain | null;
+	/** F1.5 — restore a persisted chain into the live store (no-op when one exists; never notifies). */
+	seed(taskId: string, chain: FocusChain): void;
 	/** Merge a new focus-chain snapshot with the retained step timings, store it, and notify the update listener. */
 	applyStep(taskId: string, chain: FocusChain): void;
 	/** Attribute file/card touches to the currently active step, when a chain exists. */
@@ -32,6 +37,25 @@ export function createFocusChainStore(deps: {
 	const chainByTaskId = new Map<string, FocusChain>();
 
 	return {
+		get(taskId) {
+			return chainByTaskId.get(taskId) ?? null;
+		},
+		seed(taskId, chain) {
+			// F1.5 rehydration: restore the persisted card chain into the live store on session start so per-step
+			// timing survives a runtime restart. Never clobbers a chain the session already emitted, and never
+			// echoes onUpdated (the seed IS the persisted state — re-writing it would be a no-op churn). The steps
+			// pass through the normalizer so a hand-edited/corrupt persisted chain cannot inject a bad shape;
+			// per-step timing/touches from the persisted chain are retained by matching text (same as applyStep).
+			if (chainByTaskId.has(taskId)) {
+				return;
+			}
+			const normalized = normalizeFocusChain(chain.steps, chain.updatedAt);
+			if (!normalized) {
+				return;
+			}
+			const timed = applyFocusChainStepTiming(chain, normalized, chain.updatedAt);
+			chainByTaskId.set(taskId, applyFocusChainStepTouches(chain, timed));
+		},
 		applyStep(taskId, chain) {
 			const timed = applyFocusChainStepTiming(chainByTaskId.get(taskId), chain, deps.now());
 			const withTouches = applyFocusChainStepTouches(chainByTaskId.get(taskId), timed);

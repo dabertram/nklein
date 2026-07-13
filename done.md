@@ -339,6 +339,17 @@
   submit + resume surfacing + reload, resolved review + empty-plan hiding, empty-submission guard); web-ui 1046
   unit + all 72 Playwright e2e green.
 
+- [x] **F1.5 (first leaf) — canonical current step + live-store rehydration** *(delivered 2026-07-13).*
+  `currentFocusChainStep` (core): the first `in_progress` step, else the first `pending`, else null — and BOTH
+  consumers derive from it: `formatFocusChainForPrompt` now names it explicitly ("Current step: …", so the §5.K
+  reviewer prompt and any re-anchor injection agree), and the attempt-ledger event gains `focusStep` (stamped at
+  terminal-write time from the live store; null on pre-existing lines). Durability: the card's persisted
+  `focusChain` already survived restarts but the LIVE store started empty — `focusChainStore.seed()` (normalizing,
+  timing-preserving, never clobbering a live chain, never echoing onUpdated) plus a `loadPersistedFocusChain`
+  service dep (runtime-server reads the card) now rehydrate it on session start, so per-step timing and the
+  ledger's current-step reference survive a runtime restart/rebind. 4 new tests (canonical-step precedence, format
+  agreement, seed semantics incl. no-echo + no-clobber + timing survival).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

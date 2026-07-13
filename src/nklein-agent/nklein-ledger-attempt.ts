@@ -66,6 +66,7 @@ export interface TerminalAttemptInput {
 	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
 	toolCalls?: AttemptToolCall[];
 	knowledge?: AttemptKnowledgeUsage | null;
+	focusStep?: string | null;
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -98,6 +99,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		salvage: input.timeoutReason,
 		toolCalls: input.toolCalls,
 		knowledge: input.knowledge ?? null,
+		focusStep: input.focusStep ?? null,
 	});
 }
 

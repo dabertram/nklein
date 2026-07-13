@@ -37,7 +37,7 @@ import type {
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
-import type { FocusChain } from "../core/focus-chain";
+import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
@@ -399,6 +399,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
 	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
+	/** F1.5 — loads the card's persisted focus chain so the live store rehydrates on session start/rebind. */
+	private readonly loadPersistedFocusChain: ((taskId: string) => Promise<FocusChain | null>) | undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
 	/** §5.AC "knows today" runtime-config switch (off by default); live-updated with config, OR-ed with the env override. */
 	private knowsTodayEnabled: boolean;
@@ -485,6 +487,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onDecompositionApplied = options.onDecompositionApplied;
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
+		this.loadPersistedFocusChain = options.loadPersistedFocusChain;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
@@ -1290,6 +1293,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
+		// F1.5 rehydration: the card's persisted focus chain survives restarts, but the LIVE store starts empty —
+		// reseed it (fire-and-forget; seed never clobbers a chain the session emits first) so per-step timing and
+		// the ledger's current-step reference survive a runtime restart or rebind.
+		void this.loadPersistedFocusChain?.(request.taskId)
+			.then((chain) => {
+				if (chain) {
+					this.focusChainStore.seed(request.taskId, chain);
+				}
+			})
+			.catch(() => undefined);
 		const existing = this.messageRepository.getTaskEntry(request.taskId);
 		if (
 			!request.resumeFromTrash &&
@@ -2732,6 +2745,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// knowledge debt of the originating card rides along (null when unknown / not plan-born).
 				const knowledgeDebtPresent = await resolveTaskKnowledgeDebtPresent(summary.workspacePath, taskId);
 				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls, { knowledgeDebtPresent });
+				// F1.5: the ledger and the reviewer prompt derive "the current step" from the SAME core helper.
+				const focusStep = currentFocusChainStep(this.focusChainStore.get(taskId))?.text ?? null;
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,
@@ -2757,6 +2772,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						timeoutReason,
 						toolCalls,
 						knowledge,
+						focusStep,
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

@@ -2179,6 +2179,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						);
 					}
 				},
+				// F1.5 rehydration read-side: the card's persisted chain reseeds the service's live store on session
+				// start, so per-step timing and the ledger's current-step survive a runtime restart.
+				loadPersistedFocusChain: async (taskId) => {
+					const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
+					const card = state?.board.columns.flatMap((column) => column.cards).find((c) => c.id === taskId);
+					return card?.focusChain ?? null;
+				},
 				onFocusChainUpdated: async (taskId, chain) => {
 					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.
 					await mutateWorkspaceState(scope.workspacePath, (state) => ({

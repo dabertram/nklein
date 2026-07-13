@@ -76,3 +76,33 @@ describe("createFocusChainStore (§5.U extraction)", () => {
 		expect(latest?.steps[0]?.touchedCardIds).toEqual(["card-1"]);
 	});
 });
+
+describe("focus chain store seed (F1.5 rehydration)", () => {
+	it("restores a persisted chain without notifying, never clobbers a live one, and get() exposes it", () => {
+		const updates: string[] = [];
+		const store = createFocusChainStore({ now: () => 1_000, onUpdated: (taskId) => void updates.push(taskId) });
+		const persisted = {
+			steps: [
+				{
+					text: "Step one",
+					status: "done" as const,
+					startedAt: 10,
+					completedAt: 20,
+					touchedFiles: [],
+					touchedCardIds: [],
+				},
+				{ text: "Step two", status: "in_progress" as const, startedAt: 30, touchedFiles: [], touchedCardIds: [] },
+			],
+			updatedAt: 500,
+		};
+		store.seed("task-1", persisted);
+		expect(updates).toEqual([]); // seeding never echoes onUpdated
+		expect(store.get("task-1")?.steps.map((step) => step.text)).toEqual(["Step one", "Step two"]);
+		// Persisted per-step timing survives the seed.
+		expect(store.get("task-1")?.steps[0]?.completedAt).toBe(20);
+		// A live chain is never clobbered by a late seed.
+		store.applyStep("task-2", { steps: [{ text: "Live", status: "in_progress" }], updatedAt: 900 });
+		store.seed("task-2", persisted);
+		expect(store.get("task-2")?.steps.map((step) => step.text)).toEqual(["Live"]);
+	});
+});

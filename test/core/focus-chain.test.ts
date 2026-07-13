@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	applyFocusChainStepTiming,
 	applyFocusChainStepTouches,
+	currentFocusChainStep,
 	formatFocusChainForPrompt,
 	MAX_FOCUS_CHAIN_STEP_TEXT,
 	MAX_FOCUS_CHAIN_STEP_TOUCHES,
@@ -92,7 +93,14 @@ describe("formatFocusChainForPrompt", () => {
 			{ text: "Dropped step", status: "skipped" },
 		]);
 		expect(formatFocusChainForPrompt(chain)).toBe(
-			["[x] Done step", "[~] Active step", "[ ] Todo step", "[-] Dropped step"].join("\n"),
+			[
+				"[x] Done step",
+				"[~] Active step",
+				"[ ] Todo step",
+				"[-] Dropped step",
+				// F1.5: the canonical current step is named explicitly so every prompt consumer agrees with the ledger.
+				"Current step: Active step",
+			].join("\n"),
 		);
 	});
 
@@ -239,5 +247,27 @@ describe("applyFocusChainStepTouches", () => {
 		const chain = applyFocusChainStepTouches(null, { steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 });
 		expect(chain.steps[0]?.touchedFiles).toBeUndefined();
 		expect(chain.steps[0]?.touchedCardIds).toBeUndefined();
+	});
+});
+
+describe("currentFocusChainStep (F1.5 canonical current step)", () => {
+	it("prefers the first in_progress step, falls back to the first pending, and is null when settled", () => {
+		const chain = normalizeFocusChain([
+			{ text: "Done step", status: "done" },
+			{ text: "Active step", status: "in_progress" },
+			{ text: "Todo step", status: "pending" },
+		]);
+		expect(currentFocusChainStep(chain)?.text).toBe("Active step");
+		const pendingOnly = normalizeFocusChain([
+			{ text: "Done step", status: "done" },
+			{ text: "Todo step", status: "pending" },
+		]);
+		expect(currentFocusChainStep(pendingOnly)?.text).toBe("Todo step");
+		const settled = normalizeFocusChain([
+			{ text: "Done step", status: "done" },
+			{ text: "Dropped", status: "skipped" },
+		]);
+		expect(currentFocusChainStep(settled)).toBeNull();
+		expect(currentFocusChainStep(null)).toBeNull();
 	});
 });

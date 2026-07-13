@@ -153,6 +153,8 @@ const attemptEventSchema = z.object({
 	artifacts: attemptArtifactsSchema.nullable(),
 	/** F1.1 knowledge-tool usage summary; null on events written before the field existed. */
 	knowledge: attemptKnowledgeUsageSchema.nullable().default(null),
+	/** F1.5 — the canonical current focus-chain step at terminal time (`currentFocusChainStep`); null when none. */
+	focusStep: z.string().nullable().default(null),
 });
 
 /** kind="transition" — a controller finite-state transition (§5.AF #2: the harness owns global process transitions). */
@@ -271,6 +273,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	salvage?: string | null;
 	artifacts?: AttemptArtifacts | null;
 	knowledge?: AttemptKnowledgeUsage | null;
+	focusStep?: string | null;
 }
 
 /** Build a validated `attempt` event, filling unspecified fields with nulls/empties. */
@@ -302,6 +305,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		salvage: input.salvage ?? null,
 		artifacts: input.artifacts ? { ...input.artifacts } : null,
 		knowledge: input.knowledge ? { ...input.knowledge, categoriesUsed: [...input.knowledge.categoriesUsed] } : null,
+		focusStep: input.focusStep ?? null,
 	};
 }
 

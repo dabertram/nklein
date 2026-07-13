@@ -654,8 +654,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
     rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
     block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
-- [ ] **F1.5 — Make focus chains durable across every agent surface.** Persist ordered steps and state transitions,
-  seed/repair them in board and chat sessions, and make reviewer/attempt-ledger events agree on the current step.
+- [ ] **F1.5 — Make focus chains durable across every agent surface** *(first leaf delivered 2026-07-13, see
+  done.md: canonical current step agreed across reviewer prompt + attempt ledger; live-store rehydration from the
+  durable card chain on session start).* REMAINING: (1) SEED an initial chain from the card prompt / plan-artifact
+  task (no surface seeds today — the agent is only prompted to draft one); (2) a destructive-re-emit REPAIR guard
+  at `applyStep` (board) + `writeChatFocusChain` (chat) — a list collapsing to empty/all-pending after real
+  progress must repair from the prior chain, not overwrite; (3) per-step TRANSITION history (applyStep has the
+  old→new diff in hand); (4) unify the chat surface's separate per-session JSON store with the board pattern.
 - [ ] **F1.6 — Complete focus-chain operator controls.** Allow safe add/reorder/skip/reopen operations in card and chat
   views, with current-step visibility and audit history.
 - [ ] **F1.7 — Wire incremental valid-DAG construction into decomposition.** Expose `add_task`/`add_dependency` handlers
