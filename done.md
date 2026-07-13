@@ -1061,6 +1061,15 @@
   there is no single suspended state to resume). Every resumable kind asserts `resumesSuspendedState: true` — the
   contract that the redrive resumes from the parked result branch, never a cold restart. 2 tests over all seven
   kinds. tsc 0, fast 9571 green.
+- [x] **F2.19a — read-only !Klein self-awareness: corpus freshness/provenance core** *(delivered 2026-07-13;
+  the live-data feed + explicit write-block test are F2.19b in todo).* klein_self already indexed the corpus
+  (`routeKleinSelfCorpus` over done/todo/agents/changelog/docs) and blocked self-writes (scope →
+  `isolated_readonly` + `chatScopeCanAct` false). F2.19's missing "expose freshness/provenance" now has its
+  core: `src/core/klein-self-corpus-provenance.ts` maps each doc to its canonical source path and
+  `buildKleinCorpusProvenance` emits a citation with the doc's age, a stale flag (past a 14-day default
+  threshold — and UNKNOWN last-modified time fails CAUTIOUS to stale, so an answer warns when it can't prove
+  freshness), and the commit sha when supplied — the grounding that keeps a self-scope answer citing current
+  source instead of stale prompt prose. 5 tests. tsc 0, fast 9576 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

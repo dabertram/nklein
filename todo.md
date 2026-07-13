@@ -990,9 +990,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `resumesSuspendedState` (the redrive resumes from the parked result branch, not a cold restart). REMAINING:
   render an action button per suggestion in the panel (label from the descriptor), collect the required input
   for the input-first kinds, and dispatch the redrive (`redrive_task` ops action already resumes from the result
-  branch) — then Playwright.- [ ] **F2.19 — Ground read-only !Klein self-awareness.** Index current source plus `todo.md`/`done.md`/maintained docs,
-  expose freshness/provenance, and prevent self-write tools in `klein_self` mode.
-- [ ] **F2.20 — Package self-awareness as a skill/retrieval bundle.** Reuse dynamic skills and online/local retrieval so
+  branch) — then Playwright.- [ ] **F2.19b — Feed live file freshness into the corpus provenance + verify the write-block (provenance core
+  SHIPPED 2026-07-13).** klein_self already indexes done/todo/agents/changelog/docs (`routeKleinSelfCorpus`)
+  and blocks writes (scope → `isolated_readonly` execution mode + `chatScopeCanAct` false). The missing F2.19
+  piece — "expose freshness/provenance" — now has its core: `src/core/klein-self-corpus-provenance.ts`
+  (`buildKleinCorpusProvenance`) cites each doc's exact source path + age, flags staleness past a threshold
+  (unknown time fails cautious to stale), and carries the commit sha, producing a one-line citation an answer
+  surfaces so it grounds in CURRENT source. REMAINING: feed real last-modified/commit data (a stat or
+  `git log -1` per doc) at the self-scope answer seam and attach the citations to the routed corpus; add a test
+  asserting `klein_self` genuinely offers no write tool (the mode gate already denies, but pin it explicitly).- [ ] **F2.20 — Package self-awareness as a skill/retrieval bundle.** Reuse dynamic skills and online/local retrieval so
   “how does !Klein work?” answers cite current code and do not rely on stale prompt prose.
 - [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity.** Use provider+canonical endpoint+model for
   non-routing views/stores while retaining runtime aliases only for display and historical migration.
