@@ -835,8 +835,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   flags — the §5.M note "no web-ui confirm dialog yet"), grant surfacing/revocation in the UI, and the SWARM-side
   escalation park (a denied protected action parks the card with the explanation via the attention path instead
   of burning retries).
-- [ ] **F2.3 — Implement the egress proxy confirm flow (I5).** Queue `confirm` attempts on a loopback-only control
-  channel, bind the decision to attempt+target+role, expose approve/deny, and keep denial/default timeouts fail-closed.
+- [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
+  `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:
+  resolutions BOUND to attempt+target+role (any mismatch applies to NOTHING — the pending attempt keeps waiting
+  and times out to deny), ONE-SHOT consumption (an approval can never replay), expiry-is-deny, subscriber hook
+  for the proxy's bounded wait. The proxy server integrates behind an optional `confirmQueue` dep: a provisional
+  confirm falls through to the FINAL address-checked verdict, which parks on the queue and waits
+  (`confirmTimeoutMs`, default 60 s) — a clean approval proceeds exactly like an allow (the verdict's vetted
+  addresses still bind the dial, no TOCTOU), everything else refuses; absent queue ⇒ v1 refuse-immediately,
+  locked by the existing 18 proxy tests. REMAINING: the LOOPBACK-ONLY control channel (a 127.0.0.1 HTTP surface
+  on the proxy lifecycle exposing list/approve/deny over the queue), the operator UI (chat/board confirm
+  prompt), wiring `confirmQueue` in `egress-proxy-lifecycle`, and live validation of an approved CONNECT.
 - [ ] **F2.4 — Add per-role egress allowlists.** Resolve architect/worker/reviewer policy snapshots into isolated proxy
   listeners and settings, with tightening applied immediately.
 - [ ] **F2.5 — Add per-task egress attribution.** Use authenticated proxy identity to associate every DNS/CONNECT verdict

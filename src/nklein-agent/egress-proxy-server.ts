@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import type { Duplex } from "node:stream";
 
 import type { AgentRulesetRole, SandboxNetworkPolicy } from "../core/agent-rulesets";
+import { DEFAULT_EGRESS_CONFIRM_TIMEOUT_MS, type EgressConfirmQueue } from "../core/egress-confirm-queue";
 import {
 	buildEgressProxyAuditRecord,
 	type EgressProxyAuditRecord,
@@ -94,6 +95,13 @@ export interface EgressProxyServerDeps {
 	headTimeoutMs?: number;
 	connectTimeoutMs?: number;
 	idleTimeoutMs?: number;
+	/**
+	 * F2.3 (I5): the host↔proxy approval channel. Present ⇒ a `confirm` verdict PARKS on the queue and waits
+	 * (bounded by `confirmTimeoutMs`) for an approve/deny bound to attempt+target+role; timeout/deny/expiry all
+	 * refuse (fail-closed). Absent ⇒ v1 behavior: confirm is refused immediately.
+	 */
+	confirmQueue?: EgressConfirmQueue;
+	confirmTimeoutMs?: number;
 }
 
 export interface EgressProxyServer {
@@ -198,6 +206,41 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 	const headTimeoutMs = deps.headTimeoutMs ?? DEFAULT_HEAD_TIMEOUT_MS;
 	const connectTimeoutMs = deps.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
 	const idleTimeoutMs = deps.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+
+	const confirmTimeoutMs = deps.confirmTimeoutMs ?? DEFAULT_EGRESS_CONFIRM_TIMEOUT_MS;
+
+	/**
+	 * F2.3 (I5): park a confirm-tier attempt on the queue and wait (bounded) for a bound approve/deny.
+	 * Resolves true ONLY on a clean approval; deny/expiry/timeout all resolve false (fail-closed).
+	 */
+	function awaitConfirmDecision(request: { host: string; port: number; role: string }): Promise<boolean> {
+		const queue = deps.confirmQueue;
+		if (!queue) {
+			return Promise.resolve(false);
+		}
+		const attemptId = generateId();
+		queue.enqueue({ attemptId, host: request.host, port: request.port, role: request.role }, now(), confirmTimeoutMs);
+		return new Promise<boolean>((resolve) => {
+			let settled = false;
+			const settle = (approved: boolean): void => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				timer.cancel();
+				unsubscribe();
+				queue.take(attemptId, now()); // consume (one-shot) so the decision can never replay
+				resolve(approved);
+			};
+			const unsubscribe = queue.subscribe(attemptId, (status) => {
+				settle(status === "approved");
+			});
+			const timer = scheduler(confirmTimeoutMs, () => {
+				queue.sweep(now()); // expire the entry (audited by the caller's refuse) — fail closed
+				settle(false);
+			});
+		});
+	}
 
 	const servers = new Map<number, EgressProxyNetServer>();
 	const activeClients = new Set<Duplex>();
@@ -458,11 +501,13 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 						refuse(verdict1, transport, null);
 						return;
 					}
-					if (verdict1.decision === "confirm") {
-						// §5 step 2: v1 has no host↔proxy approval channel, so confirm is refused (audited decision "confirm").
+					if (verdict1.decision === "confirm" && !deps.confirmQueue) {
+						// §5 step 2 (v1): without the I5 approval channel, confirm is refused (audited decision "confirm").
 						refuse(verdict1, transport, null);
 						return;
 					}
+					// F2.3: with the confirm queue present, a provisional confirm falls through — the FINAL
+					// (address-checked) verdict below is the one that parks on the approval channel.
 					// decision === "allow": provisional (requiresResolvedAddressCheck) — parsed is necessarily ok here.
 					if (!parsed.ok) {
 						refuse(denyVerdict("parse_error", "Unparseable request head.", null, null), transport, null);
@@ -492,8 +537,14 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 						return;
 					}
 					if (verdict2.decision === "confirm") {
-						refuse(verdict2, transport, resolvedIps);
-						return;
+						const approved = deps.confirmQueue
+							? await awaitConfirmDecision({ host: parsed.host, port: parsed.port, role: context.role })
+							: false;
+						if (!approved) {
+							refuse(verdict2, transport, resolvedIps);
+							return;
+						}
+						// Approved: proceed exactly like an allow — the verdict's vetted addresses still bind the dial.
 					}
 
 					// Final allow. §5 step 4: dial ONE vetted address from the verdict — never re-resolve (no TOCTOU).

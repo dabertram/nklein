@@ -908,6 +908,18 @@
   (`chat-session-grants.ts`, cleared on session delete) and gated on `capabilityBrokerEnabled`. In-memory is
   deliberate: forgetting grants on restart FAILS CLOSED (re-confirm), unlike taint where forgetting fails open.
   5 tests. tsc 0, fast 9520 green.
+- [x] **F2.3a — the egress confirm queue + proxy bounded-wait integration (I5 core)** *(delivered 2026-07-13;
+  the loopback control-channel mount + confirm UI are F2.3b in todo).* `src/core/egress-confirm-queue.ts` — the
+  approval-channel state machine with the fail-closed properties BUILT IN: a resolution is bound to
+  (attemptId, host, port, role) and a mismatch on ANY field applies to nothing (the queued attempt keeps waiting
+  and times out to deny — a stale or cross-attempt approval can never land); decisions are one-shot (take
+  consumes; replay impossible); expiry is deny; subscribers fire exactly once. The proxy server takes an
+  OPTIONAL `confirmQueue`: with it, a confirm-tier verdict parks on the queue and waits bounded
+  (default 60 s via the injected scheduler); a clean approval proceeds exactly like an allow — the
+  address-checked verdict's vetted addresses still bind the dial (the §5 no-TOCTOU rule holds through the
+  approval wait); deny/expiry/timeout refuse. Without the dep the v1 refuse-immediately behavior is
+  byte-identical (locked by the existing 18 proxy-server tests, all green unchanged). 5 queue tests.
+  tsc 0, fast 9525 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
