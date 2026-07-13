@@ -28,6 +28,8 @@ function makeSession(id = "session-1"): ChatSession {
 		browserEnabled: false,
 		sandboxWritablePaths: [],
 		feedbackMuted: false,
+		feedbackVerbosity: "normal",
+		feedbackQuiet: false,
 		ownedWorkspaceId: null,
 		focus: null,
 		outstandingAsks: [],

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import type { BoardChatVerbosity } from "../core/board-chat-feedback";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { chatSessionGrantStore } from "./chat-session-grants";
 import { chatSessionTaintRegistry } from "./chat-session-taint";
@@ -76,6 +77,10 @@ export interface ChatSession {
 	sandboxWritablePaths: readonly string[];
 	/** §5.AT: the user muted board→chat feedback for this (owning) chat — the bridge suppresses every tier. Default false. */
 	feedbackMuted: boolean;
+	/** F2.14: per-session board→chat push verbosity (silent/concise/normal/verbose). Default "normal". */
+	feedbackVerbosity: BoardChatVerbosity;
+	/** F2.14: quiet mode — NOTIFY tiers are batched into deferred digests instead of pushed promptly. Default false. */
+	feedbackQuiet: boolean;
 	/** §5.AU: the ONE workspace this chat owns (v1 is 1 chat ↔ 1 workspace) — routes board→chat feedback here; null when unset. */
 	ownedWorkspaceId: string | null;
 	/** §5.AU: the current addressing focus (the "talking to X" target), or null (⇒ the goal). */
@@ -115,6 +120,8 @@ const chatSessionPersistedSchema = z.object({
 	browserEnabled: z.boolean().optional(),
 	sandboxWritablePaths: z.array(z.string()).optional(),
 	feedbackMuted: z.boolean().optional(),
+	feedbackVerbosity: z.enum(["silent", "concise", "normal", "verbose"]).optional(),
+	feedbackQuiet: z.boolean().optional(),
 	ownedWorkspaceId: z.string().nullable().optional(),
 	focus: z
 		.object({ kind: z.enum(["card", "stream"]), id: z.string(), at: z.number() })
@@ -235,6 +242,9 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				sandboxWritablePaths: normalizeSandboxWritablePaths(event.session.sandboxWritablePaths),
 				// Back-compat for sessions persisted before `feedbackMuted` existed (default: not muted).
 				feedbackMuted: event.session.feedbackMuted === true,
+				// F2.14 back-compat: verbosity/quiet absent on old records → the "normal"/not-quiet defaults.
+				feedbackVerbosity: normalizeBoardChatVerbosity(event.session.feedbackVerbosity),
+				feedbackQuiet: event.session.feedbackQuiet === true,
 				// §5.AU back-compat: addressing state absent on old records → unset / empty.
 				ownedWorkspaceId:
 					typeof event.session.ownedWorkspaceId === "string" ? event.session.ownedWorkspaceId : null,
@@ -268,6 +278,8 @@ export async function createChatSession(
 		browserEnabled?: boolean;
 		sandboxWritablePaths?: readonly string[];
 		feedbackMuted?: boolean;
+		feedbackVerbosity?: BoardChatVerbosity;
+		feedbackQuiet?: boolean;
 		/** §5.AU: the workspace this chat owns (v1 = 1 chat ↔ 1 workspace). */
 		ownedWorkspaceId?: string | null;
 		/** §5.AE: skills the user enables for this session. */
@@ -287,6 +299,8 @@ export async function createChatSession(
 		browserEnabled: input.browserEnabled ?? false,
 		sandboxWritablePaths: normalizeSandboxWritablePaths(input.sandboxWritablePaths),
 		feedbackMuted: input.feedbackMuted ?? false,
+		feedbackVerbosity: normalizeBoardChatVerbosity(input.feedbackVerbosity),
+		feedbackQuiet: input.feedbackQuiet ?? false,
 		ownedWorkspaceId: input.ownedWorkspaceId ?? null,
 		focus: null,
 		outstandingAsks: [],
@@ -345,6 +359,8 @@ export async function updateChatSession(
 		browserEnabled?: boolean;
 		sandboxWritablePaths?: readonly string[];
 		feedbackMuted?: boolean;
+		feedbackVerbosity?: BoardChatVerbosity;
+		feedbackQuiet?: boolean;
 		/** §5.AU: set (or `null` = clear) the session's addressing focus — e.g. after an explicit @card handle. */
 		focus?: ChatSessionFocus | null;
 		/** §5.AE: replace the session's enabled skills. */
@@ -381,6 +397,8 @@ export async function updateChatSession(
 				? { sandboxWritablePaths: normalizeSandboxWritablePaths(patch.sandboxWritablePaths) }
 				: {}),
 			...(patch.feedbackMuted !== undefined ? { feedbackMuted: patch.feedbackMuted } : {}),
+			...(patch.feedbackVerbosity !== undefined ? { feedbackVerbosity: patch.feedbackVerbosity } : {}),
+			...(patch.feedbackQuiet !== undefined ? { feedbackQuiet: patch.feedbackQuiet } : {}),
 			...(patch.focus !== undefined ? { focus: patch.focus } : {}),
 			...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
 			...(patch.totalTokensUsed !== undefined ? { totalTokensUsed: patch.totalTokensUsed } : {}),
@@ -479,4 +497,9 @@ export async function deleteChatSessionsForWorkspace(
 		await deleteChatSession(session.id, options);
 	}
 	return owned.map((session) => session.id);
+}
+
+/** F2.14: coerce a persisted/patched verbosity value to a valid level (default "normal"). */
+function normalizeBoardChatVerbosity(value: unknown): BoardChatVerbosity {
+	return value === "silent" || value === "concise" || value === "verbose" ? value : "normal";
 }

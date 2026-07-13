@@ -1014,6 +1014,16 @@
   wired to `getChatSession`); the hydration is best-effort and at-most-once per session, and with the dep absent
   the behavior is byte-identical to before (both paths tested, plus the still-outstanding-suppressed +
   resolve-then-re-raise-surfaces cycle). tsc 0, fast 9562 green.
+- [x] **F2.14a — per-session board→chat verbosity + quiet, persisted and applied** *(delivered 2026-07-13; the
+  sidebar control is F2.14b in todo).* The board→chat wiring had hard-coded `verbosity:"normal"`/`quiet:false`
+  with a "later slice surfaces those" note — that slice. `feedbackVerbosity` (silent/concise/normal/verbose) and
+  `feedbackQuiet` now persist per session (store field + zod schema + replay back-compat normalize to
+  normal/false + create default + update patch, each mirroring `feedbackMuted` exactly) and are read live in
+  `resolveOwningChat`, so every `decideBoardChatFeedback` tier (prompt-vs-digest, milestone gating, silent
+  pull-only) honors the session's real setting. Plumbed through the tRPC chat contract (session schema
+  `.default()`s keep it back-compatible for the UI + create/update requests) and `chat-service`'s map/create/
+  update. Store round-trip + create-with-verbosity tests; the bridge already consumed these fields, so no
+  behavior forked. Backend + web-ui tsc 0; fast 9563.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

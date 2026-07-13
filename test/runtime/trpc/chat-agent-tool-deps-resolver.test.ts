@@ -41,6 +41,8 @@ function makeSession(scope: ChatSession["scope"], sandboxWritablePaths: readonly
 		browserEnabled: false,
 		sandboxWritablePaths,
 		feedbackMuted: false,
+		feedbackVerbosity: "normal",
+		feedbackQuiet: false,
 		ownedWorkspaceId: null,
 		focus: null,
 		outstandingAsks: [],

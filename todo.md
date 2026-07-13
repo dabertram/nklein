@@ -945,9 +945,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
-- [ ] **F2.14 — Finish board-chat verbosity controls.** Persist per-session quiet/normal/detailed levels and apply them
-  consistently to deterministic digests, activity ticks, ASK events, and reconnect replay.
-- [ ] **F2.15 — Add ASK-tier desktop/browser notifications.** Notify only actionable, deduplicated needs-you events when
+- [ ] **F2.14b — Surface the verbosity/quiet controls in the sidebar (persistence + application SHIPPED
+  2026-07-13).** Per-session `feedbackVerbosity` (silent/concise/normal/verbose) and `feedbackQuiet` now PERSIST
+  on the chat session (store schema + back-compat normalize + create/update patch, mirroring `feedbackMuted`)
+  and are APPLIED live: the board→chat wiring's `resolveOwningChat` reads them from the session instead of the
+  old hard-coded `verbosity:"normal"`/`quiet:false`, so the `decideBoardChatFeedback` tiers (deterministic
+  digests, activity ticks, ASK events, reconnect replay) all honor them. Plumbed through the tRPC chat contract
+  (session schema `.default()` + create/update requests) and `chat-service`. REMAINING: the sidebar UI control
+  (a verbosity select + quiet toggle beside the existing mute button in `chat-sidebar.tsx`) + a Playwright pass.- [ ] **F2.15 — Add ASK-tier desktop/browser notifications.** Notify only actionable, deduplicated needs-you events when
   the owning chat is not visible; honor mute, OS permission, and quiet settings.
 - [ ] **F2.16 — Complete stream drill-down.** Navigate stream → DAG → card → thread with stable focus/back behavior and
   accessible keyboard controls.

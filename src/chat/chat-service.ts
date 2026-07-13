@@ -139,6 +139,8 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		browserEnabled: session.browserEnabled,
 		sandboxWritablePaths: [...session.sandboxWritablePaths],
 		feedbackMuted: session.feedbackMuted,
+		feedbackVerbosity: session.feedbackVerbosity,
+		feedbackQuiet: session.feedbackQuiet,
 		focus: session.focus,
 		ownedWorkspaceId: session.ownedWorkspaceId,
 		selectedSkillIds: [...session.selectedSkillIds],
@@ -372,6 +374,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						? { sandboxWritablePaths: input.sandboxWritablePaths }
 						: {}),
 					...(input.feedbackMuted !== undefined ? { feedbackMuted: input.feedbackMuted } : {}),
+					...(input.feedbackVerbosity !== undefined ? { feedbackVerbosity: input.feedbackVerbosity } : {}),
+					...(input.feedbackQuiet !== undefined ? { feedbackQuiet: input.feedbackQuiet } : {}),
 					...(input.ownedWorkspaceId !== undefined ? { ownedWorkspaceId: input.ownedWorkspaceId } : {}),
 					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),
 				},
@@ -393,6 +397,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						? { sandboxWritablePaths: input.sandboxWritablePaths }
 						: {}),
 					...(input.feedbackMuted !== undefined ? { feedbackMuted: input.feedbackMuted } : {}),
+					...(input.feedbackVerbosity !== undefined ? { feedbackVerbosity: input.feedbackVerbosity } : {}),
+					...(input.feedbackQuiet !== undefined ? { feedbackQuiet: input.feedbackQuiet } : {}),
 					...(input.clearFocus ? { focus: null } : {}),
 					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),
 				},

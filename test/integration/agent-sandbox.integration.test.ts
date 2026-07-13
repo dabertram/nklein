@@ -98,6 +98,8 @@ function createChatSession(id: string): ChatSession {
 		browserEnabled: false,
 		sandboxWritablePaths: [],
 		feedbackMuted: false,
+		feedbackVerbosity: "normal",
+		feedbackQuiet: false,
 		ownedWorkspaceId: null,
 		focus: null,
 		outstandingAsks: [],

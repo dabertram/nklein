@@ -71,6 +71,27 @@ describe("chat-session-store", () => {
 		expect(off?.feedbackMuted).toBe(false);
 	});
 
+	it("F2.14: feedbackVerbosity/feedbackQuiet default normal/false and round-trip through update", async () => {
+		const created = await createChatSession({ title: "Verbosity" }, { rootDir, now });
+		expect(created.feedbackVerbosity).toBe("normal");
+		expect(created.feedbackQuiet).toBe(false);
+		clock = 2000;
+		const updated = await updateChatSession(
+			created.id,
+			{ feedbackVerbosity: "concise", feedbackQuiet: true },
+			{ rootDir, now },
+		);
+		expect(updated?.feedbackVerbosity).toBe("concise");
+		expect(updated?.feedbackQuiet).toBe(true);
+		// Persisted across a fresh replay.
+		const reread = await getChatSession(created.id, { rootDir });
+		expect(reread?.feedbackVerbosity).toBe("concise");
+		expect(reread?.feedbackQuiet).toBe(true);
+		// A create can request a non-default verbosity directly.
+		const silent = await createChatSession({ title: "Silent", feedbackVerbosity: "silent" }, { rootDir, now });
+		expect(silent.feedbackVerbosity).toBe("silent");
+	});
+
 	it("§5.AU: focus defaults null, sets via update (round-trips), and clears with null", async () => {
 		const created = await createChatSession({ title: "Focus" }, { rootDir, now });
 		expect(created.focus).toBeNull();

@@ -17,6 +17,8 @@ function session(overrides: Partial<ChatSession> = {}): ChatSession {
 		browserEnabled: false,
 		sandboxWritablePaths: [],
 		feedbackMuted: false,
+		feedbackVerbosity: "normal",
+		feedbackQuiet: false,
 		ownedWorkspaceId: null,
 		focus: null,
 		outstandingAsks: [],

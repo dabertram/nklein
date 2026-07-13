@@ -49,6 +49,8 @@ export const runtimeChatSessionSchema = z.object({
 	// §5.AT: the user muted board→chat feedback for this (owning) chat — the bridge suppresses every tier. Additive
 	// default false so older clients/records are unaffected.
 	feedbackMuted: z.boolean().default(false),
+	feedbackVerbosity: z.enum(["silent", "concise", "normal", "verbose"]).default("normal"),
+	feedbackQuiet: z.boolean().default(false),
 	// §5.AU: the session's sticky addressing focus (set server-side by an explicit @handle) — drives the client's
 	// persistent "talking to X" chip. Additive optional so older clients/records are unaffected.
 	focus: z
@@ -87,6 +89,8 @@ export const runtimeChatCreateSessionRequestSchema = z.object({
 	browserEnabled: z.boolean().optional(),
 	sandboxWritablePaths: z.array(z.string()).optional(),
 	feedbackMuted: z.boolean().optional(),
+	feedbackVerbosity: z.enum(["silent", "concise", "normal", "verbose"]).optional(),
+	feedbackQuiet: z.boolean().optional(),
 	// §5.AT/§5.AU: bind the new chat to a workspace it owns (one-chat-per-project).
 	ownedWorkspaceId: z.string().nullable().optional(),
 	// §5.AE: the skills the user enables for the new session.
@@ -105,6 +109,8 @@ export const runtimeChatUpdateSessionRequestSchema = z.object({
 	sandboxWritablePaths: z.array(z.string()).optional(),
 	/** §5.AT: mute/unmute board→chat feedback for this owning chat (the bridge then suppresses every tier). */
 	feedbackMuted: z.boolean().optional(),
+	feedbackVerbosity: z.enum(["silent", "concise", "normal", "verbose"]).optional(),
+	feedbackQuiet: z.boolean().optional(),
 	/** §5.AU: clear the sticky addressing focus (the "talking to X" chip's ✕). Clients never SET focus over the
 	 *  wire — only an explicit @handle does, server-side — so this is deliberately clear-only. */
 	clearFocus: z.boolean().optional(),

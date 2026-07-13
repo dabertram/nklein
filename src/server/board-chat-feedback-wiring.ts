@@ -129,11 +129,16 @@ export function createBoardChatFeedbackWiring(overrides?: {
 		overrides?.bridge ??
 		createBoardChatFeedbackBridge({
 			resolveOwningChat: async (workspaceId) => {
-				const toRef = (session: { id: string; feedbackMuted: boolean }): OwningChatRef => ({
+				const toRef = (session: {
+					id: string;
+					feedbackMuted: boolean;
+					feedbackVerbosity: OwningChatRef["verbosity"];
+					feedbackQuiet: boolean;
+				}): OwningChatRef => ({
 					sessionId: session.id,
-					// §5.AT: verbosity/quiet stay defaults for now (a later slice surfaces those); mute is honored live.
-					verbosity: "normal",
-					quiet: false,
+					// F2.14: verbosity + quiet are now persisted per session and honored live (mute already was).
+					verbosity: session.feedbackVerbosity,
+					quiet: session.feedbackQuiet,
 					muted: session.feedbackMuted,
 				});
 				const cachedId = owningSessionIdByWorkspace.get(workspaceId);
