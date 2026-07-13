@@ -641,8 +641,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 1A. Planning, decomposition, and work-package construction *(legacy §5.B, §5.S, §5.N, §5.AV, §5.AK)*
 
-- [ ] **F1.2 — Add domain-rubric scoring for the DAW challenge preset.** Reuse the shipped Audio/VST scorer pattern;
-  produce machine-readable DAW quality scores/evidence rather than reopening the four completed Audio/VST axes.
 - [ ] **F1.3 — Complete automatic clarification after decomposition.** Run the question-quality/reviewer pass wherever
   decomposition or execution raises questions, persist answers into plan revisions, and resume the exact blocked card.
 - [ ] **F1.4 — Complete the clarification dialog.** Support at least four explained choices plus free text,

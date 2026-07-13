@@ -260,6 +260,18 @@
   verdict. Full suite green (9801); acting on the verdict (auto re-decompose loop) deliberately remains with the
   later expansion packages (F1.3/F1.7+).
 
+- [x] **F1.2 — Domain-rubric scoring for the DAW challenge preset** *(delivered 2026-07-13).* New pure core
+  `src/core/daw-foundation-rubric.ts`, mirroring the shipped Audio/VST scorer pattern (analysis interface → pure
+  weighted scorer → reasons list; the extraction harness distills a candidate into the analysis separately). Five
+  machine-checkable axes derived from the DAW spec's §18 acceptance criteria / §30 quality bar / §31 acceptance
+  command: timebase-engine correctness (0.3 — tick↔sample round-trips, tempo-map changes, sample-accurate
+  scheduling), device DSP safety + golden determinism (0.25 — bounded output, no NaN/denormals, byte-identical
+  goldens, per-device golden coverage), project-model integrity (0.2 — versioned schema, lossless round-trip,
+  command undo coverage), control surface (0.15 — MCP tool-schema coverage + capability registry), and test
+  discipline (0.1 — acceptance command + per-module test coverage). Ratios never divide by zero (empty totals score
+  0, not NaN); overall rounded to 6 decimals like the VST scorer. 7 unit tests pin the axis math, reason texts,
+  empty-total safety, and the engine-heavy weighting.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
