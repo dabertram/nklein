@@ -1024,6 +1024,14 @@
   `.default()`s keep it back-compatible for the UI + create/update requests) and `chat-service`'s map/create/
   update. Store round-trip + create-with-verbosity tests; the bridge already consumed these fields, so no
   behavior forked. Backend + web-ui tsc 0; fast 9563.
+- [x] **F2.15a — the ASK-tier notification decision core** *(delivered 2026-07-13; the hook wiring is F2.15b in
+  todo).* `web-ui/src/utils/ask-notification-decision.ts`: `decideAskNotification` generalizes the single
+  review-ready OS-notification path to EVERY actionable needs-you ASK, gating on all five F2.15 conditions —
+  actionable kind (a closed ASK-kind set, info NOTIFYs excluded), OS permission granted, owning chat NOT visible,
+  session not muted, and quiet-aware (quiet suppresses the softer asks — needs_input / review_ready — but NEVER a
+  hard escalated_to_operator / blocked / delivery_gate_held) — with per-`${taskId}:${kind}` dedupe and typed
+  suppression reasons. Consumes the F2.14 mute/quiet flags. 5 tests over every gate + the quiet split + the
+  precedence order. web-ui tsc 0; web-ui 1052 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

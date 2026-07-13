@@ -952,9 +952,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   old hard-coded `verbosity:"normal"`/`quiet:false`, so the `decideBoardChatFeedback` tiers (deterministic
   digests, activity ticks, ASK events, reconnect replay) all honor them. Plumbed through the tRPC chat contract
   (session schema `.default()` + create/update requests) and `chat-service`. REMAINING: the sidebar UI control
-  (a verbosity select + quiet toggle beside the existing mute button in `chat-sidebar.tsx`) + a Playwright pass.- [ ] **F2.15 — Add ASK-tier desktop/browser notifications.** Notify only actionable, deduplicated needs-you events when
-  the owning chat is not visible; honor mute, OS permission, and quiet settings.
-- [ ] **F2.16 — Complete stream drill-down.** Navigate stream → DAG → card → thread with stable focus/back behavior and
+  (a verbosity select + quiet toggle beside the existing mute button in `chat-sidebar.tsx`) + a Playwright pass.- [ ] **F2.15b — Wire the ASK-tier notifier hook over the decision core (core SHIPPED 2026-07-13).**
+  `web-ui/src/utils/ask-notification-decision.ts` (`decideAskNotification`) is the pure gate: fires an OS
+  notification ONLY for an actionable ASK kind (needs_input / escalated_to_operator / delivery_gate_held /
+  blocked / review_ready) when OS permission is granted, the owning chat is NOT visible, the session is not
+  muted, and — for quiet mode — the ASK is a hard block/escalation (quiet suppresses the softer asks, never a
+  hard stop); dedupes by the `${taskId}:${kind}` ASK key. Honors the F2.14 mute/quiet flags. REMAINING: generalize
+  the existing `use-review-ready-notifications` hook (or add a sibling) to feed EVERY needs-you ASK signal
+  through this core and fire `new Notification` on `notify:true` (reusing the review-ready hook's tab-presence +
+  badge-sync + click-to-focus machinery), then a Playwright/mocked-Notification pass.- [ ] **F2.16 — Complete stream drill-down.** Navigate stream → DAG → card → thread with stable focus/back behavior and
   accessible keyboard controls.
 - [ ] **F2.16a — Add residual target disambiguation for card messages** *(legacy §5.AU rung 5).* Keep deterministic
   exact/name/id/stream matching first; only when several candidates remain, ask an isolated LLM picker to choose among
