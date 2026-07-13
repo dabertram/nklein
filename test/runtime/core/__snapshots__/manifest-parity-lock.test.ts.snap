@@ -1,0 +1,65 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`F1.22 manifest parity lock > GOLDEN: the current ruleset tier tables (capability + delivery) and their defaults 1`] = `
+{
+  "capabilityTable": {
+    "fully_open": {
+      "headlessBrowser": true,
+      "mcp": "on",
+      "network": "full",
+      "webResearch": true,
+    },
+    "less_strict": {
+      "headlessBrowser": false,
+      "mcp": "local",
+      "network": "none",
+      "webResearch": false,
+    },
+    "medium": {
+      "headlessBrowser": false,
+      "mcp": "local",
+      "network": "allowlist",
+      "webResearch": true,
+    },
+    "more_open": {
+      "headlessBrowser": true,
+      "mcp": "on",
+      "network": "full",
+      "webResearch": true,
+    },
+    "strict": {
+      "headlessBrowser": false,
+      "mcp": "off",
+      "network": "none",
+      "webResearch": false,
+    },
+  },
+  "deliveryTable": {
+    "fully_open": {
+      "allowSelfMergeOnUnknownDelta": true,
+      "autoCommit": true,
+      "autoMerge": true,
+    },
+    "less_strict": {
+      "allowSelfMergeOnUnknownDelta": false,
+      "autoCommit": true,
+      "autoMerge": false,
+    },
+    "medium": {
+      "allowSelfMergeOnUnknownDelta": false,
+      "autoCommit": true,
+      "autoMerge": false,
+    },
+    "more_open": {
+      "allowSelfMergeOnUnknownDelta": false,
+      "autoCommit": true,
+      "autoMerge": true,
+    },
+    "strict": {
+      "allowSelfMergeOnUnknownDelta": false,
+      "autoCommit": false,
+      "autoMerge": false,
+    },
+  },
+}
+`;

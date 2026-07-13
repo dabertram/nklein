@@ -689,6 +689,18 @@
   accumulates. 2 new tests (delivery manifest sink + tainted-deny/trusted-plan-allow/untainted-allow; MCP
   conservative manifest + non-MCP unknown stays null) + session-service/ledger suites re-locked.
 
+- [x] **F1.22 — the manifest behavior parity LOCK** *(delivered 2026-07-13).* New
+  `test/runtime/core/manifest-parity-lock.test.ts` pins the actual decisions as GOLDEN values (the existing
+  characterization tests prove manifest==legacy-gate EQUIVALENCE — a moving target; this pins the VALUES so any
+  future change to either side is a reviewed diff, never silent drift): (1) the FULL 3-mode × 7-action decision
+  matrix (all 21 cells, incl. the correct semantics the first draft got wrong and the lock caught: sandbox_write
+  is ALLOW in can-act modes — the sandbox is the blast-radius boundary — and control_plane is DENY in
+  isolated_readonly); (2) approval paths — no host mutation or egress is ever `auto`, per-action approvals + the
+  kanban read-auto/write-confirm rule pinned; (3) local-only restrictions — every kanban tool workspace-scoped and
+  network-free, the swarm's only egress is the read tier; (4) unknown-tool posture — no manifest is invented
+  (null; the enablement policy layer owns unknowns) while MCP-declared names resolve (F1.21); (5) the current
+  capability + delivery ruleset tier tables + fully_open defaults as a snapshot. 5 tests.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

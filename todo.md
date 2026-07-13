@@ -712,8 +712,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
-- [>] **F1.22 — Prove manifest behavior parity** *(after F1.20–F1.21).* Lock all mode×action cells, current rulesets,
-  approval paths, local-only restrictions, and fail-closed unknown-tool behavior.
 - [ ] **F1.23 — Wire model load/unload policy into the scheduler.** Apply headroom, resident budget, idle TTL, current
   task need, and safe eviction decisions without autonomous downloads.
 - [ ] **F1.24 — Add resource reservations to dispatch.** Reserve fast memory, context KV, endpoint capacity, sandbox
