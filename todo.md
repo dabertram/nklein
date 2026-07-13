@@ -732,8 +732,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `runtime-settings-dialog.tsx` — per-section dirty indicators in the nav, per-section Reset (and optionally
   per-section Save via the existing settings-save path), one section per leaf with Playwright re-validation
   (settings.spec.ts) since the dialog UI changes.
-- [ ] **F1.30 — Finish the provider-service split at its proven seams.** Separate discovery/cache, registry mutation,
-  load control, health, and response shaping; retain request throttling and stable behavior tests.
 - [ ] **F1.31 — Integrate the continuous evaluation rail as a production background service** *(legacy §5.AI).* Reuse
   the shipped admission/runner/checkpoint cores, recover leases on runtime restart, yield to interactive work, and clean
   throwaway projects on every exit.

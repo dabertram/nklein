@@ -773,6 +773,22 @@
   structured compare, the swarm-guardrail structural equality), and section reset restores ONLY that section —
   other sections' edits survive (tested). No dialog behavior changes yet; adoption (per-section dirty nav
   indicators + Reset/Save) is one section per F1.29b leaf with Playwright re-validation. 4 tests.
+- [x] **F1.30 — the provider-service split finished at its proven seams** *(delivered 2026-07-13; closes the §5.U
+  named split "the provider-service auth core").* `nklein-provider-service.ts` (682 → ~175 lines) is now PURE
+  COMPOSITION of five clusters, each verbatim-extracted behind its seam: **health/account** →
+  `nklein-provider-account-api.ts` (profile / kanban access / Featurebase token / balance / organizations /
+  account switch, owning the 5 s profile-dedupe cache and the shared retry-once-after-OAuth-refresh shape);
+  **registry mutation** → `nklein-provider-auth-flows.ts` (OAuth login + device auth — the only remaining
+  provider-service paths that write `saveSdkProviderSettings` + the kanban selection, joining the already-split
+  custom-provider manager and settings writer); **load control** → `nklein-provider-launch-config.ts`
+  (`resolveNKleinLaunchConfig` — the single dispatch chokepoint asserting local-only + the ≥32k context floor
+  before any OAuth/key/network touch); plus the shared selected-provider resolution in
+  `nklein-provider-selected-settings.ts` (cloud selection → null, fail-closed). Discovery/cache and response
+  shaping were already split (§5.U: model-discovery + 30 s roster throttle, settings summary) and are retained
+  unchanged, as is the request throttling (`model-discovery-throttle.ts`). The facade keeps the factory, method
+  shapes, and re-exports byte-compatible, so ALL existing behavior tests (provider-service 831-line suite,
+  account-balance, local-only policy, context-window, runtime-api) pass UNTOUCHED — the "stable behavior tests"
+  bar met literally. tsc 0, fast 9462 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
