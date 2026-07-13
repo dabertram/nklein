@@ -7,10 +7,12 @@ import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } fro
 // (§5.X #2 monolith decomposition), re-exported through the `@runtime-contract` barrel so callers are unchanged.
 // Imports only `z` + the agent-ruleset tier constants — never the barrel (avoids a zod-const load-order cycle).
 
-// P0.9c: nklein is the ONLY agent id. Persisted boards/sessions/config written by pre-lockdown builds may still
-// carry terminal-CLI agent ids ("claude", "codex", ...) — parsing MIGRATES any unknown value to "nklein" instead of
-// failing the load (the schema is used on every board/session/config read; this catch IS the upgrade path).
-export const runtimeAgentIdSchema = z.enum(["nklein"]).catch("nklein");
+// P0.9c: nklein is the ONLY agent id. API/request surfaces stay STRICT (an invalid id is a 400, never silently
+// accepted), while PERSISTED state written by pre-lockdown builds may still carry terminal-CLI agent ids
+// ("claude", "codex", ...) — the migration variant below catches any unknown value to "nklein" instead of failing
+// the load; it is the upgrade path for board.json / sessions.json reads.
+export const runtimeAgentIdSchema = z.enum(["nklein"]);
+export const runtimeAgentIdWithLegacyMigrationSchema = runtimeAgentIdSchema.catch("nklein");
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
 const runtimeBoardColumnIdEnum = z.enum([

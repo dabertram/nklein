@@ -6,7 +6,7 @@ import {
 	RUNTIME_AGENT_CATALOG,
 	RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS,
 } from "../../src/core/agent-catalog";
-import { runtimeAgentIdSchema } from "../../src/core/api-contract";
+import { runtimeAgentIdSchema, runtimeAgentIdWithLegacyMigrationSchema } from "../../src/core/api-contract";
 
 describe("nklein-only agent catalog (P0.9c, legacy §2.B shrink)", () => {
 	it("contains exactly the native NKlein agent", () => {
@@ -21,19 +21,21 @@ describe("nklein-only agent catalog (P0.9c, legacy §2.B shrink)", () => {
 	});
 });
 
-describe("runtimeAgentIdSchema legacy migration (P0.9c upgrade path)", () => {
-	it("accepts the native agent id", () => {
+describe("runtimeAgentIdSchema (P0.9c: strict API surface + legacy-migration variant)", () => {
+	it("accepts the native agent id and rejects everything else on the strict API surface", () => {
 		expect(runtimeAgentIdSchema.parse("nklein")).toBe("nklein");
+		expect(runtimeAgentIdSchema.safeParse("codex").success).toBe(false);
+		expect(runtimeAgentIdSchema.safeParse("not-an-agent").success).toBe(false);
 	});
 
 	it("migrates persisted pre-lockdown terminal-CLI agent ids to nklein instead of failing the load", () => {
 		for (const legacyId of ["claude", "codex", "gemini", "opencode", "droid", "kiro"]) {
-			expect(runtimeAgentIdSchema.parse(legacyId)).toBe("nklein");
+			expect(runtimeAgentIdWithLegacyMigrationSchema.parse(legacyId)).toBe("nklein");
 		}
 	});
 
 	it("clamps arbitrary unknown values (a corrupt field must not fail a board/session load)", () => {
-		expect(runtimeAgentIdSchema.parse("not-an-agent")).toBe("nklein");
-		expect(runtimeAgentIdSchema.parse(42)).toBe("nklein");
+		expect(runtimeAgentIdWithLegacyMigrationSchema.parse("not-an-agent")).toBe("nklein");
+		expect(runtimeAgentIdWithLegacyMigrationSchema.parse(42)).toBe("nklein");
 	});
 });

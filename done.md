@@ -207,6 +207,17 @@
   scenarios removed, migration behavior pinned (`agent-catalog.test.ts`), fixtures swapped. Full gate green:
   backend 9322 fast + 134 protected, web-ui 1042 unit + all 72 Playwright e2e.
 
+- [x] **P0.9 — Legacy host-worktree retirement COMPLETE (P0.9d verification lap)** *(delivered 2026-07-13; closes
+  legacy §5.A/§2.B).* Final increment: the schema split (`runtimeAgentIdSchema` strict on API surfaces so an invalid
+  `selectedAgentId` save is still a 400; `runtimeAgentIdWithLegacyMigrationSchema` with `.catch("nklein")` on
+  persisted board/session parsing) plus an on-disk upgrade fixture proving a pre-lockdown `board.json` carrying
+  `agentId: "codex"` loads with the id migrated instead of failing. Verified end to end: upgrades (legacy worktrees
+  home sweep test + agent-id migration fixtures), shell-on-task (sandbox-shell + terminal suites), shutdown
+  (coordinator integration), result-branch delivery (result-branches + auto-merge + merge-handler suites + the
+  review-recovery Playwright flow). The §4A "legacy cleanup only" tribal note is rewritten to the retired-state
+  reality (sweep + artifact-cleanup + strict/migration schema split + the `task-worktree-auto-merge` naming trap).
+  Full-suite load flakes found during the lap were filed as P0.10 (every flake passes in isolation).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

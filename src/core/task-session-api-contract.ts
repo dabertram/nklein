@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runtimeAgentIdSchema } from "./runtime-config-api-contract.js";
+import { runtimeAgentIdWithLegacyMigrationSchema } from "./runtime-config-api-contract.js";
 
 // Task-session contract domain: session state / mode / review-reason, hook activity, turn checkpoints, usage +
 // context-budget breakdown, the model-performance role enum, and the per-card session summary. Split out of
@@ -82,7 +82,7 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	// Resolved launch role (todo §5.G/§5.U): reviewer for a `<taskId>::review` session, architect for an
 	// explicit decomposition, worker otherwise. Stamped at start so the cockpit/telemetry don't re-infer it.
 	role: runtimeModelPerformanceRoleSchema.nullable().optional(),
-	agentId: runtimeAgentIdSchema.nullable(),
+	agentId: runtimeAgentIdWithLegacyMigrationSchema.nullable(),
 	workspacePath: z.string().nullable(),
 	pid: z.number().nullable(),
 	startedAt: z.number().nullable(),

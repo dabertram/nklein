@@ -227,6 +227,48 @@ describe("board.json on-disk format", () => {
 		expect(backlog?.cards[0]?.id).toBe("py-task-1");
 		expect(backlog?.cards[0]?.prompt).toBe("Written by a Python backend");
 	});
+
+	it("upgrade fixture: a pre-lockdown board.json carrying a retired terminal-CLI agent id loads with the id migrated to nklein (P0.9c)", async () => {
+		const saved = await saveWorkspaceState(repoDir, { board: makeEmptyBoard() });
+		const workspaceId = saved.statePath.split("/").at(-1) ?? "";
+
+		const legacyBoardJson = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							id: "legacy-task-1",
+							title: "Pre-lockdown task",
+							prompt: "Created by a build that still had terminal-CLI agents",
+							startInPlanMode: false,
+							baseRef: "main",
+							agentId: "codex",
+							createdAt: 1_700_000_000_000,
+							updatedAt: 1_700_000_000_000,
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [],
+		};
+		const legacyJson = JSON.stringify(legacyBoardJson, null, 2);
+		writeFileSync(join(getWorkspaceDirectoryPath(workspaceId), "board.json"), legacyJson);
+		writeFileSync(join(repoDir, ".nklein", "nklein", "workspace", "board.json"), legacyJson);
+
+		// The load must neither throw nor drop the card; the retired agent id migrates to nklein.
+		const loaded = await loadWorkspaceState(repoDir);
+		const backlog = loaded.board.columns.find((c) => c.id === "backlog");
+		expect(backlog?.cards).toHaveLength(1);
+		expect(backlog?.cards[0]?.id).toBe("legacy-task-1");
+		expect(backlog?.cards[0]?.agentId).toBe("nklein");
+	});
 });
 
 // ── Test 2: portable board CRDT round-trip + migration registry ──────────────

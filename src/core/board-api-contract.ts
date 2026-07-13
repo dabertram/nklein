@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
 	agentDeliveryTierSchema,
 	type RuntimeTaskNKleinSettings,
-	runtimeAgentIdSchema,
+	runtimeAgentIdWithLegacyMigrationSchema,
 	runtimeBoardColumnIdSchema,
 	runtimeTaskAutoReviewModeSchema,
 	runtimeTaskNKleinSettingsSchema,
@@ -143,7 +143,7 @@ export const runtimeBoardCardSchema = z
 		autoReviewStatus: z.enum(["running", "failed"]).optional(),
 		autoReviewMessage: z.string().optional(),
 		images: z.array(runtimeTaskImageSchema).optional(),
-		agentId: runtimeAgentIdSchema.optional(),
+		agentId: runtimeAgentIdWithLegacyMigrationSchema.optional(),
 		nkleinSettings: runtimeTaskNKleinSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),

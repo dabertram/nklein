@@ -283,7 +283,7 @@ source repo went private — so if it vanishes the buildable source still lives 
   local-first Markdown store by default; cloud sync/remote memory only by deliberate user opt-in.
 - !Klein's native NKlein agent is powered by the installed `@nkleinbot/core` + `@nkleinbot/llms` packages plus the local `src/nklein-agent/` boundary layer — when NKlein behavior is unclear, inspect those packages and `src/nklein-agent/` for the real implementation.
 - The NKlein session host does not expose its internal session map. Model changes may use the public `updateSessionModel` API; provider, endpoint, reasoning, mode, context, or timeout changes require restarting from persisted history. Never cast the host to a private `sessions` shape and mutate it.
-- Default NKlein/sandbox tasks no longer use host task worktrees: work lives in the Docker sandbox volume (`/workspaces/<taskId>`) and is captured as an `nklein/tasks/<task>` result branch the trusted runtime applies to the user's repo (`src/workspace/task-result-branches.ts`). Verified end-to-end by `scripts/verify-strict-isolation.mts` (isolated `HOME` + live LM Studio): a Docker sandbox container appears, **no** host worktree under `~/.nklein/nklein/worktrees`, containers clean up on dispose. The host-worktree **creation** machinery + the terminal-CLI **agent launcher** are deleted (§5.A C7c/C7d); shell-on-task is decoupled (it `docker exec`s into the sandbox, or opens at the project root). What remains of `src/workspace/task-worktree*.ts` is **legacy cleanup only** (`deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/`deleteTaskPatchFilesForRepo`), invoked on task-trash + shutdown. The single boundary predicate is `usesLegacyHostTaskWorkspace(agentId)` in `src/core/agent-catalog.ts` — true for any non-nklein id, still drives that legacy cleanup for migrated boards, so it is **live, not dead**; never re-derive it. Still deferred (§2.B): shrinking `RUNTIME_AGENT_CATALOG`/`runtimeAgentIdSchema` to nklein-only (web-ui + CLI contract-coupled → needs UI verification) then deleting the worktree modules outright.
+- Task work lives in the Docker sandbox volume (`/workspaces/<taskId>`) and is captured as an `nklein/tasks/<task>` result branch the trusted runtime applies to the user's repo (`src/workspace/task-result-branches.ts`). The host-worktree subsystem is FULLY retired (P0.9, 2026-07-13): no worktree code path remains beyond the one-shot presence-keyed startup sweep (`src/workspace/legacy-worktree-sweep.ts` — migrates any pre-sandbox on-disk residue, snapshotting uncommitted work to trashed-task-patches) and the add-project guard (`isPathInsideTaskWorktreesHome`). Trash/replay/project-removal discard artifacts via `src/workspace/task-artifact-cleanup.ts` (result branch + `::spec` + patch snapshots). The agent contract is nklein-only: `runtimeAgentIdSchema` is strict on API surfaces, while `runtimeAgentIdWithLegacyMigrationSchema` (`.catch("nklein")`) parses persisted board/session state so pre-lockdown files still load. NOTE the naming trap: `task-worktree-auto-merge.ts` / `mergeTaskWorktrees` are the LIVE result-branch delivery path (misnamed, rename is cosmetic backlog), not worktree code. Shell-on-task `docker exec`s into the sandbox or opens at the project root.
 - **Sandbox placement is not workspace liveness (2026-07-09).** `AgentSandboxManager.hasWorkspace()` is only an
   in-memory placement hint; a Docker restart/OOM/manual removal can leave that map populated while the real
   `/workspaces/<taskId>` cwd is gone. Before skipping restore/re-drive setup, probe the concrete cwd with
@@ -632,12 +632,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.9 — Finish legacy host-worktree retirement** *(legacy §5.A/§2.B; split into leaves 2026-07-13).* Re-home
-  migrated-board cleanup away from agent-id predicates, delete the remaining cleanup-only worktree modules/schema/catalog
-  residue, and verify upgrades, shell-on-task, shutdown, and result-branch delivery.
-  - [ ] **P0.9d — Retirement verification lap.** Prove upgrades (fixture with a populated legacy worktrees home +
-    legacy agent ids), shell-on-task, shutdown, and result-branch delivery are intact; then retire the §4A
-    "legacy cleanup only" tribal-knowledge note.
+- [ ] **P0.10 — Make the full (slow) suite reliable under parallel load** *(found 2026-07-13 during the P0.9d
+  verification lap).* `npm run test` flakes on spawned-backend suites when the machine is saturated: per-test 15s
+  timeouts starve while parallel tsx CLI spawns compile (`cli-task-subcommands` "task done"/"task delete --column",
+  `task-command-exit`, `zero-token-self-heal`; occasionally `chat-contract`/`board-lifecycle` suite-level) — every one
+  passes in isolation. Fix the infrastructure, not the assertions: give spawn-heavy contract/integration files
+  proportionate timeouts or cap their file-level parallelism (vitest workers/pool), and prove three consecutive clean
+  full-suite runs. Note: the slow suite is NOT in pre-commit, so breakage accumulates silently — four genuine failures
+  (incl. a production streamed-chat crash) sat here until 2026-07-13; consider a scheduled/manual full-suite gate.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 
