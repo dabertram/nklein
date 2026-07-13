@@ -840,6 +840,16 @@
   identical-feedback park guard needs to stop churn; test-backed change passes clean), config round-trip
   (default OFF → project opt-in → global-on + project opt-out → clear-inherits), plus the existing
   bounce-without-calling-the-reviewer runner test. Backend + web-ui + desktop tsc 0; fast 9493; web-ui 1053.
+- [x] **F1.35a — rail controls/status core** *(delivered 2026-07-13; the tRPC/hub/Settings mount rides F1.31b as
+  F1.35b in todo).* `src/core/background-eval-controls.ts`: `applyRailControlCommand` — the enable/disable/
+  pause/resume reducer that emits the EXACT service action (`start`/`stop`/`none`) for each transition,
+  idempotent by construction (replayed commands never bounce the service), with pause as a hold that preserves
+  the enabled intent (enable-while-paused does NOT start; resume does); `createRailOutcomeLog` — bounded
+  newest-first recent-outcome log; `composeRailStatus` — the full F1.35 status snapshot (run state derived
+  disabled/paused/active/idle, cadence, background cap, long-timeout profile, active leases, last tick + error,
+  cleanup errors, recent outcomes); `createRailStatusPublisher` — CHANGE-ONLY push (host notifies on tick/
+  control/cleanup events; identical snapshots stay silent) so the surface needs no tight poll loop anywhere.
+  7 tests. tsc 0, fast 9500 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

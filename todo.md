@@ -774,8 +774,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet): drive one real testless card and one test-backed card through a live swarm (bounce → re-work
   → park vs. clean review), then decide whether to flip the global default ON; optionally expose the override in
   the Settings project section (rides F1.29b).
-- [ ] **F1.35 — Add evaluation-rail controls and status.** Expose enable/pause, cadence, background cap, long-timeout
-  profile, active leases, latest outcomes, and cleanup errors without a tight poll loop.
+- [ ] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13).**
+  `src/core/background-eval-controls.ts` is the whole F1.35 brain: `applyRailControlCommand` (enable/disable/
+  pause/resume reducer emitting the exact start/stop action for the F1.31 service — idempotent, pause holds
+  survive enable, resume restores), `createRailOutcomeLog` (bounded newest-first latest-outcomes),
+  `composeRailStatus` (disabled/paused/active/idle + cadence, cap, long-timeout profile, active leases, last
+  tick/error, cleanup errors), and `createRailStatusPublisher` (CHANGE-ONLY push — notify on tick/control events,
+  publish only when the snapshot differs; no tight poll loop by construction). REMAINING (rides the F1.31b
+  wiring): tRPC commands mapping to the reducer, snapshot fan-out via the runtime state hub, persistence of the
+  control state + cadence/cap in config, and the Settings/status UI.
 - [ ] **F1.36 — Wire opportunistic idle work into durable scheduling** *(legacy §5.AW).* When a suitable model becomes
   idle, choose the highest-value safe work-ahead/review/deliberation/context-prep action, enforce overlap/resource/
   background-budget gates, and record realized value.
