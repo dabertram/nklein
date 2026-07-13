@@ -5,19 +5,15 @@
 // worktree's own `.git` file — never from board/agent-id predicates — uncommitted changes are snapshotted to the
 // trashed-task-patches store first, the worktree is removed via git (with a prune + raw-remove fallback), stale
 // setup locks and the retired sync-state store are deleted, and the empty worktrees home is removed last.
-import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
-import { access, mkdir, readdir, readFile, rm, rmdir } from "node:fs/promises";
+import { access, readdir, readFile, rm, rmdir } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 
-import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath, getTaskWorktreesHomePath } from "../state/workspace-state";
 import { getGitStdout, runGit } from "./git-utils";
+import { writeTrashedTaskPatch } from "./task-artifact-cleanup";
 
-const TRASHED_TASK_PATCHES_DIR_NAME = "trashed-task-patches";
 const WORKTREE_SYNC_STATE_DIR_NAME = "worktree-sync-state";
 const TASK_WORKTREE_SETUP_LOCKFILE_NAME = "kanban-task-worktree-setup.lock";
-const TASK_PATCH_FILE_SUFFIX = ".patch";
 
 export interface LegacyWorktreeSweepResult {
 	removedWorktrees: number;
@@ -54,16 +50,6 @@ async function resolveWorktreeParentRepo(worktreePath: string): Promise<string |
 	}
 	const repoPath = segments.slice(0, worktreesIndex - 1).join(sep) || sep;
 	return (await pathExists(join(repoPath, ".git"))) ? repoPath : null;
-}
-
-function getTaskPatchRepoKey(repoPath: string): string {
-	let canonicalRepoPath: string;
-	try {
-		canonicalRepoPath = realpathSync(repoPath);
-	} catch {
-		canonicalRepoPath = resolve(repoPath);
-	}
-	return createHash("sha256").update(canonicalRepoPath).digest("hex").slice(0, 12);
 }
 
 function ensureTrailingNewline(value: string): string {
@@ -110,13 +96,12 @@ async function captureLegacyWorktreePatch(options: {
 	if (patchChunks.length === 0) {
 		return;
 	}
-	const patchesRootPath = join(getRuntimeHomePath(), TRASHED_TASK_PATCHES_DIR_NAME);
-	await mkdir(patchesRootPath, { recursive: true });
-	const patchPath = join(
-		patchesRootPath,
-		`${options.taskId}.${getTaskPatchRepoKey(options.repoPath)}.${headCommit}${TASK_PATCH_FILE_SUFFIX}`,
-	);
-	await lockedFileSystem.writeTextFileAtomic(patchPath, patchChunks.join(""));
+	await writeTrashedTaskPatch({
+		repoPath: options.repoPath,
+		taskId: options.taskId,
+		headCommit,
+		patch: patchChunks.join(""),
+	});
 }
 
 async function removeWorktree(options: {

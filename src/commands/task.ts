@@ -484,7 +484,6 @@ function registerTaskGraphCommands(task: Command): void {
 		.requiredOption("--task-id <id>", "Task ID.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option("--workspace-root", "Run the acceptance check in the workspace root instead of the task workspace.")
-		.option("--ensure-worktree", "Prepare the task workspace first if it is missing.")
 		.option("--timeout-ms <ms>", "Acceptance command timeout in milliseconds.", (value: string) => {
 			const timeoutMs = Number(value);
 			if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
@@ -511,7 +510,6 @@ function registerTaskGraphCommands(task: Command): void {
 				taskId: string;
 				projectPath?: string;
 				workspaceRoot?: boolean;
-				ensureWorktree?: boolean;
 				timeoutMs?: number;
 				repairAttempt?: number;
 				maxRepairAttempts?: number;
@@ -523,7 +521,6 @@ function registerTaskGraphCommands(task: Command): void {
 							taskId: options.taskId,
 							projectPath: options.projectPath,
 							workspaceRoot: options.workspaceRoot === true,
-							ensureWorktree: options.ensureWorktree === true,
 							timeoutMs: options.timeoutMs,
 							repairAttempt: options.repairAttempt,
 							maxRepairAttempts: options.maxRepairAttempts,

@@ -122,7 +122,7 @@ export interface WorkspaceRegistry {
 	}>;
 }
 
-export function collectProjectWorktreeTaskIdsForRemoval(board: RuntimeBoardData): Set<string> {
+export function collectProjectTaskIdsForRemoval(board: RuntimeBoardData): Set<string> {
 	const taskIds = new Set<string>();
 	for (const column of board.columns) {
 		for (const card of column.cards) {

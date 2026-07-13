@@ -248,7 +248,7 @@ async function startServer(): Promise<{
 		{ createBoardChatFeedbackWiring },
 		{ resolveInteractiveShellCommand },
 		{ shutdownRuntimeServer },
-		{ collectProjectWorktreeTaskIdsForRemoval, createWorkspaceRegistry },
+		{ collectProjectTaskIdsForRemoval, createWorkspaceRegistry },
 		{ clearPendingUpdateNotification, getPendingUpdateNotification },
 		{ startKleinCorePySidecar },
 		{ resolveKleinSourceRepoPath },
@@ -316,7 +316,7 @@ async function startServer(): Promise<{
 		assertPathIsDirectory,
 		hasGitRepository,
 		disposeWorkspace: disposeTrackedWorkspace,
-		collectProjectWorktreeTaskIdsForRemoval,
+		collectProjectTaskIdsForRemoval,
 		pickDirectoryPathFromSystemDialog,
 		getUpdateStatus: () => {
 			const notification = getPendingUpdateNotification();

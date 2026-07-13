@@ -119,6 +119,8 @@ import type {
 	RuntimeSwarmStopResponse,
 	RuntimeTaskAcceptanceVerifyRequest,
 	RuntimeTaskAcceptanceVerifyResponse,
+	RuntimeTaskArtifactsDeleteRequest,
+	RuntimeTaskArtifactsDeleteResponse,
 	RuntimeTaskChatAbortRequest,
 	RuntimeTaskChatAbortResponse,
 	RuntimeTaskChatCancelRequest,
@@ -154,8 +156,6 @@ import type {
 	RuntimeWorkspaceStateNotifyResponse,
 	RuntimeWorkspaceStateResponse,
 	RuntimeWorkspaceStateSaveRequest,
-	RuntimeWorktreeDeleteRequest,
-	RuntimeWorktreeDeleteResponse,
 } from "../core/api-contract";
 import type {
 	RuntimeChatAutonomousRunStatus,
@@ -465,10 +465,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeWorkspaceChangesRequest,
 		) => Promise<RuntimeWorkspaceChangesResponse>;
-		deleteWorktree: (
+		deleteTaskArtifacts: (
 			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeWorktreeDeleteRequest,
-		) => Promise<RuntimeWorktreeDeleteResponse>;
+			input: RuntimeTaskArtifactsDeleteRequest,
+		) => Promise<RuntimeTaskArtifactsDeleteResponse>;
 		searchFiles: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeWorkspaceFileSearchRequest,

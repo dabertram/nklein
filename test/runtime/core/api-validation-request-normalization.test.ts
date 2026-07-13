@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	parseCommandRunRequest,
 	parseNKleinModelContextWindowOverrideRequest,
+	parseTaskArtifactsDeleteRequest,
 	parseTaskChatSendRequest,
-	parseWorktreeDeleteRequest,
 } from "../../../src/core/api-validation";
 
 // §5.V — these tRPC boundary parsers layer post-schema business rules (trim + emptiness + normalization) on top of the
@@ -65,19 +65,12 @@ describe("parseNKleinModelContextWindowOverrideRequest (§5.V coverage)", () => 
 	});
 });
 
-describe("parseWorktreeDeleteRequest (§5.V coverage)", () => {
-	it("trims taskId and passes preserveChanges through", () => {
-		expect(parseWorktreeDeleteRequest({ taskId: "  t9  ", preserveChanges: true })).toEqual({
-			taskId: "t9",
-			preserveChanges: true,
-		});
-	});
-
-	it("leaves preserveChanges undefined when omitted", () => {
-		expect(parseWorktreeDeleteRequest({ taskId: "t9" })).toEqual({ taskId: "t9", preserveChanges: undefined });
+describe("parseTaskArtifactsDeleteRequest (§5.V coverage)", () => {
+	it("trims the taskId", () => {
+		expect(parseTaskArtifactsDeleteRequest({ taskId: "  t9  " })).toEqual({ taskId: "t9" });
 	});
 
 	it("rejects a blank taskId", () => {
-		expect(() => parseWorktreeDeleteRequest({ taskId: "  " })).toThrow(/Invalid worktree delete payload/);
+		expect(() => parseTaskArtifactsDeleteRequest({ taskId: "  " })).toThrow(/Invalid task artifact delete payload/);
 	});
 });

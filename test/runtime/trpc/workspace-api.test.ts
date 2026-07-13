@@ -12,11 +12,8 @@ import type {
 import { loadWorkspaceContext, loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 import { createGitTestEnv } from "../../utilities/git-env";
 
-const workspaceTaskWorktreeMocks = vi.hoisted(() => ({
-	deleteTaskWorktree: vi.fn(),
-	ensureTaskWorktreeIfDoesntExist: vi.fn(),
-	getTaskWorkspaceInfo: vi.fn(),
-	resolveTaskCwd: vi.fn(),
+const taskArtifactCleanupMocks = vi.hoisted(() => ({
+	deleteTaskArtifacts: vi.fn(),
 }));
 
 const workspaceChangesMocks = vi.hoisted(() => ({
@@ -30,11 +27,8 @@ const taskResultBranchMocks = vi.hoisted(() => ({
 	resolveTaskResultBranchCommit: vi.fn(),
 }));
 
-vi.mock("../../../src/workspace/task-worktree.js", () => ({
-	deleteTaskWorktree: workspaceTaskWorktreeMocks.deleteTaskWorktree,
-	ensureTaskWorktreeIfDoesntExist: workspaceTaskWorktreeMocks.ensureTaskWorktreeIfDoesntExist,
-	getTaskWorkspaceInfo: workspaceTaskWorktreeMocks.getTaskWorkspaceInfo,
-	resolveTaskCwd: workspaceTaskWorktreeMocks.resolveTaskCwd,
+vi.mock("../../../src/workspace/task-artifact-cleanup.js", () => ({
+	deleteTaskArtifacts: taskArtifactCleanupMocks.deleteTaskArtifacts,
 }));
 
 vi.mock("../../../src/workspace/get-workspace-changes.js", () => ({
@@ -143,18 +137,14 @@ function createChangesResponse(): RuntimeWorkspaceChangesResponse {
 
 describe("createWorkspaceApi loadChanges", () => {
 	beforeEach(() => {
-		workspaceTaskWorktreeMocks.resolveTaskCwd.mockReset();
-		workspaceTaskWorktreeMocks.deleteTaskWorktree.mockReset();
-		workspaceTaskWorktreeMocks.ensureTaskWorktreeIfDoesntExist.mockReset();
-		workspaceTaskWorktreeMocks.getTaskWorkspaceInfo.mockReset();
+		taskArtifactCleanupMocks.deleteTaskArtifacts.mockReset();
 		workspaceChangesMocks.createEmptyWorkspaceChangesResponse.mockReset();
 		workspaceChangesMocks.getWorkspaceChanges.mockReset();
 		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockReset();
 		workspaceChangesMocks.getWorkspaceChangesFromRef.mockReset();
 		taskResultBranchMocks.resolveTaskResultBranchCommit.mockReset();
 
-		workspaceTaskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/worktree");
-		workspaceTaskWorktreeMocks.deleteTaskWorktree.mockResolvedValue({ ok: true, removed: true });
+		taskArtifactCleanupMocks.deleteTaskArtifacts.mockResolvedValue({ ok: true });
 		workspaceChangesMocks.createEmptyWorkspaceChangesResponse.mockResolvedValue(createChangesResponse());
 		workspaceChangesMocks.getWorkspaceChanges.mockResolvedValue(createChangesResponse());
 		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockResolvedValue(createChangesResponse());
@@ -234,7 +224,6 @@ describe("createWorkspaceApi loadChanges", () => {
 			fromRef: "main",
 			toRef: "result-commit",
 		});
-		expect(workspaceTaskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
 		expect(workspaceChangesMocks.getWorkspaceChanges).not.toHaveBeenCalled();
 	});
 
@@ -298,7 +287,7 @@ describe("createWorkspaceApi loadChanges", () => {
 		expect(workspaceChangesMocks.getWorkspaceChanges).not.toHaveBeenCalled();
 	});
 
-	it("passes discard semantics to task workspace deletion", async () => {
+	it("routes trash cleanup to task artifact deletion", async () => {
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(),
 			getScopedNKleinTaskSessionService: vi.fn(),
@@ -308,22 +297,20 @@ describe("createWorkspaceApi loadChanges", () => {
 		});
 
 		await expect(
-			api.deleteWorktree(
+			api.deleteTaskArtifacts(
 				{
 					workspaceId: "workspace-1",
 					workspacePath: "/tmp/repo",
 				},
 				{
 					taskId: "task-1",
-					preserveChanges: false,
 				},
 			),
-		).resolves.toEqual({ ok: true, removed: true });
+		).resolves.toEqual({ ok: true });
 
-		expect(workspaceTaskWorktreeMocks.deleteTaskWorktree).toHaveBeenCalledWith({
+		expect(taskArtifactCleanupMocks.deleteTaskArtifacts).toHaveBeenCalledWith({
 			repoPath: "/tmp/repo",
 			taskId: "task-1",
-			preserveChanges: false,
 		});
 	});
 });

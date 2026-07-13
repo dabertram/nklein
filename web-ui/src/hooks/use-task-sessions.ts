@@ -9,10 +9,10 @@ import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeProtectedTestApprovalPayload,
+	RuntimeTaskArtifactsDeleteResponse,
 	RuntimeTaskChatMessage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
-	RuntimeWorktreeDeleteResponse,
 } from "@/runtime/types";
 import { trackTaskResumedFromTrash } from "@/telemetry/events";
 import { getTerminalController } from "@/terminal/terminal-controller-registry";
@@ -81,10 +81,7 @@ export interface UseTaskSessionsResult {
 		approval: RuntimeProtectedTestApprovalPayload,
 	) => Promise<NKleinChatActionResult>;
 	fetchTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
-	cleanupTaskWorkspace: (
-		taskId: string,
-		options?: { preserveChanges?: boolean },
-	) => Promise<RuntimeWorktreeDeleteResponse | null>;
+	cleanupTaskArtifacts: (taskId: string) => Promise<RuntimeTaskArtifactsDeleteResponse | null>;
 }
 
 export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessionsInput): UseTaskSessionsResult {
@@ -241,29 +238,23 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		[currentProjectId, upsertSession],
 	);
 
-	const cleanupTaskWorkspace = useCallback(
-		async (
-			taskId: string,
-			options: { preserveChanges?: boolean } = {},
-		): Promise<RuntimeWorktreeDeleteResponse | null> => {
+	const cleanupTaskArtifacts = useCallback(
+		async (taskId: string): Promise<RuntimeTaskArtifactsDeleteResponse | null> => {
 			if (!currentProjectId) {
 				return null;
 			}
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const payload = await trpcClient.workspace.deleteWorktree.mutate({
-					taskId,
-					...(Object.hasOwn(options, "preserveChanges") ? { preserveChanges: options.preserveChanges } : {}),
-				});
+				const payload = await trpcClient.workspace.deleteTaskArtifacts.mutate({ taskId });
 				if (!payload.ok) {
-					const message = payload.error ?? "Could not clean up task workspace.";
-					console.error(`[cleanupTaskWorkspace] ${message}`);
+					const message = payload.error ?? "Could not clean up task artifacts.";
+					console.error(`[cleanupTaskArtifacts] ${message}`);
 					return null;
 				}
 				return payload;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				console.error(`[cleanupTaskWorkspace] ${message}`);
+				console.error(`[cleanupTaskArtifacts] ${message}`);
 				return null;
 			}
 		},
@@ -280,6 +271,6 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		cancelTaskChatTurn,
 		grantProtectedTestApproval,
 		fetchTaskChatMessages,
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 	};
 }

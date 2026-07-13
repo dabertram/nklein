@@ -582,7 +582,7 @@ export function ProjectNavigationPanel({
 									showAppToast({
 										intent: "success",
 										icon: "trash",
-										message: `Removed ${cleaned.removedProjects} dev projects and ${cleaned.removedTaskWorktrees} task workspaces.`,
+										message: `Removed ${cleaned.removedProjects} dev projects.`,
 										timeout: 5000,
 									});
 								} catch (error) {

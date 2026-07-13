@@ -49,8 +49,8 @@ import {
 } from "../workspace/initialize-repo";
 import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
 import { confineToAllowedRoots } from "../workspace/remote-path-confinement";
+import { deleteTaskArtifacts, deleteTaskPatchFilesForRepo } from "../workspace/task-artifact-cleanup";
 import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branches";
-import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
 import { buildDevTestTaskId, createDevTestBoard } from "./dev-test-board";
@@ -531,7 +531,6 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				return {
 					ok: false,
 					removedProjects: 0,
-					removedTaskWorktrees: 0,
 					errors: [],
 					error: "Dev test project cleanup is only available when NODE_ENV=development.",
 				};
@@ -539,7 +538,6 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 
 			const errors: string[] = [];
 			let removedProjects = 0;
-			let removedTaskWorktrees = 0;
 			try {
 				const allEntries = await listWorkspaceIndexEntries();
 				const entries = [];
@@ -549,34 +547,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					}
 				}
 				for (const entry of entries) {
-					const taskIdsToCleanup = new Set<string>();
-					try {
-						const workspaceState = await loadWorkspaceState(entry.repoPath);
-						for (const taskId of deps.collectProjectWorktreeTaskIdsForRemoval(workspaceState.board)) {
-							taskIdsToCleanup.add(taskId);
-						}
-					} catch (error) {
-						const message = error instanceof Error ? error.message : String(error);
-						errors.push(`Could not read board for ${entry.workspaceId}: ${message}`);
-					}
-
 					const terminalManager = deps.getTerminalManagerForWorkspace(entry.workspaceId);
 					if (terminalManager) {
 						terminalManager.markInterruptedAndStopAll();
 					}
 
-					for (const taskId of taskIdsToCleanup) {
-						const deleted = await deleteTaskWorktree({
-							repoPath: entry.repoPath,
-							taskId,
-							preserveChanges: false,
-						});
-						if (deleted.ok) {
-							removedTaskWorktrees += 1;
-						} else {
-							errors.push(deleted.error ?? `Could not delete task workspace for ${taskId}.`);
-						}
-					}
+					// Per-task artifact deletion is unnecessary here: the patch store and result branches are cleaned
+					// repo-wide below, and the fixture folder itself is removed right after.
 					await deleteTaskPatchFilesForRepo(entry.repoPath);
 					await deleteTaskResultBranchesForRepo({ repoPath: entry.repoPath }).catch((error) => {
 						const message = error instanceof Error ? error.message : String(error);
@@ -626,7 +603,6 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				return {
 					ok: errors.length === 0,
 					removedProjects,
-					removedTaskWorktrees,
 					errors,
 					...(errors.length > 0 ? { error: errors[0] } : {}),
 				};
@@ -635,7 +611,6 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				return {
 					ok: false,
 					removedProjects,
-					removedTaskWorktrees,
 					errors: [...errors, message],
 					error: message,
 				};
@@ -662,11 +637,11 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				const taskIdsToCleanup = new Set<string>();
 				try {
 					const workspaceState = await loadWorkspaceState(projectToRemove.repoPath);
-					for (const taskId of deps.collectProjectWorktreeTaskIdsForRemoval(workspaceState.board)) {
+					for (const taskId of deps.collectProjectTaskIdsForRemoval(workspaceState.board)) {
 						taskIdsToCleanup.add(taskId);
 					}
 				} catch {
-					// Best effort: if board state cannot be read, skip worktree cleanup IDs.
+					// Best effort: if board state cannot be read, skip task artifact cleanup IDs.
 				}
 
 				const removedTerminalManager = deps.getTerminalManagerForWorkspace(body.projectId);
@@ -678,10 +653,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					const deletions = await Promise.all(
 						Array.from(taskIdsToCleanup).map(async (taskId) => ({
 							taskId,
-							deleted: await deleteTaskWorktree({
+							deleted: await deleteTaskArtifacts({
 								repoPath: projectToRemove.repoPath,
 								taskId,
-								preserveChanges: false,
 							}),
 						})),
 					);
@@ -689,12 +663,10 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						if (deleted.ok) {
 							continue;
 						}
-						const message = deleted.error ?? `Could not delete task workspace for task "${taskId}".`;
+						const message = deleted.error ?? `Could not delete task artifacts for task "${taskId}".`;
 						deps.warn(message);
 						if (body.deleteGitRepository) {
-							throw new Error(
-								`Could not remove all task workspaces, so the Git repository was kept. ${message}`,
-							);
+							throw new Error(`Could not remove all task artifacts, so the Git repository was kept. ${message}`);
 						}
 					}
 				}

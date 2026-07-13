@@ -234,7 +234,7 @@ interface UseBoardInteractionsInput {
 	setIsClearTrashDialogOpen: Dispatch<SetStateAction<boolean>>;
 	setIsGitHistoryOpen: Dispatch<SetStateAction<boolean>>;
 	stopTaskSession: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace: UseTaskSessionsResult["cleanupTaskWorkspace"];
+	cleanupTaskArtifacts: UseTaskSessionsResult["cleanupTaskArtifacts"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
 	sendTaskSessionInput: (
 		taskId: string,
@@ -285,7 +285,7 @@ export function useBoardInteractions({
 	setIsClearTrashDialogOpen,
 	setIsGitHistoryOpen,
 	stopTaskSession,
-	cleanupTaskWorkspace,
+	cleanupTaskArtifacts,
 	startTaskSession,
 	sendTaskSessionInput,
 	activeTaskSessionCount,
@@ -686,7 +686,7 @@ export function useBoardInteractions({
 		setBoard,
 		setSelectedTaskId,
 		stopTaskSession,
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 		maybeRequestNotificationPermissionForTaskStart,
 		kickoffTaskInProgress,
 		activeTaskSessionCount,
@@ -952,7 +952,7 @@ export function useBoardInteractions({
 			void (async () => {
 				try {
 					await stopTaskSession(taskId);
-					const cleanupResult = await cleanupTaskWorkspace(taskId, { preserveChanges: false });
+					const cleanupResult = await cleanupTaskArtifacts(taskId);
 					if (cleanupResult === null) {
 						notifyError("Could not clean up the previous task workspace.");
 						return;
@@ -989,7 +989,7 @@ export function useBoardInteractions({
 		[
 			activeTaskSessionCount,
 			board,
-			cleanupTaskWorkspace,
+			cleanupTaskArtifacts,
 			maxConcurrentTasks,
 			maybeRequestNotificationPermissionForTaskStart,
 			sessions,
@@ -1160,12 +1160,12 @@ export function useBoardInteractions({
 			await Promise.all(
 				taskIds.map(async (taskId) => {
 					await stopTaskSession(taskId);
-					await cleanupTaskWorkspace(taskId, { preserveChanges: false });
+					await cleanupTaskArtifacts(taskId);
 				}),
 			);
 		})();
 	}, [
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 		selectedTaskId,
 		setBoard,
 		setIsClearTrashDialogOpen,

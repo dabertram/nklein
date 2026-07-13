@@ -1,6 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +19,6 @@ import { resolveNKleinDevTestProjectScenario } from "../../../src/nklein-agent/n
 import { writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
 	getTaskWorktreesHomePath,
-	getWorkspaceDirectoryPath,
 	listWorkspaceIndexEntries,
 	loadWorkspaceContext,
 	loadWorkspaceState,
@@ -162,7 +170,7 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 			terminalManager: null as TerminalSessionManager | null,
 			workspacePath: null as string | null,
 		})),
-		collectProjectWorktreeTaskIdsForRemoval: vi.fn(() => new Set<string>()),
+		collectProjectTaskIdsForRemoval: vi.fn(() => new Set<string>()),
 		warn: vi.fn(),
 		buildProjectsPayload: vi.fn(async () => ({ currentProjectId: null, projects: [] })),
 		pickDirectoryPathFromSystemDialog: vi.fn(() => null),
@@ -672,15 +680,27 @@ describe("dev-test project cleanup", () => {
 				if (!markedEntry) {
 					throw new Error("Expected marked workspace index entry.");
 				}
-				writeFileSync(join(getWorkspaceDirectoryPath(markedEntry.workspaceId), "board.json"), "{not-json", "utf8");
+				// Make the fixture folder undeletable so the removal step fails while everything else proceeds —
+				// partial failures must surface as ok:false + errors, never as claimed success.
+				const stubbornDir = join(markedWorkspacePath, "stubborn");
+				mkdirSync(stubbornDir, { recursive: true });
+				writeFileSync(join(stubbornDir, "keep.txt"), "x", "utf8");
+				chmodSync(stubbornDir, 0o555);
+				try {
+					const cleanup = await api.cleanupDevTestProjects(null);
 
-				const cleanup = await api.cleanupDevTestProjects(null);
-
-				expect(cleanup.ok).toBe(false);
-				expect(
-					cleanup.errors.some((error) => error.includes(`Could not read board for ${markedEntry.workspaceId}`)),
-				).toBe(true);
-				expect(cleanup.error).toBe(cleanup.errors[0]);
+					expect(cleanup.ok).toBe(false);
+					expect(
+						cleanup.errors.some(
+							(error) =>
+								error.includes("Could not remove fixture folder") ||
+								error.includes("Fixture folder still exists after cleanup"),
+						),
+					).toBe(true);
+					expect(cleanup.error).toBe(cleanup.errors[0]);
+				} finally {
+					chmodSync(stubbornDir, 0o755);
+				}
 			});
 		} finally {
 			rmSync(cleanupCwd, { recursive: true, force: true });

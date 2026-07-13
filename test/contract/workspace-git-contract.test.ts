@@ -20,7 +20,7 @@
  *   workspace.runGitSyncAction  — push/pull/fetch to a remote → needs a real remote
  *   workspace.checkoutGitBranch — switches HEAD → destructive in test env; local git env is minimal
  *   workspace.discardGitChanges — destructive (discards working-tree modifications)
- *   workspace.deleteWorktree    — requires an existing worktree; agent infra only
+ *   workspace.deleteTaskArtifacts — discards result branches/patch snapshots; agent infra only
  *   workspace.getChanges        — task-scoped diff (taskId + baseRef against a running task worktree)
  *
  * Model-free: all assertions are on deterministic git state seeded in beforeAll.

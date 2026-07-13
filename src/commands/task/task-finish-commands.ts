@@ -15,7 +15,7 @@ import {
 import { columnCanHaveLiveTaskSession, type ListTaskColumn } from "./task-command-types.js";
 import { buildIntegrationCardPrompt } from "./task-plan-gap-prompts.js";
 import { findTaskRecord, findTasksInColumn, formatTaskRecord, resolveTaskCommandTarget } from "./task-record-format.js";
-import { deleteTaskWorkspace, stopTaskRuntimeSession } from "./task-runtime-actions.js";
+import { stopTaskRuntimeSession } from "./task-runtime-actions.js";
 import {
 	createRuntimeTrpcClient,
 	ensureRuntimeWorkspace,
@@ -43,8 +43,6 @@ interface FinishTaskExecutionResult {
 	readyTaskIds: string[];
 	autoStartedTasks: JsonRecord[];
 	autoMerge: JsonRecord | null;
-	worktreeDeleted: boolean;
-	worktreeDeleteError?: string;
 	alreadyInTargetColumn: boolean;
 }
 
@@ -189,7 +187,6 @@ async function finishTaskById(input: {
 			readyTaskIds: [],
 			autoStartedTasks: [],
 			autoMerge: null,
-			worktreeDeleted: false,
 			alreadyInTargetColumn: true,
 		};
 	}
@@ -224,10 +221,8 @@ async function finishTaskById(input: {
 		}
 	}
 
-	const deletedWorkspace = canContinueAfterMerge
-		? await deleteTaskWorkspace(input.runtimeClient, input.taskId)
-		: { removed: false, error: "Task workspace kept because auto-merge did not complete." };
-
+	// Finishing a task keeps its result branch (the merge just consumed it); nothing worktree-shaped remains to
+	// clean up. Trash-side deletion is the flow that discards artifacts (deleteTaskArtifacts).
 	return {
 		task: mutation.value.task,
 		taskId: input.taskId,
@@ -235,8 +230,6 @@ async function finishTaskById(input: {
 		readyTaskIds: mutation.value.readyTaskIds,
 		autoStartedTasks,
 		autoMerge,
-		worktreeDeleted: deletedWorkspace.removed,
-		worktreeDeleteError: deletedWorkspace.error,
 		alreadyInTargetColumn: false,
 	};
 }
@@ -281,8 +274,6 @@ export async function finishTask(input: {
 			readyTaskIds: finished.readyTaskIds,
 			autoStartedTasks: finished.autoStartedTasks,
 			autoMerge: finished.autoMerge,
-			worktreeDeleted: finished.worktreeDeleted,
-			worktreeDeleteError: finished.worktreeDeleteError,
 		};
 	}
 
@@ -297,7 +288,6 @@ export async function finishTask(input: {
 			alreadyFinishedTasks: [],
 			readyTaskIds: [],
 			autoStartedTasks: [],
-			worktreeCleanup: [],
 			count: 0,
 		};
 	}
@@ -330,11 +320,6 @@ export async function finishTask(input: {
 		autoMerge: finishedTasks.map((result) => ({
 			taskId: result.taskId,
 			result: result.autoMerge,
-		})),
-		worktreeCleanup: finishedTasks.map((result) => ({
-			taskId: result.taskId,
-			removed: result.worktreeDeleted,
-			error: result.worktreeDeleteError,
 		})),
 		count: finishedTasks.length,
 	};

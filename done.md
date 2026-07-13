@@ -178,6 +178,20 @@
   `legacy-worktree-sweep.test.ts` (clean no-op + lock clear, live worktree with tracked+untracked snapshot,
   unresolvable-entry raw removal) and the updated shutdown-coordinator integration suite.
 
+- [x] **P0.9b — Trash/removal artifact cleanup re-homed; worktree cleanup modules deleted** *(second P0.9 leaf;
+  delivered 2026-07-13).* New `src/workspace/task-artifact-cleanup.ts` owns worktree-free artifact disposal
+  (`deleteTaskArtifacts`: result branch + `::spec` candidate + trashed patch snapshots; plus the patch-store naming
+  shared with the startup sweep). The `workspace.deleteWorktree` tRPC became `workspace.deleteTaskArtifacts`
+  ({taskId} → {ok, error?}); web-ui `cleanupTaskWorkspace` became `cleanupTaskArtifacts` (trash/replay flows), CLI
+  trash uses `deleteTaskArtifacts`, and project removal scrubs per-task artifacts instead of per-task worktrees
+  (`collectProjectWorktreeTaskIdsForRemoval` → `collectProjectTaskIdsForRemoval`). Deleted outright:
+  `task-worktree.ts`, `task-worktree-sync.ts` (incl. the dead `syncWorkspaceChangesIntoTaskWorktree`), the
+  `RuntimeWorktreeDeleteRequest/Response` schemas, the `removedTaskWorktrees` dev-test-cleanup count, the dead
+  `ensureWorktree` acceptance-verify flag, and the finish-flow's always-false `worktreeDeleted`/`worktreeCleanup`
+  response fields (finishing keeps the merged result branch; only trash discards artifacts). The presence-keyed
+  add-project guard and `task_worktree_project` health migration stay (they are the upgrade path). Full gate green
+  (backend 9329 fast + suites, web-ui 1052, protected 134).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

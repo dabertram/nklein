@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../../src/config/runtime-config";
 import type { RuntimeBoardData } from "../../src/core/api-contract";
-import { collectProjectWorktreeTaskIdsForRemoval, createWorkspaceRegistry } from "../../src/server/workspace-registry";
+import { collectProjectTaskIdsForRemoval, createWorkspaceRegistry } from "../../src/server/workspace-registry";
 import { listWorkspaceIndexEntries, loadWorkspaceContext, saveWorkspaceState } from "../../src/state/workspace-state";
 import { createGitTestEnv } from "../utilities/git-env";
 
@@ -60,7 +60,7 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
-describe("collectProjectWorktreeTaskIdsForRemoval", () => {
+describe("collectProjectTaskIdsForRemoval", () => {
 	it("includes tasks from every board column during project cleanup", () => {
 		const board = {
 			columns: [
@@ -72,7 +72,7 @@ describe("collectProjectWorktreeTaskIdsForRemoval", () => {
 			dependencies: [],
 		} as unknown as RuntimeBoardData;
 
-		expect(Array.from(collectProjectWorktreeTaskIdsForRemoval(board)).sort()).toEqual([
+		expect(Array.from(collectProjectTaskIdsForRemoval(board)).sort()).toEqual([
 			"active-task",
 			"backlog-task",
 			"review-task",

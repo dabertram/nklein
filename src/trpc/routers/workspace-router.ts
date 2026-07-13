@@ -14,6 +14,8 @@ import {
 	runtimeGitSummaryResponseSchema,
 	runtimeGitSyncActionSchema,
 	runtimeGitSyncResponseSchema,
+	runtimeTaskArtifactsDeleteRequestSchema,
+	runtimeTaskArtifactsDeleteResponseSchema,
 	runtimeTaskWorkspaceInfoRequestSchema,
 	runtimeWorkspaceChangesRequestSchema,
 	runtimeWorkspaceChangesResponseSchema,
@@ -22,8 +24,6 @@ import {
 	runtimeWorkspaceStateNotifyResponseSchema,
 	runtimeWorkspaceStateResponseSchema,
 	runtimeWorkspaceStateSaveRequestSchema,
-	runtimeWorktreeDeleteRequestSchema,
-	runtimeWorktreeDeleteResponseSchema,
 } from "../../core/api-contract";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
 
@@ -64,11 +64,11 @@ export function buildWorkspaceRouter(t: RuntimeTrpcBuilder, workspaceProcedure: 
 			.query(async ({ ctx, input }) => {
 				return await ctx.workspaceApi.loadChanges(ctx.workspaceScope, input);
 			}),
-		deleteWorktree: workspaceProcedure
-			.input(runtimeWorktreeDeleteRequestSchema)
-			.output(runtimeWorktreeDeleteResponseSchema)
+		deleteTaskArtifacts: workspaceProcedure
+			.input(runtimeTaskArtifactsDeleteRequestSchema)
+			.output(runtimeTaskArtifactsDeleteResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.deleteWorktree(ctx.workspaceScope, input);
+				return await ctx.workspaceApi.deleteTaskArtifacts(ctx.workspaceScope, input);
 			}),
 		searchFiles: workspaceProcedure
 			.input(runtimeWorkspaceFileSearchRequestSchema)

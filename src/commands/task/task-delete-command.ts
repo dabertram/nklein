@@ -2,7 +2,7 @@ import { deleteTasksFromBoard } from "../../core/task-board-mutations";
 import { mutateWorkspaceState } from "../../state/workspace-state";
 import { columnCanHaveLiveTaskSession, type ListTaskColumn } from "./task-command-types.js";
 import { findTaskRecord, findTasksInColumn, formatTaskRecord, resolveTaskCommandTarget } from "./task-record-format.js";
-import { deleteTaskWorkspace, stopTaskRuntimeSession } from "./task-runtime-actions.js";
+import { deleteTaskArtifacts, stopTaskRuntimeSession } from "./task-runtime-actions.js";
 import {
 	createRuntimeTrpcClient,
 	ensureRuntimeWorkspace,
@@ -102,10 +102,10 @@ export async function deleteTaskCommand(input: {
 		mutation.value.taskIdsRequiringStop.map(async (taskId) => await stopTaskRuntimeSession(runtimeClient, taskId)),
 	);
 
-	const workspaceCleanupResults = await Promise.all(
+	const artifactCleanupResults = await Promise.all(
 		mutation.value.deletedTaskIds.map(async (taskId) => ({
 			taskId,
-			...(await deleteTaskWorkspace(runtimeClient, taskId, { preserveChanges: false })),
+			...(await deleteTaskArtifacts(runtimeClient, taskId)),
 		})),
 	);
 
@@ -115,6 +115,6 @@ export async function deleteTaskCommand(input: {
 		column: target.kind === "column" ? target.column : null,
 		deletedTasks: mutation.value.deletedTasks,
 		count: mutation.value.deletedTaskIds.length,
-		worktreeCleanup: workspaceCleanupResults,
+		artifactCleanup: artifactCleanupResults,
 	};
 }

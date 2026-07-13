@@ -9,7 +9,7 @@ import type {
 	RuntimeWorkspaceFileSearchResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
-import { parseGitCheckoutRequest, parseWorktreeDeleteRequest } from "../core/api-validation";
+import { parseGitCheckoutRequest, parseTaskArtifactsDeleteRequest } from "../core/api-validation";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { saveWorkspaceState, WorkspaceStateConflictError } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -21,8 +21,8 @@ import {
 import { getCommitDiff, getGitLog, getGitRefs } from "../workspace/git-history";
 import { discardGitChanges, getGitSyncSummary, runGitCheckoutAction, runGitSyncAction } from "../workspace/git-sync";
 import { searchWorkspaceFiles } from "../workspace/search-workspace-files";
+import { deleteTaskArtifacts } from "../workspace/task-artifact-cleanup";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import { deleteTaskWorktree } from "../workspace/task-worktree";
 import type { RuntimeTrpcContext } from "./app-router";
 
 export interface CreateWorkspaceApiDependencies {
@@ -231,14 +231,13 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 			// §5.A, and the legacy per-turn host-checkpoint diff went with it).
 			return await createEmptyWorkspaceChangesResponse(workspaceScope.workspacePath);
 		},
-		deleteWorktree: async (workspaceScope, input) => {
-			// Retained for `cleanupTaskWorkspace` (replay/trash) and to clean up any legacy on-disk worktrees from
-			// pre-§5.A builds; a no-op for native NKlein tasks, which never create a host worktree.
-			const body = parseWorktreeDeleteRequest(input);
-			return await deleteTaskWorktree({
+		deleteTaskArtifacts: async (workspaceScope, input) => {
+			// Trash/replay cleanup: discard the task's durable artifacts (result branch, ::spec candidate, trashed
+			// patch snapshots). Legacy on-disk worktrees are handled once at startup by the legacy-worktree sweep.
+			const body = parseTaskArtifactsDeleteRequest(input);
+			return await deleteTaskArtifacts({
 				repoPath: workspaceScope.workspacePath,
 				taskId: body.taskId,
-				preserveChanges: body.preserveChanges,
 			});
 		},
 		searchFiles: async (workspaceScope, input) => {

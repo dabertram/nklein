@@ -15,7 +15,6 @@ import {
 
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
-	ensureWorktree: z.boolean().optional(),
 	timeoutMs: z.number().int().positive().optional(),
 });
 export type RuntimeTaskAcceptanceVerifyRequest = z.infer<typeof runtimeTaskAcceptanceVerifyRequestSchema>;

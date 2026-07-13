@@ -127,7 +127,6 @@ export type RuntimeSelfImprovementProjectResponse = z.infer<typeof runtimeSelfIm
 export const runtimeDevTestCleanupResponseSchema = z.object({
 	ok: z.boolean(),
 	removedProjects: z.number(),
-	removedTaskWorktrees: z.number(),
 	errors: z.array(z.string()).default([]),
 	error: z.string().optional(),
 });
@@ -203,18 +202,18 @@ export const runtimeProjectArtifactMigrationResponseSchema = z.object({
 });
 export type RuntimeProjectArtifactMigrationResponse = z.infer<typeof runtimeProjectArtifactMigrationResponseSchema>;
 
-export const runtimeWorktreeDeleteRequestSchema = z.object({
+// Trash/replay artifact cleanup (P0.9b — replaces the retired `deleteWorktree` surface): discards a task's durable
+// artifacts (result branch, speculative candidate branch, trashed patch snapshots). No host worktree is involved.
+export const runtimeTaskArtifactsDeleteRequestSchema = z.object({
 	taskId: z.string(),
-	preserveChanges: z.boolean().optional(),
 });
-export type RuntimeWorktreeDeleteRequest = z.infer<typeof runtimeWorktreeDeleteRequestSchema>;
+export type RuntimeTaskArtifactsDeleteRequest = z.infer<typeof runtimeTaskArtifactsDeleteRequestSchema>;
 
-export const runtimeWorktreeDeleteResponseSchema = z.object({
+export const runtimeTaskArtifactsDeleteResponseSchema = z.object({
 	ok: z.boolean(),
-	removed: z.boolean(),
 	error: z.string().optional(),
 });
-export type RuntimeWorktreeDeleteResponse = z.infer<typeof runtimeWorktreeDeleteResponseSchema>;
+export type RuntimeTaskArtifactsDeleteResponse = z.infer<typeof runtimeTaskArtifactsDeleteResponseSchema>;
 
 export const runtimeTaskWorkspaceInfoRequestSchema = z.object({
 	taskId: z.string(),

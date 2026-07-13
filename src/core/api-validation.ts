@@ -28,6 +28,7 @@ import {
 	type RuntimeProtectedTestApprovalGrantRequest,
 	type RuntimeSelfImprovementProjectRequest,
 	type RuntimeShellSessionStartRequest,
+	type RuntimeTaskArtifactsDeleteRequest,
 	type RuntimeTaskChatAbortRequest,
 	type RuntimeTaskChatCancelRequest,
 	type RuntimeTaskChatMessagesRequest,
@@ -44,7 +45,6 @@ import {
 	type RuntimeWorkspaceChangesRequest,
 	type RuntimeWorkspaceFileSearchRequest,
 	type RuntimeWorkspaceStateSaveRequest,
-	type RuntimeWorktreeDeleteRequest,
 	runtimeCommandRunRequestSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDirectoryListRequestSchema,
@@ -72,6 +72,7 @@ import {
 	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeSelfImprovementProjectRequestSchema,
 	runtimeShellSessionStartRequestSchema,
+	runtimeTaskArtifactsDeleteRequestSchema,
 	runtimeTaskChatAbortRequestSchema,
 	runtimeTaskChatCancelRequestSchema,
 	runtimeTaskChatMessagesRequestSchema,
@@ -88,7 +89,6 @@ import {
 	runtimeWorkspaceChangesRequestSchema,
 	runtimeWorkspaceFileSearchRequestSchema,
 	runtimeWorkspaceStateSaveRequestSchema,
-	runtimeWorktreeDeleteRequestSchema,
 } from "./api-contract";
 
 const trimmedStringSchema = z.string().transform((value) => value.trim());
@@ -171,15 +171,14 @@ export function parseGitCheckoutRequest(value: unknown): RuntimeGitCheckoutReque
 	};
 }
 
-export function parseWorktreeDeleteRequest(value: unknown): RuntimeWorktreeDeleteRequest {
-	const parsed = parseWithSchema(runtimeWorktreeDeleteRequestSchema, value);
+export function parseTaskArtifactsDeleteRequest(value: unknown): RuntimeTaskArtifactsDeleteRequest {
+	const parsed = parseWithSchema(runtimeTaskArtifactsDeleteRequestSchema, value);
 	const taskId = parsed.taskId.trim();
 	if (!taskId) {
-		throw new Error("Invalid worktree delete payload.");
+		throw new Error("Invalid task artifact delete payload.");
 	}
 	return {
 		taskId,
-		preserveChanges: parsed.preserveChanges,
 	};
 }
 

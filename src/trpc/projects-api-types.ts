@@ -35,7 +35,7 @@ export interface CreateProjectsApiDependencies {
 		workspaceId: string,
 		options?: DisposeWorkspaceOptions,
 	) => { terminalManager: TerminalSessionManager | null; workspacePath: string | null };
-	collectProjectWorktreeTaskIdsForRemoval: (board: RuntimeBoardData) => Set<string>;
+	collectProjectTaskIdsForRemoval: (board: RuntimeBoardData) => Set<string>;
 	warn: (message: string) => void;
 	buildProjectsPayload: (preferredCurrentProjectId: string | null) => Promise<{
 		currentProjectId: string | null;

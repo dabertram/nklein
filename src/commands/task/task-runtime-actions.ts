@@ -18,23 +18,19 @@ export async function stopTaskRuntimeSession(
 		.catch(() => null);
 }
 
-export async function deleteTaskWorkspace(
+export async function deleteTaskArtifacts(
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
 	taskId: string,
-	options: { preserveChanges?: boolean } = {},
-): Promise<{ removed: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const deleted = await runtimeClient.workspace.deleteWorktree.mutate({
-			taskId,
-			...(Object.hasOwn(options, "preserveChanges") ? { preserveChanges: options.preserveChanges } : {}),
-		});
+		const deleted = await runtimeClient.workspace.deleteTaskArtifacts.mutate({ taskId });
 		return {
-			removed: deleted.removed,
+			ok: deleted.ok,
 			error: deleted.ok ? undefined : deleted.error,
 		};
 	} catch (error) {
 		return {
-			removed: false,
+			ok: false,
 			error: toErrorMessage(error),
 		};
 	}

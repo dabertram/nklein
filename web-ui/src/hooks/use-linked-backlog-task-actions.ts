@@ -28,7 +28,7 @@ export function useLinkedBacklogTaskActions({
 	setBoard,
 	setSelectedTaskId,
 	stopTaskSession,
-	cleanupTaskWorkspace,
+	cleanupTaskArtifacts,
 	maybeRequestNotificationPermissionForTaskStart,
 	kickoffTaskInProgress,
 	activeTaskSessionCount,
@@ -40,7 +40,7 @@ export function useLinkedBacklogTaskActions({
 	setBoard: Dispatch<SetStateAction<BoardData>>;
 	setSelectedTaskId: Dispatch<SetStateAction<string | null>>;
 	stopTaskSession: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace: (taskId: string) => Promise<unknown>;
+	cleanupTaskArtifacts: (taskId: string) => Promise<unknown>;
 	maybeRequestNotificationPermissionForTaskStart: () => void;
 	kickoffTaskInProgress: (
 		task: BoardCard,
@@ -120,7 +120,7 @@ export function useLinkedBacklogTaskActions({
 					: trashTaskAndGetReadyLinkedTaskIds(boardBeforeFinish, task.id);
 			if (!finished.moved) {
 				await stopTaskSession(task.id);
-				await cleanupTaskWorkspace(task.id);
+				await cleanupTaskArtifacts(task.id);
 				return;
 			}
 
@@ -211,11 +211,11 @@ export function useLinkedBacklogTaskActions({
 			}
 
 			await Promise.all([stopTaskSession(task.id), stopTaskSession(getDetailTerminalTaskId(task.id))]);
-			await cleanupTaskWorkspace(task.id);
+			await cleanupTaskArtifacts(task.id);
 		},
 		[
 			activeTaskSessionCount,
-			cleanupTaskWorkspace,
+			cleanupTaskArtifacts,
 			kickoffTaskInProgress,
 			maxConcurrentTasks,
 			maybeRequestNotificationPermissionForTaskStart,

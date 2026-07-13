@@ -309,7 +309,7 @@ export default function App(): ReactElement {
 		grantProtectedTestApproval,
 		cancelTaskChatTurn,
 		fetchTaskChatMessages,
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 	} = useTaskSessions({
 		currentProjectId,
 		setSessions,
@@ -736,7 +736,7 @@ export default function App(): ReactElement {
 		setIsClearTrashDialogOpen,
 		setIsGitHistoryOpen,
 		stopTaskSession,
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 		startTaskSession,
 		sendTaskSessionInput,
 		activeTaskSessionCount,

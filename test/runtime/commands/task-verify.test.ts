@@ -209,7 +209,6 @@ describe("task verify command helper", () => {
 			{
 				cwd: "/repo",
 				taskId: "task-1",
-				ensureWorktree: true,
 				timeoutMs: 1_000,
 			},
 			{
@@ -225,7 +224,6 @@ describe("task verify command helper", () => {
 		expect(createRuntimeTrpcClient).toHaveBeenCalledWith("workspace-1");
 		expect(verifyTaskAcceptance).toHaveBeenCalledWith({
 			taskId: "task-1",
-			ensureWorktree: true,
 			timeoutMs: 1_000,
 		});
 		expect(result).toMatchObject({

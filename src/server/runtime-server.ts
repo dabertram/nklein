@@ -205,7 +205,7 @@ export interface CreateRuntimeServerDependencies {
 			stopTerminalSessions?: boolean;
 		},
 	) => DisposeTrackedWorkspaceResult;
-	collectProjectWorktreeTaskIdsForRemoval: (board: RuntimeWorkspaceStateResponse["board"]) => Set<string>;
+	collectProjectTaskIdsForRemoval: (board: RuntimeWorkspaceStateResponse["board"]) => Set<string>;
 	pickDirectoryPathFromSystemDialog: () => string | null;
 	getUpdateStatus: () => RuntimeUpdateStatusResponse;
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
@@ -3056,7 +3056,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					disposeNKleinTaskSessionService(workspaceId);
 					return deps.disposeWorkspace(workspaceId, options);
 				},
-				collectProjectWorktreeTaskIdsForRemoval: deps.collectProjectWorktreeTaskIdsForRemoval,
+				collectProjectTaskIdsForRemoval: deps.collectProjectTaskIdsForRemoval,
 				warn: deps.warn,
 				buildProjectsPayload: deps.workspaceRegistry.buildProjectsPayload,
 				pickDirectoryPathFromSystemDialog: deps.pickDirectoryPathFromSystemDialog,

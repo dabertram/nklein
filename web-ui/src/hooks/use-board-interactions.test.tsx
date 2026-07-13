@@ -173,7 +173,7 @@ function HookHarness({
 	setBoard,
 	startTaskSession,
 	stopTaskSession = NOOP_STOP_SESSION,
-	cleanupTaskWorkspace = NOOP_CLEANUP_WORKSPACE,
+	cleanupTaskArtifacts = NOOP_CLEANUP_WORKSPACE,
 	selectedCard = null,
 	initialSessions = {},
 	setSelectedTaskIdOverride,
@@ -185,7 +185,7 @@ function HookHarness({
 	setBoard: Dispatch<SetStateAction<BoardData>>;
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
 	stopTaskSession?: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace?: UseTaskSessionsResult["cleanupTaskWorkspace"];
+	cleanupTaskArtifacts?: UseTaskSessionsResult["cleanupTaskArtifacts"];
 	selectedCard?: {
 		card: BoardCard;
 		column: { id: "backlog" | "planning" | "in_progress" | "review" | "trash" };
@@ -213,7 +213,7 @@ function HookHarness({
 		setIsClearTrashDialogOpen,
 		setIsGitHistoryOpen,
 		stopTaskSession,
-		cleanupTaskWorkspace,
+		cleanupTaskArtifacts,
 		startTaskSession,
 		sendTaskSessionInput: NOOP_SEND_TASK_INPUT,
 		activeTaskSessionCount,
@@ -969,7 +969,7 @@ describe("useBoardInteractions", () => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
 		const stopTaskSession = vi.fn(async (_taskId: string) => {});
-		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
+		const cleanupTaskArtifacts = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
 		useProgrammaticCardMovesMock.mockReturnValue({
 			handleProgrammaticCardMoveReady: () => {},
 			setRequestMoveTaskToTrashHandler: () => {},
@@ -995,7 +995,7 @@ describe("useBoardInteractions", () => {
 					setBoard={setBoard}
 					startTaskSession={vi.fn()}
 					stopTaskSession={stopTaskSession}
-					cleanupTaskWorkspace={cleanupTaskWorkspace}
+					cleanupTaskArtifacts={cleanupTaskArtifacts}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
 					}}
@@ -1014,7 +1014,7 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(stopTaskSession).toHaveBeenCalledWith("trash-task");
-		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("trash-task", { preserveChanges: false });
+		expect(cleanupTaskArtifacts).toHaveBeenCalledWith("trash-task");
 		expect(currentBoard.columns.find((column) => column.id === "trash")?.cards).toEqual([]);
 	});
 
@@ -1713,7 +1713,7 @@ describe("useBoardInteractions", () => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
 		const stopTaskSession = vi.fn(async (_taskId: string) => {});
-		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
+		const cleanupTaskArtifacts = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 		vi.spyOn(window, "confirm").mockReturnValue(true);
 
@@ -1742,7 +1742,7 @@ describe("useBoardInteractions", () => {
 					setBoard={setBoard}
 					startTaskSession={startTaskSession}
 					stopTaskSession={stopTaskSession}
-					cleanupTaskWorkspace={cleanupTaskWorkspace}
+					cleanupTaskArtifacts={cleanupTaskArtifacts}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
 					}}
@@ -1765,7 +1765,7 @@ describe("useBoardInteractions", () => {
 			'Replay "Finished task" from scratch? This stops any existing session and deletes the previous task workspace.',
 		);
 		expect(stopTaskSession).toHaveBeenCalledWith("task-review");
-		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-review", { preserveChanges: false });
+		expect(cleanupTaskArtifacts).toHaveBeenCalledWith("task-review");
 		expect(startTaskSession).toHaveBeenCalledWith(reviewTask, { queueOnEndpointBusy: true });
 		const replayedTask = currentBoard.columns.find((column) => column.id === "in_progress")?.cards[0];
 		expect(replayedTask?.id).toBe("task-review");

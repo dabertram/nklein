@@ -46,7 +46,7 @@ export async function verifyTaskAcceptance(
 	taskId: string,
 ): Promise<RuntimeTaskAcceptanceVerifyResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.verifyTaskAcceptance.mutate({ taskId, ensureWorktree: true });
+	return await trpcClient.runtime.verifyTaskAcceptance.mutate({ taskId });
 }
 
 export async function mergeTaskWorktrees(

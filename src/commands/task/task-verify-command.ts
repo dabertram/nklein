@@ -38,7 +38,6 @@ export async function runVerifyTaskAcceptanceCommand(
 		taskId: string;
 		projectPath?: string;
 		workspaceRoot?: boolean;
-		ensureWorktree?: boolean;
 		timeoutMs?: number;
 		repairAttempt?: number;
 		maxRepairAttempts?: number;
@@ -68,7 +67,6 @@ export async function runVerifyTaskAcceptanceCommand(
 	const runtimeClient = (deps.createRuntimeTrpcClient ?? createRuntimeTrpcClient)(workspaceId);
 	const response = await runtimeClient.runtime.verifyTaskAcceptance.mutate({
 		taskId: input.taskId,
-		...(input.ensureWorktree === true ? { ensureWorktree: true } : {}),
 		...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
 	});
 	const taskWorkspacePath: string | null = response.taskWorkspacePath;

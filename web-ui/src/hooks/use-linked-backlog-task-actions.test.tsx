@@ -82,7 +82,7 @@ function HookHarness({
 	startWaitingTaskWithAnimation,
 	waitForBacklogStartAnimationAvailability,
 	stopTaskSession,
-	cleanupTaskWorkspace,
+	cleanupTaskArtifacts,
 	activeTaskSessionCount = 1,
 	maxConcurrentTasks = 3,
 }: {
@@ -97,7 +97,7 @@ function HookHarness({
 	startWaitingTaskWithAnimation?: (task: BoardCard, fromColumnId: BoardColumnId) => Promise<boolean>;
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
 	stopTaskSession?: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace?: (taskId: string) => Promise<unknown>;
+	cleanupTaskArtifacts?: (taskId: string) => Promise<unknown>;
 	activeTaskSessionCount?: number;
 	maxConcurrentTasks?: number;
 }): null {
@@ -107,7 +107,7 @@ function HookHarness({
 		setBoard,
 		setSelectedTaskId: () => {},
 		stopTaskSession: stopTaskSession ?? (async () => {}),
-		cleanupTaskWorkspace: cleanupTaskWorkspace ?? (async () => null),
+		cleanupTaskArtifacts: cleanupTaskArtifacts ?? (async () => null),
 		maybeRequestNotificationPermissionForTaskStart: () => {},
 		kickoffTaskInProgress: kickoffTaskInProgress ?? (async () => true),
 		activeTaskSessionCount,
@@ -525,12 +525,12 @@ describe("useLinkedBacklogTaskActions", () => {
 
 	it("trashes tasks directly through the request handler", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
-		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => null);
+		const cleanupTaskArtifacts = vi.fn(async (_taskId: string) => null);
 
 		await act(async () => {
 			root.render(
 				<HookHarness
-					cleanupTaskWorkspace={cleanupTaskWorkspace}
+					cleanupTaskArtifacts={cleanupTaskArtifacts}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
 					}}
@@ -553,7 +553,7 @@ describe("useLinkedBacklogTaskActions", () => {
 		const nextSnapshot = latestSnapshot as HookSnapshot;
 		expect(nextSnapshot.board.columns.find((column) => column.id === "review")?.cards).toHaveLength(0);
 		expect(nextSnapshot.board.columns.find((column) => column.id === "trash")?.cards[0]?.id).toBe("task-2");
-		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-2");
+		expect(cleanupTaskArtifacts).toHaveBeenCalledWith("task-2");
 	});
 
 	it("can queue the next dependency-unblocked animation before the previous start resolves", async () => {
