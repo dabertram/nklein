@@ -1091,6 +1091,24 @@
   `SKILL_AFFINITY` record (reasoning + code); `SELECTABLE_CHAT_SKILL_IDS` picks it up automatically (registry-
   derived). Registry / affinity / fragment-parity / selectable-skills tests updated. Backend + web-ui tsc 0;
   fast 9576.
+- [x] **F2.19b + F2.20b — the klein_self corpus PRODUCER wired at the self-scope answer seam** *(delivered
+  2026-07-14; completes F2.19 and F2.20).* The F2.19/F2.20 cores (`routeKleinSelfCorpus`,
+  `buildRankedCorpusProvenance`) were shipped-but-unwired — called only from tests. New `src/chat/klein-self-
+  corpus-note.ts` joins them: `buildKleinSelfCorpusNote(question, {now, repoRoot, readDocFreshness})` routes the
+  question to the authoritative planning docs, stamps each with REAL freshness, and `renderKleinSelfCorpusNote`
+  emits the leading system note the turn injects — CITATIONS + a "read the current source with your tools" directive
+  (not the raw doc bodies, which would blow the context floor; the scope already has read tools). The effectful
+  `readKleinCorpusFreshnessFromGit` reads each doc's last commit (`git log -1 --format='%h %cI'` — sha + committer
+  date; a space split, never a NUL separator) with an fs-mtime fallback, then unknown→cautiously-stale. Wired
+  through `runChatAgentTurn` (new `kleinSelfCorpusNote` input → first leading system note, before targetNote/focus)
+  and `chat-service` (computes it for a klein_self session via the injected `buildKleinSelfCorpusNote` option), with
+  the effectful impl assembled at `createChatService` in `runtime-api.ts` (resolveKleinSourceRepoPath + the git
+  reader). **F2.19b write-block: a resolver-level test surfaced that klein_self — sharing `isolated_readonly` mode
+  with chat_only — WOULD offer sandbox write tools when `sandboxWritablePaths` was set; fixed** by gating writable
+  mounts to `scope !== "klein_self"` (approved sandbox writes stay a chat_only affordance), and pinned by the new
+  test asserting klein_self offers no write_file/create_card/run_command/send_to_card. 7 note-builder tests
+  (routing→citation, stale/fresh/unknown marking, availableDocs filter, null repo) + the resolver no-write test;
+  end-to-end verified against this repo (real shas + a 16-day-stale AGENTS.md flagged). tsc 0; lint 0; fast green.
 - [x] **F2.22a — fitness browser confidence column (data complete)** *(delivered 2026-07-14; the UI render +
   richer filters are F2.22b in todo).* The read-only tRPC projection + a role-filter/sort UI already existed and
   showed role verdicts / evidence age / failure reasons / last evaluation — the one F2.22 column absent from the

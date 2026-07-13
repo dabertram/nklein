@@ -13,6 +13,7 @@ import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { createChatService } from "../chat/chat-service";
+import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
@@ -95,6 +96,7 @@ import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavio
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
+import { resolveKleinSourceRepoPath } from "./projects-api-helpers";
 import { handleAnswerPlanQuestion, handleListPlanQuestions } from "./runtime-api/answer-plan-question.js";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
@@ -387,6 +389,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				} catch {
 					// Observational only — never let ledger writing affect the chat turn.
 				}
+			},
+			// F2.19b/F2.20b: build the klein_self corpus grounding note — route the question to the authoritative planning
+			// docs (routeKleinSelfCorpus) and stamp each with real git freshness (readKleinCorpusFreshnessFromGit) → the
+			// current-source citations the turn leads with. klein_self roots in the !Klein source repo; a packaged install
+			// without it resolves to null ⇒ no note (the answer path is unchanged).
+			buildKleinSelfCorpusNote: async (_session, question) => {
+				const repoRoot = await resolveKleinSourceRepoPath().catch(() => null);
+				if (!repoRoot) {
+					return null;
+				}
+				return buildKleinSelfCorpusNote(question, {
+					now: Date.now(),
+					repoRoot,
+					readDocFreshness: readKleinCorpusFreshnessFromGit(repoRoot),
+				});
 			},
 		});
 	// Autonomous chat runs (todo §5.0.1): background driver + per-session status, bounded by the global swarm guardrails.

@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Ask-about-!Klein chats now ground their answers in the project's current source, with freshness shown.** When a
+  chat is in the read-only "!Klein self" scope, each question is routed to the most authoritative planning docs
+  (done.md for "what exists", todo.md for "what's planned / known issues", and so on), and the agent is told to read
+  the current source of those files — with a one-line citation per doc showing how recently it changed and a "may be
+  stale" marker when a doc hasn't been touched in a while. Answers cite the live files instead of leaning on
+  remembered prose. The "!Klein self" scope is also now strictly read-only: it can never be granted write tools, even
+  if writable paths were configured.
+
 - **The model-fitness browser now shows how sure each score is, and lets you filter to what matters.** Every
   model × role × difficulty cell gets a confidence column — a sample-size-aware band (high/medium/low/none) with its
   lower-bound score, so a model that went 1-for-1 no longer looks as trustworthy as one that went 45-for-50. You can

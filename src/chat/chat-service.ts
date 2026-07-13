@@ -106,6 +106,10 @@ export interface ChatServiceOptions {
 	/** §5.M ≥32k-floor budget integration: the active model's effective context window (tokens), used to size the chat
 	 *  lean window against the ≥32k floor. Omit/null ⇒ the ≥32k-floor default (8k lean window, byte-identical to before). */
 	resolveContextWindowTokens?: () => number | null;
+	/** F2.19b/F2.20b: build the `klein_self` corpus grounding note (routed docs + real freshness citations) for a
+	 *  question. Injected by the runtime (holds the source-repo path + git); omitted ⇒ no corpus note (today's
+	 *  behavior). Only invoked for a `klein_self`-scoped session. */
+	buildKleinSelfCorpusNote?: (session: ChatSession, question: string) => Promise<string | null>;
 }
 
 export interface ChatSendResult {
@@ -555,6 +559,12 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							}
 						}
 						const turnStartedAt = Date.now();
+						// F2.19b/F2.20b: a klein_self session leads its turn with a corpus grounding note (routed docs +
+						// real freshness citations) so the answer reads CURRENT source instead of remembered prose.
+						const kleinSelfCorpusNote =
+							session.scope === "klein_self" && options.buildKleinSelfCorpusNote
+								? await options.buildKleinSelfCorpusNote(session, input.message).catch(() => null)
+								: null;
 						const agentResult = await runChatAgentTurn(
 							{
 								session,
@@ -566,6 +576,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 									: {}),
 								...(onToken ? { onToken } : {}),
 								...(targetNote ? { targetNote } : {}),
+								...(kleinSelfCorpusNote ? { kleinSelfCorpusNote } : {}),
 							},
 							{
 								...storeDeps,

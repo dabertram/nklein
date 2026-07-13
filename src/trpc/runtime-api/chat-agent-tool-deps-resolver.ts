@@ -115,8 +115,11 @@ export function buildChatAgentToolDepsResolver(input: {
 			mode === "isolated_readonly"
 				? ((await input.getSandboxWorkspaceReadTools?.(session, workspacePath)) ?? { tools: [], definitions: [] })
 				: createWorkspaceReadTools(workspacePath);
+		// klein_self is the read-only SELF-awareness scope (§6.11-A / F2.19b): it grounds in the !Klein SOURCE repo and
+		// must NEVER offer a write tool, even if the session carries approved writable paths — writing to !Klein's own
+		// source from a discussion scope is never intended. Approved sandbox writes remain a chat_only affordance only.
 		const sandboxWritableMounts =
-			mode === "isolated_readonly"
+			mode === "isolated_readonly" && session.scope !== "klein_self"
 				? resolveSandboxWritablePathMounts(workspacePath, session.sandboxWritablePaths)
 				: [];
 		const writes =

@@ -29,6 +29,12 @@ vi.mock("../../../src/telemetry/model-behavior-profile-store", () => ({
 	persistModelBehaviorOutcome: vi.fn(async () => undefined),
 }));
 
+// klein_self resolves its workspace from the !Klein source repo (not getActiveWorkspacePath); point it at a tmp repo.
+const mockKleinRepo = vi.hoisted(() => ({ path: null as string | null }));
+vi.mock("../../../src/trpc/projects-api-helpers", () => ({
+	resolveKleinSourceRepoPath: vi.fn(async () => mockKleinRepo.path),
+}));
+
 function makeSession(scope: ChatSession["scope"], sandboxWritablePaths: readonly string[] = []): ChatSession {
 	return {
 		schemaVersion: 1,
@@ -99,6 +105,7 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 
 	afterEach(() => {
 		vi.clearAllMocks();
+		mockKleinRepo.path = null;
 		if (tmpDir) {
 			rmSync(tmpDir, { recursive: true, force: true });
 			tmpDir = null;
@@ -203,6 +210,35 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 
 		expect(provider).not.toHaveBeenCalled();
 		expect(result?.content).toBe("Unknown tool: write_file");
+	});
+
+	it("offers NO write/mutation/command tool for the read-only klein_self scope (F2.19b)", async () => {
+		// klein_self is chatScopeCanAct === false: the resolver roots it in the !Klein source repo but must never
+		// offer write_file / create_card / run_command / send_to_card — only the read + board + focus tools.
+		mockKleinRepo.path = workspaceWithReadme();
+		const readTools = toolSet([{ name: "read_file", actionKind: "sandbox_read" }]);
+		const writeTools = toolSet([{ name: "write_file", actionKind: "sandbox_write" }]);
+		const resolver = makeResolver({
+			workspacePath: "/unused-active-path",
+			getSandboxWorkspaceReadTools: vi.fn(async () => readTools),
+			getSandboxWorkspaceWriteTools: vi.fn(async () => writeTools),
+		});
+		// A writable-paths grant must not leak a write tool in an inherently read-only scope.
+		const deps = await resolver(makeSession("klein_self", ["src"]));
+
+		expect(deps).not.toBeNull();
+		const offered = deps?.offeredToolNames ?? [];
+		expect(offered).toContain("read_file");
+		for (const writeTool of ["write_file", "create_card", "run_command", "send_to_card"]) {
+			expect(offered).not.toContain(writeTool);
+		}
+		expect((await deps?.executeTool(call("write_file", { path: "src/app.ts", content: "x" })))?.content).toBe(
+			"Unknown tool: write_file",
+		);
+		expect((await deps?.executeTool(call("create_card", { title: "x" })))?.content).toBe("Unknown tool: create_card");
+		expect((await deps?.executeTool(call("run_command", { command: "ls" })))?.content).toBe(
+			"Unknown tool: run_command",
+		);
 	});
 
 	it("keeps the existing host-backed workspace reads for host-capable project scopes", async () => {

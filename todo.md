@@ -983,23 +983,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `resumesSuspendedState` (the redrive resumes from the parked result branch, not a cold restart). REMAINING:
   render an action button per suggestion in the panel (label from the descriptor), collect the required input
   for the input-first kinds, and dispatch the redrive (`redrive_task` ops action already resumes from the result
-  branch) — then Playwright.- [ ] **F2.19b — Feed live file freshness into the corpus provenance + verify the write-block (provenance core
-  SHIPPED 2026-07-13).** klein_self already indexes done/todo/agents/changelog/docs (`routeKleinSelfCorpus`)
-  and blocks writes (scope → `isolated_readonly` execution mode + `chatScopeCanAct` false). The missing F2.19
-  piece — "expose freshness/provenance" — now has its core: `src/core/klein-self-corpus-provenance.ts`
-  (`buildKleinCorpusProvenance`) cites each doc's exact source path + age, flags staleness past a threshold
-  (unknown time fails cautious to stale), and carries the commit sha, producing a one-line citation an answer
-  surfaces so it grounds in CURRENT source. REMAINING: feed real last-modified/commit data (a stat or
-  `git log -1` per doc) at the self-scope answer seam and attach the citations to the routed corpus; add a test
-  asserting `klein_self` genuinely offers no write tool (the mode gate already denies, but pin it explicitly).- [ ] **F2.20b — Wire the self-awareness skill's corpus producer (skill bundle SHIPPED 2026-07-13).** The
-  self-awareness capability is now a first-class SKILL: `self_awareness` in `SKILL_REGISTRY` (default role
-  `system_operator`, fragments `klein_self_corpus` + `repo_map` + `freshness_rail`, read-only tools, temporal-
-  sensitive, a preamble that mandates citing current source over remembered prose), with its `SKILL_AFFINITY`
-  (reasoning + code) and a `klein_self_corpus` context fragment registered in the mapping table (parity-locked).
-  It composes the F2.19 routing + provenance cores. REMAINING: build the `klein_self_corpus` fragment PRODUCER
-  (marked `needs_producer`) — assemble the routed + provenance-stamped corpus text at the self-scope answer seam
-  so the skill actually injects current-source citations; reuse the online/local retrieval tools already in the
-  bundle.- [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity** *(NEEDS A DESIGN CALL — flagged
+  branch) — then Playwright.
+- [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity** *(NEEDS A DESIGN CALL — flagged
   2026-07-14 during the autonomous sweep; the mechanical-continuation vein runs thin here).* The stable-identity
   PRIMITIVE already exists and is LIVE for ROUTING: `src/core/stable-model-identity.ts` (`resolveStableModelKey`,
   the learned `RuntimeIdToModelKeyMap`, `rekeyTableToStableModelKeys`) + the shared runtime-id→modelKey map

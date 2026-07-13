@@ -105,6 +105,8 @@ export async function runChatAgentTurn(
 		onToken?: (delta: string) => void;
 		/** §5.AU: the resolved message-target note (card/stream/answer/clarify) leading the turn; null/absent = goal. */
 		targetNote?: string | null;
+		/** F2.19b/F2.20b: the klein_self corpus grounding note (routed docs + freshness citations); null/absent = none. */
+		kleinSelfCorpusNote?: string | null;
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -142,6 +144,9 @@ export async function runChatAgentTurn(
 	// §5.AU: the resolved message-target note (when the message addresses a card/stream/answer) leads the turn,
 	// before the focus chain — the addressing decision frames everything else. Goal-targeted turns add nothing.
 	const messages: ChatPromptMessage[] = [
+		// F2.20b: the klein_self corpus grounding leads the turn — it frames HOW to answer (read current source +
+		// cite freshness) before the target/focus notes, so a self-awareness answer never drifts to remembered prose.
+		...(input.kleinSelfCorpusNote ? [{ role: "system" as const, content: input.kleinSelfCorpusNote }] : []),
 		...(input.targetNote ? [{ role: "system" as const, content: input.targetNote }] : []),
 		...(focusChain
 			? [
