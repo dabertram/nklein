@@ -67,6 +67,40 @@ export function fitnessSuccessRate(row: Pick<FitnessRow, "sampleCount" | "succes
 }
 
 /**
+ * F2.22 — the CONFIDENCE the fitness browser shows: the Wilson score lower bound of the success rate at 95%
+ * (z = 1.96). Unlike the raw rate, it accounts for SAMPLE SIZE — a 1/1 cell scores far below a 45/50 cell, so
+ * "how sure are we this model is good at this?" is a single sortable number. 0 when unsampled. Pure + total.
+ */
+export function fitnessConfidenceLowerBound(row: Pick<FitnessRow, "sampleCount" | "successCount">): number {
+	const n = row.sampleCount;
+	if (n <= 0) {
+		return 0;
+	}
+	const z = 1.96;
+	const phat = Math.min(1, Math.max(0, row.successCount / n));
+	const z2 = z * z;
+	const denom = 1 + z2 / n;
+	const center = phat + z2 / (2 * n);
+	const margin = z * Math.sqrt((phat * (1 - phat) + z2 / (4 * n)) / n);
+	return Math.min(1, Math.max(0, (center - margin) / denom));
+}
+
+/**
+ * F2.22 — a coarse confidence BAND for display, from how much evidence backs the cell: `none` (unsampled),
+ * `low` (< 3 samples — one flaky run), `medium` (3–9), `high` (≥ 10). The numeric lower bound sorts; the band
+ * labels.
+ */
+export function fitnessConfidenceBand(sampleCount: number): "none" | "low" | "medium" | "high" {
+	if (sampleCount <= 0) {
+		return "none";
+	}
+	if (sampleCount < 3) {
+		return "low";
+	}
+	return sampleCount < 10 ? "medium" : "high";
+}
+
+/**
  * F1.1 — share of KNOWN attempts that consulted knowledge tools, or null when no attempt reported either way.
  * Read-side tiebreak input: all else equal, a model that grounds its work in retrieval is preferred.
  */

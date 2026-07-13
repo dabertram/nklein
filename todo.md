@@ -1017,9 +1017,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   served from m5max vs legion5pro in display/behavior views)? (2) the non-routing STORES (fitness table, behavior
   profiles, self-observations) — apply `rekeyTableToStableModelKeys` at their read seams, which is EFFECTFUL
   historical migration (cf. the difficulty-stamp no-double-count cutover) and needs a migration/retention call.
-  Recommend confirming the identity shape + migration approach before implementing.- [ ] **F2.22 — Build the fitness/failing-model browser.** Add a read-only tRPC projection and filterable UI showing
-  role verdicts, evidence age, confidence, failure reasons, and last evaluation.
-- [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
+  Recommend confirming the identity shape + migration approach before implementing.- [ ] **F2.22b — Render the confidence column + richer filters in the fitness browser (data COMPLETE 2026-07-14).**
+  The read-only tRPC projection (`runtime-api` → `buildFitnessTableView`) and a filterable UI
+  (`model-performance-stats-dialog.tsx`: role filter + sort) already exist, showing role verdicts (successRate +
+  belowBar), evidence age + last evaluation (`updatedAt`), and failure reasons (`failureModes`). The one missing
+  F2.22 column — CONFIDENCE — is now in the data: `fitnessConfidenceLowerBound` (Wilson 95% lower bound —
+  sample-size-aware, so 1/1 ranks far below 45/50) + `fitnessConfidenceBand` (none/low/medium/high), both on the
+  view row and the wire contract (`.default()` so readers stay back-compatible). REMAINING (UI-only): render the
+  confidence column/band in the dialog, add filters for belowBar-only + confidence band + staleness, and a
+  Playwright pass.- [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
 
 ### Phase 3 — feature completion: adaptive local-model execution and routing

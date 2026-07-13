@@ -8,7 +8,13 @@
 
 import type { BelowBarCriteria } from "./fitness-projections";
 import { projectFailingCells } from "./fitness-projections";
-import { type FitnessRow, fitnessCellKey, fitnessSuccessRate } from "./fitness-table-schema";
+import {
+	type FitnessRow,
+	fitnessCellKey,
+	fitnessConfidenceBand,
+	fitnessConfidenceLowerBound,
+	fitnessSuccessRate,
+} from "./fitness-table-schema";
 
 /**
  * The default bar for the browser's `belowBar` flag: a cell needs ≥ 3 attempts before it can be judged (one flaky run
@@ -28,6 +34,10 @@ export interface FitnessTableViewRow {
 	successCount: number;
 	/** Derived success rate in [0,1] (0 when unsampled). */
 	successRate: number;
+	/** F2.22: sample-size-aware confidence — the Wilson 95% lower bound of the success rate (sorts "how sure"). */
+	confidenceLowerBound: number;
+	/** F2.22: coarse confidence band from sample count (none/low/medium/high) — the display label. */
+	confidenceBand: "none" | "low" | "medium" | "high";
 	retryBudget: number;
 	failureModes: { kind: string; count: number }[];
 	meanWallTimeMs: number | null;
@@ -55,6 +65,8 @@ export function buildFitnessTableView(
 				sampleCount: row.sampleCount,
 				successCount: row.successCount,
 				successRate: fitnessSuccessRate(row),
+				confidenceLowerBound: fitnessConfidenceLowerBound(row),
+				confidenceBand: fitnessConfidenceBand(row.sampleCount),
 				retryBudget: row.retryBudget,
 				failureModes: row.failureModes.map((mode) => ({ kind: mode.kind, count: mode.count })),
 				meanWallTimeMs: row.meanWallTimeMs,

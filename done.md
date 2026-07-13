@@ -1079,6 +1079,14 @@
   `SKILL_AFFINITY` record (reasoning + code); `SELECTABLE_CHAT_SKILL_IDS` picks it up automatically (registry-
   derived). Registry / affinity / fragment-parity / selectable-skills tests updated. Backend + web-ui tsc 0;
   fast 9576.
+- [x] **F2.22a — fitness browser confidence column (data complete)** *(delivered 2026-07-14; the UI render +
+  richer filters are F2.22b in todo).* The read-only tRPC projection + a role-filter/sort UI already existed and
+  showed role verdicts / evidence age / failure reasons / last evaluation — the one F2.22 column absent from the
+  data was CONFIDENCE. Added `fitnessConfidenceLowerBound` (Wilson score 95% lower bound — sample-size-aware, so
+  a 1/1 cell ranks far below a 45/50 cell: "how sure are we?" as one sortable number) + `fitnessConfidenceBand`
+  (none/low/medium/high by sample volume), threaded onto `FitnessTableViewRow` and the wire contract
+  (`.default()`-guarded so existing readers/fixtures stay compatible; web-ui tsc 0). 8 tests (bounds, sample-size
+  monotonicity, banding). tsc 0, fast 9579.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

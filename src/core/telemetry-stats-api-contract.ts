@@ -107,6 +107,8 @@ export const runtimeFitnessRowSchema = z.object({
 	sampleCount: z.number().int().nonnegative(),
 	successCount: z.number().int().nonnegative(),
 	successRate: z.number().min(0).max(1),
+	confidenceLowerBound: z.number().min(0).max(1).default(0),
+	confidenceBand: z.enum(["none", "low", "medium", "high"]).default("none"),
 	retryBudget: z.number().int().nonnegative(),
 	failureModes: z.array(z.object({ kind: z.string(), count: z.number().int().nonnegative() })),
 	meanWallTimeMs: z.number().nonnegative().nullable(),

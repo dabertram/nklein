@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	emptyFitnessRow,
 	fitnessCellKey,
+	fitnessConfidenceBand,
+	fitnessConfidenceLowerBound,
 	fitnessKnowledgeUseRate,
 	fitnessRowSchema,
 	fitnessSuccessRate,
@@ -62,6 +64,34 @@ describe("fitnessSuccessRate", () => {
 
 	it("is 0 for an unsampled cell (no evidence)", () => {
 		expect(fitnessSuccessRate({ sampleCount: 0, successCount: 0 })).toBe(0);
+	});
+});
+
+describe("fitnessConfidenceLowerBound (F2.22)", () => {
+	it("is 0 when unsampled and rises with more corroborating evidence at the same rate", () => {
+		expect(fitnessConfidenceLowerBound({ sampleCount: 0, successCount: 0 })).toBe(0);
+		const oneForOne = fitnessConfidenceLowerBound({ sampleCount: 1, successCount: 1 });
+		const fortyFive = fitnessConfidenceLowerBound({ sampleCount: 50, successCount: 45 });
+		// Both are 90-100% raw, but 45/50 is far more TRUSTED than 1/1 — the whole point of the measure.
+		expect(fortyFive).toBeGreaterThan(oneForOne);
+		expect(oneForOne).toBeLessThan(0.4); // a single success proves little
+		expect(fortyFive).toBeGreaterThan(0.75);
+	});
+	it("stays within [0,1]", () => {
+		expect(fitnessConfidenceLowerBound({ sampleCount: 4, successCount: 0 })).toBe(0);
+		const perfect = fitnessConfidenceLowerBound({ sampleCount: 100, successCount: 100 });
+		expect(perfect).toBeGreaterThan(0.9);
+		expect(perfect).toBeLessThanOrEqual(1);
+	});
+});
+
+describe("fitnessConfidenceBand (F2.22)", () => {
+	it("bands by evidence volume", () => {
+		expect(fitnessConfidenceBand(0)).toBe("none");
+		expect(fitnessConfidenceBand(2)).toBe("low");
+		expect(fitnessConfidenceBand(3)).toBe("medium");
+		expect(fitnessConfidenceBand(9)).toBe("medium");
+		expect(fitnessConfidenceBand(10)).toBe("high");
 	});
 });
 
