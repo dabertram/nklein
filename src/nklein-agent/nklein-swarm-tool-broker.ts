@@ -24,7 +24,7 @@ export function wrapSwarmAgentTools(
 	return tools.map((tool) => ({
 		...tool,
 		async execute(input: unknown, context: AgentToolContext): Promise<unknown> {
-			const denial = decideSwarmToolDenial(tool.name, state);
+			const denial = decideSwarmToolDenial(tool.name, state, options);
 			if (denial) {
 				return deniedToolResult(tool.name, denial);
 			}
@@ -119,8 +119,12 @@ export function wrapSwarmToolExecutors(
 	return wrapped;
 }
 
-function decideSwarmToolDenial(toolName: string, state: SwarmToolBrokerState): string | null {
-	const manifest = swarmToolManifest(toolName);
+function decideSwarmToolDenial(
+	toolName: string,
+	state: SwarmToolBrokerState,
+	options: SwarmToolOutputTaintOptions = {},
+): string | null {
+	const manifest = swarmToolManifest(toolName, options);
 	if (!manifest) {
 		return null;
 	}

@@ -73,7 +73,32 @@ export interface SwarmToolOutputTaintOptions {
  * gates by enablement). Base kanban file tools resolve via {@link manifestForKanbanTool}; the egress extras map to the
  * `egress_read` manifest.
  */
-export function swarmToolManifest(toolName: string): ToolCapabilityManifest | null {
+/**
+ * F1.21: the conservative manifest for an MCP-bundle tool — an MCP server's output is attacker-authorable
+ * (untrusted_content SOURCE, like a web fetch) and its transport reaches out (egress-read tier), but it is NOT a
+ * protected sink (marking it one would self-block multi-MCP turns exactly like the §5.L multi-browse case); the
+ * protected sinks it might steer (writes/host/delivery) are guarded by the taint rule downstream.
+ */
+const MCP_TOOL_MANIFEST: ToolCapabilityManifest = {
+	mutationLevel: "read",
+	networkLevel: "egress_read",
+	fsScope: "workspace",
+	approval: "confirm",
+	replayable: false,
+	taintSource: "untrusted_content",
+	cost: "expensive",
+};
+
+export function swarmToolManifest(
+	toolName: string,
+	options: SwarmToolOutputTaintOptions = {},
+): ToolCapabilityManifest | null {
+	// F1.21: MCP tools were the gate's fail-open hole (unknown name → null → ungated). They now resolve to the
+	// conservative MCP manifest, so the broker sees every MCP call.
+	if (mcpToolNamesInclude(options.mcpToolNames, toolName)) {
+		return MCP_TOOL_MANIFEST;
+	}
+
 	const kanban = manifestForKanbanTool(toolName);
 	if (kanban) {
 		return kanban;

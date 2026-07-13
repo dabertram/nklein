@@ -31,6 +31,7 @@ import type {
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
@@ -79,6 +80,7 @@ import {
 	isSpeculativeMirrorTaskId,
 	primaryTaskIdOfSpeculativeMirror,
 } from "../core/synthetic-task-id";
+import { TAINT_LABELS, type TaintLabel } from "../core/taint-labels";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
 	findBoardCardWithColumn,
@@ -90,6 +92,7 @@ import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
+import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
@@ -1767,6 +1770,54 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									changedFiles,
 								)
 							: [];
+						// F1.21 (record-only until the F1.22 parity lock): the delivery ACTION runs through the SAME
+						// manifest broker gate as chat/swarm tools — a run whose session ingested untrusted content
+						// (web/MCP taint, recorded on its terminal attempt) may not steer git delivery without a
+						// trusted plan. Today a would-deny is OBSERVED (self-observation + ledger transition), never
+						// enforced, so behavior is unchanged while the evidence accumulates.
+						try {
+							const deliveryLedgerEvents = await readAgentLedger({
+								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+							}).catch(() => []);
+							const lastAttempt = deliveryLedgerEvents
+								.filter((event) => event.kind === "attempt" && event.taskId === taskId)
+								.at(-1);
+							const knownLabels = new Set<string>(TAINT_LABELS);
+							const taintLabels = (
+								lastAttempt && lastAttempt.kind === "attempt" ? (lastAttempt.taintLabels ?? []) : []
+							).filter((label): label is TaintLabel => knownLabels.has(label));
+							const deliveryGate = decideCapabilityBrokerGate({
+								manifest: DELIVERY_ACTION_MANIFEST,
+								taintLabels,
+								backedByTrustedPlan: Boolean(deliveryCard?.generatedFromPlan),
+							});
+							if (!deliveryGate.allow) {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Delivery taint gate (record-only) would deny ${taskId}: ${deliveryGate.reason ?? "tainted influence on git_delivery"}`,
+									taskId,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "delivery_taint_gate",
+										taintLabels: [...taintLabels],
+									},
+								});
+								void appendAgentLedgerEvent(
+									buildTransitionEvent({
+										workflowId: taskId,
+										taskId,
+										workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+										from: "review",
+										to: "delivery_taint_gate_would_deny",
+										reason: deliveryGate.reason,
+										controllerDecision: "record_only",
+									}),
+								).catch(() => {});
+							}
+						} catch {
+							// Observational only — never block delivery on a gate-evaluation failure.
+						}
 						if (boundaryViolations.length > 0) {
 							const violationSummary = boundaryViolations
 								.map((violation) => `${violation.path} (${violation.kind})`)

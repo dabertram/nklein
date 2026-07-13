@@ -675,6 +675,20 @@
   already first-class. 3 new tests (default rules, per-tool population incl. the all-tools semantic-error lock,
   declared-sink union).
 
+- [x] **F1.21a — the manifest gates all four action families; delivery record-only** *(delivered 2026-07-13; the
+  enforcing flip is F1.21b, after the F1.22 parity lock).* Chat and swarm were already broker-gated; the two NEW
+  routes: (1) **sandbox MCP tools** — the swarm broker's fail-open hole is closed: an MCP-bundle tool name now
+  resolves a conservative manifest (untrusted_content SOURCE like a web fetch, egress-read tier — deliberately NOT
+  a protected sink, or multi-MCP turns would self-block like the §5.L multi-browse case; the sinks MCP content
+  might steer are guarded by the taint rule downstream); unknown non-MCP names stay policy-gated. (2)
+  **delivery** — `DELIVERY_ACTION_MANIFEST` (host_write on the `git_delivery` sink) is evaluated through the SAME
+  `decideCapabilityBrokerGate` at the finalization seam: the session's accumulated taint (the swarm broker state,
+  NOW RECORDED on the terminal attempt event as `taintLabels` via the new `getSessionTaintLabels` runtime
+  accessor) may not steer git delivery without a trusted plan (`backedByTrustedPlan` = plan-born card).
+  Record-only: a would-deny lands as a self-observation + ledger transition, never a block, while evidence
+  accumulates. 2 new tests (delivery manifest sink + tainted-deny/trusted-plan-allow/untainted-allow; MCP
+  conservative manifest + non-MCP unknown stays null) + session-service/ledger suites re-locked.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

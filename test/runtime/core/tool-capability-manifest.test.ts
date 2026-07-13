@@ -4,8 +4,11 @@ import {
 	type ChatExecutionMode,
 	decideChatActionAccess,
 } from "../../../src/chat/chat-execution-mode";
+import { decideCapabilityBrokerGate } from "../../../src/core/capability-broker-gate";
+import { swarmToolManifest } from "../../../src/core/swarm-tool-capability";
 import {
 	auditDetailForManifest,
+	DELIVERY_ACTION_MANIFEST,
 	decideManifestChatAccess,
 	KANBAN_TOOL_MANIFESTS,
 	manifestCost,
@@ -269,6 +272,35 @@ describe("toolPoliciesFromManifests (§5.AF slice 3 — NKlein static tool-polic
 			for (const [name, manifest] of Object.entries(KANBAN_TOOL_MANIFESTS)) {
 				expect(manifest.semanticErrors?.length, name).toBeGreaterThan(0);
 			}
+		});
+	});
+
+	describe("F1.21 — the manifest as the single live gate (new routes)", () => {
+		it("the delivery action manifests onto the git_delivery sink and the broker denies a tainted, plan-less run", () => {
+			expect(DELIVERY_ACTION_MANIFEST.taintSinks).toContain("git_delivery");
+			const tainted = decideCapabilityBrokerGate({
+				manifest: DELIVERY_ACTION_MANIFEST,
+				taintLabels: ["web"],
+			});
+			expect(tainted.allow).toBe(false);
+			// A trusted plan (a decomposed card) relaxes the rule; an untainted run always passes.
+			expect(
+				decideCapabilityBrokerGate({
+					manifest: DELIVERY_ACTION_MANIFEST,
+					taintLabels: ["web"],
+					backedByTrustedPlan: true,
+				}).allow,
+			).toBe(true);
+			expect(decideCapabilityBrokerGate({ manifest: DELIVERY_ACTION_MANIFEST, taintLabels: [] }).allow).toBe(true);
+		});
+
+		it("MCP-bundle tools resolve a conservative manifest (untrusted source, egress-read tier) — no more fail-open", () => {
+			const manifest = swarmToolManifest("some_mcp_tool", { mcpToolNames: new Set(["some_mcp_tool"]) });
+			expect(manifest).not.toBeNull();
+			expect(manifestTaintSource(manifest ?? ({} as never))).toBe("untrusted_content");
+			expect(manifest?.networkLevel).toBe("egress_read");
+			// Unknown NON-MCP tools stay null (the enablement policy gates them).
+			expect(swarmToolManifest("some_mcp_tool", {})).toBeNull();
 		});
 	});
 });

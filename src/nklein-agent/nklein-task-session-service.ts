@@ -2865,6 +2865,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						retriesBefore: priorAttempts,
 						promptStrategy: attemptStrategy,
 						difficulty,
+						taintLabels: this.sessionRuntime.getSessionTaintLabels(taskId),
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

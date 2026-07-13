@@ -53,7 +53,12 @@ import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { resolveContextWindowTokens, resolveSdkApiTimeoutMs, toSdkUserImages } from "./nklein-session-sdk-inputs";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
-import { createSwarmToolBrokerState, wrapSwarmAgentTools, wrapSwarmToolExecutors } from "./nklein-swarm-tool-broker";
+import {
+	createSwarmToolBrokerState,
+	type SwarmToolBrokerState,
+	wrapSwarmAgentTools,
+	wrapSwarmToolExecutors,
+} from "./nklein-swarm-tool-broker";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
@@ -169,6 +174,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		Omit<StartNKleinSessionRuntimeRequest, "prompt" | "images" | "initialMessages" | "onTeamEvent">
 	>();
 	private readonly mcpToolBundleByTaskId = new Map<string, NKleinMcpToolBundle>();
+	// F1.21: the swarm broker state per task, so the terminal write can record the session's accumulated taint.
+	private readonly swarmBrokerStateByTaskId = new Map<string, SwarmToolBrokerState>();
 	private sessionHostPromise: Promise<NKleinSessionHostBoundary> | null = null;
 
 	constructor(options: CreateInMemoryNKleinSessionRuntimeOptions = {}) {
@@ -332,6 +339,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		];
 		const mcpToolNames = new Set((mcpToolBundle?.tools ?? []).map((tool) => tool.name));
 		const swarmToolBrokerState = createSwarmToolBrokerState();
+		this.swarmBrokerStateByTaskId.set(request.taskId, swarmToolBrokerState);
 		const extraTools = wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames });
 		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });
 
@@ -701,6 +709,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 
 	canRestartTaskSession(taskId: string): boolean {
 		return this.lastStartRequestByTaskId.has(taskId);
+	}
+
+	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
+	getSessionTaintLabels(taskId: string): readonly string[] | null {
+		return this.swarmBrokerStateByTaskId.get(taskId)?.taintLabels ?? null;
 	}
 
 	async readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null> {

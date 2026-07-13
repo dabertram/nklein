@@ -227,6 +227,22 @@ export const KANBAN_TOOL_MANIFESTS: Readonly<Record<string, ToolCapabilityManife
 	},
 };
 
+/**
+ * F1.21: the DELIVERY action (auto-merging a task result into the host repo) as a manifested action, so the
+ * delivery seam runs through the SAME broker gate as chat/swarm tools. Inherently a host mutation landing on the
+ * `git_delivery` sink; the delivery-autonomy tier owns the approval LEVEL, the manifest declares the POWER.
+ */
+export const DELIVERY_ACTION_MANIFEST: ToolCapabilityManifest = {
+	mutationLevel: "host_write",
+	networkLevel: "none",
+	fsScope: "host",
+	approval: "auto",
+	replayable: false,
+	taintSinks: ["git_delivery"],
+	idempotent: false,
+	cost: "moderate",
+};
+
 /** The capability manifest for a kanban task tool by name, or `null` when the name isn't a declared kanban tool. */
 export function manifestForKanbanTool(toolName: string): ToolCapabilityManifest | null {
 	return KANBAN_TOOL_MANIFESTS[toolName] ?? null;

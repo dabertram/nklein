@@ -703,8 +703,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   session-terminal + model-unload seams (replacing the retry-poll timers for durable runs). Fleet-adjacent; wire
   with F1.18b's live validation.
 
-- [ ] **F1.21 — Make the manifest the single live access gate.** Route chat, NKlein, sandbox MCP, and delivery actions
-  through `decideManifestAccess` while preserving delivery-autonomy rules as a separate axis.
+- [ ] **F1.21b — Flip the delivery taint gate from record-only to enforcing (routes SHIPPED 2026-07-13).** All four
+  action families now run through the manifest broker: chat (decideManifestChatAccess + broker, pre-existing),
+  NKlein swarm tools (wrapSwarmAgentTools, pre-existing), sandbox MCP tools (NEW — MCP-bundle names resolve a
+  conservative manifest: untrusted_content source, egress-read tier, closing the broker's fail-open hole), and
+  DELIVERY (NEW — `DELIVERY_ACTION_MANIFEST` on the git_delivery sink, evaluated at the finalization seam against
+  the taint labels the session accumulated — now recorded on the terminal attempt event via the broker state —
+  with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
+  transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
+  F1.22 parity lock + a look at the accumulated would-deny evidence.
 - [>] **F1.22 — Prove manifest behavior parity** *(after F1.20–F1.21).* Lock all mode×action cells, current rulesets,
   approval paths, local-only restrictions, and fail-closed unknown-tool behavior.
 - [ ] **F1.23 — Wire model load/unload policy into the scheduler.** Apply headroom, resident budget, idle TTL, current

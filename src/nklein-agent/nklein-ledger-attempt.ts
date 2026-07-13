@@ -74,6 +74,8 @@ export interface TerminalAttemptInput {
 	contextBudgetTarget?: number | null;
 	/** Rung index: how many attempts this task recorded BEFORE this one (0 = first try). */
 	retriesBefore?: number;
+	/** F1.21: taint labels the session accumulated (the delivery gate reads them from the ledger). */
+	taintLabels?: readonly string[] | null;
 	/** The recovery rung that produced this attempt (redrive_empty_patch, steer_no_progress, …); null = baseline. */
 	promptStrategy?: string | null;
 	/** F1.15a: the task's difficulty tier — the SAME derivation the §5.AB fitness fold uses (deriveTaskDifficultyTier). */
@@ -116,6 +118,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		knowledge: input.knowledge ?? null,
 		focusStep: input.focusStep ?? null,
 		artifacts: input.resultBranch ? { resultBranch: input.resultBranch, patchRef: null, evidenceBundle: null } : null,
+		...(input.taintLabels?.length ? { taintLabels: input.taintLabels } : {}),
 	});
 }
 

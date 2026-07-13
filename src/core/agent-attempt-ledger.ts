@@ -155,6 +155,8 @@ const attemptEventSchema = z.object({
 	artifacts: attemptArtifactsSchema.nullable(),
 	/** F1.1 knowledge-tool usage summary; null on events written before the field existed. */
 	knowledge: attemptKnowledgeUsageSchema.nullable().default(null),
+	/** F1.21: taint labels the session accumulated (broker state at terminal) — the delivery gate reads them. */
+	taintLabels: z.array(z.string()).optional(),
 	/** F1.5 — the canonical current focus-chain step at terminal time (`currentFocusChainStep`); null when none. */
 	focusStep: z.string().nullable().default(null),
 });
@@ -275,6 +277,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	salvage?: string | null;
 	artifacts?: AttemptArtifacts | null;
 	knowledge?: AttemptKnowledgeUsage | null;
+	taintLabels?: readonly string[];
 	focusStep?: string | null;
 }
 
@@ -307,6 +310,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		salvage: input.salvage ?? null,
 		artifacts: input.artifacts ? { ...input.artifacts } : null,
 		knowledge: input.knowledge ? { ...input.knowledge, categoriesUsed: [...input.knowledge.categoriesUsed] } : null,
+		...(input.taintLabels ? { taintLabels: [...input.taintLabels] } : {}),
 		focusStep: input.focusStep ?? null,
 	};
 }
