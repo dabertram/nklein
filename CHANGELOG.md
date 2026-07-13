@@ -47,6 +47,11 @@
   nothing retried it while every dependent card stayed blocked (observed live: a project frozen at 6 verdict-less
   review cards + 9 waiting dependents). The board-liveness watchdog now detects verdict-less review cards on an
   idle board and dispatches their reviews itself, one per tick.
+- **The board watchdog can no longer disappear behind a wedged workspace read.** Existing workspace reads no longer
+  hold the global project-index lock while running Git inspection, Git probes now have a hard upper bound, and the
+  watchdog reads its known board directly on a bounded cadence. Each tick records entry and load-stage telemetry, so
+  a timer that never fired, a stale workspace scope, and a state-load timeout are now distinct failures; the next tick
+  still runs after an injected hung read, and shutdown clears every watchdog/idle timer instead of forcing process exit.
 
 - **A looping agent now breaks out of its own doom loop** (todo §12, live-observed: a 35B model endlessly re-asking
   whether the task's `*.js` test command was correct instead of working). A new in-session turn-loop guard

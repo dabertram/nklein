@@ -25,6 +25,7 @@ import {
 	removeWorkspaceIndexEntry,
 	saveWorkspaceState,
 } from "../../src/state/workspace-state";
+import { getWorkspaceIndexLockRequest } from "../../src/state/workspace-state-paths";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
@@ -199,6 +200,7 @@ describe.sequential("workspace-state integration", () => {
 				expect(saved.board.columns.map((column) => column.id)).toEqual([
 					"backlog",
 					"planning",
+					"ready",
 					"in_progress",
 					"review",
 					"completed",
@@ -212,6 +214,7 @@ describe.sequential("workspace-state integration", () => {
 				expect(loaded.board.columns.map((column) => column.id)).toEqual([
 					"backlog",
 					"planning",
+					"ready",
 					"in_progress",
 					"review",
 					"completed",
@@ -372,6 +375,85 @@ describe.sequential("workspace-state integration", () => {
 				const entriesAfterRemoval = await listWorkspaceIndexEntries();
 				expect(entriesAfterRemoval).toHaveLength(1);
 				expect(entriesAfterRemoval[0]?.workspaceId).toBe(contextB.workspaceId);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("loads an existing workspace without waiting for the global index write lock", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-index-fast-path-");
+			try {
+				const workspacePath = join(sandboxRoot, "project");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+				const context = await loadWorkspaceContext(workspacePath);
+				let releaseLock!: () => void;
+				let markLockAcquired!: () => void;
+				const lockAcquired = new Promise<void>((resolve) => {
+					markLockAcquired = resolve;
+				});
+				const holdLock = new Promise<void>((resolve) => {
+					releaseLock = resolve;
+				});
+				const lockOwner = lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
+					markLockAcquired();
+					await holdLock;
+				});
+				await lockAcquired;
+
+				try {
+					let timeout: ReturnType<typeof setTimeout> | null = null;
+					const loaded = await Promise.race([
+						loadWorkspaceState(workspacePath),
+						new Promise<never>((_resolve, reject) => {
+							timeout = setTimeout(
+								() => reject(new Error("existing workspace load waited for index lock")),
+								1_000,
+							);
+						}),
+					]);
+					if (timeout) {
+						clearTimeout(timeout);
+					}
+					expect(loaded.repoPath).toBe(context.repoPath);
+					expect(loaded.statePath).toContain(context.workspaceId);
+				} finally {
+					releaseLock();
+					await lockOwner;
+				}
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("keeps existing-workspace metadata updates on the locked write path", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-metadata-update-");
+			try {
+				const workspacePath = join(sandboxRoot, "project");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+				const initial = await loadWorkspaceContext(workspacePath);
+				const updated = await loadWorkspaceContext(workspacePath, {
+					gitRepositoryCreatedByKanban: true,
+					displayName: "Updated project",
+					selfProjectConfirmed: true,
+				});
+
+				expect(updated.workspaceId).toBe(initial.workspaceId);
+				expect(updated.gitRepositoryCreatedByKanban).toBe(true);
+				expect(updated.displayName).toBe("Updated project");
+				expect(updated.selfProjectConfirmed).toBe(true);
+				expect(
+					(await listWorkspaceIndexEntries()).find((entry) => entry.workspaceId === initial.workspaceId),
+				).toMatchObject({
+					gitRepositoryCreatedByKanban: true,
+					displayName: "Updated project",
+					selfProjectConfirmed: true,
+				});
 			} finally {
 				cleanup();
 			}

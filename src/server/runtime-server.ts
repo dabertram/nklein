@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { setChatAdapterRuntimeFlags } from "../chat/chat-local-llm-adapter";
 import {
@@ -128,7 +128,13 @@ import {
 	defaultRuntimeIdModelKeyMapPath,
 	initSharedRuntimeIdModelKeyMap,
 } from "../state/runtime-id-model-key-map-store";
-import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import {
+	listWorkspaceIndexEntries,
+	loadExistingWorkspaceBoardById,
+	loadWorkspaceContextById,
+	loadWorkspaceState,
+	mutateWorkspaceState,
+} from "../state/workspace-state";
 import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -159,6 +165,7 @@ import {
 } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
+import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
@@ -459,10 +466,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// if actionable work exists without its own live session (startable-unstarted cards or a non-empty deferred set),
 	// the board has stranded work — self-heal by sweeping, and say so loudly. A live card excludes only itself;
 	// legitimately-idle boards (everything terminal or held for the operator) never trip it.
-	const boardLivenessWatchdogByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	const boardLivenessWatchdogByWorkspaceId = new Map<string, BoardLivenessWatchdogHandle>();
 	// 30s (was 60s): run36 gave the watchdog exactly ONE tick inside the harness's 90s dead-stall window — a
 	// single swallowed error meant no rescue. Halving the tick doubles the chances and the sweep is cheap.
 	const BOARD_LIVENESS_TICK_MS = 30_000;
+	// Snapshot loading is read-only and should take milliseconds. Ten seconds leaves ample room for a busy/low-power
+	// host while bounding a poisoned index/gate/filesystem path well before the following 30-second tick.
+	const BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS = 10_000;
 	// #35 (run36): the tick's failures were INVISIBLE (empty catch) — record the first error per workspace so a
 	// throwing tick (e.g. workspace-state lock contention) can never silently disable the watchdog again.
 	const watchdogErrorReportedWorkspaceIds = new Set<string>();
@@ -2118,190 +2128,241 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// #29: the board-liveness watchdog — self-healing runtime stall detection.
 			boardLivenessWatchdogByWorkspaceId.set(
 				scope.workspaceId,
-				setInterval(() => {
-					void (async () => {
-						try {
-							if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
-								return; // swarm stopped by the operator — idle is intentional, not a stall
+				startBoardLivenessWatchdog({
+					intervalMs: BOARD_LIVENESS_TICK_MS,
+					snapshotTimeoutMs: BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS,
+					loadSnapshot: async () => {
+						if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
+							return { status: "skipped", reason: "swarm_stopped" } as const;
+						}
+						// The watchdog already owns a stable workspace ID. Read its board directly instead of re-entering the
+						// request-scope path (global index write lock + Git inspection), which was the live wedge. The index read
+						// is only for an explicit ID→path scope check; neither read acquires a write lock or shells out to Git.
+						const workspaceEntry = (await listWorkspaceIndexEntries()).find(
+							(entry) => entry.workspaceId === scope.workspaceId,
+						);
+						if (!workspaceEntry || resolve(workspaceEntry.repoPath) !== resolve(scope.workspacePath)) {
+							return {
+								status: "scope_mismatch",
+								reason: workspaceEntry
+									? `workspace ${scope.workspaceId} resolves to a different path`
+									: `workspace ${scope.workspaceId} is absent from the index`,
+							} as const;
+						}
+						const board = await loadExistingWorkspaceBoardById(scope.workspaceId);
+						if (!board) {
+							throw new Error(`Workspace ${scope.workspaceId} has no persisted runtime board.`);
+						}
+						return { status: "ok", value: board } as const;
+					},
+					handleSnapshot: async (board) => {
+						// A live card excludes only ITSELF from rescue. The old board-wide `anySessionAlive` veto let a
+						// stale paused/awaiting-review source, a derived session, or one unrelated running card mask a
+						// dependency-free Planning root forever. Board membership + the ready sweep provide the proper
+						// correlation: absent/terminal/synthetic summaries cannot suppress real waiting cards.
+						const activeSessionTaskIds = new Set(
+							trackedService
+								.listSummaries()
+								.filter(
+									(summary) =>
+										summary.state === "running" ||
+										summary.state === "queued" ||
+										summary.state === "paused" ||
+										summary.state === "awaiting_review",
+								)
+								.map((summary) => summary.taskId),
+						);
+						// Secondary reviewers run outside the task-session service, so their card is absent from
+						// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
+						// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
+						// verdict (live-found in the watchable project-05 bounce run).
+						const activelyHandledTaskIds = new Set(activeSessionTaskIds);
+						const finalizationKeyPrefix = `${scope.workspaceId}:`;
+						for (const finalizationKey of autoReviewFinalizationInFlightTaskIds) {
+							if (finalizationKey.startsWith(finalizationKeyPrefix)) {
+								activelyHandledTaskIds.add(finalizationKey.slice(finalizationKeyPrefix.length));
 							}
-							const state = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
-							// A live card excludes only ITSELF from rescue. The old board-wide `anySessionAlive` veto let a
-							// stale paused/awaiting-review source, a derived session, or one unrelated running card mask a
-							// dependency-free Planning root forever. Board membership + the ready sweep provide the proper
-							// correlation: absent/terminal/synthetic summaries cannot suppress real waiting cards.
-							const activeSessionTaskIds = new Set(
-								trackedService
-									.listSummaries()
-									.filter(
-										(summary) =>
-											summary.state === "running" ||
-											summary.state === "queued" ||
-											summary.state === "paused" ||
-											summary.state === "awaiting_review",
-									)
-									.map((summary) => summary.taskId),
-							);
-							// Secondary reviewers run outside the task-session service, so their card is absent from
-							// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
-							// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
-							// verdict (live-found in the watchable project-05 bounce run).
-							const activelyHandledTaskIds = new Set(activeSessionTaskIds);
-							const finalizationKeyPrefix = `${scope.workspaceId}:`;
-							for (const finalizationKey of autoReviewFinalizationInFlightTaskIds) {
-								if (finalizationKey.startsWith(finalizationKeyPrefix)) {
-									activelyHandledTaskIds.add(finalizationKey.slice(finalizationKeyPrefix.length));
-								}
+						}
+						// §5.BD rescue: an interrupted worker card still IN PROGRESS with a result branch is the
+						// salvage the capture-path rebounds sometimes miss (docker-409 stop-path capture errors,
+						// runs 36/38) — rebind it into review so the machinery judges the work. Scope this to the
+						// IN_PROGRESS lane ONLY: a card already in review has been (or is being) judged, and a
+						// HELD card there has an interrupted session by design (#33 stops held sessions to free
+						// the slot) — re-rescuing it would loop hold → stop → rebind → re-review forever.
+						const inProgressTaskIds = new Set<string>();
+						for (const column of board.columns) {
+							if (column.id !== "in_progress") {
+								continue;
 							}
-							// §5.BD rescue: an interrupted worker card still IN PROGRESS with a result branch is the
-							// salvage the capture-path rebounds sometimes miss (docker-409 stop-path capture errors,
-							// runs 36/38) — rebind it into review so the machinery judges the work. Scope this to the
-							// IN_PROGRESS lane ONLY: a card already in review has been (or is being) judged, and a
-							// HELD card there has an interrupted session by design (#33 stops held sessions to free
-							// the slot) — re-rescuing it would loop hold → stop → rebind → re-review forever.
-							const inProgressTaskIds = new Set<string>();
-							for (const column of state.board.columns) {
-								if (column.id !== "in_progress") {
-									continue;
-								}
-								for (const card of column.cards) {
-									inProgressTaskIds.add(card.id);
-								}
+							for (const card of column.cards) {
+								inProgressTaskIds.add(card.id);
 							}
-							for (const summary of trackedService.listSummaries()) {
-								if (summary.state !== "interrupted" || !inProgressTaskIds.has(summary.taskId)) {
-									continue;
-								}
-								const rescued = await trackedService
-									.rescueInterruptedTaskWithPriorWork(summary.taskId)
-									.catch(() => false);
-								if (rescued) {
-									deps.warn(
-										`Board-liveness watchdog: rebound interrupted card ${summary.taskId} (prior result branch exists) into review.`,
-									);
-								}
+						}
+						for (const summary of trackedService.listSummaries()) {
+							if (summary.state !== "interrupted" || !inProgressTaskIds.has(summary.taskId)) {
+								continue;
 							}
-							// Zero-token turn liveness (live-found 2026-07-13, real-model rail): a session "running" past
-							// a generous bound with NO first token and NO heartbeat is a pre-first-turn ZOMBIE — invisible
-							// to the heartbeat machinery (which arms only once output starts) yet holding an endpoint slot,
-							// so every other start fails endpoint_busy naming it and the cascade deadlocks on an idle
-							// fleet. Interrupt it; the summary event drives the normal terminal-retry machinery
-							// (live-proven: clearing the zombie resumed the frozen cascade instantly).
-							for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now())) {
+							const rescued = await trackedService
+								.rescueInterruptedTaskWithPriorWork(summary.taskId)
+								.catch(() => false);
+							if (rescued) {
 								deps.warn(
-									`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
+									`Board-liveness watchdog: rebound interrupted card ${summary.taskId} (prior result branch exists) into review.`,
 								);
-								recordSelfObservation({
-									signal: "custom",
-									severity: "warning",
-									message: `Board-liveness watchdog fired: zero-token wedged session interrupted (${wedge.taskId}, ${Math.round(wedge.ageMs / 60_000)} min token-less).`,
-									workspacePath: scope.workspacePath,
-									metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
-								});
-								await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
 							}
-							const startable = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
-							// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
-							// concurrency-deferral retry (run36: only the overlap set was checked).
-							const deferredCount =
-								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) +
-								(deferredRetryTimerByWorkspaceId.has(scope.workspaceId) ? 1 : 0);
-							if (startable.length === 0 && deferredCount === 0) {
-								// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
-								// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
-								// endpoint was busy with a SIBLING project when the card reached review; nothing
-								// retries it, and its dependents block the whole board — live-found 2026-07-10).
-								// Dispatch ONE per tick (serialized like the idle-review path, shared dedup set).
-								const rescueDispatched =
-									idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
-								const stalledReviewTaskIds = findStalledReviewTaskIds(
-									state.board,
-									activelyHandledTaskIds,
-									rescueDispatched,
-								);
-								const stalledReviewTaskId = stalledReviewTaskIds[0];
-								if (stalledReviewTaskId === undefined) {
-									return; // legitimately idle (everything terminal or held for the operator)
-								}
-								rescueDispatched.add(stalledReviewTaskId);
-								idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, rescueDispatched);
-								// The rescue must stay SELF-healing: a dispatched review can itself wedge silently under
-								// cross-project endpoint contention (live-seen 2026-07-10 — no outcome, no capacity
-								// warning). Expire the dedup entry after the review budget so a still-verdict-less card
-								// gets another attempt instead of a permanent one-shot.
-								const rescueRetryTimer = setTimeout(
-									() => {
-										idleReviewDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(stalledReviewTaskId);
-									},
-									12 * 60 * 1000,
-								);
-								rescueRetryTimer.unref?.();
-								deps.warn(
-									`Board-liveness watchdog: ${stalledReviewTaskIds.length} verdict-less review card(s) with no live session for ${scope.workspacePath} — dispatching the stalled review for ${stalledReviewTaskId}.`,
-								);
-								recordSelfObservation({
-									signal: "custom",
-									severity: "warning",
-									message: `Board-liveness watchdog fired: stalled-review rescue (${stalledReviewTaskIds.length} verdict-less review card(s)).`,
-									workspacePath: scope.workspacePath,
-									metadata: {
-										category: "board_liveness_watchdog",
-										stalledReviews: stalledReviewTaskIds.length,
-										taskId: stalledReviewTaskId,
-									},
-								});
-								void runSecondOpinionReviewForTask({
-									workspacePath: scope.workspacePath,
-									taskId: stalledReviewTaskId,
-									service: trackedService,
-									warn: deps.warn,
-									onRedecomposeCardSpawned: (redecomposeTaskId) =>
-										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
-								})
-									.catch((error) => {
-										const message = error instanceof Error ? error.message : String(error);
-										deps.warn(`Stalled-review rescue for ${stalledReviewTaskId} errored: ${message}`);
-									})
-									.finally(() => {
-										// The review freed the endpoint (and may have completed the card) — retry waiters.
-										drainQueuedTaskStarts(scope, { force: true });
-										retryWaitingCardsAfterTerminal(scope, trackedService);
-									});
-								return;
-							}
+						}
+						// Zero-token turn liveness (live-found 2026-07-13, real-model rail): a session "running" past
+						// a generous bound with NO first token and NO heartbeat is a pre-first-turn ZOMBIE — invisible
+						// to the heartbeat machinery (which arms only once output starts) yet holding an endpoint slot,
+						// so every other start fails endpoint_busy naming it and the cascade deadlocks on an idle
+						// fleet. Interrupt it; the summary event drives the normal terminal-retry machinery
+						// (live-proven: clearing the zombie resumed the frozen cascade instantly).
+						for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now())) {
 							deps.warn(
-								`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+								`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
 							);
 							recordSelfObservation({
 								signal: "custom",
 								severity: "warning",
-								message: `Board-liveness watchdog fired: frozen board self-heal (startable=${startable.length}, deferred=${deferredCount}).`,
+								message: `Board-liveness watchdog fired: zero-token wedged session interrupted (${wedge.taskId}, ${Math.round(wedge.ageMs / 60_000)} min token-less).`,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
+							});
+							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
+						}
+						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
+						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
+						// concurrency-deferral retry (run36: only the overlap set was checked).
+						const deferredCount =
+							(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) +
+							(deferredRetryTimerByWorkspaceId.has(scope.workspaceId) ? 1 : 0);
+						if (startable.length === 0 && deferredCount === 0) {
+							// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
+							// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
+							// endpoint was busy with a SIBLING project when the card reached review; nothing
+							// retries it, and its dependents block the whole board — live-found 2026-07-10).
+							// Dispatch ONE per tick (serialized like the idle-review path, shared dedup set).
+							const rescueDispatched =
+								idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							const stalledReviewTaskIds = findStalledReviewTaskIds(
+								board,
+								activelyHandledTaskIds,
+								rescueDispatched,
+							);
+							const stalledReviewTaskId = stalledReviewTaskIds[0];
+							if (stalledReviewTaskId === undefined) {
+								return; // legitimately idle (everything terminal or held for the operator)
+							}
+							rescueDispatched.add(stalledReviewTaskId);
+							idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, rescueDispatched);
+							// The rescue must stay SELF-healing: a dispatched review can itself wedge silently under
+							// cross-project endpoint contention (live-seen 2026-07-10 — no outcome, no capacity
+							// warning). Expire the dedup entry after the review budget so a still-verdict-less card
+							// gets another attempt instead of a permanent one-shot.
+							const rescueRetryTimer = setTimeout(
+								() => {
+									idleReviewDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(stalledReviewTaskId);
+								},
+								12 * 60 * 1000,
+							);
+							rescueRetryTimer.unref?.();
+							deps.warn(
+								`Board-liveness watchdog: ${stalledReviewTaskIds.length} verdict-less review card(s) with no live session for ${scope.workspacePath} — dispatching the stalled review for ${stalledReviewTaskId}.`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog fired: stalled-review rescue (${stalledReviewTaskIds.length} verdict-less review card(s)).`,
 								workspacePath: scope.workspacePath,
 								metadata: {
 									category: "board_liveness_watchdog",
-									startable: startable.length,
-									deferred: deferredCount,
+									stalledReviews: stalledReviewTaskIds.length,
+									taskId: stalledReviewTaskId,
 								},
 							});
-							retryWaitingCardsAfterTerminal(scope, trackedService);
-						} catch (error) {
-							// The watchdog must never crash the runtime — but its failures must be VISIBLE (#35:
-							// an empty catch here silently disabled the frozen-board rescue). First error per
-							// workspace is recorded; later ticks retry regardless.
-							if (!watchdogErrorReportedWorkspaceIds.has(scope.workspaceId)) {
-								watchdogErrorReportedWorkspaceIds.add(scope.workspaceId);
-								recordSelfObservation({
-									signal: "runtime_error",
-									severity: "warning",
-									message: `Board-liveness watchdog tick failed (rescue skipped this tick): ${
-										error instanceof Error ? error.message : String(error)
-									}`,
-									workspacePath: scope.workspacePath,
-									metadata: { category: "board_liveness_watchdog_error" },
+							void runSecondOpinionReviewForTask({
+								workspacePath: scope.workspacePath,
+								taskId: stalledReviewTaskId,
+								service: trackedService,
+								warn: deps.warn,
+								onRedecomposeCardSpawned: (redecomposeTaskId) =>
+									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+							})
+								.catch((error) => {
+									const message = error instanceof Error ? error.message : String(error);
+									deps.warn(`Stalled-review rescue for ${stalledReviewTaskId} errored: ${message}`);
+								})
+								.finally(() => {
+									// The review freed the endpoint (and may have completed the card) — retry waiters.
+									drainQueuedTaskStarts(scope, { force: true });
+									retryWaitingCardsAfterTerminal(scope, trackedService);
 								});
-							}
+							return;
 						}
-					})();
-				}, BOARD_LIVENESS_TICK_MS),
+						deps.warn(
+							`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+						);
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Board-liveness watchdog fired: frozen board self-heal (startable=${startable.length}, deferred=${deferredCount}).`,
+							workspacePath: scope.workspacePath,
+							metadata: {
+								category: "board_liveness_watchdog",
+								startable: startable.length,
+								deferred: deferredCount,
+							},
+						});
+						retryWaitingCardsAfterTerminal(scope, trackedService);
+					},
+					onTickEvent: (event) => {
+						if (event.stage === "entered" || event.stage === "snapshot_loaded") {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "debug",
+								message: `Board-liveness watchdog tick ${event.tick} ${event.stage}.`,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "board_liveness_watchdog_tick",
+									stage: event.stage,
+									tick: event.tick,
+									elapsedMs: event.elapsedMs,
+									workspaceId: scope.workspaceId,
+								},
+							});
+							return;
+						}
+						if (event.stage === "completed") {
+							watchdogErrorReportedWorkspaceIds.delete(scope.workspaceId);
+							return;
+						}
+						if (
+							event.stage !== "snapshot_timeout" &&
+							event.stage !== "scope_mismatch" &&
+							event.stage !== "failed"
+						) {
+							return;
+						}
+						// The first failure in a streak is durable; a later successful tick clears the dedupe so a recurrence
+						// is visible. Entry events continue every interval regardless, which separates timer failure from load failure.
+						if (!watchdogErrorReportedWorkspaceIds.has(scope.workspaceId)) {
+							watchdogErrorReportedWorkspaceIds.add(scope.workspaceId);
+							recordSelfObservation({
+								signal: "runtime_error",
+								severity: "warning",
+								message: `Board-liveness watchdog tick ${event.tick} ${event.stage}: ${event.reason ?? "unknown error"}`,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "board_liveness_watchdog_error",
+									stage: event.stage,
+									tick: event.tick,
+									elapsedMs: event.elapsedMs,
+									workspaceId: scope.workspaceId,
+								},
+							});
+						}
+					},
+				}),
 			);
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
@@ -2689,7 +2750,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		const livenessWatchdog = boardLivenessWatchdogByWorkspaceId.get(workspaceId);
 		if (livenessWatchdog) {
-			clearInterval(livenessWatchdog);
+			livenessWatchdog.dispose();
 			boardLivenessWatchdogByWorkspaceId.delete(workspaceId);
 		}
 		const mirrorTick = speculativeMirrorTickByWorkspaceId.get(workspaceId);
@@ -3172,6 +3233,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				clearTimeout(drainTimer.timer);
 			}
 			queuedStartDrainTimersByWorkspaceId.clear();
+			for (const watchdog of boardLivenessWatchdogByWorkspaceId.values()) {
+				watchdog.dispose();
+			}
+			boardLivenessWatchdogByWorkspaceId.clear();
+			for (const timer of speculativeMirrorTickByWorkspaceId.values()) {
+				clearInterval(timer);
+			}
+			speculativeMirrorTickByWorkspaceId.clear();
+			for (const timer of opportunisticIdleWorkTickByWorkspaceId.values()) {
+				clearInterval(timer);
+			}
+			opportunisticIdleWorkTickByWorkspaceId.clear();
+			for (const timer of deferredRetryTimerByWorkspaceId.values()) {
+				clearTimeout(timer);
+			}
+			deferredRetryTimerByWorkspaceId.clear();
 			for (const unsubscribe of queuedStartDrainUnsubscribeByWorkspaceId.values()) {
 				unsubscribe();
 			}

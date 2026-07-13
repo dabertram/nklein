@@ -120,13 +120,23 @@ function recordWorkspaceResolutionDecision(input: {
 
 import { parseWorkspaceIndex, parseWorkspaceStateSavePayload, readJsonFile } from "./workspace-state-io";
 
-async function readWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData> {
+async function readExistingWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData | null> {
 	const boardPath = getWorkspaceBoardPath(workspaceId);
 	const rawBoard = await readJsonFile(boardPath);
+	if (rawBoard === null) {
+		return null;
+	}
 	return updateTaskDependencies(
 		normalizeRuntimeBoardData(
 			parsePersistedStateFile(boardPath, BOARD_FILENAME, rawBoard, runtimeBoardDataSchema, createEmptyBoard()),
 		),
+	);
+}
+
+async function readWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData> {
+	return (
+		(await readExistingWorkspaceBoard(workspaceId)) ??
+		updateTaskDependencies(normalizeRuntimeBoardData(createEmptyBoard()))
 	);
 }
 
@@ -173,6 +183,11 @@ async function readWorkspaceBoardForContext(context: RuntimeWorkspaceContext): P
 
 export async function loadWorkspaceBoardById(workspaceId: string): Promise<RuntimeBoardData> {
 	return await readWorkspaceBoard(workspaceId);
+}
+
+/** A strict by-ID read for liveness/safety callers that must distinguish an absent runtime board from an empty board. */
+export async function loadExistingWorkspaceBoardById(workspaceId: string): Promise<RuntimeBoardData | null> {
+	return await readExistingWorkspaceBoard(workspaceId);
 }
 
 async function readWorkspaceSessions(workspaceId: string): Promise<Record<string, RuntimeTaskSessionSummary>> {
@@ -404,6 +419,31 @@ function findWorkspaceEntry(index: WorkspaceIndexFile, repoPath: string): Worksp
 	return entry;
 }
 
+async function toRuntimeWorkspaceContext(
+	repoPath: string,
+	entry: WorkspaceIndexEntry,
+): Promise<RuntimeWorkspaceContext> {
+	return {
+		repoPath,
+		workspaceId: entry.workspaceId,
+		statePath: getWorkspaceDirectoryPath(entry.workspaceId),
+		git: await detectGitRepositoryInfo(repoPath),
+		gitRepositoryCreatedByKanban: entry.gitRepositoryCreatedByKanban === true,
+		displayName: entry.displayName?.trim() || null,
+		selfProjectConfirmed: entry.selfProjectConfirmed === true,
+		autoResumeEnabled: entry.autoResumeEnabled === true,
+	};
+}
+
+function workspaceEntryNeedsUpdate(entry: WorkspaceIndexEntry, options: LoadWorkspaceContextOptions): boolean {
+	const requestedDisplayName = options.displayName?.trim() || undefined;
+	return (
+		(options.gitRepositoryCreatedByKanban === true && !entry.gitRepositoryCreatedByKanban) ||
+		(requestedDisplayName !== undefined && entry.displayName !== requestedDisplayName) ||
+		(options.selfProjectConfirmed === true && !entry.selfProjectConfirmed)
+	);
+}
+
 export async function resolveWorkspacePath(cwd: string): Promise<string> {
 	const resolvedCwd = resolve(cwd);
 	let canonicalCwd = resolvedCwd;
@@ -466,9 +506,28 @@ export async function loadWorkspaceContext(
 	const repoPath = await resolveWorkspacePath(cwd);
 	const autoCreateIfMissing = options.autoCreateIfMissing ?? true;
 	const isTaskWorktreePath = isPathInsideTaskWorktreesHome(repoPath, await getCanonicalTaskWorktreesHomePath());
+	// The overwhelmingly common state-read path resolves an already-indexed workspace. Read it without taking the global
+	// index write lock; otherwise every board poll queues behind that lock and its former in-lock Git introspection. The
+	// locked path below is now reserved for actual registration/metadata mutation, with Git inspection after release.
+	const currentIndex = await readWorkspaceIndex();
+	const currentEntry = findWorkspaceEntry(currentIndex, repoPath);
+	if (currentEntry && !workspaceEntryNeedsUpdate(currentEntry, options)) {
+		recordWorkspaceResolutionDecision({
+			repoPath,
+			severity: "debug",
+			message: `Workspace resolved from existing index: ${currentEntry.workspaceId}`,
+			source: options.resolutionSource ?? "existing_index",
+			metadata: {
+				workspaceId: currentEntry.workspaceId,
+				autoCreateIfMissing,
+				allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
+				...(options.resolutionMetadata ?? {}),
+			},
+		});
+		return await toRuntimeWorkspaceContext(repoPath, currentEntry);
+	}
 	if (!autoCreateIfMissing || (options.allowTaskWorktreeProject !== true && isTaskWorktreePath)) {
-		const index = await readWorkspaceIndex();
-		const existingEntry = findWorkspaceEntry(index, repoPath);
+		const existingEntry = currentEntry;
 		if (!existingEntry) {
 			if (isTaskWorktreePath) {
 				recordWorkspaceResolutionDecision({
@@ -511,19 +570,10 @@ export async function loadWorkspaceContext(
 				...(options.resolutionMetadata ?? {}),
 			},
 		});
-		return {
-			repoPath,
-			workspaceId: existingEntry.workspaceId,
-			statePath: getWorkspaceDirectoryPath(existingEntry.workspaceId),
-			git: await detectGitRepositoryInfo(repoPath),
-			gitRepositoryCreatedByKanban: existingEntry.gitRepositoryCreatedByKanban === true,
-			displayName: existingEntry.displayName?.trim() || null,
-			selfProjectConfirmed: existingEntry.selfProjectConfirmed === true,
-			autoResumeEnabled: existingEntry.autoResumeEnabled === true,
-		};
+		return await toRuntimeWorkspaceContext(repoPath, existingEntry);
 	}
 
-	return await lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
+	const resolvedEntry = await lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
 		let index = await readWorkspaceIndex();
 		const localIdentity = await readWorkspaceLocalIdentity(repoPath);
 		const ensured = ensureWorkspaceEntry(
@@ -556,17 +606,9 @@ export async function loadWorkspaceContext(
 			},
 		});
 
-		return {
-			repoPath,
-			workspaceId: ensured.entry.workspaceId,
-			statePath: getWorkspaceDirectoryPath(ensured.entry.workspaceId),
-			git: await detectGitRepositoryInfo(repoPath),
-			gitRepositoryCreatedByKanban: ensured.entry.gitRepositoryCreatedByKanban === true,
-			displayName: ensured.entry.displayName?.trim() || null,
-			selfProjectConfirmed: ensured.entry.selfProjectConfirmed === true,
-			autoResumeEnabled: ensured.entry.autoResumeEnabled === true,
-		};
+		return ensured.entry;
 	});
+	return await toRuntimeWorkspaceContext(repoPath, resolvedEntry);
 }
 
 export async function loadWorkspaceContextById(
@@ -583,6 +625,7 @@ export async function loadWorkspaceContextById(
 	}
 	try {
 		return await loadWorkspaceContext(entry.repoPath, {
+			autoCreateIfMissing: false,
 			resolutionSource: options.resolutionSource,
 			resolutionMetadata: {
 				requestedWorkspaceId: workspaceId,

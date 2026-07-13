@@ -59,6 +59,26 @@
   representative evidence moved here; remaining work became one of the ordered packages. Full verbose history remains
   available in Git at `0bfbbb02` and its ancestors without acting as a second backlog.
 
+## 2026-07-13 Phase 0 stop-the-line fixes
+
+- [x] **P0.1 — Eliminate the queued-drain/pre-first-turn planning wedge** *(legacy §12; `9c4fa3d2`).* The primary
+  SDK bootstrap/send bypassed model-turn admission, so forced queue drain could start a child while the seed's
+  decomposition callback and SDK turn were still unwinding. Primary, re-drive, and auxiliary turns now share the same
+  admission gate. A deterministic seed-unwind→forced-child regression is green, the full 124-test task-session suite and
+  9,264-test fast gate passed, the decomposition→child→review simulator passed three serial runs, and a guarded live
+  Qwen3-8B/40k run on m5max reproduced the exact queued handoff, completed the child's first turn, review, and delivery
+  without a zero-token admitted session.
+- [x] **P0.2 — Make the board watchdog observable and non-wedgeable** *(legacy §12).* Live evidence showed the HTTP
+  process responsive and LM Studio idle while every workspace-scoped request and shutdown state load waited. The proven
+  poisoning path was an existing-workspace read taking the global index write lock and awaiting Git inspection whose
+  `execFile` timeout defaulted to unbounded; the exact first Git command from the stopped run was not recoverable
+  post-hoc. Existing reads now bypass that write lock, metadata mutations retain it, Git probes are bounded, and the
+  watchdog uses a strict direct-by-ID board read behind an independently bounded tick. Persisted tick-entry/load-stage
+  telemetry distinguishes interval failure, scope mismatch, timeout, and handler failure; a real-timer integration
+  proves the next tick recovers after an injected never-settling snapshot, and shutdown now disposes watchdog,
+  speculative, idle-work, and deferred-retry timers. The focused watchdog (3), workspace-state (18), and typecheck gates
+  pass; the state suite's surfaced stale Ready-lane expectations were corrected in the same increment.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

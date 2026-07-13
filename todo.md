@@ -7,9 +7,9 @@
 > [done.md](done.md) contains shipped work and compact historical evidence. Other Markdown files may document current
 > behavior, operations, legal provenance, test fixtures, or research, but they must not maintain a second backlog.
 >
-> **Reconciled:** 2026-07-13 against `feat/nklein-upcoming` at `0bfbbb02`, after fetching `origin` and `upstream`,
-> checking every tracked Markdown file, and reconciling the recent implementation delta. The local branch is current
-> with its upstream (`63` ahead, `0` behind).
+> **Reconciled:** 2026-07-13 against `feat/nklein-upcoming`, after fetching `origin` and `upstream`, checking every
+> tracked Markdown file, and reconciling the recent implementation delta. The branch matched its upstream immediately
+> before the current stop-the-line increments (`0` ahead, `0` behind).
 
 ## How to use this queue
 
@@ -632,16 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.1 — Eliminate the queued-drain/pre-first-turn planning wedge** *(legacy §12).* Reproduce the zombie
-  deterministically, trace the model-turn admission gate `evaluate`/tail and queued seed teardown, and fix the owning
-  lifecycle. Acceptance: repeated simulator plus live low-token runs never leave a session admitted with zero model
-  tokens and no first turn. **Current evidence:** the old tail-leak hypothesis is eliminated for primary starts: they
-  bypassed admission entirely. The initial SDK bootstrap/send is now serialized by the same gate as re-drives and
-  auxiliary turns, with a deterministic seed-still-unwinding → forced-child-start regression. Simulator repetition and
-  guarded live low-token proof remain before this package can close.
-- [ ] **P0.2 — Make the board watchdog observable and non-wedgeable** *(legacy §12).* Add tick-entry/counter telemetry,
-  separate interval-not-fired from workspace-scope mismatch and a hung state-load/workspace-lock await, then fix the
-  proven cause. Acceptance: an integration test observes ticks and bounded recovery under an injected hang.
 - [ ] **P0.3 — Prove zero-token self-healing end to end** *(legacy §12).* The detector and runtime caller shipped in
   `d68e7a9f`; add a runtime integration that creates a pre-first-turn zombie and proves automatic interruption,
   capacity release, card recovery, and no false positive for a merely slow first token.
@@ -1240,14 +1230,14 @@ The checkbox count is an implementation-package count, not a raw Markdown-marker
 rg -c '^\s*- \[( |>|\?|-)\]' todo.md
 ```
 
-The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **236 explicit packages**:
+The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **234 remaining packages**:
 
-- **160** implementation-first packages in phases 0–5 (the path to feature-complete);
+- **158** implementation-first packages in phases 0–5 (the path to feature-complete);
 - **15** feature-completeness proof gates in phase 6;
 - **47** deep-hardening, visual-polish, and release packages in phases 7–9;
 - **14** research/decision/manual/deferred-tail packages in phase 10.
 
-Status totals are **162 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
+Status totals are **160 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
 The larger package count than the prior ~154 estimate reflects finer, top-down-executable slicing plus tasks recovered
 from secondary Markdown files; it does not represent a proportional scope increase.
 

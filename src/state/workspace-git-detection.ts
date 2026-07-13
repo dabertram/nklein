@@ -12,6 +12,9 @@ import { createGitProcessEnv } from "../core/git-process-env";
  */
 
 const execFileAsync = promisify(execFile);
+// Workspace resolution sits on every state read and request-scope lookup. A Git subprocess that never exits must fail
+// this one lookup, not pin the workspace-index lock and every later board request/shutdown operation indefinitely.
+export const WORKSPACE_GIT_DETECTION_TIMEOUT_MS = 10_000;
 
 /**
  * Capture `git <args>` stdout (trimmed; null on empty / non-zero exit / spawn failure) WITHOUT blocking the event loop.
@@ -28,6 +31,7 @@ async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string |
 			cwd,
 			encoding: "utf8",
 			env: createGitProcessEnv(),
+			timeout: WORKSPACE_GIT_DETECTION_TIMEOUT_MS,
 		});
 		const value = typeof stdout === "string" ? stdout.trim() : "";
 		return value.length > 0 ? value : null;
