@@ -9,10 +9,12 @@ import {
 	selectAttempts,
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
+	summarizeKnowledgeDebtOutcomes,
 	summarizeKnowledgeOutcomeByModel,
 	summarizeModelContextUsage,
 	summarizeModelOutcomes,
 	summarizeModelSpeed,
+	summarizeRedecomposeRoundOutcomes,
 	summarizeToolUsageByModel,
 } from "../../../src/core/agent-attempt-ledger";
 
@@ -333,6 +335,7 @@ describe("summarizeKnowledgeOutcomeByModel (F1.1)", () => {
 				localizationCallCount: 0,
 				knowledgeErrorCount: 0,
 				categoriesUsed: retrievalCallCount > 0 ? ["code_index"] : [],
+				knowledgeDebtPresent: null,
 			},
 		});
 
@@ -368,5 +371,59 @@ describe("summarizeKnowledgeOutcomeByModel (F1.1)", () => {
 		expect(rows).toHaveLength(2);
 		expect(rows.every((row) => row.knowledgeLift === null)).toBe(true);
 		expect(rows.map((row) => row.role).sort()).toEqual(["reviewer", "worker"]);
+	});
+});
+
+describe("summarizeKnowledgeDebtOutcomes / summarizeRedecomposeRoundOutcomes (F1.1)", () => {
+	const debtAttempt = (attemptId: string, outcome: "success" | "timeout", debt: boolean | null, taskId = "task-x") =>
+		buildAttemptEvent({
+			...base,
+			taskId,
+			workflowId: taskId,
+			attemptId,
+			modelId: "model-D",
+			outcome,
+			knowledge: {
+				retrievalCallCount: 0,
+				localizationCallCount: 0,
+				knowledgeErrorCount: 0,
+				categoriesUsed: [],
+				knowledgeDebtPresent: debt,
+			},
+		});
+
+	it("correlates declared knowledge debt with delivery outcome; unknown debt contributes to neither side", () => {
+		const summary = summarizeKnowledgeDebtOutcomes([
+			debtAttempt("d1", "success", true),
+			debtAttempt("d2", "timeout", true),
+			debtAttempt("d3", "success", false),
+			debtAttempt("d4", "success", false),
+			debtAttempt("d5", "success", null),
+		]);
+		expect(summary).toMatchObject({
+			attemptsWithDebt: 2,
+			successesWithDebt: 1,
+			attemptsWithoutDebt: 2,
+			successesWithoutDebt: 2,
+		});
+		expect(summary.debtLift ?? 0).toBeCloseTo(-0.5, 5);
+	});
+
+	it("buckets attempts by the re-decompose round their task id encodes", () => {
+		const parseRound = (taskId: string | null | undefined) => (taskId ?? "").split("redecompose-").length - 1;
+		const rows = summarizeRedecomposeRoundOutcomes(
+			[
+				debtAttempt("r1", "success", null, "task-a"),
+				debtAttempt("r2", "timeout", null, "redecompose-task-a"),
+				debtAttempt("r3", "success", null, "redecompose-task-a"),
+				debtAttempt("r4", "timeout", null, "redecompose-redecompose-task-a"),
+			],
+			parseRound,
+		);
+		expect(rows).toEqual([
+			{ round: 0, attempts: 1, successes: 1 },
+			{ round: 1, attempts: 2, successes: 1 },
+			{ round: 2, attempts: 1, successes: 0 },
+		]);
 	});
 });

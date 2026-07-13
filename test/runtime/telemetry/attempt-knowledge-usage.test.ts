@@ -23,6 +23,7 @@ describe("summarizeAttemptKnowledgeUsage (F1.1)", () => {
 			localizationCallCount: 2,
 			knowledgeErrorCount: 0,
 			categoriesUsed: ["architecture_knowledge", "code_index", "file_discovery", "file_read"],
+			knowledgeDebtPresent: null,
 		});
 	});
 
@@ -39,6 +40,10 @@ describe("summarizeAttemptKnowledgeUsage (F1.1)", () => {
 			localizationCallCount: 0,
 			knowledgeErrorCount: 0,
 			categoriesUsed: [],
+			knowledgeDebtPresent: null,
 		});
+		expect(
+			summarizeAttemptKnowledgeUsage([call("search_code")], { knowledgeDebtPresent: true }).knowledgeDebtPresent,
+		).toBe(true);
 	});
 });

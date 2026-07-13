@@ -110,6 +110,8 @@ const attemptKnowledgeUsageSchema = z.object({
 	knowledgeErrorCount: z.number().int().nonnegative(),
 	/** Distinct knowledge/localization categories observed, sorted. */
 	categoriesUsed: z.array(z.string()),
+	/** F1.1 — whether the task's originating plan card declared knowledge debt; null when unknown/not plan-born. */
+	knowledgeDebtPresent: z.boolean().nullable().default(null),
 });
 export type AttemptKnowledgeUsage = z.infer<typeof attemptKnowledgeUsageSchema>;
 
@@ -707,6 +709,85 @@ export function summarizeKnowledgeOutcomeByModel(events: readonly AgentLedgerEve
 		}
 	}
 	return [...rows.values()].sort((a, b) => `${a.modelId}::${a.role}`.localeCompare(`${b.modelId}::${b.role}`));
+}
+
+/** F1.1 — correlate declared knowledge debt (on plan-born cards) with delivery outcome. */
+export interface KnowledgeDebtOutcomeSummary {
+	attemptsWithDebt: number;
+	successesWithDebt: number;
+	attemptsWithoutDebt: number;
+	successesWithoutDebt: number;
+	/** successRate(withDebt) − successRate(withoutDebt); null until both sides have evidence. */
+	debtLift: number | null;
+}
+
+export function summarizeKnowledgeDebtOutcomes(events: readonly AgentLedgerEvent[]): KnowledgeDebtOutcomeSummary {
+	const summary: KnowledgeDebtOutcomeSummary = {
+		attemptsWithDebt: 0,
+		successesWithDebt: 0,
+		attemptsWithoutDebt: 0,
+		successesWithoutDebt: 0,
+		debtLift: null,
+	};
+	for (const event of events) {
+		if (event.kind !== "attempt" || event.knowledge?.knowledgeDebtPresent == null) {
+			continue;
+		}
+		const succeeded = event.outcome === "success";
+		if (event.knowledge.knowledgeDebtPresent) {
+			summary.attemptsWithDebt += 1;
+			if (succeeded) {
+				summary.successesWithDebt += 1;
+			}
+		} else {
+			summary.attemptsWithoutDebt += 1;
+			if (succeeded) {
+				summary.successesWithoutDebt += 1;
+			}
+		}
+	}
+	if (summary.attemptsWithDebt > 0 && summary.attemptsWithoutDebt > 0) {
+		summary.debtLift =
+			summary.successesWithDebt / summary.attemptsWithDebt -
+			summary.successesWithoutDebt / summary.attemptsWithoutDebt;
+	}
+	return summary;
+}
+
+/** F1.1 — one graph-revision (re-decompose round) bucket correlated with delivery outcome. */
+export interface RedecomposeRoundOutcomeRow {
+	/** 0 = the original decomposition's cards; N = cards spawned by the Nth re-decompose round. */
+	round: number;
+	attempts: number;
+	successes: number;
+}
+
+/**
+ * F1.1 — correlate GRAPH REVISIONS with delivery outcome: bucket attempts by the re-decompose round their task id
+ * encodes (`parseRedecomposeRound` counts the `redecompose-` prefixes the escalation ladder stacks). Derived purely
+ * at read time — no revision counter store required.
+ */
+export function summarizeRedecomposeRoundOutcomes(
+	events: readonly AgentLedgerEvent[],
+	parseRound: (taskId: string | null | undefined) => number,
+): RedecomposeRoundOutcomeRow[] {
+	const buckets = new Map<number, RedecomposeRoundOutcomeRow>();
+	for (const event of events) {
+		if (event.kind !== "attempt") {
+			continue;
+		}
+		const round = parseRound(event.taskId);
+		const existing = buckets.get(round);
+		const row: RedecomposeRoundOutcomeRow = existing ?? { round, attempts: 0, successes: 0 };
+		if (!existing) {
+			buckets.set(round, row);
+		}
+		row.attempts += 1;
+		if (event.outcome === "success") {
+			row.successes += 1;
+		}
+	}
+	return [...buckets.values()].sort((a, b) => a.round - b.round);
 }
 
 export function summarizeToolUsageByModel(events: readonly AgentLedgerEvent[]): ModelToolUsageRollup[] {

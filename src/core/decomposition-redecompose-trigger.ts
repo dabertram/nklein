@@ -94,6 +94,21 @@ export interface DecompositionStructureSignals {
 	readonly subtaskCount: number;
 }
 
+/**
+ * F1.1 — how many re-decompose rounds a task id encodes. The escalation ladder spawns follow-up decompose cards as
+ * `redecompose-<parent>` (and a re-decomposed re-decompose nests the prefix), so the round count IS the graph-revision
+ * count for the objective. Pure string projection — no store required.
+ */
+export function parseRedecomposeRound(taskId: string | null | undefined): number {
+	let rounds = 0;
+	let rest = taskId ?? "";
+	while (rest.startsWith("redecompose-")) {
+		rounds += 1;
+		rest = rest.slice("redecompose-".length);
+	}
+	return rounds;
+}
+
 /** Everything the trigger needs. All fields are injected plain values produced by the upstream gates + projection. */
 export interface RedecomposeTriggerInput {
 	/** The structural shape (from `validateSubtaskDag`, projected onto {@link DecompositionStructureSignals}). */

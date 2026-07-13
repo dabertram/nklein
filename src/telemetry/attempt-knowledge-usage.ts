@@ -8,7 +8,10 @@ import { classifyKnowledgeTool } from "./knowledge-tool-usage-stats";
 const RETRIEVAL_CATEGORIES = new Set(["codebase_retrieval", "code_index", "architecture_knowledge"]);
 const LOCALIZATION_CATEGORIES = new Set(["file_discovery", "file_read"]);
 
-export function summarizeAttemptKnowledgeUsage(toolCalls: readonly AttemptToolCall[]): AttemptKnowledgeUsage {
+export function summarizeAttemptKnowledgeUsage(
+	toolCalls: readonly AttemptToolCall[],
+	options: { knowledgeDebtPresent?: boolean | null } = {},
+): AttemptKnowledgeUsage {
 	let retrievalCallCount = 0;
 	let localizationCallCount = 0;
 	let knowledgeErrorCount = 0;
@@ -35,5 +38,6 @@ export function summarizeAttemptKnowledgeUsage(toolCalls: readonly AttemptToolCa
 		localizationCallCount,
 		knowledgeErrorCount,
 		categoriesUsed: [...categoriesUsed].sort(),
+		knowledgeDebtPresent: options.knowledgeDebtPresent ?? null,
 	};
 }

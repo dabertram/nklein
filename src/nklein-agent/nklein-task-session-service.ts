@@ -79,7 +79,7 @@ import {
 	type NKleinTaskRestartLaunchConfig,
 	normalizeLaunchConfig,
 } from "./nklein-launch-config";
-import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
+import { buildTerminalAttemptEvent, resolveTaskKnowledgeDebtPresent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
@@ -2726,8 +2726,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
 				const toolCalls = extractTerminalToolCalls(snapshot?.messages ?? []);
 				// F1.1: distill the knowledge-tool usage summary here, where the transcript's tool calls are in hand —
-				// projections correlate it with the attempt outcome without re-reading transcripts.
-				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls);
+				// projections correlate it with the attempt outcome without re-reading transcripts. The plan-declared
+				// knowledge debt of the originating card rides along (null when unknown / not plan-born).
+				const knowledgeDebtPresent = await resolveTaskKnowledgeDebtPresent(summary.workspacePath, taskId);
+				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls, { knowledgeDebtPresent });
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,

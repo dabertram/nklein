@@ -641,13 +641,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 1A. Planning, decomposition, and work-package construction *(legacy §5.B, §5.S, §5.N, §5.AV, §5.AK)*
 
-- [ ] **F1.1 — Turn knowledge-tool use into a decomposition-quality signal** *(first slice delivered 2026-07-13, see
-  done.md: per-attempt knowledge summary on the ledger, knowledge×outcome projection, fitness tallies + ranking
-  tiebreak, blind-decomposition escalation on the redecompose trigger).* REMAINING: correlate **knowledge debt**
-  (join plan-artifact `knowledgeDebt` on generated cards with those cards' delivery outcomes) and **graph revisions**
-  (count DAG revisions per task — `applyDagOp` / re-decompose rounds — and fold them into the same correlation), and
-  wire the (still call-site-less) `decideRedecomposeTrigger` into the live decompose path so the
-  `consultedKnowledgeTools` escalation actually fires in production.
 - [ ] **F1.2 — Add domain-rubric scoring for the DAW challenge preset.** Reuse the shipped Audio/VST scorer pattern;
   produce machine-readable DAW quality scores/evidence rather than reopening the four completed Audio/VST axes.
 - [ ] **F1.3 — Complete automatic clarification after decomposition.** Run the question-quality/reviewer pass wherever

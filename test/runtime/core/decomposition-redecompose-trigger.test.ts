@@ -3,6 +3,7 @@ import {
 	DEFAULT_REDECOMPOSE_TRIGGER_OPTIONS,
 	type DecompositionStructureSignals,
 	decideRedecomposeTrigger,
+	parseRedecomposeRound,
 	type RedecomposeTriggerInput,
 	type SubtaskSizing,
 } from "../../../src/core/decomposition-redecompose-trigger";
@@ -485,5 +486,15 @@ describe("decideRedecomposeTrigger — purity", () => {
 		expect(verdict.action).toBe("accept");
 		expect(verdict.oversizedSubtaskIds).toEqual([]);
 		expect(verdict.undersizedSubtaskIds).toEqual([]);
+	});
+});
+
+describe("parseRedecomposeRound (F1.1 graph-revision proxy)", () => {
+	it("counts stacked redecompose- prefixes and treats everything else as round 0", () => {
+		expect(parseRedecomposeRound("task-a")).toBe(0);
+		expect(parseRedecomposeRound("redecompose-task-a")).toBe(1);
+		expect(parseRedecomposeRound("redecompose-redecompose-task-a")).toBe(2);
+		expect(parseRedecomposeRound(null)).toBe(0);
+		expect(parseRedecomposeRound(undefined)).toBe(0);
 	});
 });

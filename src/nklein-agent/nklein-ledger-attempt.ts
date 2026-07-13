@@ -17,7 +17,9 @@ import {
 	buildAttemptEvent,
 } from "../core/agent-attempt-ledger";
 import type { ModelOutcomeKind } from "../core/model-behavior-profile";
+import { loadWorkspaceState } from "../state/workspace-state";
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry";
+import { readNKleinPlanArtifacts } from "./nklein-plan-artifacts";
 
 /** A stable, host-path-free workspace key for the per-workspace ledger file (never the path itself — invariant #2). */
 export function hashWorkspacePathForLedger(workspacePath: string | null): string {
@@ -97,4 +99,35 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		toolCalls: input.toolCalls,
 		knowledge: input.knowledge ?? null,
 	});
+}
+
+/**
+ * F1.1 — was the task's originating plan card born with declared KNOWLEDGE DEBT? Resolved once per terminal run for
+ * the ledger's knowledge summary: board card → `generatedFromPlan` → plan artifact task → non-empty `knowledgeDebt`.
+ * Best-effort: null (unknown) on any miss — a non-plan-born card, a trashed plan, or an unreadable artifact must not
+ * be counted as "no debt".
+ */
+export async function resolveTaskKnowledgeDebtPresent(
+	workspacePath: string | null | undefined,
+	taskId: string,
+): Promise<boolean | null> {
+	if (!workspacePath) {
+		return null;
+	}
+	try {
+		const state = await loadWorkspaceState(workspacePath);
+		const card = state.board.columns.flatMap((column) => column.cards).find((candidate) => candidate.id === taskId);
+		const origin = card?.generatedFromPlan;
+		if (!origin) {
+			return null;
+		}
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, origin.planSlug);
+		const planTask = artifacts.taskGraph.tasks.find((task) => task.id === origin.planTaskId);
+		if (!planTask) {
+			return null;
+		}
+		return typeof planTask.knowledgeDebt === "string" && planTask.knowledgeDebt.trim().length > 0;
+	} catch {
+		return null;
+	}
 }

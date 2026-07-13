@@ -179,10 +179,11 @@ export interface NKleinPlanTaskGraphPreview {
 // ---------------------------------------------------------------------------
 
 import type { SubtaskSizing } from "../core/decomposition-redecompose-trigger";
-import { decideRedecomposeTrigger } from "../core/decomposition-redecompose-trigger";
+import { decideRedecomposeTrigger, parseRedecomposeRound } from "../core/decomposition-redecompose-trigger";
 import type { DecomposedSubtask } from "../core/decomposition-subtask-dag";
 import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
+import { didTaskConsultKnowledge } from "../telemetry/knowledge-tool-usage-stats";
 import {
 	applyDecomposeProjectArtifactsToWorkspace,
 	redactWorkspacePathForAgent,
@@ -379,6 +380,12 @@ function createDecomposeProjectTool(
 				complexity: task.complexity,
 				likelyFileCount: task.filesLikelyTouched.length,
 			}));
+			// F1.1: feed the LIVE knowledge signal into the trigger — did the architect consult knowledge tools
+			// before emitting this decomposition (observation log, written per tool hook during the run)? — plus the
+			// graph-revision count its own task id encodes (`redecompose-` rounds from the escalation ladder).
+			const consultedKnowledgeTools = sourceTaskId
+				? await didTaskConsultKnowledge(sourceTaskId).catch(() => null)
+				: null;
 			const redecomposeVerdict = decideRedecomposeTrigger(
 				{
 					structure: {
@@ -390,6 +397,8 @@ function createDecomposeProjectTool(
 					sizing: subtaskSizing,
 					semanticViolationCount: validation.quality.violations.length,
 					semanticWarningCount: validation.quality.warnings.length,
+					consultedKnowledgeTools,
+					priorRedecomposeAttempts: parseRedecomposeRound(sourceTaskId),
 				},
 				{ maxSubtaskComplexity: 60 },
 			);
@@ -414,6 +423,8 @@ function createDecomposeProjectTool(
 						operation: "decompose_project_subtask_dag",
 						planSlug: slug,
 						action: redecomposeVerdict.action,
+						consultedKnowledgeTools,
+						priorRedecomposeAttempts: parseRedecomposeRound(sourceTaskId),
 						hasBlockingStructuralDefect,
 						defectKinds: subtaskDagReport.defects.map((defect) => defect.kind),
 						cycles: subtaskDagReport.cycles.map((cycle) => [...cycle]),

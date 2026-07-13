@@ -247,6 +247,19 @@
   with the loop-safety cap staying authoritative and unknown never escalating. 11 new tests; full suite green
   (9797).
 
+- [x] **F1.1 (complete) — knowledge debt + graph revisions correlated; live trigger fed** *(second slice, delivered
+  2026-07-13; closes the package).* Knowledge debt: `resolveTaskKnowledgeDebtPresent` joins a terminal run's card →
+  `generatedFromPlan` → plan-artifact task → non-empty `knowledgeDebt` (null on any miss — unknown is never "no
+  debt"), rides the ledger attempt's knowledge summary, and `summarizeKnowledgeDebtOutcomes` computes the debt lift
+  against delivery outcome. Graph revisions: `parseRedecomposeRound` counts the `redecompose-` prefixes the
+  escalation ladder stacks (the revision count for an objective — no store needed), and
+  `summarizeRedecomposeRoundOutcomes` buckets attempt outcomes per round. Live feed: the (already-wired, advisory)
+  `decideRedecomposeTrigger` call inside `decompose_project` now receives `consultedKnowledgeTools` (from the
+  observation-log probe over the ARCHITECT's own run) and `priorRedecomposeAttempts` (from the round parser), and
+  records both in the self-observation metadata — the F1.1 blind-decomposition escalation is live in the recorded
+  verdict. Full suite green (9801); acting on the verdict (auto re-decompose loop) deliberately remains with the
+  later expansion packages (F1.3/F1.7+).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
