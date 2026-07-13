@@ -33,6 +33,9 @@ export function formatQuestionsMarkdown(questions: readonly NKleinPlanQuestion[]
 		if (question.assumption?.trim()) {
 			lines.push("", `Assumption: ${question.assumption.trim()}`);
 		}
+		if (question.blockedTaskId?.trim()) {
+			lines.push("", `Blocked task: ${question.blockedTaskId.trim()}`);
+		}
 		sections.push(lines.join("\n"));
 	}
 	return `${sections.join("\n\n")}\n`;
@@ -52,6 +55,9 @@ export function formatInitialDecisionsMarkdown(questions: readonly NKleinPlanQue
 		}
 		if (question.assumption?.trim()) {
 			lines.push("", `Assumption: ${question.assumption.trim()}`);
+		}
+		if (question.blockedTaskId?.trim()) {
+			lines.push("", `Blocked task: ${question.blockedTaskId.trim()}`);
 		}
 		sections.push(lines.join("\n"));
 	}
@@ -100,6 +106,7 @@ export function parseQuestionsMarkdown(markdown: string): NKleinPlanQuestion[] {
 		let status: NKleinPlanQuestion["status"] = "open";
 		let answer: string | null = null;
 		let assumption: string | null = null;
+		let blockedTaskId: string | null = null;
 		const options: NKleinPlanQuestionOption[] = [];
 		const questionLines: string[] = [];
 		let inOptions = false;
@@ -125,6 +132,12 @@ export function parseQuestionsMarkdown(markdown: string): NKleinPlanQuestion[] {
 				inOptions = false;
 				continue;
 			}
+			const blockedMatch = /^Blocked task:\s*(.*)$/.exec(line);
+			if (blockedMatch) {
+				blockedTaskId = blockedMatch[1]?.trim() || null;
+				inOptions = false;
+				continue;
+			}
 			if (/^Options:\s*$/.test(line)) {
 				inOptions = true;
 				continue;
@@ -143,7 +156,7 @@ export function parseQuestionsMarkdown(markdown: string): NKleinPlanQuestion[] {
 		if (!question) {
 			continue;
 		}
-		questions.push({ id, question, status, options, answer, assumption });
+		questions.push({ id, question, status, options, answer, assumption, blockedTaskId });
 	}
 	return questions;
 }

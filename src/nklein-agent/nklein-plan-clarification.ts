@@ -23,7 +23,8 @@ export type PlanQuestionResolution =
 	| { source: "auto"; decision: AutoClarifyDecision };
 
 export type ResolvePlanQuestionResult =
-	| { ok: true; question: NKleinPlanQuestion; changed: boolean }
+	/** `blockedTaskId` is the card that was parked on this question (pre-clear) — the caller resumes exactly it. */
+	| { ok: true; question: NKleinPlanQuestion; changed: boolean; blockedTaskId: string | null }
 	| { ok: false; error: string };
 
 function describeResolution(question: NKleinPlanQuestion, resolution: PlanQuestionResolution): string {
@@ -65,10 +66,14 @@ export async function resolvePlanQuestion(input: {
 		projected.answer !== stored.answer ||
 		projected.assumption !== stored.assumption;
 	if (!changed || projected.status === "open") {
-		return { ok: true, question: stored, changed: false };
+		return { ok: true, question: stored, changed: false, blockedTaskId: stored.blockedTaskId };
 	}
+	// F1.3d: resolution releases the block — the caller resumes the returned task; the stored question stops
+	// claiming it so a later re-park can claim it afresh.
+	const blockedTaskId = stored.blockedTaskId;
+	const released: NKleinPlanQuestion = { ...projected, blockedTaskId: null };
 	try {
-		await updateNKleinPlanQuestion({ workspacePath: input.workspacePath, slug: input.slug, question: projected });
+		await updateNKleinPlanQuestion({ workspacePath: input.workspacePath, slug: input.slug, question: released });
 		await appendNKleinPlanRevision({
 			workspacePath: input.workspacePath,
 			slug: input.slug,
@@ -79,7 +84,24 @@ export async function resolvePlanQuestion(input: {
 	} catch (error) {
 		return { ok: false, error: `Could not persist the resolution for "${input.questionId}": ${String(error)}` };
 	}
-	return { ok: true, question: projected, changed: true };
+	return { ok: true, question: released, changed: true, blockedTaskId };
+}
+
+/**
+ * F1.3d — the resume prompt for a card that was parked on a plan question. Explicit about the decision so the
+ * re-driven turn continues instead of re-asking; the plan revision (`clarification_resolved`) is the durable record.
+ */
+export function buildClarificationResumePrompt(question: NKleinPlanQuestion): string {
+	const decision =
+		question.status === "answered"
+			? `Answer: ${question.answer ?? ""}`
+			: `Assumed default: ${question.assumption ?? ""}`;
+	return [
+		`Your open question has been resolved — continue the task with this decision and do NOT re-ask it.`,
+		`Question: ${question.question}`,
+		decision,
+		`Proceed from exactly where you stopped, applying this decision.`,
+	].join("\n");
 }
 
 export interface DecompositionClarificationPassSummary {

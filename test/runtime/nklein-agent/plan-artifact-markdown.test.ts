@@ -109,6 +109,7 @@ describe("parseQuestionsMarkdown (F1.3a round-trip)", () => {
 				],
 				answer: null,
 				assumption: "Assume SQLite (recommended option).",
+				blockedTaskId: "task-blocked-1",
 			},
 			{
 				id: "q-auth",
@@ -117,6 +118,7 @@ describe("parseQuestionsMarkdown (F1.3a round-trip)", () => {
 				options: [],
 				answer: "No — single-user local app.",
 				assumption: null,
+				blockedTaskId: null,
 			},
 		];
 		expect(parseQuestionsMarkdown(formatQuestionsMarkdown(questions))).toEqual(questions);

@@ -38,8 +38,17 @@ async function createPlanWorkspace(): Promise<string> {
 				],
 				answer: null,
 				assumption: "Assume SQLite.",
+				blockedTaskId: null,
 			},
-			{ id: "q-auth", question: "Is auth in scope?", status: "open", options: [], answer: null, assumption: null },
+			{
+				id: "q-auth",
+				question: "Is auth in scope?",
+				status: "open",
+				options: [],
+				answer: null,
+				assumption: null,
+				blockedTaskId: null,
+			},
 		],
 		taskGraph: nkleinPlanTaskGraphSchema.parse({
 			schemaVersion: 1,
@@ -96,6 +105,7 @@ describe("resolvePlanQuestion (F1.3b answer→revision connector)", () => {
 			id: "q-auth",
 			status: "assumed-default",
 			assumption: "No auth — single-user local app.",
+			blockedTaskId: null,
 		});
 		const revisions = await readFile(resolveNKleinPlanArtifactPaths(workspacePath, "clarify").revisionsPath, "utf8");
 		expect(revisions).toContain("resolved by the automatic clarification pass with an assumed default");
@@ -156,6 +166,7 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 					options: [{ id: "sqlite", label: "SQLite", description: null, recommended: true }],
 					answer: null,
 					assumption: "Assume SQLite (recommended).",
+					blockedTaskId: null,
 				},
 				{
 					id: "q-risky",
@@ -164,6 +175,7 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 					options: [],
 					answer: null,
 					assumption: "Assume we delete it.",
+					blockedTaskId: null,
 				},
 				{
 					id: "q-no-default",
@@ -172,6 +184,7 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 					options: [],
 					answer: null,
 					assumption: null,
+					blockedTaskId: null,
 				},
 				{
 					id: "q-done",
@@ -180,6 +193,7 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 					options: [],
 					answer: "No.",
 					assumption: null,
+					blockedTaskId: null,
 				},
 			],
 			taskGraph: nkleinPlanTaskGraphSchema.parse({
@@ -202,6 +216,7 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 		expect(artifacts.questions.find((question) => question.id === "q-safe")).toMatchObject({
 			status: "assumed-default",
 			assumption: "Assume SQLite (recommended).",
+			blockedTaskId: null,
 		});
 		expect(artifacts.questions.find((question) => question.id === "q-risky")?.status).toBe("open");
 		expect(artifacts.questions.find((question) => question.id === "q-no-default")?.status).toBe("open");
@@ -210,5 +225,48 @@ describe("runDecompositionClarificationPass (F1.3c)", () => {
 		expect(revisions).toContain("clarification_resolved");
 		expect(revisions).toContain('"q-safe"');
 		expect(revisions).not.toContain('"q-risky"');
+	});
+});
+
+describe("resolvePlanQuestion block linkage (F1.3d)", () => {
+	it("returns the parked task id and releases the block on resolution", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-clarify-block-"));
+		await writeNKleinPlanArtifacts({
+			workspacePath,
+			slug: "blocked",
+			spec: "spec",
+			plan: "plan",
+			questions: [
+				{
+					id: "q-blocked",
+					question: "Which port should the dev server bind?",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: null,
+					blockedTaskId: "task-77",
+				},
+			],
+			taskGraph: nkleinPlanTaskGraphSchema.parse({
+				schemaVersion: 1,
+				slug: "blocked",
+				title: "Blocked",
+				tasks: [{ id: "t1", title: "Task 1", prompt: "Do task 1" }],
+			}),
+		});
+		const resolved = await resolvePlanQuestion({
+			workspacePath,
+			slug: "blocked",
+			questionId: "q-blocked",
+			resolution: { source: "operator", answer: { freeText: "Port 4173." } },
+		});
+		expect(resolved).toMatchObject({ ok: true, changed: true, blockedTaskId: "task-77" });
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "blocked");
+		expect(artifacts.questions[0]).toMatchObject({
+			id: "q-blocked",
+			status: "answered",
+			answer: "Port 4173.",
+			blockedTaskId: null, // released
+		});
 	});
 });

@@ -4,6 +4,8 @@
 
 import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from "../../core/agent-attempt-ledger.js";
 import {
+	runtimeAnswerPlanQuestionRequestSchema,
+	runtimeAnswerPlanQuestionResponseSchema,
 	runtimeCardMailboxCountsRequestSchema,
 	runtimeCardMailboxCountsResponseSchema,
 	runtimeCommandRunRequestSchema,
@@ -238,6 +240,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeNKleinPlanArtifactsResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.listNKleinPlanArtifacts(ctx.workspaceScope, input);
+			}),
+		answerNKleinPlanQuestion: workspaceProcedure
+			.input(runtimeAnswerPlanQuestionRequestSchema)
+			.output(runtimeAnswerPlanQuestionResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.answerNKleinPlanQuestion(ctx.workspaceScope, input);
 			}),
 		applyNKleinPlanArtifact: workspaceProcedure
 			.input(runtimeNKleinPlanArtifactActionRequestSchema)

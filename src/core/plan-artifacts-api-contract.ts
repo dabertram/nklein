@@ -36,6 +36,26 @@ export const runtimeNKleinPlanArtifactsResponseSchema = z.object({
 });
 export type RuntimeNKleinPlanArtifactsResponse = z.infer<typeof runtimeNKleinPlanArtifactsResponseSchema>;
 
+// F1.3d — answer one open plan question (operator path). Resolution persists through the plan artifacts
+// (questions.md rewrite + clarification_resolved revision) and resumes the exact card parked on the question.
+export const runtimeAnswerPlanQuestionRequestSchema = z.object({
+	planSlug: z.string().min(1),
+	questionId: z.string().min(1),
+	selectedOptionIds: z.array(z.string()).optional(),
+	freeText: z.string().optional(),
+});
+export type RuntimeAnswerPlanQuestionRequest = z.infer<typeof runtimeAnswerPlanQuestionRequestSchema>;
+
+export const runtimeAnswerPlanQuestionResponseSchema = z.object({
+	ok: z.boolean(),
+	/** The question's status after the answer (unchanged when the submission was empty). */
+	questionStatus: z.enum(["open", "answered", "assumed-default"]).nullable(),
+	/** The card that was parked on this question and has now been resumed, when any. */
+	resumedTaskId: z.string().nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeAnswerPlanQuestionResponse = z.infer<typeof runtimeAnswerPlanQuestionResponseSchema>;
+
 export const runtimeNKleinPlanArtifactActionRequestSchema = z.object({
 	artifactId: z.string().min(1),
 });

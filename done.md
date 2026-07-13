@@ -302,6 +302,17 @@
   self-observation (warning severity when questions stay open). 11 tests across the pure core + pass runner; the
   decomposition tool's 44 tests stay green with the pass in its apply path.
 
+- [x] **F1.3d — Answer an open plan question and resume the exact blocked card** *(fourth F1.3 leaf; delivered
+  2026-07-13).* `NKleinPlanQuestion` gains `blockedTaskId` (rendered/parsed through the F1.3a `questions.md`
+  round-trip as a `Blocked task:` line) — the durable question↔card linkage. `resolvePlanQuestion` now returns the
+  parked task id and RELEASES the block on resolution; `buildClarificationResumePrompt` renders the explicit
+  continue-don't-re-ask prompt. New runtime mutation `answerNKleinPlanQuestion` (contract + router + handler):
+  persists an operator answer through the F1.3b seam, then resumes exactly the blocked card via
+  `sendTaskSessionInput`, gated on a cleanly re-promptable session (`awaiting_review` + `canReturnToRunning`,
+  mirroring the stall-nudger's safety gate); a non-resumable card reports loudly while the answer stays durable.
+  The production SETTER of `blockedTaskId` ships with F1.3e's operator escalation (noted in the open leaf). 6 new
+  tests (block release, resume happy path + prompt content, non-repromptable, empty submission, unknown question).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

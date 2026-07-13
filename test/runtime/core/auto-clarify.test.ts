@@ -100,6 +100,7 @@ describe("applyAutoClarifyDecision", () => {
 		options: [],
 		answer: null,
 		assumption: null,
+		blockedTaskId: null,
 	};
 
 	it("records a confident answer", () => {
@@ -134,6 +135,7 @@ describe("runAutoClarifyLoop", () => {
 		options: [],
 		answer: null,
 		assumption: null,
+		blockedTaskId: null,
 	};
 	const exactSimilarity = (a: string, b: string): number => (a.trim() === b.trim() ? 1 : 0);
 

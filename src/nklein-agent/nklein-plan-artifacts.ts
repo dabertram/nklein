@@ -80,6 +80,8 @@ export const nkleinPlanQuestionSchema = z.object({
 	options: z.array(nkleinPlanQuestionOptionSchema).default([]),
 	answer: z.string().nullable().default(null),
 	assumption: z.string().nullable().default(null),
+	/** F1.3d — the card parked awaiting this question's answer; resolution resumes exactly this task. */
+	blockedTaskId: z.string().nullable().default(null),
 });
 export type NKleinPlanQuestion = z.infer<typeof nkleinPlanQuestionSchema>;
 

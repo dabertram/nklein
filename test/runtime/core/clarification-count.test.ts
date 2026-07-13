@@ -10,6 +10,7 @@ function question(overrides: Partial<NKleinPlanQuestion> = {}): NKleinPlanQuesti
 		options: overrides.options ?? [],
 		answer: overrides.answer ?? null,
 		assumption: overrides.assumption ?? null,
+		blockedTaskId: null,
 	};
 }
 

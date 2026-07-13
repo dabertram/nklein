@@ -23,6 +23,7 @@ function question(overrides: Partial<NKleinPlanQuestion> = {}): NKleinPlanQuesti
 		],
 		answer: overrides.answer ?? null,
 		assumption: overrides.assumption ?? null,
+		blockedTaskId: null,
 	};
 }
 

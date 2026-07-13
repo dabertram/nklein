@@ -17,6 +17,7 @@ function question(over: Partial<NKleinPlanQuestion> = {}): NKleinPlanQuestion {
 		options: [],
 		answer: null,
 		assumption: null,
+		blockedTaskId: null,
 		...over,
 	};
 }

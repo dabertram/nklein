@@ -5,6 +5,8 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/agent-attempt-ledger.js";
 import type {
+	RuntimeAnswerPlanQuestionRequest,
+	RuntimeAnswerPlanQuestionResponse,
 	RuntimeCardMailboxCountsRequest,
 	RuntimeCardMailboxCountsResponse,
 	RuntimeCommandRunRequest,
@@ -259,6 +261,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactsRequest,
 		) => Promise<RuntimeNKleinPlanArtifactsResponse>;
+		answerNKleinPlanQuestion: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeAnswerPlanQuestionRequest,
+		) => Promise<RuntimeAnswerPlanQuestionResponse>;
 		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,

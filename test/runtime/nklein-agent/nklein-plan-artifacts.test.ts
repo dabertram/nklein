@@ -91,6 +91,7 @@ describe("nklein plan artifacts", () => {
 					],
 					answer: null,
 					assumption: "No reminders in the first slice.",
+					blockedTaskId: null,
 				},
 			],
 			taskGraph: {
@@ -315,8 +316,17 @@ describe("plan questions round-trip + updater (F1.3a)", () => {
 					options: [{ id: "yes", label: "Yes", description: null, recommended: true }],
 					answer: null,
 					assumption: "Assume yes.",
+					blockedTaskId: null,
 				},
-				{ id: "q-b", question: "Question B?", status: "open", options: [], answer: null, assumption: null },
+				{
+					id: "q-b",
+					question: "Question B?",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: null,
+					blockedTaskId: null,
+				},
 			],
 			taskGraph: nkleinPlanTaskGraphSchema.parse({
 				schemaVersion: 1,
@@ -346,6 +356,7 @@ describe("plan questions round-trip + updater (F1.3a)", () => {
 				options: [],
 				answer: "Answer B.",
 				assumption: null,
+				blockedTaskId: null,
 			},
 		});
 		const updated = await readNKleinPlanArtifacts(workspacePath, "clarify-plan");
@@ -364,6 +375,7 @@ describe("plan questions round-trip + updater (F1.3a)", () => {
 				options: [],
 				answer: null,
 				assumption: null,
+				blockedTaskId: null,
 			},
 		});
 		const upserted = await readNKleinPlanArtifacts(workspacePath, "clarify-plan");
