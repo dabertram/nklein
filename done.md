@@ -995,6 +995,15 @@
   now strictly harder to satisfy — any dimension failure refuses broadening. Existing tests updated (the clean
   ranker now legitimately avoids forbidden ids) + a stale-first-ranker test proving each dimension fails with
   its violation named. 10 tests green. tsc 0, fast 9557 green.
+- [x] **F2.12a — typed host-action confirmation descriptor + filterable audit projection** *(delivered
+  2026-07-13; the dialog + history UI are F2.12b in todo).* `src/chat/chat-confirmation-description.ts`:
+  `describeHostActionConfirmation` produces the five F2.12 fields a confirmation must name — action, target
+  (the F2.2 least-scope identity, so the prompt shows byte-for-byte what a later covered retry reuses), scope
+  (sandbox/host/network from the capability manifest), consequence, and duration (the grant TTL) — plus a
+  headline. `filterChatHostActionAudit` is the filterable history read (action / decision / since / text
+  substring / executed, newest first). Secret-safety was already enforced upstream (`chat-audit-detail.ts`
+  masks secret-bearing values before persistence), so the history is safe to surface by construction. 3 tests.
+  tsc 0, fast 9560 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

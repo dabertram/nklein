@@ -926,9 +926,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   chat surface recovers without losing the transcript); (4) a "one shared renderer" consistency pass — verify
   the sidebar chat + card-detail chat + main panel all render through `nklein-chat-message-item` (spot-check
   suggested they do; pin it with a test or fold the stragglers).
-- [ ] **F2.12 — Complete host-action permission and audit UX.** Typed confirmations must name action, target, scope,
-  consequence, and duration; history must be filterable and secret-safe.
-- [ ] **F2.13 — Finish auto-clarification wiring in chat.** Bind questions and answers to card/plan state, resume the
+- [ ] **F2.12b — Render the typed confirmation dialog + audit history view (cores SHIPPED 2026-07-13).**
+  `src/chat/chat-confirmation-description.ts`: `describeHostActionConfirmation` names all five F2.12 fields —
+  ACTION (kind phrasing), TARGET (the F2.2 least-scope identity: exact command/path/host, byte-identical to what
+  a covered grant reuses), SCOPE (sandbox/host/network from the capability manifest), CONSEQUENCE, DURATION (the
+  grant TTL, human-phrased) — and `filterChatHostActionAudit` gives the filterable history (by action/decision/
+  time/text/executed, newest first) over the already-secret-safe records (`chat-audit-detail.ts` masks secrets
+  before persistence — the secret-safety half is done). REMAINING: the web-ui confirm DIALOG rendering the five
+  fields (replacing the current session-flag resolve — ties F2.2b), an audit history panel with the filter
+  controls, and Playwright over both.- [ ] **F2.13 — Finish auto-clarification wiring in chat.** Bind questions and answers to card/plan state, resume the
   correct work, and avoid duplicate prompts after restart.
 
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
