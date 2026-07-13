@@ -280,6 +280,15 @@
   `updateNKleinPlanQuestion` rewrites one question in place (upsert for new ids) with an atomic `questions.md`
   write, never clobbering siblings. Round-trip, tolerance, and updater tests added (15 in the two suites).
 
+- [x] **F1.3b — Clarification answers persist as plan revisions** *(second F1.3 leaf; delivered 2026-07-13).* New
+  `src/nklein-agent/nklein-plan-clarification.ts`: `resolvePlanQuestion` projects a resolution — an operator dialog
+  answer via the §5.S `applyClarificationAnswer` core, or an auto-clarify decision via `applyAutoClarifyDecision` —
+  onto the STORED question, rewrites `questions.md` in place (F1.3a updater), and appends a durable
+  `clarification_resolved` revision naming who decided and what. `keep_asking`/empty submissions change nothing and
+  append no revision; unknown question/plan fails loudly (a silently-lost decision is the drift `revisions.md`
+  exists to prevent). This is the single persistence seam the F1.3c auto pass and the F1.4 dialog both call. 4
+  focused tests.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

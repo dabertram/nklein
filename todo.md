@@ -645,9 +645,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   — clarification-need, auto-clarify loop, option-set, answer projection, count — are built + tested but unwired).*
   Run the question-quality/reviewer pass wherever decomposition or execution raises questions, persist answers into
   plan revisions, and resume the exact blocked card.
-  - [ ] **F1.3b — Persist answers as plan revisions.** Project an answer (auto or operator) onto the stored
-    question via `applyClarificationAnswer`/`applyAutoClarifyDecision`, rewrite `questions.md`, and append a
-    `clarification_resolved` revision via the proven `appendNKleinPlanRevision` (mirror the plan-gap caller).
   - [ ] **F1.3c — Post-decomposition question-quality pass.** After `decompose_project` writes artifacts, gate each
     open question through `assessClarificationNeed` (+ `assessAssumptionSafety`), and where warranted run
     `runAutoClarifyLoop` with a real §5.K reviewer turn; apply decisions via F1.3b. Mirror the
