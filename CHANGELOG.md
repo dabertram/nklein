@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The focus chain is now fully operator-controllable, with an audit trail.** A card's focus-chain panel marks the
+  step the agent is on with a "current" chip and can show the step's full status history (every recorded
+  pending/in-progress/done/skipped transition, from the durable attempt ledger). The chat plan strip is editable too:
+  expand it to reorder, skip, reopen, delete, or add steps — the same safety guard the agent itself is subject to
+  rejects any edit that would wipe recorded progress, and tells you why. Also fixed along the way: chat per-step
+  timing (when a step started/finished) no longer resets when the chain is reloaded from disk.
+
 - **The retired terminal-CLI agents are fully gone from the product surface.** !Klein's native agent has been the only
   launchable agent since the local-only lockdown; now the leftover claude/codex/gemini/opencode/droid/kiro entries are
   removed from onboarding, settings, and the wire contract too. Boards, sessions, and settings saved by very old

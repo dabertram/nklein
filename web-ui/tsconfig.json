@@ -15,6 +15,7 @@
       "@/*": ["src/*"],
       "@runtime-agent-catalog": ["../src/core/agent-catalog.ts"],
       "@runtime-clarification-option-set": ["../src/core/clarification-option-set.ts"],
+      "@runtime-focus-chain": ["../src/core/focus-chain.ts"],
       "@runtime-nklein-tool-call-display": ["../src/nklein-agent/nklein-tool-call-display.ts"],
       "@runtime-contract": ["../src/core/api-contract.ts"],
       "@runtime-home-agent-session": ["../src/core/home-agent-session.ts"],

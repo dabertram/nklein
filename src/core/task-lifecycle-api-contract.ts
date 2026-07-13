@@ -13,6 +13,26 @@ import {
 // input. Split out of api-contract.ts (§5.X #2). Imports z + acceptance-failure categories + config primitives +
 // task-session + board — never the barrel.
 
+// F1.6 — the operator-facing focus-chain AUDIT history: the durable per-step transitions the F1.5 ledger events
+// recorded, projected for one task (newest last). `from: null` = the step first appeared.
+export const runtimeFocusChainTransitionSchema = z.object({
+	stepText: z.string(),
+	from: z.string().nullable(),
+	to: z.string(),
+	recordedAt: z.number(),
+});
+export type RuntimeFocusChainTransition = z.infer<typeof runtimeFocusChainTransitionSchema>;
+
+export const runtimeFocusChainHistoryRequestSchema = z.object({
+	taskId: z.string().min(1),
+});
+export type RuntimeFocusChainHistoryRequest = z.infer<typeof runtimeFocusChainHistoryRequestSchema>;
+
+export const runtimeFocusChainHistoryResponseSchema = z.object({
+	transitions: z.array(runtimeFocusChainTransitionSchema),
+});
+export type RuntimeFocusChainHistoryResponse = z.infer<typeof runtimeFocusChainHistoryResponseSchema>;
+
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
 	timeoutMs: z.number().int().positive().optional(),

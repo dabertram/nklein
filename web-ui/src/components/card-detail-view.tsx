@@ -826,7 +826,11 @@ export function CardDetailView({
 								sessionSummary={sessionSummary}
 								onMarkTaskInterrupted={onMarkTaskInterrupted}
 							/>
-							<FocusChainPanel selection={selection} onUpdate={onUpdateFocusChain} />
+							<FocusChainPanel
+								selection={selection}
+								onUpdate={onUpdateFocusChain}
+								workspaceId={currentProjectId}
+							/>
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -1009,7 +1013,11 @@ export function CardDetailView({
 									sessionSummary={sessionSummary}
 									onMarkTaskInterrupted={onMarkTaskInterrupted}
 								/>
-								<FocusChainPanel selection={selection} onUpdate={onUpdateFocusChain} />
+								<FocusChainPanel
+									selection={selection}
+									onUpdate={onUpdateFocusChain}
+									workspaceId={currentProjectId}
+								/>
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

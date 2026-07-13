@@ -654,8 +654,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
     block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
-- [ ] **F1.6 — Complete focus-chain operator controls.** Allow safe add/reorder/skip/reopen operations in card and chat
-  views, with current-step visibility and audit history.
 - [ ] **F1.7 — Wire incremental valid-DAG construction into decomposition.** Expose `add_task`/`add_dependency` handlers
   over `applyDagOp`, return precise rejection feedback, and retain one-shot mode behind the evaluator for comparison.
 - [ ] **F1.8 — Emit work-package-shaped cards by construction.** Populate intent, bounded write scope, forbidden paths,

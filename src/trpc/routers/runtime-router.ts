@@ -19,6 +19,8 @@ import {
 	runtimeFeaturebaseTokenResponseSchema,
 	runtimeFitnessTableResponseSchema,
 	runtimeFleetStatusResponseSchema,
+	runtimeFocusChainHistoryRequestSchema,
+	runtimeFocusChainHistoryResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeListPlanQuestionsRequestSchema,
@@ -242,6 +244,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeNKleinPlanArtifactsResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.listNKleinPlanArtifacts(ctx.workspaceScope, input);
+			}),
+		getTaskFocusChainHistory: workspaceProcedure
+			.input(runtimeFocusChainHistoryRequestSchema)
+			.output(runtimeFocusChainHistoryResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getTaskFocusChainHistory(ctx.workspaceScope, input);
 			}),
 		listNKleinPlanQuestions: workspaceProcedure
 			.input(runtimeListPlanQuestionsRequestSchema)

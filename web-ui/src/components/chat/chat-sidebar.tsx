@@ -574,19 +574,32 @@ function MessageBubble({
 	);
 }
 
+type FocusChainStripStep = { text: string; status: "pending" | "in_progress" | "done" | "skipped" };
+
+const FOCUS_STRIP_STATUS_CYCLE: FocusChainStripStep["status"][] = ["pending", "in_progress", "done", "skipped"];
+
 /**
  * §5.BB focus-chain surface: the agent's live plan checklist as a compact strip — the CURRENT step headlined with
  * done/total progress, expandable to the full checklist. Hidden entirely when the agent has no chain (most turns).
+ * F1.6: with `onEdit` the expanded list is operator-editable (cycle a step's status incl. skip/reopen, reorder,
+ * delete, add) — the server applies the agent-tool guard, and a rejection reason renders inline.
  */
 function FocusChainStrip({
 	chain,
+	onEdit,
 }: {
-	chain: { steps: readonly { text: string; status: "pending" | "in_progress" | "done" | "skipped" }[] } | null;
+	chain: { steps: readonly FocusChainStripStep[] } | null;
+	onEdit?: (steps: FocusChainStripStep[]) => Promise<string | null>;
 }): React.ReactElement | null {
 	const [expanded, setExpanded] = useState(false);
+	const [editError, setEditError] = useState<string | null>(null);
+	const [newStepText, setNewStepText] = useState("");
 	if (!chain || chain.steps.length === 0) {
 		return null;
 	}
+	const emit = (nextSteps: FocusChainStripStep[]): void => {
+		void onEdit?.(nextSteps).then(setEditError);
+	};
 	const done = chain.steps.filter((step) => step.status === "done" || step.status === "skipped").length;
 	const current =
 		chain.steps.find((step) => step.status === "in_progress") ??
@@ -613,28 +626,125 @@ function FocusChainStrip({
 			</button>
 			{expanded ? (
 				<ol className="m-0 flex list-none flex-col gap-1 px-3 pb-2" data-testid="chat-focus-chain-steps">
-					{chain.steps.map((step, index) => (
-						<li
-							key={index}
-							className={cn(
-								"flex items-start gap-1.5 text-[11.5px]",
-								step.status === "in_progress" ? "text-text-primary" : "text-text-tertiary",
-							)}
-						>
-							<span className="shrink-0" aria-hidden>
-								{step.status === "done"
-									? "✓"
-									: step.status === "skipped"
-										? "–"
-										: step.status === "in_progress"
-											? "→"
-											: "○"}
-							</span>
-							<span className={cn("min-w-0 break-words", step.status === "done" && "line-through opacity-70")}>
-								{step.text}
-							</span>
+					{chain.steps.map((step, index) => {
+						const mark =
+							step.status === "done"
+								? "✓"
+								: step.status === "skipped"
+									? "–"
+									: step.status === "in_progress"
+										? "→"
+										: "○";
+						return (
+							<li
+								key={index}
+								className={cn(
+									"group flex items-start gap-1.5 text-[11.5px]",
+									step.status === "in_progress" ? "text-text-primary" : "text-text-tertiary",
+								)}
+							>
+								{onEdit ? (
+									<button
+										type="button"
+										onClick={() => {
+											const nextStatus =
+												FOCUS_STRIP_STATUS_CYCLE[
+													(FOCUS_STRIP_STATUS_CYCLE.indexOf(step.status) + 1) %
+														FOCUS_STRIP_STATUS_CYCLE.length
+												] ?? "pending";
+											emit(
+												chain.steps.map((s, i) => (i === index ? { ...s, status: nextStatus } : { ...s })),
+											);
+										}}
+										className="shrink-0 cursor-pointer"
+										title="Cycle status (pending → in progress → done → skipped)"
+										aria-label={`Cycle status for plan step ${index + 1}`}
+									>
+										{mark}
+									</button>
+								) : (
+									<span className="shrink-0" aria-hidden>
+										{mark}
+									</span>
+								)}
+								<span
+									className={cn("min-w-0 break-words", step.status === "done" && "line-through opacity-70")}
+								>
+									{step.text}
+								</span>
+								{onEdit ? (
+									<span className="ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+										<button
+											type="button"
+											onClick={() => {
+												const next = chain.steps.map((s) => ({ ...s }));
+												const [moved] = next.splice(index, 1);
+												if (moved) {
+													next.splice(index - 1, 0, moved);
+													emit(next);
+												}
+											}}
+											disabled={index === 0}
+											className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+											aria-label={`Move plan step ${index + 1} up`}
+										>
+											▲
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												const next = chain.steps.map((s) => ({ ...s }));
+												const [moved] = next.splice(index, 1);
+												if (moved) {
+													next.splice(index + 1, 0, moved);
+													emit(next);
+												}
+											}}
+											disabled={index === chain.steps.length - 1}
+											className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+											aria-label={`Move plan step ${index + 1} down`}
+										>
+											▼
+										</button>
+										<button
+											type="button"
+											onClick={() => emit(chain.steps.filter((_, i) => i !== index).map((s) => ({ ...s })))}
+											className="text-text-tertiary hover:text-status-red"
+											aria-label={`Delete plan step ${index + 1}`}
+										>
+											×
+										</button>
+									</span>
+								) : null}
+							</li>
+						);
+					})}
+					{onEdit ? (
+						<li className="flex items-center gap-1.5 pt-0.5">
+							<input
+								value={newStepText}
+								onChange={(event) => setNewStepText(event.target.value)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" && newStepText.trim()) {
+										event.preventDefault();
+										emit([
+											...chain.steps.map((s) => ({ ...s })),
+											{ text: newStepText.trim(), status: "pending" },
+										]);
+										setNewStepText("");
+									}
+								}}
+								placeholder="Add a step…"
+								aria-label="Add a plan step"
+								className="h-6 min-w-0 flex-1 rounded border border-border bg-surface-0 px-1.5 text-[11.5px] text-text-primary outline-none focus:border-border-focus"
+							/>
 						</li>
-					))}
+					) : null}
+					{editError ? (
+						<li className="text-[11px] text-status-red" data-testid="chat-focus-chain-edit-error">
+							{editError}
+						</li>
+					) : null}
 				</ol>
 			) : null}
 		</div>
@@ -1141,7 +1251,7 @@ function ChatPanel({
 								</div>
 							) : null}
 							{/* §5.BB: the agent's live plan checklist (compact; expands to the full list). */}
-							<FocusChainStrip chain={chat.focusChain} />
+							<FocusChainStrip chain={chat.focusChain} onEdit={chat.updateFocusChain} />
 							<AutonomousRunBar
 								status={chat.autonomousStatus}
 								disabled={!chat.selectedSessionId}

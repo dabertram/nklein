@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
-import { readChatFocusChain } from "../chat/chat-focus-chain";
+import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { createChatService } from "../chat/chat-service";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
@@ -95,6 +95,7 @@ import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-de
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
 import { handleGetFleetStatus } from "./runtime-api/fleet-status";
+import { handleGetFocusChainHistory } from "./runtime-api/focus-chain-history.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
 import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
@@ -568,6 +569,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			};
 		},
 		listNKleinPlanQuestions: async (workspaceScope, input) => handleListPlanQuestions(workspaceScope, input),
+		getTaskFocusChainHistory: async (workspaceScope, input) => handleGetFocusChainHistory(workspaceScope, input),
 		answerNKleinPlanQuestion: async (workspaceScope, input) =>
 			handleAnswerPlanQuestion(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
@@ -1126,6 +1128,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
 		// §5.BB focus-chain surface: read-only projection of the session's live plan checklist (default store root —
 		// the same place the agent-turn's readFocusChain dep reads).
+		updateChatFocusChain: async (input) => {
+			const result = await applyOperatorChatFocusChainUpdate(input.sessionId, input.steps);
+			return {
+				ok: result.ok,
+				rejected: result.rejected,
+				chain: result.chain
+					? {
+							steps: result.chain.steps.map((step) => ({ text: step.text, status: step.status })),
+							updatedAt: result.chain.updatedAt,
+						}
+					: null,
+			};
+		},
 		getChatFocusChain: async (sessionId) => {
 			const chain = await readChatFocusChain(sessionId);
 			return {

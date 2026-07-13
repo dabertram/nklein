@@ -171,6 +171,26 @@ export const runtimeChatFocusChainResponseSchema = z.object({
 });
 export type RuntimeChatFocusChainResponse = z.infer<typeof runtimeChatFocusChainResponseSchema>;
 
+// F1.6 — the chat surface's OPERATOR edit of the plan checklist (add/reorder/skip/reopen), written through the
+// same normalize + destructive-re-emit repair guard as the agent tool. `rejected` carries the guard's reason.
+export const runtimeChatFocusChainUpdateRequestSchema = z.object({
+	sessionId: z.string().min(1),
+	steps: z.array(runtimeChatFocusChainStepSchema),
+});
+export type RuntimeChatFocusChainUpdateRequest = z.infer<typeof runtimeChatFocusChainUpdateRequestSchema>;
+
+export const runtimeChatFocusChainUpdateResponseSchema = z.object({
+	ok: z.boolean(),
+	rejected: z.string().nullable(),
+	chain: z
+		.object({
+			steps: z.array(runtimeChatFocusChainStepSchema),
+			updatedAt: z.number(),
+		})
+		.nullable(),
+});
+export type RuntimeChatFocusChainUpdateResponse = z.infer<typeof runtimeChatFocusChainUpdateResponseSchema>;
+
 // §5.AU: the stream-overview surface — one lean row per stream (health/progress/frontier) for the owning workspace's
 // board, plus the count of cards in no stream. A flattened, serializable projection of `BoardStreamsSummary` (the client
 // can't roll streams up itself — it has no per-card session signals), fetched by the main chat's stream panel.

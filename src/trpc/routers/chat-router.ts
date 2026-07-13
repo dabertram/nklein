@@ -12,6 +12,8 @@ import {
 	runtimeChatDeleteSessionRequestSchema,
 	runtimeChatDeleteSessionResponseSchema,
 	runtimeChatFocusChainResponseSchema,
+	runtimeChatFocusChainUpdateRequestSchema,
+	runtimeChatFocusChainUpdateResponseSchema,
 	runtimeChatSendMessageRequestSchema,
 	runtimeChatSendMessageResponseSchema,
 	runtimeChatSessionResponseSchema,
@@ -72,6 +74,10 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 			.input(z.object({ sessionId: z.string() }))
 			.output(runtimeChatFocusChainResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatFocusChain(input.sessionId)),
+		updateFocusChain: t.procedure
+			.input(runtimeChatFocusChainUpdateRequestSchema)
+			.output(runtimeChatFocusChainUpdateResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.updateChatFocusChain(input)),
 		sendMessage: t.procedure
 			.input(runtimeChatSendMessageRequestSchema)
 			.output(runtimeChatSendMessageResponseSchema)

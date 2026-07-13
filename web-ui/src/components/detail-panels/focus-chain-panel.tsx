@@ -1,8 +1,10 @@
+import { currentFocusChainStep } from "@runtime-focus-chain";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import type { RuntimeFocusChain } from "@/runtime/types";
+import { fetchTaskFocusChainHistory } from "@/runtime/queries/task-control";
+import type { RuntimeFocusChain, RuntimeFocusChainTransition } from "@/runtime/types";
 import type { BoardCard, CardSelection } from "@/types";
 
 /**
@@ -46,13 +48,41 @@ function formatFocusChainStepDuration(durationMs: number): string {
 export function FocusChainPanel({
 	selection,
 	onUpdate,
+	workspaceId,
 }: {
 	selection: CardSelection;
 	onUpdate?: (taskId: string, focusChain: BoardCard["focusChain"] | null) => void;
+	/** F1.6 — enables the ledger-backed audit history section when provided. */
+	workspaceId?: string | null;
 }): React.ReactElement | null {
 	const [newStepText, setNewStepText] = useState("");
+	const [history, setHistory] = useState<RuntimeFocusChainTransition[] | null>(null);
+	const [showHistory, setShowHistory] = useState(false);
 	const chain = selection.card.focusChain;
 	const steps = chain?.steps ?? [];
+	// F1.6 current-step visibility: the SAME canonical helper the reviewer prompt and attempt ledger use.
+	const currentStepText = currentFocusChainStep(chain ?? null)?.text ?? null;
+	const cardId = selection.card.id;
+	useEffect(() => {
+		if (!showHistory || workspaceId === undefined || workspaceId === null) {
+			return;
+		}
+		let cancelled = false;
+		void fetchTaskFocusChainHistory(workspaceId, cardId)
+			.then((response) => {
+				if (!cancelled) {
+					setHistory(response.transitions);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setHistory([]);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [cardId, showHistory, workspaceId]);
 	const editable = Boolean(onUpdate);
 	if (steps.length === 0 && !editable) {
 		return null;
@@ -127,6 +157,11 @@ export function FocusChainPanel({
 								)}
 							>
 								{step.text}
+								{step.text === currentStepText ? (
+									<span className="ml-1.5 rounded bg-status-blue/15 px-1 text-[10px] font-medium uppercase tracking-wide text-status-blue">
+										current
+									</span>
+								) : null}
 								{step.startedAt !== undefined && step.completedAt !== undefined ? (
 									<span className="ml-1.5 text-[11px] text-text-tertiary">
 										{formatFocusChainStepDuration(step.completedAt - step.startedAt)}
@@ -185,6 +220,38 @@ export function FocusChainPanel({
 					<Button size="sm" variant="default" disabled={!newStepText.trim()} onClick={addStep}>
 						Add
 					</Button>
+				</div>
+			) : null}
+			{workspaceId != null && steps.length > 0 ? (
+				<div className="mt-2">
+					<button
+						type="button"
+						onClick={() => setShowHistory((current) => !current)}
+						aria-expanded={showHistory}
+						className="text-[11px] text-text-tertiary hover:text-text-primary"
+						data-testid="focus-chain-history-toggle"
+					>
+						{showHistory ? "Hide" : "Show"} step history
+					</button>
+					{showHistory ? (
+						<ul
+							className="mt-1 flex list-none flex-col gap-0.5 p-0 text-[11px] text-text-tertiary"
+							data-testid="focus-chain-history"
+						>
+							{history === null ? (
+								<li>Loading…</li>
+							) : history.length === 0 ? (
+								<li>No recorded transitions yet.</li>
+							) : (
+								history.map((transition, index) => (
+									<li key={`${transition.recordedAt}-${index}`}>
+										{new Date(transition.recordedAt).toLocaleTimeString()} · {transition.stepText}:{" "}
+										{transition.from ?? "new"} → {transition.to}
+									</li>
+								))
+							)}
+						</ul>
+					) : null}
 				</div>
 			) : null}
 		</div>

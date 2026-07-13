@@ -1,6 +1,7 @@
 // Browser-side query helpers: per-task actions — diagnostics, escalation, evidence, pause/resume, acceptance, merge.
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeFocusChainHistoryResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceResponse,
@@ -55,4 +56,13 @@ export async function mergeTaskWorktrees(
 ): Promise<RuntimeTaskWorktreeMergeResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.mergeTaskWorktrees.mutate({ taskId, column: "review" });
+}
+
+/** F1.6 — the focus-chain audit history (durable per-step transitions from the attempt ledger). */
+export async function fetchTaskFocusChainHistory(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeFocusChainHistoryResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTaskFocusChainHistory.query({ taskId });
 }

@@ -45,12 +45,32 @@ export async function readChatFocusChain(
 	try {
 		const raw = await readFile(resolveFocusChainPath(sessionId, options.rootDir), "utf8");
 		const parsed = JSON.parse(raw) as { steps?: unknown; updatedAt?: unknown };
+		const rawSteps = Array.isArray(parsed.steps)
+			? (parsed.steps as Array<{ text?: unknown; status?: unknown; startedAt?: unknown; completedAt?: unknown }>)
+			: null;
 		// Re-normalize on read so a hand-edited/old file can't inject an invalid shape.
 		const normalized = normalizeFocusChain(
-			Array.isArray(parsed.steps) ? (parsed.steps as Array<{ text?: unknown; status?: unknown }>) : null,
+			rawSteps,
 			typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
 		);
-		return normalized;
+		if (!normalized) {
+			return null;
+		}
+		// Normalization strips the per-step timestamps (it only knows text+status), so re-attach the persisted
+		// timing by step text — otherwise the §5.N timing carry would reset on every disk round-trip.
+		const timingByText = new Map<string, { startedAt?: number; completedAt?: number }>();
+		for (const step of rawSteps ?? []) {
+			if (typeof step?.text === "string") {
+				timingByText.set(step.text.trim(), {
+					...(typeof step.startedAt === "number" ? { startedAt: step.startedAt } : {}),
+					...(typeof step.completedAt === "number" ? { completedAt: step.completedAt } : {}),
+				});
+			}
+		}
+		return {
+			...normalized,
+			steps: normalized.steps.map((step) => ({ ...step, ...(timingByText.get(step.text) ?? {}) })),
+		};
 	} catch {
 		return null;
 	}
@@ -145,4 +165,35 @@ export function createFocusChainTools(
 	];
 
 	return { tools, definitions };
+}
+
+/**
+ * F1.6 — the OPERATOR edit path for a chat session's focus chain (the plan-strip controls): the same normalize +
+ * destructive-re-emit guard as the agent tool, so a UI edit can never corrupt the chain either. An empty `steps`
+ * list from the operator CLEARS the chain deliberately (unlike an agent re-emit, an explicit operator clear is an
+ * intentional act) — every other regression is rejected with the guard's reason.
+ */
+export async function applyOperatorChatFocusChainUpdate(
+	sessionId: string,
+	steps: ReadonlyArray<{ text?: unknown; status?: unknown }>,
+	options: ChatFocusChainStoreOptions & { now?: () => number } = {},
+): Promise<{ ok: boolean; rejected: string | null; chain: FocusChain | null }> {
+	const now = options.now ?? Date.now;
+	const prior = await readChatFocusChain(sessionId, options);
+	if (steps.length === 0) {
+		const cleared: FocusChain = { steps: [], updatedAt: now() };
+		await writeChatFocusChain(sessionId, cleared, options);
+		return { ok: true, rejected: null, chain: null };
+	}
+	const normalized = normalizeFocusChain([...steps], now());
+	if (!normalized) {
+		return { ok: false, rejected: "No valid steps were provided.", chain: prior };
+	}
+	const verdict = repairFocusChainRegression(prior, normalized);
+	if (verdict.repaired) {
+		return { ok: false, rejected: verdict.reason, chain: prior };
+	}
+	const next = applyFocusChainStepTiming(prior, normalized, now());
+	await writeChatFocusChain(sessionId, next, options);
+	return { ok: true, rejected: null, chain: next };
 }

@@ -372,6 +372,22 @@
   acceptance). With leaf 1 (canonical current step + rehydration) and leaf 2 (repair guard) this completes:
   persisted steps ✓, transitions ✓, seed/repair on board + chat ✓, reviewer/ledger agreement ✓. 5 new tests.
 
+- [x] **F1.6 — Complete focus-chain operator controls** *(delivered 2026-07-13).* Card view already had
+  add/cycle/reorder/delete; this closes the rest. Current-step visibility: the card panel marks the canonical
+  current step (`currentFocusChainStep` — the SAME helper the reviewer prompt and ledger use) with a "current"
+  chip. Audit history: a new `getTaskFocusChainHistory` endpoint projects the F1.5 ledger `transition` events
+  (reason `focus_step: <text>`, from/to `focus:<status>`) back into per-step transitions, chronological, and the
+  panel renders them behind a lazy "Show step history" toggle. Chat view: `chat.updateFocusChain` mutation →
+  `applyOperatorChatFocusChainUpdate`, which reuses the agent tool's normalize + destructive-re-emit guard so a
+  UI edit can never corrupt the chain (a guard rejection returns its reason; an EMPTY operator list is a
+  deliberate clear, unlike an agent re-emit); the §5.BB plan strip is now operator-editable when expanded (cycle
+  status incl. skip/reopen, reorder, delete, add — rejection reasons render inline). Bug found by the new tests
+  and fixed: `readChatFocusChain` re-normalized on read and silently DROPPED persisted per-step
+  `startedAt`/`completedAt` (normalize only knows text+status), so the §5.N timing carry reset on every disk
+  round-trip — the read path now re-attaches persisted timing by step text, locked by a disk round-trip
+  regression test. 9 new tests (history projection + scope/empty guards, operator accept/clear/reject×2, panel
+  current chip + lazy history + empty placeholder).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

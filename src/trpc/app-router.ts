@@ -26,6 +26,8 @@ import type {
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeFitnessTableResponse,
 	RuntimeFleetStatusResponse,
+	RuntimeFocusChainHistoryRequest,
+	RuntimeFocusChainHistoryResponse,
 	RuntimeGitCheckoutRequest,
 	RuntimeGitCheckoutResponse,
 	RuntimeGitCommitDiffRequest,
@@ -167,6 +169,8 @@ import type {
 	RuntimeChatBoardStreamsResponse,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatFocusChainResponse,
+	RuntimeChatFocusChainUpdateRequest,
+	RuntimeChatFocusChainUpdateResponse,
 	RuntimeChatMessage,
 	RuntimeChatSendMessageRequest,
 	RuntimeChatSendMessageResponse,
@@ -271,6 +275,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeListPlanQuestionsRequest,
 		) => Promise<RuntimeListPlanQuestionsResponse>;
+		getTaskFocusChainHistory: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeFocusChainHistoryRequest,
+		) => Promise<RuntimeFocusChainHistoryResponse>;
 		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,
@@ -445,6 +453,7 @@ export interface RuntimeTrpcContext {
 		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
 		/** §5.BB: the session's live focus chain (the agent's plan checklist), or null when none drafted. */
 		getChatFocusChain: (sessionId: string) => Promise<RuntimeChatFocusChainResponse>;
+		updateChatFocusChain: (input: RuntimeChatFocusChainUpdateRequest) => Promise<RuntimeChatFocusChainUpdateResponse>;
 		getChatBoardStreams: () => Promise<RuntimeChatBoardStreamsResponse>;
 		sendChatMessage: (
 			input: RuntimeChatSendMessageRequest,

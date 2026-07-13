@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	applyOperatorChatFocusChainUpdate,
 	createFocusChainTools,
 	type FocusChainToolDeps,
 	readChatFocusChain,
@@ -80,6 +81,58 @@ describe("createFocusChainTools — update_focus_chain", () => {
 		await tool.run({ steps: [{ text: "a", status: "done" }] });
 		expect(store.value?.steps[0]?.startedAt).toBe(1000);
 		expect(store.value?.steps[0]?.completedAt).toBe(1000);
+	});
+});
+
+describe("applyOperatorChatFocusChainUpdate (F1.6 operator edits)", () => {
+	it("accepts a valid edit, carries per-step timing from the prior chain, and persists it", async () => {
+		await applyOperatorChatFocusChainUpdate("op-1", [{ text: "a", status: "in_progress" }], {
+			rootDir: root,
+			now: () => 1_000,
+		});
+		const result = await applyOperatorChatFocusChainUpdate(
+			"op-1",
+			[
+				{ text: "a", status: "done" },
+				{ text: "b", status: "pending" },
+			],
+			{ rootDir: root, now: () => 2_000 },
+		);
+		expect(result.ok).toBe(true);
+		expect(result.rejected).toBeNull();
+		expect(result.chain?.steps.map((step) => step.status)).toEqual(["done", "pending"]);
+		expect(result.chain?.steps[0]?.startedAt).toBe(1_000); // carried from the prior in_progress emission
+		expect(result.chain?.steps[0]?.completedAt).toBe(2_000);
+		expect((await readChatFocusChain("op-1", { rootDir: root }))?.steps).toHaveLength(2);
+	});
+
+	it("treats an empty steps list as a deliberate operator clear", async () => {
+		await applyOperatorChatFocusChainUpdate("op-2", [{ text: "a", status: "done" }], { rootDir: root });
+		const cleared = await applyOperatorChatFocusChainUpdate("op-2", [], { rootDir: root });
+		expect(cleared).toEqual({ ok: true, rejected: null, chain: null });
+		expect(await readChatFocusChain("op-2", { rootDir: root })).toBeNull();
+	});
+
+	it("rejects invalid steps and keeps the stored chain", async () => {
+		await applyOperatorChatFocusChainUpdate("op-3", [{ text: "keep me", status: "done" }], { rootDir: root });
+		const result = await applyOperatorChatFocusChainUpdate("op-3", [{ text: "", status: "nonsense" }], {
+			rootDir: root,
+		});
+		expect(result.ok).toBe(false);
+		expect(result.rejected).toBe("No valid steps were provided.");
+		expect(result.chain?.steps[0]?.text).toBe("keep me");
+		expect((await readChatFocusChain("op-3", { rootDir: root }))?.steps[0]?.text).toBe("keep me");
+	});
+
+	it("rejects a progress-destroying rewrite with the guard's reason and keeps the stored chain", async () => {
+		await applyOperatorChatFocusChainUpdate("op-4", [{ text: "Read the spec", status: "done" }], { rootDir: root });
+		const result = await applyOperatorChatFocusChainUpdate("op-4", [{ text: "Brand new plan", status: "pending" }], {
+			rootDir: root,
+		});
+		expect(result.ok).toBe(false);
+		expect(result.rejected).toBeTruthy();
+		expect(result.chain?.steps[0]?.text).toBe("Read the spec");
+		expect((await readChatFocusChain("op-4", { rootDir: root }))?.steps[0]?.text).toBe("Read the spec");
 	});
 });
 

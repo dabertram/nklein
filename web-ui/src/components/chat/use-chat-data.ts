@@ -5,6 +5,7 @@ import type {
 	RuntimeChatClarifyCandidate,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatFocusChainResponse,
+	RuntimeChatFocusChainStep,
 	RuntimeChatMessage,
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
@@ -42,6 +43,8 @@ export interface UseChatDataResult {
 	stopTurn: () => void;
 	/** §5.BB: the agent's live plan checklist for the selected session (null = none drafted). */
 	focusChain: RuntimeChatFocusChainResponse["chain"];
+	/** F1.6: operator edit of the plan checklist (guarded server-side); resolves to a rejection reason or null on success. */
+	updateFocusChain: (steps: RuntimeChatFocusChainStep[]) => Promise<string | null>;
 	/** W3.4: the last turn overflowed its context window (older messages were summarized). */
 	contextTruncated: boolean;
 	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
@@ -380,6 +383,24 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		[client, selectedSessionId, transcriptQuery],
 	);
 
+	// F1.6 operator plan edit: the server applies the SAME normalize + regression guard as the agent tool, so a UI
+	// edit can never corrupt the chain; a guard rejection comes back as the reason string for the strip to surface.
+	const updateFocusChain = useCallback(
+		async (steps: RuntimeChatFocusChainStep[]): Promise<string | null> => {
+			if (!selectedSessionId) {
+				return "No chat session is selected.";
+			}
+			try {
+				const response = await client.chat.updateFocusChain.mutate({ sessionId: selectedSessionId, steps });
+				await focusChainQuery.refetch();
+				return response.ok ? null : (response.rejected ?? "The focus-chain update was rejected.");
+			} catch (caught) {
+				return caught instanceof Error ? caught.message : String(caught);
+			}
+		},
+		[client, focusChainQuery, selectedSessionId],
+	);
+
 	return {
 		sessions: sessionsQuery.data ?? [],
 		sessionsLoading: sessionsQuery.isLoading,
@@ -394,6 +415,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		activeToolNames,
 		stopTurn,
 		focusChain: focusChainQuery.data ?? null,
+		updateFocusChain,
 		contextTruncated,
 		capabilityNotice,
 		clarifyCandidates,

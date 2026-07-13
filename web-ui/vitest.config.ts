@@ -16,6 +16,7 @@ export default defineConfig({
 			"@runtime-contract": resolve(__dirname, "../src/core/api-contract.ts"),
 			"@runtime-agent-catalog": resolve(__dirname, "../src/core/agent-catalog.ts"),
 			"@runtime-clarification-option-set": resolve(__dirname, "../src/core/clarification-option-set.ts"),
+			"@runtime-focus-chain": resolve(__dirname, "../src/core/focus-chain.ts"),
 			"@runtime-nklein-tool-call-display": resolve(__dirname, "../src/nklein-agent/nklein-tool-call-display.ts"),
 			"@runtime-home-agent-session": resolve(__dirname, "../src/core/home-agent-session.ts"),
 			"@runtime-task-context-import": resolve(__dirname, "../src/core/task-context-import.ts"),
