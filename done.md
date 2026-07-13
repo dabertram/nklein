@@ -218,6 +218,19 @@
   reality (sweep + artifact-cleanup + strict/migration schema split + the `task-worktree-auto-merge` naming trap).
   Full-suite load flakes found during the lap were filed as P0.10 (every flake passes in isolation).
 
+- [x] **P0.10 — Full (slow) suite reliable under parallel load** *(delivered 2026-07-13, same day it was filed).*
+  Root cause: fixed waits sized for an idle machine — the global 15s per-test vitest timeout plus internal 10s
+  server-start / 8s CLI-exit / 2s log-poll waits — starve when the full suite saturates all 18 cores with parallel
+  tsx backend/CLI spawns (each compiles for seconds). Infrastructure fixes, no assertion weakened:
+  `vitest-setup-home.ts` now gives exactly `test/contract` + `test/integration` files a 120s test/hook default
+  (detected per-file via the worker's filepath at setup time; unit suites keep the tight 15s so genuine hangs still
+  fail fast); the contract backend helper's server-start wait went 10s→90s; `task-command-exit`'s internal
+  server-start/CLI-exit/browser-log waits got the same proportionate headroom; `zero-token-self-heal`'s
+  request-arrival checkpoint (which only confirms the mock was reached — wedge semantics live in the backend) went
+  2.5s→60s. Proof: THREE consecutive fully-clean `npm run test` runs (9784 passed, 0 failed) — the first time on
+  this branch. A §4A note now records that the slow suite is not in pre-commit and must be run at least once per
+  work package.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

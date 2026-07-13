@@ -82,7 +82,8 @@ async function getAvailablePort(): Promise<number> {
 	return port;
 }
 
-async function waitForServerStart(process: ChildProcess, timeoutMs = 10_000): Promise<void> {
+// P0.10: sized for a SATURATED full-suite run (tsx spawns compile for seconds each), not an idle machine.
+async function waitForServerStart(process: ChildProcess, timeoutMs = 90_000): Promise<void> {
 	await new Promise<void>((resolveStart, rejectStart) => {
 		if (!process.stdout || !process.stderr) {
 			rejectStart(new Error("Expected child process stdout/stderr pipes to be available."));
@@ -156,7 +157,7 @@ function readBrowserOpenLog(logPath: string): string[] {
 		.filter(Boolean);
 }
 
-async function waitForBrowserOpenCount(logPath: string, expectedCount: number, timeoutMs = 2_000): Promise<void> {
+async function waitForBrowserOpenCount(logPath: string, expectedCount: number, timeoutMs = 30_000): Promise<void> {
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < timeoutMs) {
 		if (readBrowserOpenLog(logPath).length >= expectedCount) {
@@ -236,7 +237,7 @@ async function runCliCommandAndCollectOutput(options: {
 		stderr += chunk.toString();
 	});
 
-	const didExit = await waitForExit(process, options.timeoutMs ?? 8_000);
+	const didExit = await waitForExit(process, options.timeoutMs ?? 60_000);
 	if (!didExit) {
 		process.kill("SIGKILL");
 	}

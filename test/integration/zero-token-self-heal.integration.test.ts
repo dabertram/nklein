@@ -179,7 +179,10 @@ describe.sequential("zero-token session self-healing (P0.3)", () => {
 				},
 			});
 			expect(startRes.payload.ok).toBe(true);
-			await vi.waitFor(() => expect(seedRequests).toBe(1), { timeout: ZERO_TOKEN_WEDGE_MS / 2, interval: 20 });
+			// P0.10: this checkpoint only confirms the seed request REACHED the mock; under a saturated full-suite run
+			// the spawned backend can take far longer than half the wedge window to issue it. The wedge semantics are
+			// unaffected — the zero-token timer runs inside the backend from its own session start.
+			await vi.waitFor(() => expect(seedRequests).toBe(1), { timeout: 60_000, interval: 20 });
 			const hungState = await requestJson<{
 				sessions?: Record<
 					string,

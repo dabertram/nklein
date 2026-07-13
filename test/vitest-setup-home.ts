@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { vi } from "vitest";
 
 /**
  * Global test HOME isolation (2026-06-27). Every test file runs in its own forked process (vitest default pool), so a
@@ -15,3 +16,16 @@ import { join } from "node:path";
 const isolatedHome = mkdtempSync(join(tmpdir(), "nklein-test-home-"));
 process.env.HOME = isolatedHome;
 process.env.USERPROFILE = isolatedHome;
+
+/**
+ * P0.10 — spawn-heavy suite headroom (2026-07-13). Contract/integration files spawn real tsx backends and CLI
+ * invocations (seconds of CPU-bound compile EACH); under a saturated full-suite run (`npm run test`, all files in
+ * parallel forks) the global 15s per-test timeout starves and healthy tests flake ("task done" CLI spawns,
+ * zero-token-self-heal, task-command-exit — every one green in isolation). Give exactly those directories a
+ * proportionate default; unit suites keep the tight 15s so genuine hangs still fail fast.
+ */
+const currentTestFilepath =
+	((globalThis as Record<string, unknown>).__vitest_worker__ as { filepath?: string } | undefined)?.filepath ?? "";
+if (/[/\\]test[/\\](contract|integration)[/\\]/.test(currentTestFilepath)) {
+	vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
+}

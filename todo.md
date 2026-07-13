@@ -223,6 +223,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 > - If fixing now WOULD interrupt relevant in-flight work, it MUST be written into the **very next todos** (a concrete, top-of-queue backlog item with the failing test name + observed error), and picked up immediately after the current unit of work — not "later", not "someday".
 > - "All green" claims only ever refer to a suite where **nothing is failing**. Never report green while quietly excluding a failing suite. If `test:fast` is green but the full `vitest run` (integration) is not, SAY SO and record the integration failures as todos.
 > This rule outranks momentum: a passing build is worth more than one more feature increment.
+> **The slow suite (`npm run test`) is NOT in pre-commit** — only `test:fast` is. Run the full suite at least once per
+> work package; four genuine failures (including a production streamed-chat crash) accumulated there silently until
+> 2026-07-13 (P0.10). Spawn-heavy contract/integration files get a 120s per-test default via `vitest-setup-home.ts`
+> and generous internal server-start/CLI-exit waits — sized for a SATURATED 18-core full-suite run, where an idle-
+> machine 10-15s wait flakes healthy tests. Don't tighten them back without re-proving 3 consecutive clean full runs.
 
 ### When debugging an LLM, READ THE LM STUDIO DEV LOGS FIRST (non-negotiable, user 2026-06-30)
 > **Any time a model behaves unexpectedly — a stall, timeout, slow/empty response, a tool-call that never lands, a
@@ -631,15 +636,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 ### Phase 0 — stop-the-line correctness and liveness
 
 These are known defects or incomplete migrations. Clear them before widening capability.
-
-- [ ] **P0.10 — Make the full (slow) suite reliable under parallel load** *(found 2026-07-13 during the P0.9d
-  verification lap).* `npm run test` flakes on spawned-backend suites when the machine is saturated: per-test 15s
-  timeouts starve while parallel tsx CLI spawns compile (`cli-task-subcommands` "task done"/"task delete --column",
-  `task-command-exit`, `zero-token-self-heal`; occasionally `chat-contract`/`board-lifecycle` suite-level) — every one
-  passes in isolation. Fix the infrastructure, not the assertions: give spawn-heavy contract/integration files
-  proportionate timeouts or cap their file-level parallelism (vitest workers/pool), and prove three consecutive clean
-  full-suite runs. Note: the slow suite is NOT in pre-commit, so breakage accumulates silently — four genuine failures
-  (incl. a production streamed-chat crash) sat here until 2026-07-13; consider a scheduled/manual full-suite gate.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 

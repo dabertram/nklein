@@ -58,7 +58,10 @@ function resolveTsxLoaderImportSpecifier(): string {
 	return pathToFileURL(requireFromHere.resolve("tsx")).href;
 }
 
-async function waitForProcessStart(process: ChildProcess, timeoutMs = 10_000): Promise<{ runtimeUrl: string }> {
+// P0.10: a tsx-compiled backend starts in ~2-4s on an idle machine but can take far longer when the full suite
+// saturates every core with parallel backend spawns — 10s flaked healthy suites; the generous ceiling only delays
+// failure reporting for genuinely-dead servers.
+async function waitForProcessStart(process: ChildProcess, timeoutMs = 90_000): Promise<{ runtimeUrl: string }> {
 	return await new Promise((resolveStart, rejectStart) => {
 		if (!process.stdout || !process.stderr) {
 			rejectStart(new Error("Expected child process stdout/stderr pipes to be available."));
