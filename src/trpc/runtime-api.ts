@@ -85,7 +85,7 @@ import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-ma
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
-import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
+import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -420,8 +420,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// learned preferences (dominant failure mode / preferred format / responsive prompt family). Read-only;
 		// empty when the store is missing/unreadable (never throws into the UI).
 		getModelBehaviorProfiles: async () => {
-			const byModel = await readAllModelBehaviorProfiles().catch(
-				() => ({}) as Awaited<ReturnType<typeof readAllModelBehaviorProfiles>>,
+			const byModel = await readAllCombinedModelBehaviorProfiles().catch(
+				() => ({}) as Awaited<ReturnType<typeof readAllCombinedModelBehaviorProfiles>>,
 			);
 			const sorted = Object.values(byModel).sort((left, right) => left.modelId.localeCompare(right.modelId));
 			return {

@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { type AgentLedgerEvent, selectAttempts } from "../core/agent-attempt-ledger";
 import {
 	emptyModelBehaviorProfile,
 	type ModelAttemptOutcome,
@@ -23,6 +24,7 @@ import {
 	recordModelBehaviorOutcome,
 } from "../core/model-behavior-profile";
 import { parseJsonLineWithSchema } from "../core/parse-json-line";
+import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 
 const DEFAULT_MODEL_BEHAVIOR_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-behavior");
 
@@ -115,6 +117,83 @@ export async function readAllModelBehaviorProfiles(
 	options: ModelBehaviorStoreOptions = {},
 ): Promise<Record<string, ModelBehaviorProfile>> {
 	const outcomes = await readAllOutcomes(resolveRoot(options.rootDir));
+	const byModel: Record<string, ModelBehaviorProfile> = {};
+	for (const entry of outcomes) {
+		const previous = byModel[entry.modelId] ?? emptyModelBehaviorProfile(entry.modelId);
+		byModel[entry.modelId] = recordModelBehaviorOutcome(previous, entry.outcome, {
+			alpha: options.alpha,
+			now: () => entry.recordedAt,
+		});
+	}
+	return byModel;
+}
+
+// ---------------------------------------------------------------------------
+// F1.15d — the COMBINED behavior read: persisted outcomes ⊕ ledger board attempts, ONE chronological fold.
+// ---------------------------------------------------------------------------
+
+/**
+ * Map ledger BOARD attempts into fold-able outcomes. The F1.15a `difficulty` stamp is the cutover line (same rule
+ * as fitness): pre-stamp board history reaches the fold only through the persisted store (whose redundant terminal
+ * writer was removed with this read), post-stamp attempts only through the ledger — no run is folded twice. Chat
+ * attempts (`flow` non-null) stay store-only for now: the chat writer records prompt-variant evidence the ledger
+ * does not carry.
+ */
+function ledgerBoardAttemptOutcomes(events: readonly AgentLedgerEvent[]): PersistedBehaviorOutcome[] {
+	return selectAttempts(events)
+		.filter((attempt) => attempt.flow === null && attempt.difficulty !== null)
+		.map((attempt) => ({
+			modelId: attempt.modelId,
+			recordedAt: attempt.recordedAt,
+			outcome: {
+				kind: attempt.outcome,
+				retries: attempt.retriesBefore,
+				...(attempt.contextTokens !== null ? { contextTokens: attempt.contextTokens } : {}),
+				...(attempt.qualityOk !== null ? { qualityOk: attempt.qualityOk } : {}),
+				...(attempt.toolSetOffered.length > 0 ? { toolCount: attempt.toolSetOffered.length } : {}),
+			},
+		}));
+}
+
+export interface CombinedModelBehaviorOptions extends ModelBehaviorStoreOptions {
+	/** Override the ledger root (tests). Defaults to the runtime home's agent-attempt-ledger. */
+	ledgerRootDir?: string;
+}
+
+async function readCombinedOutcomes(options: CombinedModelBehaviorOptions): Promise<PersistedBehaviorOutcome[]> {
+	const [persisted, ledgerEvents] = await Promise.all([
+		readAllOutcomes(resolveRoot(options.rootDir)),
+		readAllAgentLedger(options.ledgerRootDir !== undefined ? { rootDir: options.ledgerRootDir } : undefined).catch(
+			() => [],
+		),
+	]);
+	// The EWMA fold is order-dependent: one merged, oldest-first stream through the same tested rule.
+	return [...persisted, ...ledgerBoardAttemptOutcomes(ledgerEvents)].sort(
+		(left, right) => left.recordedAt - right.recordedAt,
+	);
+}
+
+/** F1.15d: one model's profile folded from BOTH evidence streams (persisted store ⊕ ledger board attempts). */
+export async function readCombinedModelBehaviorProfile(
+	modelId: string,
+	options: CombinedModelBehaviorOptions = {},
+): Promise<ModelBehaviorProfile> {
+	const outcomes = (await readCombinedOutcomes(options)).filter((entry) => entry.modelId === modelId);
+	let profile = emptyModelBehaviorProfile(modelId);
+	for (const entry of outcomes) {
+		profile = recordModelBehaviorOutcome(profile, entry.outcome, {
+			alpha: options.alpha,
+			now: () => entry.recordedAt,
+		});
+	}
+	return profile;
+}
+
+/** F1.15d: every model's profile folded from BOTH evidence streams — the unified cross-session learned view. */
+export async function readAllCombinedModelBehaviorProfiles(
+	options: CombinedModelBehaviorOptions = {},
+): Promise<Record<string, ModelBehaviorProfile>> {
+	const outcomes = await readCombinedOutcomes(options);
 	const byModel: Record<string, ModelBehaviorProfile> = {};
 	for (const entry of outcomes) {
 		const previous = byModel[entry.modelId] ?? emptyModelBehaviorProfile(entry.modelId);

@@ -25,7 +25,7 @@ vi.mock("../../../src/chat/chat-egress-attempt-audit-store", () => ({
 }));
 
 vi.mock("../../../src/telemetry/model-behavior-profile-store", () => ({
-	readModelBehaviorProfile: vi.fn(async () => null),
+	readCombinedModelBehaviorProfile: vi.fn(async () => null),
 	persistModelBehaviorOutcome: vi.fn(async () => undefined),
 }));
 

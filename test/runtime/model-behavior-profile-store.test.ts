@@ -2,9 +2,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildTerminalAttemptEvent } from "../../src/nklein-agent/nklein-ledger-attempt";
+import { appendAgentLedgerEvent } from "../../src/state/agent-attempt-ledger-store";
 import {
 	persistModelBehaviorOutcome,
+	readAllCombinedModelBehaviorProfiles,
 	readAllModelBehaviorProfiles,
+	readCombinedModelBehaviorProfile,
 	readModelBehaviorProfile,
 } from "../../src/telemetry/model-behavior-profile-store";
 
@@ -88,5 +92,49 @@ describe("model-behavior-profile-store (§5.AA persistence)", () => {
 		await persistModelBehaviorOutcome("   ", { kind: "success" }, { rootDir, now: 1 });
 		const all = await readAllModelBehaviorProfiles({ rootDir });
 		expect(Object.keys(all)).toHaveLength(0);
+	});
+
+	it("F1.15d: the combined read folds persisted outcomes + ledger BOARD attempts chronologically", async () => {
+		const ledgerDir = join(rootDir, "ledger");
+		// Persisted (pre-cutover history): one failure at t=1000.
+		await persistModelBehaviorOutcome("prov:model:default", { kind: "other_failure" }, { rootDir, now: 1_000 });
+		// Ledger: a post-cutover board success at t=2000 (difficulty stamped), a chat attempt (excluded), and a
+		// pre-cutover board attempt without difficulty (excluded — the store already carries that history).
+		const board = buildTerminalAttemptEvent({
+			taskId: "t-1",
+			workspacePath: "/repo",
+			state: "awaiting_review",
+			role: "worker",
+			providerId: "",
+			modelId: "",
+			endpoint: "",
+			startedAt: 1_500,
+			endedAt: 2_000,
+			promptTokens: null,
+			completionTokens: null,
+			timeoutReason: null,
+			difficulty: "medium",
+		});
+		const aligned = { ...board, modelId: "prov:model:default", recordedAt: 2_000 };
+		await appendAgentLedgerEvent(aligned, { rootDir: ledgerDir });
+		await appendAgentLedgerEvent(
+			{ ...aligned, attemptId: "chat-1", flow: "chat", recordedAt: 3_000 },
+			{ rootDir: ledgerDir },
+		);
+		await appendAgentLedgerEvent(
+			{ ...aligned, attemptId: "legacy-1", difficulty: null, recordedAt: 500 },
+			{ rootDir: ledgerDir },
+		);
+
+		const combined = await readCombinedModelBehaviorProfile("prov:model:default", {
+			rootDir,
+			ledgerRootDir: ledgerDir,
+		});
+		expect(combined.samples).toBe(2); // persisted failure + the ONE cutover-eligible ledger success
+		// Store-only fold sees just the persisted failure — the combined read is strictly additive.
+		const storeOnly = await readModelBehaviorProfile("prov:model:default", { rootDir });
+		expect(storeOnly.samples).toBe(1);
+		const all = await readAllCombinedModelBehaviorProfiles({ rootDir, ledgerRootDir: ledgerDir });
+		expect(all["prov:model:default"]?.samples).toBe(2);
 	});
 });

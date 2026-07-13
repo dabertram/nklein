@@ -656,26 +656,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
-- [ ] **F1.15 — Make behavior profile, fitness, MCSR, and evaluation views ledger projections.** Remove parallel sources
-  of truth, migrate existing records, and lock projection equivalence with fixtures.
-  *(Split 2026-07-13; leaf (a) SHIPPED: the terminal attempt event now records `difficulty` via
-  `deriveTaskDifficultyTier` — the SAME derivation the fitness fold uses — so ledger cells are keyable
-  model × role × difficulty like the fitness table.)* Remaining leaves:
-  - [x] **F1.15b — SHIPPED 2026-07-13:** `buildFitnessTableFromLedger` projects attempt events into `FitnessRow`
-    cells through the SAME fold; fixture lock asserts EXACT equality with the store path on the shared domain,
-    plus the resolved divergences: synthetic + interrupted skipped identically, chat-flow excluded, a timed-out
-    interrupt counts in the projection (documented superset), tokensPerSec is a projection enrichment, legacy
-    no-difficulty events skipped (F1.15c migration seeds them).
-  - [x] **F1.15c — SHIPPED 2026-07-13:** `readMergedFitnessRows` (store [eval + legacy seed] ⊕ ledger projection,
-    merged per cell via `mergeFitnessRows` sample-weighted fold) now backs BOTH read consumers (the §5.AL fitness
-    browser + the thin-eval-cell idle work); the terminal-telemetry board-attempt fitness write is REMOVED (the
-    F1.15a difficulty stamp is the exact no-double-count cutover line: pre-stamp history lives only in the store,
-    post-cutover board attempts only in the ledger). Eval-harness folds keep writing the store (their results are
-    not ledger attempts).
-  - [ ] **F1.15d — behavior profile, MCSR, and evaluation views.** Same treatment for
-    `persistModelBehaviorOutcome` (event-sourced store → `buildModelBehaviorProfilesFromLedger`),
-    `recordModelPerformanceObservation`, MCSR reads (`role-model-selection` / swarm picks), and the
-    background-eval-runner store.
 - [ ] **F1.16 — Finish per-tool idempotency and durable result hashes/references.** Replayed or resumed work must neither
   repeat side effects nor lose the original evidence.
 - [ ] **F1.17 — Implement replay policies end to end.** Support `reuse`, `simulate`, `skip`, and `reconfirm` per tool,

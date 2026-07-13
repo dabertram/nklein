@@ -522,6 +522,22 @@
   ledger-only cell pass-through, transition-noise immunity, store-only degrade; telemetry write-gone + behavior
   dedupe updated).
 
+- [x] **F1.15d — behavior profile combined fold; MCSR + eval views verified ledger-backed (closes F1.15)**
+  *(delivered 2026-07-13).* Behavior profile: `readCombinedModelBehaviorProfile` /
+  `readAllCombinedModelBehaviorProfiles` fold ONE merged, oldest-first outcome stream — the persisted store's
+  outcomes (chat prompt-variant evidence the ledger doesn't carry + pre-projection history) ⊕ ledger BOARD
+  attempts (flow null, `difficulty` stamped — the SAME F1.15a cutover as fitness, so no run folds twice) — through
+  the one tested EWMA rule (`recordModelBehaviorOutcome`; order-dependent, so a merge of folded profiles would be
+  wrong — the stream merge is the only correct composition). All three readers flipped (§5.AL profiles endpoint,
+  chat enforced-reasoning, chat tool-deps prompt-variant seeding) and the terminal-telemetry coarse
+  success/other_failure write REMOVED (with the fitness fold gone too, the whole parallel terminal fold block is
+  deleted). MCSR + evaluation views audited: the routing path already builds its evidence from the ledger
+  (`buildLedgerEvidence` at start-task-session), `getModelVerdictBadges` already reads the ledger, the fitness/eval
+  browser reads the F1.15c merged view, and the background-eval-runner store is a lease checkpoint (operational
+  state, not an evaluation view) — no further parallel sources of truth remain. F1.15 COMPLETE. 2 new tests
+  (combined chronological fold with cutover + chat-flow + legacy exclusions asserted against the store-only fold;
+  telemetry both-writes-gone).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

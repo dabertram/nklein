@@ -3,7 +3,7 @@ import { runEnforcedReasoningLoop } from "../core/enforced-reasoning-loop";
 import { isTruthyEnv } from "../core/env-flag";
 import type { ModelBehaviorProfile } from "../core/model-behavior-profile";
 import { estimateTaskDifficulty } from "../core/task-difficulty-estimate";
-import { readModelBehaviorProfile } from "../telemetry/model-behavior-profile-store";
+import { readCombinedModelBehaviorProfile } from "../telemetry/model-behavior-profile-store";
 
 /**
  * §5.AD flag-gated adapter hookup — feeds real chat completions into the enforced-reasoning loop. OPT-IN via
@@ -44,7 +44,7 @@ export async function maybeEnforceReasoning(input: MaybeEnforceReasoningInput): 
 			input.profile !== undefined
 				? input.profile
 				: input.modelId
-					? await readModelBehaviorProfile(input.modelId).catch(() => null)
+					? await readCombinedModelBehaviorProfile(input.modelId).catch(() => null)
 					: null;
 		const difficulty = estimateTaskDifficulty({
 			objectiveText: input.task,

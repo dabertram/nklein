@@ -45,27 +45,16 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => vi.clearAllMocks());
 
 describe("createRuntimeTerminalTelemetryRecorders", () => {
-	it("records model performance + the behavior outcome; the board fitness fold is GONE (F1.15c)", async () => {
+	it("records model performance; BOTH parallel board folds are GONE (F1.15c/d — the ledger carries them)", async () => {
 		const warn = vi.fn();
 		const rec = createRuntimeTerminalTelemetryRecorders({ warn });
 		rec.recordModelPerformance(scope, summary({ taskId: "fresh-a", startedAt: 100 }));
 		await flush();
 		expect(h.recordModelPerformanceObservation).toHaveBeenCalledOnce();
-		// F1.15c: board attempts reach fitness through the ledger projection, never this store write.
+		// Board attempts reach fitness AND the behavior profile through the ledger projection, never these writes.
 		expect(h.recordTaskFitnessOutcome).not.toHaveBeenCalled();
-		expect(h.persistModelBehaviorOutcome).toHaveBeenCalledWith("lmstudio/m", { kind: "success" });
+		expect(h.persistModelBehaviorOutcome).not.toHaveBeenCalled();
 		expect(warn).not.toHaveBeenCalled();
-	});
-
-	it("folds the behavior outcome AT MOST once per (taskId, startedAt) run", async () => {
-		const rec = createRuntimeTerminalTelemetryRecorders({ warn: vi.fn() });
-		const s = summary({ taskId: "dedup-b", startedAt: 200 });
-		rec.recordModelPerformance(scope, s);
-		await flush();
-		rec.recordModelPerformance(scope, s); // same run re-emitted
-		await flush();
-		expect(h.recordModelPerformanceObservation).toHaveBeenCalledTimes(2); // perf recorded each time
-		expect(h.persistModelBehaviorOutcome).toHaveBeenCalledOnce(); // but the terminal fold is deduped
 	});
 
 	it("records knowledge tool usage", async () => {

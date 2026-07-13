@@ -2,19 +2,10 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import { type AgentTransitionEvent, buildTransitionEvent } from "../core/agent-attempt-ledger";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
-import { deriveTaskFitnessRecord } from "../nklein-agent/task-fitness-recording";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
-import { persistModelBehaviorOutcome } from "../telemetry/model-behavior-profile-store";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import type { RuntimeTrpcWorkspaceScope } from "../trpc/app-router";
-import { createBoundedDedupSet } from "./bounded-dedup-set";
-
-/**
- * Process-wide guard so a terminal run folds into the §5.AB fitness store AT MOST once even if its summary is observed
- * more than once. Module-level (not per-server) — identical to the original `runtime-server.ts` singleton it replaced.
- */
-const recordedTerminalRuns = createBoundedDedupSet(5000);
 
 export interface RuntimeTerminalTelemetryDeps {
 	warn: (message: string) => void;
@@ -56,22 +47,11 @@ export function createRuntimeTerminalTelemetryRecorders(
 				runtimeConfig,
 				summary,
 			});
-			// §5.AB fitness store: fold this terminal outcome into its (model × role × difficulty) cell (best-effort,
-			// serialized write). Returns null + skips for synthetic / non-terminal / model-less sessions.
-			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
-			const terminalRunKey = `${summary.taskId}|${summary.startedAt ?? 0}`;
-			if (fitnessRecord && !recordedTerminalRuns.has(terminalRunKey)) {
-				recordedTerminalRuns.remember(terminalRunKey);
-				// F1.15c: the board-attempt fitness fold is REMOVED — board evidence now reaches fitness through the
-				// ledger projection (`readMergedFitnessRows`); the F1.14 terminal attempt event carries the same
-				// outcome/difficulty/knowledge detail, and the difficulty stamp is the no-double-count cutover line.
-				// The store keeps only eval-harness folds + pre-projection history.
-				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
-				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.
-				await persistModelBehaviorOutcome(fitnessRecord.key.modelKey, {
-					kind: fitnessRecord.outcome.success ? "success" : "other_failure",
-				}).catch(() => {});
-			}
+			// F1.15c/d: the parallel board-attempt folds are REMOVED — the F1.14 terminal attempt event carries the
+			// same outcome/difficulty/knowledge detail, and board evidence reaches BOTH the fitness table
+			// (`readMergedFitnessRows`) and the behavior profile (`readCombinedModelBehaviorProfile`) through the
+			// ledger projection; the difficulty stamp is the no-double-count cutover line. The stores keep only
+			// eval-harness folds, chat prompt-variant evidence, and pre-projection history.
 		})().catch((error) => {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(`Could not record model performance for ${summary.taskId}: ${message}`);

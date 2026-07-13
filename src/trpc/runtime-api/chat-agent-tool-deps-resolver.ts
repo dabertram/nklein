@@ -38,7 +38,10 @@ import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
 import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
-import { persistModelBehaviorOutcome, readModelBehaviorProfile } from "../../telemetry/model-behavior-profile-store";
+import {
+	persistModelBehaviorOutcome,
+	readCombinedModelBehaviorProfile,
+} from "../../telemetry/model-behavior-profile-store";
 import { resolveKleinSourceRepoPath } from "../projects-api-helpers";
 
 export function buildChatAgentToolDepsResolver(input: {
@@ -231,7 +234,7 @@ export function buildChatAgentToolDepsResolver(input: {
 		// §5.AA prompt-variation learning: seed the rung with the model's known-responsive family (its profile's
 		// winning mode) and persist each rung firing's winning family back to the behavior store — a variant
 		// recovery IS a success-after-retries attempt, so it also feeds the EWMA reliability signal.
-		const behaviorProfile = modelId ? await readModelBehaviorProfile(modelId).catch(() => null) : null;
+		const behaviorProfile = modelId ? await readCombinedModelBehaviorProfile(modelId).catch(() => null) : null;
 		const toolModel = createChatAgentModel(client, activeDefinitions, {
 			modelId,
 			apiProfile: skillApiProfile,
