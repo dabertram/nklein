@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test --config playwright.smoke.config.ts"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

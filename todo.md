@@ -805,9 +805,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   mount in `nklein-review-panel-runner` — one sequential judge session per eye carrying its lens stance (unique
   reviewer session ids per the runner's parallelism warning), a confer round re-prompting each judge with the
   others' findings, and the confirmed/disputed set feeding `combinePanelVerdicts`; live-validate on the fleet.
-- [ ] **F1.38 — Finish the hermetic Playwright smoke foundation** *(legacy §5.AK).* Add the shared mock helper,
-  de-stale existing Settings/Chat specs, and create a strict-port `reuseExistingServer:false` smoke config so UI gates
-  never pass against a stale server.
 
 ### Phase 2 — feature completion: chat, board, safety, and operator workflow
 

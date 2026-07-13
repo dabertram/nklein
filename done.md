@@ -873,6 +873,16 @@
   out-vote confirms, surfaces any dispute as `disputed`, and NEVER silently drops a veto-class (high/critical
   security/correctness) finding — fail-closed so the panel's security veto survives conferring. 8 tests. tsc 0,
   fast 9512 green.
+- [x] **F1.38 — the hermetic Playwright smoke foundation COMPLETE** *(delivered 2026-07-13; closes the F1 pure/
+  buildable sweep — every remaining F1 item is a recorded fleet/live-gated b-leaf).* The three F1.38 pieces:
+  (1) the shared mock helper predates this pass (`tests/harness/runtime-mock.ts`, 386 lines, adopted by 15
+  specs) — verified, not rebuilt; (2) the Settings/Chat specs are PROVEN de-staled: the entire 72-test Playwright
+  suite (incl. settings.spec.ts, all five chat specs, plan-artifact-review, review-recovery) passes against a
+  FRESH server in 17.7 s; (3) `web-ui/playwright.smoke.config.ts` — the hermetic gate config:
+  `reuseExistingServer: false` on a DEDICATED port with vite `--strictPort` (vite fails rather than silently
+  drifting ports), so a UI gate can never green against a stale dev server; mounted as `npm run e2e:smoke`.
+  Migrating the 8 ad-hoc-mocked specs onto the shared harness was deliberately NOT done — they pass, and §5.U's
+  stop rule says no churn without a cohesion win (adopt opportunistically when a spec is next touched).
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
