@@ -67,6 +67,14 @@ export const runtimeReviewRoundRecordSchema = z.object({
 });
 export type RuntimeReviewRoundRecord = z.infer<typeof runtimeReviewRoundRecordSchema>;
 
+/** Immutable provenance for the exact primary/speculative artifact selected at the delivery seam. */
+export const runtimeTaskResultArtifactReceiptSchema = z.object({
+	resultBranchTaskId: z.string().min(1),
+	resultCommit: z.string().min(1),
+	recordedAt: z.number(),
+});
+export type RuntimeTaskResultArtifactReceipt = z.infer<typeof runtimeTaskResultArtifactReceiptSchema>;
+
 /** Persisted second-opinion review state for a worker card (todo §5.K). Whole-object LWW on the board CRDT. */
 export const runtimeCardReviewSchema = z.object({
 	/** Lifecycle of the review loop for this card. */
@@ -91,6 +99,8 @@ export const runtimeCardReviewSchema = z.object({
 	 * non-arbitration reviews and older boards.
 	 */
 	preferredCandidate: z.enum(["primary", "speculative"]).optional(),
+	/** Exact accepted artifact, persisted before candidate refs are pruned; superseded when a later review object is written. */
+	resultArtifact: runtimeTaskResultArtifactReceiptSchema.optional(),
 	updatedAt: z.number(),
 });
 export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;

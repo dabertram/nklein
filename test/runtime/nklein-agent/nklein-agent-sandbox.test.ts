@@ -142,6 +142,38 @@ function createDelayedRunExecFileStub(): {
 	};
 }
 
+function createCaptureBarrierExecFileStub(): {
+	execFile: typeof execFile;
+	calls: string[][];
+	pendingCaptures: () => number;
+	releaseCapture: () => void;
+} {
+	const calls: string[][] = [];
+	const captureCallbacks: ((error: unknown, result?: { stdout: string; stderr: string }) => void)[] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (args[0] === "run") {
+			done(null, { stdout: "container-id\n", stderr: "" });
+			return {} as ReturnType<typeof execFile>;
+		}
+		if (args[0] === "exec" && args.slice(-3).join(" ") === "git add -A") {
+			captureCallbacks.push(done);
+			return {} as ReturnType<typeof execFile>;
+		}
+		const stdout = args[0] === "exec" && args.includes("diff") ? "diff --git a/a b/a\n" : "";
+		done(null, { stdout, stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		pendingCaptures: () => captureCallbacks.length,
+		releaseCapture: () => captureCallbacks.shift()?.(null, { stdout: "", stderr: "" }),
+	};
+}
+
 /**
  * Stub that HOLDS the dead-container liveness probe (`docker inspect -f {{.State.Running}} <name>`) until released,
  * so a test can observe how many probes are in flight while two concurrent reuses are pending. `run` completes
@@ -179,6 +211,33 @@ function createProbeBarrierExecFileStub(): {
 			probeCallbacks.shift()?.(null, { stdout: `${state}\n`, stderr: "" });
 		},
 		pendingProbes: () => probeCallbacks.length,
+	};
+}
+
+function createRunBarrierExecFileStub(): {
+	execFile: typeof execFile;
+	calls: string[][];
+	finishRun: () => void;
+} {
+	const calls: string[][] = [];
+	const runCallbacks: ((error: unknown, result?: { stdout: string; stderr: string }) => void)[] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (args[0] === "run") {
+			runCallbacks.push(done); // HOLD the run until finishRun().
+			return {} as ReturnType<typeof execFile>;
+		}
+		done(null, { stdout: "", stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		finishRun: () => {
+			runCallbacks.shift()?.(null, { stdout: "container-id\n", stderr: "" });
+		},
 	};
 }
 
@@ -1396,6 +1455,97 @@ describe("AgentSandboxManager", () => {
 			"main",
 			"--",
 		]);
+	});
+
+	it("serializes result capture and same-task disposal so the workspace survives through git diff", async () => {
+		const { execFile: execFileStub, calls, pendingCaptures, releaseCapture } = createCaptureBarrierExecFileStub();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		const capture = manager.captureWorkspacePatch("task-1", { baseRef: "main" });
+		await vi.waitFor(() => expect(pendingCaptures()).toBe(1));
+		const dispose = manager.disposeWorkspace("task-1");
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(calls.some((args) => args.includes("rm") && args.includes("/workspaces/task-1"))).toBe(false);
+
+		releaseCapture();
+		await expect(capture).resolves.toContain("diff --git");
+		await dispose;
+		const diffIndex = calls.findIndex((args) => args.includes("diff"));
+		const disposeIndex = calls.findIndex((args) => args.includes("rm") && args.includes("/workspaces/task-1"));
+		expect(diffIndex).toBeGreaterThanOrEqual(0);
+		expect(disposeIndex).toBeGreaterThan(diffIndex);
+	});
+
+	it("waits for in-flight result capture before stopNow removes its container", async () => {
+		const { execFile: execFileStub, calls, pendingCaptures, releaseCapture } = createCaptureBarrierExecFileStub();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		const capture = manager.captureWorkspacePatch("task-1", { baseRef: "main" });
+		await vi.waitFor(() => expect(pendingCaptures()).toBe(1));
+		const callsBeforeStop = calls.length;
+		const stop = manager.stopNow();
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(calls.slice(callsBeforeStop).some((args) => args[0] === "rm" && args[1] === "-f")).toBe(false);
+		releaseCapture();
+		await expect(capture).resolves.toContain("diff --git");
+		await stop;
+		const postStopCalls = calls.slice(callsBeforeStop);
+		const diffIndex = postStopCalls.findIndex((args) => args.includes("diff"));
+		const containerRemovalIndex = postStopCalls.findIndex((args) => args[0] === "rm" && args[1] === "-f");
+		expect(diffIndex).toBeGreaterThanOrEqual(0);
+		expect(containerRemovalIndex).toBeGreaterThan(diffIndex);
+	});
+
+	it("rejects queued preparation before waiting lifecycle tails during stopNow", async () => {
+		const { execFile: execFileStub } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const onQueued = vi.fn();
+		const queuedPrepare = manager.prepareWorkspace({
+			taskId: "task-2",
+			projectRepoPath: "/repo",
+			baseRef: "main",
+			onQueued,
+		});
+		const queuedOutcome = queuedPrepare.then(
+			() => "resolved",
+			(error: unknown) => (error instanceof Error ? error.message : String(error)),
+		);
+		await vi.waitFor(() => expect(onQueued).toHaveBeenCalledTimes(1));
+
+		await expect(manager.stopNow()).resolves.toBeUndefined();
+		expect(await queuedOutcome).toContain("stopped before a slot opened");
+	});
+
+	it("waits a delayed slot acquisition and prevents it from enqueueing after stopNow", async () => {
+		const { execFile: execFileStub, calls, finishRun } = createRunBarrierExecFileStub();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		const acquisition = manager.acquireSlot({ taskId: "task-late", projectRepoPath: "/repo" });
+		const acquisitionOutcome = acquisition.then(
+			() => "resolved",
+			(error: unknown) => (error instanceof Error ? error.message : String(error)),
+		);
+		await vi.waitFor(() => expect(calls.some((args) => args[0] === "run")).toBe(true));
+
+		let stopSettled = false;
+		const stop = manager.stopNow().then(() => {
+			stopSettled = true;
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(stopSettled).toBe(false);
+
+		finishRun();
+		expect(await acquisitionOutcome).toContain("stopped while a slot was being acquired");
+		await stop;
+		expect(stopSettled).toBe(true);
 	});
 
 	it("captures a staged binary workspace patch from HEAD when no base ref is available", async () => {

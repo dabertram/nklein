@@ -46,6 +46,21 @@ describe("TaskSandboxStateStore", () => {
 		expect(store.isFinalizing("t1")).toBe(false);
 	});
 
+	it("releases redrive waiters only after finalization is unmarked", async () => {
+		const store = new TaskSandboxStateStore();
+		store.markFinalizing("t1");
+		let settled = false;
+		const wait = store.waitForFinalization("t1").then(() => {
+			settled = true;
+		});
+		await Promise.resolve();
+		expect(settled).toBe(false);
+
+		store.unmarkFinalizing("t1");
+		await wait;
+		expect(settled).toBe(true);
+	});
+
 	it("records a result branch without disturbing the sandbox pair", () => {
 		const store = new TaskSandboxStateStore();
 		store.setSandbox("t1", "/repo/a", "HEAD");

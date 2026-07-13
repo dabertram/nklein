@@ -18,6 +18,7 @@ export class TaskSandboxStateStore {
 	private readonly repoPathByTaskId = new Map<string, string>();
 	private readonly baseRefByTaskId = new Map<string, string>();
 	private readonly finalizingReviewTaskIds = new Set<string>();
+	private readonly finalizationWaitersByTaskId = new Map<string, Set<() => void>>();
 	private readonly resultBranchByTaskId = new Map<string, TaskResultBranch>();
 
 	/** Records the repo path and (already-resolved) base ref a task's sandbox was prepared against. */
@@ -55,6 +56,28 @@ export class TaskSandboxStateStore {
 
 	unmarkFinalizing(taskId: string): void {
 		this.finalizingReviewTaskIds.delete(taskId);
+		const waiters = this.finalizationWaitersByTaskId.get(taskId);
+		this.finalizationWaitersByTaskId.delete(taskId);
+		for (const resolve of waiters ?? []) {
+			resolve();
+		}
+	}
+
+	/** Wait until the task's capture/assembly/cleanup transaction is fully settled before starting a redrive. */
+	async waitForFinalization(taskId: string): Promise<void> {
+		if (!this.finalizingReviewTaskIds.has(taskId)) {
+			return;
+		}
+		await new Promise<void>((resolve) => {
+			const waiters = this.finalizationWaitersByTaskId.get(taskId) ?? new Set<() => void>();
+			waiters.add(resolve);
+			this.finalizationWaitersByTaskId.set(taskId, waiters);
+			// Recheck after registration so an unmark between the initial check and insertion cannot strand this waiter.
+			if (!this.finalizingReviewTaskIds.has(taskId)) {
+				waiters.delete(resolve);
+				resolve();
+			}
+		});
 	}
 
 	/** The captured result branch for a task this run, when finalize captured one (W1.1b stall-signature check). */
@@ -71,6 +94,12 @@ export class TaskSandboxStateStore {
 		this.repoPathByTaskId.clear();
 		this.baseRefByTaskId.clear();
 		this.finalizingReviewTaskIds.clear();
+		for (const waiters of this.finalizationWaitersByTaskId.values()) {
+			for (const resolve of waiters) {
+				resolve();
+			}
+		}
+		this.finalizationWaitersByTaskId.clear();
 		this.resultBranchByTaskId.clear();
 	}
 }

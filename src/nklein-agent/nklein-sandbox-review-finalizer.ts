@@ -42,10 +42,12 @@ export interface SandboxReviewFinalizer {
 		nextSummary: RuntimeTaskSessionSummary | null,
 	): nextSummary is RuntimeTaskSessionSummary;
 	finalizeSandboxReview(taskId: string): void;
+	drain(): Promise<void>;
 }
 
 export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): SandboxReviewFinalizer {
-	function recordPatchCaptureStatus(taskId: string, status: "captured" | "empty" | "error"): void {
+	const inFlightFinalizations = new Set<Promise<void>>();
+	async function recordPatchCaptureStatus(taskId: string, status: "captured" | "empty" | "error"): Promise<void> {
 		const entry = deps.getTaskEntry(taskId);
 		const summary = entry?.summary ?? null;
 		if (!summary) {
@@ -82,32 +84,28 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 			// rebind to review exactly like the salvage case — the review loop (bounce/escalate/park) owns it.
 			const repoPath = deps.getSandboxState().getRepoPath(taskId) ?? summary.workspacePath ?? null;
 			if (repoPath) {
-				void resolveTaskResultBranchCommit({ repoPath, taskId })
-					.catch(() => null)
-					.then((priorResultCommit) => {
-						const current = deps.getTaskEntry(taskId);
-						if (!priorResultCommit || !current || current.summary.state !== "interrupted") {
-							return;
-						}
-						deps.emitSummary(
-							updateSummary(current, {
-								state: "awaiting_review",
-								reviewReason: "exit",
-								lastOutputAt: now(),
-								lastHookAt: now(),
-								latestHookActivity: {
-									activityText:
-										"Interrupted session left no new changes, but a prior round's result branch exists — rebound into review so the existing work gets judged instead of stranding the card.",
-									toolName: null,
-									toolInputSummary: null,
-									finalMessage: null,
-									hookEventName: "interrupted_prior_work_rebound",
-									notificationType: null,
-									source: "nklein",
-								},
-							}),
-						);
-					});
+				const priorResultCommit = await resolveTaskResultBranchCommit({ repoPath, taskId }).catch(() => null);
+				const current = deps.getTaskEntry(taskId);
+				if (priorResultCommit && current && current.summary.state === "interrupted") {
+					deps.emitSummary(
+						updateSummary(current, {
+							state: "awaiting_review",
+							reviewReason: "exit",
+							lastOutputAt: now(),
+							lastHookAt: now(),
+							latestHookActivity: {
+								activityText:
+									"Interrupted session left no new changes, but a prior round's result branch exists — rebound into review so the existing work gets judged instead of stranding the card.",
+								toolName: null,
+								toolInputSummary: null,
+								finalMessage: null,
+								hookEventName: "interrupted_prior_work_rebound",
+								notificationType: null,
+								source: "nklein",
+							},
+						}),
+					);
+				}
 			}
 		}
 		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
@@ -163,7 +161,8 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 			return;
 		}
 		deps.getSandboxState().markFinalizing(taskId);
-		void (async () => {
+		const finalization = (async () => {
+			let artifactSettled = false;
 			try {
 				const patch = await manager.captureWorkspacePatch(taskId, { baseRef });
 				const branch = await applyTaskPatchToResultBranch({
@@ -213,7 +212,8 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 							},
 						}),
 					);
-					recordPatchCaptureStatus(taskId, "captured");
+					await recordPatchCaptureStatus(taskId, "captured");
+					artifactSettled = true;
 				} else {
 					deps.emitSummary(
 						updateSummary(entry, {
@@ -231,7 +231,8 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 							},
 						}),
 					);
-					recordPatchCaptureStatus(taskId, "empty");
+					await recordPatchCaptureStatus(taskId, "empty");
+					artifactSettled = true;
 				}
 				// #31 (run32 live): a fast bounce can RE-DRIVE the worker (restore + running) while this
 				// fire-and-forget finalize is still capturing. Disposing then rips the workspace out from under
@@ -247,39 +248,50 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				// escalation re-drive needs it to RESTORE the disposed workspace (run20 #17 / harness v3: with the
 				// state forgotten here, the restore helper no-op'd, the re-driven worker's tools had no placement,
 				// and the session could never finalize a second round). True terminal cleanup forgets it.
-				deps.getSandboxState().unmarkFinalizing(taskId);
 			} catch (error) {
-				deps.getSandboxState().unmarkFinalizing(taskId);
 				const errorMessage = toErrorMessage(error);
-				// Benign teardown race: the sandbox workspace was disposed concurrently before the patch could
-				// be captured. Genuine capture failures while the workspace still exists fall through below.
+				if (artifactSettled) {
+					// The durable artifact marker is authoritative. Cleanup happens afterward and must never overwrite a
+					// successful capture with `capture_failed`; dispose releases its slot in `finally` even when rm reports an
+					// error, so surface this strictly as post-capture cleanup diagnostics.
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Sandbox result was captured, but post-capture cleanup failed: ${errorMessage}`,
+						taskId,
+						workspacePath: repoPath,
+						metadata: { category: "agent_sandbox_result_cleanup" },
+					});
+					return;
+				}
+				// A disappeared workspace is NOT evidence that the worker made no changes. It means capture could not run,
+				// and silently treating it as benign created the intermittent terminal-with-no-result class (P0.8). Preserve
+				// the teardown cleanup, but surface the same typed failure marker/status as every other capture failure.
 				const hasWorkspace = manager.hasWorkspace(taskId);
-				const benignReason = !hasWorkspace
+				const workspaceUnavailableReason = !hasWorkspace
 					? "workspace_disposed_before_capture"
 					: isBenignSandboxPatchStagingTeardown(error)
 						? "workspace_missing_before_capture"
 						: null;
-				if (benignReason) {
+				const stateAfterFailure = deps.getTaskEntry(taskId)?.summary.state;
+				if (isBusySessionState(stateAfterFailure)) {
+					// A fast bounce already owns this workspace. This failure belongs to the prior capture attempt; do not
+					// overwrite the live round's state or dispose the cwd under it. Its next handoff will capture afresh.
 					recordSelfObservation({
-						signal: "custom",
-						severity: "info",
-						message: `Sandbox workspace for task ${taskId} was unavailable before a result patch could be captured; nothing to capture.`,
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Prior-round sandbox result capture failed while a new worker round was already active: ${errorMessage}`,
 						taskId,
 						workspacePath: repoPath,
-						metadata: {
-							category: "agent_sandbox_result_patch",
-							reason: benignReason,
-						},
+						metadata: { category: "agent_sandbox_result_patch_superseded" },
 					});
-					if (hasWorkspace && deps.getTaskEntry(taskId)?.summary.state !== "running") {
-						await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
-						await manager.disposeWorkspace(taskId).catch(() => null);
-					}
-					// Same as the capture path above: keep the sandbox state for a possible re-drive round.
-					deps.getSandboxState().unmarkFinalizing(taskId);
 					return;
 				}
-				recordPatchCaptureStatus(taskId, "error");
+				// A failed capture is an explicit operator hold, not a live worker. Release its placement for the rest of
+				// the swarm; the card warning + observations retain diagnostics, and a manual redrive starts cleanly.
+				await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
+				await manager.disposeWorkspace(taskId).catch(() => null);
+				await recordPatchCaptureStatus(taskId, "error");
 				const captureError: TaskPatchCaptureError | null = isTaskPatchCaptureError(error) ? error : null;
 				// follow-up-6 §3.5: distinguish a corrupt/garbled captured diff (an infrastructure capture
 				// problem) from an agent failure, and keep the failing file/hunk + preserved artifact on the card.
@@ -294,7 +306,9 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 								? ` Preserved failing patch: ${captureError.preservedPatchPath}`
 								: ""
 						}`
-					: `Could not capture sandbox task result patch: ${errorMessage}`;
+					: workspaceUnavailableReason
+						? `Could not capture sandbox task result patch: the sandbox workspace was unavailable before capture (${workspaceUnavailableReason}). The task result is unknown; inspect diagnostics and redrive the task.`
+						: `Could not capture sandbox task result patch: ${errorMessage}`;
 				recordSelfObservation({
 					signal: "runtime_error",
 					severity: "error",
@@ -303,6 +317,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 					workspacePath: repoPath,
 					metadata: {
 						category: "agent_sandbox_result_patch",
+						...(workspaceUnavailableReason ? { reason: workspaceUnavailableReason } : {}),
 						...(classification ? { patchCaptureClassification: classification } : {}),
 						...(captureError?.firstFailingFile ? { firstFailingFile: captureError.firstFailingFile } : {}),
 						...(captureError?.firstFailingHunkHeader
@@ -320,6 +335,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				}
 				deps.emitSummary(
 					updateSummary(latestEntry, {
+						state: "failed",
 						warningMessage: cardNote,
 						lastHookAt: now(),
 						latestHookActivity: {
@@ -333,9 +349,22 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 						},
 					}),
 				);
+			} finally {
+				deps.getSandboxState().unmarkFinalizing(taskId);
 			}
 		})();
+		inFlightFinalizations.add(finalization);
+		void finalization.then(
+			() => inFlightFinalizations.delete(finalization),
+			() => inFlightFinalizations.delete(finalization),
+		);
 	}
 
-	return { shouldFinalizeSandboxReview, finalizeSandboxReview };
+	async function drain(): Promise<void> {
+		while (inFlightFinalizations.size > 0) {
+			await Promise.allSettled([...inFlightFinalizations]);
+		}
+	}
+
+	return { shouldFinalizeSandboxReview, finalizeSandboxReview, drain };
 }

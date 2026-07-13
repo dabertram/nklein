@@ -149,9 +149,88 @@ export const runtimeTaskEvidenceRequestSchema = z.object({
 });
 export type RuntimeTaskEvidenceRequest = z.infer<typeof runtimeTaskEvidenceRequestSchema>;
 
+export const runtimeTaskEvidenceCaptureStatusSchema = z.enum([
+	"result_branch",
+	"no_changes",
+	"capture_failed",
+	"capture_pending",
+	"no_capture",
+	"evidence_failed",
+	"diff_failed",
+]);
+export type RuntimeTaskEvidenceCaptureStatus = z.infer<typeof runtimeTaskEvidenceCaptureStatusSchema>;
+
+export const runtimeTaskEvidenceActionSchema = z.enum([
+	"inspect_result",
+	"redrive_task",
+	"inspect_failure_and_redrive",
+	"wait_for_capture",
+	"start_or_redrive_task",
+	"retry_evidence",
+]);
+export type RuntimeTaskEvidenceAction = z.infer<typeof runtimeTaskEvidenceActionSchema>;
+
+const runtimeTaskEvidenceCaptureCommon = {
+	message: z.string().min(1),
+	/** The primary or derived task id whose durable result ref was inspected. */
+	resultBranchTaskId: z.string().min(1),
+};
+
+/**
+ * A discriminated capture contract: every status carries exactly the action/commit shape callers may rely on. This
+ * prevents a nominal `result_branch` with no commit (or a pending capture that accidentally tells the UI to inspect a
+ * diff) from crossing the API boundary.
+ */
+export const runtimeTaskEvidenceCaptureSchema = z.discriminatedUnion("status", [
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("result_branch"),
+		action: z.literal("inspect_result"),
+		resultCommit: z.string().min(1),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("no_changes"),
+		action: z.literal("redrive_task"),
+		resultCommit: z.null(),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("capture_failed"),
+		action: z.literal("inspect_failure_and_redrive"),
+		resultCommit: z.null(),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("capture_pending"),
+		action: z.literal("wait_for_capture"),
+		resultCommit: z.null(),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("no_capture"),
+		action: z.literal("start_or_redrive_task"),
+		resultCommit: z.null(),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("evidence_failed"),
+		action: z.literal("retry_evidence"),
+		resultCommit: z.null(),
+	}),
+	z.object({
+		...runtimeTaskEvidenceCaptureCommon,
+		status: z.literal("diff_failed"),
+		action: z.literal("retry_evidence"),
+		resultCommit: z.string().min(1),
+	}),
+]);
+export type RuntimeTaskEvidenceCapture = z.infer<typeof runtimeTaskEvidenceCaptureSchema>;
+
 export const runtimeTaskEvidenceResponseSchema = z.object({
 	bundlePath: z.string(),
 	summaryPath: z.string(),
+	capture: runtimeTaskEvidenceCaptureSchema,
 	files: z.object({
 		summary: z.string(),
 		telemetry: z.string(),

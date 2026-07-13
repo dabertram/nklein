@@ -2,6 +2,17 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A finished task can no longer silently end with no result and no explanation.** An intermittent failure class let
+  a card reach a terminal state with neither a result branch nor an actionable error: capture failures after a
+  torn-down workspace were logged as benign "nothing to capture", explicitly stopping a task skipped the salvage
+  capture entirely, and shutting the runtime down could race the result assembly that was still writing. All three
+  are now fail-closed — a failed capture marks the card failed with a clear warning and diagnostics, stopping a task
+  still salvages (or explicitly fail-closes) its sandbox work, prior-round work is rebound into review instead of
+  stranding the card, and shutdown waits for in-flight result assembly. Reviews and merges never pick up a stale
+  previous-round result while a new round is running, and "Collect evidence" now states exactly what it captured —
+  a result branch, an explicit no-change outcome, or a typed failure with the recommended next step — instead of
+  quietly substituting the project checkout.
+
 - **Per-domain sandbox egress is now real (experimental, off by default).** The `allowlist` network tier used to
   fail closed to fully-offline because honest per-domain filtering needed infrastructure that didn't exist — so an
   agent that needed one whitelisted host got nothing. There's now a host-side egress proxy: `allowlist` sandboxes

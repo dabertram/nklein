@@ -152,8 +152,8 @@ import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import {
-	createTaskResultBranchRef,
 	deleteTaskResultBranch,
+	pinTaskResultEvidenceCommit,
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
@@ -174,7 +174,7 @@ import {
 	createRuntimeTerminalTelemetryRecorders,
 	createSessionTransitionRecorder,
 } from "./nklein-runtime-terminal-telemetry";
-import { resolveReviewSandboxResult } from "./review-sandbox-result";
+import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
@@ -1349,6 +1349,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						{ repoPath: scope.workspacePath, taskId },
 						{ getSummary: (id) => service.getSummary(id), resolveResultCommit: resolveTaskResultBranchCommit },
 					);
+					const gatedDelivery = await runWithSettledReviewSandboxArtifact(sandboxResult, async () => true);
+					if (!gatedDelivery.delivered) {
+						// P0.8: `awaiting_review` is emitted before asynchronous patch capture settles. Unknown is still
+						// pending; capture_failed is an infrastructure failure. Neither may enter reviewer/acceptance/merge
+						// as if a result branch existed. A later capture marker re-emits the summary and retries finalization.
+						deps.warn(
+							`Task result capture ${sandboxResult.status === "unknown" ? "has not settled" : "failed"} for ${taskId}; held in Review before reviewer/delivery.`,
+						);
+						return;
+					}
+					const admittedPrimaryCommit =
+						gatedDelivery.result.status === "result_branch" ? gatedDelivery.result.resultCommit : null;
+					const admittedSpeculativeCommit = admittedPrimaryCommit
+						? await resolveTaskResultBranchCommit({
+								repoPath: scope.workspacePath,
+								taskId: `${taskId}::spec`,
+							}).catch(() => null)
+						: null;
 					// Second-opinion review gate (todo §5.K). Runs for EVERY reviewable result — including an
 					// `empty_patch` (no file changes), since a no-op is usually a red flag (bad planning / mis-processed
 					// task) that deserves judgment, not a silent auto-complete. The result branch (when there is one) is
@@ -1359,6 +1377,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const reviewOutcome = await runSecondOpinionReviewForTask({
 						workspacePath: scope.workspacePath,
 						taskId,
+						primaryResultCommit: admittedPrimaryCommit,
+						speculativeResultCommit: admittedSpeculativeCommit,
 						service,
 						// Use the normalized authoritative snapshot above; re-reading during the handoff/capture race can see the
 						// transient In Progress bounce lane and reject the legitimate round-2 review as `not_reviewable`.
@@ -1395,6 +1415,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					let preferredSpeculative = initialDeliveryTarget.preferredSpeculative;
 					let deliveredBranchTaskId = initialDeliveryTarget.deliveredBranchTaskId;
+					let deliveredResultCommit = preferredSpeculative ? admittedSpeculativeCommit : admittedPrimaryCommit;
+					if (preferredSpeculative && !deliveredResultCommit) {
+						preferredSpeculative = false;
+						deliveredBranchTaskId = taskId;
+						deliveredResultCommit = admittedPrimaryCommit;
+					}
 					if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
 						recordSelfObservation({
 							signal: "custom",
@@ -1402,7 +1428,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							message: `Best-of-N arbitration for ${taskId}: reviewer preferred the ${reviewOutcome.preferred} candidate.`,
 							taskId,
 							workspacePath: scope.workspacePath,
-							metadata: { category: "speculative_arbitration", preferred: reviewOutcome.preferred ?? "primary" },
+							metadata: {
+								category: "speculative_arbitration",
+								preferred: reviewOutcome.preferred ?? "primary",
+							},
 						});
 					}
 					if (
@@ -1413,13 +1442,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					) {
 						return;
 					}
+					const summaryAfterReview = service.getSummary(taskId);
+					const primaryCommitAfterReview = admittedPrimaryCommit
+						? await resolveTaskResultBranchCommit({ repoPath: scope.workspacePath, taskId }).catch(() => null)
+						: null;
+					if (
+						isBusySessionState(summaryAfterReview?.state) ||
+						(admittedPrimaryCommit && primaryCommitAfterReview !== admittedPrimaryCommit)
+					) {
+						deps.warn(
+							`Delivery for ${taskId} was superseded by a newer worker round after review started; the stale reviewed artifact will not be accepted or merged.`,
+						);
+						return;
+					}
 					// FAIL-CLOSED delivery evidence (audit 2026-07-02 W0.1 — supersedes the prior fail-open hardcode).
 					// See deriveDeliveryGateEvidence for the posture: only a delivered review sign-off approves, and
 					// only a FRESH present-and-passed acceptance run at this seam counts as tests passing.
 					const deliveryCard = reviewState.board.columns
 						.flatMap((column) => column.cards)
 						.find((c) => c.id === taskId);
-					const runAcceptance = async (resultBranchTaskId?: string) => {
+					const runAcceptance = async (resultBranchTaskId?: string, resultCommit?: string | null) => {
 						if (!deliveryCard) {
 							return null;
 						}
@@ -1430,6 +1472,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								baseRef: deliveryCard.baseRef,
 								taskPrompt: deliveryCard.prompt,
 								...(resultBranchTaskId ? { resultBranchTaskId } : {}),
+								...(resultCommit ? { resultCommit } : {}),
 							});
 						} catch (error) {
 							const message = error instanceof Error ? error.message : String(error);
@@ -1437,7 +1480,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							return null;
 						}
 					};
-					let acceptance = await runAcceptance(preferredSpeculative ? deliveredBranchTaskId : undefined);
+					let acceptance = await runAcceptance(
+						preferredSpeculative ? deliveredBranchTaskId : undefined,
+						deliveredResultCommit,
+					);
 					// #39 (runs 32/35/36/38 — the scope-vs-acceptance trap): when the card's acceptance command
 					// fails on the DELIVERED tree, sample it once against the BASE tree. An identical baseline
 					// failure means the breakage predates this card (broken test infra, a sibling's debt) — the
@@ -1488,7 +1534,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// tree passes acceptance, deliver it instead; if both fail, the hold/#28 rung below reasons
 					// about the primary tree (the card's own worker owns it).
 					if (preferredSpeculative && acceptance && !(acceptance.present === true && acceptance.passed === true)) {
-						const primaryAcceptance = await runAcceptance(undefined);
+						const primaryAcceptance = await runAcceptance(undefined, admittedPrimaryCommit);
 						const primaryPasses = primaryAcceptance?.present === true && primaryAcceptance.passed === true;
 						recordSelfObservation({
 							signal: "custom",
@@ -1500,11 +1546,71 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}.`,
 							taskId,
 							workspacePath: scope.workspacePath,
-							metadata: { category: "speculative_arbitration_fallback", primaryPasses: String(primaryPasses) },
+							metadata: {
+								category: "speculative_arbitration_fallback",
+								primaryPasses: String(primaryPasses),
+							},
 						});
 						preferredSpeculative = false;
 						deliveredBranchTaskId = taskId;
+						deliveredResultCommit = admittedPrimaryCommit;
 						acceptance = primaryAcceptance;
+					}
+					if (sandboxResult.status === "result_branch" && reviewOutcome.type === "delivered") {
+						// Persist the EXACT post-arbitration/fallback artifact before any merge or candidate-ref pruning. The
+						// hidden evidence ref keeps the commit reachable; the card receipt tells later evidence which candidate
+						// actually won even when preferredCandidate said spec but acceptance fell back to primary.
+						const currentSelectedCommit = await resolveTaskResultBranchCommit({
+							repoPath: scope.workspacePath,
+							taskId: deliveredBranchTaskId,
+						});
+						if (!deliveredResultCommit || currentSelectedCommit !== deliveredResultCommit) {
+							deps.warn(
+								`Delivery held for ${taskId}: the selected result artifact ${deliveredBranchTaskId} disappeared before its evidence receipt could be persisted.`,
+							);
+							return;
+						}
+						await pinTaskResultEvidenceCommit({
+							repoPath: scope.workspacePath,
+							taskId,
+							resultCommit: deliveredResultCommit,
+						});
+						let receiptPersisted = false;
+						await retryWorkspaceStateLock(() =>
+							mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+								board: {
+									...latestState.board,
+									columns: latestState.board.columns.map((column) => ({
+										...column,
+										cards: column.cards.map((card) => {
+											if (card.id !== taskId || !card.review || card.review.status !== "approved") {
+												return card;
+											}
+											receiptPersisted = true;
+											const recordedAt = Date.now();
+											return {
+												...card,
+												review: {
+													...card.review,
+													resultArtifact: {
+														resultBranchTaskId: deliveredBranchTaskId,
+														resultCommit: deliveredResultCommit,
+														recordedAt,
+													},
+													updatedAt: recordedAt,
+												},
+												updatedAt: recordedAt,
+											};
+										}),
+									})),
+								},
+								save: true,
+								value: null,
+							})),
+						);
+						if (!receiptPersisted) {
+							throw new Error(`Could not persist the selected result-artifact receipt for ${taskId}.`);
+						}
 					}
 					const evidence = deriveDeliveryGateEvidence({
 						reviewOutcomeType: reviewOutcome.type,
@@ -1514,7 +1620,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						deps.warn(`Delivery gate evidence for ${taskId}: tests NOT passed — ${evidence.testsDetail}.`);
 					}
 
-					if (shouldHoldEmptyPatchResult({ sandboxResult, reviewApproved: evidence.reviewApproved })) {
+					if (
+						shouldHoldEmptyPatchResult({
+							sandboxResult: sandboxResult.status,
+							reviewApproved: evidence.reviewApproved,
+						})
+					) {
 						// A no-op result may only complete (and release its dependents) on an explicit reviewer
 						// sign-off. Before the fail-closed hold, RE-DRIVE the worker once (W4.2a): an empty patch
 						// usually means the worker burned its turn (guard churn / truncation) and simply needs to be
@@ -1555,7 +1666,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 
-					if (sandboxResult !== "empty_patch") {
+					if (sandboxResult.status !== "empty_patch") {
 						// Delivery-autonomy gate (todo §5.L): the resolved delivery tier + safety gates decide whether
 						// this card auto-merges. Self-merge IS allowed (2026-06-23 decision) at the open tiers; a diff that
 						// touches protected safety paths always holds. Missing/unavailable evidence fails CLOSED (held in
@@ -1563,13 +1674,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// only at the most-open tier). Any non-merge action (manual / commit) leaves the card
 						// in Review.
 						const deliveryConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
-						const changedFiles = await getWorkspaceChangesBetweenRefs({
-							cwd: scope.workspacePath,
-							fromRef: deliveryCard?.baseRef ?? "HEAD",
-							toRef: createTaskResultBranchRef(deliveredBranchTaskId),
-						})
-							.then((changes) => changes.files.map((file) => file.path))
-							.catch(() => [] as string[]);
+						const changedFiles = deliveredResultCommit
+							? await getWorkspaceChangesBetweenRefs({
+									cwd: scope.workspacePath,
+									fromRef: `${deliveredResultCommit}^`,
+									toRef: deliveredResultCommit,
+								})
+									.then((changes) => changes.files.map((file) => file.path))
+									.catch(() => [] as string[])
+							: [];
 						const deliveryDecision = decideDeliveryAction(
 							deliveryPolicyForTier(
 								resolveEffectiveDeliveryTier(deliveryConfig?.effectiveAgentRulesets?.delivery, "worker", {
@@ -1652,6 +1765,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						}
 						// Serialized per workspace (see runWorkspaceMergeSerialized): concurrent finalizations must
 						// never interleave merge attempts on the same host repo.
+						const selectedCommitBeforeMerge = await resolveTaskResultBranchCommit({
+							repoPath: scope.workspacePath,
+							taskId: deliveredBranchTaskId,
+						}).catch(() => null);
+						if (
+							!deliveredResultCommit ||
+							selectedCommitBeforeMerge !== deliveredResultCommit ||
+							isBusySessionState(service.getSummary(taskId)?.state)
+						) {
+							deps.warn(
+								`Delivery for ${taskId} was superseded before merge; leaving the newer round untouched.`,
+							);
+							return;
+						}
 						const mergeResult = await runWorkspaceMergeSerialized(scope.workspaceId, () =>
 							mergeTaskWorktreesInDependencyOrder({
 								repoPath: scope.workspacePath,
@@ -1661,6 +1788,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								...(preferredSpeculative
 									? { resultBranchTaskIdOverrides: { [taskId]: deliveredBranchTaskId } }
 									: {}),
+								resultCommitOverrides: { [taskId]: deliveredResultCommit },
 								// §5.AK Phase B: on a result-branch merge conflict, run the bounded `::merge` resolution
 								// session instead of hard-aborting. Wired UNCONDITIONALLY — conflicts can happen even under
 								// "serialize" (coarse-path edits), and the agent is strictly better than abort in all cases:
@@ -1704,14 +1832,21 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
 							return;
 						}
+						if (isBusySessionState(service.getSummary(taskId)?.state)) {
+							deps.warn(
+								`A newer worker round for ${taskId} started while its previously reviewed commit was merging; the reviewed commit is integrated, but the card remains active for the new round.`,
+							);
+							return;
+						}
 						// §5.AW (adversarial finding): prune the LOSING candidate after an arbitration merge — a
 						// rejected branch left mergeable can be silently delivered by a later merge seam. The ::spec
 						// branch always goes (its content is merged or rejected); a spec-preferred delivery also
 						// deletes the rejected primary branch so no seam resolves it again.
 						if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
-							await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId: `${taskId}::spec` }).catch(
-								() => false,
-							);
+							await deleteTaskResultBranch({
+								repoPath: scope.workspacePath,
+								taskId: `${taskId}::spec`,
+							}).catch(() => false);
 							if (preferredSpeculative) {
 								await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId }).catch(() => false);
 							}

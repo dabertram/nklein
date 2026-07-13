@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
 	RuntimeBoardCard,
+	RuntimeTaskEvidenceCapture,
 	RuntimeWorkspaceChangesResponse,
 	RuntimeWorkspaceFileChange,
 } from "../../../src/core/api-contract";
@@ -20,6 +21,14 @@ function file(over: Partial<RuntimeWorkspaceFileChange> = {}): RuntimeWorkspaceF
 		...over,
 	};
 }
+
+const captured: RuntimeTaskEvidenceCapture = {
+	status: "result_branch",
+	action: "inspect_result",
+	message: "Captured.",
+	resultCommit: "result123",
+	resultBranchTaskId: "t1",
+};
 
 function changes(files: RuntimeWorkspaceFileChange[]): RuntimeWorkspaceChangesResponse {
 	return { repoRoot: "/repo", generatedAt: 0, files };
@@ -83,6 +92,7 @@ describe("buildTaskEvidencePromptBlock", () => {
 			bundlePath: "/evidence/bundle",
 			transcriptCount: 4,
 			changeCount: 7,
+			capture: captured,
 		});
 		expect(block).toContain("Evidence bundle: /evidence/bundle");
 		expect(block).toContain("Workspace: /repo");
@@ -91,6 +101,9 @@ describe("buildTaskEvidencePromptBlock", () => {
 		expect(block).toContain("Base commit: abc123");
 		expect(block).toContain("Transcript files: 4");
 		expect(block).toContain("Changed files captured: 7");
+		expect(block).toContain("Capture status: result_branch");
+		expect(block).toContain("Recommended action: inspect_result");
+		expect(block).toContain("Result commit: result123");
 	});
 
 	it("falls back to the task id when the title is blank, and shows 'unknown' for a null base commit", () => {
@@ -102,8 +115,32 @@ describe("buildTaskEvidencePromptBlock", () => {
 			bundlePath: "/b",
 			transcriptCount: 0,
 			changeCount: 0,
+			capture: { ...captured, status: "no_capture", action: "start_or_redrive_task", resultCommit: null },
 		});
 		expect(block).toContain("Task: t2 (t2)");
 		expect(block).toContain("Base commit: unknown");
+		expect(block).toContain("Result commit: none");
+		expect(block).not.toContain("diff.patch");
+	});
+
+	it("does not instruct code changes while capture is pending", () => {
+		const block = buildTaskEvidencePromptBlock({
+			task: card(),
+			workspacePath: "/repo",
+			taskCwd: "/repo/work",
+			baseCommit: "base",
+			bundlePath: "/b",
+			transcriptCount: 1,
+			changeCount: 0,
+			capture: {
+				status: "capture_pending",
+				action: "wait_for_capture",
+				message: "Capture is settling.",
+				resultCommit: null,
+				resultBranchTaskId: "t1",
+			},
+		});
+		expect(block).toContain("Wait and collect evidence again");
+		expect(block).not.toContain("update the code/tests");
 	});
 });

@@ -136,6 +136,36 @@
   an external environment override. Repeated scheduler-off and scheduler-on laps pass; the focused acceptance race
   suite remains green.
 
+- [x] **P0.8 — Resolve the genuine no-result-branch/evidence failure class** *(legacy §5.AI; delivered 2026-07-13).*
+  The intermittent "terminal card with no result branch and no explanation" outcome had three proven holes, all fixed
+  fail-closed:
+  1. **Capture failures were swallowed as benign.** A workspace that disappeared before capture was logged as info
+     "nothing to capture" and the round ended silently. A disappeared workspace is not evidence the worker made no
+     changes: capture failure now emits a typed `sandbox_patch_capture_failed` marker, flips the session to `failed`
+     with an actionable card warning (workspace-unavailable reason preserved in diagnostics), releases the placement,
+     and — when a fast bounce already owns a new round — records the failure as superseded instead of clobbering the
+     live round.
+  2. **An explicit stop skipped salvage.** `stopTaskSession` disposed and forgot the sandbox *before* emitting the
+     interrupted summary, so the terminal-salvage hook (`captureTerminalRunSummary → finalizeSandboxReview`) saw no
+     sandbox: no capture, no marker, no prior-work rebound. When the finalizer can still salvage (placement without a
+     captured result branch, or a capture in flight), stop now leaves teardown to it.
+  3. **Shutdown raced result assembly.** Finalization (patch capture → host-side result-branch assembly → durable
+     marker → interrupted-round rebounds) was fire-and-forget; service disposal could clear state and stop Docker
+     under it. Finalizations are now tracked and drained in `dispose()`, and the empty-capture interrupted path
+     *awaits* its prior-result-branch probe, rebinding the card into review (`interrupted_prior_work_rebound`) before
+     shutdown completes.
+  On top of the fixed capture pipeline, evidence and review results are typed and actionable end to end:
+  `resolveReviewSandboxResult` returns `{status, resultCommit}` and never accepts a result branch while work is still
+  in flight (new `isActiveWorkSessionState`: running/queued/paused) or a capture is unsettled/failed;
+  `runWithSettledReviewSandboxArtifact` fail-closes the reviewer→acceptance→merge suffix on pending/failed capture.
+  `collectTaskEvidence` returns a `RuntimeTaskEvidenceCapture` (`result_branch` / `no_changes` / `capture_failed` /
+  `capture_pending` / `evidence_failed` / `diff_failed` / `no_capture`, each with a recommended action), reads a
+  stable marker+ref snapshot (retrying when capture races the probe), pins delivered artifacts to their persisted
+  receipt and verifies the Git ref still matches, diffs the immutable capture commit (`commit^..commit`, never the
+  moving branch), and never substitutes the dirty host checkout for missing task evidence; the evidence drawer and
+  recovery panel surface the status and action in the UI. Full gate green: typecheck, web:typecheck, lint, test:fast
+  (9328), protected (134), web-ui vitest (1052), affected Playwright specs (25).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

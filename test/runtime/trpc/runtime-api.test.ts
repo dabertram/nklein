@@ -12,6 +12,7 @@ import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 import type { NKleinModelRegistryEntry } from "../../../src/nklein-agent/nklein-model-registry";
 import { loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
+import { createTaskResultEvidenceRef } from "../../../src/workspace/task-result-branches";
 
 const agentRegistryMocks = vi.hoisted(() => ({
 	resolveAgentCommand: vi.fn(),
@@ -4943,6 +4944,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			process.env.HOME = tempHome;
 			process.env.USERPROFILE = tempHome;
 			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
+			// No task result branch exists. This unrelated user edit must never be packaged as sandbox-task evidence.
+			writeFileSync(join(workspacePath, "unrelated-user-change.txt"), "belongs to the user\n", "utf8");
 			const board: RuntimeBoardData = {
 				columns: [
 					{
@@ -4995,6 +4998,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			expect(response.promptBlock).toContain("Here is evidence from a !Klein task.");
 			expect(response.promptBlock).toContain("Fix local model timeout");
 			expect(response.promptBlock).toContain(response.bundlePath);
+			expect(response.capture).toMatchObject({
+				status: "no_capture",
+				action: "start_or_redrive_task",
+				resultCommit: null,
+			});
+			expect(response.diffPatchText).toBeNull();
+			expect(response.promptBlock).not.toContain("unrelated-user-change.txt");
 			expect(existsSync(join(response.bundlePath, "summary.md"))).toBe(true);
 			expect(existsSync(join(response.bundlePath, "config-snapshot.json"))).toBe(true);
 			expect(readFileSync(join(response.bundlePath, "summary.md"), "utf8")).toContain("Acceptance check: npm test");
@@ -5012,6 +5022,116 @@ describe("createRuntimeApi startTaskSession", () => {
 			} else {
 				process.env.USERPROFILE = originalUserProfile;
 			}
+		}
+	});
+
+	it("selects an approved speculative winner and types a diff-assembly failure", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-task-evidence-spec-"));
+		const evidenceRoot = mkdtempSync(join(tmpdir(), "kanban-task-evidence-spec-bundle-"));
+		try {
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore", env: createGitProcessEnv() });
+			writeFileSync(join(workspacePath, "seed.txt"), "seed\n", "utf8");
+			execFileSync("git", ["add", "seed.txt"], { cwd: workspacePath, env: createGitProcessEnv() });
+			execFileSync("git", ["commit", "-m", "seed"], {
+				cwd: workspacePath,
+				stdio: "ignore",
+				env: createGitProcessEnv(),
+			});
+			const head = execFileSync("git", ["rev-parse", "HEAD"], {
+				cwd: workspacePath,
+				encoding: "utf8",
+				env: createGitProcessEnv(),
+			}).trim();
+			execFileSync("git", ["update-ref", createTaskResultEvidenceRef("task-1"), head], {
+				cwd: workspacePath,
+				env: createGitProcessEnv(),
+			});
+			const board: RuntimeBoardData = {
+				columns: [
+					{
+						id: "review",
+						title: "Review",
+						cards: [
+							{
+								id: "task-1",
+								title: "Speculative winner",
+								prompt: "Acceptance check: npm test",
+								startInPlanMode: false,
+								baseRef: "missing-base-ref",
+								createdAt: 1,
+								updatedAt: 2,
+								review: {
+									status: "approved",
+									round: 1,
+									history: [],
+									lastVerdict: "approve",
+									lastSummary: "spec wins",
+									lastFeedback: null,
+									lastInsight: null,
+									signOff: "approved",
+									parkedReason: null,
+									preferredCandidate: "speculative",
+									resultArtifact: {
+										resultBranchTaskId: "task-1::spec",
+										resultCommit: head,
+										recordedAt: 2,
+									},
+									updatedAt: 2,
+								},
+							},
+						],
+					},
+					{ id: "backlog", title: "Backlog", cards: [] },
+					{ id: "in_progress", title: "In Progress", cards: [] },
+					{ id: "trash", title: "Done", cards: [] },
+				],
+				dependencies: [],
+			};
+			await saveWorkspaceState(workspacePath, { board, sessions: {} });
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.getSummary.mockReturnValue(
+				createSummary({
+					taskId: "task-1",
+					state: "awaiting_review",
+					latestHookActivity: {
+						activityText: "captured",
+						toolName: null,
+						toolInputSummary: null,
+						finalMessage: head,
+						hookEventName: "sandbox_patch_captured",
+						notificationType: null,
+						source: "nklein",
+					},
+				}),
+			);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({}) as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+				getEvidenceBundleRoot: () => evidenceRoot,
+			});
+
+			const response = await api.collectTaskEvidence(
+				{ workspaceId: "workspace-1", workspacePath },
+				{ taskId: "task-1" },
+			);
+
+			expect(response.capture).toMatchObject({
+				status: "diff_failed",
+				action: "retry_evidence",
+				resultCommit: head,
+				resultBranchTaskId: "task-1::spec",
+			});
+			expect(response.diffPatchText).toBeNull();
+			expect(response.capture.message).toContain("diff could not be assembled");
+			expect(response.promptBlock).toContain("Retry evidence collection");
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+			rmSync(evidenceRoot, { recursive: true, force: true });
 		}
 	});
 

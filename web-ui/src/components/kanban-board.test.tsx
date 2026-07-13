@@ -288,6 +288,13 @@ describe("KanbanBoard", () => {
 		runtimeConfigQueryMocks.collectTaskEvidence.mockResolvedValue({
 			bundlePath: "/tmp/evidence/task-1",
 			summaryPath: "/tmp/evidence/task-1/summary.md",
+			capture: {
+				status: "result_branch",
+				action: "inspect_result",
+				message: "A task result branch was captured.",
+				resultCommit: "abc123",
+				resultBranchTaskId: "task-1",
+			},
 			files: {
 				summary: "/tmp/evidence/task-1/summary.md",
 				telemetry: "/tmp/evidence/task-1/telemetry.jsonl",

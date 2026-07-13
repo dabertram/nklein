@@ -15,6 +15,16 @@ export function isBusySessionState(state: RuntimeTaskSessionState | null | undef
 }
 
 /**
+ * True while the worker may still produce or change its result: RUNNING, QUEUED, or PAUSED. The grouping the
+ * result-probe/rerun paths mean by "work is still in flight" — a durable result branch seen in these states may be a
+ * previous round's artifact and must not be accepted as the current outcome. Broader than `isBusySessionState`
+ * because a paused session holds no capacity but its work is still unfinished.
+ */
+export function isActiveWorkSessionState(state: RuntimeTaskSessionState | null | undefined): boolean {
+	return isBusySessionState(state) || state === "paused";
+}
+
+/**
  * True when a session ended in an UNSUCCESSFUL terminal state: it errored (`failed`) or was aborted / torn down
  * (`interrupted`) — as opposed to still-active, awaiting review, or cleanly completed. The grouping the recovery /
  * feedback / finalize paths mean by "the run did not finish successfully".

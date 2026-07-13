@@ -330,6 +330,8 @@ export class AgentSandboxManager {
 	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
 	private readonly workspaceLifecycleTails = new Map<string, Promise<void>>();
+	private readonly slotAcquisitionGates = new Set<Promise<void>>();
+	private stopping = false;
 	// Spike guard (2026-07-04): the ONE shared container hosts every agent, and each `docker exec` tool command
 	// (npm/build/acceptance) can spike to ~1–2 GiB. `activeExecs` + `execWaiters` bound how many run AT ONCE
 	// (poolConfig.maxConcurrentExec) so simultaneous heavy commands can't OOM the container; excess FIFO-queue.
@@ -489,71 +491,84 @@ export class AgentSandboxManager {
 	}
 
 	async acquireSlot(input: AgentSandboxAcquireSlotInput): Promise<TaskPlacement> {
-		const existing = this.placements.get(input.taskId);
-		if (existing) {
-			return existing;
+		if (this.stopping) {
+			throw new AgentSandboxUnavailableError("Agent sandbox is stopping; no new slot can be acquired.");
 		}
-		this.registerProject(input.projectRepoPath);
-		const immediate = await this.tryAcquireSlot(input.taskId, input.projectRepoPath);
-		if (immediate) {
-			return immediate;
-		}
-		input.onQueued?.();
-		return await new Promise<TaskPlacement>((resolve, reject) => {
-			// Diagnostic: a QUEUED acquisition that stalls (pool at capacity, or a leaked slot never released) is the
-			// silent freeze from the 2026-07-10 review-hang autopsy. Log when the wait crosses the slow threshold and
-			// again on settle, so a capacity stall pinpoints itself instead of looking like a mysterious hang.
-			const queuedAt = Date.now();
-			let slowTimer: ReturnType<typeof setTimeout> | undefined;
-			if (this.warn) {
-				slowTimer = this.setTimeoutImpl(() => {
-					this.warn?.(
-						`Sandbox slot for ${input.taskId} has been QUEUED ${Math.round(SLOT_QUEUE_SLOW_WAIT_LOG_MS / 1000)}s+ (pool at capacity — ${this.containers.size}/${this.poolConfig.maxContainers} containers, ${this.queue.length} waiting). A slot may be leaked if this never clears.`,
-					);
-				}, SLOT_QUEUE_SLOW_WAIT_LOG_MS);
-				slowTimer.unref?.();
+		return await this.withSlotAcquisition(async () => {
+			const existing = this.placements.get(input.taskId);
+			if (existing) {
+				return existing;
 			}
-			const settleLog = (outcome: string): void => {
-				if (slowTimer) {
-					this.clearTimeoutImpl(slowTimer);
+			this.registerProject(input.projectRepoPath);
+			const immediate = await this.tryAcquireSlot(input.taskId, input.projectRepoPath);
+			if (this.stopping) {
+				if (immediate && this.placements.get(input.taskId) === immediate) {
+					this.releaseSlot(input.taskId);
 				}
-				const waitedMs = Date.now() - queuedAt;
-				if (this.warn && waitedMs >= SLOT_QUEUE_SLOW_WAIT_LOG_MS) {
-					this.warn(`Sandbox slot for ${input.taskId} ${outcome} after ${Math.round(waitedMs / 1000)}s queued.`);
+				throw new AgentSandboxUnavailableError("Agent sandbox stopped while a slot was being acquired.");
+			}
+			if (immediate) {
+				return immediate;
+			}
+			input.onQueued?.();
+			return await new Promise<TaskPlacement>((resolve, reject) => {
+				// Diagnostic: a QUEUED acquisition that stalls (pool at capacity, or a leaked slot never released) is the
+				// silent freeze from the 2026-07-10 review-hang autopsy. Log when the wait crosses the slow threshold and
+				// again on settle, so a capacity stall pinpoints itself instead of looking like a mysterious hang.
+				const queuedAt = Date.now();
+				let slowTimer: ReturnType<typeof setTimeout> | undefined;
+				if (this.warn) {
+					slowTimer = this.setTimeoutImpl(() => {
+						this.warn?.(
+							`Sandbox slot for ${input.taskId} has been QUEUED ${Math.round(SLOT_QUEUE_SLOW_WAIT_LOG_MS / 1000)}s+ (pool at capacity — ${this.containers.size}/${this.poolConfig.maxContainers} containers, ${this.queue.length} waiting). A slot may be leaked if this never clears.`,
+						);
+					}, SLOT_QUEUE_SLOW_WAIT_LOG_MS);
+					slowTimer.unref?.();
 				}
-			};
-			const entry = {
-				taskId: input.taskId,
-				projectRepoPath: input.projectRepoPath,
-				resolve: (placement: TaskPlacement) => {
-					settleLog("acquired");
-					resolve(placement);
-				},
-				reject: (error: unknown) => {
-					settleLog("gave up");
-					reject(error);
-				},
-			};
-			this.queue.push(entry);
-			// run19 live finding (the review-sandbox-prep hang): AUXILIARY acquisitions (the acceptance re-check,
-			// the reviewer session) must never queue FOREVER behind a held slot — the holder may be waiting on the
-			// very check that's queued (a pool-capacity deadlock at the review seam). A bounded wait rejects with a
-			// clear error; the auxiliary callers fail CLOSED (held in review) instead of freezing the run.
-			const waitCapMs = input.maxQueueWaitMs;
-			if (typeof waitCapMs === "number" && waitCapMs > 0) {
-				const timer = setTimeout(() => {
-					const queuedIndex = this.queue.indexOf(entry);
-					if (queuedIndex >= 0) {
-						this.queue.splice(queuedIndex, 1);
-						reject(
-							new AgentSandboxUnavailableError(
-								`No sandbox slot opened within ${Math.round(waitCapMs / 1000)}s for ${input.taskId}; giving up the queued wait (fail-closed).`,
-							),
+				const settleLog = (outcome: string): void => {
+					if (slowTimer) {
+						this.clearTimeoutImpl(slowTimer);
+					}
+					const waitedMs = Date.now() - queuedAt;
+					if (this.warn && waitedMs >= SLOT_QUEUE_SLOW_WAIT_LOG_MS) {
+						this.warn(
+							`Sandbox slot for ${input.taskId} ${outcome} after ${Math.round(waitedMs / 1000)}s queued.`,
 						);
 					}
-				}, waitCapMs);
-				timer.unref?.();
-			}
+				};
+				const entry = {
+					taskId: input.taskId,
+					projectRepoPath: input.projectRepoPath,
+					resolve: (placement: TaskPlacement) => {
+						settleLog("acquired");
+						resolve(placement);
+					},
+					reject: (error: unknown) => {
+						settleLog("gave up");
+						reject(error);
+					},
+				};
+				this.queue.push(entry);
+				// run19 live finding (the review-sandbox-prep hang): AUXILIARY acquisitions (the acceptance re-check,
+				// the reviewer session) must never queue FOREVER behind a held slot — the holder may be waiting on the
+				// very check that's queued (a pool-capacity deadlock at the review seam). A bounded wait rejects with a
+				// clear error; the auxiliary callers fail CLOSED (held in review) instead of freezing the run.
+				const waitCapMs = input.maxQueueWaitMs;
+				if (typeof waitCapMs === "number" && waitCapMs > 0) {
+					const timer = setTimeout(() => {
+						const queuedIndex = this.queue.indexOf(entry);
+						if (queuedIndex >= 0) {
+							this.queue.splice(queuedIndex, 1);
+							reject(
+								new AgentSandboxUnavailableError(
+									`No sandbox slot opened within ${Math.round(waitCapMs / 1000)}s for ${input.taskId}; giving up the queued wait (fail-closed).`,
+								),
+							);
+						}
+					}, waitCapMs);
+					timer.unref?.();
+				}
+			});
 		});
 	}
 
@@ -565,6 +580,9 @@ export class AgentSandboxManager {
 		/** Bounded slot wait for AUXILIARY preparations (review sessions, acceptance re-checks) — see acquireSlot. */
 		maxQueueWaitMs?: number;
 	}): Promise<{ workdir: string; uid: number }> {
+		if (this.stopping) {
+			throw new AgentSandboxUnavailableError("Agent sandbox is stopping; no workspace can be prepared.");
+		}
 		return await this.withWorkspaceLifecycle(input.taskId, async () => {
 			const placement = await this.acquireSlot({
 				taskId: input.taskId,
@@ -700,47 +718,71 @@ export class AgentSandboxManager {
 	}
 
 	async captureWorkspacePatch(taskId: string, options: { baseRef?: string | null } = {}): Promise<string> {
-		const placement = this.requirePlacement(taskId);
-		assertSandboxExecOk(
-			await this.execAsTaskUser(placement, ["git", "add", "-A"]),
-			"stage sandbox workspace changes",
-		);
-		const diffArgs = ["git", "diff", "--staged", "--binary"];
-		const baseRef = options.baseRef?.trim();
-		if (baseRef) {
-			diffArgs.push(baseRef, "--");
+		if (this.stopping) {
+			throw new AgentSandboxUnavailableError("Agent sandbox is stopping; no workspace patch can be captured.");
 		}
-		const diff = await this.execAsTaskUser(placement, diffArgs, {
-			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+		return await this.withWorkspaceLifecycle(taskId, async () => {
+			// Capture and destructive prepare/dispose share one same-task lifecycle lock. Before P0.8, dispose could
+			// release/delete this placement between `git add` and `git diff`, producing an intermittent terminal card with
+			// neither a result branch nor a truthful no-change marker.
+			const placement = this.requirePlacement(taskId);
+			assertSandboxExecOk(
+				await this.execAsTaskUser(placement, ["git", "add", "-A"]),
+				"stage sandbox workspace changes",
+			);
+			const diffArgs = ["git", "diff", "--staged", "--binary"];
+			const baseRef = options.baseRef?.trim();
+			if (baseRef) {
+				diffArgs.push(baseRef, "--");
+			}
+			const diff = await this.execAsTaskUser(placement, diffArgs, {
+				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+			});
+			assertSandboxExecOk(diff, "capture sandbox workspace patch");
+			return diff.stdout;
 		});
-		assertSandboxExecOk(diff, "capture sandbox workspace patch");
-		return diff.stdout;
 	}
 
 	async disposeWorkspace(taskId: string): Promise<void> {
+		if (this.stopping) {
+			return;
+		}
 		await this.withWorkspaceLifecycle(taskId, async () => {
 			await this.disposeWorkspaceUnlocked(taskId);
 		});
 	}
 
 	async stopNow(): Promise<void> {
-		const containers = [...this.containers.values()];
-		for (const container of containers) {
-			if (container.idleTimer) {
-				this.clearTimeoutImpl(container.idleTimer);
-				container.idleTimer = null;
+		this.stopping = true;
+		try {
+			// Reject queued preparations FIRST. They own lifecycle tails while waiting for a slot; waiting those tails before
+			// rejecting the queue deadlocks shutdown behind the capacity it is itself responsible for releasing.
+			while (this.queue.length > 0) {
+				this.queue.shift()?.reject(new AgentSandboxUnavailableError("Agent sandbox stopped before a slot opened."));
 			}
-			await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
-			await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
-		}
-		// §5.L: reap the pool's shared egress proxy + its `--internal` network, but ONLY if we ever ensured it (a
-		// flag-off / never-`allowlist` pool touched no egress Docker resources ⇒ this is a no-op, so stopNow stays
-		// byte-identical for those pools). Best-effort + resets the memo so a restarted pool re-probes from scratch.
-		await this.teardownEgressProxyIfEnsured();
-		this.containers.clear();
-		this.placements.clear();
-		while (this.queue.length > 0) {
-			this.queue.shift()?.reject(new AgentSandboxUnavailableError("Agent sandbox stopped before a slot opened."));
+			await Promise.allSettled([...this.slotAcquisitionGates]);
+			// Service shutdown is destructive at the container level, so it participates in every in-flight task lifecycle.
+			// In particular, never `docker rm -f` while capture holds a cwd through git add/diff.
+			while (this.workspaceLifecycleTails.size > 0) {
+				await Promise.allSettled([...this.workspaceLifecycleTails.values()]);
+			}
+			const containers = [...this.containers.values()];
+			for (const container of containers) {
+				if (container.idleTimer) {
+					this.clearTimeoutImpl(container.idleTimer);
+					container.idleTimer = null;
+				}
+				await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
+				await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
+			}
+			// §5.L: reap the pool's shared egress proxy + its `--internal` network, but ONLY if we ever ensured it (a
+			// flag-off / never-`allowlist` pool touched no egress Docker resources ⇒ this is a no-op, so stopNow stays
+			// byte-identical for those pools). Best-effort + resets the memo so a restarted pool re-probes from scratch.
+			await this.teardownEgressProxyIfEnsured();
+			this.containers.clear();
+			this.placements.clear();
+		} finally {
+			this.stopping = false;
 		}
 	}
 
@@ -1133,6 +1175,9 @@ export class AgentSandboxManager {
 	}
 
 	private drainQueue(): void {
+		if (this.stopping) {
+			return;
+		}
 		for (let index = 0; index < this.queue.length; ) {
 			const queued = this.queue[index];
 			if (!queued) {
@@ -1284,6 +1329,20 @@ export class AgentSandboxManager {
 			if (this.workspaceLifecycleTails.get(taskId) === tail) {
 				this.workspaceLifecycleTails.delete(taskId);
 			}
+		}
+	}
+
+	private async withSlotAcquisition<T>(run: () => Promise<T>): Promise<T> {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		this.slotAcquisitionGates.add(gate);
+		try {
+			return await run();
+		} finally {
+			release();
+			this.slotAcquisitionGates.delete(gate);
 		}
 	}
 

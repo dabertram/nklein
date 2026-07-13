@@ -169,6 +169,8 @@ export interface NKleinTaskSessionService {
 		timeoutMs?: number;
 		/** §5.AW arbitration: run acceptance against ANOTHER taskId's result branch (the `::spec` candidate). */
 		resultBranchTaskId?: string;
+		/** Exact artifact admitted by review; prevents acceptance from following a later mutable branch update. */
+		resultCommit?: string;
 		/** #39: run against the BASE tree (no result branch) — the baseline sample for the was-it-already-broken waiver. */
 		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult>;

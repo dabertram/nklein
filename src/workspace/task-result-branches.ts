@@ -28,6 +28,11 @@ export interface ApplyTaskPatchToResultBranchInput {
 	runGit?: RunGit;
 }
 
+export type TaskResultBranchProbe =
+	| { status: "found"; commit: string }
+	| { status: "missing"; commit: null }
+	| { status: "error"; commit: null; message: string };
+
 export function createTaskResultBranchName(taskId: string): string {
 	const normalizedTaskId = taskId.trim();
 	if (!normalizedTaskId) {
@@ -49,18 +54,86 @@ export function createTaskResultBranchRef(taskId: string): string {
 	return `refs/heads/${createTaskResultBranchName(taskId)}`;
 }
 
+/** Hidden durable ref that keeps a delivered artifact addressable after its mergeable candidate branch is pruned. */
+export function createTaskResultEvidenceRef(taskId: string): string {
+	return `refs/nklein/evidence/${createTaskResultBranchName(taskId).slice(`${TASK_RESULT_BRANCH_PREFIX}/`.length)}`;
+}
+
+async function probeCommitRef(input: {
+	repoPath: string;
+	refName: string;
+	runGit?: RunGit;
+}): Promise<TaskResultBranchProbe> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const exists = await runGit(input.repoPath, ["show-ref", "--verify", "--quiet", input.refName]);
+	if (!exists.ok) {
+		if (exists.exitCode === 1) {
+			return { status: "missing", commit: null };
+		}
+		return {
+			status: "error",
+			commit: null,
+			message: exists.error ?? (exists.stderr.trim() || "Could not inspect the task result ref."),
+		};
+	}
+	const commit = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.refName}^{commit}`]);
+	if (commit.ok && commit.stdout.trim()) {
+		return { status: "found", commit: commit.stdout.trim() };
+	}
+	return {
+		status: "error",
+		commit: null,
+		message: commit.error ?? (commit.stderr.trim() || "The task result ref does not resolve to a commit."),
+	};
+}
+
+export async function probeTaskResultBranchCommit(input: {
+	repoPath: string;
+	taskId: string;
+	runGit?: RunGit;
+}): Promise<TaskResultBranchProbe> {
+	return await probeCommitRef({
+		repoPath: input.repoPath,
+		refName: createTaskResultBranchRef(input.taskId),
+		...(input.runGit ? { runGit: input.runGit } : {}),
+	});
+}
+
+export async function probeTaskResultEvidenceCommit(input: {
+	repoPath: string;
+	taskId: string;
+	runGit?: RunGit;
+}): Promise<TaskResultBranchProbe> {
+	return await probeCommitRef({
+		repoPath: input.repoPath,
+		refName: createTaskResultEvidenceRef(input.taskId),
+		...(input.runGit ? { runGit: input.runGit } : {}),
+	});
+}
+
+/** Pin an exact result commit outside the mergeable branch namespace so evidence survives branch cleanup and Git GC. */
+export async function pinTaskResultEvidenceCommit(input: {
+	repoPath: string;
+	taskId: string;
+	resultCommit: string;
+	runGit?: RunGit;
+}): Promise<string> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const refName = createTaskResultEvidenceRef(input.taskId);
+	const update = await runGit(input.repoPath, ["update-ref", refName, input.resultCommit]);
+	if (!update.ok) {
+		throw new Error(update.error ?? `Could not pin task result evidence ref "${refName}".`);
+	}
+	return refName;
+}
+
 export async function resolveTaskResultBranchCommit(input: {
 	repoPath: string;
 	taskId: string;
 	runGit?: RunGit;
 }): Promise<string | null> {
-	const runGit = input.runGit ?? defaultRunGit;
-	const result = await runGit(input.repoPath, [
-		"rev-parse",
-		"--verify",
-		`${createTaskResultBranchRef(input.taskId)}^{commit}`,
-	]);
-	return result.ok && result.stdout.trim() ? result.stdout.trim() : null;
+	const result = await probeTaskResultBranchCommit(input);
+	return result.status === "found" ? result.commit : null;
 }
 
 /**
@@ -71,19 +144,31 @@ export async function getTaskResultBranchDiff(input: {
 	repoPath: string;
 	taskId: string;
 	baseRef: string;
+	/** Exact capture admitted by the review gate; when present, never re-dereference the mutable task branch. */
+	resultCommit?: string;
 	runGit?: RunGit;
 }): Promise<string | null> {
 	const runGit = input.runGit ?? defaultRunGit;
-	const headCommit = await resolveTaskResultBranchCommit({
-		repoPath: input.repoPath,
-		taskId: input.taskId,
-		runGit,
-	});
+	const pinnedCommit = input.resultCommit?.trim() || null;
+	const headCommit =
+		pinnedCommit ??
+		(await resolveTaskResultBranchCommit({
+			repoPath: input.repoPath,
+			taskId: input.taskId,
+			runGit,
+		}));
 	if (!headCommit) {
 		return null;
 	}
-	const baseCommit = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.baseRef}^{commit}`]);
-	const fromRef = baseCommit.ok && baseCommit.stdout.trim() ? baseCommit.stdout.trim() : input.baseRef;
+	const baseCommit = pinnedCommit
+		? await runGit(input.repoPath, ["rev-parse", "--verify", `${headCommit}^`])
+		: await runGit(input.repoPath, ["rev-parse", "--verify", `${input.baseRef}^{commit}`]);
+	const fromRef =
+		baseCommit.ok && baseCommit.stdout.trim()
+			? baseCommit.stdout.trim()
+			: pinnedCommit
+				? `${headCommit}^`
+				: input.baseRef;
 	const diff = await runGit(input.repoPath, ["diff", fromRef, headCommit]);
 	if (!diff.ok) {
 		return null;

@@ -632,9 +632,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
-- [ ] **P0.8 — Resolve the genuine no-result-branch/evidence failure class** *(legacy §5.AI).* Reproduce the intermittent
-  dev-test outcome, distinguish “agent made no change” from capture/reaper/assembly failure, fix the proven cause, and
-  make evidence creation return a typed actionable result.
 - [ ] **P0.9 — Finish legacy host-worktree retirement** *(legacy §5.A/§2.B).* Re-home migrated-board cleanup away from
   agent-id predicates, delete the remaining cleanup-only worktree modules/schema/catalog residue, and verify upgrades,
   shell-on-task, shutdown, and result-branch delivery.

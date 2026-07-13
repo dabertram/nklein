@@ -11,6 +11,7 @@ export interface VerifyTaskAcceptanceInput {
 	taskPrompt: string;
 	timeoutMs?: number;
 	resultBranchTaskId?: string;
+	resultCommit?: string;
 	useBaseTree?: boolean;
 }
 
@@ -47,10 +48,11 @@ export function createAcceptanceVerifier(deps: AcceptanceVerifierDeps): Acceptan
 		// branch — acceptance evidence must run against what actually ships.
 		const resultCommit = input.useBaseTree
 			? null
-			: await resolveTaskResultBranchCommit({
+			: (input.resultCommit?.trim() ?? "") ||
+				(await resolveTaskResultBranchCommit({
 					repoPath: input.projectRepoPath,
 					taskId: input.resultBranchTaskId ?? input.taskId,
-				}).catch(() => null);
+				}).catch(() => null));
 		return await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,

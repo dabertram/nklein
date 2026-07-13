@@ -59,8 +59,11 @@ describe("reasoning chunk mutators (§5.V coverage)", () => {
 		const entry = freshEntry();
 		appendReasoningChunk(entry, "t1", "partial");
 		const updated = setOrCreateReasoningMessage(entry, "t1", "done");
-		expect(updated?.content).toBe("done");
-		expect((updated?.meta as { hookEventName: string }).hookEventName).toBe("reasoning_end");
+		if (!updated) {
+			throw new Error("Expected the active reasoning message to be finalized.");
+		}
+		expect(updated.content).toBe("done");
+		expect((updated.meta as { hookEventName: string }).hookEventName).toBe("reasoning_end");
 	});
 });
 

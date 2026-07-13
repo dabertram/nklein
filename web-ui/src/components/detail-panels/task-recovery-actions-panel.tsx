@@ -167,10 +167,18 @@ export function TaskRecoveryActionsPanel({
 				throw new Error("Evidence could not be created (the runtime returned no prompt block).");
 			}
 			await navigator.clipboard.writeText(response.promptBlock);
-			const message = `Evidence created and copied. ${response.bundlePath}`;
+			const captureReady = response.capture.status === "result_branch";
+			const message = captureReady
+				? `Evidence created and copied. ${response.bundlePath}`
+				: `Evidence bundle created, but task artifact status is ${response.capture.status.replaceAll("_", " ")}. ${response.capture.message}`;
 			setEvidenceResult(message);
 			setEvidenceDetails(response);
-			showAppToast({ intent: "success", icon: "clipboard", message: "Evidence created and copied.", timeout: 5000 });
+			showAppToast({
+				intent: captureReady ? "success" : "warning",
+				icon: captureReady ? "clipboard" : "warning-sign",
+				message: captureReady ? "Evidence created and copied." : response.capture.message,
+				timeout: captureReady ? 5000 : 7000,
+			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Could not collect task evidence.";
 			setEvidenceResult(message);

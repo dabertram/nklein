@@ -113,6 +113,13 @@ const MOCK_EVIDENCE_RESPONSE = {
 	ok: true,
 	promptBlock: "Evidence prompt block content here",
 	bundlePath: "/tmp/evidence/task-review-001",
+	capture: {
+		status: "result_branch",
+		action: "inspect_result",
+		message: "A task result branch was captured.",
+		resultCommit: "abc123",
+		resultBranchTaskId: TASK_ID,
+	},
 	summaryText: "Summary of evidence",
 	diffPatchText: null,
 	files: {
@@ -447,6 +454,30 @@ test.describe("TaskRecoveryActionsPanel", () => {
 		expect(body["0"]?.taskId).toBe(TASK_ID);
 	});
 
+	test("Create evidence surfaces an actionable capture failure instead of claiming diff success", async ({ page }) => {
+		await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+		await setupMocks(page, {
+			evidenceResponse: trpcOk({
+				...MOCK_EVIDENCE_RESPONSE,
+				capture: {
+					status: "capture_failed",
+					action: "inspect_failure_and_redrive",
+					message: "The sandbox workspace disappeared before capture. Redrive the task.",
+					resultCommit: null,
+					resultBranchTaskId: TASK_ID,
+				},
+			}),
+		});
+		await page.goto("/");
+		await openCard(page, "Refactor payment gateway");
+
+		await page.getByRole("button", { name: "Create evidence" }).click();
+
+		await expect(page.getByText("Task artifact: capture failed")).toBeVisible({ timeout: 8_000 });
+		await expect(page.getByText(/workspace disappeared before capture/).first()).toBeVisible();
+		await expect(page.getByText("Recommended action: inspect failure and redrive")).toBeVisible();
+	});
+
 	test("on-card evidence handles a null runtime response without crashing (regression)", async ({ page }) => {
 		// The harness caught an unguarded `response.promptBlock` read: when collectTaskEvidence resolves to
 		// null, the board used to throw `Cannot read properties of null (reading 'promptBlock')`. It must now
@@ -460,9 +491,9 @@ test.describe("TaskRecoveryActionsPanel", () => {
 		await setupMocks(page, { evidenceResponse: trpcOk(null) });
 		await page.goto("/");
 
-		const evidenceButton = page
-			.locator("[data-column-id='review'] [data-task-id]")
-			.getByRole("button", { name: "Create task evidence" });
+		const reviewCard = page.locator("[data-column-id='review'] [data-task-id]");
+		await reviewCard.hover();
+		const evidenceButton = reviewCard.getByRole("button", { name: "Create task evidence" });
 		await expect(evidenceButton).toBeVisible({ timeout: 15_000 });
 		await evidenceButton.click();
 

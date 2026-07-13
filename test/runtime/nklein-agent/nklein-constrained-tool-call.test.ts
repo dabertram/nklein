@@ -30,18 +30,24 @@ describe("buildConstrainedToolCallSchema", () => {
 	it("default shape constrains `tool` to an enum of the offered names + a generic arguments object", () => {
 		const built = buildConstrainedToolCallSchema(TOOLS);
 		expect(built).not.toBeNull();
-		expect(built?.name).toBe("klein_tool_call");
-		expect(built?.strict).toBe(true);
-		const props = (built?.schema as { properties: Record<string, { enum?: string[]; type?: string }> }).properties;
+		if (!built) {
+			throw new Error("Expected a constrained tool-call schema.");
+		}
+		expect(built.name).toBe("klein_tool_call");
+		expect(built.strict).toBe(true);
+		const props = (built.schema as { properties: Record<string, { enum?: string[]; type?: string }> }).properties;
 		expect(props.tool.enum).toEqual(["create_card", "run_command"]);
 		expect(props.arguments.type).toBe("object");
-		expect((built?.schema as { required: string[] }).required).toEqual(["tool", "arguments"]);
+		expect((built.schema as { required: string[] }).required).toEqual(["tool", "arguments"]);
 	});
 
 	it("perToolArguments builds a discriminated anyOf pinning each tool's own parameter schema", () => {
 		const built = buildConstrainedToolCallSchema(TOOLS, { perToolArguments: true, schemaName: "custom" });
-		expect(built?.name).toBe("custom");
-		const branches = (built?.schema as { anyOf: Array<{ properties: Record<string, unknown> }> }).anyOf;
+		if (!built) {
+			throw new Error("Expected a per-tool constrained schema.");
+		}
+		expect(built.name).toBe("custom");
+		const branches = (built.schema as { anyOf: Array<{ properties: Record<string, unknown> }> }).anyOf;
 		expect(branches).toHaveLength(2);
 		const first = branches[0].properties as { tool: { const: string }; arguments: Record<string, unknown> };
 		expect(first.tool.const).toBe("create_card");
@@ -53,7 +59,10 @@ describe("buildConstrainedToolCallSchema", () => {
 			{ name: "noargs", description: "", parameters: {} as Record<string, unknown> },
 		];
 		const built = buildConstrainedToolCallSchema(weird, { perToolArguments: true });
-		const branch = (built?.schema as { anyOf: Array<{ properties: { arguments: unknown } }> }).anyOf[0];
+		if (!built) {
+			throw new Error("Expected a normalized constrained schema.");
+		}
+		const branch = (built.schema as { anyOf: Array<{ properties: { arguments: unknown } }> }).anyOf[0];
 		expect(branch.properties.arguments).toEqual({ type: "object" });
 	});
 });

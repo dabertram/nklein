@@ -321,6 +321,8 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	 * reviewer preferred the speculative candidate). Tasks not in the map merge their own branch as always.
 	 */
 	resultBranchTaskIdOverrides?: Readonly<Record<string, string>>;
+	/** Exact reviewed commit per board task; takes precedence over re-resolving the mutable candidate branch. */
+	resultCommitOverrides?: Readonly<Record<string, string>>;
 	runGit?: RunGit;
 	resolveTaskResultBranchCommit?: ResolveTaskResultBranchCommit;
 	/** §5.AK Phase B: optional merge-conflict resolution agent; absent ⇒ today's abort-and-surface. */
@@ -372,11 +374,13 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 		// §5.A). With no result branch there is nothing host-visible to merge, so skip the task rather than
 		// reaching into a (now-nonexistent) host worktree. §5.AW: an arbitration override redirects the lookup
 		// to another taskId's branch (the `::spec` candidate) while every board mutation stays on task.id.
-		const headCommit = await resolveTaskResultBranchCommit({
-			repoPath: input.repoPath,
-			taskId: input.resultBranchTaskIdOverrides?.[task.id] ?? task.id,
-			runGit,
-		});
+		const headCommit =
+			input.resultCommitOverrides?.[task.id] ??
+			(await resolveTaskResultBranchCommit({
+				repoPath: input.repoPath,
+				taskId: input.resultBranchTaskIdOverrides?.[task.id] ?? task.id,
+				runGit,
+			}));
 		if (!headCommit) {
 			const skipped: TaskWorktreeAutoMergeSuccess = {
 				type: "skipped",

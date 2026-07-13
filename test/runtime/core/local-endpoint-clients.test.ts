@@ -39,7 +39,7 @@ describe("local endpoint clients (§5.AB)", () => {
 				fetchImpl: impl,
 			});
 			// Sent the right body (forced tool choice, tools mapped).
-			const sent = JSON.parse(String((calls[0]?.init as { body?: string }).body));
+			const sent = JSON.parse(String((calls[0]?.init as { body?: string } | undefined)?.body));
 			expect(sent).toMatchObject({ model: "local-messages", max_tokens: 256, tool_choice: { type: "any" } });
 			// Parsed the response.
 			expect(result.toolCalls).toEqual([{ id: "t1", name: "write_file", args: { path: "a.ts" } }]);
@@ -97,7 +97,7 @@ describe("local endpoint clients (§5.AB)", () => {
 				tools: [{ name: "run_tests", parameters: {} }],
 				fetchImpl: impl,
 			});
-			const sent = JSON.parse(String((calls[0]?.init as { body?: string }).body));
+			const sent = JSON.parse(String((calls[0]?.init as { body?: string } | undefined)?.body));
 			expect(sent).toMatchObject({ model: "native", max_tokens: 128, tool_choice: "auto" });
 			expect(result.reasoning).toBe("think");
 			expect(result.toolCalls).toEqual([{ id: "c1", name: "run_tests", args: { suite: "fast" } }]);

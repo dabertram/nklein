@@ -1135,6 +1135,234 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		).toBe(true);
 	});
 
+	it("emits awaiting_review before asynchronous result capture settles", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const capture = createDeferred<string>();
+		sandboxManager.captureWorkspacePatchMock.mockReturnValueOnce(capture.promise);
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+		const reviewSummaries: RuntimeTaskSessionSummary[] = [];
+		service.onSummary((summary) => {
+			if (summary.taskId === "task-delayed-capture" && summary.state === "awaiting_review") {
+				reviewSummaries.push(summary);
+			}
+		});
+
+		await service.startTaskSession({
+			taskId: "task-delayed-capture",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch timing",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-delayed-capture");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
+		expect(service.getSummary("task-delayed-capture")).toMatchObject({ state: "awaiting_review" });
+		expect(service.getSummary("task-delayed-capture")?.latestHookActivity?.hookEventName).not.toBe(
+			"sandbox_patch_captured",
+		);
+		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "task-delayed-capture" }),
+		);
+
+		capture.resolve("diff --git a/README.md b/README.md\n");
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-delayed-capture")?.latestHookActivity?.hookEventName).toBe(
+				"sandbox_patch_captured",
+			);
+		});
+		expect(reviewSummaries.length).toBeGreaterThanOrEqual(2);
+		expect(reviewSummaries.at(-1)?.latestHookActivity?.hookEventName).toBe("sandbox_patch_captured");
+	});
+
+	it("keeps a captured result authoritative when post-capture disposal reports an error", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		sandboxManager.disposeWorkspaceMock.mockRejectedValueOnce(new Error("workspace cleanup failed"));
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-cleanup-error",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result cleanup",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-cleanup-error");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					severity: "warning",
+					taskId: "task-cleanup-error",
+					metadata: { category: "agent_sandbox_result_cleanup" },
+				}),
+			);
+		});
+		expect(service.getSummary("task-cleanup-error")).toMatchObject({
+			state: "awaiting_review",
+			latestHookActivity: expect.objectContaining({ hookEventName: "sandbox_patch_captured" }),
+		});
+		expect(service.getSummary("task-cleanup-error")?.warningMessage ?? "").not.toContain("cleanup failed");
+	});
+
+	it("waits for host-side result-branch assembly before service disposal completes", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const assembly = createDeferred<Awaited<ReturnType<typeof taskResultBranchMocks.applyTaskPatchToResultBranch>>>();
+		taskResultBranchMocks.applyTaskPatchToResultBranch.mockReturnValueOnce(assembly.promise);
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+		const emittedHooks: Array<string | null> = [];
+		service.onSummary((summary) => {
+			if (summary.taskId === "task-shutdown-assembly") {
+				emittedHooks.push(summary.latestHookActivity?.hookEventName ?? null);
+			}
+		});
+
+		await service.startTaskSession({
+			taskId: "task-shutdown-assembly",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Capture before shutdown",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-shutdown-assembly");
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "ready", reason: "completed" });
+		await vi.waitFor(() => {
+			expect(taskResultBranchMocks.applyTaskPatchToResultBranch).toHaveBeenCalledWith(
+				expect.objectContaining({ taskId: "task-shutdown-assembly" }),
+			);
+		});
+
+		let disposalSettled = false;
+		const disposal = service.dispose().then(() => {
+			disposalSettled = true;
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(disposalSettled).toBe(false);
+
+		assembly.resolve({
+			taskId: "task-shutdown-assembly",
+			branchName: "nklein/tasks/task-shutdown-assembly",
+			refName: "refs/heads/nklein/tasks/task-shutdown-assembly",
+			baseCommit: "base-commit",
+			headCommit: "result-commit",
+		});
+		await disposal;
+		expect(emittedHooks).toContain("sandbox_patch_captured");
+		expect(sandboxManager.stopNowMock).toHaveBeenCalledTimes(1);
+		services.splice(services.indexOf(service), 1);
+	});
+
+	it("drains an interrupted prior-work rebound probe before service disposal", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const priorResult = createDeferred<string | null>();
+		taskResultBranchMocks.applyTaskPatchToResultBranch.mockResolvedValueOnce(null);
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockReturnValueOnce(priorResult.promise);
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+		const emittedHooks: Array<string | null> = [];
+		service.onSummary((summary) => {
+			if (summary.taskId === "task-shutdown-rebound") {
+				emittedHooks.push(summary.latestHookActivity?.hookEventName ?? null);
+			}
+		});
+
+		await service.startTaskSession({
+			taskId: "task-shutdown-rebound",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Preserve prior work",
+		});
+		await waitForTaskSessionId(runtime, "task-shutdown-rebound");
+		await service.stopTaskSession("task-shutdown-rebound");
+		await vi.waitFor(() => expect(taskResultBranchMocks.resolveTaskResultBranchCommit).toHaveBeenCalled());
+
+		let disposalSettled = false;
+		const disposal = service.dispose().then(() => {
+			disposalSettled = true;
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(disposalSettled).toBe(false);
+
+		priorResult.resolve("prior-result-commit");
+		await disposal;
+		expect(emittedHooks).toContain("interrupted_prior_work_rebound");
+		services.splice(services.indexOf(service), 1);
+	});
+
+	it("holds a fast redrive until failed capture cleanup finishes", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const capture = createDeferred<string>();
+		sandboxManager.captureWorkspacePatchMock.mockReturnValueOnce(capture.promise);
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-failed-capture-redrive",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Capture then redrive",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-failed-capture-redrive");
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "ready", reason: "completed" });
+		await vi.waitFor(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
+
+		const redrive = service.sendTaskSessionInput("task-failed-capture-redrive", "Try again");
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+		expect(service.getSummary("task-failed-capture-redrive")?.state).toBe("awaiting_review");
+
+		capture.reject(new Error("git add failed"));
+		await redrive;
+		await vi.waitFor(() => expect(runtime.sendTaskSessionInputMock).toHaveBeenCalled());
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-failed-capture-redrive");
+		expect(service.getSummary("task-failed-capture-redrive")?.state).toBe("running");
+	});
+
 	it("releases a stale sandbox placement before restoring a reviewed task for re-drive", async () => {
 		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
 		const runtime = createFakeNKleinSessionRuntime();
@@ -1479,7 +1707,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 	});
 
-	it("treats sandbox patch capture failure as benign when the workspace was disposed concurrently", async () => {
+	it("surfaces sandbox patch capture failure when the workspace was disposed concurrently", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
@@ -1515,8 +1743,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
-					signal: "custom",
-					severity: "info",
+					signal: "runtime_error",
+					severity: "error",
 					taskId: "task-race",
 					metadata: expect.objectContaining({
 						category: "agent_sandbox_result_patch",
@@ -1528,21 +1756,15 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
 			expect.objectContaining({ taskId: "task-race" }),
 		);
-		expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalledWith(
-			expect.objectContaining({
-				signal: "runtime_error",
-				taskId: "task-race",
-				metadata: expect.objectContaining({
-					category: "agent_sandbox_result_patch",
-				}),
-			}),
-		);
 		const summary = service.getSummary("task-race");
-		expect(summary?.state).toBe("awaiting_review");
-		expect(summary?.warningMessage ?? null).toBeNull();
+		expect(summary?.state).toBe("failed");
+		expect(summary).toMatchObject({
+			warningMessage: expect.stringContaining("workspace_disposed_before_capture"),
+			latestHookActivity: expect.objectContaining({ hookEventName: "sandbox_patch_capture_failed" }),
+		});
 	});
 
-	it("treats sandbox patch staging teardown as benign when the workspace path disappeared", async () => {
+	it("surfaces sandbox patch capture failure when the workspace path disappeared", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
@@ -1580,8 +1802,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
-					signal: "custom",
-					severity: "info",
+					signal: "runtime_error",
+					severity: "error",
 					taskId: "task-missing",
 					metadata: expect.objectContaining({
 						category: "agent_sandbox_result_patch",
@@ -1594,21 +1816,15 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
 			expect.objectContaining({ taskId: "task-missing" }),
 		);
-		expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalledWith(
-			expect.objectContaining({
-				signal: "runtime_error",
-				taskId: "task-missing",
-				metadata: expect.objectContaining({
-					category: "agent_sandbox_result_patch",
-				}),
-			}),
-		);
 		const summary = service.getSummary("task-missing");
-		expect(summary?.state).toBe("awaiting_review");
-		expect(summary?.warningMessage ?? null).toBeNull();
+		expect(summary?.state).toBe("failed");
+		expect(summary).toMatchObject({
+			warningMessage: expect.stringContaining("workspace_missing_before_capture"),
+			latestHookActivity: expect.objectContaining({ hookEventName: "sandbox_patch_capture_failed" }),
+		});
 	});
 
-	it("treats sandbox patch staging without a git workspace as benign", async () => {
+	it("surfaces sandbox patch staging without a git workspace as a capture failure", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
@@ -1646,8 +1862,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
-					signal: "custom",
-					severity: "info",
+					signal: "runtime_error",
+					severity: "error",
 					taskId: "task-not-git",
 					metadata: expect.objectContaining({
 						category: "agent_sandbox_result_patch",
@@ -1660,7 +1876,11 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
 			expect.objectContaining({ taskId: "task-not-git" }),
 		);
-		expect(service.getSummary("task-not-git")?.warningMessage ?? null).toBeNull();
+		expect(service.getSummary("task-not-git")).toMatchObject({
+			state: "failed",
+			warningMessage: expect.stringContaining("workspace_missing_before_capture"),
+			latestHookActivity: expect.objectContaining({ hookEventName: "sandbox_patch_capture_failed" }),
+		});
 	});
 
 	it("keeps sandbox patch capture failures visible while the workspace still exists", async () => {
@@ -1705,12 +1925,13 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			);
 		});
 		expect(service.getSummary("task-capture-error")).toMatchObject({
-			state: "awaiting_review",
+			state: "failed",
 			warningMessage: "Could not capture sandbox task result patch: git add failed",
 			latestHookActivity: expect.objectContaining({
 				hookEventName: "sandbox_patch_capture_failed",
 			}),
 		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-capture-error");
 	});
 
 	it("releases sandbox workspaces on stop, clear, and service disposal", async () => {

@@ -27,6 +27,7 @@ export function TaskEvidenceDrawer({ evidence }: { evidence: RuntimeTaskEvidence
 		{ id: "prompt", label: "Prompt", text: evidence.promptBlock },
 	];
 	const activeViewerText = viewerTabs.find((tab) => tab.id === activeTab)?.text ?? evidence.summaryText;
+	const captureReady = evidence.capture.status === "result_branch";
 	return (
 		<div className="mt-2 rounded-md border border-border bg-surface-2 p-2 text-[12px]">
 			<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -45,6 +46,21 @@ export function TaskEvidenceDrawer({ evidence }: { evidence: RuntimeTaskEvidence
 							{tab.label}
 						</button>
 					))}
+				</div>
+			</div>
+			<div
+				role="status"
+				className={cn(
+					"mt-2 rounded-sm border px-2 py-1.5",
+					captureReady
+						? "border-status-green/30 bg-status-green/10 text-text-secondary"
+						: "border-status-orange/30 bg-status-orange/10 text-text-primary",
+				)}
+			>
+				<div className="font-medium">Task artifact: {evidence.capture.status.replaceAll("_", " ")}</div>
+				<div className="mt-0.5">{evidence.capture.message}</div>
+				<div className="mt-0.5 text-[11px] text-text-tertiary">
+					Recommended action: {evidence.capture.action.replaceAll("_", " ")}
 				</div>
 			</div>
 			<div className="mt-1 break-all font-mono text-[11px] text-text-secondary">{evidence.bundlePath}</div>

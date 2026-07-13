@@ -265,6 +265,13 @@ async function setupMocks(
 								ok: true,
 								promptBlock: "",
 								bundlePath: "/tmp/evidence",
+								capture: {
+									status: "result_branch",
+									action: "inspect_result",
+									message: "A task result branch was captured.",
+									resultCommit: "abc123",
+									resultBranchTaskId: "task-1",
+								},
 								summaryText: "",
 								diffPatchText: null,
 								files: {

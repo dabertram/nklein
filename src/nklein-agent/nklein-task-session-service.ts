@@ -1719,8 +1719,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
-		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
-		this.forgetSandboxTask(taskId);
+		// P0.8: stop used to dispose + forget the sandbox BEFORE the interrupted summary was emitted, so the
+		// terminal-salvage hook (captureTerminalRunSummary → finalizeSandboxReview) saw no sandbox and the round ended
+		// with no captured result, no failure marker, and no prior-work rebound. When the finalizer can still salvage
+		// (a sandbox placement without a captured result branch, or a capture already in flight), leave teardown to
+		// it — it captures or fail-closes, rebounds prior-round work into review, and disposes the workspace itself.
+		const finalizerOwnsSandboxTeardown =
+			entry.summary.state !== "idle" &&
+			Boolean(this.agentSandboxManager) &&
+			this.sandboxState.hasSandbox(taskId) &&
+			(this.sandboxState.isFinalizing(taskId) || !this.sandboxState.getResultBranch(taskId));
+		if (!finalizerOwnsSandboxTeardown) {
+			await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
+			this.forgetSandboxTask(taskId);
+		}
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
 		}
@@ -1909,6 +1921,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			entry.summary.state !== "idle" &&
 			entry.summary.state !== "failed"
 		) {
+			return null;
+		}
+		// A capture marker can trigger a reviewer bounce while its finalizer is still releasing MCP transports and the
+		// workspace. Wait for that transaction before changing the entry to running; otherwise restore can see the old cwd
+		// as prepared, no-op, and then finalization deletes it under the live turn.
+		await this.sandboxState.waitForFinalization(taskId);
+		if (this.messageRepository.getTaskEntry(taskId) !== entry) {
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
@@ -2400,6 +2419,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskPrompt: string;
 		timeoutMs?: number;
 		resultBranchTaskId?: string;
+		resultCommit?: string;
 		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult> {
 		return this.acceptanceVerifier.verify(input);
@@ -2591,6 +2611,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.autonomyBudgetWatchdog.dispose();
 		this.timeoutController.clearSettings();
 		await this.sessionRuntime.dispose();
+		// Patch capture is only the first half of finalization; host-side result-branch assembly and the durable marker
+		// continue asynchronously. Drain them before clearing state/stopping Docker so clean shutdown cannot lose a result.
+		await this.sandboxReviewFinalizer.drain();
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdStore.clear();
 		this.contextBudgetController.clear();

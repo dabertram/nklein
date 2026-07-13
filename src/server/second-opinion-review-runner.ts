@@ -85,6 +85,10 @@ export function applyCardReviewToBoard(
 export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
+	/** Exact primary artifact admitted by the runtime gate; prevents review from drifting to a later branch update. */
+	primaryResultCommit?: string | null;
+	/** Exact speculative candidate observed alongside the primary admission, when present. */
+	speculativeResultCommit?: string | null;
 	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary"> &
 		Partial<
 			Pick<
@@ -399,6 +403,7 @@ export async function runSecondOpinionReviewForTask(
 			repoPath: input.workspacePath,
 			taskId: input.taskId,
 			baseRef: card.baseRef,
+			...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
 		}).catch(() => null);
 		const changedFilePaths = [...(gateDiff ?? "").matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1] ?? "");
 		const gate = decideTestDrivenDelivery({ enabled: true, changedFilePaths });
@@ -436,12 +441,20 @@ export async function runSecondOpinionReviewForTask(
 				focusChain: card.focusChain ?? null,
 			}),
 			getTaskDiff: async () =>
-				getDiff({ repoPath: input.workspacePath, taskId: input.taskId, baseRef: card.baseRef }),
+				getDiff({
+					repoPath: input.workspacePath,
+					taskId: input.taskId,
+					baseRef: card.baseRef,
+					...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
+				}),
 			// §5.AW: the speculative candidate's diff (its ::spec result branch), arming the A/B seed when present.
 			getSpeculativeDiff: async () =>
-				getDiff({ repoPath: input.workspacePath, taskId: `${input.taskId}::spec`, baseRef: card.baseRef }).catch(
-					() => null,
-				),
+				getDiff({
+					repoPath: input.workspacePath,
+					taskId: `${input.taskId}::spec`,
+					baseRef: card.baseRef,
+					...(input.speculativeResultCommit ? { resultCommit: input.speculativeResultCommit } : {}),
+				}).catch(() => null),
 			getReviewContext: async () => ({
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),

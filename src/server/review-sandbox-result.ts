@@ -1,4 +1,6 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { isActiveWorkSessionState } from "../core/session-state-predicates";
+import { isCurrentTaskResultHookEvent } from "../core/task-evidence-capture";
 
 /**
  * §5.U — the review sandbox-result probe extracted from `runtime-server`. After a sandboxed review run, the outcome
@@ -17,7 +19,51 @@ export function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | 
 
 /** True once the current awaiting-review handoff has finished writing its patch onto the result branch. */
 export function isCapturedSandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
-	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_captured";
+	return isCurrentTaskResultHookEvent(summary?.latestHookActivity?.hookEventName);
+}
+
+/** True when result capture failed and delivery must remain fail-closed. */
+export function isFailedSandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
+	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_capture_failed";
+}
+
+export type ReviewSandboxResult =
+	| { status: "result_branch"; resultCommit: string }
+	| { status: "empty_patch"; resultCommit: null }
+	| { status: "capture_failed"; resultCommit: null }
+	| { status: "unknown"; resultCommit: null };
+
+/** Only a verified result branch or an explicit no-change outcome is ready for reviewer/delivery judgment. */
+export function isSettledReviewSandboxArtifact(
+	result: ReviewSandboxResult,
+): result is Extract<ReviewSandboxResult, { status: "result_branch" | "empty_patch" }> {
+	return result.status === "result_branch" || result.status === "empty_patch";
+}
+
+export type SettledReviewSandboxDelivery<T> =
+	| {
+			delivered: false;
+			result: Extract<ReviewSandboxResult, { status: "capture_failed" | "unknown" }>;
+			value: null;
+	  }
+	| {
+			delivered: true;
+			result: Extract<ReviewSandboxResult, { status: "result_branch" | "empty_patch" }>;
+			value: T;
+	  };
+
+/**
+ * Produce the tested fail-closed token that guards the reviewer → acceptance → merge suffix. A later captured-marker
+ * summary may invoke the runtime again; until then pending/failed capture cannot admit its guarded callback.
+ */
+export async function runWithSettledReviewSandboxArtifact<T>(
+	result: ReviewSandboxResult,
+	runDelivery: (result: Extract<ReviewSandboxResult, { status: "result_branch" | "empty_patch" }>) => Promise<T>,
+): Promise<SettledReviewSandboxDelivery<T>> {
+	if (!isSettledReviewSandboxArtifact(result)) {
+		return { delivered: false, result, value: null };
+	}
+	return { delivered: true, result, value: await runDelivery(result) };
 }
 
 export interface ReviewSandboxResultProbe {
@@ -40,7 +86,7 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
 export async function resolveReviewSandboxResult(
 	input: { repoPath: string; taskId: string },
 	probe: ReviewSandboxResultProbe,
-): Promise<"result_branch" | "empty_patch" | "unknown"> {
+): Promise<ReviewSandboxResult> {
 	const delaysMs = probe.delaysMs ?? SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS;
 	const sleep = probe.sleep ?? realSleep;
 	for (const delayMs of [0, ...delaysMs]) {
@@ -48,8 +94,11 @@ export async function resolveReviewSandboxResult(
 			await sleep(delayMs);
 		}
 		const summary = probe.getSummary(input.taskId);
+		if (isFailedSandboxPatchSummary(summary)) {
+			return { status: "capture_failed", resultCommit: null };
+		}
 		if (isEmptySandboxPatchSummary(summary)) {
-			return "empty_patch";
+			return { status: "empty_patch", resultCommit: null };
 		}
 		const resultCommit = await probe.resolveResultCommit({
 			repoPath: input.repoPath,
@@ -59,9 +108,14 @@ export async function resolveReviewSandboxResult(
 		// new sandbox capture is still running; accepting it immediately reviews the previous round's artifact. While
 		// the session is awaiting review, require the current capture marker. Null/non-review summaries are startup or
 		// reconciliation probes where the existing durable branch is the best available evidence and remains valid.
-		if (resultCommit && (summary?.state !== "awaiting_review" || isCapturedSandboxPatchSummary(summary))) {
-			return "result_branch";
+		if (
+			typeof resultCommit === "string" &&
+			resultCommit.trim() &&
+			!isActiveWorkSessionState(summary?.state) &&
+			(summary?.state !== "awaiting_review" || isCapturedSandboxPatchSummary(summary))
+		) {
+			return { status: "result_branch", resultCommit: resultCommit.trim() };
 		}
 	}
-	return "unknown";
+	return { status: "unknown", resultCommit: null };
 }

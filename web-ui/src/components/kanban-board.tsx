@@ -667,9 +667,13 @@ export function KanbanBoard({
 					throw new Error("Evidence could not be created (the runtime returned no prompt block).");
 				}
 				await navigator.clipboard.writeText(response.promptBlock);
+				const captureReady = response.capture.status === "result_branch";
 				showAppToast({
-					intent: "success",
-					message: `Evidence created and copied. ${response.bundlePath}`,
+					intent: captureReady ? "success" : "warning",
+					icon: captureReady ? "clipboard" : "warning-sign",
+					message: captureReady
+						? `Evidence created and copied. ${response.bundlePath}`
+						: `Evidence bundle created, but task artifact status is ${response.capture.status.replaceAll("_", " ")}. ${response.capture.message}`,
 					timeout: 5000,
 				});
 			} catch (error) {

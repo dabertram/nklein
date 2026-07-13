@@ -269,7 +269,7 @@ describe.sequential("Suite 12-A — task lifecycle (create → list → done / t
 			port,
 		});
 		expect(createResult.status).toBe(0);
-		const taskId = (createResult.json?.task as Record<string, unknown>).id as string;
+		const taskId = String((createResult.json?.task as Record<string, unknown> | undefined)?.id ?? "");
 
 		const doneResult = spawnTask("done", {
 			args: ["--task-id", taskId, "--project-path", projectDir],
@@ -296,7 +296,7 @@ describe.sequential("Suite 12-A — task lifecycle (create → list → done / t
 			port,
 		});
 		expect(createResult.status).toBe(0);
-		const taskId = (createResult.json?.task as Record<string, unknown>).id as string;
+		const taskId = String((createResult.json?.task as Record<string, unknown> | undefined)?.id ?? "");
 
 		const trashResult = spawnTask("trash", {
 			args: ["--task-id", taskId, "--project-path", projectDir],
@@ -323,7 +323,7 @@ describe.sequential("Suite 12-A — task lifecycle (create → list → done / t
 			port,
 		});
 		expect(createResult.status).toBe(0);
-		const taskId = (createResult.json?.task as Record<string, unknown>).id as string;
+		const taskId = String((createResult.json?.task as Record<string, unknown> | undefined)?.id ?? "");
 
 		const deleteResult = spawnTask("delete", {
 			args: ["--task-id", taskId, "--project-path", projectDir],
@@ -351,7 +351,7 @@ describe.sequential("Suite 12-A — task lifecycle (create → list → done / t
 			port,
 		});
 		expect(createResult.status).toBe(0);
-		const taskId = (createResult.json?.task as Record<string, unknown>).id as string;
+		const taskId = String((createResult.json?.task as Record<string, unknown> | undefined)?.id ?? "");
 
 		// Move it to completed first.
 		const doneResult = spawnTask("done", {

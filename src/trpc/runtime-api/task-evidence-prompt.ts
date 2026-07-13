@@ -1,4 +1,8 @@
-import type { RuntimeBoardCard, RuntimeWorkspaceChangesResponse } from "../../core/api-contract";
+import type {
+	RuntimeBoardCard,
+	RuntimeTaskEvidenceCapture,
+	RuntimeWorkspaceChangesResponse,
+} from "../../core/api-contract";
 
 /**
  * Pure rendering of task-evidence text for `createRuntimeApi`, extracted from the oversized `runtime-api.ts`
@@ -48,7 +52,26 @@ export function buildTaskEvidencePromptBlock(input: {
 	bundlePath: string;
 	transcriptCount: number;
 	changeCount: number;
+	capture: RuntimeTaskEvidenceCapture;
 }): string {
+	const instruction = (() => {
+		switch (input.capture.status) {
+			case "result_branch":
+				return "Inspect summary.md, transcript/, diff.patch, and config-snapshot.json. Diagnose the issue, propose the smallest safe fix, and update the code/tests accordingly.";
+			case "diff_failed":
+				return "Inspect summary.md, transcript/, and config-snapshot.json for the diff-assembly error. Retry evidence collection before proposing code changes from this incomplete bundle.";
+			case "capture_failed":
+				return "Inspect summary.md, transcript/, and config-snapshot.json for the capture diagnostics. Recommend the smallest safe recovery or redrive; do not infer code changes from an absent diff.";
+			case "evidence_failed":
+				return "Evidence collection itself failed. Inspect summary.md and config-snapshot.json for diagnostics, then retry evidence collection before diagnosing or redriving the task.";
+			case "capture_pending":
+				return "Capture is still settling. Wait and collect evidence again before diagnosing the task result or proposing code changes.";
+			case "no_changes":
+				return "Inspect summary.md, transcript/, and config-snapshot.json to determine why the task produced no changes, then recommend whether and how to redrive it.";
+			case "no_capture":
+				return "Inspect summary.md, transcript/, and config-snapshot.json to diagnose why no result was captured, then recommend how to start or redrive the task.";
+		}
+	})();
 	return [
 		"Here is evidence from a !Klein task.",
 		"",
@@ -60,7 +83,12 @@ export function buildTaskEvidencePromptBlock(input: {
 		`Base commit: ${input.baseCommit ?? "unknown"}`,
 		`Transcript files: ${input.transcriptCount}`,
 		`Changed files captured: ${input.changeCount}`,
+		`Capture status: ${input.capture.status}`,
+		`Recommended action: ${input.capture.action}`,
+		`Capture detail: ${input.capture.message}`,
+		`Result branch task id: ${input.capture.resultBranchTaskId}`,
+		`Result commit: ${input.capture.resultCommit ?? "none"}`,
 		"",
-		"Please inspect the files in the evidence bundle, especially summary.md, transcript/, diff.patch, and config-snapshot.json. Then diagnose the issue, propose the smallest safe fix, and update the code/tests accordingly.",
+		instruction,
 	].join("\n");
 }

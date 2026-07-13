@@ -234,6 +234,13 @@ describe("CardDetailView", () => {
 		mockCollectTaskEvidence.mockResolvedValue({
 			bundlePath: "/tmp/evidence/task-1",
 			summaryPath: "/tmp/evidence/task-1/summary.md",
+			capture: {
+				status: "result_branch",
+				action: "inspect_result",
+				message: "A task result branch was captured.",
+				resultCommit: "abc123",
+				resultBranchTaskId: "task-1",
+			},
 			files: {
 				summary: "/tmp/evidence/task-1/summary.md",
 				telemetry: "/tmp/evidence/task-1/telemetry.jsonl",
@@ -926,6 +933,8 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("/tmp/evidence/task-1/diff.patch");
 		expect(container.textContent).toContain("/tmp/evidence/task-1/transcript/01-task-1.json");
 		expect(container.textContent).toContain("Task: Fix the issue (task-1)");
+		expect(container.textContent).toContain("Task artifact: result branch");
+		expect(container.textContent).toContain("Recommended action: inspect result");
 
 		const diffTab = Array.from(container.querySelectorAll("button")).find(
 			(button) => button.textContent?.trim() === "Diff",

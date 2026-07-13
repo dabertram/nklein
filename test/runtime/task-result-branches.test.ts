@@ -7,9 +7,13 @@ import { createGitProcessEnv } from "../../src/core/git-process-env";
 import {
 	applyTaskPatchToResultBranch,
 	createTaskResultBranchName,
+	createTaskResultEvidenceRef,
 	deleteTaskResultBranch,
 	deleteTaskResultBranchesForRepo,
 	getTaskResultBranchDiff,
+	pinTaskResultEvidenceCommit,
+	probeTaskResultBranchCommit,
+	probeTaskResultEvidenceCommit,
 	resolveTaskResultBranchCommit,
 } from "../../src/workspace/task-result-branches";
 
@@ -36,6 +40,21 @@ function createRepo(): { path: string; cleanup: () => void } {
 }
 
 describe("task result branches", () => {
+	it("distinguishes an absent result ref from a Git probe failure", async () => {
+		const repo = createRepo();
+		try {
+			await expect(probeTaskResultBranchCommit({ repoPath: repo.path, taskId: "missing" })).resolves.toEqual({
+				status: "missing",
+				commit: null,
+			});
+			await expect(
+				probeTaskResultBranchCommit({ repoPath: join(repo.path, "does-not-exist"), taskId: "missing" }),
+			).resolves.toMatchObject({ status: "error", commit: null });
+		} finally {
+			repo.cleanup();
+		}
+	});
+
 	it("applies a patch into a task branch without changing the checked-out worktree", async () => {
 		const repo = createRepo();
 		try {
@@ -102,6 +121,40 @@ describe("task result branches", () => {
 				}),
 			).resolves.toBeNull();
 			await expect(resolveTaskResultBranchCommit({ repoPath: repo.path, taskId: "empty" })).resolves.toBeNull();
+		} finally {
+			repo.cleanup();
+		}
+	});
+
+	it("pins an immutable evidence ref that survives mergeable branch cleanup", async () => {
+		const repo = createRepo();
+		try {
+			writeFileSync(join(repo.path, "README.md"), "changed\n", "utf8");
+			const patch = runGit(repo.path, ["diff", "--binary", "HEAD", "--"]);
+			runGit(repo.path, ["reset", "--hard", "HEAD"]);
+			const result = await applyTaskPatchToResultBranch({
+				repoPath: repo.path,
+				taskId: "delivered",
+				baseRef: "main",
+				patch,
+			});
+			if (!result) {
+				throw new Error("Expected a task result branch.");
+			}
+
+			await expect(
+				pinTaskResultEvidenceCommit({
+					repoPath: repo.path,
+					taskId: "card-1",
+					resultCommit: result.headCommit,
+				}),
+			).resolves.toBe(createTaskResultEvidenceRef("card-1"));
+			await deleteTaskResultBranch({ repoPath: repo.path, taskId: "delivered" });
+
+			await expect(probeTaskResultEvidenceCommit({ repoPath: repo.path, taskId: "card-1" })).resolves.toEqual({
+				status: "found",
+				commit: result.headCommit,
+			});
 		} finally {
 			repo.cleanup();
 		}

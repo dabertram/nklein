@@ -21,14 +21,22 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS } from "../src/core/runtime-config-api-contract";
-import { createTaskResultBranchRef } from "../src/workspace/task-result-branches";
+import {
+	resolveSettledTaskCaptureOutcome,
+	type SettledTaskCaptureOutcome,
+} from "../src/core/task-evidence-capture";
+import {
+	createTaskResultBranchRef,
+	createTaskResultEvidenceRef,
+} from "../src/workspace/task-result-branches";
 import { bootFullSystemRuntime, type FullSystemRuntime } from "./full-system-harness.mts";
 
 const execFileAsync = promisify(execFile);
 
 const LMSTUDIO_BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "360000");
-const TERMINAL_STATES = new Set(["awaiting_review", "completed", "failed"]);
+const CAPTURE_GRACE_MS = 75_000;
+const TERMINAL_STATES = new Set(["awaiting_review", "completed", "failed", "interrupted"]);
 
 /** A direct, small-model-friendly fix prompt for the scaffolded uncapped-score bug. */
 const FIX_PROMPT = [
@@ -77,7 +85,12 @@ interface SessionView {
 	reviewReason?: string | null;
 	exitCode?: number | null;
 	heartbeatStatus?: string | null;
-	latestHookActivity?: { activityText?: string | null; toolName?: string | null } | null;
+	latestHookActivity?: {
+		activityText?: string | null;
+		toolName?: string | null;
+		hookEventName?: string | null;
+		finalMessage?: string | null;
+	} | null;
 }
 
 interface WorkspaceStateView {
@@ -152,15 +165,46 @@ interface OracleResult {
  * `tsconfig`, a sibling test — which was the root of the environment-sensitive false-failures (a file-level load
  * error with no named subtest failure, i.e. the test file couldn't even be imported, not an assertion failing).
  */
-async function runResultOracle(workspacePath: string, taskId: string): Promise<OracleResult> {
-	const resultRef = createTaskResultBranchRef(taskId);
-	const verify = await execFileAsync("git", ["-C", workspacePath, "rev-parse", "--verify", `${resultRef}^{commit}`]).then(
-		() => true,
-		() => false,
-	);
-	if (!verify) {
-		return { branchFound: false, valid: false, detail: "no result branch (nothing was captured)", agentSource: null, oracleOutput: null };
+async function resolveCapturedArtifactCommit(workspacePath: string, taskId: string): Promise<string | null> {
+	for (const resultRef of [createTaskResultBranchRef(taskId), createTaskResultEvidenceRef(taskId)]) {
+		const commit = await execFileAsync(
+			"git",
+			["-C", workspacePath, "rev-parse", "--verify", `${resultRef}^{commit}`],
+		).then(
+			({ stdout }) => stdout.trim() || null,
+			() => null,
+		);
+		if (commit) {
+			return commit;
+		}
 	}
+	return null;
+}
+
+async function verifyCapturedCommit(workspacePath: string, commit: string): Promise<string | null> {
+	return await execFileAsync("git", ["-C", workspacePath, "rev-parse", "--verify", `${commit}^{commit}`]).then(
+		({ stdout }) => stdout.trim() || null,
+		() => null,
+	);
+}
+
+async function runResultOracle(
+	workspacePath: string,
+	captureOutcome: SettledTaskCaptureOutcome | "capture_unsettled",
+	captureCommit: string | null,
+): Promise<OracleResult> {
+	if (captureOutcome !== "result_branch" || !captureCommit) {
+		const detail =
+			captureOutcome === "no_changes"
+				? "no result branch (capture settled: the sandbox produced no file changes)"
+				: captureOutcome === "capture_failed"
+					? "no result branch (capture failed; inspect the runtime diagnostics)"
+					: "no result branch (capture did not settle before the deadline)";
+		return { branchFound: false, valid: false, detail, agentSource: null, oracleOutput: null };
+	}
+	// Pin the exact commit observed when the current capture marker settled. Never re-resolve the mutable task ref: a
+	// bounce can update it between source extraction and the oracle and silently test a different round.
+	const resultRef = captureCommit;
 	// Capture the agent's edited source up front so a non-PASS stays triageable even after the project is torn down.
 	const agentSource = await execFileAsync("git", ["-C", workspacePath, "show", `${resultRef}:src/habit-score.ts`])
 		.then(({ stdout }) => stdout)
@@ -220,6 +264,8 @@ async function main(): Promise<void> {
 		heartbeat: "" as string | null | undefined,
 		lastActivity: "" as string | null | undefined,
 		lastTool: "" as string | null | undefined,
+		captureOutcome: null as SettledTaskCaptureOutcome | "capture_unsettled" | null,
+		resultCommit: null as string | null,
 	};
 
 	try {
@@ -262,10 +308,13 @@ async function main(): Promise<void> {
 		}
 		log(`Started fix card seed=${seedTaskId.slice(0, 8)} on base ${baseRef}; watching (timeout ${(TIMEOUT_MS / 60000).toFixed(0)}m)…`);
 
-		// Watch the real runtime until the seed card reaches a terminal state.
+		// Watch until BOTH the session is terminal and its asynchronous result capture settles. `awaiting_review` is
+		// emitted before fire-and-forget finalization writes the result ref; the former one-shot branch probe created the
+		// historical intermittent "nothing was captured" false PARTIAL (P0.8).
 		const deadline = Date.now() + TIMEOUT_MS;
-		while (Date.now() < deadline) {
-			await new Promise((settle) => setTimeout(settle, 5000));
+		let captureDeadline: number | null = null;
+		while (Date.now() < (captureDeadline ?? deadline)) {
+			await new Promise((settle) => setTimeout(settle, observed.terminalState ? 250 : 5000));
 			const state = (await ws.workspace.getState.query().catch(() => null)) as WorkspaceStateView | null;
 			observed.cards = countBoardCards(state) ?? observed.cards;
 			const session = state?.sessions?.[seedTaskId];
@@ -277,15 +326,37 @@ async function main(): Promise<void> {
 				observed.lastTool = session.latestHookActivity?.toolName ?? observed.lastTool;
 				if (TERMINAL_STATES.has(session.state)) {
 					observed.terminalState = session.state;
-					break;
+					// The model/runtime deadline governs reaching terminal. Once it does, capture gets its own bounded grace
+					// because legal git add/diff operations may consume most of the original deadline's final seconds.
+					captureDeadline ??= Date.now() + CAPTURE_GRACE_MS;
+					const markerCommit =
+						session.latestHookActivity?.hookEventName === "sandbox_patch_captured"
+							? session.latestHookActivity.finalMessage?.trim() || null
+							: null;
+					const resultCommit = workspacePath
+						? markerCommit
+							? await verifyCapturedCommit(workspacePath, markerCommit)
+							: await resolveCapturedArtifactCommit(workspacePath, seedTaskId)
+						: null;
+					observed.captureOutcome = resolveSettledTaskCaptureOutcome({
+						hookEventName: session.latestHookActivity?.hookEventName ?? null,
+						resultBranchExists: Boolean(resultCommit),
+					});
+					if (observed.captureOutcome) {
+						observed.resultCommit = observed.captureOutcome === "result_branch" ? resultCommit : null;
+						break;
+					}
 				}
 			}
+		}
+		if (observed.terminalState && !observed.captureOutcome) {
+			observed.captureOutcome = "capture_unsettled";
 		}
 
 		// Verify the GENERATED result with the harness oracle.
 		const oracle =
-			observed.terminalState && workspacePath
-				? await runResultOracle(workspacePath, seedTaskId)
+			observed.terminalState && workspacePath && observed.captureOutcome
+				? await runResultOracle(workspacePath, observed.captureOutcome, observed.resultCommit)
 				: { branchFound: false, valid: false, detail: "card never reached a terminal state" };
 
 		const verdict: Verdict = !observed.terminalState ? "INCOMPLETE" : oracle.valid ? "PASS" : "PARTIAL";
@@ -293,6 +364,7 @@ async function main(): Promise<void> {
 		log("=== Full-system result ===");
 		log(`Started:        ${observed.started ? "yes" : `NO (${observed.startError})`}`);
 		log(`Terminal state: ${observed.terminalState || `none (last: ${observed.lastState || "n/a"})`}`);
+		log(`Capture outcome: ${observed.captureOutcome ?? "none"}`);
 		log(`Cards on board: ${observed.cards}`);
 		log(`Result oracle:  ${oracle.detail}`);
 		if (verdict !== "PASS") {
