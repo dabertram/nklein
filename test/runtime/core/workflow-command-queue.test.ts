@@ -101,6 +101,41 @@ describe("createWorkflowCommandQueue", () => {
 		expect(seen).toEqual([]);
 	});
 
+	it("F1.27b leaf 4: `reopened` re-admits failed/cancelled cards; completed never reopens; fresh cards hold", async () => {
+		const { queue } = makeQueue();
+		// Fail a mid-flight card, then reopen it — the admission ladder replays from idle.
+		await queue.dispatch("t-1", { kind: "start_requested" });
+		await queue.dispatch("t-1", { kind: "failed" });
+		expect(queue.phaseOf("t-1")).toBe("failed");
+		const reopened = await queue.dispatch("t-1", { kind: "reopened" });
+		expect(reopened).toMatchObject({ applied: true });
+		expect(queue.phaseOf("t-1")).toBe("idle");
+		const restarted = await queue.dispatch("t-1", { kind: "start_requested" });
+		expect(restarted).toMatchObject({ applied: true });
+		// A fresh (idle) card's reopened holds silently — the start ladder's unconditional prefix is safe.
+		const freshHold = await queue.dispatch("t-new", { kind: "reopened" });
+		expect(freshHold).toMatchObject({ applied: false, reason: "held" });
+		// Delivered work never reopens.
+		const { queue: doneQueue } = makeQueue();
+		for (const kind of [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+			"begin_implementation",
+			"implementation_finished",
+			"acceptance_passed",
+			"review_started",
+			"review_passed",
+			"delivery_requested",
+			"delivered",
+		] as const) {
+			await doneQueue.dispatch("t-done", { kind });
+		}
+		const noReopen = await doneQueue.dispatch("t-done", { kind: "reopened" });
+		expect(noReopen).toEqual({ applied: false, phase: "completed", reason: "terminal" });
+	});
+
 	it("replays the persisted log back to the exact phase (boot resume) and seeds a new queue with it", async () => {
 		const { queue, appended } = makeQueue();
 		await queue.dispatch("t-1", { kind: "start_requested" });

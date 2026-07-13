@@ -43,7 +43,9 @@ export type WorkflowCommand =
 	| { kind: "delivered" }
 	/** Honored from any active phase. */
 	| { kind: "failed" }
-	| { kind: "cancel_requested" };
+	| { kind: "cancel_requested" }
+	/** F1.27b: re-admit a dead/parked card (failed/cancelled/any active phase → idle). `completed` never reopens. */
+	| { kind: "reopened" };
 
 export type WorkflowEffect =
 	| { kind: "enqueue"; queue: "board_capacity" | "endpoint" | "sandbox" }
@@ -73,6 +75,13 @@ export function isTerminalWorkflowPhase(phase: WorkflowPhase): boolean {
  */
 export function applyWorkflowCommand(phase: WorkflowPhase, command: WorkflowCommand): WorkflowTransition {
 	const hold: WorkflowTransition = { phase, effects: [] };
+
+	// F1.27b `reopened`: the ONLY command honored at a terminal phase — a failed/cancelled card the recovery
+	// rungs (or the operator) restart goes back to idle so the admission ladder replays cleanly. Delivered work
+	// never reopens; reopening an already-idle card is a natural hold (idle → idle, no effects).
+	if (command.kind === "reopened") {
+		return phase === "completed" ? hold : { phase: "idle", effects: [] };
+	}
 
 	if (isTerminalWorkflowPhase(phase)) {
 		return hold;

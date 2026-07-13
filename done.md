@@ -612,6 +612,17 @@
   Audit-mode throughout. 1 new test (start → promote → review-bound terminal sequence with hold assertions incl.
   the unpromoted-decompose case).
 
+- [x] **F1.27b leaf 4 — the kernel `reopened` command + failure fidelity** *(delivered 2026-07-13).* The reducer
+  gains `reopened`: the ONLY command honored at a terminal phase — failed/cancelled → idle so the admission
+  ladder replays cleanly on a redrive/restart; `completed` never reopens; reopening an idle card holds naturally.
+  The queue's terminal gate now consults the reducer (so `reopened` passes; anything else at a terminal phase
+  reports `terminal`). Seams: a `failed` terminal summary maps to kernel `failed`, an `interrupted` terminal
+  REOPENS (transient §5.AA abort — the card is available again, not failed), and
+  `dispatchWorkflowStartCommands` conditionally reopens a dead mirror before the ladder — conditional because an
+  ACTIVE mirror (the drained endpoint-busy retry) must never reset; its duplicates are absorbed by holds (caught
+  by the leaf-2 test when the first cut prefixed unconditionally). 1 new test (fail → reopen → restart, fresh-card
+  hold, completed-never-reopens with the terminal reason).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

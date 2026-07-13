@@ -2380,6 +2380,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
 						.dispatch(summary.taskId, { kind: "implementation_finished" })
 						.catch(() => {});
+				} else if (summary.state === "failed") {
+					// F1.27b (leaf 4): a genuinely failed run is kernel `failed`; a later redrive reopens it.
+					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
+						.dispatch(summary.taskId, { kind: "failed" })
+						.catch(() => {});
+				} else if (summary.state === "interrupted") {
+					// An interrupt is a transient end (§5.AA aborted) — the card is available again, not failed.
+					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
+						.dispatch(summary.taskId, { kind: "reopened" })
+						.catch(() => {});
 				}
 				if (isReviewableNKleinSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);

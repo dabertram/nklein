@@ -66,13 +66,15 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
 
 	const dispatchSerialized = async (taskId: string, command: WorkflowCommand): Promise<WorkflowDispatchOutcome> => {
 		const fromPhase = phases.get(taskId) ?? "idle";
-		if (isTerminalWorkflowPhase(fromPhase)) {
-			return { applied: false, phase: fromPhase, reason: "terminal" };
-		}
 		const next = applyWorkflowCommand(fromPhase, command);
 		if (next.phase === fromPhase && next.effects.length === 0) {
-			// The kernel held the phase — a duplicate or out-of-order command; safe, silent, replay-proof.
-			return { applied: false, phase: fromPhase, reason: "held" };
+			// The kernel held the phase — a duplicate/out-of-order command (or any command at a terminal phase
+			// except `reopened`, which the reducer honors); safe, silent, replay-proof.
+			return {
+				applied: false,
+				phase: fromPhase,
+				reason: isTerminalWorkflowPhase(fromPhase) ? "terminal" : "held",
+			};
 		}
 		const transition: WorkflowQueueTransition = {
 			taskId,

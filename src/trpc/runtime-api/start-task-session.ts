@@ -218,6 +218,14 @@ export function dispatchWorkflowStartCommands(
 ): void {
 	const queue = getWorkspaceWorkflowQueue(workspaceScope.workspacePath, workspaceScope.workspaceId);
 	void (async () => {
+		// A redriven/parked card's mirror may sit failed/cancelled — `reopened` re-admits it so the ladder
+		// replays. Conditional: an ACTIVE mirror (e.g. queued_for_endpoint on the drained retry) must NOT reset;
+		// its duplicates are absorbed by the kernel's holds instead. A stale phase read at worst skips the reopen
+		// (the ladder then holds) — the serialized dispatch keeps the mirror consistent either way.
+		const phase = queue.phaseOf(taskId);
+		if (phase === "failed" || phase === "cancelled") {
+			await queue.dispatch(taskId, { kind: "reopened" });
+		}
 		for (const kind of kinds) {
 			await queue.dispatch(taskId, { kind });
 		}
