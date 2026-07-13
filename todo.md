@@ -732,9 +732,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `runtime-settings-dialog.tsx` — per-section dirty indicators in the nav, per-section Reset (and optionally
   per-section Save via the existing settings-save path), one section per leaf with Playwright re-validation
   (settings.spec.ts) since the dialog UI changes.
-- [ ] **F1.31 — Integrate the continuous evaluation rail as a production background service** *(legacy §5.AI).* Reuse
-  the shipped admission/runner/checkpoint cores, recover leases on runtime restart, yield to interactive work, and clean
-  throwaway projects on every exit.
+- [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
+  `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
+  before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown
+  throwaway-project cleanup with COLLECTED errors (a stuck sandbox can't wedge shutdown), checkpoint emptied on
+  every exit, and a status snapshot ready for F1.35. REMAINING (fleet-adjacent): assemble the REAL deps at the
+  runtime boot/close seam behind an opt-in flag (e.g. `NKLEIN_EVAL_RAIL`) — signals from `projects.list` running
+  counts + endpoint model state + `maxConcurrentTasks` via `computeBackgroundEvalRunnerSignals`; `startRun` over
+  the proven dev-test path (`scaffoldNKleinDevTestProject` + `runDevTestProject`'s seed-start payload, tracked to
+  a classified outcome); `cleanupProject` deleting the throwaway workspace (reuse the dev-cleanup machinery);
+  scenario choice = minimal rotation until F1.32. Validate live on the fleet (rail admits when idle, yields on a
+  real card, survives a runtime restart mid-run, leaves zero throwaway workspaces after exit).
 - [ ] **F1.32 — Complete evaluation-rail project/model selection.** Support user pin, deterministic rotation/random,
   and evidence-driven agent selection while honoring capability, freshness, resource, and recent-coverage constraints.
 - [ ] **F1.33 — Auto-analyse rail evidence into typed findings.** Harvest success and failure, classify regressions,

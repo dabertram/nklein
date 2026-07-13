@@ -789,6 +789,18 @@
   shapes, and re-exports byte-compatible, so ALL existing behavior tests (provider-service 831-line suite,
   account-balance, local-only policy, context-window, runtime-api) pass UNTOUCHED — the "stable behavior tests"
   bar met literally. tsc 0, fast 9462 green.
+- [x] **F1.31a — the background-eval PRODUCTION SERVICE driver** *(delivered 2026-07-13; real-deps runtime wiring
+  is F1.31b in todo).* `src/server/background-eval-service.ts` — the long-lived-process layer the §5.AI runner
+  core was designed for: `start()` recovers the durable lease checkpoint BEFORE the first tick (a restart reaps
+  its predecessor's dead runs instead of forgetting them — tested), interval ticks are SERIALIZED (an in-flight
+  tick makes the next a skip, never an overlap or a queued backlog), every reaped lease (completed / expired /
+  recovered-dead) and every shutdown-held lease is handed to the injected `cleanupProject` with its cause, and
+  cleanup/tick failures are COLLECTED into a bounded status (`lastTickError`, `cleanupErrors`) instead of thrown —
+  one stuck sandbox can never wedge the runtime's shutdown, and a failed tick never kills the timer (tested).
+  `stop()` force-stops held runs, empties the checkpoint, and re-recovers so the lease set reads torn-down;
+  `getStatus()` is the F1.35 controls/status surface in waiting. All effects stay injected → the full lifecycle
+  is unit-tested with fakes (8 tests: recovery-reap, admit→complete→clean, shutdown teardown, error collection,
+  tick serialization, yield-to-interactive, tick-error survival, idempotence). tsc 0, fast 9470 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
