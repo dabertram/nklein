@@ -1,4 +1,8 @@
-import type { AppendNKleinPlanRevisionInput, NKleinPlanQuestion } from "./nklein-plan-artifacts";
+import type {
+	AppendNKleinPlanRevisionInput,
+	NKleinPlanQuestion,
+	NKleinPlanQuestionOption,
+} from "./nklein-plan-artifacts";
 
 /**
  * Pure markdown renderers for NKlein plan artifacts (questions / decisions / revisions), extracted
@@ -77,4 +81,89 @@ export function formatRevisionEntry(input: AppendNKleinPlanRevisionInput): strin
 		lines.push("", `Evidence: ${input.evidence.trim()}`);
 	}
 	return `${lines.join("\n")}\n`;
+}
+
+/**
+ * F1.3a — parse a `questions.md` body (as rendered by {@link formatQuestionsMarkdown}) back into structured
+ * questions. Inverse of the renderer for machine-written files; tolerant of hand edits: unknown statuses fall back
+ * to `open`, malformed option lines are kept as label-only options, and a body without `## ` sections yields `[]`.
+ */
+export function parseQuestionsMarkdown(markdown: string): NKleinPlanQuestion[] {
+	const questions: NKleinPlanQuestion[] = [];
+	const sections = markdown.split(/^## /m).slice(1); // drop everything before the first question heading
+	for (const section of sections) {
+		const lines = section.split("\n");
+		const id = (lines[0] ?? "").trim();
+		if (!id) {
+			continue;
+		}
+		let status: NKleinPlanQuestion["status"] = "open";
+		let answer: string | null = null;
+		let assumption: string | null = null;
+		const options: NKleinPlanQuestionOption[] = [];
+		const questionLines: string[] = [];
+		let inOptions = false;
+		for (const rawLine of lines.slice(1)) {
+			const line = rawLine.trimEnd();
+			const statusMatch = /^Status:\s*(.+)$/.exec(line);
+			if (statusMatch?.[1]) {
+				const candidate = statusMatch[1].trim();
+				if (candidate === "open" || candidate === "answered" || candidate === "assumed-default") {
+					status = candidate;
+				}
+				continue;
+			}
+			const answerMatch = /^Answer:\s*(.*)$/.exec(line);
+			if (answerMatch) {
+				answer = answerMatch[1]?.trim() || null;
+				inOptions = false;
+				continue;
+			}
+			const assumptionMatch = /^Assumption:\s*(.*)$/.exec(line);
+			if (assumptionMatch) {
+				assumption = assumptionMatch[1]?.trim() || null;
+				inOptions = false;
+				continue;
+			}
+			if (/^Options:\s*$/.test(line)) {
+				inOptions = true;
+				continue;
+			}
+			if (inOptions && line.startsWith("- ")) {
+				options.push(parseQuestionOptionLine(line.slice(2)));
+				continue;
+			}
+			if (inOptions && line.trim() === "") {
+				continue; // blank inside/after the options block — stay tolerant, a labeled line ends it anyway
+			}
+			inOptions = false;
+			questionLines.push(line);
+		}
+		const question = questionLines.join("\n").trim();
+		if (!question) {
+			continue;
+		}
+		questions.push({ id, question, status, options, answer, assumption });
+	}
+	return questions;
+}
+
+/** Parse one rendered option line (`<id>: <label>( (recommended))?( - <description>)?`), tolerantly. */
+function parseQuestionOptionLine(content: string): NKleinPlanQuestionOption {
+	const separator = content.indexOf(": ");
+	const id = separator > 0 ? content.slice(0, separator).trim() : content.trim();
+	let rest = separator > 0 ? content.slice(separator + 2) : "";
+	let description: string | null = null;
+	const descriptionSeparator = rest.indexOf(" - ");
+	if (descriptionSeparator >= 0) {
+		description = rest.slice(descriptionSeparator + 3).trim() || null;
+		rest = rest.slice(0, descriptionSeparator);
+	}
+	let recommended = false;
+	if (rest.endsWith(" (recommended)")) {
+		recommended = true;
+		rest = rest.slice(0, -" (recommended)".length);
+	}
+	const label = rest.trim() || id;
+	return { id: id || label, label, description, recommended };
 }

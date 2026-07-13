@@ -272,6 +272,14 @@
   0, not NaN); overall rounded to 6 decimals like the VST scorer. 7 unit tests pin the axis math, reason texts,
   empty-total safety, and the engine-heavy weighting.
 
+- [x] **F1.3a — Plan-questions round-trip + single-question updater** *(first F1.3 leaf; delivered 2026-07-13).*
+  `parseQuestionsMarkdown` (colocated with the renderer it inverts) parses `questions.md` back into structured
+  `NKleinPlanQuestion[]` — statuses, multi-line question text, options incl. recommended/description, answers,
+  assumptions — tolerant of hand edits (unknown status → `open`, malformed option lines kept label-only).
+  `readNKleinPlanArtifacts` now returns the parsed questions (they were WRITE-ONLY before — hardcoded `[]`), and
+  `updateNKleinPlanQuestion` rewrites one question in place (upsert for new ids) with an atomic `questions.md`
+  write, never clobbering siblings. Round-trip, tolerance, and updater tests added (15 in the two suites).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

@@ -641,8 +641,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 1A. Planning, decomposition, and work-package construction *(legacy §5.B, §5.S, §5.N, §5.AV, §5.AK)*
 
-- [ ] **F1.3 — Complete automatic clarification after decomposition.** Run the question-quality/reviewer pass wherever
-  decomposition or execution raises questions, persist answers into plan revisions, and resume the exact blocked card.
+- [ ] **F1.3 — Complete automatic clarification after decomposition** *(split into leaves 2026-07-13; the §5.S cores
+  — clarification-need, auto-clarify loop, option-set, answer projection, count — are built + tested but unwired).*
+  Run the question-quality/reviewer pass wherever decomposition or execution raises questions, persist answers into
+  plan revisions, and resume the exact blocked card.
+  - [ ] **F1.3b — Persist answers as plan revisions.** Project an answer (auto or operator) onto the stored
+    question via `applyClarificationAnswer`/`applyAutoClarifyDecision`, rewrite `questions.md`, and append a
+    `clarification_resolved` revision via the proven `appendNKleinPlanRevision` (mirror the plan-gap caller).
+  - [ ] **F1.3c — Post-decomposition question-quality pass.** After `decompose_project` writes artifacts, gate each
+    open question through `assessClarificationNeed` (+ `assessAssumptionSafety`), and where warranted run
+    `runAutoClarifyLoop` with a real §5.K reviewer turn; apply decisions via F1.3b. Mirror the
+    plan-integration-gate runner wiring pattern.
+  - [ ] **F1.3d — Block + resume the exact card.** Key the `awaiting_review`/`attention` park to the plan-question
+    id (extend the `${taskId}:${kind}` signalKey convention), and on answer resume THAT card via
+    `sendTaskSessionInput` (mirror the decomposition-stall nudger's clean-state gate).
 - [ ] **F1.4 — Complete the clarification dialog.** Support at least four explained choices plus free text,
   single/multi-select semantics, durable answer review, and keyboard/accessibility coverage.
 - [ ] **F1.5 — Make focus chains durable across every agent surface.** Persist ordered steps and state transitions,

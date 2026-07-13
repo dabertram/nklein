@@ -8,6 +8,7 @@ import {
 	readNKleinPlanArtifacts,
 	resolveNKleinPlanArtifactPaths,
 	updateNKleinPlanArtifactApplicationStatus,
+	updateNKleinPlanQuestion,
 	writeNKleinPlanArtifacts,
 } from "../../../src/nklein-agent/nklein-plan-artifacts";
 
@@ -295,5 +296,77 @@ describe("nklein plan artifacts", () => {
 		expect(revisionsMarkdown).toContain("Task: api-client");
 		expect(revisionsMarkdown).toContain("API client needs auth types");
 		expect(revisionsMarkdown).toContain("Evidence: src/auth/types.ts is missing.");
+	});
+});
+
+describe("plan questions round-trip + updater (F1.3a)", () => {
+	it("reads structured questions back and updates one in place without touching siblings", async () => {
+		const workspacePath = await createWorkspace();
+		await writeNKleinPlanArtifacts({
+			workspacePath,
+			slug: "clarify-plan",
+			spec: "spec",
+			plan: "plan",
+			questions: [
+				{
+					id: "q-a",
+					question: "Question A?",
+					status: "open",
+					options: [{ id: "yes", label: "Yes", description: null, recommended: true }],
+					answer: null,
+					assumption: "Assume yes.",
+				},
+				{ id: "q-b", question: "Question B?", status: "open", options: [], answer: null, assumption: null },
+			],
+			taskGraph: nkleinPlanTaskGraphSchema.parse({
+				schemaVersion: 1,
+				slug: "clarify-plan",
+				title: "Clarify plan",
+				tasks: [
+					{
+						id: "t1",
+						title: "Task 1",
+						prompt: "Do task 1",
+					},
+				],
+			}),
+		});
+
+		const loaded = await readNKleinPlanArtifacts(workspacePath, "clarify-plan");
+		expect(loaded.questions.map((question) => question.id)).toEqual(["q-a", "q-b"]);
+		expect(loaded.questions[0]?.assumption).toBe("Assume yes.");
+
+		await updateNKleinPlanQuestion({
+			workspacePath,
+			slug: "clarify-plan",
+			question: {
+				id: "q-b",
+				question: "Question B?",
+				status: "answered",
+				options: [],
+				answer: "Answer B.",
+				assumption: null,
+			},
+		});
+		const updated = await readNKleinPlanArtifacts(workspacePath, "clarify-plan");
+		expect(updated.questions[1]).toMatchObject({ id: "q-b", status: "answered", answer: "Answer B." });
+		// Sibling untouched.
+		expect(updated.questions[0]).toMatchObject({ id: "q-a", status: "open", assumption: "Assume yes." });
+
+		// Upsert: an unknown id is appended, not dropped.
+		await updateNKleinPlanQuestion({
+			workspacePath,
+			slug: "clarify-plan",
+			question: {
+				id: "q-new",
+				question: "Question New?",
+				status: "open",
+				options: [],
+				answer: null,
+				assumption: null,
+			},
+		});
+		const upserted = await readNKleinPlanArtifacts(workspacePath, "clarify-plan");
+		expect(upserted.questions.map((question) => question.id)).toEqual(["q-a", "q-b", "q-new"]);
 	});
 });

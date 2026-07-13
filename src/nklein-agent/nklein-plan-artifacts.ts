@@ -10,6 +10,7 @@ import {
 	formatInitialRevisionsMarkdown,
 	formatQuestionsMarkdown,
 	formatRevisionEntry,
+	parseQuestionsMarkdown,
 } from "./plan-artifact-markdown";
 
 const PLAN_ARTIFACT_KIND = "decomposition";
@@ -366,6 +367,31 @@ export async function appendNKleinPlanRevision(input: AppendNKleinPlanRevisionIn
 	return paths.revisionsPath;
 }
 
+/**
+ * F1.3a — rewrite ONE plan question in place (status/answer/assumption/options), preserving every other question.
+ * Upserts when the id is new. Atomic write of `questions.md`; returns the updated structured list. The clarification
+ * flows (auto pass + operator answers) key on this so an answer never clobbers a sibling question.
+ */
+export async function updateNKleinPlanQuestion(input: {
+	workspacePath: string;
+	slug: string;
+	question: NKleinPlanQuestion;
+}): Promise<NKleinPlanQuestion[]> {
+	const paths = resolveNKleinPlanArtifactPaths(input.workspacePath, input.slug);
+	const question = nkleinPlanQuestionSchema.parse(input.question);
+	const existingMarkdown = await readFile(paths.questionsPath, "utf8").catch(() => "");
+	const questions = parseQuestionsMarkdown(existingMarkdown);
+	const index = questions.findIndex((candidate) => candidate.id === question.id);
+	if (index >= 0) {
+		questions[index] = question;
+	} else {
+		questions.push(question);
+	}
+	await mkdir(paths.rootPath, { recursive: true });
+	await lockedFileSystem.writeTextFileAtomic(paths.questionsPath, formatQuestionsMarkdown(questions), { lock: null });
+	return questions;
+}
+
 export async function writeNKleinPlanTaskGraph(input: WriteNKleinPlanTaskGraphInput): Promise<string> {
 	const paths = resolveNKleinPlanArtifactPaths(input.workspacePath, input.slug);
 	const taskGraph = nkleinPlanTaskGraphSchema.parse({
@@ -453,7 +479,8 @@ export async function readNKleinPlanArtifacts(workspacePath: string, slug: strin
 		taskGraphPath: paths.taskGraphPath,
 		spec,
 		plan,
-		questions: [],
+		// F1.3a: the structured questions round-trip from questions.md (they were write-only before — hardcoded []).
+		questions: parseQuestionsMarkdown(questionsMarkdown),
 		questionsMarkdown,
 		decisionsMarkdown,
 		revisionsMarkdown,
