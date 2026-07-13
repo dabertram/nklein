@@ -888,8 +888,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the transcript store (bounded storage), resolve the selected model's capability ids at the send seam, add the
   web-ui composer attach control + accessible inline rendering (alt text, keyboard nav), and live-validate on a
   vision-capable local model (e.g. a gemma/qwen-VL variant) before enabling by default.
-- [ ] **F2.8 — Complete chat execution-access modes.** Make isolated/read-only/confirming/full-risk postures explicit,
-  persistent, enforced at every tool/host boundary, and understandable in the composer.
+- [ ] **F2.8b — Render the posture in the composer (posture core SHIPPED 2026-07-13).** F2.8's substance was
+  already live — scope is the persisted control (`chatScopeToExecutionMode`, pinned), risk-ack + browser flags
+  persist on the session, and enforcement runs at every boundary via the F1.22 manifest golden matrix + confirm
+  resolution + taint broker. The missing piece was EXPLICITNESS: `src/chat/chat-execution-posture.ts` now derives
+  the four named postures (isolated_read_only / sandboxed_confirming / host_confirming / full_risk) from those
+  SAME controls into a user-legible description (chip label, summary, capabilities, boundaries, escalation
+  hint) — derivation-only, no enforcement change. REMAINING: render it — a composer posture chip + tooltip
+  (replacing the scattered-toggle guesswork), expose via the chat-session contract, Playwright over the chip on
+  scope/risk-ack changes.
 - [ ] **F2.9 — Replace the half-wired chat-memory store with the selected memory projection.** Unify short-term session
   recall, durable project/global Basic Memory, focus chains, and ledger evidence with provenance and delete controls.
 - [ ] **F2.10 — Gate broad memory recall on a LongMemEval-style internal test.** Measure relevance, contradiction,

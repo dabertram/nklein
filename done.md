@@ -966,6 +966,15 @@
   never a silent truncate/resize), and OpenAI-compatible content assembly (`buildMultimodalUserContent` — text
   part first, then ordered `image_url` data-URL parts; mime lowercased; image-only messages carry no empty text
   part). 6 tests. tsc 0.
+- [x] **F2.8a — the explicit chat execution POSTURE** *(delivered 2026-07-13; composer rendering is F2.8b in
+  todo).* Persistence + boundary enforcement already existed (scope → mode pinned by `chatScopeToExecutionMode`;
+  risk-ack/browser flags persisted; the F1.22 golden matrix + confirm resolution + taint broker gate every
+  tool/host boundary); what F2.8 lacked was one explicit, user-legible statement of the posture.
+  `src/chat/chat-execution-posture.ts` derives the four named postures — isolated_read_only /
+  sandboxed_confirming / host_confirming / full_risk (host + risk-ack, named plainly: "UNSAFE commands
+  auto-approve") — from the SAME persisted controls the gates enforce, with chip label, summary, capabilities,
+  boundaries (incl. the browsing state), and the escalation hint that names the control changing it.
+  Derivation-only by construction. 3 tests over every (scope × risk-ack) combination. tsc 0, fast 9552 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
