@@ -645,13 +645,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   — clarification-need, auto-clarify loop, option-set, answer projection, count — are built + tested but unwired).*
   Run the question-quality/reviewer pass wherever decomposition or execution raises questions, persist answers into
   plan revisions, and resume the exact blocked card.
-  - [ ] **F1.3c — Post-decomposition question-quality pass.** After `decompose_project` writes artifacts, gate each
-    open question through `assessClarificationNeed` (+ `assessAssumptionSafety`), and where warranted run
-    `runAutoClarifyLoop` with a real §5.K reviewer turn; apply decisions via F1.3b. Mirror the
-    plan-integration-gate runner wiring pattern.
   - [ ] **F1.3d — Block + resume the exact card.** Key the `awaiting_review`/`attention` park to the plan-question
     id (extend the `${taskId}:${kind}` signalKey convention), and on answer resume THAT card via
     `sendTaskSessionInput` (mirror the decomposition-stall nudger's clean-state gate).
+  - [ ] **F1.3e — Model-backed auto-clarify loop for kept-open questions.** For questions the deterministic F1.3c
+    pass keeps open, run `runAutoClarifyLoop` (architect ↔ real §5.K reviewer turn + embedder similarity) and apply
+    its decision via `resolvePlanQuestion`; only a `keep_asking` outcome escalates to the operator (F1.3d park).
 - [ ] **F1.4 — Complete the clarification dialog.** Support at least four explained choices plus free text,
   single/multi-select semantics, durable answer review, and keyboard/accessibility coverage.
 - [ ] **F1.5 — Make focus chains durable across every agent surface.** Persist ordered steps and state transitions,

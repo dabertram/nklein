@@ -8,7 +8,10 @@ import {
 	resolveNKleinPlanArtifactPaths,
 	writeNKleinPlanArtifacts,
 } from "../../../src/nklein-agent/nklein-plan-artifacts";
-import { resolvePlanQuestion } from "../../../src/nklein-agent/nklein-plan-clarification";
+import {
+	resolvePlanQuestion,
+	runDecompositionClarificationPass,
+} from "../../../src/nklein-agent/nklein-plan-clarification";
 
 const selfObservationMocks = vi.hoisted(() => ({
 	recordSelfObservation: vi.fn(),
@@ -134,5 +137,78 @@ describe("resolvePlanQuestion (F1.3b answer→revision connector)", () => {
 			resolution: { source: "auto", decision: { action: "answer", answer: "x", reason: "confident" } },
 		});
 		expect(missingPlan).toMatchObject({ ok: false });
+	});
+});
+
+describe("runDecompositionClarificationPass (F1.3c)", () => {
+	it("auto-resolves safe defaults, keeps risky/default-less questions open, and records revisions", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-clarify-pass-"));
+		await writeNKleinPlanArtifacts({
+			workspacePath,
+			slug: "pass",
+			spec: "spec",
+			plan: "plan",
+			questions: [
+				{
+					id: "q-safe",
+					question: "Which storage backend should the habit log use for local persistence?",
+					status: "open",
+					options: [{ id: "sqlite", label: "SQLite", description: null, recommended: true }],
+					answer: null,
+					assumption: "Assume SQLite (recommended).",
+				},
+				{
+					id: "q-risky",
+					question: "Not sure — should we maybe delete the legacy schema, or keep it? Either could work.",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: "Assume we delete it.",
+				},
+				{
+					id: "q-no-default",
+					question: "Which of the four proposed navigation structures should the app use?",
+					status: "open",
+					options: [],
+					answer: null,
+					assumption: null,
+				},
+				{
+					id: "q-done",
+					question: "Is auth in scope?",
+					status: "answered",
+					options: [],
+					answer: "No.",
+					assumption: null,
+				},
+			],
+			taskGraph: nkleinPlanTaskGraphSchema.parse({
+				schemaVersion: 1,
+				slug: "pass",
+				title: "Pass",
+				tasks: [{ id: "t1", title: "Task 1", prompt: "Do task 1" }],
+			}),
+		});
+
+		const summary = await runDecompositionClarificationPass({ workspacePath, slug: "pass", mode: "cautious" });
+		expect(summary).toMatchObject({
+			openQuestionCount: 3,
+			assumedCount: 1,
+			keptOpenCount: 2,
+			openQuestionIds: ["q-risky", "q-no-default"],
+		});
+
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "pass");
+		expect(artifacts.questions.find((question) => question.id === "q-safe")).toMatchObject({
+			status: "assumed-default",
+			assumption: "Assume SQLite (recommended).",
+		});
+		expect(artifacts.questions.find((question) => question.id === "q-risky")?.status).toBe("open");
+		expect(artifacts.questions.find((question) => question.id === "q-no-default")?.status).toBe("open");
+		expect(artifacts.questions.find((question) => question.id === "q-done")?.status).toBe("answered");
+		const revisions = await readFile(resolveNKleinPlanArtifactPaths(workspacePath, "pass").revisionsPath, "utf8");
+		expect(revisions).toContain("clarification_resolved");
+		expect(revisions).toContain('"q-safe"');
+		expect(revisions).not.toContain('"q-risky"');
 	});
 });

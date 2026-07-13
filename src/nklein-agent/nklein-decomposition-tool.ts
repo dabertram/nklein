@@ -200,6 +200,7 @@ import {
 } from "./decomposition/plan-task-schemas";
 import { validateNKleinPlanTaskGraph } from "./decomposition/plan-task-validation";
 import { selectBestNKleinPlanTaskGraph } from "./nklein-decomposition-selection";
+import { runDecompositionClarificationPass } from "./nklein-plan-clarification";
 import type { NKleinPlanCritiqueRequestHandler } from "./nklein-plan-critique-tool";
 
 function createDecomposeProjectTool(
@@ -512,6 +513,41 @@ function createDecomposeProjectTool(
 				},
 			});
 			if (applied.applied) {
+				// F1.3c: the deterministic question-quality pass — auto-resolve open questions whose default is safe
+				// to adopt (recorded as assumed-default + a clarification_resolved revision); keep the risky ones open
+				// for the operator / the model-backed loop. Best-effort: the pass never blocks a successful apply.
+				try {
+					const clarification = await runDecompositionClarificationPass({
+						workspacePath,
+						slug: artifacts.taskGraph.slug,
+					});
+					if (clarification.openQuestionCount > 0) {
+						await recordSelfObservation({
+							signal: "custom",
+							severity: clarification.keptOpenCount > 0 ? "warning" : "info",
+							message: `Decomposition clarification pass for plan ${artifacts.taskGraph.slug}: ${clarification.assumedCount}/${clarification.openQuestionCount} open question(s) auto-resolved with their safe default${
+								clarification.flaggedCount > 0 ? ` (${clarification.flaggedCount} flagged for review)` : ""
+							}${
+								clarification.keptOpenCount > 0
+									? `; ${clarification.keptOpenCount} kept open for the operator: ${clarification.openQuestionIds.join(", ")}`
+									: ""
+							}.`,
+							taskId: sourceTaskId ?? null,
+							workspacePath,
+							metadata: {
+								operation: "decompose_clarification_pass",
+								planSlug: artifacts.taskGraph.slug,
+								openQuestionCount: clarification.openQuestionCount,
+								assumedCount: clarification.assumedCount,
+								flaggedCount: clarification.flaggedCount,
+								keptOpenCount: clarification.keptOpenCount,
+								openQuestionIds: [...clarification.openQuestionIds],
+							},
+						});
+					}
+				} catch {
+					// The clarification pass is advisory; a failure must never undo or block the applied decomposition.
+				}
 				await updateNKleinPlanArtifactApplicationStatus({
 					workspacePath,
 					slug: artifacts.taskGraph.slug,

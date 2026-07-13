@@ -289,6 +289,19 @@
   exists to prevent). This is the single persistence seam the F1.3c auto pass and the F1.4 dialog both call. 4
   focused tests.
 
+- [x] **F1.3c — Deterministic post-decomposition question-quality pass** *(third F1.3 leaf; delivered 2026-07-13;
+  the model-backed loop split out as F1.3e).* New pure core `src/core/question-clarification-pass.ts`:
+  `decideOpenQuestionResolution` composes the shipped §5.S gates (`clarifyOrAssume` = need-detector +
+  assumption-safety) per open question, with documented deterministic candidate estimates — confidence from
+  assumption/recommended-option agreement (lowered by requester-uncertainty wording via the shipped need-detector,
+  floor 0.4), destructive verbs ⇒ `irreversible` + impact 0.7, security/schema/contract wording ⇒ `costly` + 0.7,
+  else `reversible` + 0.35. `runDecompositionClarificationPass` (nklein-plan-clarification.ts) walks a plan's open
+  questions, persists every safe-default adoption through `resolvePlanQuestion` (assumed-default +
+  `clarification_resolved` revision), and returns the kept-open ids (F1.3d parks on these). Wired LIVE inside
+  `decompose_project` right after a successful apply — best-effort, never blocks the apply — with a summarizing
+  self-observation (warning severity when questions stay open). 11 tests across the pure core + pass runner; the
+  decomposition tool's 44 tests stay green with the pass in its apply path.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

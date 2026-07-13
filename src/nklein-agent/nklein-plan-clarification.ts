@@ -3,8 +3,10 @@
 // question, rewrite `questions.md` in place (F1.3a round-trip), and append a durable `clarification_resolved`
 // revision to `revisions.md` so the plan's history records what was decided, by whom, and why. This is the single
 // persistence seam both the F1.3c auto pass and the F1.4 dialog call — neither touches artifact files directly.
+import type { AssumptionMode } from "../core/assumption-safety";
 import { type AutoClarifyDecision, applyAutoClarifyDecision } from "../core/auto-clarify";
 import { applyClarificationAnswer, type ClarificationAnswerInput } from "../core/clarification-answer";
+import { decideOpenQuestionResolution } from "../core/question-clarification-pass";
 import {
 	appendNKleinPlanRevision,
 	type NKleinPlanQuestion,
@@ -78,4 +80,70 @@ export async function resolvePlanQuestion(input: {
 		return { ok: false, error: `Could not persist the resolution for "${input.questionId}": ${String(error)}` };
 	}
 	return { ok: true, question: projected, changed: true };
+}
+
+export interface DecompositionClarificationPassSummary {
+	/** Open questions the pass examined. */
+	openQuestionCount: number;
+	/** Questions auto-resolved with their assumed default (recorded as `assumed-default` + a revision). */
+	assumedCount: number;
+	/** Of the assumed, how many carried residual risk (`assume_but_flag`) worth surfacing. */
+	flaggedCount: number;
+	/** Questions left open for the operator / the model-backed auto-clarify loop (F1.3d parks on these). */
+	keptOpenCount: number;
+	/** The kept-open question ids, in artifact order — the park/resume linkage keys on these. */
+	openQuestionIds: string[];
+}
+
+/**
+ * F1.3c — the deterministic question-quality pass over a freshly-written decomposition's OPEN questions. Composes
+ * the §5.S gates per question (`decideOpenQuestionResolution`) and persists every adopt-the-default outcome through
+ * {@link resolvePlanQuestion} (questions.md rewrite + `clarification_resolved` revision). Questions without a safe
+ * default stay open — the F1.3d park/resume linkage and the model-backed auto-clarify loop own those. Best-effort
+ * per question: one unresolvable question never blocks the rest of the pass.
+ */
+export async function runDecompositionClarificationPass(input: {
+	workspacePath: string;
+	slug: string;
+	mode?: AssumptionMode;
+}): Promise<DecompositionClarificationPassSummary> {
+	const summary: DecompositionClarificationPassSummary = {
+		openQuestionCount: 0,
+		assumedCount: 0,
+		flaggedCount: 0,
+		keptOpenCount: 0,
+		openQuestionIds: [],
+	};
+	const artifacts = await readNKleinPlanArtifacts(input.workspacePath, input.slug);
+	for (const question of artifacts.questions) {
+		if (question.status !== "open") {
+			continue;
+		}
+		summary.openQuestionCount += 1;
+		const decision = decideOpenQuestionResolution(question, input.mode ?? "balanced");
+		if (decision.action === "keep_open" || !decision.assumption) {
+			summary.keptOpenCount += 1;
+			summary.openQuestionIds.push(question.id);
+			continue;
+		}
+		const resolved = await resolvePlanQuestion({
+			workspacePath: input.workspacePath,
+			slug: input.slug,
+			questionId: question.id,
+			resolution: {
+				source: "auto",
+				decision: { action: "give_up_with_assumption", assumption: decision.assumption, reason: decision.reason },
+			},
+		});
+		if (resolved.ok && resolved.changed) {
+			summary.assumedCount += 1;
+			if (decision.flagged) {
+				summary.flaggedCount += 1;
+			}
+		} else {
+			summary.keptOpenCount += 1;
+			summary.openQuestionIds.push(question.id);
+		}
+	}
+	return summary;
 }
