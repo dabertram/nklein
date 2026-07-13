@@ -1579,84 +1579,98 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				}
 				await this.waitUntilTaskResumed(request.taskId);
 				this.requestTimer.markStarted(request.taskId);
-				const startResult = await this.sessionRuntime.startTaskSession({
-					taskId: request.taskId,
-					cwd: agentPerceivedCwd,
-					// Always hand the runtime a host workspace root so the trusted control-plane decomposition
-					// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
-					// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
-					workspaceRoot: request.workspaceRoot ?? request.cwd,
-					// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes
-					// the 500–965-token reasoning tax + its truncation risk; hard cards keep their reasoning.
-					prompt: shouldDisableSwarmThinking({
-						modelId,
-						prompt: runtimePrompt,
-						taskTitle: request.taskTitle ?? null,
-					})
-						? applyThinkingDisable(runtimePrompt, modelId ?? "")
-						: runtimePrompt,
-					taskTitle: request.taskTitle,
-					maxTokensPerTurn: request.maxTokensPerTurn ?? null,
-					initialMessages,
-					images: request.images,
-					providerId,
-					modelId,
-					mode: resolvedMode,
-					apiKey: request.apiKey,
-					baseUrl: request.baseUrl,
-					reasoningEffort: request.reasoningEffort,
-					contextWindow: requestContextWindow,
-					codeEmbeddingProvider: request.codeEmbeddingProvider,
-					apiTimeoutMs: request.requestTimeoutMs,
-					turnTimeoutMs: request.turnTimeoutMs,
-					systemPrompt,
-					userInstructionService: runtimeSetup.userInstructionService,
-					requestToolApproval: runtimeSetup.createToolApproval({
+				// P0.1 (live-found 2026-07-13): primary/queued-drain starts used to bypass model-turn admission entirely.
+				// A decomposition callback can mark its seed idle and force-drain a queued child before the seed's initial SDK
+				// turn has unwound. Serializing the actual SDK bootstrap/send here lets the child prepare its sandbox/prompt,
+				// but prevents re-entering the shared SDK/model runtime until the seed turn has really settled. Re-drives and
+				// auxiliary sessions already use this same gate.
+				const startResult = await this.withModelTurnAdmission(
+					{
 						taskId: request.taskId,
-						contextWindow: requestContextWindow,
-						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
-						filesLikelyTouched: request.filesLikelyTouched ?? null,
-					}),
-					toolExecutors: sandboxWorkspace
-						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
-								pauseController: this.pauseController,
-							})
-						: undefined,
-					// §5.AC step 3: sandbox tools ⊕ the egress-gated web_search tool (config-gated, fail closed; [] for
-					// synthetic `::` sessions). Concatenated here — createAgentSandboxExtraTools stays untouched.
-					extraTools: InMemoryNKleinTaskSessionService.combineExtraTools(
-						sandboxWorkspace
-							? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
-									sessionId: createSessionId(request.taskId),
-									contextWindow: requestContextWindow,
-									maxFileLines: request.maxAgentWritableFileLines ?? null,
-								})
-							: undefined,
-						this.retrievalToolsBuilder.build(request.taskId),
-					),
-					// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
-					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
-					// exists for the rebuilt task.
-					...(this.isSandboxMcpEnabled() && sandboxWorkspace
-						? {
-								sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
-								basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
-								// §5.BB: same resolved basic-memory opt-in as the main start path.
-								basicMemoryEnabled: this.isBasicMemoryEnabled(),
-							}
-						: {}),
-					// Decompose/plan seed: read-only + decompose_project only (strip execution/write) — §5.B, sweep run 7.
-					toolPolicies: this.explicitDecompositionTaskIds.has(request.taskId)
-						? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
-						: runtimeSetup.toolPolicies,
-					onDecompositionApplied: this.onDecompositionApplied,
-					requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
-					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
-					onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
-					onTeamEvent: (event, teamName) => {
-						this.teamProgressEmitter.emit(request.taskId, event, teamName);
+						providerId,
+						modelId,
+						endpoint,
 					},
-				});
+					() =>
+						this.sessionRuntime.startTaskSession({
+							taskId: request.taskId,
+							cwd: agentPerceivedCwd,
+							// Always hand the runtime a host workspace root so the trusted control-plane decomposition
+							// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
+							// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
+							workspaceRoot: request.workspaceRoot ?? request.cwd,
+							// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes
+							// the 500–965-token reasoning tax + its truncation risk; hard cards keep their reasoning.
+							prompt: shouldDisableSwarmThinking({
+								modelId,
+								prompt: runtimePrompt,
+								taskTitle: request.taskTitle ?? null,
+							})
+								? applyThinkingDisable(runtimePrompt, modelId ?? "")
+								: runtimePrompt,
+							taskTitle: request.taskTitle,
+							maxTokensPerTurn: request.maxTokensPerTurn ?? null,
+							initialMessages,
+							images: request.images,
+							providerId,
+							modelId,
+							mode: resolvedMode,
+							apiKey: request.apiKey,
+							baseUrl: request.baseUrl,
+							reasoningEffort: request.reasoningEffort,
+							contextWindow: requestContextWindow,
+							codeEmbeddingProvider: request.codeEmbeddingProvider,
+							apiTimeoutMs: request.requestTimeoutMs,
+							turnTimeoutMs: request.turnTimeoutMs,
+							systemPrompt,
+							userInstructionService: runtimeSetup.userInstructionService,
+							requestToolApproval: runtimeSetup.createToolApproval({
+								taskId: request.taskId,
+								contextWindow: requestContextWindow,
+								maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+								filesLikelyTouched: request.filesLikelyTouched ?? null,
+							}),
+							toolExecutors: sandboxWorkspace
+								? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
+										pauseController: this.pauseController,
+									})
+								: undefined,
+							// §5.AC step 3: sandbox tools ⊕ the egress-gated web_search tool (config-gated, fail closed; [] for
+							// synthetic `::` sessions). Concatenated here — createAgentSandboxExtraTools stays untouched.
+							extraTools: InMemoryNKleinTaskSessionService.combineExtraTools(
+								sandboxWorkspace
+									? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
+											sessionId: createSessionId(request.taskId),
+											contextWindow: requestContextWindow,
+											maxFileLines: request.maxAgentWritableFileLines ?? null,
+										})
+									: undefined,
+								this.retrievalToolsBuilder.build(request.taskId),
+							),
+							// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
+							// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
+							// exists for the rebuilt task.
+							...(this.isSandboxMcpEnabled() && sandboxWorkspace
+								? {
+										sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
+										basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
+										// §5.BB: same resolved basic-memory opt-in as the main start path.
+										basicMemoryEnabled: this.isBasicMemoryEnabled(),
+									}
+								: {}),
+							// Decompose/plan seed: read-only + decompose_project only (strip execution/write) — §5.B, sweep run 7.
+							toolPolicies: this.explicitDecompositionTaskIds.has(request.taskId)
+								? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
+								: runtimeSetup.toolPolicies,
+							onDecompositionApplied: this.onDecompositionApplied,
+							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
+							onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
+							onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
+							onTeamEvent: (event, teamName) => {
+								this.teamProgressEmitter.emit(request.taskId, event, teamName);
+							},
+						}),
+				);
 				const warningMessage = formatStartWarnings(startResult.warnings);
 				this.failureBackoff.forget(request.taskId);
 				if (warningMessage) {

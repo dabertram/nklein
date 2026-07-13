@@ -635,7 +635,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **P0.1 — Eliminate the queued-drain/pre-first-turn planning wedge** *(legacy §12).* Reproduce the zombie
   deterministically, trace the model-turn admission gate `evaluate`/tail and queued seed teardown, and fix the owning
   lifecycle. Acceptance: repeated simulator plus live low-token runs never leave a session admitted with zero model
-  tokens and no first turn.
+  tokens and no first turn. **Current evidence:** the old tail-leak hypothesis is eliminated for primary starts: they
+  bypassed admission entirely. The initial SDK bootstrap/send is now serialized by the same gate as re-drives and
+  auxiliary turns, with a deterministic seed-still-unwinding → forced-child-start regression. Simulator repetition and
+  guarded live low-token proof remain before this package can close.
 - [ ] **P0.2 — Make the board watchdog observable and non-wedgeable** *(legacy §12).* Add tick-entry/counter telemetry,
   separate interval-not-fired from workspace-scope mismatch and a hung state-load/workspace-lock await, then fix the
   proven cause. Acceptance: an integration test observes ticks and bounded recovery under an injected hang.

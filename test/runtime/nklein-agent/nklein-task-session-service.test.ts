@@ -1270,10 +1270,15 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const gateEntered = createDeferred<void>();
 		const gateRelease = createDeferred<void>();
 		const gateRequests: NKleinModelTurnAdmissionRequest[] = [];
+		let gateInvocation = 0;
 		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			modelTurnAdmissionGate: async (request, run) => {
+				gateInvocation += 1;
+				if (gateInvocation === 1) {
+					return await run(); // The initial turn now uses admission too; this test blocks only the reviewed re-drive.
+				}
 				gateRequests.push(request);
 				gateEntered.resolve();
 				await gateRelease.promise;
@@ -1347,6 +1352,74 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				.listMessages("task-gated-redrive")
 				.some((message) => message.content === "Address the review feedback"),
 		).toBe(true);
+	});
+
+	it("serializes initial turns through model admission while a decomposition seed is still unwinding", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const seedTurn = createDeferred<StartNKleinSessionRuntimeResult>();
+		const gateRequests: NKleinModelTurnAdmissionRequest[] = [];
+		let gateTail = Promise.resolve();
+		runtime.startTaskSessionMock.mockImplementation(async (request) => {
+			if (request.taskId === "decompose-seed") {
+				return await seedTurn.promise;
+			}
+			return { sessionId: request.sessionId, result: {} };
+		});
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			modelTurnAdmissionGate: async (request, run) => {
+				gateRequests.push(request);
+				const previous = gateTail;
+				let releaseCurrent: () => void = () => {};
+				const current = new Promise<void>((resolve) => {
+					releaseCurrent = resolve;
+				});
+				gateTail = previous.catch(() => undefined).then(() => current);
+				await previous.catch(() => undefined);
+				try {
+					return await run();
+				} finally {
+					releaseCurrent();
+				}
+			},
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "decompose-seed",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose the project",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		// This is the forced queued-drain shape: the decomposition callback has made the seed look terminal, but its
+		// initial SDK turn has not returned yet. The child may prepare, but it must not re-enter the SDK/model runtime.
+		await service.startTaskSession({
+			taskId: "queued-child",
+			cwd: "/tmp/worktree",
+			prompt: "Implement the first leaf",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+		await vi.waitFor(() => {
+			expect(gateRequests.map((request) => request.taskId)).toEqual(["decompose-seed", "queued-child"]);
+		});
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+
+		seedTurn.resolve({ sessionId: createSessionId("decompose-seed"), result: {} });
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
+		});
+		expect(runtime.startTaskSessionMock.mock.calls[1]?.[0].taskId).toBe("queued-child");
 	});
 
 	it("does not dispatch a re-drive turn when stale sandbox restoration fails", async () => {
