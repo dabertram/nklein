@@ -21,6 +21,21 @@ export interface TaskFitnessRecord {
 }
 
 /**
+ * F1.15a: the SINGLE difficulty derivation both evidence streams use — the §5.AB fitness fold below AND the F1.14
+ * terminal attempt-ledger write — so the ledger projection can reproduce fitness cells (model × role × difficulty)
+ * from the same tier the store recorded. Coarse-but-honest: card title text only (richer inputs stay at defaults).
+ */
+export function deriveTaskDifficultyTier(taskId: string, card: RuntimeBoardCard | null): "easy" | "medium" | "hard" {
+	const objectiveText = card?.title?.trim() ?? "";
+	return estimateTaskDifficulty({
+		objectiveText: objectiveText.length > 0 ? objectiveText : taskId,
+		expectedFileCount: 0,
+		hasAcceptanceTests: false,
+		bounceCount: 0,
+	}).tier;
+}
+
+/**
  * Map a finished session to a fitness cell + outcome, or null when it shouldn't be recorded: a synthetic session
  * (`taskId` contains `::`), a session with no model coordinates, or a non-terminal / unclassifiable state. `awaiting_review`
  * counts as a success (the work reached review); `failed` as a failure; everything else is skipped.
@@ -52,13 +67,7 @@ export function deriveTaskFitnessRecord(input: {
 		endpoint: summary.endpoint,
 	});
 	const role = resolveNKleinTaskRole(summary.taskId, card?.generatedFromPlan?.artifactKind === "decomposition");
-	const objectiveText = card?.title?.trim() ?? "";
-	const difficultyTier = estimateTaskDifficulty({
-		objectiveText: objectiveText.length > 0 ? objectiveText : summary.taskId,
-		expectedFileCount: 0,
-		hasAcceptanceTests: false,
-		bounceCount: 0,
-	}).tier;
+	const difficultyTier = deriveTaskDifficultyTier(summary.taskId, card);
 
 	const wallTimeMs =
 		typeof summary.startedAt === "number" &&

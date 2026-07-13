@@ -48,6 +48,7 @@ import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-pro
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
+import { loadWorkspaceState } from "../state/workspace-state";
 import { summarizeAttemptKnowledgeUsage } from "../telemetry/attempt-knowledge-usage";
 import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
@@ -168,6 +169,7 @@ import {
 	type NKleinSdkSlashCommand,
 	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
+import { deriveTaskDifficultyTier } from "./task-fitness-recording";
 import type { TurnLoopEscalationEvent, TurnLoopGuardCallbacks } from "./turn-loop-guard";
 import { TurnLoopGuard } from "./turn-loop-guard";
 
@@ -2814,6 +2816,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// pointer; the configured context window is the budget its contextTokens are measured against.
 				const attemptStrategy = this.nextAttemptStrategyByTaskId.get(taskId) ?? null;
 				this.nextAttemptStrategyByTaskId.delete(taskId);
+				// F1.15a: the SAME difficulty tier the fitness fold records, so ledger projections can key fitness cells.
+				const difficultyCard = summary.workspacePath
+					? await loadWorkspaceState(summary.workspacePath)
+							.then(
+								(state) =>
+									state.board.columns
+										.flatMap((column) => column.cards)
+										.find((candidate) => candidate.id === taskId) ?? null,
+							)
+							.catch(() => null)
+					: null;
+				const difficulty = deriveTaskDifficultyTier(taskId, difficultyCard);
 				const priorAttempts = await readAgentLedger({
 					workspacePathHash: hashWorkspacePathForLedger(summary.workspacePath ?? null),
 					rootDir: this.diagnosticStoreRoot,
@@ -2850,6 +2864,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						contextBudgetTarget: this.launchConfigByTaskId.get(taskId)?.contextWindow ?? null,
 						retriesBefore: priorAttempts,
 						promptStrategy: attemptStrategy,
+						difficulty,
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

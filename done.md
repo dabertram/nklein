@@ -485,6 +485,18 @@
   (rung + artifact + budget recorded; defaults stay backward-compatible) + the strategy plumb typechecked through
   the service interface.
 
+- [x] **F1.15a — record the fitness difficulty tier on the terminal attempt event** *(delivered 2026-07-13; first
+  leaf of F1.15, remainder split in todo).* The §5.AB fitness table keys cells model × role × difficulty, but the
+  ledger's attempt events carried `difficulty: null` — no ledger projection could ever reproduce fitness cells.
+  The difficulty derivation is now a SINGLE exported helper (`deriveTaskDifficultyTier` in
+  `task-fitness-recording.ts` — card-title-based `estimateTaskDifficulty`, taskId fallback) used by BOTH evidence
+  streams: the fitness fold (`deriveTaskFitnessRecord`, refactored onto it) and the terminal ledger write (loads
+  the card best-effort, stamps `attempt.difficulty`). Remaining F1.15 leaves (b: `buildFitnessTableFromLedger` +
+  fixture-locked equivalence with the three named divergences — interrupted-timeout classification, stable-key
+  flavors, synthetic-session filtering; c: read-side flip + migration; d: behavior profile/MCSR/eval views) are
+  recorded in todo with the divergence analysis. 2 new tests (tier agreement between streams incl. card-less
+  fallback; difficulty recorded on the event).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

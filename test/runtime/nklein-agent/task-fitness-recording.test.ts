@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { deriveTaskFitnessRecord } from "../../../src/nklein-agent/task-fitness-recording";
+import { deriveTaskDifficultyTier, deriveTaskFitnessRecord } from "../../../src/nklein-agent/task-fitness-recording";
 
 const summary = (over: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTaskSessionSummary =>
 	({
@@ -69,6 +69,14 @@ describe("deriveTaskFitnessRecord (§5.AB write side)", () => {
 
 	it("skips a session with no model coordinates", () => {
 		expect(deriveTaskFitnessRecord({ summary: summary({ providerId: null, modelId: null }), card: null })).toBeNull();
+	});
+
+	it("F1.15a: the fitness cell's tier and the shared derivation agree (single source for both evidence streams)", () => {
+		const theCard = card({ title: "Implement the whole distributed sync engine with conflict resolution" });
+		const record = deriveTaskFitnessRecord({ summary: summary(), card: theCard });
+		expect(record?.key.difficultyTier).toBe(deriveTaskDifficultyTier("task-1", theCard));
+		// Card-less derivation falls back to the task id and still returns a valid tier.
+		expect(["easy", "medium", "hard"]).toContain(deriveTaskDifficultyTier("task-1", null));
 	});
 
 	it("skips non-terminal / unclassifiable states", () => {

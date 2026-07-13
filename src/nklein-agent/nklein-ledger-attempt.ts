@@ -76,6 +76,8 @@ export interface TerminalAttemptInput {
 	retriesBefore?: number;
 	/** The recovery rung that produced this attempt (redrive_empty_patch, steer_no_progress, …); null = baseline. */
 	promptStrategy?: string | null;
+	/** F1.15a: the task's difficulty tier — the SAME derivation the §5.AB fitness fold uses (deriveTaskDifficultyTier). */
+	difficulty?: string | null;
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -102,6 +104,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		startedAt: input.startedAt,
 		completedAt: input.endedAt,
 		promptStrategy: input.promptStrategy ?? null,
+		difficulty: input.difficulty ?? null,
 		contextTokens: input.promptTokens,
 		contextBudgetTarget: input.contextBudgetTarget ?? null,
 		tokensPerSec,

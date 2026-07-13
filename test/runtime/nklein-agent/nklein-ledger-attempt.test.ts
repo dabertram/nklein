@@ -88,6 +88,7 @@ describe("buildTerminalAttemptEvent", () => {
 		});
 		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
 		expect(event.retriesBefore).toBe(2);
+		expect(buildTerminalAttemptEvent({ ...base, difficulty: "hard" }).difficulty).toBe("hard");
 		expect(event.artifacts).toEqual({ resultBranch: "refs/nklein/tasks/t-1", patchRef: null, evidenceBundle: null });
 		expect(event.contextBudgetTarget).toBe(32_768);
 		// Defaults stay backward-compatible: no rung/branch/budget supplied ⇒ 0 / null / null.

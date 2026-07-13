@@ -658,6 +658,24 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F1.15 — Make behavior profile, fitness, MCSR, and evaluation views ledger projections.** Remove parallel sources
   of truth, migrate existing records, and lock projection equivalence with fixtures.
+  *(Split 2026-07-13; leaf (a) SHIPPED: the terminal attempt event now records `difficulty` via
+  `deriveTaskDifficultyTier` — the SAME derivation the fitness fold uses — so ledger cells are keyable
+  model × role × difficulty like the fitness table.)* Remaining leaves:
+  - [ ] **F1.15b — `buildFitnessTableFromLedger` + fixture-locked equivalence.** Project attempt events into
+    `FitnessRow` cells with the SAME fold (`recordFitnessOutcome`); lock equivalence against
+    `deriveTaskFitnessRecord`+store on shared fixtures. Known divergences to resolve (decide + document):
+    (1) the fitness fold SKIPS `interrupted` entirely, but a timed-out interrupt becomes ledger outcome
+    `timeout` — the projection must exclude `aborted` and decide on interrupted-timeouts; (2) model keying:
+    fitness uses `summary.modelKey ?? modelId` (stable publisher key) while the ledger write uses
+    `resolveStableRoutingModelId(runtimeModelId)` under NKLEIN_STABLE_ROUTING_KEY — align or map; (3) synthetic
+    (`::`) sessions: fitness skips them, the terminal write records them — filter in the projection.
+  - [ ] **F1.15c — flip the fitness READ side to the ledger projection + migrate.** `rankFitnessCandidatesForCell`
+    consumers read projection-backed cells; existing `fitness-table.json` rows become seed evidence (or are
+    imported as synthetic attempts); then remove the parallel `recordTaskFitnessOutcome` write.
+  - [ ] **F1.15d — behavior profile, MCSR, and evaluation views.** Same treatment for
+    `persistModelBehaviorOutcome` (event-sourced store → `buildModelBehaviorProfilesFromLedger`),
+    `recordModelPerformanceObservation`, MCSR reads (`role-model-selection` / swarm picks), and the
+    background-eval-runner store.
 - [ ] **F1.16 — Finish per-tool idempotency and durable result hashes/references.** Replayed or resumed work must neither
   repeat side effects nor lose the original evidence.
 - [ ] **F1.17 — Implement replay policies end to end.** Support `reuse`, `simulate`, `skip`, and `reconfirm` per tool,
