@@ -984,6 +984,17 @@
   as a memory). Every record carries provenance ("why recalled") and a TYPED delete control so the UI offers
   exactly the deletions that are real. `selectMemoryBand` bounds the recall band deterministically with
   per-source floors — a chatty source can never crowd the others out. 4 tests. tsc 0, fast 9556 green.
+- [x] **F2.10a — the LongMemEval-style benchmark now measures all four F2.10 dimensions** *(delivered
+  2026-07-13; the live model/store-pair run + verdict retention are F2.10b in todo).* `long-memory-eval.ts`
+  gains `forbiddenMemoryIds` + a `dimension` tag per prompt: retrieving a FORBIDDEN memory is a hard per-prompt
+  failure with the violating ids and dimension named in the failure reason. The internal fixture gains a
+  contradiction/recency/privacy case (a superseded persistence decision where only the NEWER memory may
+  retrieve; a conflicting stale note that must not co-retrieve; another workspace's secret endpoint that must
+  never leak into a scoped query), and the report folds `dimensionPassRate` across
+  relevance/contradiction/privacy/recency. The fail-closed `decideMemoryScopeBroadening` gate is UNCHANGED and
+  now strictly harder to satisfy — any dimension failure refuses broadening. Existing tests updated (the clean
+  ranker now legitimately avoids forbidden ids) + a stale-first-ranker test proving each dimension fails with
+  its violation named. 10 tests green. tsc 0, fast 9557 green.
 
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 

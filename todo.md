@@ -907,8 +907,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   recall with the projection: store recall + memory-layers + basic-memory search + focus chain as inputs), mount
   the delete controls (chat-memory delete + basic-memory delete_note) behind the chat surface, and show
   provenance in the UI ("why recalled").
-- [ ] **F2.10 — Gate broad memory recall on a LongMemEval-style internal test.** Measure relevance, contradiction,
-  privacy, and recency; refuse broadening when the model/store pair fails.
+- [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
+  The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
+  abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
+  retrieving a superseded decision, another workspace's memory, or a stale fact version is a hard per-prompt
+  failure with the violating ids + dimension named, folded into `dimensionPassRate`. The fail-closed broadening
+  gate (`decideMemoryScopeBroadening`) is unchanged and now strictly harder to pass (a benchmark with ANY
+  dimension failure refuses broadening). REMAINING: run the benchmark against the REAL recall stack (the F2.9
+  unified projection + the chat-memory store's embedder) per model/store pair via the live-eval harness, persist
+  the verdict (the F1.26 retention pattern), and consult it at the scope-broadening seam in the chat surface.
 - [ ] **F2.11 — Finish the unified chat surface.** Cover session create/select/delete/relabel, streaming, reasoning,
   tools, knowledge, attachments, execution mode, history replay, errors, and reconnection with one shared renderer.
 - [ ] **F2.12 — Complete host-action permission and audit UX.** Typed confirmations must name action, target, scope,

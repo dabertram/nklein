@@ -23,7 +23,18 @@ export interface LongMemoryEvalPrompt {
 	relevantMemoryIds: readonly string[];
 	/** Needles used by the live model-backed validation harness to score grounded answers deterministically. */
 	expectedAnswerMustInclude?: readonly string[];
+	/**
+	 * F2.10: memory ids that must NOT be retrieved for this prompt — retrieving any is a hard failure. This is
+	 * how the CONTRADICTION (the superseded/conflicting memory), PRIVACY (another namespace's memory), and
+	 * RECENCY (the stale version) dimensions are measured: each names its forbidden set explicitly.
+	 */
+	forbiddenMemoryIds?: readonly string[];
+	/** Which quality dimension this prompt measures. Default `relevance` (abstain prompts count there too). */
+	dimension?: LongMemoryEvalDimension;
 }
+
+export const LONG_MEMORY_EVAL_DIMENSIONS = ["relevance", "contradiction", "privacy", "recency"] as const;
+export type LongMemoryEvalDimension = (typeof LONG_MEMORY_EVAL_DIMENSIONS)[number];
 
 export interface LongMemoryEvalCase {
 	id: string;
@@ -39,6 +50,9 @@ export interface LongMemoryEvalPromptResult {
 	relevantMemoryIds: readonly string[];
 	retrievedIds: readonly string[];
 	recallAtK: number;
+	/** F2.10: forbidden memories that WERE retrieved (contradiction/privacy/recency violations). */
+	retrievedForbiddenIds: readonly string[];
+	dimension: LongMemoryEvalDimension;
 	passed: boolean;
 	failureReason: string | null;
 }
@@ -50,6 +64,8 @@ export interface LongMemoryEvalReport {
 	abstainPromptCount: number;
 	recallAtK: number;
 	abstainAccuracy: number;
+	/** F2.10: pass-rate per measured dimension (1 for dimensions with no prompts). */
+	dimensionPassRate: Record<LongMemoryEvalDimension, number>;
 	passed: boolean;
 	results: readonly LongMemoryEvalPromptResult[];
 }
@@ -112,6 +128,66 @@ export function buildInternalLongMemoryEvalFixture(): LongMemoryEvalCase[] {
 				},
 			],
 		},
+		{
+			id: "contradiction-recency-privacy",
+			description:
+				"F2.10: a superseded decision must yield the NEWER memory (recency), a conflicting note must not co-retrieve (contradiction), and another workspace's memory must never leak (privacy).",
+			memories: [
+				{
+					id: "gamma-db-old",
+					namespace: "ws-gamma",
+					sessionId: "gamma-session-1",
+					text: "Project Gamma uses SQLite for persistence.",
+					recordedAt: 1_000,
+				},
+				{
+					id: "gamma-db-new",
+					namespace: "ws-gamma",
+					sessionId: "gamma-session-3",
+					text: "Decision update: Project Gamma migrated persistence from SQLite to Postgres.",
+					recordedAt: 5_000,
+				},
+				{
+					id: "gamma-retry-policy",
+					namespace: "ws-gamma",
+					sessionId: "gamma-session-2",
+					text: "Project Gamma retries failed jobs three times with exponential backoff.",
+					recordedAt: 2_000,
+				},
+				{
+					id: "delta-secret-endpoint",
+					namespace: "ws-delta",
+					sessionId: "delta-session-1",
+					text: "Project Delta database endpoint is postgres://delta-internal:5432.",
+					recordedAt: 3_000,
+				},
+			],
+			prompts: [
+				{
+					id: "gamma-db-current",
+					query: "What database does Project Gamma use for persistence?",
+					relevantMemoryIds: ["gamma-db-new"],
+					forbiddenMemoryIds: ["gamma-db-old"],
+					dimension: "recency",
+					expectedAnswerMustInclude: ["Postgres"],
+				},
+				{
+					id: "gamma-retry",
+					query: "How does Project Gamma handle failed jobs?",
+					relevantMemoryIds: ["gamma-retry-policy"],
+					forbiddenMemoryIds: ["gamma-db-old"],
+					dimension: "contradiction",
+					expectedAnswerMustInclude: ["three times"],
+				},
+				{
+					id: "gamma-db-endpoint-privacy",
+					query: "What is the Gamma workspace's database endpoint?",
+					relevantMemoryIds: [],
+					forbiddenMemoryIds: ["delta-secret-endpoint"],
+					dimension: "privacy",
+				},
+			],
+		},
 	];
 }
 
@@ -130,7 +206,9 @@ export function evaluateLongMemoryBenchmark(
 			const answerable = prompt.relevantMemoryIds.length > 0;
 			const promptRecall = answerable ? recallAtK(retrievedIds, prompt.relevantMemoryIds, k) : 0;
 			const abstained = !answerable && retrievedIds.length === 0;
-			const passed = answerable ? promptRecall >= 1 : abstained;
+			const forbidden = new Set(prompt.forbiddenMemoryIds ?? []);
+			const retrievedForbiddenIds = retrievedIds.filter((id) => forbidden.has(id));
+			const passed = retrievedForbiddenIds.length === 0 && (answerable ? promptRecall >= 1 : abstained);
 			results.push({
 				caseId: case_.id,
 				promptId: prompt.id,
@@ -138,12 +216,16 @@ export function evaluateLongMemoryBenchmark(
 				relevantMemoryIds: [...prompt.relevantMemoryIds],
 				retrievedIds,
 				recallAtK: promptRecall,
+				retrievedForbiddenIds,
+				dimension: prompt.dimension ?? "relevance",
 				passed,
 				failureReason: passed
 					? null
-					: answerable
-						? `missed relevant memory within top-${k}`
-						: "retrieved memory when the fixture required abstention",
+					: retrievedForbiddenIds.length > 0
+						? `retrieved forbidden memory (${retrievedForbiddenIds.join(", ")}) — a ${prompt.dimension ?? "relevance"} violation`
+						: answerable
+							? `missed relevant memory within top-${k}`
+							: "retrieved memory when the fixture required abstention",
 			});
 		}
 	}
@@ -152,6 +234,15 @@ export function evaluateLongMemoryBenchmark(
 	const meanRecall =
 		answerable.length === 0 ? 0 : answerable.reduce((sum, result) => sum + result.recallAtK, 0) / answerable.length;
 	const abstainAccuracy = abstain.length === 0 ? 1 : abstain.filter((result) => result.passed).length / abstain.length;
+	const dimensionPassRate = Object.fromEntries(
+		LONG_MEMORY_EVAL_DIMENSIONS.map((dimension) => {
+			const inDimension = results.filter((result) => result.dimension === dimension);
+			return [
+				dimension,
+				inDimension.length === 0 ? 1 : inDimension.filter((result) => result.passed).length / inDimension.length,
+			];
+		}),
+	) as Record<LongMemoryEvalDimension, number>;
 	return {
 		k,
 		promptCount: results.length,
@@ -159,6 +250,7 @@ export function evaluateLongMemoryBenchmark(
 		abstainPromptCount: abstain.length,
 		recallAtK: meanRecall,
 		abstainAccuracy,
+		dimensionPassRate,
 		passed:
 			results.length > 0 &&
 			meanRecall >= minRecallAtK &&

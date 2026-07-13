@@ -12,9 +12,12 @@ const exactRanker: LongMemoryEvalRanker = ({ case_, prompt }) => {
 	if (prompt.relevantMemoryIds.length === 0) {
 		return [];
 	}
+	const forbidden = new Set(prompt.forbiddenMemoryIds ?? []);
 	return [
 		...prompt.relevantMemoryIds,
-		...case_.memories.map((memory) => memory.id).filter((id) => !prompt.relevantMemoryIds.includes(id)),
+		...case_.memories
+			.map((memory) => memory.id)
+			.filter((id) => !prompt.relevantMemoryIds.includes(id) && !forbidden.has(id)),
 	];
 };
 
@@ -33,11 +36,12 @@ describe("internal LongMemEval-style benchmark", () => {
 		const report = evaluateLongMemoryBenchmark(fixture, exactRanker, { k: 2 });
 		expect(report).toMatchObject({
 			k: 2,
-			promptCount: 3,
-			answerablePromptCount: 2,
-			abstainPromptCount: 1,
+			promptCount: 6,
+			answerablePromptCount: 4,
+			abstainPromptCount: 2,
 			recallAtK: 1,
 			abstainAccuracy: 1,
+			dimensionPassRate: { relevance: 1, contradiction: 1, privacy: 1, recency: 1 },
 			passed: true,
 		});
 		expect(report.results.every((result) => result.passed)).toBe(true);
@@ -61,6 +65,25 @@ describe("internal LongMemEval-style benchmark", () => {
 			passed: false,
 			failureReason: "retrieved memory when the fixture required abstention",
 		});
+	});
+
+	it("F2.10: forbidden retrievals fail their DIMENSION (recency/contradiction/privacy) with the violation named", () => {
+		// A ranker that returns the stale/foreign memory FIRST — the classic recency + privacy failure shape.
+		const staleFirstRanker: LongMemoryEvalRanker = ({ prompt }) => {
+			const forbidden = prompt.forbiddenMemoryIds ?? [];
+			return [...forbidden, ...prompt.relevantMemoryIds].slice(0, 2);
+		};
+		const report = evaluateLongMemoryBenchmark(fixture, staleFirstRanker, { k: 2 });
+		expect(report.passed).toBe(false);
+		expect(report.dimensionPassRate.recency).toBe(0);
+		expect(report.dimensionPassRate.privacy).toBe(0);
+		expect(report.dimensionPassRate.contradiction).toBe(0);
+		const recency = report.results.find((result) => result.promptId === "gamma-db-current");
+		expect(recency?.retrievedForbiddenIds).toEqual(["gamma-db-old"]);
+		expect(recency?.failureReason).toContain("recency violation");
+		const privacy = report.results.find((result) => result.promptId === "gamma-db-endpoint-privacy");
+		expect(privacy?.retrievedForbiddenIds).toEqual(["delta-secret-endpoint"]);
+		expect(privacy?.failureReason).toContain("privacy violation");
 	});
 });
 
