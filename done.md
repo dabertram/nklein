@@ -350,6 +350,15 @@
   ledger's current-step reference survive a runtime restart/rebind. 4 new tests (canonical-step precedence, format
   agreement, seed semantics incl. no-echo + no-clobber + timing survival).
 
+- [x] **F1.5 (second leaf) — the destructive-re-emit repair guard, both surfaces** *(delivered 2026-07-13).*
+  `repairFocusChainRegression` (core): two narrow deterministic repairs — an EMPTY re-emit after a non-empty
+  chain, and an ALL-PENDING re-emit that drops every completed step's text — keep the prior chain; legitimate
+  re-plans (any kept done text, any progress marker, no prior progress) pass untouched. Board: the guard runs
+  inside `focusChainStore.applyStep` (no store write, no onUpdated churn on rejection) and surfaces through a new
+  `onRepaired` hook → a warning self-observation (`focus_chain_repair`). Chat: the `update_focus_chain` tool
+  rejects the emit with an explanatory tool result ("re-emit the FULL list including finished steps") so the model
+  can self-correct. 5 new tests across core verdicts, board-store rejection semantics, and the chat tool.
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

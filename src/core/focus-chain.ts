@@ -186,6 +186,54 @@ export function summarizeFocusChain(chain: FocusChain | null | undefined): Focus
 	};
 }
 
+/** The verdict of the F1.5 destructive-re-emit guard: the chain to keep, and why a repair fired (null = accepted). */
+export interface FocusChainRepairVerdict {
+	chain: FocusChain;
+	repaired: boolean;
+	reason: string | null;
+}
+
+/**
+ * F1.5 — guard a focus-chain re-emit against ACCIDENTAL WHOLESALE LOSS. Agents re-emit the whole checklist each
+ * update; a weak model occasionally emits an empty list or a fresh all-pending list mid-run, silently destroying
+ * recorded progress. Two narrow, deterministic repairs (legitimate re-plans are untouched — a rewrite that keeps
+ * ANY progress marker or reuses ANY completed step's text is accepted):
+ *   1. `next` has no steps while `previous` had some → keep `previous`.
+ *   2. `previous` had completed work (done steps), and `next` is ENTIRELY pending AND contains none of the
+ *      previously-completed texts → an accidental reset, keep `previous`.
+ */
+export function repairFocusChainRegression(
+	previous: FocusChain | null | undefined,
+	next: FocusChain,
+): FocusChainRepairVerdict {
+	const previousSteps = previous?.steps ?? [];
+	if (previousSteps.length === 0) {
+		return { chain: next, repaired: false, reason: null };
+	}
+	if (next.steps.length === 0) {
+		return {
+			chain: previous as FocusChain,
+			repaired: true,
+			reason: `An empty focus-chain re-emit would have destroyed ${previousSteps.length} recorded step(s); kept the prior chain.`,
+		};
+	}
+	const previousDoneTexts = previousSteps.filter((step) => step.status === "done").map((step) => step.text);
+	if (previousDoneTexts.length === 0) {
+		return { chain: next, repaired: false, reason: null };
+	}
+	const nextAllPending = next.steps.every((step) => step.status === "pending");
+	const nextTexts = new Set(next.steps.map((step) => step.text));
+	const keepsAnyDone = previousDoneTexts.some((text) => nextTexts.has(text));
+	if (nextAllPending && !keepsAnyDone) {
+		return {
+			chain: previous as FocusChain,
+			repaired: true,
+			reason: `An all-pending re-emit dropped every completed step (${previousDoneTexts.length} done); kept the prior chain — re-emit the FULL list including finished steps.`,
+		};
+	}
+	return { chain: next, repaired: false, reason: null };
+}
+
 /**
  * F1.5 — the CANONICAL current step: the first `in_progress` step, else the first `pending` one, else null (empty
  * or fully done/skipped chain). Reviewer prompts and attempt-ledger events both derive "what step was being worked"

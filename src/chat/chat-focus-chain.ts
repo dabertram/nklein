@@ -7,6 +7,7 @@ import {
 	applyFocusChainStepTiming,
 	type FocusChain,
 	normalizeFocusChain,
+	repairFocusChainRegression,
 	summarizeFocusChain,
 } from "../core/focus-chain";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
@@ -99,6 +100,11 @@ export function createFocusChainTools(
 					return "Provide `steps`: a non-empty array of { text, status } items (status ∈ pending|in_progress|done|skipped).";
 				}
 				const prior = await deps.read(sessionId);
+				// F1.5 repair guard: an accidental wholesale reset keeps the prior chain and tells the model why.
+				const verdict = repairFocusChainRegression(prior, normalized);
+				if (verdict.repaired) {
+					return `Focus chain update rejected: ${verdict.reason ?? "it would have destroyed recorded progress."}`;
+				}
 				const next = applyFocusChainStepTiming(prior, normalized, now());
 				await deps.write(sessionId, next);
 				const summary = summarizeFocusChain(next);

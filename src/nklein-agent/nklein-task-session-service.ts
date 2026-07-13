@@ -423,6 +423,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly focusChainStore = createFocusChainStore({
 		now,
 		onUpdated: (taskId, chain) => this.onFocusChainUpdated?.(taskId, chain),
+		// F1.5 repair guard: a rejected destructive re-emit is surfaced, never silently swallowed.
+		onRepaired: (taskId, reason) => {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "warning",
+				message: `Focus-chain repair for ${taskId}: ${reason}`,
+				taskId,
+				metadata: { category: "focus_chain_repair" },
+			});
+		},
 	});
 	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
 		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),

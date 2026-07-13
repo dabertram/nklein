@@ -82,3 +82,24 @@ describe("createFocusChainTools — update_focus_chain", () => {
 		expect(store.value?.steps[0]?.completedAt).toBe(1000);
 	});
 });
+
+describe("chat focus chain repair guard (F1.5)", () => {
+	it("rejects a destructive re-emit with an explanatory tool result and keeps the stored chain", async () => {
+		const stored = new Map<string, FocusChain>();
+		const tools = createFocusChainTools("session-guard", {
+			deps: {
+				read: async (id) => stored.get(id) ?? null,
+				write: async (id, chain) => void stored.set(id, chain),
+			},
+			now: () => 1_000,
+		});
+		const update = tools.tools.find((tool) => tool.name === "update_focus_chain");
+		if (!update) {
+			throw new Error("update_focus_chain tool missing");
+		}
+		await update.run({ steps: [{ text: "Read the spec", status: "done" }] });
+		const rejection = await update.run({ steps: [{ text: "Brand new plan", status: "pending" }] });
+		expect(String(rejection)).toMatch(/rejected/i);
+		expect(stored.get("session-guard")?.steps[0]?.text).toBe("Read the spec");
+	});
+});

@@ -8,6 +8,7 @@ import {
 	MAX_FOCUS_CHAIN_STEP_TOUCHES,
 	MAX_FOCUS_CHAIN_STEPS,
 	normalizeFocusChain,
+	repairFocusChainRegression,
 	summarizeFocusChain,
 } from "../../src/core/focus-chain";
 
@@ -269,5 +270,53 @@ describe("currentFocusChainStep (F1.5 canonical current step)", () => {
 		]);
 		expect(currentFocusChainStep(settled)).toBeNull();
 		expect(currentFocusChainStep(null)).toBeNull();
+	});
+});
+
+describe("repairFocusChainRegression (F1.5 destructive-re-emit guard)", () => {
+	const withProgress = normalizeFocusChain([
+		{ text: "Read the spec", status: "done" },
+		{ text: "Write the parser", status: "in_progress" },
+	]);
+
+	it("keeps the prior chain when a re-emit is empty or an all-pending reset that drops every done step", () => {
+		const empty = repairFocusChainRegression(withProgress, { steps: [], updatedAt: 2 });
+		expect(empty.repaired).toBe(true);
+		expect(empty.chain).toBe(withProgress);
+
+		const reset = repairFocusChainRegression(
+			withProgress,
+			normalizeFocusChain([
+				{ text: "Totally new step", status: "pending" },
+				{ text: "Another new step", status: "pending" },
+			]) as NonNullable<ReturnType<typeof normalizeFocusChain>>,
+		);
+		expect(reset.repaired).toBe(true);
+		expect(reset.reason).toMatch(/dropped every completed step/);
+	});
+
+	it("accepts legitimate re-plans: kept done text, any progress marker, or no prior progress", () => {
+		const keepsDone = repairFocusChainRegression(
+			withProgress,
+			normalizeFocusChain([
+				{ text: "Read the spec", status: "pending" },
+				{ text: "New direction", status: "pending" },
+			]) as NonNullable<ReturnType<typeof normalizeFocusChain>>,
+		);
+		expect(keepsDone.repaired).toBe(false);
+
+		const marksProgress = repairFocusChainRegression(
+			withProgress,
+			normalizeFocusChain([{ text: "Fresh plan", status: "in_progress" }]) as NonNullable<
+				ReturnType<typeof normalizeFocusChain>
+			>,
+		);
+		expect(marksProgress.repaired).toBe(false);
+
+		const noPrior = repairFocusChainRegression(null, {
+			steps: [],
+			updatedAt: 1,
+		});
+		expect(noPrior.repaired).toBe(false);
 	});
 });

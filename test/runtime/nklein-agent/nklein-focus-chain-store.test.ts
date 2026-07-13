@@ -106,3 +106,28 @@ describe("focus chain store seed (F1.5 rehydration)", () => {
 		expect(store.get("task-2")?.steps.map((step) => step.text)).toEqual(["Live"]);
 	});
 });
+
+describe("focus chain store repair guard (F1.5)", () => {
+	it("rejects a destructive re-emit, keeps the prior chain, surfaces onRepaired, and never notifies", () => {
+		const updates: string[] = [];
+		const repairs: string[] = [];
+		const store = createFocusChainStore({
+			now: () => 1_000,
+			onUpdated: (taskId) => void updates.push(taskId),
+			onRepaired: (_taskId, reason) => void repairs.push(reason),
+		});
+		store.applyStep("task-1", {
+			steps: [
+				{ text: "Done step", status: "done" },
+				{ text: "Active step", status: "in_progress" },
+			],
+			updatedAt: 1,
+		});
+		expect(updates).toEqual(["task-1"]);
+
+		store.applyStep("task-1", { steps: [], updatedAt: 2 });
+		expect(repairs).toHaveLength(1);
+		expect(updates).toEqual(["task-1"]); // no second notify
+		expect(store.get("task-1")?.steps.map((step) => step.text)).toEqual(["Done step", "Active step"]);
+	});
+});

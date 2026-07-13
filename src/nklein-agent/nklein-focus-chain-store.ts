@@ -5,6 +5,7 @@ import {
 	type FocusChainStepTouchDelta,
 	type FocusChainSummary,
 	normalizeFocusChain,
+	repairFocusChainRegression,
 	summarizeFocusChain,
 } from "../core/focus-chain";
 
@@ -33,6 +34,8 @@ export interface FocusChainStore {
 export function createFocusChainStore(deps: {
 	now: () => number;
 	onUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
+	/** F1.5 — a destructive re-emit was rejected (the prior chain was kept); surface it, e.g. as an observation. */
+	onRepaired?: (taskId: string, reason: string) => void;
 }): FocusChainStore {
 	const chainByTaskId = new Map<string, FocusChain>();
 
@@ -57,8 +60,16 @@ export function createFocusChainStore(deps: {
 			chainByTaskId.set(taskId, applyFocusChainStepTouches(chain, timed));
 		},
 		applyStep(taskId, chain) {
-			const timed = applyFocusChainStepTiming(chainByTaskId.get(taskId), chain, deps.now());
-			const withTouches = applyFocusChainStepTouches(chainByTaskId.get(taskId), timed);
+			// F1.5 repair guard: an accidental wholesale reset keeps the prior chain (no store write, no notify —
+			// re-persisting the unchanged prior chain would be churn) and surfaces the rejection.
+			const previous = chainByTaskId.get(taskId);
+			const verdict = repairFocusChainRegression(previous, chain);
+			if (verdict.repaired) {
+				deps.onRepaired?.(taskId, verdict.reason ?? "Destructive focus-chain re-emit rejected.");
+				return;
+			}
+			const timed = applyFocusChainStepTiming(previous, chain, deps.now());
+			const withTouches = applyFocusChainStepTouches(previous, timed);
 			chainByTaskId.set(taskId, withTouches);
 			void deps.onUpdated?.(taskId, withTouches);
 		},
