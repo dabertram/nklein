@@ -602,6 +602,16 @@
   1 new test (queued → drained-retry sequence: phase queued_for_endpoint → planning, exactly 4 applied ledger
   transitions).
 
+- [x] **F1.27b leaf 3 — promotion + review-bound terminal seams** *(delivered 2026-07-13).* `onCardPromoted`
+  dispatches `begin_implementation` (the §5.B Planning→In Progress promotion IS the kernel's implementation
+  start), and the session-summary seam dispatches `implementation_finished` on `awaiting_review` summaries —
+  repeated summaries hold silently (the phase already advanced), and a DECOMPOSE card that never promoted holds
+  its terminal too (no false implementation phase). Deliberately unmapped: `failed`/`interrupted` terminals — live
+  cards are redriven by the recovery rungs while the kernel's `failed` is TERMINAL, so mapping them would wedge
+  the mirror; the kernel needs a `reopened`/`retry_granted` reducer command first (recorded as its own todo leaf).
+  Audit-mode throughout. 1 new test (start → promote → review-bound terminal sequence with hold assertions incl.
+  the unpromoted-decompose case).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

@@ -669,10 +669,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   path — `handleStartTaskSession` emits the admission ladder through `dispatchWorkflowStartCommands`: an
   endpoint-busy queued start lands `queued_for_endpoint` (request + capacity grant), a successful start fires the
   full four-grant ladder to `planning`, and the kernel's hold semantics absorb the queued-start re-entry's
-  duplicates — both operator and auto-start funnel through this one handler.)* Remaining paths: promotion
-  (begin_implementation via onCardPromoted), terminal (implementation_finished/failed at the session terminal
-  seam), review/delivery seams (review_started/passed/changes, delivery_requested/delivered at the finalization
-  gate), tRPC complete, CLI task commands.
+  duplicates — both operator and auto-start funnel through this one handler.)* Leaf 3 SHIPPED 2026-07-13: the
+  promotion seam (onCardPromoted → begin_implementation) and the review-bound terminal seam (awaiting_review
+  summary → implementation_finished; repeats hold). Remaining paths: review/delivery seams (review_started/
+  passed/changes, delivery_requested/delivered at the finalization gate), tRPC complete, CLI task commands — and a
+  KERNEL EXTENSION first: failed/interrupted terminals stay unmapped because live cards are redriven while the
+  kernel's `failed` is terminal; add a `reopened`/`retry_granted` command to the reducer (its own leaf) before
+  failure fidelity can land.
 - [ ] **F1.18 — Complete the durable long-run scheduler.** Checkpoint admission, running, review, retry, and delivery
   transitions to the ledger; restart without duplicate work or lost capacity. Do not treat `awaiting_review` as a
   dependency-releasing success: dependents must remain blocked until review, acceptance, and merge/delivery complete,

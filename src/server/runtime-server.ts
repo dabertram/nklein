@@ -145,6 +145,7 @@ import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
+import { getWorkspaceWorkflowQueue } from "../trpc/runtime-api/workflow-queue-registry";
 import {
 	createRuntimeTaskStartQueue,
 	type RuntimeTaskStartQueue,
@@ -2208,6 +2209,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (event.workspacePath !== scope.workspacePath) {
 						return;
 					}
+					// F1.27b (leaf 3): the promotion IS the kernel's begin_implementation — audit-mode dispatch.
+					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
+						.dispatch(event.taskId, { kind: "begin_implementation" })
+						.catch(() => {});
 					void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(scope.workspaceId, scope.workspacePath);
 				},
 				onTurnLoopEscalation: async (event) => {
@@ -2368,6 +2373,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
 				recordNKleinSessionTransition(scope, summary);
+				// F1.27b (leaf 3): a run reaching review IS the kernel's implementation_finished. Repeated summaries
+				// hold silently (the phase already advanced); failed/interrupted stay unmapped until the kernel gains
+				// a reopen command (they are redriven live, and the kernel's `failed` is terminal — see todo F1.27b).
+				if (summary.state === "awaiting_review") {
+					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
+						.dispatch(summary.taskId, { kind: "implementation_finished" })
+						.catch(() => {});
+				}
 				if (isReviewableNKleinSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);
 				}

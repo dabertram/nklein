@@ -56,6 +56,39 @@ describe("dispatchWorkflowStartCommands (F1.27b leaf 2 — the start path)", () 
 	});
 });
 
+describe("promotion + terminal seams (F1.27b leaf 3 semantics)", () => {
+	it("promotion begins implementation and the review-bound terminal finishes it; repeated summaries hold", async () => {
+		const workspacePath = "/tmp/ws-lifecycle-adapter";
+		const scope = { workspaceId: "ws-life", workspacePath };
+		dispatchWorkflowStartCommands(scope, "t-1", [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
+		const queue = getWorkspaceWorkflowQueue(workspacePath, "ws-life");
+		await vi.waitFor(() => expect(queue.phaseOf("t-1")).toBe("planning"));
+		// The promotion seam (onCardPromoted) dispatches begin_implementation.
+		await queue.dispatch("t-1", { kind: "begin_implementation" });
+		expect(queue.phaseOf("t-1")).toBe("implementing");
+		// The terminal seam dispatches implementation_finished on awaiting_review summaries — repeats hold.
+		await queue.dispatch("t-1", { kind: "implementation_finished" });
+		expect(queue.phaseOf("t-1")).toBe("awaiting_acceptance");
+		const repeat = await queue.dispatch("t-1", { kind: "implementation_finished" });
+		expect(repeat).toMatchObject({ applied: false, reason: "held" });
+		// A DECOMPOSE card that never promoted stays in planning — its terminal holds (no false implementation).
+		dispatchWorkflowStartCommands(scope, "t-decompose", [
+			"start_requested",
+			"board_capacity_granted",
+			"endpoint_granted",
+			"sandbox_granted",
+		]);
+		await vi.waitFor(() => expect(queue.phaseOf("t-decompose")).toBe("planning"));
+		const heldTerminal = await queue.dispatch("t-decompose", { kind: "implementation_finished" });
+		expect(heldTerminal).toMatchObject({ applied: false, reason: "held" });
+	});
+});
+
 describe("handleStopTaskSession (F1.27b first migrated adapter)", () => {
 	it("stops through the proven service path AND records the cancel_requested command in the ledger", async () => {
 		const workspacePath = "/tmp/ws-stop-adapter";
