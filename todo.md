@@ -666,9 +666,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
     plus the resolved divergences: synthetic + interrupted skipped identically, chat-flow excluded, a timed-out
     interrupt counts in the projection (documented superset), tokensPerSec is a projection enrichment, legacy
     no-difficulty events skipped (F1.15c migration seeds them).
-  - [ ] **F1.15c — flip the fitness READ side to the ledger projection + migrate.** `rankFitnessCandidatesForCell`
-    consumers read projection-backed cells; existing `fitness-table.json` rows become seed evidence (or are
-    imported as synthetic attempts); then remove the parallel `recordTaskFitnessOutcome` write.
+  - [x] **F1.15c — SHIPPED 2026-07-13:** `readMergedFitnessRows` (store [eval + legacy seed] ⊕ ledger projection,
+    merged per cell via `mergeFitnessRows` sample-weighted fold) now backs BOTH read consumers (the §5.AL fitness
+    browser + the thin-eval-cell idle work); the terminal-telemetry board-attempt fitness write is REMOVED (the
+    F1.15a difficulty stamp is the exact no-double-count cutover line: pre-stamp history lives only in the store,
+    post-cutover board attempts only in the ledger). Eval-harness folds keep writing the store (their results are
+    not ledger attempts).
   - [ ] **F1.15d — behavior profile, MCSR, and evaluation views.** Same treatment for
     `persistModelBehaviorOutcome` (event-sourced store → `buildModelBehaviorProfilesFromLedger`),
     `recordModelPerformanceObservation`, MCSR reads (`role-model-selection` / swarm picks), and the

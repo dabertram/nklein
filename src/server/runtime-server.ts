@@ -138,7 +138,7 @@ import {
 	loadWorkspaceState,
 	mutateWorkspaceState,
 } from "../state/workspace-state";
-import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
+import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
@@ -2920,8 +2920,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const reEvalDispatched =
 								idleReEvalDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 							const reEvalCandidates = findThinEvalCells({
-								fitnessRows: await readFitnessTable()
-									.then((table) => Object.values(table.rows))
+								fitnessRows: await readMergedFitnessRows()
+									.then((rows) => Object.values(rows))
 									.catch(() => []),
 								loadedModelIds,
 								corpusPrompts: EVAL_PROMPT_CORPUS.filter((prompt) => prompt.family !== "implement"),

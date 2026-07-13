@@ -30,6 +30,8 @@ vi.mock("../../../src/nklein-agent/task-fitness-recording", () => ({
 	deriveTaskFitnessRecord: h.deriveTaskFitnessRecord,
 }));
 vi.mock("../../../src/telemetry/fitness-table-store", () => ({ recordTaskFitnessOutcome: h.recordTaskFitnessOutcome }));
+// (F1.15c: the terminal telemetry no longer folds board attempts into the fitness store — the ledger projection
+// carries board evidence; the mock above just proves the write is GONE.)
 vi.mock("../../../src/telemetry/model-behavior-profile-store", () => ({
 	persistModelBehaviorOutcome: h.persistModelBehaviorOutcome,
 }));
@@ -43,23 +45,19 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => vi.clearAllMocks());
 
 describe("createRuntimeTerminalTelemetryRecorders", () => {
-	it("records model performance + folds the fitness/behavior outcome for a fresh terminal run", async () => {
+	it("records model performance + the behavior outcome; the board fitness fold is GONE (F1.15c)", async () => {
 		const warn = vi.fn();
 		const rec = createRuntimeTerminalTelemetryRecorders({ warn });
 		rec.recordModelPerformance(scope, summary({ taskId: "fresh-a", startedAt: 100 }));
 		await flush();
 		expect(h.recordModelPerformanceObservation).toHaveBeenCalledOnce();
-		expect(h.recordTaskFitnessOutcome).toHaveBeenCalledOnce();
-		// F1.1: the knowledge-consultation flag rides the fitness fold.
-		expect(h.recordTaskFitnessOutcome).toHaveBeenCalledWith(
-			{ modelKey: "lmstudio/m" },
-			{ success: true, usedKnowledgeTools: true },
-		);
+		// F1.15c: board attempts reach fitness through the ledger projection, never this store write.
+		expect(h.recordTaskFitnessOutcome).not.toHaveBeenCalled();
 		expect(h.persistModelBehaviorOutcome).toHaveBeenCalledWith("lmstudio/m", { kind: "success" });
 		expect(warn).not.toHaveBeenCalled();
 	});
 
-	it("folds the fitness outcome AT MOST once per (taskId, startedAt) run", async () => {
+	it("folds the behavior outcome AT MOST once per (taskId, startedAt) run", async () => {
 		const rec = createRuntimeTerminalTelemetryRecorders({ warn: vi.fn() });
 		const s = summary({ taskId: "dedup-b", startedAt: 200 });
 		rec.recordModelPerformance(scope, s);
@@ -67,7 +65,7 @@ describe("createRuntimeTerminalTelemetryRecorders", () => {
 		rec.recordModelPerformance(scope, s); // same run re-emitted
 		await flush();
 		expect(h.recordModelPerformanceObservation).toHaveBeenCalledTimes(2); // perf recorded each time
-		expect(h.recordTaskFitnessOutcome).toHaveBeenCalledOnce(); // but the fitness fold is deduped
+		expect(h.persistModelBehaviorOutcome).toHaveBeenCalledOnce(); // but the terminal fold is deduped
 	});
 
 	it("records knowledge tool usage", async () => {

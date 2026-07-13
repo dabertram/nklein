@@ -2,11 +2,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildTransitionEvent } from "../../src/core/agent-attempt-ledger";
 import type { FitnessRow } from "../../src/core/fitness-table-schema";
+import { mergeFitnessRows } from "../../src/core/fitness-table-schema";
+import { buildTerminalAttemptEvent } from "../../src/nklein-agent/nklein-ledger-attempt";
+import { appendAgentLedgerEvent } from "../../src/state/agent-attempt-ledger-store";
 import {
 	FITNESS_TABLE_SCHEMA_VERSION,
 	readFitnessRow,
 	readFitnessTable,
+	readMergedFitnessRows,
 	readRankedFitnessCandidates,
 	recordTaskFitnessOutcome,
 	upsertFitnessRows,
@@ -126,5 +131,86 @@ describe("fitness-table-store (§5.AB storage layer)", () => {
 		const back = await readFitnessRow(key, { path });
 		expect(back?.sampleCount).toBe(20); // all 20 folded — none lost
 		expect(back?.successCount).toBe(10); // even indices succeeded
+	});
+
+	it("F1.15c mergeFitnessRows: counts add, means combine sample-weighted, failure modes union, max budget/updatedAt", () => {
+		const left = row(); // 4 samples, 3 success, wall mean 1200 over 3, tps 40 over 3
+		const right = row({
+			sampleCount: 2,
+			successCount: 1,
+			retryBudget: 5,
+			failureModes: [
+				{ kind: "no_tool_call", count: 2 },
+				{ kind: "task_failed", count: 1 },
+			],
+			meanWallTimeMs: 600,
+			meanWallTimeSamples: 1,
+			tokensPerSec: null,
+			tokensPerSecSamples: 0,
+			knowledgeUseCount: 2,
+			updatedAt: 5000,
+		});
+		const merged = mergeFitnessRows(left, right);
+		expect(merged.sampleCount).toBe(6);
+		expect(merged.successCount).toBe(4);
+		expect(merged.retryBudget).toBe(5);
+		expect(merged.failureModes).toEqual([
+			{ kind: "no_tool_call", count: 3 },
+			{ kind: "task_failed", count: 1 },
+		]);
+		expect(merged.meanWallTimeMs).toBe((1200 * 3 + 600 * 1) / 4); // sample-weighted
+		expect(merged.meanWallTimeSamples).toBe(4);
+		expect(merged.tokensPerSec).toBe(40); // right contributed no samples — mean unchanged
+		expect(merged.tokensPerSecSamples).toBe(3);
+		expect(merged.knowledgeUseCount).toBe(2);
+		expect(merged.updatedAt).toBe(5000);
+	});
+
+	it("F1.15c readMergedFitnessRows: store rows merge with the ledger projection; either side alone passes through", async () => {
+		const ledgerDir = join(dir, "ledger");
+		// Store: one legacy/eval cell.
+		await writeFitnessTable(
+			{ version: FITNESS_TABLE_SCHEMA_VERSION, rows: { "prov:coder:default::worker::medium": row() } },
+			{ path },
+		);
+		// Ledger: one board attempt in the SAME cell (merges) + one in a NEW cell (passes through).
+		const shared = buildTerminalAttemptEvent({
+			taskId: "t-merge",
+			workspacePath: "/repo",
+			state: "awaiting_review",
+			role: "worker",
+			providerId: "",
+			modelId: "",
+			endpoint: "",
+			startedAt: 0,
+			endedAt: 2_000,
+			promptTokens: null,
+			completionTokens: null,
+			timeoutReason: null,
+			difficulty: "medium",
+		});
+		// The store cell key is the literal modelKey — align the attempt's modelId to it for the merge case.
+		const sharedAligned = { ...shared, modelId: "prov:coder:default" };
+		const fresh = { ...sharedAligned, taskId: "t-new", attemptId: "t-new:2000", modelId: "prov:other:default" };
+		await appendAgentLedgerEvent(sharedAligned, { rootDir: ledgerDir });
+		await appendAgentLedgerEvent(fresh, { rootDir: ledgerDir });
+		// Noise: a transition event must not disturb the projection.
+		await appendAgentLedgerEvent(
+			buildTransitionEvent({
+				workflowId: "t-merge",
+				taskId: "t-merge",
+				workspacePathHash: sharedAligned.workspacePathHash,
+				to: "running",
+			}),
+			{ rootDir: ledgerDir },
+		);
+
+		const merged = await readMergedFitnessRows({ path, ledgerRootDir: ledgerDir });
+		expect(merged["prov:coder:default::worker::medium"]?.sampleCount).toBe(5); // 4 store + 1 ledger
+		expect(merged["prov:coder:default::worker::medium"]?.successCount).toBe(4);
+		expect(merged["prov:other:default::worker::medium"]?.sampleCount).toBe(1); // ledger-only cell
+		// Store-only read (empty ledger root) passes the store rows through unchanged.
+		const storeOnly = await readMergedFitnessRows({ path, ledgerRootDir: join(dir, "no-ledger") });
+		expect(storeOnly["prov:coder:default::worker::medium"]?.sampleCount).toBe(4);
 	});
 }); // end describe

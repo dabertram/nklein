@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { buildFitnessTableFromLedger } from "../core/agent-ledger-projections";
 import { type FitnessSelectionQuery, rankFitnessCandidatesForCell } from "../core/fitness-projections";
 import {
 	emptyFitnessRow,
@@ -22,8 +23,10 @@ import {
 	type FitnessRow,
 	fitnessCellKey,
 	fitnessRowSchema,
+	mergeFitnessRows,
 	recordFitnessOutcome,
 } from "../core/fitness-table-schema";
+import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 
 const DEFAULT_FITNESS_TABLE_PATH = join(resolveNkleinRuntimeHomePath(homedir()), "fitness-table.json");
 
@@ -84,6 +87,30 @@ export async function readFitnessTable(options: FitnessTableStoreOptions = {}): 
 }
 
 /** Read a single fitness cell, or null when it has no recorded evidence. */
+/**
+ * F1.15c — the UNIFIED fitness read: the persisted store (eval-harness folds + legacy/pre-projection history) merged
+ * with the LIVE ledger projection (board attempts recorded since F1.15a stamped `difficulty`). The difficulty stamp
+ * is the exact cutover line, so no run is double-counted: pre-stamp board history exists only in the store (the
+ * projection skips no-difficulty events) and post-cutover board attempts exist only in the ledger (the terminal
+ * fitness fold was removed with this flip). Read-only; either side degrading yields the other unchanged.
+ */
+export async function readMergedFitnessRows(
+	options: FitnessTableStoreOptions & { ledgerRootDir?: string } = {},
+): Promise<Record<string, FitnessRow>> {
+	const [table, ledgerEvents] = await Promise.all([
+		readFitnessTable(options),
+		readAllAgentLedger(options.ledgerRootDir !== undefined ? { rootDir: options.ledgerRootDir } : undefined).catch(
+			() => [],
+		),
+	]);
+	const merged: Record<string, FitnessRow> = { ...table.rows };
+	for (const [cell, row] of Object.entries(buildFitnessTableFromLedger(ledgerEvents))) {
+		const existing = merged[cell];
+		merged[cell] = existing ? mergeFitnessRows(existing, row) : row;
+	}
+	return merged;
+}
+
 export async function readFitnessRow(
 	key: Parameters<typeof fitnessCellKey>[0],
 	options: FitnessTableStoreOptions = {},

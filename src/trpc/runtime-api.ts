@@ -84,7 +84,7 @@ import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attem
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
-import { readFitnessTable, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
+import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
@@ -445,10 +445,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + the failing-LLM
 		// projection. Read-only; empty when the store is missing/unreadable (never throws into the UI).
 		getFitnessTable: async () => {
-			const table = await readFitnessTable().catch(() => ({ version: 0, rows: {} }));
+			// F1.15c: the unified read — persisted store (eval + legacy) merged with the live ledger projection.
+			const rows = await readMergedFitnessRows().catch(() => ({}) as Record<string, never>);
 			return {
 				generatedAt: Date.now(),
-				rows: buildFitnessTableView(Object.values(table.rows)),
+				rows: buildFitnessTableView(Object.values(rows)),
 			};
 		},
 		// §5.AL/§10c#11: degraded-model badges for the model selector — derived from persisted self-observation

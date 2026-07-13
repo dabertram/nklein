@@ -509,6 +509,19 @@
   pre-F1.15a events without a recorded difficulty are skipped (the F1.15c migration seeds those from the legacy
   store). 3 new tests. F1.15c (read flip + migration) and F1.15d (behavior profile/MCSR/eval views) remain in todo.
 
+- [x] **F1.15c — flip the fitness READ side to the ledger projection, remove the parallel board write** *(delivered
+  2026-07-13).* New `mergeFitnessRows` (pure fold: counts add, rolling means combine sample-weighted, failure modes
+  union, retryBudget/updatedAt max) + `readMergedFitnessRows` (the persisted store ⊕ the live ledger projection,
+  merged per cell). BOTH fitness read consumers flipped: the §5.AL fitness-browser endpoint (`getFitnessTable`) and
+  the thin-eval-cell idle-work feed. The terminal-telemetry board-attempt fitness fold is REMOVED — board evidence
+  reaches fitness ONLY through the ledger projection now, and the F1.15a difficulty stamp is the exact
+  no-double-count cutover: pre-stamp board history exists only in the store (the projection skips no-difficulty
+  events), post-cutover attempts only in the ledger. The store remains the home for eval-harness folds (their
+  results are not ledger attempts) + legacy seed — no data migration needed, the merge IS the migration. 4 tests
+  (merge math incl. weighted means + unions; merged read over real temp store + temp ledger with same-cell merge,
+  ledger-only cell pass-through, transition-noise immunity, store-only degrade; telemetry write-gone + behavior
+  dedupe updated).
+
 ## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are

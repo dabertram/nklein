@@ -153,6 +153,63 @@ export function recordFitnessOutcome(row: FitnessRow, outcome: FitnessOutcome, n
 	};
 }
 
+/**
+ * F1.15c — merge two evidence streams for the SAME cell (the legacy/eval STORE row ⊕ the ledger PROJECTION row)
+ * into one combined row: counts add, rolling means combine sample-weighted, failure modes union by kind,
+ * retryBudget/updatedAt take the max. Pure + commutative on the numeric aggregates.
+ */
+export function mergeFitnessRows(left: FitnessRow, right: FitnessRow): FitnessRow {
+	const failureModes = left.failureModes.map((mode) => ({ ...mode }));
+	for (const mode of right.failureModes) {
+		const existing = failureModes.find((candidate) => candidate.kind === mode.kind);
+		if (existing) {
+			existing.count += mode.count;
+		} else {
+			failureModes.push({ ...mode });
+		}
+	}
+	const mergeMean = (
+		aMean: number | null,
+		aSamples: number,
+		bMean: number | null,
+		bSamples: number,
+	): { mean: number | null; samples: number } => {
+		const samples = aSamples + bSamples;
+		if (aMean === null && bMean === null) {
+			return { mean: null, samples };
+		}
+		const aSum = aMean !== null ? aMean * aSamples : 0;
+		const bSum = bMean !== null ? bMean * bSamples : 0;
+		return samples > 0 ? { mean: (aSum + bSum) / samples, samples } : { mean: null, samples };
+	};
+	const wall = mergeMean(
+		left.meanWallTimeMs,
+		left.meanWallTimeSamples,
+		right.meanWallTimeMs,
+		right.meanWallTimeSamples,
+	);
+	const tps = mergeMean(left.tokensPerSec, left.tokensPerSecSamples, right.tokensPerSec, right.tokensPerSecSamples);
+	return {
+		modelKey: left.modelKey,
+		role: left.role,
+		difficultyTier: left.difficultyTier,
+		sampleCount: left.sampleCount + right.sampleCount,
+		successCount: left.successCount + right.successCount,
+		retryBudget: Math.max(left.retryBudget, right.retryBudget),
+		failureModes,
+		meanWallTimeMs: wall.mean,
+		meanWallTimeSamples: wall.samples,
+		tokensPerSec: tps.mean,
+		tokensPerSecSamples: tps.samples,
+		knowledgeUseCount: left.knowledgeUseCount + right.knowledgeUseCount,
+		knowledgeSkipCount: left.knowledgeSkipCount + right.knowledgeSkipCount,
+		updatedAt:
+			left.updatedAt !== null && right.updatedAt !== null
+				? Math.max(left.updatedAt, right.updatedAt)
+				: (left.updatedAt ?? right.updatedAt),
+	};
+}
+
 /** An empty (unsampled) fitness cell for a key — the starting point the write-side fold accretes into. */
 export function emptyFitnessRow(key: FitnessKey): FitnessRow {
 	return {
