@@ -190,6 +190,8 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 		"capabilityBrokerEnabled",
 		"maxAgentWritableFileLines",
 	],
+	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
+	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],
 	notifications: ["readyForReviewNotificationsEnabled"],
 };
 

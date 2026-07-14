@@ -899,6 +899,18 @@ export function RuntimeSettingsDialog({
 					case "readyForReviewNotificationsEnabled":
 						setReadyForReviewNotificationsEnabled(configSnapshot.readyForReviewNotificationsEnabled);
 						break;
+					case "maxConcurrentTasks":
+						setMaxConcurrentTasks(configSnapshot.maxConcurrentTasks);
+						break;
+					case "swarmGuardrailInputs":
+						setSwarmGuardrailInputs(snapshotSwarmGuardrailInputs(configSnapshot));
+						break;
+					case "commitPromptTemplate":
+						setCommitPromptTemplate(configSnapshot.commitPromptTemplate);
+						break;
+					case "openPrPromptTemplate":
+						setOpenPrPromptTemplate(configSnapshot.openPrPromptTemplate);
+						break;
 				}
 			}
 		},
@@ -2518,10 +2530,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Guardrails & Limits ---- */}
 						<div data-settings-section="guardrails" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Gauge size={16} className="text-text-secondary" />
-								Guardrails &amp; Limits
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Gauge size={16} className="text-text-secondary" />
+									Guardrails &amp; Limits
+								</h2>
+								<SectionResetButton
+									navId="guardrails"
+									dirty={dirtyNavIdSet.has("guardrails")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
@@ -2827,10 +2846,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Git ---- */}
 						<div data-settings-section="git-prompts" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<GitCommit size={16} className="text-text-secondary" />
-								Git
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<GitCommit size={16} className="text-text-secondary" />
+									Git
+								</h2>
+								<SectionResetButton
+									navId="git-prompts"
+									dirty={dirtyNavIdSet.has("git-prompts")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<p className="text-text-secondary text-[13px] mt-0 mb-2">

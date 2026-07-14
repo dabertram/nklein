@@ -57,7 +57,9 @@ export function SettingsNav({
 								data-testid={`settings-nav-dirty-${item.id}`}
 								role="img"
 								title="Unsaved changes in this section"
-								aria-label="Unsaved changes"
+								// Accessible name deliberately avoids the substring "save" — non-exact getByRole("button",
+								// {name:"Save"}) queries would otherwise match this dirty tab's button ("unsaved" contains "save").
+								aria-label="Section edited"
 								className={cn("ml-auto shrink-0 h-1.5 w-1.5 rounded-full bg-accent", item.badge ? "mr-1" : "")}
 							/>
 						) : null}

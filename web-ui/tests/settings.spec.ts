@@ -541,4 +541,23 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(page.getByTestId("settings-nav-dirty-general")).toHaveCount(0);
 		await expect(page.getByTestId("settings-section-reset-general")).toHaveCount(0);
 	});
+
+	test("F1.29b: the Guardrails tab gets its own dirty dot + Reset (leaf 2)", async ({ page }) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+
+		await expect(page.getByTestId("settings-nav-dirty-guardrails")).toHaveCount(0);
+
+		// Max concurrent tasks lives under the Guardrails tab.
+		const maxConcurrent = page.locator("#runtime-settings-max-concurrent-tasks");
+		await maxConcurrent.fill("7");
+
+		await expect(page.getByTestId("settings-nav-dirty-guardrails")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-guardrails")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-guardrails").click();
+		await expect(page.getByTestId("settings-nav-dirty-guardrails")).toHaveCount(0);
+		await expect(maxConcurrent).toHaveValue("3"); // restored to the mock config value
+	});
 });

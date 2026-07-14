@@ -739,10 +739,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   tab's sticky header shows a **Reset section** button (`settings-section-reset-<id>`) that reverts just that tab's
   fields from the snapshot, leaving other tabs' edits (Playwright in settings.spec.ts). **Leaf 1 covers `general`
   (11 fields) + `notifications` (1)** — the two tabs whose editable fields are all top-level and fully enumerable.
-  REMAINING (one tab per leaf): populate `SETTINGS_NAV_FIELDS` for the other nav tabs (agents/tasks/guardrails/
-  nklein/code-intelligence/git-prompts/appearance/project) — each needs an audit of EVERY editable field rendered in
-  that tab's body region INCLUDING sub-component-rendered fields (model roles, project overrides, guardrail inputs),
-  else a tab's dot misses a change; then optionally per-section Save via the settings-save path.
+  **Leaf 2 SHIPPED 2026-07-14:** `guardrails` (maxConcurrentTasks + swarmGuardrailInputs) and `git-prompts`
+  (commit/openPr templates) — the remaining tabs whose editable fields are ALL draft fields (no local-state
+  entanglement). GOTCHA fixed en route: the dirty-dot `aria-label` must not contain the substring "save" — a
+  non-exact `getByRole("button",{name:"Save"})` matches a dirty tab's button because "unsaved" contains "save"
+  (broke 3 existing settings tests; label reworded to "Section edited"). REMAINING (one tab per leaf, but NO LONGER
+  clean leaves): `agents`/`tasks`/`nklein`/`code-intelligence`/`project` each mix in LOCAL (non-draft) state (`tasks`
+  renders taskDefaultStartInPlanMode/AutoReview* which live OUTSIDE SettingsDraft, in the `local` dirty inputs) or
+  STRUCTURED sub-component fields (nklein=model roles, project=per-project overrides, code-intelligence=codeEmbedding*),
+  so their per-tab dots need the dirty computation extended past `SETTINGS_NAV_FIELDS` to those axes — a bigger per-tab
+  audit. `appearance` is theme-only (local, no draft fields) → no per-tab affordance. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown
