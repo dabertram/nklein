@@ -901,10 +901,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   selects), streaming + reasoning + tools (chat-agent-stream spec), knowledge/skills, execution mode as the
   scope select, history replay via the transcript poll, inline error rendering, and the state-stream reconnect
   with stale-workspace-id guards. REMAINING (true residue): (1) attachments UI — gated on F2.7b's wiring;
-  (2) the posture chip — F2.8b; (3) a RECONNECTION e2e spec (kill/restart the mocked ws mid-session, assert the
-  chat surface recovers without losing the transcript); (4) a "one shared renderer" consistency pass — verify
-  the sidebar chat + card-detail chat + main panel all render through `nklein-chat-message-item` (spot-check
-  suggested they do; pin it with a test or fold the stragglers).
+  (2) the posture chip — DONE (F2.8b, 2026-07-14); (3) a RECONNECTION e2e spec (kill/restart the mocked ws
+  mid-session, assert the chat surface recovers without losing the transcript); (4) shared-renderer consistency —
+  VERIFIED 2026-07-14: the sidebar chat, its main-chat transcript row, AND the card-detail chat all render through
+  `NKleinChatMessageItem` (chat-sidebar.tsx:610/654 + nklein-agent-chat-panel.tsx:1206) — no stragglers. So only
+  (1) [F2.7b-gated] and (3) remain.
 - [ ] **F2.12b — Render the typed confirmation dialog + audit history view (cores SHIPPED 2026-07-13).**
   `src/chat/chat-confirmation-description.ts`: `describeHostActionConfirmation` names all five F2.12 fields —
   ACTION (kind phrasing), TARGET (the F2.2 least-scope identity: exact command/path/host, byte-identical to what
