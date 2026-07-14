@@ -1041,6 +1041,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   pass over stream→DAG→card→thread→back; fold any gap found there.
 - [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
+  **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `<this commit>`):** `src/core/reasoning-capture.ts`
+  `buildSafeReasoningCapture(raw, {maxChars})` — the "persist safely" primitive: FAIL-CLOSED on secrets (raw
+  chain-of-thought that matches the shared secret catalog via `findPotentialSecretInText` is WITHHELD for a neutral
+  placeholder, never persisted verbatim) + bounded (secret-free reasoning capped with an ellipsis). Pure, 4 unit tests
+  (secret withheld / clean pass-through / truncation). REMAINING (greenfield b-leaf): the effectful surfaces that
+  CONSUME it — persist reasoning summaries at the turn/attempt seam, show them where useful, and the reviewer
+  independent-lens comparison — plus a finer redactor (mask just the offending span, keep the rest) over today's
+  withhold-whole default.
 
 ### Phase 3 — feature completion: adaptive local-model execution and routing
 
