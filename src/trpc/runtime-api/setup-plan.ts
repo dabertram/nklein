@@ -27,6 +27,17 @@ export interface GlobalSetupPlanFactSources {
 	/** Docker VM memory in MB (`docker info` Total Memory), or null when it can't be probed. Sizes the sandbox. */
 	getDockerVmMemoryMb: () => Promise<number | null>;
 	getSecondOpinionReviewEnabled: () => boolean;
+	/** F5.3 model-roles/fleet step: assigned vs total role count + the device RAM budget for load routing. */
+	getModelRoleCounts: () => { assigned: number; total: number };
+	getDeviceRamGb: () => number | null;
+	/** F5.3 memory & MCP step. */
+	getMemorySettings: () => {
+		basicMemoryEnabled: boolean;
+		sandboxMcpServersEnabled: boolean;
+		memoryFreshnessAuditEnabled: boolean;
+	};
+	/** F5.3 egress & retrieval step. */
+	getEgressSettings: () => { egressProxyEnabled: boolean; allowlistCount: number; retrievalEgressEnabled: boolean };
 	getCompletedAt: () => number | null;
 }
 
@@ -51,6 +62,9 @@ export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSourc
 		providerReachable = false;
 	}
 	const dockerVmMemoryMb = await sources.getDockerVmMemoryMb().catch(() => null);
+	const roleCounts = sources.getModelRoleCounts();
+	const memory = sources.getMemorySettings();
+	const egress = sources.getEgressSettings();
 	const facts: GlobalSetupFacts = {
 		totalRamMb: hardware.totalRamMb,
 		cpuCount: hardware.cpuCount,
@@ -60,6 +74,15 @@ export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSourc
 		dockerAvailable: sources.getDockerAvailable(),
 		dockerVmMemoryMb,
 		secondOpinionReviewEnabled: sources.getSecondOpinionReviewEnabled(),
+		assignedModelRoleCount: roleCounts.assigned,
+		totalModelRoleCount: roleCounts.total,
+		deviceRamGb: sources.getDeviceRamGb(),
+		basicMemoryEnabled: memory.basicMemoryEnabled,
+		sandboxMcpServersEnabled: memory.sandboxMcpServersEnabled,
+		memoryFreshnessAuditEnabled: memory.memoryFreshnessAuditEnabled,
+		egressProxyEnabled: egress.egressProxyEnabled,
+		egressAllowlistCount: egress.allowlistCount,
+		retrievalEgressEnabled: egress.retrievalEgressEnabled,
 	};
 	return { kind: "global", steps: buildGlobalSetupPlan(facts), completedAt: sources.getCompletedAt() };
 }

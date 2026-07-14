@@ -160,6 +160,15 @@ const globalFacts = (overrides: Partial<GlobalSetupFacts> = {}): GlobalSetupFact
 	providerEndpoint: "http://localhost:1234",
 	dockerAvailable: true,
 	secondOpinionReviewEnabled: true,
+	assignedModelRoleCount: 3,
+	totalModelRoleCount: 3,
+	deviceRamGb: 32,
+	basicMemoryEnabled: true,
+	sandboxMcpServersEnabled: false,
+	memoryFreshnessAuditEnabled: true,
+	egressProxyEnabled: false,
+	egressAllowlistCount: 0,
+	retrievalEgressEnabled: false,
 	...overrides,
 });
 
@@ -175,12 +184,48 @@ describe("buildGlobalSetupPlan", () => {
 	it("produces the steps in the stable global order with stable ids", () => {
 		const plan = buildGlobalSetupPlan(globalFacts());
 		expect(plan.map((s) => s.stepId)).toEqual([...GLOBAL_SETUP_STEP_IDS]);
-		expect(GLOBAL_SETUP_STEP_IDS).toEqual(["provider", "sandbox", "concurrency", "review", "guardrails", "features"]);
+		expect(GLOBAL_SETUP_STEP_IDS).toEqual([
+			"provider",
+			"models",
+			"sandbox",
+			"resources",
+			"concurrency",
+			"review",
+			"guardrails",
+			"memory",
+			"egress",
+			"features",
+		]);
 		for (const step of plan) {
 			expect(step.title.length).toBeGreaterThan(0);
 			expect(step.recommendation.length).toBeGreaterThan(0);
 			expect(step.detail.length).toBeGreaterThan(0);
 		}
+	});
+
+	it("F5.3 capability-group steps reflect their facts", () => {
+		// Fully-local privacy default + all roles assigned + fleet routing on.
+		const local = buildGlobalSetupPlan(globalFacts());
+		expect(local.find((s) => s.stepId === "models")?.recommendation).toContain("All 3 roles assigned");
+		expect(local.find((s) => s.stepId === "resources")?.recommendation).toContain("32 GB");
+		expect(local.find((s) => s.stepId === "egress")?.recommendation.toLowerCase()).toContain("fully local");
+		expect(local.find((s) => s.stepId === "memory")?.recommendation).toContain("Basic Memory");
+
+		// Opted into egress + partial roles + no fleet budget.
+		const opened = buildGlobalSetupPlan(
+			globalFacts({
+				assignedModelRoleCount: 1,
+				deviceRamGb: null,
+				retrievalEgressEnabled: true,
+				egressProxyEnabled: true,
+				egressAllowlistCount: 2,
+			}),
+		);
+		expect(opened.find((s) => s.stepId === "models")?.recommendation).toContain("1/3 roles assigned");
+		expect(opened.find((s) => s.stepId === "resources")?.recommendation.toLowerCase()).toContain("no device ram");
+		const egress = opened.find((s) => s.stepId === "egress")?.recommendation ?? "";
+		expect(egress).toContain("2 allowlisted hosts");
+		expect(egress.toLowerCase()).toContain("online retrieval");
 	});
 
 	it("reflects an unreachable provider and a fail-closed Docker state in the step text", () => {

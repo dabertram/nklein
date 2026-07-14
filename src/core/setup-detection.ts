@@ -241,6 +241,69 @@ export function summarizeReviewPostureChoice(enabled: boolean): string {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// New capability groups (F5.3) — model roles/fleet, resource policy, memory & MCP, egress & retrieval
+// ---------------------------------------------------------------------------------------------------------
+
+/** Headline for the model-roles/fleet step: how many roles are assigned + whether machine-aware routing is on. */
+export function summarizeModelRolesRecommendation(input: {
+	assignedRoleCount: number;
+	totalRoleCount: number;
+	deviceRamGb: number | null;
+}): string {
+	const rolePhrase =
+		input.assignedRoleCount >= input.totalRoleCount && input.totalRoleCount > 0
+			? `All ${input.totalRoleCount} roles assigned`
+			: `${input.assignedRoleCount}/${input.totalRoleCount} roles assigned`;
+	const fleetPhrase =
+		input.deviceRamGb !== null
+			? `machine-aware load routing on (${input.deviceRamGb} GB device budget)`
+			: "machine-aware load routing off (single-machine)";
+	return `${rolePhrase}; ${fleetPhrase}.`;
+}
+
+/** Headline for the resource-policy step: device RAM budget (fleet load routing) + idle-model eviction. */
+export function summarizeResourcePolicyRecommendation(deviceRamGb: number | null): string {
+	return deviceRamGb !== null
+		? `Device RAM budget ${deviceRamGb} GB — a task's model loads on a fitting machine; idle models auto-evict.`
+		: "No device RAM budget set — set NKLEIN_DEVICE_RAM_GB per machine to route model loads onto a fitting device (opt-in).";
+}
+
+/** Headline for the memory & MCP step: basic-memory, sandbox MCP servers, and the F5.2 freshness audit. */
+export function summarizeMemoryRecommendation(input: {
+	basicMemoryEnabled: boolean;
+	sandboxMcpServersEnabled: boolean;
+	freshnessAuditEnabled: boolean;
+}): string {
+	const on: string[] = [];
+	const off: string[] = [];
+	(input.basicMemoryEnabled ? on : off).push("Basic Memory");
+	(input.sandboxMcpServersEnabled ? on : off).push("sandbox MCP servers");
+	(input.freshnessAuditEnabled ? on : off).push("freshness audit");
+	const onPhrase = on.length > 0 ? `On: ${on.join(", ")}.` : "All off.";
+	const offPhrase = off.length > 0 ? ` Off: ${off.join(", ")}.` : "";
+	return `${onPhrase}${offPhrase}`;
+}
+
+/** Headline for the egress & retrieval step — privacy posture: everything OFF keeps all data on-machine. */
+export function summarizeEgressRecommendation(input: {
+	egressProxyEnabled: boolean;
+	retrievalEgressEnabled: boolean;
+	allowlistCount: number;
+}): string {
+	if (!input.egressProxyEnabled && !input.retrievalEgressEnabled) {
+		return "Fully local — no data leaves this machine (recommended default).";
+	}
+	const parts: string[] = [];
+	if (input.egressProxyEnabled) {
+		parts.push(`egress proxy on (${input.allowlistCount} allowlisted host${input.allowlistCount === 1 ? "" : "s"})`);
+	}
+	if (input.retrievalEgressEnabled) {
+		parts.push("online retrieval on (queries leave this machine)");
+	}
+	return `${parts.join("; ")}.`;
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // Plan composition (the wizard step model)
 // ---------------------------------------------------------------------------------------------------------
 
@@ -269,6 +332,21 @@ export interface GlobalSetupFacts {
 	dockerVmMemoryMb?: number | null;
 	/** Current second-opinion review posture (defaults to the global default when unset). */
 	secondOpinionReviewEnabled: boolean;
+	/** F5.3 model-roles/fleet step: how many of the roles carry an explicit model assignment. */
+	assignedModelRoleCount: number;
+	/** Total model roles the config exposes (denominator for the "N/M roles assigned" headline). */
+	totalModelRoleCount: number;
+	/** Per-device RAM budget (GB) for machine-aware load routing; null = unset (single-machine). F5.3 resources step. */
+	deviceRamGb: number | null;
+	/** F5.3 memory & MCP step. */
+	basicMemoryEnabled: boolean;
+	sandboxMcpServersEnabled: boolean;
+	/** F5.2 freshness audit enabled (surfaced in the memory step). */
+	memoryFreshnessAuditEnabled: boolean;
+	/** F5.3 egress & retrieval step. */
+	egressProxyEnabled: boolean;
+	egressAllowlistCount: number;
+	retrievalEgressEnabled: boolean;
 }
 
 /** Facts the caller gathers for the PROJECT wizard (repo detection). */
@@ -281,13 +359,21 @@ export interface ProjectSetupFacts {
 	detectedBaseBranch: string | null;
 }
 
-/** Stable step ids for the GLOBAL wizard (matches todo §5.BA's global step list). */
+/**
+ * Stable step ids for the GLOBAL wizard. F5.3 promotes the previously-buried capability groups to first-class steps:
+ * `models` (roles + fleet), `resources` (device RAM budget + idle eviction), `memory` (Basic Memory + MCP + freshness
+ * audit), and `egress` (proxy + retrieval) — each in a logical slot around the pre-existing steps.
+ */
 export const GLOBAL_SETUP_STEP_IDS = [
 	"provider",
+	"models",
 	"sandbox",
+	"resources",
 	"concurrency",
 	"review",
 	"guardrails",
+	"memory",
+	"egress",
 	"features",
 ] as const;
 
@@ -332,10 +418,28 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 			detail: `Probe the local model server (default ${facts.providerEndpoint}) and confirm the loaded models !Klein will drive. Local-only: no cloud provider is used.`,
 		},
 		{
+			stepId: "models",
+			title: "Model roles & fleet",
+			recommendation: summarizeModelRolesRecommendation({
+				assignedRoleCount: facts.assignedModelRoleCount,
+				totalRoleCount: facts.totalModelRoleCount,
+				deviceRamGb: facts.deviceRamGb,
+			}),
+			detail:
+				"Assign a model to each role (architect / worker / reviewer …); reviewer diversity — a different model than the author — strengthens the check. Across machines, machine-aware load routing places each task's model on a device with room for it.",
+		},
+		{
 			stepId: "sandbox",
 			title: "Docker sandbox",
 			recommendation: `One shared container @ ${sandbox.memoryPerContainerMb} MB / ${sandbox.cpusPerContainer} CPU, up to ${sandbox.maxConcurrentExec} concurrent command${sandbox.maxConcurrentExec === 1 ? "" : "s"}.`,
 			detail: [sandbox.rationale, dockerDetail, ...sandbox.warnings].join(" "),
+		},
+		{
+			stepId: "resources",
+			title: "Resource policy",
+			recommendation: summarizeResourcePolicyRecommendation(facts.deviceRamGb),
+			detail:
+				"Set a per-machine RAM budget (NKLEIN_DEVICE_RAM_GB) so a task's model loads on a device that fits it, and let idle auto-loaded models evict after their TTL to free memory. Opt-in: unset leaves loading fully manual.",
 		},
 		{
 			stepId: "concurrency",
@@ -359,11 +463,33 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 				"Per-task budgets (max autonomous turns, wall-time, repeated-no-diff checkpoints) stop a runaway or stalled swarm. The defaults are sane for local hardware; raise them only for large decompositions.",
 		},
 		{
+			stepId: "memory",
+			title: "Memory & MCP",
+			recommendation: summarizeMemoryRecommendation({
+				basicMemoryEnabled: facts.basicMemoryEnabled,
+				sandboxMcpServersEnabled: facts.sandboxMcpServersEnabled,
+				freshnessAuditEnabled: facts.memoryFreshnessAuditEnabled,
+			}),
+			detail:
+				"Basic Memory gives agents a persistent local knowledge base; sandbox-hosted MCP servers expose extra tools inside the container; the freshness audit periodically flags stale/orphaned/broken-link notes (read-only, never deletes). All stay on this machine.",
+		},
+		{
+			stepId: "egress",
+			title: "Egress & retrieval",
+			recommendation: summarizeEgressRecommendation({
+				egressProxyEnabled: facts.egressProxyEnabled,
+				retrievalEgressEnabled: facts.retrievalEgressEnabled,
+				allowlistCount: facts.egressAllowlistCount,
+			}),
+			detail:
+				"By default nothing leaves this machine. The egress proxy allows sandbox network access only to an explicit host allowlist; retrieval egress lets agents run online search/browse — both send data off-machine, so they are OFF by default and opt-in.",
+		},
+		{
 			stepId: "features",
 			title: "Optional features",
 			recommendation: "Review each opt-in trade-off; defaults are safe.",
 			detail:
-				"knows-today (date grounding), sandbox-hosted MCP servers, retrieval egress (sends search queries off this machine — OFF by default), and the file-overlap parallelism default. Each is skippable; keeping the defaults never sends data off-machine.",
+				"knows-today (date grounding) and the file-overlap parallelism default. Each is skippable; keeping the defaults never sends data off-machine.",
 		},
 	];
 }

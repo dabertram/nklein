@@ -67,6 +67,7 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
+import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
 import {
 	evalDifficultyToFitnessTier,
 	type ModelEvalChat,
@@ -600,6 +601,28 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getDockerAvailable: () => deps.getAgentSandboxStatus?.()?.dockerAvailable ?? null,
 				getDockerVmMemoryMb: () => probeDockerVmMemoryMb(),
 				getSecondOpinionReviewEnabled: () => globalConfig.secondOpinionReviewEnabled,
+				getModelRoleCounts: () => {
+					const entries = Object.values(globalConfig.modelRoles ?? {});
+					const assigned = entries.filter(
+						(role) => typeof role?.modelId === "string" && role.modelId.trim().length > 0,
+					).length;
+					return { assigned, total: entries.length };
+				},
+				getDeviceRamGb: () => {
+					// Stored as a string; parse to the numeric GB budget the wizard step reports (null when unset/invalid).
+					const parsed = globalConfig.deviceRamGb ? Number.parseInt(globalConfig.deviceRamGb, 10) : Number.NaN;
+					return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+				},
+				getMemorySettings: () => ({
+					basicMemoryEnabled: globalConfig.basicMemoryEnabled,
+					sandboxMcpServersEnabled: globalConfig.sandboxMcpServersEnabled,
+					memoryFreshnessAuditEnabled: globalConfig.memoryFreshnessAudit.enabled,
+				}),
+				getEgressSettings: () => ({
+					egressProxyEnabled: globalConfig.sandboxEgressProxyEnabled,
+					allowlistCount: parseEgressAllowlist(globalConfig.sandboxEgressAllowlist).length,
+					retrievalEgressEnabled: globalConfig.retrievalEgressEnabled,
+				}),
 				getCompletedAt: () => globalConfig.setupWizardCompletedAt,
 			});
 		},

@@ -9,23 +9,37 @@ describe("handleGetGlobalSetupPlan (§5.BA)", () => {
 		getDockerAvailable: () => true,
 		getDockerVmMemoryMb: async () => 16_384,
 		getSecondOpinionReviewEnabled: () => true,
+		getModelRoleCounts: () => ({ assigned: 3, total: 3 }),
+		getDeviceRamGb: () => 32,
+		getMemorySettings: () => ({
+			basicMemoryEnabled: true,
+			sandboxMcpServersEnabled: false,
+			memoryFreshnessAuditEnabled: true,
+		}),
+		getEgressSettings: () => ({ egressProxyEnabled: false, allowlistCount: 0, retrievalEgressEnabled: false }),
 		getCompletedAt: () => null,
 	};
 
-	it("assembles the six-step global plan with the completion stamp", async () => {
+	it("assembles the global plan (with the F5.3 capability-group steps) + the completion stamp", async () => {
 		const plan = await handleGetGlobalSetupPlan(baseSources);
 		expect(plan.kind).toBe("global");
 		expect(plan.completedAt).toBeNull();
 		expect(plan.steps.map((s) => s.stepId)).toEqual([
 			"provider",
+			"models",
 			"sandbox",
+			"resources",
 			"concurrency",
 			"review",
 			"guardrails",
+			"memory",
+			"egress",
 			"features",
 		]);
 		// Provider reachable → the provider step reports the loaded models.
 		expect(plan.steps[0]?.recommendation).toContain("2 models loaded");
+		// The F5.3 facts flow through to their steps.
+		expect(plan.steps.find((s) => s.stepId === "egress")?.recommendation.toLowerCase()).toContain("fully local");
 	});
 
 	it("reports provider-unreachable when the model probe rejects (fail-soft)", async () => {
