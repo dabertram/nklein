@@ -1,6 +1,8 @@
 // Settings save behavior (todo §5.AK) — pure validation + updateRuntimeConfig payload construction
 // for the runtime settings dialog. Extracted verbatim from the dialog's save handler; error messages,
 // check order, and payload shape are behavior-contract and must not drift.
+
+import { inputsToMemoryAudit } from "@/components/runtime-settings-memory-audit";
 import {
 	MODEL_ROLE_IDS,
 	MODEL_ROLE_LABELS,
@@ -286,6 +288,7 @@ export function buildRuntimeConfigSaveRequest(
 		speculativeMaxConcurrentSpecs: draft.speculativeMaxConcurrentSpecs,
 		speculativeMaxSpecsPerRun: draft.speculativeMaxSpecsPerRun,
 		swarmGuardrails: inputsToSwarmGuardrails(draft.swarmGuardrailInputs),
+		memoryFreshnessAudit: inputsToMemoryAudit(draft.memoryAuditInputs),
 		developerModeEnabled: draft.developerModeEnabled,
 		replayCardsEnabled: draft.replayCardsEnabled,
 		knowsTodayEnabled: draft.knowsTodayEnabled,

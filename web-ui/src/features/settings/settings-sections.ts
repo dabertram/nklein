@@ -1,12 +1,14 @@
-import { areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
+import { areRuntimeMemoryFreshnessAuditEqual, areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import { areCodeEmbeddingSettingsEqual } from "@/components/code-embedding-fields";
+import { inputsToMemoryAudit } from "@/components/runtime-settings-memory-audit";
 import { serializeModelRoles } from "@/components/runtime-settings-model-roles";
 import { inputsToSwarmGuardrails } from "@/components/runtime-settings-swarm-guardrails";
 import type { SettingsNavId } from "@/components/settings-nav";
 import {
 	type SettingsConfigSnapshot,
 	type SettingsDraft,
+	snapshotMemoryAuditInputs,
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
 
@@ -72,6 +74,7 @@ export const SETTINGS_SECTION_FIELDS = {
 		"agentRulesets",
 		"agentRulesetsOverride",
 		"swarmGuardrailInputs",
+		"memoryAuditInputs",
 		"maxAgentWritableFileLines",
 		"capabilityBrokerEnabled",
 		"skillDynamicsLevel",
@@ -117,6 +120,12 @@ function fieldDirty(field: keyof SettingsDraft, draft: SettingsDraft, snapshot: 
 		return !areRuntimeSwarmGuardrailsEqual(
 			inputsToSwarmGuardrails(draft.swarmGuardrailInputs),
 			snapshot.swarmGuardrails,
+		);
+	}
+	if (field === "memoryAuditInputs") {
+		return !areRuntimeMemoryFreshnessAuditEqual(
+			inputsToMemoryAudit(draft.memoryAuditInputs),
+			snapshot.memoryFreshnessAudit,
 		);
 	}
 	// Code-embedding settings compare via the domain equality the whole-dialog uses (a generic JSON compare
@@ -177,6 +186,10 @@ function resetFields(
 	for (const field of fields) {
 		if (field === "swarmGuardrailInputs") {
 			next.swarmGuardrailInputs = snapshotSwarmGuardrailInputs(snapshot);
+			continue;
+		}
+		if (field === "memoryAuditInputs") {
+			next.memoryAuditInputs = snapshotMemoryAuditInputs(snapshot);
 			continue;
 		}
 		(next as unknown as Record<string, unknown>)[field] = snapshot[field as keyof SettingsConfigSnapshot];
@@ -251,7 +264,7 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	// for the Tasks tab. `agentRulesets` is SHARED with the Agents tab (edited via the simplified presets here, the
 	// full panel there) — editing it lights BOTH dots, which is correct (both controls mutate the one object).
 	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
-	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
+	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs", "memoryAuditInputs"],
 	nklein: ["modelRoles", "modelGateUnsuitable", "modelGateUnknown", "llmfitCatalogUpdateMode", "skillDynamicsLevel"],
 	// `codeEmbeddingDefaults` is a derived useMemo (no direct setter) — the dirty dot JSON-compares it fine, but its
 	// Reset must revert the constituent provider/model/baseUrl sub-state (see the dialog's handler).

@@ -1,5 +1,10 @@
-import { DEFAULT_AGENT_RULESETS_CONFIG, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import {
+	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+} from "@runtime-contract";
 import { afterEach, describe, expect, it } from "vitest";
+import { memoryAuditToInputs } from "@/components/runtime-settings-memory-audit";
 import { swarmGuardrailsToInputs } from "@/components/runtime-settings-swarm-guardrails";
 import {
 	initSettingsDraftFromConfig,
@@ -49,6 +54,7 @@ const representativeConfig = {
 	speculativeMaxConcurrentSpecs: 2,
 	speculativeMaxSpecsPerRun: 4,
 	swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	developerModeEnabled: true,
 	replayCardsEnabled: true,
 	knowsTodayEnabled: true,
@@ -82,7 +88,11 @@ const representativeConfig = {
 
 function draftFromSnapshot(snapshot: SettingsConfigSnapshot): SettingsDraft {
 	const { swarmGuardrails, ...common } = snapshot;
-	return { ...common, swarmGuardrailInputs: swarmGuardrailsToInputs(swarmGuardrails) };
+	return {
+		...common,
+		swarmGuardrailInputs: swarmGuardrailsToInputs(swarmGuardrails),
+		memoryAuditInputs: memoryAuditToInputs(DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT),
+	};
 }
 
 const cleanLocal: SettingsLocalDraft = {

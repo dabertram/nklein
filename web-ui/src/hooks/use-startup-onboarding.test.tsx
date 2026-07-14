@@ -1,4 +1,4 @@
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import { DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +101,7 @@ function createRuntimeConfigResponse(
 		modelRoles: {},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		nkleinProviderSettings: {
 			providerId: null,
 			modelId: null,

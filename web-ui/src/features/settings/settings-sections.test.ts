@@ -3,6 +3,7 @@ import {
 	initSettingsDraftFromConfig,
 	type SettingsConfigSnapshot,
 	type SettingsDraft,
+	snapshotMemoryAuditInputs,
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
 import {
@@ -27,8 +28,12 @@ function snapshot(): SettingsConfigSnapshot {
 }
 
 function draftFrom(base: SettingsConfigSnapshot): SettingsDraft {
-	const { swarmGuardrails: _structured, ...common } = base;
-	return { ...common, swarmGuardrailInputs: snapshotSwarmGuardrailInputs(base) };
+	const { swarmGuardrails: _structured, memoryFreshnessAudit: _memoryAudit, ...common } = base;
+	return {
+		...common,
+		swarmGuardrailInputs: snapshotSwarmGuardrailInputs(base),
+		memoryAuditInputs: snapshotMemoryAuditInputs(base),
+	};
 }
 
 describe("SETTINGS_SECTION_FIELDS", () => {

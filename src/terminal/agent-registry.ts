@@ -213,6 +213,7 @@ export function buildRuntimeConfigResponse(
 		agentRulesetsOverride: runtimeConfig.agentRulesetsOverride,
 		effectiveAgentRulesets: runtimeConfig.effectiveAgentRulesets,
 		swarmGuardrails: runtimeConfig.swarmGuardrails,
+		memoryFreshnessAudit: runtimeConfig.memoryFreshnessAudit,
 		commitPromptTemplate: runtimeConfig.commitPromptTemplate,
 		openPrPromptTemplate: runtimeConfig.openPrPromptTemplate,
 		commitPromptTemplateDefault: runtimeConfig.commitPromptTemplateDefault,

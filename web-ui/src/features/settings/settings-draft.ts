@@ -2,8 +2,10 @@
 // dialog: how the draft is seeded/reset from a RuntimeConfigResponse and what makes it dirty.
 // This module owns BEHAVIOR only; the dialog (runtime-settings-dialog.tsx) stays composition/JSX.
 import {
+	areRuntimeMemoryFreshnessAuditEqual,
 	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
@@ -13,6 +15,11 @@ import {
 	normalizeAgentTimeoutProfile,
 	normalizeTemplateForComparison,
 } from "@/components/runtime-settings-dialog-helpers";
+import {
+	inputsToMemoryAudit,
+	type MemoryAuditInputs,
+	memoryAuditToInputs,
+} from "@/components/runtime-settings-memory-audit";
 import { normalizeModelRolesForSettings, serializeModelRoles } from "@/components/runtime-settings-model-roles";
 import {
 	inputsToSwarmGuardrails,
@@ -27,6 +34,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeMemoryFreshnessAudit,
 	RuntimeModelGateAction,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
@@ -119,6 +127,7 @@ interface SettingsDraftCommonFields {
 /** The dialog's editable draft. Swarm guardrails are held as raw form inputs while editing. */
 export interface SettingsDraft extends SettingsDraftCommonFields {
 	swarmGuardrailInputs: SwarmGuardrailInputs;
+	memoryAuditInputs: MemoryAuditInputs;
 }
 
 /**
@@ -128,6 +137,7 @@ export interface SettingsDraft extends SettingsDraftCommonFields {
  */
 export interface SettingsConfigSnapshot extends SettingsDraftCommonFields {
 	swarmGuardrails: RuntimeSwarmGuardrails;
+	memoryFreshnessAudit: RuntimeMemoryFreshnessAudit;
 }
 
 export interface SettingsDraftContext {
@@ -202,6 +212,7 @@ export function initSettingsDraftFromConfig(
 		speculativeMaxConcurrentSpecs: config?.speculativeMaxConcurrentSpecs ?? 1,
 		speculativeMaxSpecsPerRun: config?.speculativeMaxSpecsPerRun ?? 3,
 		swarmGuardrails: config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: config?.memoryFreshnessAudit ?? DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		developerModeEnabled: config?.developerModeEnabled ?? false,
 		replayCardsEnabled: config?.replayCardsEnabled ?? false,
 		knowsTodayEnabled: config?.knowsTodayEnabled ?? false,
@@ -240,6 +251,11 @@ export function initSettingsDraftFromConfig(
 /** The swarm-guardrail form inputs a snapshot resets the draft to. */
 export function snapshotSwarmGuardrailInputs(snapshot: SettingsConfigSnapshot): SwarmGuardrailInputs {
 	return swarmGuardrailsToInputs(snapshot.swarmGuardrails);
+}
+
+/** The memory-audit form inputs a snapshot resets the draft to. */
+export function snapshotMemoryAuditInputs(snapshot: SettingsConfigSnapshot): MemoryAuditInputs {
+	return memoryAuditToInputs(snapshot.memoryFreshnessAudit);
 }
 
 /** localStorage-backed task-default seed: only literal "true"/"false" override the fallback. */
@@ -378,6 +394,11 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (!areRuntimeSwarmGuardrailsEqual(inputsToSwarmGuardrails(draft.swarmGuardrailInputs), snapshot.swarmGuardrails)) {
+		return true;
+	}
+	if (
+		!areRuntimeMemoryFreshnessAuditEqual(inputsToMemoryAudit(draft.memoryAuditInputs), snapshot.memoryFreshnessAudit)
+	) {
 		return true;
 	}
 	if (draft.developerModeEnabled !== snapshot.developerModeEnabled) {

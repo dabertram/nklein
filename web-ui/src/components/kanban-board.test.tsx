@@ -1,4 +1,4 @@
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import { DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -225,6 +225,7 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		modelRoles: {},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		nkleinProviderSettings: {
 			providerId: "lmstudio",
 			modelId: "local-model",

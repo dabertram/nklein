@@ -9,6 +9,7 @@ import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
 import {
@@ -41,9 +42,11 @@ import {
 	LOCAL_CODE_EMBEDDING_MODEL,
 } from "@/components/code-embedding-fields";
 import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
+import { MemoryAuditSettingsPanel } from "@/components/memory-audit-settings-panel";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { ModelRolesEditor } from "@/components/model-roles-editor";
 import { buildDisplayedAgentCommand } from "@/components/runtime-settings-command-display";
+import { type MemoryAuditInputs, memoryAuditToInputs } from "@/components/runtime-settings-memory-audit";
 import { MODEL_ROLE_IDS, normalizeModelRolesForSettings } from "@/components/runtime-settings-model-roles";
 import { NetworkAccessSettingsSection } from "@/components/runtime-settings-network-access";
 import { normalizeProviderId } from "@/components/runtime-settings-provider-helpers";
@@ -61,6 +64,7 @@ import {
 	readBooleanTaskDefault,
 	readTaskAutoReviewModeDefault,
 	type SettingsDraft,
+	snapshotMemoryAuditInputs,
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
 import {
@@ -279,6 +283,9 @@ export function RuntimeSettingsDialog({
 	const [speculativeMaxSpecsPerRun, setSpeculativeMaxSpecsPerRun] = useState(3);
 	const [swarmGuardrailInputs, setSwarmGuardrailInputs] = useState<SwarmGuardrailInputs>(() =>
 		swarmGuardrailsToInputs(DEFAULT_RUNTIME_SWARM_GUARDRAILS),
+	);
+	const [memoryAuditInputs, setMemoryAuditInputs] = useState<MemoryAuditInputs>(() =>
+		memoryAuditToInputs(DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT),
 	);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	// Desktop-only "start on boot" — an IMMEDIATE OS action via the Electron bridge (NOT part of the config draft/save
@@ -715,6 +722,7 @@ export function RuntimeSettingsDialog({
 			speculativeMaxConcurrentSpecs,
 			speculativeMaxSpecsPerRun,
 			swarmGuardrailInputs,
+			memoryAuditInputs,
 			developerModeEnabled,
 			replayCardsEnabled,
 			knowsTodayEnabled,
@@ -778,6 +786,7 @@ export function RuntimeSettingsDialog({
 			speculativeMaxConcurrentSpecs,
 			speculativeMaxSpecsPerRun,
 			swarmGuardrailInputs,
+			memoryAuditInputs,
 			developerModeEnabled,
 			replayCardsEnabled,
 			knowsTodayEnabled,
@@ -920,6 +929,7 @@ export function RuntimeSettingsDialog({
 						break;
 					case "swarmGuardrailInputs":
 						setSwarmGuardrailInputs(snapshotSwarmGuardrailInputs(configSnapshot));
+						setMemoryAuditInputs(snapshotMemoryAuditInputs(configSnapshot));
 						break;
 					case "commitPromptTemplate":
 						setCommitPromptTemplate(configSnapshot.commitPromptTemplate);
@@ -1129,6 +1139,7 @@ export function RuntimeSettingsDialog({
 		setSpeculativeMaxConcurrentSpecs(snapshot.speculativeMaxConcurrentSpecs);
 		setSpeculativeMaxSpecsPerRun(snapshot.speculativeMaxSpecsPerRun);
 		setSwarmGuardrailInputs(snapshotSwarmGuardrailInputs(snapshot));
+		setMemoryAuditInputs(snapshotMemoryAuditInputs(snapshot));
 		setDeveloperModeEnabled(snapshot.developerModeEnabled);
 		setReplayCardsEnabled(snapshot.replayCardsEnabled);
 		setKnowsTodayEnabled(snapshot.knowsTodayEnabled);
@@ -2776,6 +2787,17 @@ export function RuntimeSettingsDialog({
 								lostHeartbeatPolicy={lostHeartbeatPolicy}
 								decompositionAutoApplyEnabled={decompositionAutoApplyEnabled}
 								modelRoles={modelRolesOverride ?? modelRoles}
+							/>
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
+								Basic Memory Audit
+							</h6>
+							<MemoryAuditSettingsPanel
+								value={memoryAuditInputs}
+								onChange={setMemoryAuditInputs}
+								disabled={controlsDisabled}
 							/>
 						</div>
 

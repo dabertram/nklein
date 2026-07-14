@@ -1,4 +1,4 @@
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import { DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import type { ReactNode } from "react";
 import { act, createContext, useContext } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -384,6 +384,7 @@ const savedNKleinOauthConfig = {
 		delivery: { globalPreset: "strict" },
 	},
 	swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",
 	commitPromptTemplateDefault: "",

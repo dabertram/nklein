@@ -1,4 +1,4 @@
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import { DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -104,6 +104,7 @@ function createRuntimeConfigResponse(
 		modelRoles: {},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		nkleinProviderSettings: {
 			providerId: "nklein",
 			modelId: "sonnet",

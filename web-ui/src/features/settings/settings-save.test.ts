@@ -1,5 +1,6 @@
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
+import { DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT, DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import { describe, expect, it } from "vitest";
+import { memoryAuditToInputs } from "@/components/runtime-settings-memory-audit";
 import { swarmGuardrailsToInputs } from "@/components/runtime-settings-swarm-guardrails";
 import {
 	initSettingsDraftFromConfig,
@@ -21,7 +22,11 @@ import type { RuntimeNKleinProviderModel } from "@/runtime/types";
 
 function draftFromSnapshot(snapshot: SettingsConfigSnapshot): SettingsDraft {
 	const { swarmGuardrails, ...common } = snapshot;
-	return { ...common, swarmGuardrailInputs: swarmGuardrailsToInputs(swarmGuardrails) };
+	return {
+		...common,
+		swarmGuardrailInputs: swarmGuardrailsToInputs(swarmGuardrails),
+		memoryAuditInputs: memoryAuditToInputs(DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT),
+	};
 }
 
 /** A valid draft seeded from the no-config defaults. */
