@@ -46,6 +46,7 @@ import { createIdleTaskSession } from "@/hooks/app-utils";
 import { KanbanAccessBlockedFallback } from "@/hooks/kanban-access-blocked-fallback";
 import { RuntimeDisconnectedFallback } from "@/hooks/runtime-disconnected-fallback";
 import { useAppHotkeys } from "@/hooks/use-app-hotkeys";
+import { useAskNotifications } from "@/hooks/use-ask-notifications";
 import { useBoardActivityTicks } from "@/hooks/use-board-activity-ticks";
 import { useBoardInteractions } from "@/hooks/use-board-interactions";
 import { useDebugTools } from "@/hooks/use-debug-tools";
@@ -55,6 +56,7 @@ import { useFeaturebaseFeedbackWidget } from "@/hooks/use-featurebase-feedback-w
 import { useGitActions } from "@/hooks/use-git-actions";
 import { useKanbanAccessGate } from "@/hooks/use-kanban-access-gate";
 import { useOpenWorkspace } from "@/hooks/use-open-workspace";
+import { useOwningChatFeedbackFlags } from "@/hooks/use-owning-chat-feedback";
 import { parseRemovedProjectPathFromStreamError, useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useProjectUiState } from "@/hooks/use-project-ui-state";
 import { useReviewReadyNotifications } from "@/hooks/use-review-ready-notifications";
@@ -114,7 +116,9 @@ export default function App(): ReactElement {
 	// W3.4 needs-you badge: cards needing the operator (blocked / parked / attention-held), computed with the same
 	// rollup the board-health summary uses so both tell one story. Rendered next to the zoom control at EVERY zoom
 	// (the whole point: at chat/overview zooms the board's own summary is hidden).
-	const needsYouCount = useMemo(() => {
+	// The operator inbox (needs-you rollup). Shared by the needs-you badge (its `.total`) and the F2.15b ASK-
+	// notification hook (its per-kind task lists), so both tell one story from one computation.
+	const boardHealthInbox = useMemo(() => {
 		const health = summarizeBoardHealth(
 			{ columns: board.columns.map((column) => ({ id: column.id, cards: column.cards })) },
 			sessions,
@@ -126,8 +130,9 @@ export default function App(): ReactElement {
 				};
 			},
 		);
-		return health.inbox.total;
+		return health.inbox;
 	}, [board.columns, sessions]);
+	const needsYouCount = boardHealthInbox.total;
 	// §5.BB map spotlight: the card whose chat chip is hovered — its bubble gets a ring on the activity map (Z1).
 	const [chatHoverCardId, setChatHoverCardId] = useState<string | null>(null);
 	// W3.4: the dedicated full-board dependency-graph view (pan/zoom, cycle edges marked).
@@ -418,6 +423,18 @@ export default function App(): ReactElement {
 		taskSessions: sessions,
 		readyForReviewNotificationsEnabled,
 		workspacePath,
+	});
+
+	// F2.15b: OS notifications for the OTHER needs-you ASKs (needs_input / escalated / delivery-held / blocked),
+	// gated by the same opt-in + the active workspace's owning chat's F2.14 mute/quiet preferences.
+	const owningChatFeedback = useOwningChatFeedbackFlags(activeNotificationWorkspaceId);
+	useAskNotifications({
+		enabled: readyForReviewNotificationsEnabled,
+		inbox: boardHealthInbox,
+		activeWorkspaceId: activeNotificationWorkspaceId,
+		isDocumentVisible,
+		muted: owningChatFeedback.muted,
+		quiet: owningChatFeedback.quiet,
 	});
 
 	const { createTaskBranchOptions, defaultTaskBranchRef } = useTaskBranchOptions({ workspaceGit });

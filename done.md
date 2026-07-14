@@ -1044,6 +1044,19 @@
   hard escalated_to_operator / blocked / delivery_gate_held) — with per-`${taskId}:${kind}` dedupe and typed
   suppression reasons. Consumes the F2.14 mute/quiet flags. 5 tests over every gate + the quiet split + the
   precedence order. web-ui tsc 0; web-ui 1052 green.
+- [x] **F2.15b — the ASK-tier OS notifier wired over the decision core** *(delivered 2026-07-14; completes F2.15).*
+  A sibling to `use-review-ready-notifications` (which owns the `review_ready` ASK) now fires OS notifications for
+  the OTHER four needs-you kinds. Pure `web-ui/src/utils/ask-notification-source.ts`: `deriveActionableAsks` maps
+  the operator inbox's per-kind task lists (clarifyingQuestions→needs_input, escalatedToOperator, held+protected→
+  delivery_gate_held [deduped], blockedOnSetup→blocked; unsafe-acks deliberately excluded — not a defined ASK
+  kind), and `planAskNotifications` composes `decideAskNotification` over them, carrying a notified-keys set pruned
+  to still-present ASKs so a resolved-then-recurring ASK re-fires. Thin `use-ask-notifications` hook reads
+  permission + app-visible/focused (ownerVisible) and fires `new Notification` for each `toFire`. Wired in `App`:
+  `boardHealthInbox` is now lifted from the needs-you rollup (shared with the badge), and the owning chat's F2.14
+  mute/quiet come from a new lightweight app-level `chat.listSessions` query (`use-owning-chat-feedback` — the
+  architecture call David approved; staleness-after-toggle noted in-code). 8 pure tests (mapping/dedup + every
+  gate + the prune) — the effectful `new Notification` stays in the thin hook, matching the untested review-ready
+  hook's shape. App mounts clean (7 e2e incl. full-App smoke). web-ui tsc 0; lint 0.
 - [x] **F2.16a — the isolated LLM target picker (rung 5) — pure core + LIVE-VALIDATED** *(delivered 2026-07-13;
   caller wiring is F2.16b in todo).* `src/core/message-target-picker.ts` runs ONLY after the deterministic
   `resolveMessageTarget` ladder returns `source:"ambiguous"`. `buildTargetPickerPrompt` shows the model only the

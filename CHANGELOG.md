@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **You now get a desktop notification the moment a card needs you — not just when one's ready for review.** With
+  notifications enabled, !Klein alerts you when a card asks a question, gets escalated, has its delivery held, or is
+  blocked and waiting — as soon as it happens and only while you're looking elsewhere (a visible board already shows
+  it). The alerts respect each chat's mute and quiet settings: muting a project's chat silences its alerts, and
+  quiet mode keeps the hard stops (escalations, held deliveries, blocks) while dropping the softer "needs input"
+  ones. Each situation notifies once, and re-notifies if it recurs after being resolved.
+
 - **Stuck cards now offer one-click resume.** When a card exhausts automatic recovery and escalates, its "what was
   tried" panel shows the get-through-the-wall options with a resume button on the ones you can act on directly —
   approving a blocked action, pointing it at a more capable model, or retrying after you've fixed the environment.

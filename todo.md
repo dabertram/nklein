@@ -945,15 +945,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
-- [ ] **F2.15b — Wire the ASK-tier notifier hook over the decision core (core SHIPPED 2026-07-13).**
-  `web-ui/src/utils/ask-notification-decision.ts` (`decideAskNotification`) is the pure gate: fires an OS
-  notification ONLY for an actionable ASK kind (needs_input / escalated_to_operator / delivery_gate_held /
-  blocked / review_ready) when OS permission is granted, the owning chat is NOT visible, the session is not
-  muted, and — for quiet mode — the ASK is a hard block/escalation (quiet suppresses the softer asks, never a
-  hard stop); dedupes by the `${taskId}:${kind}` ASK key. Honors the F2.14 mute/quiet flags. REMAINING: generalize
-  the existing `use-review-ready-notifications` hook (or add a sibling) to feed EVERY needs-you ASK signal
-  through this core and fire `new Notification` on `notify:true` (reusing the review-ready hook's tab-presence +
-  badge-sync + click-to-focus machinery), then a Playwright/mocked-Notification pass.- [ ] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
+- [ ] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
