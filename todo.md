@@ -1319,7 +1319,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   is NO genuine unexposed top-level non-experimental setting. REMAINING (largely already covered by F1.29a/b): confirm
   each control's global/project provenance + validation + reset + a test; do a Settings-dialog browser pass to spot any
   control that renders but lacks reset/provenance.
-- [ ] **F5.2 — Add Basic Memory audit-cadence controls.** Expose safe defaults, project override, last/next audit, and
+- [~] **F5.2 — Add Basic Memory audit-cadence controls.** (David 2026-07-14: BUILD a freshness/consistency audit.)
+  **AUDIT CORE SHIPPED (`8afd6d08`):** `src/core/memory-freshness-audit.ts` `auditMemoryFreshness` — cadence-gated,
+  model-free structural audit flagging stale/orphaned/broken_link/duplicate_title notes + `shouldRunFreshnessAudit`
+  cadence gate; 8 tests. Complementary to the model-driven TRUTH audit in `memory-audit.ts`. **REMAINING (b-leaf):**
+  `memoryFreshnessAudit` config object (enabled/cadenceMs/stalenessThresholdMs/paused) plumbed through the config stack
+  (contract→defaults→state-factory→save-payload→update-merge, the swarmGuardrails pattern); the idle-rail wiring that
+  reads real basic-memory notes into `AuditableMemoryNote` + runs on the cadence; and Settings controls (cadence/pause/
+  last-next-audit). Expose safe defaults, project override, last/next audit, and
   pause behavior without turning idle evaluation into polling churn.
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
   models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity

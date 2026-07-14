@@ -87,6 +87,55 @@ export const DEFAULT_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = {
 	maxRepeatedToolCallsPerTask: RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
 };
 
+// F5.2 Basic Memory freshness/consistency audit controls (operator-tunable from Settings, reset-able). The audit is
+// read-only (flags stale/orphaned/broken-link/duplicate notes — never deletes), so it's safe ON by default; the
+// cadence gates it so the idle rail never churns. Bounds keep a typo from setting a churny cadence or a nonsense window.
+const MS_PER_DAY_CONFIG = 24 * 60 * 60 * 1000;
+export const RUNTIME_MEMORY_FRESHNESS_AUDIT_BOUNDS = {
+	cadenceMs: { min: MS_PER_DAY_CONFIG, max: 90 * MS_PER_DAY_CONFIG },
+	stalenessThresholdMs: { min: 7 * MS_PER_DAY_CONFIG, max: 365 * MS_PER_DAY_CONFIG },
+} as const;
+
+export const runtimeMemoryFreshnessAuditSchema = z.object({
+	enabled: z.boolean(),
+	/** When true, the audit is temporarily suspended without losing the enabled setting (the F5.2 pause control). */
+	paused: z.boolean(),
+	cadenceMs: z.number().int().positive(),
+	stalenessThresholdMs: z.number().int().positive(),
+});
+export type RuntimeMemoryFreshnessAudit = z.infer<typeof runtimeMemoryFreshnessAuditSchema>;
+
+export const DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT: RuntimeMemoryFreshnessAudit = {
+	enabled: true,
+	paused: false,
+	cadenceMs: 7 * MS_PER_DAY_CONFIG, // weekly — never churny
+	stalenessThresholdMs: 90 * MS_PER_DAY_CONFIG, // a note untouched for a quarter is worth a look
+};
+
+/** Clamp + fill a partial/untrusted memory-audit config to the bounded, fully-populated shape (never drifts). */
+export function normalizeRuntimeMemoryFreshnessAudit(value: unknown): RuntimeMemoryFreshnessAudit {
+	const parsed =
+		value && typeof value === "object" ? (value as Partial<Record<keyof RuntimeMemoryFreshnessAudit, unknown>>) : {};
+	const clamp = (raw: unknown, bounds: { min: number; max: number }, fallback: number): number => {
+		const n = typeof raw === "number" && Number.isFinite(raw) ? Math.floor(raw) : fallback;
+		return Math.min(bounds.max, Math.max(bounds.min, n));
+	};
+	return {
+		enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT.enabled,
+		paused: typeof parsed.paused === "boolean" ? parsed.paused : DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT.paused,
+		cadenceMs: clamp(
+			parsed.cadenceMs,
+			RUNTIME_MEMORY_FRESHNESS_AUDIT_BOUNDS.cadenceMs,
+			DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT.cadenceMs,
+		),
+		stalenessThresholdMs: clamp(
+			parsed.stalenessThresholdMs,
+			RUNTIME_MEMORY_FRESHNESS_AUDIT_BOUNDS.stalenessThresholdMs,
+			DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT.stalenessThresholdMs,
+		),
+	};
+}
+
 // §5.AI "background eval" guardrail profile: lenient on the SLOW-PROGRESS guards (turns / wall-time / no-diff
 // checkpoints) so a slow-but-progressing small local model on the always-on dev-test rail isn't parked prematurely —
 // while keeping the LOOP guard (`maxRepeatedToolCallsPerTask`) near-default so a genuinely stuck/looping agent still
@@ -161,6 +210,18 @@ export function areRuntimeSwarmGuardrailsEqual(a: RuntimeSwarmGuardrails, b: Run
 		a.maxAutonomousWallTimeMs === b.maxAutonomousWallTimeMs &&
 		a.maxRepeatedNoDiffCheckpoints === b.maxRepeatedNoDiffCheckpoints &&
 		a.maxRepeatedToolCallsPerTask === b.maxRepeatedToolCallsPerTask
+	);
+}
+
+export function areRuntimeMemoryFreshnessAuditEqual(
+	a: RuntimeMemoryFreshnessAudit,
+	b: RuntimeMemoryFreshnessAudit,
+): boolean {
+	return (
+		a.enabled === b.enabled &&
+		a.paused === b.paused &&
+		a.cadenceMs === b.cadenceMs &&
+		a.stalenessThresholdMs === b.stalenessThresholdMs
 	);
 }
 
