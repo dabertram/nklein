@@ -1,4 +1,5 @@
 import { buildStucknessSignalsFromReport, classifyAgentStuckness } from "@runtime-agent-stuckness";
+import { describeEscalationResumeAction } from "@runtime-escalation-resume-action";
 import { buildEscalationSuggestions } from "@runtime-escalation-suggestions";
 import { History, RefreshCw } from "lucide-react";
 import type React from "react";
@@ -32,11 +33,15 @@ export function TaskEscalationPanel({
 	workspaceId,
 	taskId,
 	blockedKind,
+	onRedrive,
 }: {
 	workspaceId: string | null;
 	taskId: string;
 	/** The card's start-blocking reason (if any) — promotes the most-likely "get through the wall" fix to the front. */
 	blockedKind?: TaskBlockedKind | null;
+	/** F2.18b: resume a parked card from its result branch (the redrive path — a reopen, not a cold restart). When
+	 *  present, `direct_redrive` suggestions render a one-click resume button. */
+	onRedrive?: (taskId: string) => void;
 }): React.ReactElement {
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -163,12 +168,38 @@ export function TaskEscalationPanel({
 									<div className="text-text-secondary">
 										Automatic recovery exhausted — escalate to the user. Options to get through the wall:
 									</div>
-									<ul className="mt-0.5 list-disc pl-4 text-text-tertiary">
-										{verdict.suggestions.map((suggestion) => (
-											<li key={suggestion.kind} title={suggestion.detail}>
-												{suggestion.title}
-											</li>
-										))}
+									<ul className="mt-0.5 list-none space-y-1 pl-0">
+										{verdict.suggestions.map((suggestion) => {
+											// F2.18b: a `direct_redrive` suggestion (approve / more-capable model / fixed environment)
+											// resumes the parked card from its result branch in one click. `input_then_redrive` still
+											// needs the operator's input threaded in first (F2.18c); `manual` (re-scope) has no in-place
+											// resume. `resumesSuspendedState` is the redrive-not-restart contract.
+											const resume = describeEscalationResumeAction(suggestion.kind);
+											return (
+												<li
+													key={suggestion.kind}
+													className="flex items-center justify-between gap-2"
+													title={suggestion.detail}
+												>
+													<span className="min-w-0 truncate text-text-tertiary">• {suggestion.title}</span>
+													{resume.mode === "direct_redrive" && onRedrive ? (
+														<Button
+															size="sm"
+															variant="ghost"
+															className="shrink-0"
+															data-testid={`escalation-resume-${suggestion.kind}`}
+															onClick={() => onRedrive(taskId)}
+														>
+															{resume.actionLabel}
+														</Button>
+													) : resume.mode === "input_then_redrive" ? (
+														<span className="shrink-0 text-[10px] italic text-text-tertiary">
+															provide {resume.requiresInput} on the card, then resume
+														</span>
+													) : null}
+												</li>
+											);
+										})}
 									</ul>
 								</div>
 							) : null}

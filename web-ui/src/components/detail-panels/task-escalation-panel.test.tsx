@@ -118,9 +118,9 @@ describe("TaskEscalationPanel", () => {
 		fetchTaskEscalationMock.mockResolvedValue(hardStuckReport());
 		await expand("agent_sandbox_unavailable");
 		const items = Array.from(container.querySelectorAll("li")).map((li) => li.textContent);
-		expect(items[0]).toBe("Fix the environment");
+		expect(items[0]).toContain("Fix the environment");
 		// the full set still shows — promotion only reorders.
-		expect(items).toContain("Clarify the goal");
+		expect(items.some((text) => text?.includes("Clarify the goal"))).toBe(true);
 	});
 
 	it("does not promote fix-environment for a non-environment blocker (needs_decomposition)", async () => {
@@ -128,7 +128,41 @@ describe("TaskEscalationPanel", () => {
 		await expand("needs_decomposition");
 		const items = Array.from(container.querySelectorAll("li")).map((li) => li.textContent);
 		// default order leads with "Clarify the goal"; fix-environment stays in its default (non-front) slot.
-		expect(items[0]).toBe("Clarify the goal");
-		expect(items).toContain("Fix the environment");
+		expect(items[0]).toContain("Clarify the goal");
+		expect(items.some((text) => text?.includes("Fix the environment"))).toBe(true);
+	});
+
+	async function expandWithRedrive(onRedrive: (taskId: string) => void): Promise<void> {
+		await act(async () => {
+			root.render(<TaskEscalationPanel workspaceId="ws" taskId="t1" onRedrive={onRedrive} />);
+			await Promise.resolve();
+		});
+		await act(async () => {
+			container.querySelector("button")?.click(); // the "What was tried" toggle
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+	}
+
+	it("F2.18b: a direct-redrive suggestion renders a one-click resume button that redrives the task", async () => {
+		fetchTaskEscalationMock.mockResolvedValue(hardStuckReport());
+		const redriven: string[] = [];
+		await expandWithRedrive((taskId) => redriven.push(taskId));
+		// `provide_more_capable_model` is a direct_redrive kind ("Make a more capable model available").
+		const resumeButton = container.querySelector<HTMLButtonElement>(
+			'[data-testid="escalation-resume-provide_more_capable_model"]',
+		);
+		expect(resumeButton).not.toBeNull();
+		expect(resumeButton?.textContent).toBe("Resume with the new model");
+		act(() => resumeButton?.click());
+		expect(redriven).toEqual(["t1"]);
+	});
+
+	it("F2.18b: an input-then-redrive suggestion shows a 'provide input first' hint, not a resume button", async () => {
+		fetchTaskEscalationMock.mockResolvedValue(hardStuckReport());
+		await expandWithRedrive(() => undefined);
+		// `clarify_ambiguity` requires an answer first — no direct resume button, a hint instead.
+		expect(container.querySelector('[data-testid="escalation-resume-clarify_ambiguity"]')).toBeNull();
+		expect(container.textContent).toContain("provide answer on the card, then resume");
 	});
 });

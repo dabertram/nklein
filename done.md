@@ -1085,6 +1085,19 @@
   there is no single suspended state to resume). Every resumable kind asserts `resumesSuspendedState: true` — the
   contract that the redrive resumes from the parked result branch, never a cold restart. 2 tests over all seven
   kinds. tsc 0, fast 9571 green.
+- [x] **F2.18b — the direct-redrive resume buttons rendered in the escalation panel** *(delivered 2026-07-14; the
+  input-first delivery is F2.18c in todo).* `task-escalation-panel.tsx` now renders, per hard-stuck suggestion, a
+  one-click resume button for the `direct_redrive` kinds (approve-blocked / more-capable-model / fixed-environment)
+  labeled from `describeEscalationResumeAction`, wired to a new `onRedrive` prop = the card detail's existing
+  `onStartTask` — which reopens the parked mirror (kernel `reopened` command) and resumes from the result branch,
+  honoring `resumesSuspendedState` (a redrive, not a cold restart). `manual` (re-scope) shows no button;
+  `input_then_redrive` shows a "provide <input> on the card, then resume" hint (its actionable input delivery is
+  F2.18c, deliberately deferred because `sendTaskChatMessage`'s resume semantics are not obviously the
+  parked-result-branch resume the contract needs — a lost-answer hazard to get wrong). New
+  `@runtime-escalation-resume-action` alias (tsconfig + vite + vitest). Verified via the panel's component test
+  (its convention — no e2e opens this panel): a direct-redrive suggestion renders a button that calls
+  `onRedrive(taskId)`; an input-first suggestion shows the hint, not a button. web-ui tsc 0; lint 0; panel suite
+  7/7.
 - [x] **F2.19a — read-only !Klein self-awareness: corpus freshness/provenance core** *(delivered 2026-07-13;
   the live-data feed + explicit write-block test are F2.19b in todo).* klein_self already indexed the corpus
   (`routeKleinSelfCorpus` over done/todo/agents/changelog/docs) and blocked self-writes (scope →

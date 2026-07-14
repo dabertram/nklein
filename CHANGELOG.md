@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Stuck cards now offer one-click resume.** When a card exhausts automatic recovery and escalates, its "what was
+  tried" panel shows the get-through-the-wall options with a resume button on the ones you can act on directly —
+  approving a blocked action, pointing it at a more capable model, or retrying after you've fixed the environment.
+  Clicking resume continues the card from exactly where it parked (its saved work), rather than restarting it cold.
+  (Options that need you to supply an answer or context first still guide you to provide that on the card.)
+
 - **When a chat message could address more than one card, the agent now tries to figure out which you meant before
   asking.** Previously an ambiguous message (e.g. an `@handle` that matched two same-named cards) always stopped to
   ask you to pick. Now a quick, isolated model turn first attempts to resolve it from the message alone — and only

@@ -28,7 +28,8 @@
       "@runtime-task-state": ["../src/core/task-board-mutations.ts"],
       "@runtime-operator-board-health": ["../src/core/operator-board-health.ts"],
       "@runtime-agent-stuckness": ["../src/core/agent-stuckness.ts"],
-      "@runtime-escalation-suggestions": ["../src/core/escalation-suggestions.ts"]
+      "@runtime-escalation-suggestions": ["../src/core/escalation-suggestions.ts"],
+      "@runtime-escalation-resume-action": ["../src/core/escalation-resume-action.ts"]
     },
     "types": ["vitest/globals"]
   },

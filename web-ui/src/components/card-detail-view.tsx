@@ -858,6 +858,7 @@ export function CardDetailView({
 								workspaceId={currentProjectId}
 								taskId={selection.card.id}
 								blockedKind={selection.card.blockedKind}
+								{...(onStartTask ? { onRedrive: onStartTask } : {})}
 							/>
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1045,6 +1046,7 @@ export function CardDetailView({
 									workspaceId={currentProjectId}
 									taskId={selection.card.id}
 									blockedKind={selection.card.blockedKind}
+									{...(onStartTask ? { onRedrive: onStartTask } : {})}
 								/>
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (

@@ -966,17 +966,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (tested). The signal defaults false through `mapSessionSummaryToOperatorSignals` + `OperatorSignalOverrides`.
   REMAINING (b-leaf, needs a producer): the F1.9b boundary hold in runtime-server must mark the session summary
   distinguishably (today `reviewReason` is only attention/error/hook/interrupted — no protected-path variant),
-  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.- [ ] **F2.18b — Render per-suggestion resume buttons wired to redrive (resume-action mapping SHIPPED
-  2026-07-13).** Rendering `buildEscalationSuggestions` beside the attempt chain + evidence-backed prioritization
-  already exist (`task-escalation-panel.tsx` + `hard-stuck-escalation.ts`'s CONTEXT_PRIORITY). The missing F2.18
-  piece — "approved actions re-enter the EXACT suspended state" — now has its core:
-  `src/core/escalation-resume-action.ts` maps each suggestion kind to a typed resume action
-  (`direct_redrive` for approve/model/env, `input_then_redrive` for clarify/context/constraint naming the
-  required input, `manual` only for re-scope which spawns new cards), every resumable kind asserting
-  `resumesSuspendedState` (the redrive resumes from the parked result branch, not a cold restart). REMAINING:
-  render an action button per suggestion in the panel (label from the descriptor), collect the required input
-  for the input-first kinds, and dispatch the redrive (`redrive_task` ops action already resumes from the result
-  branch) — then Playwright.
+  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.
+- [ ] **F2.18c — Collect + deliver operator input for the `input_then_redrive` escalation kinds (direct-redrive
+  buttons SHIPPED 2026-07-14).** F2.18b shipped the panel buttons: `task-escalation-panel.tsx` now renders, per
+  suggestion, a one-click resume button for `direct_redrive` kinds (approve / more-capable-model / fixed-env),
+  wired to `onRedrive` = the card's `onStartTask` (which reopens the parked mirror via the kernel `reopened`
+  command and resumes from the result branch — the `resumesSuspendedState` contract). `manual` (re-scope) shows
+  no button; `input_then_redrive` (clarify/context/constraint) shows a "provide <input> on the card, then resume"
+  hint. REMAINING: make the input-first kinds actionable — an inline input field per suggestion that, on submit,
+  DELIVERS the operator's answer/context/constraint to the parked card THEN redrives. This needs a
+  deliver-then-resume-from-result-branch seam: `sendTaskChatMessage`'s resume semantics (rebind/resume-persisted,
+  or "not running") are NOT obviously the parked-result-branch resume that `resumesSuspendedState` requires — pick
+  (or build) a delivery path that threads the input into the SAME suspended state the redrive resumes, don't
+  silently route it to a cold/persisted session (a lost-answer hazard). Then a Playwright pass over the resume
+  buttons + the input-first flow.
 - [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity** *(NEEDS A DESIGN CALL — flagged
   2026-07-14 during the autonomous sweep; the mechanical-continuation vein runs thin here).* The stable-identity
   PRIMITIVE already exists and is LIVE for ROUTING: `src/core/stable-model-identity.ts` (`resolveStableModelKey`,
