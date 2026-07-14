@@ -1308,8 +1308,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 5A. Remaining functional UI *(legacy §5.W, §5.BB, §5.BC)*
 
-- [ ] **F5.1 — Expose every remaining non-experimental runtime setting.** Audit config→API→UI after phases 1–4; each
+- [~] **F5.1 — Expose every remaining non-experimental runtime setting.** Audit config→API→UI after phases 1–4; each
   user-relevant control needs effective global/project provenance, validation, reset, and tests.
+  **AUDIT DONE 2026-07-14 (David greenlit "expose all non-experimental"): coverage is essentially COMPLETE.** Diffed the
+  runtime-config contract (`runtime-config-api-contract.ts`) against the UI settings-draft (`web-ui/.../settings-draft.ts`,
+  ~152 fields). Every config field NOT literally in the draft turned out to be a NESTED sub-field of an already-exposed
+  object (e.g. `maxAutonomousTurnsPerTask`/`maxAutonomousWallTimeMs`/`maxRepeatedNoDiffCheckpoints`/
+  `maxRepeatedToolCallsPerTask` are fields of `runtimeSwarmGuardrailsSchema`, exposed as Settings → "Local swarm
+  guardrails"; `modelId`/`providerId`/`reasoningEffort`/`roleOverrides`/… are `modelRoles` sub-fields, exposed). So there
+  is NO genuine unexposed top-level non-experimental setting. REMAINING (largely already covered by F1.29a/b): confirm
+  each control's global/project provenance + validation + reset + a test; do a Settings-dialog browser pass to spot any
+  control that renders but lacks reset/provenance.
 - [ ] **F5.2 — Add Basic Memory audit-cadence controls.** Expose safe defaults, project override, last/next audit, and
   pause behavior without turning idle evaluation into polling churn.
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
