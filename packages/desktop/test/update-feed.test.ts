@@ -176,6 +176,39 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 		expect(result.manifest.channel).toBe("beta");
 	});
 
+	it("F5.5: selects a dev-tagged prerelease on the dev channel", async () => {
+		const { fetch } = fetchSequence([
+			response([
+				{ tag_name: "v0.2.0-beta.1", prerelease: true, assets: [] },
+				{
+					tag_name: "v0.3.0-dev.7",
+					prerelease: true,
+					assets: [{ name: "desktop-update.json", browser_download_url: "https://downloads.invalid/dev.json" }],
+				},
+			]),
+			response({
+				version: "0.3.0-dev.7",
+				channel: "dev",
+				assets: [
+					{
+						name: "nKlein-0.3.0-dev.7-arm64.dmg",
+						url: "https://downloads.invalid/nklein-dev.dmg",
+						sha256: "sum",
+						signature: "unsigned",
+					},
+				],
+			}),
+		]);
+
+		const result = await fetchDesktopReleaseManifestFromGitHub({ owner: "dabertram", repo: "nklein", channel: "dev", fetch });
+
+		expect(result.status).toBe("ok");
+		if (result.status !== "ok") {
+			throw new Error("expected ok");
+		}
+		expect(result.manifest.channel).toBe("dev");
+	});
+
 	it("returns a typed error when the release has no desktop manifest asset", async () => {
 		const { fetch } = fetchSequence([
 			response({

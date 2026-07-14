@@ -1,6 +1,16 @@
 export type DesktopUpdatePlatform = "darwin" | "linux" | "win32";
 export type DesktopUpdateArch = "arm64" | "x64";
-export type DesktopUpdateChannel = "stable" | "beta" | "nightly";
+export type DesktopUpdateChannel = "stable" | "beta" | "nightly" | "dev";
+
+/**
+ * Pre-release channels (`dev`, `nightly`) ship UNSIGNED assets while !Klein is maturing — the default trust policy
+ * drops the signature/notarization requirement for them but ALWAYS keeps sha256 (checksum integrity is the security
+ * that matters for an unsigned build). Release channels (`stable`, `beta`) stay strict so signed releases are enforced
+ * the moment signing credentials exist. An explicit `trustPolicy` on the input still overrides either way.
+ */
+export function channelAllowsUnsignedAssets(channel: DesktopUpdateChannel): boolean {
+	return channel === "dev" || channel === "nightly";
+}
 export type DesktopReleaseAssetKind =
 	| "mac_dmg"
 	| "mac_zip"
@@ -173,20 +183,26 @@ function assetMatches(input: SelectDesktopUpdateInput, asset: DesktopReleaseAsse
 	return arch === "universal" || arch === input.arch;
 }
 
-function defaultTrustPolicy(platform: DesktopUpdatePlatform): Required<DesktopUpdateTrustPolicy> {
+function defaultTrustPolicy(
+	platform: DesktopUpdatePlatform,
+	channel: DesktopUpdateChannel,
+): Required<DesktopUpdateTrustPolicy> {
+	// Pre-release channels accept unsigned assets (checksum still required); release channels enforce signing.
+	const signingRequired = !channelAllowsUnsignedAssets(channel) && (platform === "darwin" || platform === "win32");
 	return {
 		requireSha256: true,
-		requireSignedAsset: platform === "darwin" || platform === "win32",
-		requireMacNotarization: platform === "darwin",
+		requireSignedAsset: signingRequired,
+		requireMacNotarization: signingRequired && platform === "darwin",
 	};
 }
 
 function validateAssetTrust(
 	asset: DesktopReleaseAsset,
 	platform: DesktopUpdatePlatform,
+	channel: DesktopUpdateChannel,
 	policy: DesktopUpdateTrustPolicy | undefined,
 ): string[] {
-	const resolvedPolicy = { ...defaultTrustPolicy(platform), ...policy };
+	const resolvedPolicy = { ...defaultTrustPolicy(platform, channel), ...policy };
 	const reasons: string[] = [];
 	if (resolvedPolicy.requireSha256 && !asset.sha256?.trim()) {
 		reasons.push("missing_sha256");
@@ -246,7 +262,7 @@ export function selectDesktopUpdate(input: SelectDesktopUpdateInput): DesktopUpd
 		};
 	}
 
-	const trustReasons = validateAssetTrust(asset, input.platform, input.trustPolicy);
+	const trustReasons = validateAssetTrust(asset, input.platform, releaseChannel, input.trustPolicy);
 	if (trustReasons.length > 0) {
 		return {
 			status: "blocked_untrusted_asset",

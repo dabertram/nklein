@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	channelAllowsUnsignedAssets,
 	compareDesktopVersions,
 	inferDesktopReleaseAssetKind,
 	selectDesktopUpdate,
@@ -196,5 +197,86 @@ describe("selectDesktopUpdate", () => {
 				manifest: manifest({ channel: "beta" }),
 			}),
 		).toEqual({ status: "wrong_channel", requestedChannel: "stable", releaseChannel: "beta" });
+	});
+
+	it("F5.5: offers an UNSIGNED mac asset on the dev channel (checksum still required)", () => {
+		const plan = selectDesktopUpdate({
+			currentVersion: "0.1.0",
+			platform: "darwin",
+			arch: "arm64",
+			channel: "dev",
+			manifest: manifest({
+				version: "0.2.0-dev.5",
+				channel: "dev",
+				assets: [
+					{
+						name: "nklein-0.2.0-dev.5-arm64.dmg",
+						url: "https://example.com/nklein-dev.dmg",
+						sha256: "a".repeat(64),
+						signature: "unsigned",
+						notarized: false,
+					},
+				],
+			}),
+		});
+		// Unsigned + not notarized is fine on dev; the checksum is present so the asset is offered.
+		expect(plan.status).toBe("update_available");
+	});
+
+	it("F5.5: still blocks a dev asset that is MISSING its sha256 checksum", () => {
+		const plan = selectDesktopUpdate({
+			currentVersion: "0.1.0",
+			platform: "darwin",
+			arch: "arm64",
+			channel: "dev",
+			manifest: manifest({
+				version: "0.2.0-dev.5",
+				channel: "dev",
+				assets: [
+					{ name: "nklein-0.2.0-dev.5-arm64.dmg", url: "https://example.com/x.dmg", signature: "unsigned" },
+				],
+			}),
+		});
+		expect(plan.status).toBe("blocked_untrusted_asset");
+		if (plan.status !== "blocked_untrusted_asset") {
+			throw new Error("expected blocked_untrusted_asset");
+		}
+		expect(plan.reasons).toEqual(["missing_sha256"]);
+	});
+
+	it("F5.5: an explicit trustPolicy can still demand signing on the dev channel", () => {
+		const plan = selectDesktopUpdate({
+			currentVersion: "0.1.0",
+			platform: "darwin",
+			arch: "arm64",
+			channel: "dev",
+			trustPolicy: { requireSignedAsset: true },
+			manifest: manifest({
+				version: "0.2.0-dev.5",
+				channel: "dev",
+				assets: [
+					{
+						name: "nklein-0.2.0-dev.5-arm64.dmg",
+						url: "https://example.com/x.dmg",
+						sha256: "a".repeat(64),
+						signature: "unsigned",
+					},
+				],
+			}),
+		});
+		expect(plan.status).toBe("blocked_untrusted_asset");
+		if (plan.status !== "blocked_untrusted_asset") {
+			throw new Error("expected blocked_untrusted_asset");
+		}
+		expect(plan.reasons).toContain("missing_signature");
+	});
+});
+
+describe("channelAllowsUnsignedAssets", () => {
+	it("relaxes signing only on pre-release channels", () => {
+		expect(channelAllowsUnsignedAssets("dev")).toBe(true);
+		expect(channelAllowsUnsignedAssets("nightly")).toBe(true);
+		expect(channelAllowsUnsignedAssets("beta")).toBe(false);
+		expect(channelAllowsUnsignedAssets("stable")).toBe(false);
 	});
 });

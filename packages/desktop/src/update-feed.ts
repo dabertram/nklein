@@ -87,6 +87,10 @@ function normalizeVersionTag(tagName: string): string {
 
 function channelForRelease(release: GitHubReleaseResponse): DesktopUpdateChannel {
 	const tag = stringValue(release.tag_name)?.toLowerCase() ?? "";
+	// A `dev`-tagged prerelease is the unsigned dev channel (F5.5); `nightly` stays its own pre-release channel.
+	if (tag.includes("dev")) {
+		return "dev";
+	}
 	if (tag.includes("nightly")) {
 		return "nightly";
 	}
