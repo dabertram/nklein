@@ -16,6 +16,7 @@ import {
 	resolveMessageTarget,
 	resolveTargetFromCandidate,
 } from "../core/message-target-resolver";
+import { resolveProviderImageQuirks } from "../core/multimodal-provider-compat";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
@@ -87,6 +88,9 @@ export interface ChatServiceOptions {
 	/** F2.7b: the selected model's normalized llmfit capability ids (e.g. `["vision"]`) — gates image attachments.
 	 *  Omit ⇒ [] ⇒ attachments are refused (fail-closed: never send images to a model not known to read them). */
 	resolveModelCapabilityIds?: (modelId: string) => Promise<readonly string[]>;
+	/** F2.7b hardening: the active local provider id (e.g. `lm-studio`) — resolves the image-format compat quirks so a
+	 *  server that rejects a format (LM Studio + WebP) refuses it up front. Omit ⇒ the permissive default. */
+	resolveChatProviderId?: () => string | null;
 	/** §5.AC: the resolved "knows today" switch for this turn (the runtime-config setting, OFF BY DEFAULT). Read per turn
 	 *  so a live config change takes effect immediately. Omitted ⇒ the turn's env fallback (`NKLEIN_KNOWS_TODAY`) decides. */
 	resolveKnowsTodayEnabled?: () => boolean;
@@ -675,6 +679,12 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							modelDeps.modelId && options.resolveModelCapabilityIds
 								? await options.resolveModelCapabilityIds(modelDeps.modelId)
 								: [];
+						// F2.7b hardening: the active provider's image-format quirks (e.g. LM Studio rejects WebP) — only
+						// resolved when images are attached (avoids the config read on every text turn).
+						const providerImageQuirks =
+							input.imageAttachments && input.imageAttachments.length > 0
+								? resolveProviderImageQuirks(options.resolveChatProviderId?.() ?? null)
+								: null;
 						const agentResult = await runChatAgentTurn(
 							{
 								session,
@@ -691,6 +701,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 									? { imageAttachments: input.imageAttachments }
 									: {}),
 								...(modelCapabilityIds.length > 0 ? { modelCapabilityIds } : {}),
+								...(providerImageQuirks ? { providerImageQuirks } : {}),
 							},
 							{
 								...storeDeps,

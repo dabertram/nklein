@@ -295,6 +295,25 @@ test.describe("Chat sidebar send + AutonomousRunBar (§5.M)", () => {
 		await expect(page.locator('img[src^="data:image/png;base64,"]').first()).toBeVisible({ timeout: 5_000 });
 	});
 
+	test("F2.7b hardening: a WebP attachment is transcoded to PNG in the composer (LM Studio WebP bug)", async ({
+		page,
+	}) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openChatSidebarAndSelect(page);
+
+		// A valid 1x1 WebP — the agent-default screenshot format LM Studio rejects.
+		const webp = Buffer.from("UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA", "base64");
+		await page
+			.getByTestId("chat-attach-input")
+			.setInputFiles({ name: "screenshot.webp", mimeType: "image/webp", buffer: webp });
+
+		// It's staged — and transcoded: the chip shows a .png name (never .webp), so nothing WebP leaves the browser.
+		await expect(page.getByTestId("chat-pending-attachments")).toBeVisible();
+		await expect(page.getByTestId("chat-pending-attachments")).toContainText("screenshot.png");
+		await expect(page.getByTestId("chat-pending-attachments")).not.toContainText(".webp");
+	});
+
 	test("F2.9b: the memory panel lists records and forgets a deletable one", async ({ page }) => {
 		await setupMocks(page);
 		const deleteBodies: unknown[] = [];

@@ -2,6 +2,7 @@ import type { ChatImageAttachment } from "../core/chat-multimodal";
 import { isTruthyEnv } from "../core/env-flag";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { decideFocusChainNudge } from "../core/focus-chain-nudge";
+import type { ProviderImageQuirks } from "../core/multimodal-provider-compat";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
@@ -123,6 +124,8 @@ export async function runChatAgentTurn(
 		imageAttachments?: readonly ChatImageAttachment[];
 		/** F2.7b: the selected model's normalized llmfit capability ids (e.g. `["vision"]`) — the acceptance gate. */
 		modelCapabilityIds?: readonly string[];
+		/** F2.7b hardening: the model server's image quirks (e.g. LM Studio = PNG/JPEG only) — the format compat gate. */
+		providerImageQuirks?: ProviderImageQuirks;
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -188,6 +191,7 @@ export async function runChatAgentTurn(
 		messages,
 		...(input.imageAttachments ? { imageAttachments: input.imageAttachments } : {}),
 		...(input.modelCapabilityIds ? { modelCapabilityIds: input.modelCapabilityIds } : {}),
+		...(input.providerImageQuirks ? { providerImageQuirks: input.providerImageQuirks } : {}),
 	});
 	const withAttachments = attachmentResult.messages;
 	const attachmentNotice = attachmentResult.attachmentNotice;

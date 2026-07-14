@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatImageAttachment } from "../core/chat-multimodal";
+import { resolveProviderImageQuirks } from "../core/multimodal-provider-compat";
 import { applyImageAttachmentsToPrompt } from "./chat-multimodal-turn";
 import type { ChatPromptMessage } from "./chat-turn-context";
 
@@ -60,5 +61,29 @@ describe("applyImageAttachmentsToPrompt (F2.7b send seam)", () => {
 		const messages: ChatPromptMessage[] = [{ role: "user", content: "hi" }];
 		applyImageAttachmentsToPrompt({ messages, imageAttachments: [IMAGE], modelCapabilityIds: ["vision"] });
 		expect(messages[0].parts).toBeUndefined();
+	});
+
+	it("F2.7b hardening: a WebP image is REFUSED for LM Studio (its known bug) with PNG/JPEG guidance — no parts", () => {
+		const webp: ChatImageAttachment = { data: PNG_1PX, mimeType: "image/webp", name: "screenshot.webp" };
+		const result = applyImageAttachmentsToPrompt({
+			messages: BASE_MESSAGES,
+			imageAttachments: [webp],
+			modelCapabilityIds: ["vision"],
+			providerImageQuirks: resolveProviderImageQuirks("lmstudio"),
+		});
+		expect(result.attachmentNotice).toMatch(/PNG or JPEG/);
+		expect(result.attachmentNotice).toMatch(/LM Studio/);
+		expect(result.messages.some((m) => m.parts)).toBe(false);
+	});
+
+	it("a PNG passes the LM Studio provider gate and attaches parts", () => {
+		const result = applyImageAttachmentsToPrompt({
+			messages: BASE_MESSAGES,
+			imageAttachments: [IMAGE],
+			modelCapabilityIds: ["vision"],
+			providerImageQuirks: resolveProviderImageQuirks("lmstudio"),
+		});
+		expect(result.attachmentNotice).toBeNull();
+		expect(result.messages[1].parts).toBeDefined();
 	});
 });

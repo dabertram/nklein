@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Image chat now works out of the box with LM Studio (and other picky servers).** Screenshots are usually WebP,
+  which LM Studio's vision endpoint rejects — a known bug that breaks many tools. !Klein now transcodes every attached
+  image to PNG in the browser before sending, so WebP/GIF screenshots just work. As a backstop, if a format a known
+  server can't read ever reaches the send step, the chat refuses it with a clear "attach a PNG or JPEG" message
+  instead of a cryptic error. New servers with their own quirks are a one-line addition.
+
 - **You can now attach images to a chat and send them to a vision-capable model.** The chat composer has an image
   button — attach one or more images, see them as removable chips, and send. If the selected model supports vision the
   images go along with your message; if it doesn't (or they're too large), the message still sends as text and the chat

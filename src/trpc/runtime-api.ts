@@ -281,6 +281,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// F2.7b: the selected model's llmfit capability ids (the vision gate for image attachments), from the cached
 			// catalog — fail-closed to [] on an unknown model / catalog miss so images are never sent to a non-vision model.
 			resolveModelCapabilityIds: (modelId) => resolveLlmfitModelCapabilityIds(modelId),
+			// F2.7b hardening: the active chat provider id → its image-format quirks. The chat path runs on the local
+			// default provider (`lmstudio`), which rejects WebP, so this refuses it up front with actionable guidance.
+			resolveChatProviderId: () => DEFAULT_LOCAL_CHAT_PROVIDER_ID,
 			// §5.AC: resolve the "knows today" switch per turn = the runtime-config setting (off by default) OR the
 			// `NKLEIN_KNOWS_TODAY` env override, so a live config change (or a dev flag) takes effect on the next turn.
 			resolveKnowsTodayEnabled: () =>

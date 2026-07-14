@@ -24,6 +24,7 @@ import {
 	getActiveMention,
 	type MentionCandidate,
 } from "@/components/chat/composer-mention";
+import { fileToSafeAttachment } from "@/components/chat/image-attachment";
 import { SessionMemoryPanel } from "@/components/chat/session-memory-panel";
 import { StreamOverviewPanel } from "@/components/chat/stream-overview-panel";
 import {
@@ -1068,23 +1069,11 @@ function ChatPanel({
 		if (!files) {
 			return;
 		}
-		const staged: ChatImageAttachmentInput[] = [];
-		for (const file of Array.from(files)) {
-			if (!file.type.startsWith("image/")) {
-				continue;
-			}
-			const dataUrl = await new Promise<string>((resolve) => {
-				const reader = new FileReader();
-				reader.onload = () => resolve(String(reader.result ?? ""));
-				reader.onerror = () => resolve("");
-				reader.readAsDataURL(file);
-			});
-			const comma = dataUrl.indexOf(",");
-			if (comma < 0) {
-				continue;
-			}
-			staged.push({ data: dataUrl.slice(comma + 1), mimeType: file.type, name: file.name });
-		}
+		// F2.7b hardening: normalize each pick to a universally-safe format (WebP/GIF → PNG) BEFORE it leaves the
+		// browser, so a WebP screenshot works out of the box against servers (e.g. LM Studio) that reject WebP.
+		const staged = (await Promise.all(Array.from(files).map((file) => fileToSafeAttachment(file)))).filter(
+			(attachment): attachment is ChatImageAttachmentInput => attachment !== null,
+		);
 		if (staged.length > 0) {
 			setPendingImages((current) => [...current, ...staged]);
 		}
