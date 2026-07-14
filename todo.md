@@ -738,6 +738,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `runScenarioSuite` (spin up runtime+aimock with an isolated ledger root + run the dev-test scenarios),
   `readCapturedLedger` (readAgentLedger from the isolated dir). Deterministic (aimock, no live models) but a heavy
   live-process integration needing the aimock harness up to validate end-to-end.
+  **LEDGER-ROOT INJECTABILITY SHIPPED 2026-07-14 (`ce35920f`, David's call "refactor ledger rootDir first"):**
+  `runWithAgentLedgerRoot(rootDir, op)` — an AsyncLocalStorage scope in `agent-attempt-ledger-store.ts` that every
+  unscoped ledger read/write honors (precedence: explicit arg > scope > HOME default; byte-identical unused). This
+  is what lets `runScenarioSuite` isolate a per-run ledger IN-PROCESS (the root was HOME-derived and only 1/17 write
+  sites took a `rootDir` — [[f1-26b-ledger-isolation-constraint]]). 2 scope tests. **STILL REMAINING (the heavy
+  consumer):** the in-process `runScenarioSuite` itself — stand up the runtime (`createRuntimeServer`, which has a
+  heavy dep object + NO existing lightweight in-process recipe) wired to an aimock backend, drive the dev-test
+  scenario suite inside `runWithAgentLedgerRoot`, and wire the CLI auto-capture (make `--baseline/--replay` optional).
+  A large integration + a live aimock drain to validate — needs a focused session with the stack up.
 - [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
