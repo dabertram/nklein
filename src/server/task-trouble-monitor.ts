@@ -6,6 +6,8 @@ import {
 import { classifyAgentStuckness } from "../core/agent-stuckness";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { consecutiveNoProgressAttempts } from "../core/attempt-progress-tracker";
+import { detectProcessRemediation, type RemediationFinding } from "../core/process-remediation";
+import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
 import { assessRunLiveness, type RunLivenessThresholds } from "../core/run-attention-signals";
 import { assessTaskTrouble, type TaskTroubleVerdict } from "../core/task-trouble-signal";
 
@@ -57,6 +59,22 @@ export function evaluateRunningTaskTrouble(input: RunningTaskTroubleInput): Task
 		consecutiveNoProgress: consecutiveNoProgressAttempts(snapshots),
 		loopUncleared: stucknessSignals.loopUncleared,
 	});
+}
+
+/**
+ * PRM read for a RUNNING task (opencode-swarm port) — the MULTI-STEP trajectory faults `evaluateRunningTaskTrouble`
+ * (single-agent stuckness/liveness) doesn't see: ping_pong / expansion_drift / context_thrash. Pure — projects the same
+ * ledger `events` into a trajectory and runs the detector. Plan counts (for expansion_drift) are an optional caller
+ * input the ledger attempts don't carry. RECORD-ONLY at the call site (never steers/kills), mirroring the observe-first
+ * stance — the evidence accrues before any of these gate.
+ */
+export function evaluateRunningTaskRemediation(input: {
+	events: readonly AgentLedgerEvent[];
+	taskId: string;
+	planCounts?: { initial: number; current: number };
+}): RemediationFinding[] {
+	const trajectory = buildProcessTrajectoryFromLedger(input.events, input.taskId, input.planCounts);
+	return detectProcessRemediation(trajectory);
 }
 
 /**

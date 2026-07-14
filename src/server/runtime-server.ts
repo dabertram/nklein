@@ -204,7 +204,11 @@ import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from 
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
-import { buildTroubleSteeringMessage, evaluateRunningTaskTrouble } from "./task-trouble-monitor";
+import {
+	buildTroubleSteeringMessage,
+	evaluateRunningTaskRemediation,
+	evaluateRunningTaskTrouble,
+} from "./task-trouble-monitor";
 import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
@@ -501,6 +505,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.10: per-workspace "already notified" map for the running-task trouble read (taskId → episode kind), so a
 	// troubled card is steered ONCE per episode kind instead of every watchdog tick; cleared when the trouble clears.
 	const troubleNotifiedKindByWorkspaceId = new Map<string, Map<string, string>>();
+	// Record-only PRM dedup: workspaceId → (taskId → last-recorded peak "pattern:level"), so a persistent trajectory
+	// fault is logged once per episode, not every watchdog tick.
+	const remediationRecordedByWorkspaceId = new Map<string, Map<string, string>>();
 	// run16 live finding: recovery (deferred-retry + ready-sweep) only fired on COMPLETION — a card that dies
 	// (interrupted/failed, e.g. mid-write on a slow model) produces NO completion, so the board froze with
 	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
@@ -2756,7 +2763,40 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const notifiedKinds =
 								troubleNotifiedKindByWorkspaceId.get(scope.workspaceId) ?? new Map<string, string>();
 							troubleNotifiedKindByWorkspaceId.set(scope.workspaceId, notifiedKinds);
+							const remediationRecorded =
+								remediationRecordedByWorkspaceId.get(scope.workspaceId) ?? new Map<string, string>();
+							remediationRecordedByWorkspaceId.set(scope.workspaceId, remediationRecorded);
 							for (const summary of runningSummaries) {
+								// Record-only PRM (opencode-swarm port): the multi-step trajectory faults the single-agent
+								// trouble read can't see. Never steers/kills — appends ledger evidence once per episode so
+								// the false-positive rate is observed before any of these can gate.
+								const remediation = evaluateRunningTaskRemediation({
+									events: troubleEvents,
+									taskId: summary.taskId,
+								});
+								const peak = remediation.reduce<(typeof remediation)[number] | null>(
+									(worst, finding) => (worst === null || finding.level > worst.level ? finding : worst),
+									null,
+								);
+								if (peak) {
+									const peakKey = `${peak.pattern}:${peak.level}`;
+									if (remediationRecorded.get(summary.taskId) !== peakKey) {
+										remediationRecorded.set(summary.taskId, peakKey);
+										void appendAgentLedgerEvent(
+											buildTransitionEvent({
+												workflowId: summary.taskId,
+												taskId: summary.taskId,
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+												from: "running",
+												to: `remediation_${peak.pattern}`,
+												reason: `L${peak.level}: ${peak.detail}`,
+												controllerDecision: "process_remediation_monitor",
+											}),
+										).catch(() => {});
+									}
+								} else {
+									remediationRecorded.delete(summary.taskId);
+								}
 								const verdict = evaluateRunningTaskTrouble({
 									events: troubleEvents,
 									summary,
