@@ -924,11 +924,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   llmfit `vision` capability; audio/PDF refused outright with an explanatory reason until a local parser is
   integrated), `boundChatImageAttachments` (fail-closed count/per-image/total byte budgets — refuse with the
   exact limit named, never silently truncate; png/jpeg/webp/gif only), and `buildMultimodalUserContent`
-  (OpenAI-compatible `text` + `image_url` data-URL parts). REMAINING: thread attachments through
-  `RuntimeChatSendMessageRequest` → the send pipeline → the local-LLM adapter (content-parts message shape) and
-  the transcript store (bounded storage), resolve the selected model's capability ids at the send seam, add the
-  web-ui composer attach control + accessible inline rendering (alt text, keyboard nav), and live-validate on a
-  vision-capable local model (e.g. a gemma/qwen-VL variant) before enabling by default.
+  (OpenAI-compatible `text` + `image_url` data-URL parts). **BACKEND SEND-PATH SHIPPED 2026-07-14 (`973f04ff`):**
+  attachments thread `RuntimeChatSendMessageRequest.imageAttachments` → chat-router → runtime-api → chat-service →
+  `runChatAgentTurn`. New `applyImageAttachmentsToPrompt` (pure, tested) composes the 3 cores at the send seam:
+  gated on the model's `vision` capability + the fail-closed budget, it attaches OpenAI content `parts` to the user
+  message (refusal ⇒ text-only + the exact reason surfaced via `capabilityNotice`). The content-parts shape flows via
+  an ADDITIVE optional `parts?` on `ChatPromptMessage`/`LocalLlmChatMessage` (string path byte-identical) — the adapter
+  forwards it on BOTH the tool-discovery and final-stream calls, and the client sends it AS the wire `content` array.
+  Capability resolved via `resolveLlmfitModelCapabilityIds` (cached catalog, fail-closed to []). 7 unit tests
+  (send-seam gate + wire mapping). REMAINING (a coherent UI slice, best done together so the UX isn't half): (1)
+  transcript store persists the sent images bounded (else history can't render them); (2) web-ui composer attach
+  control (file→base64→`imageAttachments` on the streamMessage send) + accessible inline rendering (alt text, keyboard
+  nav); (3) live-validate on a vision-capable local model (e.g. a gemma/qwen-VL) before enabling by default.
 - [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
