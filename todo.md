@@ -728,11 +728,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   MOUNT SHIPPED 2026-07-14 (`<this commit>`):** `src/core/replay-eval-orchestration.ts` `buildReplayEvalOutcome`
   composes the shipped comparator + retention into one outcome (pure over two ledger captures; 2 tests, pass/fail);
   `nklein dev replay-eval <taskId> --baseline <ledger> --replay <ledger> [--retain] [--json]` reads the two captured
-  ledgers, prints PASS/FAIL + divergence summary, and `--retain` appends the verdict the M4 gate reads back. REMAINING
-  (the effectful AUTO-CAPTURE half): make the CLI PRODUCE the two ledgers itself — apply the task's result branch to a
-  temp worktree + run the aimock dev-test suite twice (baseline tree + patched worktree) capturing each ledger — so
-  `replay-eval <taskId>` needs no hand-supplied captures. Deterministic (no live models) but a heavy git+aimock+ledger
-  integration.
+  ledgers, prints PASS/FAIL + divergence summary, and `--retain` appends the verdict the M4 gate reads back.
+  **AUTO-CAPTURE ORCHESTRATION SHIPPED 2026-07-14 (`<this commit>`):** `orchestrateReplayEvalAutoCapture(input, deps)`
+  sequences the auto-capture over INJECTED effectful primitives — baseline suite BEFORE the worktree exists → create
+  the patched worktree → replay suite against it → read both ISOLATED ledger captures → compare → ALWAYS clean up the
+  worktree (even when the replay throws). 4 fakes tests (call-order + guaranteed cleanup). REMAINING (the
+  environment-dependent LIVE-DEP implementations — can't validate without a real aimock run): wire the CLI's
+  auto-capture mode with the live primitives — `createResultWorktree` (git worktree from the task's result branch),
+  `runScenarioSuite` (spin up runtime+aimock with an isolated ledger root + run the dev-test scenarios),
+  `readCapturedLedger` (readAgentLedger from the isolated dir). Deterministic (aimock, no live models) but a heavy
+  live-process integration needing the aimock harness up to validate end-to-end.
 - [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
