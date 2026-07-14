@@ -13,6 +13,7 @@ import {
 	buildContextSizeObservations,
 	formatContextSizeAdvice,
 } from "../core/context-size-advisor";
+import { formatDeliveryQualityGateAuditReport, runDeliveryQualityGateAudit } from "../core/delivery-quality-gate-audit";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
@@ -148,6 +149,22 @@ export async function runDevSmokeEvalCommand(options: DevSmokeEvalOptions = {}):
 	if (!result.passed && result.output.trim()) {
 		write(`${result.output.trim()}\n`);
 	}
+}
+
+interface DevGateAuditOptions {
+	json?: boolean;
+	write?: (text: string) => void;
+}
+
+/** Measure the delivery-quality gate's accuracy over the bundled labeled fixture matrix (opencode-swarm gate-audit). */
+export async function runDevGateAuditCommand(options: DevGateAuditOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const result = runDeliveryQualityGateAudit();
+	if (options.json) {
+		write(`${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	write(formatDeliveryQualityGateAuditReport(result));
 }
 
 export async function runDevDogfoodBacklogCommand(options: DevDogfoodBacklogOptions = {}): Promise<void> {
@@ -572,6 +589,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--endpoint <url>", "Optional model endpoint to score in the model capability registry.")
 		.action(async (options: DevSmokeEvalOptions) => {
 			await runDevSmokeEvalCommand(options);
+		});
+
+	dev.command("gate-audit")
+		.description("Measure the delivery-quality gate's catch vs false-reject rate over labeled fixtures.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevGateAuditCommand(options);
 		});
 
 	dev.command("dogfood-backlog")
