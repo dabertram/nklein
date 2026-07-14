@@ -1216,8 +1216,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   classify truncation accurately, and expose budget decisions in diagnostics.
 - [ ] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
   evidence while preserving required facts and citations.
-- [ ] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
-  pending work, and model behavior; prove bounded behavior.
+- [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
+  pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
+  `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
+  (space-only compact/proceed/expand) with quality-budget/pending-work/degenerate-behavior signals → continue/compact/
+  stop, adding the `stop` escalation (unrecoverable pressure = nothing left to trim, or a degenerate turn) the occupancy
+  core lacks. Pure, 8 tests, reuses `OccupancyPressureDecision`. **REMAINING (b-leaf, fleet-gated):** wire into the
+  runtime turn loop + prove bounded behavior on simulator/live long tasks.
 
 #### 4C. Dynamic prompt skills *(legacy §5.AE)*
 
