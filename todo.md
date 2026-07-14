@@ -742,11 +742,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `runWithAgentLedgerRoot(rootDir, op)` — an AsyncLocalStorage scope in `agent-attempt-ledger-store.ts` that every
   unscoped ledger read/write honors (precedence: explicit arg > scope > HOME default; byte-identical unused). This
   is what lets `runScenarioSuite` isolate a per-run ledger IN-PROCESS (the root was HOME-derived and only 1/17 write
-  sites took a `rootDir` — [[f1-26b-ledger-isolation-constraint]]). 2 scope tests. **STILL REMAINING (the heavy
-  consumer):** the in-process `runScenarioSuite` itself — stand up the runtime (`createRuntimeServer`, which has a
-  heavy dep object + NO existing lightweight in-process recipe) wired to an aimock backend, drive the dev-test
-  scenario suite inside `runWithAgentLedgerRoot`, and wire the CLI auto-capture (make `--baseline/--replay` optional).
-  A large integration + a live aimock drain to validate — needs a focused session with the stack up.
+  sites took a `rootDir` — [[f1-26b-ledger-isolation-constraint]]). 2 scope tests.
+  **`createResultWorktree` LIVE DEP SHIPPED 2026-07-14 (`e76c4dcd`):** `src/workspace/replay-eval-worktree.ts` —
+  materialize the result branch in a throwaway `--detach` git worktree, `cleanup` mirrors legacy-worktree-sweep
+  (remove --force → prune → rm dir), built over the injectable `runGit`; 4 tests (add args / cleanup order / failed-add
+  removes dir + throws / cleanup never throws). **So 2 of 3 auto-capture live deps are now real** (this +
+  `readCapturedLedger` = `readAgentLedger` under the ledger-root scope). **STILL REMAINING — the ONE heavy consumer,
+  `runScenarioSuite`:** boot the runtime IN-PROCESS (the ~15-dep assembly is inline in `cli.ts`, importable but not yet
+  factored into a reusable `bootInProcessRuntime`) with the deterministic `fixture-model` backend, seed + drain the
+  dev-test scenario suite against `treePath` inside `runWithAgentLedgerRoot(ledgerRootDir, …)`, then wire the CLI
+  auto-capture (make `--baseline/--replay` optional, compose `orchestrateReplayEvalAutoCapture` with the 3 live deps).
+  Deterministic (fixture-model, no fleet) so it CAN be validated headless — but it's a correctness-subtle integration
+  (the captures must be sound + deterministic for the replay comparison to mean anything), best done as a focused build
+  where the real captures can be inspected. NOT a clean leaf.
 - [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
