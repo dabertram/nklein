@@ -883,9 +883,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   confirm falls through to the FINAL address-checked verdict, which parks on the queue and waits
   (`confirmTimeoutMs`, default 60 s) — a clean approval proceeds exactly like an allow (the verdict's vetted
   addresses still bind the dial, no TOCTOU), everything else refuses; absent queue ⇒ v1 refuse-immediately,
-  locked by the existing 18 proxy tests. REMAINING: the LOOPBACK-ONLY control channel (a 127.0.0.1 HTTP surface
-  on the proxy lifecycle exposing list/approve/deny over the queue), the operator UI (chat/board confirm
-  prompt), wiring `confirmQueue` in `egress-proxy-lifecycle`, and live validation of an approved CONNECT.
+  locked by the existing 18 proxy tests. **CONTROL-CHANNEL LOGIC SHIPPED 2026-07-14 (a-leaf, `<this commit>`):**
+  `src/core/egress-confirm-control.ts` `handleEgressConfirmControlRequest` — the pure routing/validation for the
+  loopback surface (`GET /egress-confirms` → listPending; `POST /egress-confirms/resolve` → bound resolve; malformed
+  body = 400 that NEVER approves; 404 otherwise). 5 unit tests. Kept pure because the proxy runs INSIDE the sandbox
+  container: the effectful b-leaf is a 127.0.0.1-bound HTTP server in the container entrypoint that wraps this + a
+  host-runtime client + the operator UI + `confirmQueue` construction in `egress-proxy-lifecycle` — all Docker/network
+  infra needing a live approved-CONNECT to validate (fleet-gated). REMAINING (fleet/Docker-gated): that HTTP-server
+  mount + port mapping + host client + operator UI + live CONNECT validation.
 - [ ] **F2.4b — Settings UI hint + live validation (per-role allowlists SHIPPED 2026-07-13).** The SAME
   `sandboxEgressAllowlist` string now supports role-scoped entries (`worker:api.github.com` grants ONE role;
   plain entries stay global — every v1 string parses byte-identically; an unknown role prefix stays a plain
