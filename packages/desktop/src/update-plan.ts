@@ -146,7 +146,7 @@ export function inferDesktopReleaseAssetKind(name: string): DesktopReleaseAssetK
 	return null;
 }
 
-function inferAssetArch(name: string): DesktopUpdateArch | "universal" | null {
+export function inferAssetArch(name: string): DesktopUpdateArch | "universal" | null {
 	const normalized = name.toLowerCase();
 	if (normalized.includes("universal")) {
 		return "universal";
@@ -160,7 +160,7 @@ function inferAssetArch(name: string): DesktopUpdateArch | "universal" | null {
 	return null;
 }
 
-function platformForKind(kind: DesktopReleaseAssetKind): DesktopUpdatePlatform {
+export function platformForKind(kind: DesktopReleaseAssetKind): DesktopUpdatePlatform {
 	if (kind.startsWith("mac_")) {
 		return "darwin";
 	}
