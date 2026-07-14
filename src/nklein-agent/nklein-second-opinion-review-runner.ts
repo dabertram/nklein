@@ -1,4 +1,6 @@
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { isReasoningModel } from "../core/model-thinking-control";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
@@ -134,17 +136,40 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 						lastShellKeyByModel: deps.getShellKeyByModelId(),
 					}).catch(() => null)
 				: null;
-		const providerId = (
+		let providerId = (
 			input.reviewer?.providerId ??
 			autoReviewer?.providerId ??
 			workerLaunch?.providerId ??
 			""
 		).trim();
-		const modelId = (input.reviewer?.modelId ?? autoReviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
+		let modelId = (input.reviewer?.modelId ?? autoReviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
+		let usedLoadedFallback = false;
+		if (!providerId || !modelId) {
+			// Restart-durability fallback (root-caused live 2026-07-14): the launch config is IN-MEMORY only
+			// (`launchConfigByTaskId`), so after a restart a resumed / crash-parked card has no worker provider+model to
+			// resolve a reviewer from → the review would return null here → `no_verdict` → the card is HELD FOREVER (no
+			// model turn ever runs). Fall back to the first non-embedding LOADED model so the review can still run — this
+			// picks what's actually serving (avoids the trap of resolving a CONFIGURED role model that isn't loaded).
+			const loaded = await fetchLoadedModelDescriptors(
+				workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL,
+			).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
+			const fallback = loaded.find((descriptor) => !descriptor.isEmbedding);
+			if (fallback) {
+				providerId = providerId || workerLaunch?.providerId?.trim() || "lmstudio";
+				modelId = fallback.runtimeId;
+				usedLoadedFallback = true;
+			}
+		}
 		if (!providerId || !modelId) {
 			return null;
 		}
-		const selectionSource = input.reviewer ? "explicit_pin" : autoReviewer ? "auto_diverse" : "worker_fallback";
+		const selectionSource = input.reviewer
+			? "explicit_pin"
+			: autoReviewer
+				? "auto_diverse"
+				: usedLoadedFallback
+					? "loaded_fallback"
+					: "worker_fallback";
 		stamp(`session: reviewer=${modelId} (${selectionSource}); bracketed-run enter`);
 		// A reasoning reviewer needs headroom to think BEFORE emitting `submit_review` — floor its per-turn budget so the
 		// inherited (worker-sized) budget can't truncate it mid-reasoning into a `no_verdict` hold. Only raises; only for
