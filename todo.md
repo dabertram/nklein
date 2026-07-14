@@ -724,7 +724,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   null = never run = a blocker, so the gate stays fail-closed). REMAINING: the orchestrator that PRODUCES the
   two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
   suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
-  retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
+  retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount. **COMPARISON
+  MOUNT SHIPPED 2026-07-14 (`<this commit>`):** `src/core/replay-eval-orchestration.ts` `buildReplayEvalOutcome`
+  composes the shipped comparator + retention into one outcome (pure over two ledger captures; 2 tests, pass/fail);
+  `nklein dev replay-eval <taskId> --baseline <ledger> --replay <ledger> [--retain] [--json]` reads the two captured
+  ledgers, prints PASS/FAIL + divergence summary, and `--retain` appends the verdict the M4 gate reads back. REMAINING
+  (the effectful AUTO-CAPTURE half): make the CLI PRODUCE the two ledgers itself — apply the task's result branch to a
+  temp worktree + run the aimock dev-test suite twice (baseline tree + patched worktree) capturing each ledger — so
+  `replay-eval <taskId>` needs no hand-supplied captures. Deterministic (no live models) but a heavy git+aimock+ledger
+  integration.
 - [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with

@@ -1,4 +1,10 @@
-import { buildTaskEscalationReport, selectAttempts } from "../core/agent-attempt-ledger";
+import { readFile } from "node:fs/promises";
+import {
+	type AgentLedgerEvent,
+	agentLedgerEventSchema,
+	buildTaskEscalationReport,
+	selectAttempts,
+} from "../core/agent-attempt-ledger";
 import { renderSwarmEfficiencyReport, summarizeSwarmEfficiency } from "../core/agent-ledger-efficiency";
 import {
 	buildModelCapabilityAdvice,
@@ -28,6 +34,7 @@ import {
 	formatRailFindingsReport,
 	proposeRailBacklogPackages,
 } from "../core/rail-findings";
+import { buildReplayEvalOutcome } from "../core/replay-eval-orchestration";
 import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
@@ -39,6 +46,7 @@ import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters }
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 
@@ -386,6 +394,50 @@ export async function runDevRailEvidenceCommand(options: {
 				`${String(Math.round(project.deliveryRate * 100)).padStart(3)}%  ${flags}\n`,
 		);
 	}
+}
+
+async function readLedgerCapture(path: string): Promise<AgentLedgerEvent[]> {
+	const raw = await readFile(path, "utf8");
+	return parseValidatedJsonl(raw, agentLedgerEventSchema, "replay-eval-capture");
+}
+
+/**
+ * F1.26b — the replay-eval CLI mount (first mount): compare a captured baseline ledger against a replayed
+ * (patched-tree) ledger with the shipped §5.AF determinism comparator, print the verdict, and (with --retain) retain
+ * it to the ledger so the M4 gate reads it back. This mounts the COMPARISON over two provided captures; the auto-CAPTURE
+ * (apply the result branch to a temp worktree + run the aimock dev-test suite twice) is the follow-up effectful half.
+ */
+export async function runDevReplayEvalCommand(options: {
+	taskId: string;
+	baseline: string;
+	replay: string;
+	retain?: boolean;
+	json?: boolean;
+}): Promise<void> {
+	const [captured, replayed] = await Promise.all([
+		readLedgerCapture(options.baseline),
+		readLedgerCapture(options.replay),
+	]);
+	const outcome = buildReplayEvalOutcome({
+		captured,
+		replayed,
+		workflowId: "self-improvement-replay",
+		taskId: options.taskId,
+		workspacePathHash: hashWorkspacePathForLedger(process.cwd()),
+	});
+	if (options.retain) {
+		await appendAgentLedgerEvent(outcome.retentionEvent);
+	}
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ evaluation: outcome.evaluation, retained: Boolean(options.retain) }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(
+		`Replay-eval for ${options.taskId}: ${outcome.evaluation.pass ? "PASS" : "FAIL"} — ${outcome.evaluation.summary}\n` +
+			(options.retain ? "Retained the verdict to the ledger (the M4 gate reads it back).\n" : ""),
+	);
 }
 
 export async function runDevRostersCommand(options: { json?: boolean } = {}): Promise<void> {

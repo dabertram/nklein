@@ -45,6 +45,7 @@ import {
 	runDevLedgerCommand,
 	runDevModelVerdictCommand,
 	runDevRailEvidenceCommand,
+	runDevReplayEvalCommand,
 	runDevRostersCommand,
 	runDevSwarmCommand,
 } from "./dev-telemetry-commands";
@@ -753,6 +754,21 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { json?: boolean; advisor?: boolean; findings?: boolean; retain?: boolean }) => {
 			await runDevRailEvidenceCommand(options);
 		});
+
+	dev.command("replay-eval <taskId>")
+		.description(
+			"F1.26b: compare a captured baseline ledger vs a replayed (patched-tree) ledger for determinism, and " +
+				"optionally retain the verdict the M4 self-improvement gate reads back.",
+		)
+		.requiredOption("--baseline <file>", "Path to the captured baseline (pre-patch) ledger JSONL.")
+		.requiredOption("--replay <file>", "Path to the replayed (patched-tree) ledger JSONL.")
+		.option("--retain", "Retain the pass/fail verdict to the ledger (M4 gate reads it back).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			async (taskId: string, options: { baseline: string; replay: string; retain?: boolean; json?: boolean }) => {
+				await runDevReplayEvalCommand({ taskId, ...options });
+			},
+		);
 
 	dev.command("test-project")
 		.description(
