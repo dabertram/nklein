@@ -1038,6 +1038,36 @@ export function RuntimeSettingsDialog({
 						setCodeEmbeddingDefaultsModel(configSnapshot.codeEmbeddingDefaults.model ?? "");
 						setCodeEmbeddingDefaultsBaseUrl(configSnapshot.codeEmbeddingDefaults.baseUrl ?? "");
 						break;
+					case "selectedAgentIdOverride":
+						setSelectedAgentIdOverride(configSnapshot.selectedAgentIdOverride);
+						break;
+					case "concurrencyOverride":
+						setConcurrencyOverride(configSnapshot.concurrencyOverride);
+						break;
+					case "maxConcurrentTasksOverride":
+						setMaxConcurrentTasksOverride(configSnapshot.maxConcurrentTasksOverride);
+						break;
+					case "modelRolesOverride":
+						setModelRolesOverride(configSnapshot.modelRolesOverride);
+						break;
+					case "agentRulesetsOverride":
+						setAgentRulesetsOverride(configSnapshot.agentRulesetsOverride);
+						break;
+					case "skillDynamicsLevelOverride":
+						setSkillDynamicsLevelOverride(configSnapshot.skillDynamicsLevelOverride);
+						break;
+					case "codeEmbeddingOverride":
+						// Derived useMemo — revert its 4 sub-state fields (mirrors the dialog's reset effect).
+						setCodeEmbeddingOverrideEnabled(configSnapshot.codeEmbeddingOverride !== null);
+						setCodeEmbeddingOverrideProvider(configSnapshot.codeEmbeddingOverride?.provider ?? "local_lexical");
+						setCodeEmbeddingOverrideModel(
+							configSnapshot.codeEmbeddingOverride?.model ?? LOCAL_CODE_EMBEDDING_MODEL,
+						);
+						setCodeEmbeddingOverrideBaseUrl(configSnapshot.codeEmbeddingOverride?.baseUrl ?? "");
+						break;
+					case "shortcuts":
+						setShortcuts(configSnapshot.shortcuts);
+						break;
 				}
 			}
 			// The Tasks tab's local (non-draft) task-default controls revert to their loaded-config initials.
@@ -3237,10 +3267,17 @@ export function RuntimeSettingsDialog({
 						</div>
 						<div data-settings-section="project" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<FolderOpen size={16} className="text-text-secondary" />
-								Project
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<FolderOpen size={16} className="text-text-secondary" />
+									Project
+								</h2>
+								<SectionResetButton
+									navId="project"
+									dirty={dirtyNavIdSet.has("project")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<p
 							className="text-text-secondary font-mono text-xs m-0 mb-3 break-all"

@@ -725,7 +725,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
   suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
   retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
-- [ ] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
+- [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
   `isSectionDirty`/`dirtySections`/`resetSection`. **KEY FINDING 2026-07-14: that draft-state partition does NOT
@@ -768,7 +768,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `project` — per-project overrides, where a sub-component owns many `*Override` fields (modelRolesOverride,
   concurrencyOverride, agentRulesetsOverride, skillDynamicsLevelOverride, sandboxIsolationProfileOverride,
   codeEmbeddingOverride, testDrivenModeOverride, …) each with its own enabled-toggle + nested state; needs a
-  child-component-aware dirty+reset audit. Then optionally per-section Save.
+  child-component-aware dirty+reset audit. **Leaf 8 SHIPPED 2026-07-14 → ALL 10 nav tabs covered:** `project` — the
+  hardest, 8 fields (7 per-project overrides + the shortcuts editor). `fieldDirty` gained the last domain-equality
+  special-cases the whole-dialog uses so a per-tab dot can never disagree with Save: `shortcuts`→
+  `areRuntimeProjectShortcutsEqual`, `modelRoles`/`modelRolesOverride`→`serializeModelRoles` (this also HARDENED the
+  nklein leaf's modelRoles, previously a raw JSON compare), `codeEmbeddingOverride`→`areCodeEmbeddingSettingsEqual`.
+  Reset: direct setters for scalar/structured overrides + the 4 sub-state fields for the derived codeEmbeddingOverride +
+  setShortcuts. Unit-tested (the override UI is gated behind `projectConfigPath`, so a deterministic unit test covers
+  the risky structured-equality + reset logic; the header wiring is typecheck-verified and identical to the 9
+  Playwright-tested tabs). **F1.29b nav-adoption COMPLETE across all 10 tabs.** REMAINING (optional, lower value):
+  per-section *Save* (vs the current per-section Reset + whole-dialog Save) via the settings-save path.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

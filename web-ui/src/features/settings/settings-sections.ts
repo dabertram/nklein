@@ -1,5 +1,7 @@
 import { areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
+import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import { areCodeEmbeddingSettingsEqual } from "@/components/code-embedding-fields";
+import { serializeModelRoles } from "@/components/runtime-settings-model-roles";
 import { inputsToSwarmGuardrails } from "@/components/runtime-settings-swarm-guardrails";
 import type { SettingsNavId } from "@/components/settings-nav";
 import {
@@ -122,6 +124,24 @@ function fieldDirty(field: keyof SettingsDraft, draft: SettingsDraft, snapshot: 
 	if (field === "codeEmbeddingDefaults" || field === "codeEmbeddingOverride") {
 		return !areCodeEmbeddingSettingsEqual(draft[field], snapshot[field]);
 	}
+	if (field === "shortcuts") {
+		return !areRuntimeProjectShortcutsEqual(draft.shortcuts, snapshot.shortcuts);
+	}
+	// Model roles compare via serializeModelRoles (the whole-dialog's normalization) — a raw JSON compare would
+	// disagree with Save on key order / empty-role normalization.
+	if (field === "modelRoles") {
+		return serializeModelRoles(draft.modelRoles) !== serializeModelRoles(snapshot.modelRoles);
+	}
+	if (field === "modelRolesOverride") {
+		const draftOverride = draft.modelRolesOverride;
+		const snapshotOverride = snapshot.modelRolesOverride;
+		if ((draftOverride === null) !== (snapshotOverride === null)) {
+			return true;
+		}
+		return (
+			draftOverride !== null && serializeModelRoles(draftOverride) !== serializeModelRoles(snapshotOverride ?? {})
+		);
+	}
 	const draftValue = draft[field];
 	const snapshotValue = snapshot[field as keyof SettingsConfigSnapshot];
 	if (typeof draftValue === "string" && typeof snapshotValue === "string" && TRIMMED_STRING_FIELDS.has(field)) {
@@ -236,6 +256,18 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	// `codeEmbeddingDefaults` is a derived useMemo (no direct setter) — the dirty dot JSON-compares it fine, but its
 	// Reset must revert the constituent provider/model/baseUrl sub-state (see the dialog's handler).
 	"code-intelligence": ["codeEmbeddingDefaults"],
+	// The Project tab hosts every per-project OVERRIDE plus the shortcuts editor; codeEmbeddingOverride is a derived
+	// useMemo (reset reverts its 4 sub-state fields — see the dialog handler).
+	project: [
+		"selectedAgentIdOverride",
+		"concurrencyOverride",
+		"maxConcurrentTasksOverride",
+		"modelRolesOverride",
+		"agentRulesetsOverride",
+		"skillDynamicsLevelOverride",
+		"codeEmbeddingOverride",
+		"shortcuts",
+	],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],
 	notifications: ["readyForReviewNotificationsEnabled"],
 };

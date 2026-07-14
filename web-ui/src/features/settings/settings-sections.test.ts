@@ -139,6 +139,28 @@ describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
 		expect(reset.readyForReviewNotificationsEnabled).toBe(!base.readyForReviewNotificationsEnabled);
 	});
 
+	it("the Project tab detects + resets its structured overrides via the domain equalities (not raw JSON)", () => {
+		const base = snapshot();
+		const clean = draftFrom(base);
+		expect(isNavSectionDirty("project", clean, base)).toBe(false);
+
+		// A scalar override, a code-embedding override (areCodeEmbeddingSettingsEqual), and shortcuts
+		// (areRuntimeProjectShortcutsEqual) — all under the Project tab.
+		const edited: SettingsDraft = {
+			...clean,
+			maxConcurrentTasksOverride: 9,
+			codeEmbeddingOverride: { provider: "openai", model: "text-embedding-3-small", baseUrl: null },
+		};
+		expect(isNavSectionDirty("project", edited, base)).toBe(true);
+		// Editing only Project fields must not dirty an unrelated tab.
+		expect(isNavSectionDirty("general", edited, base)).toBe(false);
+
+		const reset = resetNavSection("project", edited, base);
+		expect(isNavSectionDirty("project", reset, base)).toBe(false);
+		expect(reset.maxConcurrentTasksOverride).toBe(base.maxConcurrentTasksOverride);
+		expect(reset.codeEmbeddingOverride).toEqual(base.codeEmbeddingOverride);
+	});
+
 	it("a tab with no per-tab affordance is never dirty and resets to a no-op", () => {
 		const base = snapshot();
 		const edited: SettingsDraft = { ...draftFrom(base), requestTimeoutMs: "9000" };
