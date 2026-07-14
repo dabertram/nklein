@@ -120,6 +120,8 @@ export async function runChatAgentTurn(
 		targetNote?: string | null;
 		/** F2.19b/F2.20b: the klein_self corpus grounding note (routed docs + freshness citations); null/absent = none. */
 		kleinSelfCorpusNote?: string | null;
+		/** F2.9b: the unified-memory recall note (provenance-carrying band across sources); null/absent = none (flag-gated). */
+		unifiedMemoryNote?: string | null;
 		/** F2.7b: image attachments for this user turn — sent to the model only when it claims `vision` and they fit budget. */
 		imageAttachments?: readonly ChatImageAttachment[];
 		/** F2.7b: the selected model's normalized llmfit capability ids (e.g. `["vision"]`) — the acceptance gate. */
@@ -166,6 +168,7 @@ export async function runChatAgentTurn(
 		// F2.20b: the klein_self corpus grounding leads the turn — it frames HOW to answer (read current source +
 		// cite freshness) before the target/focus notes, so a self-awareness answer never drifts to remembered prose.
 		...(input.kleinSelfCorpusNote ? [{ role: "system" as const, content: input.kleinSelfCorpusNote }] : []),
+		...(input.unifiedMemoryNote ? [{ role: "system" as const, content: input.unifiedMemoryNote }] : []),
 		...(input.targetNote ? [{ role: "system" as const, content: input.targetNote }] : []),
 		...(focusChain
 			? [

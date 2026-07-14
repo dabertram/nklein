@@ -13,6 +13,8 @@ import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
+import { buildUnifiedMemoryNote, projectUnifiedMemory, selectMemoryBand } from "../chat/chat-memory-projection";
+import { readChatMemories, recallChatMemories } from "../chat/chat-memory-store";
 import { createChatService } from "../chat/chat-service";
 import { hostActionConfirmQueue } from "../chat/host-action-confirm-wait";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
@@ -284,6 +286,41 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// F2.7b hardening: the active chat provider id → its image-format quirks. The chat path runs on the local
 			// default provider (`lmstudio`), which rejects WebP, so this refuses it up front with actionable guidance.
 			resolveChatProviderId: () => DEFAULT_LOCAL_CHAT_PROVIDER_ID,
+			// F2.9b: the OPT-IN unified-memory recall note (NKLEIN_UNIFIED_MEMORY). Off by default = byte-identical;
+			// when on, query-relevant chat-memory recall + the focus chain project into one provenance-tagged band that
+			// leads the turn. (§5.M four-layer + Basic-Memory sources compose in later; recall quality tuned then.)
+			...(isTruthyEnv(process.env.NKLEIN_UNIFIED_MEMORY)
+				? {
+						buildUnifiedMemoryNote: async (session, query) => {
+							const memories = await readChatMemories();
+							const recalled = await recallChatMemories({
+								query,
+								sessionId: session.id,
+								memories,
+								limit: 12,
+								...(session.scope === "all_projects" ? { allProjects: true } : {}),
+							});
+							const focusChain = await readChatFocusChain(session.id).catch(() => null);
+							const records = projectUnifiedMemory({
+								sessionMemories: recalled.map((entry) => ({
+									id: entry.id,
+									text: entry.text,
+									score: entry.score,
+									shared: entry.shared,
+								})),
+								...(focusChain
+									? {
+											focusChainSteps: focusChain.steps.map((step) => ({
+												step: step.text,
+												status: step.status === "skipped" ? ("done" as const) : step.status,
+											})),
+										}
+									: {}),
+							});
+							return buildUnifiedMemoryNote(selectMemoryBand(records));
+						},
+					}
+				: {}),
 			// §5.AC: resolve the "knows today" switch per turn = the runtime-config setting (off by default) OR the
 			// `NKLEIN_KNOWS_TODAY` env override, so a live config change (or a dev flag) takes effect on the next turn.
 			resolveKnowsTodayEnabled: () =>

@@ -984,9 +984,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   provenance-carrying records) + `chat.deleteSessionMemory` (over `executeMemoryDeleteControl`); a `SessionMemoryPanel`
   in the chat header — records with source+provenance, a Forget button on deletable ones, a "kept" marker (why on
   hover) on immutable projections. Playwright proves list + forget-carries-the-control + optimistic removal.
-  REMAINING: (1) the HOT-PATH turn-context feed (replace the chat-memory store's solo recall with the projection —
-  needs live-model validation of recall quality); (2) compose in the §5.M four-layer + Basic-Memory sources (the read
-  endpoint gathers chat memories today; the other sources + basic-memory deletion land with the turn-feed).
+  **TURN-FEED SHIPPED 2026-07-14 (flag-gated, `<this commit>`):** behind `NKLEIN_UNIFIED_MEMORY` (OFF by default =
+  byte-identical) the turn is led with a provenance-tagged unified-recall note — query-relevant chat-memory recall
+  (`recallChatMemories`, lexical-degrading, no embedder dep) + the focus chain project via `projectUnifiedMemory` →
+  `selectMemoryBand` → new pure `buildUnifiedMemoryNote` (mirrors the kleinSelfCorpusNote injection; 2 tests). REMAINING
+  (David's decisions were "build flag-gated now, tune later"): (1) compose in the §5.M four-layer + Basic-Memory
+  sources; (2) live-tune recall quality on small models, then decide enable-by-default; (3) optionally suppress the
+  solo recall when the note is on (today it's additive).
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —

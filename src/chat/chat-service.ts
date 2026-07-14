@@ -129,6 +129,9 @@ export interface ChatServiceOptions {
 	 *  question. Injected by the runtime (holds the source-repo path + git); omitted ⇒ no corpus note (today's
 	 *  behavior). Only invoked for a `klein_self`-scoped session. */
 	buildKleinSelfCorpusNote?: (session: ChatSession, question: string) => Promise<string | null>;
+	/** F2.9b: build the flag-gated unified-memory recall note (projection across sources → provenance-carrying band) to
+	 *  lead the turn. Injected by the runtime BEHIND its opt-in flag; omitted/null ⇒ today's solo recall (byte-identical). */
+	buildUnifiedMemoryNote?: (session: ChatSession, query: string) => Promise<string | null>;
 }
 
 export interface ChatSendResult {
@@ -673,6 +676,10 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							session.scope === "klein_self" && options.buildKleinSelfCorpusNote
 								? await options.buildKleinSelfCorpusNote(session, input.message).catch(() => null)
 								: null;
+						// F2.9b: the flag-gated unified-memory recall note (runtime provides it only behind its opt-in flag).
+						const unifiedMemoryNote = options.buildUnifiedMemoryNote
+							? await options.buildUnifiedMemoryNote(session, input.message).catch(() => null)
+							: null;
 						// F2.7b: resolve the selected model's vision capability at the send seam (fail-closed to [] — a model
 						// not known vision-capable refuses images rather than sending bytes it can't read).
 						const modelCapabilityIds =
@@ -697,6 +704,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								...(onToken ? { onToken } : {}),
 								...(targetNote ? { targetNote } : {}),
 								...(kleinSelfCorpusNote ? { kleinSelfCorpusNote } : {}),
+								...(unifiedMemoryNote ? { unifiedMemoryNote } : {}),
 								...(input.imageAttachments && input.imageAttachments.length > 0
 									? { imageAttachments: input.imageAttachments }
 									: {}),

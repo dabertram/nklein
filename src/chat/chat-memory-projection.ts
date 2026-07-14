@@ -184,3 +184,16 @@ export function selectMemoryBand(
 	}
 	return chosen.sort((a, b) => b.salience - a.salience || a.id.localeCompare(b.id));
 }
+
+/**
+ * F2.9b — render a memory band into the leading system note the turn is fed (the flag-gated unified-recall feed). Each
+ * line carries its source so a small model can weight it ("why recalled / where from"). Returns null for an empty band
+ * so the caller adds nothing (byte-identical to no note). Pure.
+ */
+export function buildUnifiedMemoryNote(records: readonly UnifiedMemoryRecord[]): string | null {
+	if (records.length === 0) {
+		return null;
+	}
+	const lines = records.map((record) => `- (${record.source}) ${record.text}`);
+	return `Relevant memory recalled for this turn (each line tagged with its source — weight it accordingly):\n${lines.join("\n")}`;
+}
