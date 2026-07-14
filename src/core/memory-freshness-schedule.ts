@@ -20,6 +20,14 @@ import {
 	type MemoryFreshnessFindingKind,
 	shouldRunFreshnessAudit,
 } from "./memory-freshness-audit.js";
+import {
+	classifyMemoryLifecycle,
+	DEFAULT_MEMORY_LIFECYCLE_CONFIG,
+	type LifecycleAction,
+	type MemoryLifecycleConfig,
+	type NoteLifecycleRecommendation,
+	type NoteLifecycleSignals,
+} from "./memory-lifecycle.js";
 
 /** The persisted runtime controls the scheduler folds in (structurally the `RuntimeMemoryFreshnessAudit` config). */
 export interface MemoryFreshnessScheduleConfig {
@@ -160,4 +168,42 @@ export function readLatestMemoryFreshnessAudit(
 		summary,
 		totalFindings,
 	};
+}
+
+/**
+ * The COMBINED F5.2 memory-audit pass (pure) — runs the cadence-gated freshness audit and, when it runs, ALSO classifies
+ * the knowledge-lifecycle recommendations (opencode-swarm port) over the same notes. This gives {@link
+ * classifyMemoryLifecycle} its home: freshness FLAGS hygiene issues, lifecycle RECOMMENDS promote/retire/merge actions —
+ * one idle pass, both surfaced. Lifecycle degrades to recency+centrality when no retrieval telemetry is supplied.
+ */
+export interface MemoryAuditPassResult {
+	readonly freshness: MemoryFreshnessRun;
+	/** Lifecycle recommendations when the audit ran; null when it was skipped (disabled/paused/not-due). */
+	readonly lifecycle: readonly NoteLifecycleRecommendation[] | null;
+	/** Count per lifecycle action (only the non-`keep` actions are operator-actionable), null when skipped. */
+	readonly lifecycleSummary: Readonly<Record<LifecycleAction, number>> | null;
+}
+
+export interface RunMemoryAuditPassInput extends RunFreshnessAuditIfDueInput {
+	readonly lifecycleConfig?: MemoryLifecycleConfig;
+	/** Per-note retrieval telemetry keyed by note id; absent ⇒ lifecycle scores on recency + centrality only. */
+	readonly retrievalSignals?: Readonly<Record<string, NoteLifecycleSignals>>;
+}
+
+export function runMemoryAuditPass(input: RunMemoryAuditPassInput): MemoryAuditPassResult {
+	const freshness = runFreshnessAuditIfDue(input);
+	if (!freshness.ran) {
+		return { freshness, lifecycle: null, lifecycleSummary: null };
+	}
+	const lifecycle = classifyMemoryLifecycle(
+		input.notes,
+		input.retrievalSignals ?? {},
+		input.lifecycleConfig ?? DEFAULT_MEMORY_LIFECYCLE_CONFIG,
+		input.now,
+	);
+	const lifecycleSummary: Record<LifecycleAction, number> = { promote: 0, retire: 0, merge: 0, keep: 0 };
+	for (const recommendation of lifecycle) {
+		lifecycleSummary[recommendation.action] += 1;
+	}
+	return { freshness, lifecycle, lifecycleSummary };
 }

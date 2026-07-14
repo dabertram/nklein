@@ -5,6 +5,7 @@ import {
 	MEMORY_FRESHNESS_AUDIT_DECISION,
 	readLatestMemoryFreshnessAudit,
 	runFreshnessAuditIfDue,
+	runMemoryAuditPass,
 } from "../../../src/core/memory-freshness-schedule.js";
 
 /** F5.2 — the pure scheduler gate + F1.26 ledger retention/read for the freshness audit. */
@@ -79,5 +80,42 @@ describe("memory-freshness retention (build + read)", () => {
 
 	it("returns null when no audit has ever been retained", () => {
 		expect(readLatestMemoryFreshnessAudit([])).toBeNull();
+	});
+});
+
+describe("runMemoryAuditPass (freshness + lifecycle combined)", () => {
+	it("returns null lifecycle when the freshness audit is skipped", () => {
+		const result = runMemoryAuditPass({
+			config: { ...config, paused: true },
+			lastAuditAt: null,
+			notes,
+			now: 100 * DAY,
+		});
+		expect(result.freshness).toEqual({ ran: false, reason: "paused" });
+		expect(result.lifecycle).toBeNull();
+		expect(result.lifecycleSummary).toBeNull();
+	});
+
+	it("classifies lifecycle over the same notes when the audit runs", () => {
+		// A stale, orphaned, never-retrieved note → freshness flags it + lifecycle proposes retire.
+		const result = runMemoryAuditPass({ config, lastAuditAt: null, notes, now: 200 * DAY });
+		expect(result.freshness.ran).toBe(true);
+		expect(result.lifecycle).not.toBeNull();
+		expect(result.lifecycleSummary?.retire).toBe(1);
+	});
+
+	it("threads retrieval telemetry into the lifecycle score", () => {
+		const hubNotes = [
+			{ id: "hub", title: "Hub", updatedAt: 200 * DAY, links: ["leaf"] },
+			{ id: "leaf", title: "Leaf", updatedAt: 200 * DAY, links: ["hub"] },
+		];
+		const result = runMemoryAuditPass({
+			config,
+			lastAuditAt: null,
+			notes: hubNotes,
+			retrievalSignals: { hub: { retrievalCount: 5 } },
+			now: 200 * DAY,
+		});
+		expect(result.lifecycleSummary?.promote).toBe(1);
 	});
 });
