@@ -758,11 +758,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Select). **Leaf 6 SHIPPED 2026-07-14:** `nklein` (!Klein Provider & Models) — modelRoles (structured, but has a
   direct `setModelRoles` + JSON-compare dirty) + modelGateUnsuitable/modelGateUnknown/llmfitCatalogUpdateMode/
   skillDynamicsLevel (5 fields, all direct setters). Header wrapped via a Python insert (nested-block tab matching);
-  Playwright drives the model-gate select on the nklein-agent mock. **8 of 10 nav tabs covered.** REMAINING (the hard
-  2): `project`=per-project overrides (a sub-component owns many `*Override` fields — needs child-aware dirty+reset);
-  `code-intelligence`=`codeEmbeddingDefaults`/`codeEmbeddingOverride` are `useMemo`s derived from sub-state
-  (codeEmbeddingDefaultsProvider/…), NOT `useState` → no direct setter, so a correct reset must revert every
-  constituent sub-state field. Then optionally per-section Save.
+  Playwright drives the model-gate select on the nklein-agent mock. **Leaf 7 SHIPPED 2026-07-14:** `code-intelligence`
+  — `codeEmbeddingDefaults` is a derived `useMemo` (no direct setter): its dot uses `fieldDirty` SPECIAL-CASED to the
+  domain `areCodeEmbeddingSettingsEqual` (a generic JSON compare false-positives — `baseUrl` null-vs-"" and, for
+  `local_lexical`, the forced canonical model), and its Reset reverts the 3 constituent sub-state fields
+  (provider/model/baseUrl). En route, FIXED a latent test-mock bug (`MOCK_CONFIG.codeEmbeddingDefaults.model` was
+  "local" but `buildCodeEmbeddingSettings` forces "kanban-local-lexical-vector-v1" for local_lexical → the whole-dialog
+  Save gate ALSO read perpetually-dirty; mock aligned). **9 of 10 nav tabs covered.** REMAINING (the last, hardest 1):
+  `project` — per-project overrides, where a sub-component owns many `*Override` fields (modelRolesOverride,
+  concurrencyOverride, agentRulesetsOverride, skillDynamicsLevelOverride, sandboxIsolationProfileOverride,
+  codeEmbeddingOverride, testDrivenModeOverride, …) each with its own enabled-toggle + nested state; needs a
+  child-component-aware dirty+reset audit. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

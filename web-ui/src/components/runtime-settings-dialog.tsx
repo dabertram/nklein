@@ -1032,6 +1032,12 @@ export function RuntimeSettingsDialog({
 					case "skillDynamicsLevel":
 						setSkillDynamicsLevel(configSnapshot.skillDynamicsLevel);
 						break;
+					case "codeEmbeddingDefaults":
+						// Derived useMemo — revert its constituent sub-state (mirrors the dialog's reset effect).
+						setCodeEmbeddingDefaultsProvider(configSnapshot.codeEmbeddingDefaults.provider);
+						setCodeEmbeddingDefaultsModel(configSnapshot.codeEmbeddingDefaults.model ?? "");
+						setCodeEmbeddingDefaultsBaseUrl(configSnapshot.codeEmbeddingDefaults.baseUrl ?? "");
+						break;
 				}
 			}
 			// The Tasks tab's local (non-draft) task-default controls revert to their loaded-config initials.
@@ -2945,10 +2951,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Code Intelligence ---- */}
 						<div data-settings-section="code-intelligence" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Braces size={16} className="text-text-secondary" />
-								Code Intelligence
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Braces size={16} className="text-text-secondary" />
+									Code Intelligence
+								</h2>
+								<SectionResetButton
+									navId="code-intelligence"
+									dirty={dirtyNavIdSet.has("code-intelligence")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<p className="text-text-secondary text-[13px] mt-0 mb-0">
@@ -2966,6 +2979,7 @@ export function RuntimeSettingsDialog({
 												Global default provider
 											</span>
 											<NativeSelect
+												id="runtime-settings-code-embedding-provider"
 												value={codeEmbeddingDefaultsProvider}
 												onChange={(event) =>
 													setCodeEmbeddingDefaultsProvider(

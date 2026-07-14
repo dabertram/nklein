@@ -1,4 +1,5 @@
 import { areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
+import { areCodeEmbeddingSettingsEqual } from "@/components/code-embedding-fields";
 import { inputsToSwarmGuardrails } from "@/components/runtime-settings-swarm-guardrails";
 import type { SettingsNavId } from "@/components/settings-nav";
 import {
@@ -116,6 +117,11 @@ function fieldDirty(field: keyof SettingsDraft, draft: SettingsDraft, snapshot: 
 			snapshot.swarmGuardrails,
 		);
 	}
+	// Code-embedding settings compare via the domain equality the whole-dialog uses (a generic JSON compare
+	// false-positives on baseUrl null-vs-"" and key order) — mirrors isSettingsDraftDirty.
+	if (field === "codeEmbeddingDefaults" || field === "codeEmbeddingOverride") {
+		return !areCodeEmbeddingSettingsEqual(draft[field], snapshot[field]);
+	}
 	const draftValue = draft[field];
 	const snapshotValue = snapshot[field as keyof SettingsConfigSnapshot];
 	if (typeof draftValue === "string" && typeof snapshotValue === "string" && TRIMMED_STRING_FIELDS.has(field)) {
@@ -227,6 +233,9 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
 	nklein: ["modelRoles", "modelGateUnsuitable", "modelGateUnknown", "llmfitCatalogUpdateMode", "skillDynamicsLevel"],
+	// `codeEmbeddingDefaults` is a derived useMemo (no direct setter) — the dirty dot JSON-compares it fine, but its
+	// Reset must revert the constituent provider/model/baseUrl sub-state (see the dialog's handler).
+	"code-intelligence": ["codeEmbeddingDefaults"],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],
 	notifications: ["readyForReviewNotificationsEnabled"],
 };

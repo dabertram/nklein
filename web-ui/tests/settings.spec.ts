@@ -104,15 +104,17 @@ const MOCK_CONFIG = {
 	decompositionAutoApplyEnabled: true,
 	secondOpinionReviewEnabled: true,
 	reviewMaxRounds: 20,
+	// model must be the canonical local-lexical model — buildCodeEmbeddingSettings() forces it for this provider,
+	// so any other value reads as perpetually dirty (both the whole-dialog Save gate and the per-section dot).
 	codeEmbeddingDefaults: {
 		provider: "local_lexical",
-		model: "local",
+		model: "kanban-local-lexical-vector-v1",
 		baseUrl: null,
 	},
 	codeEmbeddingOverride: null,
 	effectiveCodeEmbeddingSettings: {
 		provider: "local_lexical",
-		model: "local",
+		model: "kanban-local-lexical-vector-v1",
 		baseUrl: null,
 	},
 	developerModeEnabled: false,
@@ -662,5 +664,33 @@ test.describe("RuntimeSettingsDialog", () => {
 		await page.getByTestId("settings-section-reset-nklein").click();
 		await expect(page.getByTestId("settings-nav-dirty-nklein")).toHaveCount(0);
 		await expect(gate).toHaveValue(current);
+	});
+
+	test("F1.29b: the Code Intelligence tab (derived codeEmbedding memo) gets its own dirty dot + Reset", async ({
+		page,
+	}) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+
+		await expect(page.getByTestId("settings-nav-dirty-code-intelligence")).toHaveCount(0);
+
+		// All sections render in one scroll body; interacting with the control auto-scrolls it into view.
+		// The embedding provider is backed by derived useMemo state (codeEmbeddingDefaults) — change it to a different value.
+		const provider = page.locator("#runtime-settings-code-embedding-provider");
+		const current = await provider.inputValue();
+		const values = await provider
+			.locator("option")
+			.evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
+		const other = values.find((v) => v && v !== current);
+		expect(other).toBeTruthy();
+		await provider.selectOption(other as string);
+
+		await expect(page.getByTestId("settings-nav-dirty-code-intelligence")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-code-intelligence")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-code-intelligence").click();
+		await expect(page.getByTestId("settings-nav-dirty-code-intelligence")).toHaveCount(0);
+		await expect(provider).toHaveValue(current); // derived sub-state reverted
 	});
 });
