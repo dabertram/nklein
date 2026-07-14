@@ -112,6 +112,29 @@ describe("agent-attempt-ledger-store", () => {
 		}
 	});
 
+	it("F1.26b: NKLEIN_AGENT_LEDGER_ROOT env override directs unscoped writes (for the subprocess capture)", async () => {
+		const isolated = await mkdtemp(join(tmpdir(), "nklein-ledger-env-"));
+		const prev = process.env.NKLEIN_AGENT_LEDGER_ROOT;
+		process.env.NKLEIN_AGENT_LEDGER_ROOT = isolated;
+		try {
+			// No explicit rootDir, no scope — the env override decides the root.
+			await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "env" }));
+			expect(
+				(await readAgentLedger({ workspacePathHash: "ws-A", rootDir: isolated })).map((e) => e.eventId),
+			).toEqual(["env"]);
+			// An explicit arg still wins over the env override.
+			await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "arg" }), { rootDir });
+			expect((await readAgentLedger({ workspacePathHash: "ws-A", rootDir })).map((e) => e.eventId)).toEqual(["arg"]);
+		} finally {
+			if (prev === undefined) {
+				delete process.env.NKLEIN_AGENT_LEDGER_ROOT;
+			} else {
+				process.env.NKLEIN_AGENT_LEDGER_ROOT = prev;
+			}
+			await rm(isolated, { recursive: true, force: true });
+		}
+	});
+
 	it("readAllAgentLedger merges every workspace's events, chronological; empty when the dir is absent", async () => {
 		expect(await readAllAgentLedger({ rootDir: join(rootDir, "nope") })).toEqual([]);
 		await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "a", recordedAt: 5 }), {

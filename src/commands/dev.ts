@@ -45,6 +45,7 @@ import {
 	runDevLedgerCommand,
 	runDevModelVerdictCommand,
 	runDevRailEvidenceCommand,
+	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
 	runDevRostersCommand,
 	runDevSwarmCommand,
@@ -757,16 +758,34 @@ export function registerDevCommand(program: Command): void {
 
 	dev.command("replay-eval <taskId>")
 		.description(
-			"F1.26b: compare a captured baseline ledger vs a replayed (patched-tree) ledger for determinism, and " +
-				"optionally retain the verdict the M4 self-improvement gate reads back.",
+			"F1.26b: replay-eval determinism check for a task. With --baseline/--replay, compares two captured ledgers. " +
+				"Without them, AUTO-CAPTURES: runs the deterministic simulated dev-test suite on the current tree and on " +
+				"the task's result-branch worktree, then compares. --retain writes the verdict the M4 gate reads back.",
 		)
-		.requiredOption("--baseline <file>", "Path to the captured baseline (pre-patch) ledger JSONL.")
-		.requiredOption("--replay <file>", "Path to the replayed (patched-tree) ledger JSONL.")
+		.option("--baseline <file>", "Path to a captured baseline (pre-patch) ledger JSONL. Omit both to auto-capture.")
+		.option("--replay <file>", "Path to a replayed (patched-tree) ledger JSONL. Omit both to auto-capture.")
 		.option("--retain", "Retain the pass/fail verdict to the ledger (M4 gate reads it back).")
 		.option("--json", "Print machine-readable JSON.")
 		.action(
-			async (taskId: string, options: { baseline: string; replay: string; retain?: boolean; json?: boolean }) => {
-				await runDevReplayEvalCommand({ taskId, ...options });
+			async (taskId: string, options: { baseline?: string; replay?: string; retain?: boolean; json?: boolean }) => {
+				if (options.baseline && options.replay) {
+					await runDevReplayEvalCommand({
+						taskId,
+						baseline: options.baseline,
+						replay: options.replay,
+						...(options.retain ? { retain: true } : {}),
+						...(options.json ? { json: true } : {}),
+					});
+					return;
+				}
+				if (options.baseline || options.replay) {
+					throw new Error("Provide BOTH --baseline and --replay to compare, or NEITHER to auto-capture.");
+				}
+				await runDevReplayEvalAutoCaptureCommand({
+					taskId,
+					...(options.retain ? { retain: true } : {}),
+					...(options.json ? { json: true } : {}),
+				});
 			},
 		);
 

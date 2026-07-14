@@ -34,8 +34,17 @@ export function runWithAgentLedgerRoot<T>(rootDir: string, operation: () => Prom
 	return ledgerRootScope.run(rootDir, operation);
 }
 
+/**
+ * F1.26b — env override for the ledger root, honored by the whole runtime. The auto-capture runs the scenario suite in
+ * a SUBPROCESS runtime (the proven `verify-simulated-flow` machinery); AsyncLocalStorage can't cross that process
+ * boundary, so the child is spawned with `NKLEIN_AGENT_LEDGER_ROOT=<ledgerRootDir>` and every ledger write in that
+ * process lands in the isolated dir. Below the explicit arg + the in-process scope so those still win; unset ⇒ default.
+ */
+const LEDGER_ROOT_ENV_VAR = "NKLEIN_AGENT_LEDGER_ROOT";
+
 function resolveRootDir(rootDir?: string): string {
-	return rootDir ?? ledgerRootScope.getStore() ?? DEFAULT_ROOT;
+	const envRoot = process.env[LEDGER_ROOT_ENV_VAR]?.trim();
+	return rootDir ?? ledgerRootScope.getStore() ?? (envRoot && envRoot.length > 0 ? envRoot : DEFAULT_ROOT);
 }
 
 function resolveLogPath(workspacePathHash: string, rootDir?: string): string {

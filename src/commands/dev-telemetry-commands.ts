@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	type AgentLedgerEvent,
 	agentLedgerEventSchema,
@@ -34,7 +36,7 @@ import {
 	formatRailFindingsReport,
 	proposeRailBacklogPackages,
 } from "../core/rail-findings";
-import { buildReplayEvalOutcome } from "../core/replay-eval-orchestration";
+import { buildReplayEvalOutcome, orchestrateReplayEvalAutoCapture } from "../core/replay-eval-orchestration";
 import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
@@ -45,10 +47,13 @@ import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
+import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
+import { createResultWorktree } from "../workspace/replay-eval-worktree";
+import { createTaskResultBranchRef } from "../workspace/task-result-branches";
 
 export async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
@@ -436,6 +441,56 @@ export async function runDevReplayEvalCommand(options: {
 	}
 	process.stdout.write(
 		`Replay-eval for ${options.taskId}: ${outcome.evaluation.pass ? "PASS" : "FAIL"} — ${outcome.evaluation.summary}\n` +
+			(options.retain ? "Retained the verdict to the ledger (the M4 gate reads it back).\n" : ""),
+	);
+}
+
+/**
+ * F1.26b — the replay-eval AUTO-CAPTURE mount (`nklein dev replay-eval <taskId>` with no `--baseline/--replay`): rather
+ * than hand-supplied ledgers, PRODUCE both captures by running the deterministic simulated dev-test suite twice — once
+ * on the current tree (baseline) and once on the task's result-branch worktree (replay) — then compare + optionally
+ * retain via the shipped `orchestrateReplayEvalAutoCapture`. Composes the three live effectful primitives: the
+ * `verify-simulated-flow` harness (`runScenarioSuite`), the throwaway git worktree (`createResultWorktree`), and the
+ * isolated-dir ledger read (`readAgentLedger`). Deterministic (no live models) but heavy — each pass boots a runtime and
+ * drains the suite. Isolated capture dirs keep the two ledgers apart; the worktree is always cleaned up.
+ */
+export async function runDevReplayEvalAutoCaptureCommand(options: {
+	taskId: string;
+	retain?: boolean;
+	json?: boolean;
+}): Promise<void> {
+	const repoPath = process.cwd();
+	const captureRoot = await mkdtemp(join(tmpdir(), "nklein-replay-caps-"));
+	const outcome = await orchestrateReplayEvalAutoCapture(
+		{
+			taskId: options.taskId,
+			resultBranch: createTaskResultBranchRef(options.taskId),
+			baselineTreePath: repoPath,
+			workflowId: "self-improvement-replay",
+			workspacePathHash: hashWorkspacePathForLedger(repoPath),
+			baselineLedgerRoot: join(captureRoot, "baseline"),
+			replayLedgerRoot: join(captureRoot, "replay"),
+		},
+		{
+			// The baseline runs from the current repo (has node_modules); the worktree borrows them via nodeModulesFrom.
+			runScenarioSuite: ({ treePath, ledgerRootDir }) =>
+				runScenarioSuite({ treePath, ledgerRootDir, nodeModulesFrom: repoPath }),
+			createResultWorktree: (resultBranch) => createResultWorktree({ repoPath, resultBranch }),
+			readCapturedLedger: ({ ledgerRootDir, workspacePathHash }) =>
+				readAgentLedger({ workspacePathHash, rootDir: ledgerRootDir }),
+		},
+	);
+	if (options.retain) {
+		await appendAgentLedgerEvent(outcome.retentionEvent);
+	}
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ evaluation: outcome.evaluation, retained: Boolean(options.retain) }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(
+		`Replay-eval (auto-capture) for ${options.taskId}: ${outcome.evaluation.pass ? "PASS" : "FAIL"} — ${outcome.evaluation.summary}\n` +
 			(options.retain ? "Retained the verdict to the ledger (the M4 gate reads it back).\n" : ""),
 	);
 }
