@@ -950,19 +950,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
-- [ ] **F2.18c — Collect + deliver operator input for the `input_then_redrive` escalation kinds (direct-redrive
-  buttons SHIPPED 2026-07-14).** F2.18b shipped the panel buttons: `task-escalation-panel.tsx` now renders, per
-  suggestion, a one-click resume button for `direct_redrive` kinds (approve / more-capable-model / fixed-env),
-  wired to `onRedrive` = the card's `onStartTask` (which reopens the parked mirror via the kernel `reopened`
-  command and resumes from the result branch — the `resumesSuspendedState` contract). `manual` (re-scope) shows
-  no button; `input_then_redrive` (clarify/context/constraint) shows a "provide <input> on the card, then resume"
-  hint. REMAINING: make the input-first kinds actionable — an inline input field per suggestion that, on submit,
-  DELIVERS the operator's answer/context/constraint to the parked card THEN redrives. This needs a
-  deliver-then-resume-from-result-branch seam: `sendTaskChatMessage`'s resume semantics (rebind/resume-persisted,
-  or "not running") are NOT obviously the parked-result-branch resume that `resumesSuspendedState` requires — pick
-  (or build) a delivery path that threads the input into the SAME suspended state the redrive resumes, don't
-  silently route it to a cold/persisted session (a lost-answer hazard). Then a Playwright pass over the resume
-  buttons + the input-first flow.
 - [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
 

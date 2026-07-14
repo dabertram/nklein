@@ -280,3 +280,18 @@ export const runtimeCardMailboxCountsResponseSchema = z.object({
 	counts: z.record(z.string(), z.number().int().nonnegative()),
 });
 export type RuntimeCardMailboxCountsResponse = z.infer<typeof runtimeCardMailboxCountsResponseSchema>;
+
+// F2.18c: append an OPERATOR note to a card's mailbox (the redrive drains pending notes into the resumed session's
+// prompt). Used by the escalation panel's input-then-redrive resume: deliver the answer/context/constraint, then
+// redrive from the parked result branch.
+export const runtimeCardMailboxSendRequestSchema = z.object({
+	taskId: z.string(),
+	text: z.string().min(1),
+});
+export type RuntimeCardMailboxSendRequest = z.infer<typeof runtimeCardMailboxSendRequestSchema>;
+
+export const runtimeCardMailboxSendResponseSchema = z.object({
+	/** Pending-note count for the card AFTER the append. */
+	pending: z.number().int().nonnegative(),
+});
+export type RuntimeCardMailboxSendResponse = z.infer<typeof runtimeCardMailboxSendResponseSchema>;

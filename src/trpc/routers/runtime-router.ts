@@ -8,6 +8,8 @@ import {
 	runtimeAnswerPlanQuestionResponseSchema,
 	runtimeCardMailboxCountsRequestSchema,
 	runtimeCardMailboxCountsResponseSchema,
+	runtimeCardMailboxSendRequestSchema,
+	runtimeCardMailboxSendResponseSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
@@ -161,6 +163,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCardMailboxCountsRequestSchema)
 			.output(runtimeCardMailboxCountsResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.getCardMailboxCounts(input)),
+		// F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive).
+		sendCardMailboxNote: t.procedure
+			.input(runtimeCardMailboxSendRequestSchema)
+			.output(runtimeCardMailboxSendResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.sendCardMailboxNote(input)),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();

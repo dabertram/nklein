@@ -3,7 +3,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchTaskEscalationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/runtime/runtime-config-query", () => ({ fetchTaskEscalation: fetchTaskEscalationMock }));
+const sendCardMailboxNoteMock = vi.hoisted(() => vi.fn());
+vi.mock("@/runtime/runtime-config-query", () => ({
+	fetchTaskEscalation: fetchTaskEscalationMock,
+	sendCardMailboxNote: sendCardMailboxNoteMock,
+}));
 
 import { TaskEscalationPanel } from "@/components/detail-panels/task-escalation-panel";
 
@@ -16,6 +20,8 @@ describe("TaskEscalationPanel", () => {
 		document.body.appendChild(container);
 		root = createRoot(container);
 		fetchTaskEscalationMock.mockReset();
+		sendCardMailboxNoteMock.mockReset();
+		sendCardMailboxNoteMock.mockResolvedValue(1);
 	});
 
 	afterEach(() => {
@@ -158,11 +164,42 @@ describe("TaskEscalationPanel", () => {
 		expect(redriven).toEqual(["t1"]);
 	});
 
-	it("F2.18b: an input-then-redrive suggestion shows a 'provide input first' hint, not a resume button", async () => {
+	it("F2.18c: an input-then-redrive suggestion queues the operator's answer to the mailbox, THEN redrives", async () => {
 		fetchTaskEscalationMock.mockResolvedValue(hardStuckReport());
-		await expandWithRedrive(() => undefined);
-		// `clarify_ambiguity` requires an answer first — no direct resume button, a hint instead.
-		expect(container.querySelector('[data-testid="escalation-resume-clarify_ambiguity"]')).toBeNull();
+		const redriven: string[] = [];
+		await expandWithRedrive((taskId) => redriven.push(taskId));
+		// `clarify_ambiguity` requires an answer first — an inline input + a submit button (no direct redrive).
+		const input = container.querySelector<HTMLInputElement>(
+			'[data-testid="escalation-resume-input-clarify_ambiguity"]',
+		);
+		expect(input).not.toBeNull();
+		const submit = container.querySelector<HTMLButtonElement>('[data-testid="escalation-resume-clarify_ambiguity"]');
+		// Empty input ⇒ the submit is disabled (nothing to deliver).
+		expect(submit?.disabled).toBe(true);
+
+		await act(async () => {
+			if (input) {
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+				setter?.call(input, "use postgres");
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+			}
+			await Promise.resolve();
+		});
+		await act(async () => {
+			container.querySelector<HTMLButtonElement>('[data-testid="escalation-resume-clarify_ambiguity"]')?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// The answer is queued to the card mailbox, then the card redrives (which drains it into the resumed prompt).
+		expect(sendCardMailboxNoteMock).toHaveBeenCalledWith("ws", "t1", "use postgres");
+		expect(redriven).toEqual(["t1"]);
+	});
+
+	it("F2.18c: without an onRedrive handler an input-then-redrive suggestion falls back to the guidance hint", async () => {
+		fetchTaskEscalationMock.mockResolvedValue(hardStuckReport());
+		await expand();
+		expect(container.querySelector('[data-testid="escalation-resume-input-clarify_ambiguity"]')).toBeNull();
 		expect(container.textContent).toContain("provide answer on the card, then resume");
 	});
 });

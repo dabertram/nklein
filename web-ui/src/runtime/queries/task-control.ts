@@ -24,6 +24,13 @@ export async function fetchTaskEscalation(workspaceId: string | null, taskId: st
 	return await trpcClient.runtime.getTaskEscalation.query({ taskId });
 }
 
+/** F2.18c: queue an operator note onto a card's mailbox (drained into the next redrive's prompt). */
+export async function sendCardMailboxNote(workspaceId: string | null, taskId: string, text: string): Promise<number> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	const result = await trpcClient.runtime.sendCardMailboxNote.mutate({ taskId, text });
+	return result.pending;
+}
+
 export async function collectTaskEvidence(
 	workspaceId: string | null,
 	taskId: string,

@@ -1123,6 +1123,18 @@
   (its convention — no e2e opens this panel): a direct-redrive suggestion renders a button that calls
   `onRedrive(taskId)`; an input-first suggestion shows the hint, not a button. web-ui tsc 0; lint 0; panel suite
   7/7.
+- [x] **F2.18c — the `input_then_redrive` escalations made actionable via the card mailbox** *(delivered
+  2026-07-14; completes F2.18; David's design call: CARD MAILBOX delivery).* Verified the correctness path first:
+  `startTaskSession` (the redrive) DRAINS pending card-mailbox notes into the resumed session's prompt
+  (`listPendingCardMailbox` → `composeMailboxPromptAddendum` → mark-consumed-after-success) — so delivering the
+  answer to the mailbox THEN redriving threads it into the SAME suspended state (no lost-answer hazard). New
+  `sendCardMailboxNote` tRPC (contract `runtimeCardMailboxSend*` + app-router + runtime-router mutation → the
+  runtime-api handler appends via `appendCardMailboxNote({ source: "operator" })` — a new `CardMailboxSource`
+  variant — and returns the pending count) + a web-ui client helper. In `task-escalation-panel.tsx`, an
+  `input_then_redrive` suggestion (with `onRedrive` wired) now renders an inline input + a submit button labeled
+  from the descriptor ("Answer & resume", …); submit queues the note to the mailbox then calls `onRedrive` (the
+  reopen-from-result-branch redrive). Submit is disabled while empty. 2 new panel tests (queue-then-redrive; the
+  no-onRedrive hint fallback) + card-mailbox store green (11). tsc 0; web-ui tsc 0; lint 0; panel suite 8/8.
 - [x] **F2.19a — read-only !Klein self-awareness: corpus freshness/provenance core** *(delivered 2026-07-13;
   the live-data feed + explicit write-block test are F2.19b in todo).* klein_self already indexed the corpus
   (`routeKleinSelfCorpus` over done/todo/agents/changelog/docs) and blocked self-writes (scope →

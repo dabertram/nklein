@@ -19,7 +19,7 @@ import { parseValidatedJsonl } from "./jsonl-store";
  */
 
 /** Where a mailbox note originated — the main chat (targeted at a card) or a stream-level fan-out. */
-export type CardMailboxSource = "chat" | "stream";
+export type CardMailboxSource = "chat" | "stream" | "operator";
 
 export interface CardMailboxNote {
 	schemaVersion: 1;
@@ -36,7 +36,7 @@ const cardMailboxNoteSchema = z.object({
 	id: z.string(),
 	taskId: z.string(),
 	text: z.string(),
-	source: z.enum(["chat", "stream"]),
+	source: z.enum(["chat", "stream", "operator"]),
 	createdAt: z.number(),
 });
 

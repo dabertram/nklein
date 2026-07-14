@@ -9,6 +9,8 @@ import type {
 	RuntimeAnswerPlanQuestionResponse,
 	RuntimeCardMailboxCountsRequest,
 	RuntimeCardMailboxCountsResponse,
+	RuntimeCardMailboxSendRequest,
+	RuntimeCardMailboxSendResponse,
 	RuntimeCommandRunResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
@@ -214,6 +216,8 @@ export interface RuntimeTrpcContext {
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
 		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
+		/** F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive). */
+		sendCardMailboxNote: (input: RuntimeCardMailboxSendRequest) => Promise<RuntimeCardMailboxSendResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

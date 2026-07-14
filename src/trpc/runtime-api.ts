@@ -509,6 +509,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			);
 			return { counts };
 		},
+		// F2.18c: queue an OPERATOR note onto a card's mailbox. The redrive (start-task-session) drains pending
+		// notes into the resumed session's prompt, so this + a redrive threads the operator's answer/context/
+		// constraint into the SAME suspended state the card resumes from.
+		sendCardMailboxNote: async (input) => {
+			await appendCardMailboxNote({ taskId: input.taskId, text: input.text, source: "operator" });
+			return { pending: await countPendingCardMailbox(input.taskId).catch(() => 0) };
+		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();
 			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;

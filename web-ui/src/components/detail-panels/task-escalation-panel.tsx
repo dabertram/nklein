@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchTaskEscalation } from "@/runtime/runtime-config-query";
+import { fetchTaskEscalation, sendCardMailboxNote } from "@/runtime/runtime-config-query";
 import type { TaskBlockedKind } from "@/types/board";
 
 /**
@@ -47,6 +47,30 @@ export function TaskEscalationPanel({
 	const [isLoading, setIsLoading] = useState(false);
 	const [report, setReport] = useState<EscalationReport | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	// F2.18c: per-suggestion input text for the `input_then_redrive` kinds (keyed by suggestion kind), and which one
+	// is currently submitting (its answer is queued to the card mailbox, then the card redrives + drains it).
+	const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({});
+	const [resumeSubmitting, setResumeSubmitting] = useState<string | null>(null);
+
+	const submitResumeWithInput = useCallback(
+		async (kind: string) => {
+			const text = (resumeInputs[kind] ?? "").trim();
+			if (!workspaceId || !onRedrive || text.length === 0) {
+				return;
+			}
+			setResumeSubmitting(kind);
+			try {
+				await sendCardMailboxNote(workspaceId, taskId, text);
+				setResumeInputs((current) => ({ ...current, [kind]: "" }));
+				onRedrive(taskId);
+			} catch {
+				// Best-effort — leave the text so the operator can retry.
+			} finally {
+				setResumeSubmitting(null);
+			}
+		},
+		[resumeInputs, workspaceId, onRedrive, taskId],
+	);
 
 	const refreshEscalation = useCallback(() => {
 		if (!workspaceId) {
@@ -170,15 +194,22 @@ export function TaskEscalationPanel({
 									</div>
 									<ul className="mt-0.5 list-none space-y-1 pl-0">
 										{verdict.suggestions.map((suggestion) => {
-											// F2.18b: a `direct_redrive` suggestion (approve / more-capable model / fixed environment)
-											// resumes the parked card from its result branch in one click. `input_then_redrive` still
-											// needs the operator's input threaded in first (F2.18c); `manual` (re-scope) has no in-place
-											// resume. `resumesSuspendedState` is the redrive-not-restart contract.
+											// F2.18b/c: a `direct_redrive` suggestion (approve / more-capable model / fixed environment)
+											// resumes the parked card in one click. An `input_then_redrive` suggestion (clarify / context /
+											// constraint) collects the operator's answer, queues it to the card mailbox, THEN redrives so
+											// the resumed session drains it (F2.18c). `manual` (re-scope) has no in-place resume.
+											// `resumesSuspendedState` is the redrive-not-restart contract.
 											const resume = describeEscalationResumeAction(suggestion.kind);
+											const showInputResume = resume.mode === "input_then_redrive" && Boolean(onRedrive);
+											const inputValue = resumeInputs[suggestion.kind] ?? "";
 											return (
 												<li
 													key={suggestion.kind}
-													className="flex items-center justify-between gap-2"
+													className={
+														showInputResume
+															? "flex flex-col gap-1"
+															: "flex items-center justify-between gap-2"
+													}
 													title={suggestion.detail}
 												>
 													<span className="min-w-0 truncate text-text-tertiary">• {suggestion.title}</span>
@@ -192,6 +223,41 @@ export function TaskEscalationPanel({
 														>
 															{resume.actionLabel}
 														</Button>
+													) : showInputResume ? (
+														<div className="flex items-center gap-1.5 pl-3">
+															<input
+																type="text"
+																data-testid={`escalation-resume-input-${suggestion.kind}`}
+																className="min-w-0 flex-1 rounded border border-border bg-surface-0 px-1.5 py-0.5 text-[11px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+																placeholder={`Provide ${resume.requiresInput}…`}
+																value={inputValue}
+																onChange={(event) =>
+																	setResumeInputs((current) => ({
+																		...current,
+																		[suggestion.kind]: event.target.value,
+																	}))
+																}
+																onKeyDown={(event) => {
+																	if (event.key === "Enter") {
+																		event.preventDefault();
+																		void submitResumeWithInput(suggestion.kind);
+																	}
+																}}
+															/>
+															<Button
+																size="sm"
+																variant="ghost"
+																className="shrink-0"
+																data-testid={`escalation-resume-${suggestion.kind}`}
+																disabled={
+																	resumeSubmitting === suggestion.kind ||
+																	inputValue.trim().length === 0
+																}
+																onClick={() => void submitResumeWithInput(suggestion.kind)}
+															>
+																{resume.actionLabel}
+															</Button>
+														</div>
 													) : resume.mode === "input_then_redrive" ? (
 														<span className="shrink-0 text-[10px] italic text-text-tertiary">
 															provide {resume.requiresInput} on the card, then resume

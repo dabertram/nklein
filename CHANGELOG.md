@@ -20,11 +20,13 @@
   quiet mode keeps the hard stops (escalations, held deliveries, blocks) while dropping the softer "needs input"
   ones. Each situation notifies once, and re-notifies if it recurs after being resolved.
 
-- **Stuck cards now offer one-click resume.** When a card exhausts automatic recovery and escalates, its "what was
-  tried" panel shows the get-through-the-wall options with a resume button on the ones you can act on directly —
-  approving a blocked action, pointing it at a more capable model, or retrying after you've fixed the environment.
-  Clicking resume continues the card from exactly where it parked (its saved work), rather than restarting it cold.
-  (Options that need you to supply an answer or context first still guide you to provide that on the card.)
+- **Stuck cards now offer one-click resume — and let you answer inline when they need input.** When a card exhausts
+  automatic recovery and escalates, its "what was tried" panel shows the get-through-the-wall options with a resume
+  control on each one you can act on: a one-click button for the direct fixes (approve a blocked action, point it at
+  a more capable model, retry after you've fixed the environment), and an inline field for the ones that need
+  something from you (clarify the goal, add context, relax a constraint) — type your answer and it's delivered to
+  the card as it resumes. Either way the card continues from exactly where it parked (its saved work), rather than
+  restarting cold.
 
 - **When a chat message could address more than one card, the agent now tries to figure out which you meant before
   asking.** Previously an ambiguous message (e.g. an `@handle` that matched two same-named cards) always stopped to
