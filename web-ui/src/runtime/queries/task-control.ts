@@ -31,6 +31,12 @@ export async function sendCardMailboxNote(workspaceId: string | null, taskId: st
 	return result.pending;
 }
 
+/** F2.12b: the host-action audit history for a chat session (newest first). Chat is workspace-agnostic → null client. */
+export async function fetchChatHostActionAudit(sessionId: string, limit = 100) {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.runtime.getChatHostActionAudit.query({ sessionId, limit })).entries;
+}
+
 export async function collectTaskEvidence(
 	workspaceId: string | null,
 	taskId: string,

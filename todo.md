@@ -912,9 +912,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   a covered grant reuses), SCOPE (sandbox/host/network from the capability manifest), CONSEQUENCE, DURATION (the
   grant TTL, human-phrased) — and `filterChatHostActionAudit` gives the filterable history (by action/decision/
   time/text/executed, newest first) over the already-secret-safe records (`chat-audit-detail.ts` masks secrets
-  before persistence — the secret-safety half is done). REMAINING: the web-ui confirm DIALOG rendering the five
-  fields (replacing the current session-flag resolve — ties F2.2b), an audit history panel with the filter
-  controls, and Playwright over both.- [x] **F2.13 — auto-clarification wiring finished (the restart-dedup bug fixed 2026-07-13).** The bind
+  before persistence — the secret-safety half is done). The AUDIT HISTORY view shipped 2026-07-14: a collapsible
+  `ChatHostActionAuditPanel` in the chat session header (can-act scopes) over a new read-only `getChatHostActionAudit`
+  tRPC, with decision + executed-only filters (2 Playwright tests). REMAINING (ties F2.2b): the web-ui confirm DIALOG
+  rendering the five fields, replacing the current session-flag `confirm` resolve — a real async confirm round-trip.
+- [x] **F2.13 — auto-clarification wiring finished (the restart-dedup bug fixed 2026-07-13).** The bind
   questions↔plan-state + resume-the-correct-card machinery was already complete (`resolvePlanQuestion` projects
   the answer, releases the parked `blockedTaskId`, records a `clarification_resolved` revision; `answer-plan-
   question` tRPC wired). The named residue — "avoid duplicate prompts after restart" — was a real bug:

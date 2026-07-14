@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
+import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
 import { createChatService } from "../chat/chat-service";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
@@ -515,6 +516,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		sendCardMailboxNote: async (input) => {
 			await appendCardMailboxNote({ taskId: input.taskId, text: input.text, source: "operator" });
 			return { pending: await countPendingCardMailbox(input.taskId).catch(() => 0) };
+		},
+		// F2.12b: the host-action audit history for a chat session (read-only; secrets already masked at write time).
+		getChatHostActionAudit: async (input) => {
+			const entries = await readChatHostActionAudit(input).catch(() => []);
+			return { entries: entries.map(({ schemaVersion: _schemaVersion, ...entry }) => entry) };
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();

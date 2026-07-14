@@ -295,3 +295,37 @@ export const runtimeCardMailboxSendResponseSchema = z.object({
 	pending: z.number().int().nonnegative(),
 });
 export type RuntimeCardMailboxSendResponse = z.infer<typeof runtimeCardMailboxSendResponseSchema>;
+
+// F2.12b: the host-action audit history for a chat session — the record of every gated host action (what, under
+// which mode, the policy decision, whether confirmed + executed). Secrets are masked at write time. Read-only.
+export const runtimeChatHostActionAuditRequestSchema = z.object({
+	sessionId: z.string().optional(),
+	limit: z.number().int().positive().max(500).optional(),
+});
+export type RuntimeChatHostActionAuditRequest = z.infer<typeof runtimeChatHostActionAuditRequestSchema>;
+
+export const runtimeChatHostActionAuditEntrySchema = z.object({
+	id: z.string(),
+	sessionId: z.string(),
+	mode: z.enum(["isolated_readonly", "sandbox_with_host_escape", "host"]),
+	action: z.enum([
+		"sandbox_read",
+		"sandbox_write",
+		"control_plane",
+		"egress_read",
+		"host_read",
+		"host_write",
+		"host_command",
+	]),
+	decision: z.enum(["allow", "confirm", "deny"]),
+	confirmed: z.boolean(),
+	executed: z.boolean(),
+	detail: z.string().nullable(),
+	recordedAt: z.number(),
+});
+export type RuntimeChatHostActionAuditEntry = z.infer<typeof runtimeChatHostActionAuditEntrySchema>;
+
+export const runtimeChatHostActionAuditResponseSchema = z.object({
+	entries: z.array(runtimeChatHostActionAuditEntrySchema),
+});
+export type RuntimeChatHostActionAuditResponse = z.infer<typeof runtimeChatHostActionAuditResponseSchema>;

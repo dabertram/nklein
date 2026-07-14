@@ -14,6 +14,7 @@ import {
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
+import { ChatHostActionAuditPanel } from "@/components/chat/chat-host-action-audit-panel";
 import {
 	type ActiveMention,
 	applyMention,
@@ -528,6 +529,8 @@ function SessionHeader({
 						);
 					})}
 				</div>
+				{/* F2.12b: host actions only occur in can-act scopes, so the audit history shows there. */}
+				{showRiskToggle ? <ChatHostActionAuditPanel sessionId={session.id} /> : null}
 			</div>
 			<RiskAckConfirmDialog open={riskDialogOpen} onConfirm={handleRiskConfirm} onCancel={handleRiskCancel} />
 		</>

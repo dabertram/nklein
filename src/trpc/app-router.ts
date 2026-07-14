@@ -11,6 +11,8 @@ import type {
 	RuntimeCardMailboxCountsResponse,
 	RuntimeCardMailboxSendRequest,
 	RuntimeCardMailboxSendResponse,
+	RuntimeChatHostActionAuditRequest,
+	RuntimeChatHostActionAuditResponse,
 	RuntimeCommandRunResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
@@ -218,6 +220,8 @@ export interface RuntimeTrpcContext {
 		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
 		/** F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive). */
 		sendCardMailboxNote: (input: RuntimeCardMailboxSendRequest) => Promise<RuntimeCardMailboxSendResponse>;
+		/** F2.12b: the host-action audit history for a chat session (read-only). */
+		getChatHostActionAudit: (input: RuntimeChatHostActionAuditRequest) => Promise<RuntimeChatHostActionAuditResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

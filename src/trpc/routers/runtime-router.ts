@@ -10,6 +10,8 @@ import {
 	runtimeCardMailboxCountsResponseSchema,
 	runtimeCardMailboxSendRequestSchema,
 	runtimeCardMailboxSendResponseSchema,
+	runtimeChatHostActionAuditRequestSchema,
+	runtimeChatHostActionAuditResponseSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
@@ -168,6 +170,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCardMailboxSendRequestSchema)
 			.output(runtimeCardMailboxSendResponseSchema)
 			.mutation(async ({ ctx, input }) => ctx.runtimeApi.sendCardMailboxNote(input)),
+		// F2.12b: the host-action audit history for a chat session (read-only).
+		getChatHostActionAudit: t.procedure
+			.input(runtimeChatHostActionAuditRequestSchema)
+			.output(runtimeChatHostActionAuditResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatHostActionAudit(input)),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();
