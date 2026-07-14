@@ -740,15 +740,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   fields from the snapshot, leaving other tabs' edits (Playwright in settings.spec.ts). **Leaf 1 covers `general`
   (11 fields) + `notifications` (1)** — the two tabs whose editable fields are all top-level and fully enumerable.
   **Leaf 2 SHIPPED 2026-07-14:** `guardrails` (maxConcurrentTasks + swarmGuardrailInputs) and `git-prompts`
-  (commit/openPr templates) — the remaining tabs whose editable fields are ALL draft fields (no local-state
-  entanglement). GOTCHA fixed en route: the dirty-dot `aria-label` must not contain the substring "save" — a
-  non-exact `getByRole("button",{name:"Save"})` matches a dirty tab's button because "unsaved" contains "save"
-  (broke 3 existing settings tests; label reworded to "Section edited"). REMAINING (one tab per leaf, but NO LONGER
-  clean leaves): `agents`/`tasks`/`nklein`/`code-intelligence`/`project` each mix in LOCAL (non-draft) state (`tasks`
-  renders taskDefaultStartInPlanMode/AutoReview* which live OUTSIDE SettingsDraft, in the `local` dirty inputs) or
-  STRUCTURED sub-component fields (nklein=model roles, project=per-project overrides, code-intelligence=codeEmbedding*),
-  so their per-tab dots need the dirty computation extended past `SETTINGS_NAV_FIELDS` to those axes — a bigger per-tab
-  audit. `appearance` is theme-only (local, no draft fields) → no per-tab affordance. Then optionally per-section Save.
+  (commit/openPr templates) — draft-only tabs. GOTCHA fixed: the dirty-dot `aria-label` must not contain the substring
+  "save" — a non-exact `getByRole("button",{name:"Save"})` matches a dirty tab's button because "unsaved" contains
+  "save" (broke 3 existing tests; reworded to "Section edited"). **Leaf 3 SHIPPED 2026-07-14:** `tasks` — the first
+  MIXED-AXIS tab: its dot ORs its draft fields (workspaceBaseDir/deviceRamGb/agentRulesets, all verified edited only in
+  this tab) with its LOCAL non-draft task-defaults (start-in-plan / auto-review on+mode, which live in the `local`
+  dirty inputs), and its Reset reverts both (draft from the snapshot, local from their initials). Playwright proves the
+  LOCAL-field path lights the dot + reverts. REMAINING (harder, one tab per leaf): `agents` (many draft fields, all in
+  the main body — the largest but tractable audit: timeouts + planning/review + sandbox subset), `nklein`/`project`/
+  `code-intelligence` use STRUCTURED/DERIVED sub-state (model roles, per-project overrides, `codeEmbedding*` is a
+  `useMemo` not a `useState` → no direct setter), so those need child-component-aware dirty+reset. `appearance` is
+  theme-only (local `draftThemeId` vs `initialThemeId`) → a tiny local-only leaf if wanted. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

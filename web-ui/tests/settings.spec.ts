@@ -560,4 +560,26 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(page.getByTestId("settings-nav-dirty-guardrails")).toHaveCount(0);
 		await expect(maxConcurrent).toHaveValue("3"); // restored to the mock config value
 	});
+
+	test("F1.29b: the Tasks tab dirty dot reflects a LOCAL (non-draft) task-default edit, and Reset reverts it", async ({
+		page,
+	}) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+
+		await expect(page.getByTestId("settings-nav-dirty-tasks")).toHaveCount(0);
+
+		// "Start new tasks in plan mode" is a LOCAL default (outside SettingsDraft) — the mixed-axis dirty must catch it.
+		const startInPlan = page.locator("#runtime-settings-task-default-start-in-plan-mode");
+		const before = await startInPlan.getAttribute("aria-checked");
+		await startInPlan.click();
+
+		await expect(page.getByTestId("settings-nav-dirty-tasks")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-tasks")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-tasks").click();
+		await expect(page.getByTestId("settings-nav-dirty-tasks")).toHaveCount(0);
+		await expect(startInPlan).toHaveAttribute("aria-checked", before ?? "false"); // reverted to the initial value
+	});
 });

@@ -190,6 +190,10 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 		"capabilityBrokerEnabled",
 		"maxAgentWritableFileLines",
 	],
+	// NOTE: the Tasks tab ALSO renders local (non-draft) task-default controls; its dirty dot ORs those in at the
+	// dialog (see `dirtyNavIdSet`), so this draft-field list alone would UNDER-report — never read it in isolation
+	// for the Tasks tab.
+	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],
 	notifications: ["readyForReviewNotificationsEnabled"],

@@ -851,10 +851,20 @@ export function RuntimeSettingsDialog({
 	// F1.29b: which nav tabs (with a per-tab affordance) have unsaved edits — drives the nav dirty dot + the
 	// per-section Reset button. Uses the SAME field comparison as the whole-dialog dirty check, so it can never
 	// disagree with Save.
-	const dirtyNavIdSet = useMemo(
-		() => new Set(config === null ? [] : dirtyNavSections(draft, configSnapshot)),
-		[config, draft, configSnapshot],
-	);
+	// The Tasks tab renders LOCAL (non-draft) task-default controls (start-in-plan, auto-review on/mode) that live
+	// outside SettingsDraft — so its per-tab dirty must OR these in alongside its draft fields.
+	const localTaskDefaultsDirty =
+		taskDefaultStartInPlanMode !== initialTaskDefaultStartInPlanMode ||
+		taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
+		taskDefaultAutoReviewMode !== initialTaskDefaultAutoReviewMode;
+
+	const dirtyNavIdSet = useMemo(() => {
+		const set = new Set<SettingsNavId>(config === null ? [] : dirtyNavSections(draft, configSnapshot));
+		if (localTaskDefaultsDirty) {
+			set.add("tasks");
+		}
+		return set;
+	}, [config, draft, configSnapshot, localTaskDefaultsDirty]);
 
 	// F1.29b: revert just ONE nav tab's editable fields to the loaded config, leaving every other tab's edits intact.
 	// Each field dispatches to its own setter from the snapshot (React state is per-field); the covered set is
@@ -911,10 +921,30 @@ export function RuntimeSettingsDialog({
 					case "openPrPromptTemplate":
 						setOpenPrPromptTemplate(configSnapshot.openPrPromptTemplate);
 						break;
+					case "workspaceBaseDir":
+						setWorkspaceBaseDir(configSnapshot.workspaceBaseDir);
+						break;
+					case "deviceRamGb":
+						setDeviceRamGb(configSnapshot.deviceRamGb);
+						break;
+					case "agentRulesets":
+						setAgentRulesets(configSnapshot.agentRulesets);
+						break;
 				}
 			}
+			// The Tasks tab's local (non-draft) task-default controls revert to their loaded-config initials.
+			if (nav === "tasks") {
+				setTaskDefaultStartInPlanMode(initialTaskDefaultStartInPlanMode);
+				setTaskDefaultAutoReviewEnabled(initialTaskDefaultAutoReviewEnabled);
+				setTaskDefaultAutoReviewMode(initialTaskDefaultAutoReviewMode);
+			}
 		},
-		[configSnapshot],
+		[
+			configSnapshot,
+			initialTaskDefaultStartInPlanMode,
+			initialTaskDefaultAutoReviewEnabled,
+			initialTaskDefaultAutoReviewMode,
+		],
 	);
 
 	// Reset the draft to the loaded config whenever the dialog opens or a watched config field changes.
@@ -2348,10 +2378,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Tasks ---- */}
 						<div data-settings-section="tasks" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Check size={16} className="text-text-secondary" />
-								Tasks
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Check size={16} className="text-text-secondary" />
+									Tasks
+								</h2>
+								<SectionResetButton
+									navId="tasks"
+									dirty={dirtyNavIdSet.has("tasks")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
