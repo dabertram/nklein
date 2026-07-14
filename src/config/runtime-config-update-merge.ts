@@ -5,7 +5,11 @@
 // caller's update when provided (normalizing it) and otherwise retains the current value.
 
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
-import { DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import {
+	DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
+	normalizeRuntimeMemoryFreshnessAudit,
+	normalizeRuntimeSwarmGuardrails,
+} from "../core/api-contract";
 import { normalizeConcurrencyConfig } from "../core/concurrency-config";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import {
@@ -273,6 +277,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.swarmGuardrails,
 			current.swarmGuardrails,
 			normalizeRuntimeSwarmGuardrails,
+		),
+		memoryFreshnessAudit: keepNormalizedValue(
+			updates.memoryFreshnessAudit,
+			current.memoryFreshnessAudit,
+			normalizeRuntimeMemoryFreshnessAudit,
 		),
 		commitPromptTemplate: keepUpdatedValue(updates.commitPromptTemplate, current.commitPromptTemplate),
 		openPrPromptTemplate: keepUpdatedValue(updates.openPrPromptTemplate, current.openPrPromptTemplate),

@@ -14,6 +14,7 @@ import type {
 	RuntimeFileOverlapParallelism,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeMemoryFreshnessAudit,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
@@ -21,7 +22,7 @@ import type {
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
-import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
@@ -146,6 +147,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	agentRulesets?: AgentRulesetsConfigPayload;
 	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
 	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
+	memoryFreshnessAudit?: Partial<RuntimeMemoryFreshnessAudit>;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -253,6 +255,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		...deriveModelRolesFields(input.modelRoles, input.modelRolesOverride),
 		...deriveRulesetsFields(input.agentRulesets, input.agentRulesetsOverride),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),
+		memoryFreshnessAudit: normalizeRuntimeMemoryFreshnessAudit(input.memoryFreshnessAudit),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			input.commitPromptTemplate,

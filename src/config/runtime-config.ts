@@ -4,40 +4,12 @@
 
 import { getRuntimeAgentCatalogEntry } from "../core/agent-catalog";
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
-import type {
-	AgentRulesetsConfigPayload,
-	RuntimeAgentId,
-	RuntimeAgentTimeoutMode,
-	RuntimeAgentTimeoutProfile,
-	RuntimeCodeEmbeddingSettings,
-	RuntimeFileOverlapParallelism,
-	RuntimeLlmfitCatalogUpdateMode,
-	RuntimeLostHeartbeatPolicy,
-	RuntimeModelRoles,
-	RuntimeModelSuitabilityPolicy,
-	RuntimeProjectShortcut,
-	RuntimeSandboxIsolationProfile,
-	RuntimeSkillDynamicsLevel,
-	RuntimeSwarmGuardrails,
-} from "../core/api-contract";
-import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
-import {
-	type ConcurrencyConfig,
-	type ConcurrencyOverride,
-	DEFAULT_CONCURRENCY_CONFIG,
-	normalizeConcurrencyOverride,
-} from "../core/concurrency-config";
-import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import type { RuntimeAgentId } from "../core/api-contract";
+import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import { normalizeConcurrencyOverride } from "../core/concurrency-config";
+import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import {
-	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-	DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
-	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-} from "../nklein-agent/nklein-agent-sandbox";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { resolveRuntimeAgentIdConfig } from "./runtime-config-agent-id-resolver";
 import {
@@ -64,18 +36,12 @@ import {
 	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
-	DEFAULT_CODE_EMBEDDING_SETTINGS,
-	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
-	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_REASONING_BUDGET_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_LENSES_ENABLED,
-	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
-	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import { resolveRuntimeEmbeddingConfig } from "./runtime-config-embedding-resolver";
 import {
@@ -85,23 +51,15 @@ import {
 } from "./runtime-config-file-io";
 import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-resolver";
 import {
-	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-	normalizeAgentRulesets,
 	normalizeAgentRulesetsOverride,
 	normalizeBoolean,
 	normalizeCodeEmbeddingOverride,
 	normalizeDeveloperModeEnabled,
 	normalizeLlmfitCatalogUpdateMode,
 	normalizeLostHeartbeatPolicy,
-	normalizeMaxConcurrentTasks,
 	normalizeMaxConcurrentTasksOverride,
-	normalizeModelRoles,
 	normalizeModelRolesOverride,
 	normalizeModelSuitabilityPolicyOverride,
-	normalizeNonNegativeInteger,
-	normalizePositiveInteger,
-	normalizePositiveNumber,
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
@@ -109,7 +67,6 @@ import {
 	normalizeTestDrivenModeOverride,
 } from "./runtime-config-normalizers";
 import {
-	normalizeFileOverlapParallelism,
 	normalizeFileOverlapParallelismOverride,
 	resolveRuntimeFileOverlapConfig,
 } from "./runtime-config-overlap-resolver";
@@ -124,11 +81,7 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
-import {
-	normalizeRetrievalEgressEnabled,
-	normalizeRetrievalSearchBackendUrl,
-	resolveRuntimeRetrievalConfig,
-} from "./runtime-config-retrieval-resolver";
+import { resolveRuntimeRetrievalConfig } from "./runtime-config-retrieval-resolver";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
 import {
@@ -140,12 +93,7 @@ import {
 	resolveRuntimeSetupWizardConfig,
 } from "./runtime-config-setup-wizard-resolver";
 import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
-import {
-	normalizeSpeculativeBestOfNEnabled,
-	normalizeSpeculativeMaxConcurrentSpecs,
-	normalizeSpeculativeMaxSpecsPerRun,
-	resolveRuntimeSpeculativeConfig,
-} from "./runtime-config-speculative-resolver";
+import { resolveRuntimeSpeculativeConfig } from "./runtime-config-speculative-resolver";
 import { createRuntimeConfigStateFromValues } from "./runtime-config-state-factory";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
@@ -249,6 +197,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeModelRolesConfig(globalConfig, projectConfig),
 		...resolveRuntimeRulesetsConfig(globalConfig, projectConfig),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(globalConfig?.swarmGuardrails),
+		memoryFreshnessAudit: normalizeRuntimeMemoryFreshnessAudit(globalConfig?.memoryFreshnessAudit),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			globalConfig?.commitPromptTemplate,
@@ -378,6 +327,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		agentRulesets: current.agentRulesets,
 		agentRulesetsOverride: null,
 		swarmGuardrails: current.swarmGuardrails,
+		memoryFreshnessAudit: current.memoryFreshnessAudit,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
 		openPrPromptTemplate: current.openPrPromptTemplate,

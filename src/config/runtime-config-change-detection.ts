@@ -1,4 +1,4 @@
-import { areRuntimeSwarmGuardrailsEqual } from "../core/api-contract";
+import { areRuntimeMemoryFreshnessAuditEqual, areRuntimeSwarmGuardrailsEqual } from "../core/api-contract";
 import { areConcurrencyConfigsEqual, areConcurrencyOverridesEqual } from "../core/concurrency-config";
 import {
 	areAgentRulesetsEqual,
@@ -100,6 +100,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
 	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
 	runtimeConfigChangeField("swarmGuardrails", areRuntimeSwarmGuardrailsEqual),
+	runtimeConfigChangeField("memoryFreshnessAudit", areRuntimeMemoryFreshnessAuditEqual),
 	runtimeConfigChangeField("commitPromptTemplate"),
 	runtimeConfigChangeField("openPrPromptTemplate"),
 	runtimeConfigChangeField("workspaceBaseDir"),

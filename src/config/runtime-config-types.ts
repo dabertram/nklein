@@ -11,6 +11,7 @@ import type {
 	RuntimeFileOverlapParallelism,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeMemoryFreshnessAudit,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
@@ -117,6 +118,7 @@ export interface RuntimeConfigState {
 	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
 	effectiveAgentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails: RuntimeSwarmGuardrails;
+	memoryFreshnessAudit: RuntimeMemoryFreshnessAudit;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -205,6 +207,7 @@ export interface RuntimeConfigUpdateInput {
 	modelRolesOverride?: RuntimeModelRoles | null;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: RuntimeSwarmGuardrails;
+	memoryFreshnessAudit?: RuntimeMemoryFreshnessAudit;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -267,6 +270,7 @@ export interface RuntimeGlobalConfigFileShape {
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
+	memoryFreshnessAudit?: Partial<RuntimeMemoryFreshnessAudit>;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;

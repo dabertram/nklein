@@ -16,6 +16,7 @@ import type {
 	RuntimeFileOverlapParallelism,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeMemoryFreshnessAudit,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeSandboxIsolationProfile,
@@ -23,9 +24,12 @@ import type {
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import {
+	areRuntimeMemoryFreshnessAuditEqual,
 	areRuntimeSwarmGuardrailsEqual,
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	normalizeRuntimeMemoryFreshnessAudit,
 	normalizeRuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import {
@@ -186,6 +190,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: RuntimeSwarmGuardrails;
+	memoryFreshnessAudit?: RuntimeMemoryFreshnessAudit;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
@@ -377,6 +382,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.swarmGuardrails === undefined
 			? normalizeRuntimeSwarmGuardrails(existing?.swarmGuardrails)
 			: normalizeRuntimeSwarmGuardrails(config.swarmGuardrails);
+	const memoryFreshnessAudit =
+		config.memoryFreshnessAudit === undefined
+			? normalizeRuntimeMemoryFreshnessAudit(existing?.memoryFreshnessAudit)
+			: normalizeRuntimeMemoryFreshnessAudit(config.memoryFreshnessAudit);
 	const commitPromptTemplate =
 		config.commitPromptTemplate === undefined
 			? DEFAULT_COMMIT_PROMPT_TEMPLATE
@@ -701,6 +710,12 @@ export function buildRuntimeGlobalConfigFilePayload(
 		!areRuntimeSwarmGuardrailsEqual(swarmGuardrails, DEFAULT_RUNTIME_SWARM_GUARDRAILS)
 	) {
 		payload.swarmGuardrails = swarmGuardrails;
+	}
+	if (
+		hasOwnKey(existing, "memoryFreshnessAudit") ||
+		!areRuntimeMemoryFreshnessAuditEqual(memoryFreshnessAudit, DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT)
+	) {
+		payload.memoryFreshnessAudit = memoryFreshnessAudit;
 	}
 	assignChangedConfigField(
 		payload,

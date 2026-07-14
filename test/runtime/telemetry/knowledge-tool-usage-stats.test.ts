@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
+import {
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+} from "../../../src/core/api-contract";
 import {
 	buildKnowledgeToolUsageObservation,
 	classifyKnowledgeTool,
@@ -100,6 +103,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",

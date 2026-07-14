@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { AcceptanceFailureCategory } from "../../../src/core/acceptance-failure-taxonomy";
 import type { RuntimeTaskSessionSummary, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
+import {
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+} from "../../../src/core/api-contract";
 import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-agent/nklein-acceptance-auto-repair";
 
 const COLUMN_IDS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
@@ -182,6 +185,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		shortcuts: [],
 		commitPromptTemplate: "",
 		openPrPromptTemplate: "",

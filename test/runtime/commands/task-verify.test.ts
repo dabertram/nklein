@@ -18,6 +18,7 @@ import { inferNKleinPlanSlugForTask } from "../../../src/commands/task/task-plan
 import { runVerifyTaskAcceptanceCommand } from "../../../src/commands/task/task-verify-command";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import {
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	type RuntimeBoardColumnId,
 	type RuntimeTaskAcceptanceResult,
@@ -149,6 +150,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		effectiveModelRoles: modelRoles,
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		shortcuts: [],
 		commitPromptTemplate: "",
 		openPrPromptTemplate: "",

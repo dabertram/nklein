@@ -5,7 +5,10 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
+import {
+	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+} from "../../../src/core/api-contract";
 import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { createGitProcessEnv } from "../../../src/core/git-process-env";
@@ -431,6 +434,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		effectiveModelRoles: {},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+		memoryFreshnessAudit: DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",

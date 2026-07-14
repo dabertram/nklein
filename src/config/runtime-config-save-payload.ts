@@ -16,6 +16,7 @@ import type {
 	RuntimeFileOverlapParallelism,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeMemoryFreshnessAudit,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
@@ -23,7 +24,7 @@ import type {
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
-import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { DEFAULT_CONCURRENCY_CONFIG } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
@@ -155,6 +156,7 @@ export interface SaveRuntimeConfigInput {
 	modelRolesOverride?: RuntimeModelRoles | null;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: RuntimeSwarmGuardrails;
+	memoryFreshnessAudit?: RuntimeMemoryFreshnessAudit;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -247,6 +249,7 @@ export function buildGlobalConfigFilePayload(config: SaveRuntimeConfigInput) {
 		modelRoles: config.modelRoles,
 		agentRulesets: config.agentRulesets,
 		swarmGuardrails: config.swarmGuardrails,
+		memoryFreshnessAudit: config.memoryFreshnessAudit,
 		commitPromptTemplate: config.commitPromptTemplate,
 		openPrPromptTemplate: config.openPrPromptTemplate,
 	};
@@ -374,6 +377,7 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		modelRoles: normalizeModelRoles(config.modelRoles),
 		agentRulesets: normalizeAgentRulesets(config.agentRulesets),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(config.swarmGuardrails),
+		memoryFreshnessAudit: normalizeRuntimeMemoryFreshnessAudit(config.memoryFreshnessAudit),
 		shortcuts: config.shortcuts,
 		commitPromptTemplate: config.commitPromptTemplate,
 		openPrPromptTemplate: config.openPrPromptTemplate,
