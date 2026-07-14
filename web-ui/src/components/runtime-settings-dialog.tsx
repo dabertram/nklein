@@ -1017,6 +1017,21 @@ export function RuntimeSettingsDialog({
 					case "speculativeMaxSpecsPerRun":
 						setSpeculativeMaxSpecsPerRun(configSnapshot.speculativeMaxSpecsPerRun);
 						break;
+					case "modelRoles":
+						setModelRoles(configSnapshot.modelRoles);
+						break;
+					case "modelGateUnsuitable":
+						setModelGateUnsuitable(configSnapshot.modelGateUnsuitable);
+						break;
+					case "modelGateUnknown":
+						setModelGateUnknown(configSnapshot.modelGateUnknown);
+						break;
+					case "llmfitCatalogUpdateMode":
+						setLlmfitCatalogUpdateMode(configSnapshot.llmfitCatalogUpdateMode);
+						break;
+					case "skillDynamicsLevel":
+						setSkillDynamicsLevel(configSnapshot.skillDynamicsLevel);
+						break;
 				}
 			}
 			// The Tasks tab's local (non-draft) task-default controls revert to their loaded-config initials.
@@ -2753,10 +2768,17 @@ export function RuntimeSettingsDialog({
 							<>
 								<div data-settings-section="nklein" />
 								<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-									<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-										<Bot size={16} className="text-text-secondary" />
-										!Klein Provider &amp; Models
-									</h2>
+									<div className="flex items-center gap-2">
+										<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+											<Bot size={16} className="text-text-secondary" />
+											!Klein Provider &amp; Models
+										</h2>
+										<SectionResetButton
+											navId="nklein"
+											dirty={dirtyNavIdSet.has("nklein")}
+											onReset={handleResetNavSection}
+										/>
+									</div>
 								</div>
 								<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 									<NKleinSetupSection

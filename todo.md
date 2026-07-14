@@ -755,11 +755,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   mutate one object); the test permits only declared shared fields. **Leaf 5 SHIPPED 2026-07-14:** `appearance` —
   theme-only, a pure LOCAL leaf (`draftThemeId` vs `initialThemeId`, no draft fields, mirrors the tasks-local path):
   its dot ORs `themeDirty` in, its Reset calls `setDraftThemeId(initialThemeId)` (Playwright drives the Radix theme
-  Select). **7 of 10 nav tabs covered.** REMAINING (the genuinely hard 3): `nklein`/`project`/`code-intelligence` use
-  STRUCTURED/DERIVED sub-state — `nklein`=model roles (sub-component) + modelGate*/llmfitCatalogUpdateMode/
-  skillDynamicsLevel (some simple), `project`=per-project overrides (sub-component), `code-intelligence`=`codeEmbedding*`
-  which is a `useMemo` not a `useState` (no direct setter) — so each needs child-component-aware dirty+reset, a bigger
-  audit. Then optionally per-section Save.
+  Select). **Leaf 6 SHIPPED 2026-07-14:** `nklein` (!Klein Provider & Models) — modelRoles (structured, but has a
+  direct `setModelRoles` + JSON-compare dirty) + modelGateUnsuitable/modelGateUnknown/llmfitCatalogUpdateMode/
+  skillDynamicsLevel (5 fields, all direct setters). Header wrapped via a Python insert (nested-block tab matching);
+  Playwright drives the model-gate select on the nklein-agent mock. **8 of 10 nav tabs covered.** REMAINING (the hard
+  2): `project`=per-project overrides (a sub-component owns many `*Override` fields — needs child-aware dirty+reset);
+  `code-intelligence`=`codeEmbeddingDefaults`/`codeEmbeddingOverride` are `useMemo`s derived from sub-state
+  (codeEmbeddingDefaultsProvider/…), NOT `useState` → no direct setter, so a correct reset must revert every
+  constituent sub-state field. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

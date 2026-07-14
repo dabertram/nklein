@@ -226,6 +226,7 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	// full panel there) — editing it lights BOTH dots, which is correct (both controls mutate the one object).
 	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
+	nklein: ["modelRoles", "modelGateUnsuitable", "modelGateUnknown", "llmfitCatalogUpdateMode", "skillDynamicsLevel"],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],
 	notifications: ["readyForReviewNotificationsEnabled"],
 };

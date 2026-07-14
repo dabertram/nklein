@@ -637,4 +637,30 @@ test.describe("RuntimeSettingsDialog", () => {
 		await page.getByTestId("settings-section-reset-appearance").click();
 		await expect(page.getByTestId("settings-nav-dirty-appearance")).toHaveCount(0);
 	});
+
+	test("F1.29b: the !Klein Provider & Models tab gets its own dirty dot + Reset", async ({ page }) => {
+		await setupMocks(page); // MOCK_CONFIG selects the nklein agent, so this tab is present
+		await page.goto("/");
+		await openSettingsDialog(page);
+		await page.getByRole("button", { name: /Klein Provider/ }).click();
+
+		await expect(page.getByTestId("settings-nav-dirty-nklein")).toHaveCount(0);
+
+		// Change the "unsuitable model" gate action (a native select) to a value different from current.
+		const gate = page.locator("#runtime-settings-model-gate-unsuitable");
+		const current = await gate.inputValue();
+		const values = await gate
+			.locator("option")
+			.evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
+		const other = values.find((v) => v && v !== current);
+		expect(other).toBeTruthy();
+		await gate.selectOption(other as string);
+
+		await expect(page.getByTestId("settings-nav-dirty-nklein")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-nklein")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-nklein").click();
+		await expect(page.getByTestId("settings-nav-dirty-nklein")).toHaveCount(0);
+		await expect(gate).toHaveValue(current);
+	});
 });
