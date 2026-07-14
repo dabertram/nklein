@@ -1087,6 +1087,18 @@
   emits `protectedWrites[]`, and the Set-based `total` counts a card held for BOTH delivery and protected-write
   exactly once (tested — the "without double counting" bar). Plumbed through the signal type, classifier,
   overrides, and `mapSessionSummaryToOperatorSignals` (defaults false). 20 tests. tsc 0, fast 9569 green.
+- [x] **F2.17b — the protected-write inbox source lit up from the live boundary hold** *(delivered 2026-07-14;
+  completes F2.17; David's design call: SESSION-SUMMARY marker, not ledger-derived).* The F2.17a inbox side was
+  built but dark — nothing marked a boundary-held session distinguishably. Now the F1.9b work-package boundary
+  hold (runtime-server: "Delivery held … Left in Review") stamps the session summary with a NEW
+  `reviewReason: "protected_write"` variant (added to `runtimeTaskSessionReviewReasonSchema`), threaded through
+  `stopTaskSession(taskId, { reviewReason })` (optional, default `"interrupted"` — every other caller unchanged) +
+  its service-interface signature. `OperatorSessionSummaryView` gains `reviewReason?`, and
+  `mapSessionSummaryToOperatorSignals` derives `protectedPathHeld` from `reviewReason === "protected_write"` (an
+  explicit override still wins). Because App already passes the full `RuntimeTaskSessionSummary` (which carries
+  `reviewReason`) as the summary view, it flows to the board-health inbox + the F2.15b ASK notifier (protected
+  writes map to a `delivery_gate_held` ASK) with no extra wiring. 4 mapping assertions (derive / other-reason /
+  override-wins / risky) + all operator suites green (28). tsc 0; web-ui tsc 0; lint 0.
 - [x] **F2.18a — the escalation → resume-action mapping (re-enter the exact suspended state)** *(delivered
   2026-07-13; the panel buttons + redrive dispatch are F2.18b in todo).* Rendering suggestions beside the attempt
   chain + evidence-backed prioritization already existed (`task-escalation-panel` + `hard-stuck-escalation`'s

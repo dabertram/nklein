@@ -32,6 +32,7 @@ import type {
 	RuntimeTaskAcceptanceResult,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
+	RuntimeTaskSessionReviewReason,
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
@@ -1777,7 +1778,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return cloneSummary(entry.summary);
 	}
 
-	async stopTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
+	async stopTaskSession(
+		taskId: string,
+		// F2.17b: the reviewReason to stamp on the interrupted summary (default "interrupted"). The delivery
+		// boundary-hold path passes "protected_write" so the operator inbox surfaces the held card distinctly.
+		options: { reviewReason?: RuntimeTaskSessionReviewReason } = {},
+	): Promise<RuntimeTaskSessionSummary | null> {
 		let entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			// Runtime restarts can clear in-memory task entries while the SDK still has a persisted
@@ -1813,7 +1819,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		const summary = updateSummary(entry, {
 			state: "interrupted",
-			reviewReason: "interrupted",
+			reviewReason: options.reviewReason ?? "interrupted",
 			exitCode: null,
 			lastOutputAt: now(),
 		});

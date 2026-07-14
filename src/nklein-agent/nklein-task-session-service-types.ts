@@ -6,6 +6,7 @@ import type {
 	RuntimeTaskAcceptanceResult,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
+	RuntimeTaskSessionReviewReason,
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
@@ -109,7 +110,10 @@ export interface NKleinTaskSessionService {
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
 	onTeamProgress(listener: (taskId: string, event: RuntimeNKleinTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
-	stopTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
+	stopTaskSession(
+		taskId: string,
+		options?: { reviewReason?: RuntimeTaskSessionReviewReason },
+	): Promise<RuntimeTaskSessionSummary | null>;
 	completeTaskSessionAfterDecomposition(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	cancelTaskTurn(taskId: string): Promise<RuntimeTaskSessionSummary | null>;

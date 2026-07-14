@@ -194,6 +194,9 @@ export interface OperatorSessionSummaryView {
 	state: OperatorSessionState;
 	paused?: boolean | null;
 	heartbeatStatus?: "healthy" | "stale" | "lost" | null;
+	/** F2.17b: the session's review reason — `"protected_write"` marks a delivery held on a protected/out-of-bounds
+	 *  path (the F1.9b boundary gate), which the mapping surfaces as `protectedPathHeld`. */
+	reviewReason?: string | null;
 }
 
 /**
@@ -231,7 +234,9 @@ export function mapSessionSummaryToOperatorSignals(
 		blockedKind: overrides.blockedKind ?? null,
 		awaitingHostActionAck: overrides.awaitingHostActionAck ?? false,
 		deliveryGateHeld: overrides.deliveryGateHeld ?? false,
-		protectedPathHeld: overrides.protectedPathHeld ?? false,
+		// F2.17b: a `protected_write` review reason IS a protected-path hold (the boundary gate stamped it on stop);
+		// an explicit override still wins for callers that compute it another way.
+		protectedPathHeld: overrides.protectedPathHeld ?? summary.reviewReason === "protected_write",
 		clarifyingQuestionPending: overrides.clarifyingQuestionPending ?? false,
 		noProgressOrLoop: overrides.noProgressOrLoop ?? false,
 		approachingBudgetCeiling: overrides.approachingBudgetCeiling ?? false,

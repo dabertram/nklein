@@ -950,15 +950,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
-- [ ] **F2.17b — Light up the protected-write inbox source from the live boundary hold (inbox source SHIPPED
-  2026-07-13).** The operator inbox already threaded unresolved clarification, host-action ack, held-delivery,
-  and setup blockers; the missing F2.17 source — PROTECTED-WRITE — is now a first-class inbox entry:
-  `OperatorTaskSignals.protectedPathHeld` classifies `risky`, `collectOperatorInbox` emits `protectedWrites[]`,
-  and the no-double-count `total` (Set-based) counts a card held for both delivery AND protected-write once
-  (tested). The signal defaults false through `mapSessionSummaryToOperatorSignals` + `OperatorSignalOverrides`.
-  REMAINING (b-leaf, needs a producer): the F1.9b boundary hold in runtime-server must mark the session summary
-  distinguishably (today `reviewReason` is only attention/error/hook/interrupted — no protected-path variant),
-  then the board-chat wiring maps that marker to `protectedPathHeld` so it lights up live.
 - [ ] **F2.18c — Collect + deliver operator input for the `input_then_redrive` escalation kinds (direct-redrive
   buttons SHIPPED 2026-07-14).** F2.18b shipped the panel buttons: `task-escalation-panel.tsx` now renders, per
   suggestion, a one-click resume button for `direct_redrive` kinds (approve / more-capable-model / fixed-env),

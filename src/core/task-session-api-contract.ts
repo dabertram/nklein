@@ -21,7 +21,10 @@ export const runtimeTaskSessionModeSchema = z.enum(["act", "plan"]);
 export type RuntimeTaskSessionMode = z.infer<typeof runtimeTaskSessionModeSchema>;
 
 export const runtimeTaskSessionReviewReasonSchema = z
-	.enum(["attention", "exit", "error", "interrupted", "hook"])
+	// `protected_write` (F2.17b): a delivery HELD because the result touched a protected/out-of-bounds path (the
+	// F1.9b work-package boundary gate) — distinct from a generic `interrupted` stop, so the operator inbox can
+	// surface it as its own protected-write source.
+	.enum(["attention", "exit", "error", "interrupted", "hook", "protected_write"])
 	.nullable();
 export type RuntimeTaskSessionReviewReason = z.infer<typeof runtimeTaskSessionReviewReasonSchema>;
 

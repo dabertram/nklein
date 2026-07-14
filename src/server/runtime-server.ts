@@ -1978,7 +1978,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Delivery held for ${taskId} (work-package boundary): ${violationSummary}. Left in Review for the operator.`,
 							);
-							await service.stopTaskSession(taskId).catch(() => null);
+							// F2.17b: stamp the held session distinctly so the operator inbox surfaces it as a protected-write
+							// hold (mapped to `protectedPathHeld`), not a generic interrupted stop.
+							await service.stopTaskSession(taskId, { reviewReason: "protected_write" }).catch(() => null);
 							return;
 						}
 						if (deliveryDecision.action !== "merge") {

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A card held back because its result wrote outside its allowed files now shows up in your needs-you inbox as its
+  own item.** When automatic delivery holds a card in Review because the work touched a protected or out-of-bounds
+  path, it's now flagged distinctly (a "protected write" hold) rather than looking like a generic stop — so it
+  counts toward your needs-you badge and triggers a desktop notification, with the fix being "allow or revert this
+  write" rather than "approve the delivery."
+
 - **The model telemetry browsers now show one row per model, not one per endpoint.** When the same model is served
   under more than one runtime id (for example the same model on two machines), its fitness, behavior, and
   self-observation history is now grouped under a single stable identity in the stats views — so its success rate and

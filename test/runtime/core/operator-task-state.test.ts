@@ -170,6 +170,25 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 		expect(classifyOperatorTaskState(signals)).toBe("stuck");
 	});
 
+	it("F2.17b: a 'protected_write' review reason derives protectedPathHeld (→ risky); other reasons don't", () => {
+		const held = mapSessionSummaryToOperatorSignals(
+			{ state: "interrupted", reviewReason: "protected_write" },
+			"review",
+		);
+		expect(held.protectedPathHeld).toBe(true);
+		expect(classifyOperatorTaskState(held)).toBe("risky");
+		expect(
+			mapSessionSummaryToOperatorSignals({ state: "interrupted", reviewReason: "interrupted" }, "review")
+				.protectedPathHeld,
+		).toBe(false);
+		// An explicit override still wins over the summary derivation.
+		expect(
+			mapSessionSummaryToOperatorSignals({ state: "interrupted", reviewReason: "protected_write" }, "review", {
+				protectedPathHeld: false,
+			}).protectedPathHeld,
+		).toBe(false);
+	});
+
 	it("threads the escalatedToOperator override (defaults false) → a parked/escalated card reads risky", () => {
 		expect(mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress").escalatedToOperator).toBe(false);
 		const signals = mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", {
