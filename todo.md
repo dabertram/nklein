@@ -1102,8 +1102,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   interrupt safely, and feed classification/recovery metrics.
 - [ ] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
-- [ ] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
-  facts, and expose the chosen rationale.
+- [~] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
+  facts, and expose the chosen rationale. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `57e9a8eb`):**
+  `src/core/attempt-model-selection.ts` `selectModelForAttempt(candidates, {now, minSamplesToJudge, provenFailureRateCeiling,
+  stalenessWindowMs, requiredToolCount})` → `{ ordered, skipped, rationale }`: prefers confidence-adjusted EWMA success,
+  skips proven failures (enough fresh samples + success below floor) + models below their complexity ceiling, decays stale
+  profiles toward a neutral 0.5 prior, unseen models get the neutral prior (cold-fleet runway). Pure/deterministic (now
+  injected), 7 unit tests. DISTINCT from `rankModelsByLedgerFitnessWithVerdict` (display) — reuses the same profile
+  primitives. **REMAINING (b-leaf, fleet-gated):** wire into `routeNKleinTask` at attempt start (the router does NOT
+  consult the profile today) + validate the selection improves real-model outcomes.
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
 - [ ] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
