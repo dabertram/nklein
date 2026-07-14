@@ -90,8 +90,14 @@ export function answerBudgetPrior(input: AnswerBudgetPriorInput): AnswerBudgetPr
 	const forced = input.outputMode === "forced_tool_call";
 	const answerSize = forced ? FORCED_TOOL_CALL_SIZE : ANSWER_SIZE[input.taskClass];
 
+	// A reasoning model emits `reasoning_content` BEFORE any output — including before a native/forced tool call (live
+	// 2026-07-14: qwen3.6-35b-a3b burned 179–484 reasoning tokens even for a trivial `submit_review`, more on a real
+	// review prompt). So a reasoning model needs its reasoning HEADROOM regardless of output mode; the earlier
+	// `!forced` guard starved forced-tool-call turns (e.g. second-opinion review) and TRUNCATED them before the call,
+	// which surfaced as `no_verdict` → held deliveries. The ANSWER size stays forced-small (the call itself is cheap);
+	// only the hidden reasoning burn is added back.
 	let reasoningHeadroom = 0;
-	if (input.reasoning && !forced) {
+	if (input.reasoning) {
 		const learned = nonNegative(input.learnedReasoningTokens);
 		reasoningHeadroom = learned > 0 ? learned : REASONING_PRIOR[input.taskClass];
 	}
@@ -105,7 +111,9 @@ export function answerBudgetPrior(input: AnswerBudgetPriorInput): AnswerBudgetPr
 	const clampedToWindow = window > 0 && prior > available;
 
 	const reason = forced
-		? `forced tool call → small ${answerSize}-token budget (native call is cheap)`
+		? `forced tool call → small ${answerSize}-token answer${
+				reasoningHeadroom > 0 ? ` + reasoning ${reasoningHeadroom} (reasoning model thinks before the call)` : ""
+			}${clampedToWindow ? ` (clamped to ${maxTokens} by the window)` : ""}`
 		: `${input.taskClass}/${input.outputMode}: answer ${answerSize}${
 				reasoningHeadroom > 0 ? ` + reasoning ${reasoningHeadroom}` : ""
 			}${clampedToWindow ? ` (clamped to ${maxTokens} by the window)` : ""}`;

@@ -31,9 +31,9 @@ describe("answerBudgetPrior (§5.AD proactive up-front sizing)", () => {
 		expect(prior.maxTokens).toBe(1280);
 	});
 
-	it("a forced native tool call is cheap: small answer, ZERO reasoning headroom, even for a reasoning model", () => {
+	it("a NON-reasoning model on a forced native tool call is cheap: small answer, ZERO reasoning headroom", () => {
 		const prior = answerBudgetPrior({
-			reasoning: true,
+			reasoning: false,
 			taskClass: "multi_tool",
 			outputMode: "forced_tool_call",
 			contextWindow: WINDOW,
@@ -43,6 +43,22 @@ describe("answerBudgetPrior (§5.AD proactive up-front sizing)", () => {
 		expect(prior.answerSize).toBe(256);
 		expect(prior.maxTokens).toBe(256);
 		expect(prior.reason).toContain("forced tool call");
+	});
+
+	it("a REASONING model on a forced tool call STILL gets reasoning headroom — it thinks before the native call (live fix 2026-07-14: zero headroom truncated reviews before submit_review → no_verdict)", () => {
+		const prior = answerBudgetPrior({
+			reasoning: true,
+			taskClass: "multi_tool",
+			outputMode: "forced_tool_call",
+			contextWindow: WINDOW,
+			inputTokens: 2000,
+		});
+		// Answer stays forced-small (256), but the hidden reasoning burn (1280) is added back so the model can reason
+		// AND emit the tool call within budget instead of truncating mid-thought.
+		expect(prior.answerSize).toBe(256);
+		expect(prior.reasoningHeadroom).toBe(1280);
+		expect(prior.maxTokens).toBe(256 + 1280);
+		expect(prior.reason).toContain("reasoning model thinks before the call");
 	});
 
 	it("a decomposition turn on a reasoning model gets a large budget (plan output + heavy reasoning)", () => {
