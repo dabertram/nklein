@@ -5,7 +5,7 @@
 - **Settings now shows which section has unsaved changes, and lets you undo one section at a time.** When you edit a
   setting, a dot appears next to its section in the left-hand nav, and that section's header gains a "Reset section"
   button that reverts just those fields to what's saved — leaving your edits elsewhere untouched. (Rolling out one
-  section at a time — General, Agents, Tasks, Guardrails & Limits, Git, and Notifications are covered so far.)
+  section at a time — General, Agents, Tasks, Guardrails & Limits, Git, Notifications, and Appearance are covered so far.)
 
 - **A chat now asks before running a host action it isn't already cleared for.** When a chat with host access tries
   something legitimate but not pre-authorized — an unsafe shell command without risk acknowledged, or a sandbox write

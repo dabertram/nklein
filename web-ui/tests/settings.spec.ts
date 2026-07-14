@@ -604,4 +604,37 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(page.getByTestId("settings-nav-dirty-agents")).toHaveCount(0);
 		await expect(autonomous).toHaveAttribute("aria-checked", before ?? "false");
 	});
+
+	test("F1.29b: the Appearance tab (theme-only, local) gets its own dirty dot + Reset", async ({ page }) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+		await page.getByRole("button", { name: "Appearance", exact: true }).click();
+
+		await expect(page.getByTestId("settings-nav-dirty-appearance")).toHaveCount(0);
+
+		// The theme picker is a Radix Select; open it and click the first option whose label differs from current.
+		const themeTrigger = page.locator('[aria-label="Theme"]');
+		const currentTheme = (await themeTrigger.innerText()).trim();
+		await themeTrigger.click();
+		const options = page.getByRole("option");
+		await expect(options.first()).toBeVisible();
+		const optionCount = await options.count();
+		let picked = false;
+		for (let i = 0; i < optionCount; i++) {
+			const optionText = (await options.nth(i).innerText()).trim();
+			if (optionText && optionText !== currentTheme) {
+				await options.nth(i).click();
+				picked = true;
+				break;
+			}
+		}
+		expect(picked).toBe(true);
+
+		await expect(page.getByTestId("settings-nav-dirty-appearance")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-appearance")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-appearance").click();
+		await expect(page.getByTestId("settings-nav-dirty-appearance")).toHaveCount(0);
+	});
 });

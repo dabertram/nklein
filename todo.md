@@ -752,11 +752,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `AgentRulesetsSettingsPanel`) AND the tasks tab (simplified presets) — the leaf-3 `setAgentRulesets(` grep MISSED the
   panel's bare `onChange={setAgentRulesets}`, so an agents-tab rulesets edit lit the TASKS dot. Now `agentRulesets` is a
   DOCUMENTED shared field (`KNOWN_SHARED_NAV_FIELDS`) in both tabs → editing it lights both dots (correct: both controls
-  mutate one object); the test permits only declared shared fields. **6 of 10 nav tabs covered.** REMAINING:
-  `nklein`/`project`/`code-intelligence` use STRUCTURED/DERIVED sub-state (model roles, per-project overrides,
-  `codeEmbedding*` is a `useMemo` not a `useState` → no direct setter), so those need child-component-aware
-  dirty+reset. `appearance` is theme-only (local `draftThemeId` vs `initialThemeId`) → a tiny local-only leaf if
-  wanted. Then optionally per-section Save.
+  mutate one object); the test permits only declared shared fields. **Leaf 5 SHIPPED 2026-07-14:** `appearance` —
+  theme-only, a pure LOCAL leaf (`draftThemeId` vs `initialThemeId`, no draft fields, mirrors the tasks-local path):
+  its dot ORs `themeDirty` in, its Reset calls `setDraftThemeId(initialThemeId)` (Playwright drives the Radix theme
+  Select). **7 of 10 nav tabs covered.** REMAINING (the genuinely hard 3): `nklein`/`project`/`code-intelligence` use
+  STRUCTURED/DERIVED sub-state — `nklein`=model roles (sub-component) + modelGate*/llmfitCatalogUpdateMode/
+  skillDynamicsLevel (some simple), `project`=per-project overrides (sub-component), `code-intelligence`=`codeEmbedding*`
+  which is a `useMemo` not a `useState` (no direct setter) — so each needs child-component-aware dirty+reset, a bigger
+  audit. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

@@ -858,13 +858,19 @@ export function RuntimeSettingsDialog({
 		taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
 		taskDefaultAutoReviewMode !== initialTaskDefaultAutoReviewMode;
 
+	// The Appearance tab is theme-only — a LOCAL setting (draftThemeId) outside SettingsDraft.
+	const themeDirty = draftThemeId !== initialThemeId;
+
 	const dirtyNavIdSet = useMemo(() => {
 		const set = new Set<SettingsNavId>(config === null ? [] : dirtyNavSections(draft, configSnapshot));
 		if (localTaskDefaultsDirty) {
 			set.add("tasks");
 		}
+		if (themeDirty) {
+			set.add("appearance");
+		}
 		return set;
-	}, [config, draft, configSnapshot, localTaskDefaultsDirty]);
+	}, [config, draft, configSnapshot, localTaskDefaultsDirty, themeDirty]);
 
 	// F1.29b: revert just ONE nav tab's editable fields to the loaded config, leaving every other tab's edits intact.
 	// Each field dispatches to its own setter from the snapshot (React state is per-field); the covered set is
@@ -1019,12 +1025,17 @@ export function RuntimeSettingsDialog({
 				setTaskDefaultAutoReviewEnabled(initialTaskDefaultAutoReviewEnabled);
 				setTaskDefaultAutoReviewMode(initialTaskDefaultAutoReviewMode);
 			}
+			// The Appearance tab is theme-only (local) — revert the draft theme to the loaded initial.
+			if (nav === "appearance") {
+				setDraftThemeId(initialThemeId);
+			}
 		},
 		[
 			configSnapshot,
 			initialTaskDefaultStartInPlanMode,
 			initialTaskDefaultAutoReviewEnabled,
 			initialTaskDefaultAutoReviewMode,
+			initialThemeId,
 		],
 	);
 
@@ -3080,10 +3091,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Appearance ---- */}
 						<div data-settings-section="appearance" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Palette size={16} className="text-text-secondary" />
-								Appearance
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Palette size={16} className="text-text-secondary" />
+									Appearance
+								</h2>
+								<SectionResetButton
+									navId="appearance"
+									dirty={dirtyNavIdSet.has("appearance")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
