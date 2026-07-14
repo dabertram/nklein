@@ -1,4 +1,4 @@
-import { cp, mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface ProjectUpdateMigrationSpec {
@@ -94,6 +94,78 @@ export async function prepareProjectMigrationBackup(
 	} catch (error) {
 		return {
 			status: "backup_failed",
+			message: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+/** The marker file the backup writes inside the backup dir — excluded when restoring so it never pollutes the home. */
+export const MIGRATION_BACKUP_RECORD_FILENAME = "migration-backup.json";
+
+export type ProjectMigrationRollbackPlan =
+	| { canRollback: true; backupPath: string; restoreTo: string }
+	| { canRollback: false; reason: "rollback_not_supported" };
+
+/**
+ * Pure precondition check for a rollback: the recorded migration must have declared `rollbackSupported`. The effectful
+ * {@link rollbackProjectMigration} additionally verifies the backup still exists on disk. `restoreTo` defaults to the
+ * home the backup was taken from.
+ */
+export function planProjectMigrationRollback(
+	record: ProjectMigrationBackupRecord,
+	targetRuntimeHomePath?: string,
+): ProjectMigrationRollbackPlan {
+	if (!record.rollbackSupported) {
+		return { canRollback: false, reason: "rollback_not_supported" };
+	}
+	return {
+		canRollback: true,
+		backupPath: record.backupPath,
+		restoreTo: targetRuntimeHomePath ?? record.sourceRuntimeHomePath,
+	};
+}
+
+export type ProjectMigrationRollbackResult =
+	| { status: "not_supported"; reason: "rollback_not_supported" }
+	| { status: "backup_missing"; backupPath: string }
+	| { status: "restored"; restoredTo: string; fromBackupPath: string }
+	| { status: "rollback_failed"; message: string };
+
+export interface RollbackProjectMigrationOptions {
+	record: ProjectMigrationBackupRecord;
+	/** Where to restore the backup to; defaults to the home the backup was taken from. */
+	targetRuntimeHomePath?: string;
+}
+
+/**
+ * Restore a runtime home from a migration backup (the rollback half of F5.6). Fails closed: rolls back only when the
+ * record declared `rollbackSupported` AND the backup directory still exists. Overwrites the target home from the backup,
+ * then removes the stray backup-record marker so the restored home is byte-clean.
+ */
+export async function rollbackProjectMigration(
+	options: RollbackProjectMigrationOptions,
+): Promise<ProjectMigrationRollbackResult> {
+	const plan = planProjectMigrationRollback(options.record, options.targetRuntimeHomePath);
+	if (!plan.canRollback) {
+		return { status: "not_supported", reason: plan.reason };
+	}
+
+	const backupExists = await stat(plan.backupPath)
+		.then((stats) => stats.isDirectory())
+		.catch(() => false);
+	if (!backupExists) {
+		return { status: "backup_missing", backupPath: plan.backupPath };
+	}
+
+	try {
+		await mkdir(path.dirname(plan.restoreTo), { recursive: true });
+		await cp(plan.backupPath, plan.restoreTo, { recursive: true, force: true });
+		// The backup dir carries the record marker; drop it from the restored home so rollback is idempotent + clean.
+		await rm(path.join(plan.restoreTo, MIGRATION_BACKUP_RECORD_FILENAME), { force: true });
+		return { status: "restored", restoredTo: plan.restoreTo, fromBackupPath: plan.backupPath };
+	} catch (error) {
+		return {
+			status: "rollback_failed",
 			message: error instanceof Error ? error.message : String(error),
 		};
 	}

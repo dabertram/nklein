@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
 	buildProjectMigrationBackupRecord,
+	MIGRATION_BACKUP_RECORD_FILENAME,
+	planProjectMigrationRollback,
 	prepareProjectMigrationBackup,
+	rollbackProjectMigration,
 } from "../../../src/update/project-migration-backup";
 
 const tempRoots: string[] = [];
@@ -127,5 +130,77 @@ describe("prepareProjectMigrationBackup", () => {
 			throw new Error("expected backup_failed");
 		}
 		await expect(stat(path.join(root, "backups"))).resolves.toBeTruthy();
+	});
+});
+
+describe("planProjectMigrationRollback", () => {
+	const record = buildProjectMigrationBackupRecord({
+		runtimeHomePath: "/home/user/.nklein/nklein",
+		backupPath: "/home/user/.nklein/nklein-backups/backup",
+		migration: { required: true, toVersion: "0.2.0", rollbackSupported: true },
+		now: new Date("2026-07-08T21:00:00.000Z"),
+	});
+
+	it("permits rollback only when the record declared rollbackSupported", () => {
+		expect(planProjectMigrationRollback(record).canRollback).toBe(true);
+		expect(planProjectMigrationRollback({ ...record, rollbackSupported: false })).toEqual({
+			canRollback: false,
+			reason: "rollback_not_supported",
+		});
+	});
+
+	it("defaults restoreTo to the source home but honors an explicit target", () => {
+		const plan = planProjectMigrationRollback(record, "/other/home");
+		expect(plan).toEqual({ canRollback: true, backupPath: record.backupPath, restoreTo: "/other/home" });
+	});
+});
+
+describe("rollbackProjectMigration", () => {
+	it("restores the home from a real backup and strips the record marker", async () => {
+		const root = await makeTempRoot();
+		const runtimeHome = path.join(root, "nklein");
+		await mkdir(runtimeHome, { recursive: true });
+		await writeFile(path.join(runtimeHome, "config.json"), '{"good":true}', "utf8");
+
+		const backup = await prepareProjectMigrationBackup({
+			runtimeHomePath: runtimeHome,
+			backupRootPath: path.join(root, "backups"),
+			migration: { required: true, fromVersion: "0.1.0", toVersion: "0.2.0", rollbackSupported: true },
+			now: () => new Date("2026-07-08T21:00:00.000Z"),
+		});
+		if (backup.status !== "backup_created") {
+			throw new Error("expected backup_created");
+		}
+
+		// Simulate a bad migration mutating the live home.
+		await writeFile(path.join(runtimeHome, "config.json"), '{"corrupted":true}', "utf8");
+
+		const result = await rollbackProjectMigration({ record: backup.record });
+		expect(result.status).toBe("restored");
+		// The good config is back and the backup marker did NOT leak into the restored home.
+		expect(await readFile(path.join(runtimeHome, "config.json"), "utf8")).toBe('{"good":true}');
+		await expect(stat(path.join(runtimeHome, MIGRATION_BACKUP_RECORD_FILENAME))).rejects.toThrow();
+	});
+
+	it("refuses when rollback is unsupported and reports a missing backup", async () => {
+		const unsupported = await rollbackProjectMigration({
+			record: buildProjectMigrationBackupRecord({
+				runtimeHomePath: "/x",
+				backupPath: "/x/backup",
+				migration: { required: true, toVersion: "0.2.0", rollbackSupported: false },
+				now: new Date(),
+			}),
+		});
+		expect(unsupported).toEqual({ status: "not_supported", reason: "rollback_not_supported" });
+
+		const missing = await rollbackProjectMigration({
+			record: buildProjectMigrationBackupRecord({
+				runtimeHomePath: "/x",
+				backupPath: "/does/not/exist/backup",
+				migration: { required: true, toVersion: "0.2.0", rollbackSupported: true },
+				now: new Date(),
+			}),
+		});
+		expect(missing.status).toBe("backup_missing");
 	});
 });
