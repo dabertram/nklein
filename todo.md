@@ -962,10 +962,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   semantic/procedural — NOT deletable: projections of immutable substrate, with the reason saying so), Basic
   Memory notes (deletable via permalink), and the active focus-chain step. `selectMemoryBand` ranks
   salience-first into a bounded band with per-source floors (a chatty source can never crowd out the rest;
-  deterministic). REMAINING: feed it at the turn-context assembly seam (replace the chat-memory store's solo
-  recall with the projection: store recall + memory-layers + basic-memory search + focus chain as inputs), mount
-  the delete controls (chat-memory delete + basic-memory delete_note) behind the chat surface, and show
-  provenance in the UI ("why recalled").
+  deterministic). **DELETE-POLICY CORE SHIPPED 2026-07-14 (a-leaf, `<this commit>`):** `chat-memory-delete.ts`
+  `executeMemoryDeleteControl` — the pure fail-closed dispatch from a typed `MemoryDeleteControl` to the right store
+  deletion (chat_memory by id / basic_memory_note by permalink), REFUSING a `none` control (immutable projection /
+  plan step) or an unknown kind rather than guessing; pure over injected deleters (4 unit tests). REMAINING (an
+  interdependent read→show→delete slice, best built together): feed the projection at the turn-context assembly seam
+  (store recall + §5.M memory-layers + basic-memory search + focus chain — this is the HOT-PATH change whose value
+  needs live-model validation), a read endpoint gathering those 4 sources, the delete endpoint over
+  `executeMemoryDeleteControl`, and the provenance UI ("why recalled") with delete buttons.
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
