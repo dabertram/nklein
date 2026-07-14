@@ -1,4 +1,5 @@
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
+import { isReasoningModel } from "../core/model-thinking-control";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
@@ -12,6 +13,17 @@ import type {
 } from "./nklein-runtime-session-input";
 import type { SecondarySessionHarness, SecondaryTurnOutcome } from "./nklein-secondary-session-harness";
 import { createSessionId } from "./nklein-session-state";
+
+/**
+ * §5.AN / live-fix 2026-07-14: a REASONING reviewer emits variable `reasoning_content` BEFORE it can call
+ * `submit_review`; a per-turn output budget sized for a non-reasoning worker truncates it MID-THOUGHT, so the verdict
+ * never lands → `no_verdict` → every delivery holds (root-caused live on qwen3.6-35b-a3b: 179–484 reasoning tokens on a
+ * TRIVIAL prompt, far more on a real ~7KB review). The review turn has no adaptive-budget raise (that's wired to the
+ * PRIMARY session only), so floor the reasoning reviewer's budget up-front to leave room to reason AND emit the call.
+ * The floor only RAISES (max with the inherited budget) and applies only to reasoning models — non-reasoning reviewers
+ * are unchanged. The context clamp downstream still bounds it to the window.
+ */
+const REASONING_REVIEWER_BUDGET_FLOOR = 4096;
 
 /** Re-prompt the reviewer if it ended a turn without the structured `submit_review` call (small models often do). */
 const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
@@ -134,11 +146,18 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		}
 		const selectionSource = input.reviewer ? "explicit_pin" : autoReviewer ? "auto_diverse" : "worker_fallback";
 		stamp(`session: reviewer=${modelId} (${selectionSource}); bracketed-run enter`);
+		// A reasoning reviewer needs headroom to think BEFORE emitting `submit_review` — floor its per-turn budget so the
+		// inherited (worker-sized) budget can't truncate it mid-reasoning into a `no_verdict` hold. Only raises; only for
+		// reasoning models.
+		const reasoningSafeMaxTokensPerTurn = isReasoningModel(modelId)
+			? Math.max(workerLaunch?.maxTokensPerTurn ?? 0, REASONING_REVIEWER_BUDGET_FLOOR)
+			: (workerLaunch?.maxTokensPerTurn ?? null);
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId,
 			modelId,
 			workspaceRoot: input.projectRepoPath,
+			...(reasoningSafeMaxTokensPerTurn !== null ? { maxTokensPerTurn: reasoningSafeMaxTokensPerTurn } : {}),
 		};
 		const reviewTaskId = `${input.taskId}::review`;
 		const mergeTurnOutcome = (current: SecondaryTurnOutcome, next: SecondaryTurnOutcome): SecondaryTurnOutcome => {

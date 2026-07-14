@@ -99,6 +99,29 @@ describe("createSecondOpinionReviewRunner", () => {
 		);
 	});
 
+	it("floors a REASONING reviewer's per-turn budget so it can't truncate before submit_review (live fix 2026-07-14)", async () => {
+		const d = deps();
+		const runner = createSecondOpinionReviewRunner(d);
+		await runner.runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "qwen/qwen3.6-35b-a3b-m5max" },
+		});
+		const launchArg = (d.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(launchArg.launchConfig.maxTokensPerTurn).toBe(4096);
+	});
+
+	it("does NOT floor a non-reasoning reviewer's budget (leaves the inherited value untouched)", async () => {
+		const d = deps();
+		const runner = createSecondOpinionReviewRunner(d);
+		await runner.runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "qwen/qwen2.5-coder-14b" },
+		});
+		const launchArg = (d.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		// worker launch has no maxTokensPerTurn → non-reasoning reviewer keeps it unset (no floor applied).
+		expect(launchArg.launchConfig.maxTokensPerTurn).toBeUndefined();
+	});
+
 	it("single-flights concurrent rounds for the same task (second returns null, records the skip)", async () => {
 		const runner = createSecondOpinionReviewRunner(deps({ getHarness: () => harness({ hang: true }) as never }));
 		const first = runner.runSecondOpinionReviewSession(input); // stays in-flight (harness hangs)
