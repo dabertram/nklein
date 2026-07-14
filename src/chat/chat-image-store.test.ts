@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatImageAttachment } from "../core/chat-multimodal";
-import { deleteChatMessageImages, readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
+import {
+	deleteChatMessageImages,
+	deleteSessionImages,
+	readChatMessageImages,
+	writeChatMessageImages,
+} from "./chat-image-store";
 
 const IMAGE: ChatImageAttachment = { data: "QUJD", mimeType: "image/png", name: "shot.png" };
 
@@ -37,5 +42,23 @@ describe("chat-image-store (F2.7b out-of-band image persistence)", () => {
 		await writeChatMessageImages("sess-1", "msg-1", [IMAGE], { rootDir: root });
 		await deleteChatMessageImages("sess-1", "msg-1", { rootDir: root });
 		expect(await readChatMessageImages("sess-1", "msg-1", { rootDir: root })).toEqual([]);
+	});
+
+	it("deleteSessionImages removes ALL of a session's images, leaving other sessions intact", async () => {
+		await writeChatMessageImages("sess-1", "msg-1", [IMAGE], { rootDir: root });
+		await writeChatMessageImages("sess-1", "msg-2", [IMAGE], { rootDir: root });
+		await writeChatMessageImages("sess-2", "msg-1", [IMAGE], { rootDir: root });
+
+		await deleteSessionImages("sess-1", { rootDir: root });
+
+		expect(await readChatMessageImages("sess-1", "msg-1", { rootDir: root })).toEqual([]);
+		expect(await readChatMessageImages("sess-1", "msg-2", { rootDir: root })).toEqual([]);
+		// A different session's images are untouched.
+		expect(await readChatMessageImages("sess-2", "msg-1", { rootDir: root })).toEqual([IMAGE]);
+	});
+
+	it("deleteSessionImages on a session with no images is a safe no-op", async () => {
+		await deleteSessionImages("never-existed", { rootDir: root });
+		expect(await readChatMessageImages("never-existed", "msg-1", { rootDir: root })).toEqual([]);
 	});
 });

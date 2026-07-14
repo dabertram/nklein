@@ -31,10 +31,18 @@ export interface ChatImageStoreOptions {
 
 const DEFAULT_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "chat-images");
 
-/** One file per (session, message): a fixed-length hash keeps any id pair a safe filename. */
+function hashId(value: string): string {
+	return createHash("sha256").update(value).digest("hex").slice(0, 20);
+}
+
+/** Each session gets its own subdir so deleting a session removes all its images in one `rm`. */
+function resolveSessionDir(sessionId: string, rootDir?: string): string {
+	return join(rootDir ?? DEFAULT_ROOT, hashId(sessionId));
+}
+
+/** One file per message under the session's dir; a fixed-length hash keeps any id a safe filename. */
 function resolveImagePath(sessionId: string, messageId: string, rootDir?: string): string {
-	const fileName = `${createHash("sha256").update(`${sessionId}:${messageId}`).digest("hex").slice(0, 20)}.json`;
-	return join(rootDir ?? DEFAULT_ROOT, fileName);
+	return join(resolveSessionDir(sessionId, rootDir), `${hashId(messageId)}.json`);
 }
 
 /** Persist a message's image attachments. No-op for an empty list (no file written). */
@@ -47,8 +55,7 @@ export async function writeChatMessageImages(
 	if (images.length === 0) {
 		return;
 	}
-	const root = options.rootDir ?? DEFAULT_ROOT;
-	await mkdir(root, { recursive: true });
+	await mkdir(resolveSessionDir(sessionId, options.rootDir), { recursive: true });
 	const payload = { schemaVersion: 1 as const, images: images.map((image) => ({ ...image })) };
 	await writeFile(resolveImagePath(sessionId, messageId, options.rootDir), JSON.stringify(payload), "utf8");
 }
@@ -69,11 +76,16 @@ export async function readChatMessageImages(
 	return parsed.success ? parsed.data.images : [];
 }
 
-/** Best-effort delete of a message's image file (used when a session is deleted). */
+/** Best-effort delete of a message's image file. */
 export async function deleteChatMessageImages(
 	sessionId: string,
 	messageId: string,
 	options: ChatImageStoreOptions = {},
 ): Promise<void> {
 	await rm(resolveImagePath(sessionId, messageId, options.rootDir), { force: true }).catch(() => {});
+}
+
+/** Best-effort delete of ALL of a session's images (its whole subdir) — wired into session deletion. */
+export async function deleteSessionImages(sessionId: string, options: ChatImageStoreOptions = {}): Promise<void> {
+	await rm(resolveSessionDir(sessionId, options.rootDir), { recursive: true, force: true }).catch(() => {});
 }

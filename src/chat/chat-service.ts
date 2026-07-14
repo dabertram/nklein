@@ -21,7 +21,7 @@ import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./cha
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
 import type { ChatToolSet } from "./chat-board-tools";
 import { maybeEnforceReasoning } from "./chat-enforced-reasoning";
-import { readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
+import { deleteSessionImages, readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { appendChatMemory, readChatMemories, writeConsolidatedMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
@@ -423,7 +423,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			);
 			return session ? toRuntimeChatSession(session) : null;
 		},
-		deleteSession: (id) => deleteChatSession(id, sessionOptions),
+		deleteSession: async (id) => {
+			// F2.7b: remove the session's out-of-band image files alongside the session (best-effort, never blocks delete).
+			await deleteSessionImages(id, imageOptions);
+			return deleteChatSession(id, sessionOptions);
+		},
 		readTranscript: async (sessionId, limit) => {
 			const messages = await readChatTranscript(sessionId, {
 				...transcriptOptions,

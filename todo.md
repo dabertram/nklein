@@ -943,9 +943,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   only a lightweight `meta.imageAttachmentCount` (bytes stay out-of-band, lean-window stays lean); a new
   `chat.getMessageImages` tRPC returns the data-URL-ready bytes; `MessageBubble` lazy-fetches ONCE for a user message
   with count>0 and renders via the EXISTING shared `TaskImageStrip` (alt text built in). Playwright proves a persisted
-  image renders in history. REMAINING (fleet-gated only): live-validate on a vision-capable local model (e.g. a
-  gemma/qwen-VL) before enabling by default; also a minor hygiene follow-up — delete a session's image files on session
-  delete (`deleteChatMessageImages` exists but isn't wired to the delete path; files orphan harmlessly otherwise).
+  image renders in history. SESSION-DELETE CLEANUP WIRED 2026-07-14: the store now uses per-session subdirs and
+  `deleteSessionImages` (rm the dir) runs in `chatService.deleteSession` — no orphaned image files (2 more unit tests).
+  REMAINING (fleet-gated ONLY): live-validate the wire round-trip on a vision-capable local model (e.g. a gemma/qwen-VL)
+  — a verification step, not new code. Everything else in F2.7b is implemented + tested (attach→send→vision response→
+  history render, all gated fail-closed).
 - [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
