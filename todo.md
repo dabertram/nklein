@@ -1043,16 +1043,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
-- [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
+- [~] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
-  **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `<this commit>`):** `src/core/reasoning-capture.ts`
+  **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `8f67745f`):** `src/core/reasoning-capture.ts`
   `buildSafeReasoningCapture(raw, {maxChars})` — the "persist safely" primitive: FAIL-CLOSED on secrets (raw
   chain-of-thought that matches the shared secret catalog via `findPotentialSecretInText` is WITHHELD for a neutral
   placeholder, never persisted verbatim) + bounded (secret-free reasoning capped with an ellipsis). Pure, 4 unit tests
-  (secret withheld / clean pass-through / truncation). REMAINING (greenfield b-leaf): the effectful surfaces that
-  CONSUME it — persist reasoning summaries at the turn/attempt seam, show them where useful, and the reviewer
-  independent-lens comparison — plus a finer redactor (mask just the offending span, keep the rest) over today's
-  withhold-whole default.
+  (secret withheld / clean pass-through / truncation). **PERSIST + DISPLAY SHIPPED 2026-07-14 (b-leaf, `<this commit>`):**
+  reasoning-channel text is now threaded end-to-end and surfaced behind the opt-in `NKLEIN_REASONING_CAPTURE` flag —
+  `LocalLlmToolCompletion.reasoningText` (client, via `splitReasoningChannel`) → `ChatAgentModelResponse.reasoning`
+  (adapter) → `ChatAgentLoopResult.finalReasoning` (loop, at every final-answer return) → `runChatAgentTurn` persists a
+  display-only `role:"reasoning"` transcript row (through `buildSafeReasoningCapture`) BEFORE the assistant reply. Display
+  already existed (`nklein-chat-message-item.tsx:356` renders the `reasoning` role). Off by default = byte-identical
+  transcript; 3 turn tests (persisted-before-assistant / off ⇒ no row / secret fail-closed). REMAINING (deferred, not
+  clean-leaf): the reviewer independent-lens comparison surface, and a finer redactor (mask just the offending span,
+  keep the rest) over today's withhold-whole default.
 
 ### Phase 3 — feature completion: adaptive local-model execution and routing
 

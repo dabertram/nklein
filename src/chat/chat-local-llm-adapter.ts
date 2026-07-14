@@ -681,6 +681,7 @@ export function createChatAgentModel(
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
 			totalTokens: response.totalTokens ?? null,
 			promptStrategy: appliedPromptStrategy,
+			reasoning: response.reasoningText ?? null,
 		};
 	};
 }

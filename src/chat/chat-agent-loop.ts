@@ -48,6 +48,9 @@ export interface ChatAgentModelResponse {
 	/** §5.AF: the §5.AA recovery rung that produced this response (e.g. `prompt_variant:example_led`,
 	 *  `constrained_schema`, `native_tool_choice_required`), or null/absent when the plain path answered. */
 	promptStrategy?: string | null;
+	/** F2.23: the model's raw reasoning-channel text for this call, or null/absent when it emitted none. Pre-safety —
+	 *  a persist/display caller must run it through `buildSafeReasoningCapture` before it leaves the process. */
+	reasoning?: string | null;
 }
 
 export interface ChatAgentStep {
@@ -101,6 +104,9 @@ export interface ChatAgentLoopResult {
 	totalTokens: number;
 	/** §5.AF: the §5.AA recovery rungs that fired across the turn's model calls, in order (deduped). */
 	promptStrategies: string[];
+	/** F2.23: the raw reasoning-channel text of the model call that produced `finalText`, or null when it emitted none.
+	 *  Pre-safety — the turn passes it through `buildSafeReasoningCapture` before persisting/displaying. */
+	finalReasoning?: string | null;
 }
 
 export async function runChatAgentLoop(
@@ -199,7 +205,14 @@ export async function runChatAgentLoop(
 			closeSteering();
 			if (onToken) {
 				const streamed = await callModel(messages, false, onToken);
-				return { finalText: streamed.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
+				return {
+					finalText: streamed.text,
+					steps,
+					hitIterationLimit: false,
+					totalTokens,
+					promptStrategies,
+					finalReasoning: streamed.reasoning ?? null,
+				};
 			}
 			if (steeredBeforeFinal > 0) {
 				const finalResponse = await callModel(messages, false);
@@ -209,9 +222,17 @@ export async function runChatAgentLoop(
 					hitIterationLimit: false,
 					totalTokens,
 					promptStrategies,
+					finalReasoning: finalResponse.reasoning ?? null,
 				};
 			}
-			return { finalText: response.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
+			return {
+				finalText: response.text,
+				steps,
+				hitIterationLimit: false,
+				totalTokens,
+				promptStrategies,
+				finalReasoning: response.reasoning ?? null,
+			};
 		}
 		const executedNew = await applyResponse(response);
 		if (executedNew === 0) {
@@ -236,7 +257,14 @@ export async function runChatAgentLoop(
 			await applySteeringMessages();
 			closeSteering();
 			const finalResponse = await callModel(messages, false, onToken);
-			return { finalText: finalResponse.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
+			return {
+				finalText: finalResponse.text,
+				steps,
+				hitIterationLimit: false,
+				totalTokens,
+				promptStrategies,
+				finalReasoning: finalResponse.reasoning ?? null,
+			};
 		}
 	}
 
@@ -244,5 +272,12 @@ export async function runChatAgentLoop(
 	await applySteeringMessages();
 	closeSteering();
 	const finalResponse = await callModel(messages, false, onToken);
-	return { finalText: finalResponse.text, steps, hitIterationLimit: true, totalTokens, promptStrategies };
+	return {
+		finalText: finalResponse.text,
+		steps,
+		hitIterationLimit: true,
+		totalTokens,
+		promptStrategies,
+		finalReasoning: finalResponse.reasoning ?? null,
+	};
 }

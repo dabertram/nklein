@@ -1,7 +1,7 @@
 import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
-import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
+import { reasoningAndAnswerText, splitReasoningChannel } from "../core/reasoning-channel-split";
 import { isRetryableModelCallError, RetryableModelCallAbortError, withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
@@ -105,6 +105,12 @@ export interface LocalLlmToolCompletion {
 	reasoningTokens?: number | null;
 	/** §5.M: total tokens this call consumed (`usage.total_tokens`) — null when the endpoint didn't report it. */
 	totalTokens?: number | null;
+	/**
+	 * §5.AN / F2.23: the model's reasoning-channel TEXT for this call (the separate `reasoning_content` field plus any
+	 * inline `<think>` blocks, via {@link splitReasoningChannel}). Null when the model emitted no reasoning. This is the
+	 * raw pre-safety text — callers that persist/display it must first pass it through `buildSafeReasoningCapture`.
+	 */
+	reasoningText?: string | null;
 	raw: unknown;
 }
 
@@ -544,12 +550,18 @@ export class LocalLlmClient {
 						];
 					});
 				}
+				const reasoningText =
+					splitReasoningChannel({
+						content: choice?.message?.content,
+						reasoning_content: choice?.message?.reasoning_content,
+					}).reasoning || null;
 				return {
 					content: choice?.message?.content ?? "",
 					toolCalls,
 					finishReason: choice?.finish_reason ?? null,
 					reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens ?? null,
 					totalTokens: json.usage?.total_tokens ?? null,
+					reasoningText,
 					raw: json,
 				};
 			} catch (error) {

@@ -132,6 +132,10 @@ export interface ChatServiceOptions {
 	/** F2.9b: build the flag-gated unified-memory recall note (projection across sources → provenance-carrying band) to
 	 *  lead the turn. Injected by the runtime BEHIND its opt-in flag; omitted/null ⇒ today's solo recall (byte-identical). */
 	buildUnifiedMemoryNote?: (session: ChatSession, query: string) => Promise<string | null>;
+	/** F2.23: opt-in — capture each turn's model reasoning-channel text as a display-only `reasoning` transcript row
+	 *  (secret-redacted + length-bounded first). Injected by the runtime BEHIND its opt-in flag; omitted/false ⇒ no
+	 *  reasoning rows (byte-identical to today's transcript). */
+	captureReasoning?: boolean;
 }
 
 export interface ChatSendResult {
@@ -710,6 +714,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 									: {}),
 								...(modelCapabilityIds.length > 0 ? { modelCapabilityIds } : {}),
 								...(providerImageQuirks ? { providerImageQuirks } : {}),
+								...(options.captureReasoning ? { captureReasoning: true } : {}),
 							},
 							{
 								...storeDeps,

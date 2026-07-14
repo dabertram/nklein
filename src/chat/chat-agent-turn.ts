@@ -3,6 +3,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { decideFocusChainNudge } from "../core/focus-chain-nudge";
 import type { ProviderImageQuirks } from "../core/multimodal-provider-compat";
+import { buildSafeReasoningCapture } from "../core/reasoning-capture";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
@@ -128,6 +129,9 @@ export async function runChatAgentTurn(
 		modelCapabilityIds?: readonly string[];
 		/** F2.7b hardening: the model server's image quirks (e.g. LM Studio = PNG/JPEG only) — the format compat gate. */
 		providerImageQuirks?: ProviderImageQuirks;
+		/** F2.23: opt-in — persist the final call's reasoning-channel text as a display-only `reasoning` message
+		 *  (run through the fail-closed secret-redact/bound filter first). Off ⇒ no extra transcript row. */
+		captureReasoning?: boolean;
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -277,6 +281,15 @@ export async function runChatAgentTurn(
 	const finalText = deps.enforceReasoning
 		? await deps.enforceReasoning({ task: input.userMessage, draft: draftText }).catch(() => draftText)
 		: draftText;
+	// F2.23: opt-in — surface the model's reasoning-channel text as a display-only `reasoning` message that precedes the
+	// assistant reply. Run through the fail-closed safety filter (secret-redact + length-bound) before it is persisted;
+	// a whitespace-only capture is dropped so the transcript stays byte-identical to a no-reasoning turn.
+	if (input.captureReasoning && loop.finalReasoning) {
+		const safeReasoning = buildSafeReasoningCapture(loop.finalReasoning);
+		if (safeReasoning.text.trim().length > 0) {
+			await deps.appendMessage(input.session.id, { role: "reasoning", content: safeReasoning.text });
+		}
+	}
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
 	return {
 		userMessage,

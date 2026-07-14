@@ -74,6 +74,95 @@ describe("runChatAgentTurn", () => {
 		expect(result.hitIterationLimit).toBe(false);
 	});
 
+	it("F2.23: with captureReasoning, persists a display-only `reasoning` row before the assistant reply", async () => {
+		const appended: Array<{ role: string; content: string }> = [];
+		const result = await runChatAgentTurn(
+			{ session: session(), userMessage: "hi", tokenBudget: 1000, captureReasoning: true },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => {
+					appended.push({ role: input.role, content: input.content });
+					return {
+						schemaVersion: 1,
+						id: `m${appended.length}`,
+						role: input.role,
+						content: input.content,
+						createdAt: 0,
+					};
+				},
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({ text: "The answer is 42.", toolCalls: [], reasoning: "Let me think... 6 times 7." }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(appended.map((m) => m.role)).toEqual(["user", "reasoning", "assistant"]);
+		expect((appended[1] as { content: string }).content).toContain("6 times 7");
+		expect(result.assistantMessage.content).toBe("The answer is 42.");
+	});
+
+	it("F2.23: without captureReasoning, no reasoning row is persisted (byte-identical transcript)", async () => {
+		const appended: Array<{ role: string; content: string }> = [];
+		await runChatAgentTurn(
+			{ session: session(), userMessage: "hi", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => {
+					appended.push({ role: input.role, content: input.content });
+					return {
+						schemaVersion: 1,
+						id: `m${appended.length}`,
+						role: input.role,
+						content: input.content,
+						createdAt: 0,
+					};
+				},
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({ text: "hi back", toolCalls: [], reasoning: "some private reasoning" }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(appended.map((m) => m.role)).toEqual(["user", "assistant"]);
+	});
+
+	it("F2.23: reasoning capture is fail-closed — a captured secret is redacted, not persisted verbatim", async () => {
+		const appended: Array<{ role: string; content: string }> = [];
+		await runChatAgentTurn(
+			{ session: session(), userMessage: "hi", tokenBudget: 1000, captureReasoning: true },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => {
+					appended.push({ role: input.role, content: input.content });
+					return {
+						schemaVersion: 1,
+						id: `m${appended.length}`,
+						role: input.role,
+						content: input.content,
+						createdAt: 0,
+					};
+				},
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({
+					text: "done",
+					toolCalls: [],
+					reasoning: "I'll use the key sk-abcdefghijklmnopqrstuvwxyz0123456789ABCD to authenticate.",
+				}),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		const reasoningRow = appended.find((m) => m.role === "reasoning");
+		expect(reasoningRow).toBeDefined();
+		expect(reasoningRow?.content).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
+	});
+
 	it("re-anchors the focus chain into the turn when readFocusChain provides one (todo §5.M G4)", async () => {
 		let seenMessages: Array<{ role: string; content: string }> = [];
 		await runChatAgentTurn(

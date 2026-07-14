@@ -321,6 +321,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						},
 					}
 				: {}),
+			// F2.23: the OPT-IN reasoning-capture switch (NKLEIN_REASONING_CAPTURE). Off by default = byte-identical
+			// transcript; on = each turn's model reasoning is secret-redacted, bounded, and persisted as a display-only
+			// `reasoning` row that precedes the assistant reply.
+			captureReasoning: isTruthyEnv(process.env.NKLEIN_REASONING_CAPTURE),
 			// §5.AC: resolve the "knows today" switch per turn = the runtime-config setting (off by default) OR the
 			// `NKLEIN_KNOWS_TODAY` env override, so a live config change (or a dev flag) takes effect on the next turn.
 			resolveKnowsTodayEnabled: () =>
