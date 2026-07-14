@@ -1,3 +1,4 @@
+import { type ChatExecutionPosture, describeChatExecutionPosture } from "@runtime-chat-execution-posture";
 import {
 	Bot,
 	ChevronDown,
@@ -101,6 +102,15 @@ const VERBOSITY_OPTIONS: ReadonlyArray<{ value: RuntimeChatSession["feedbackVerb
 	{ value: "normal", label: "Normal" },
 	{ value: "verbose", label: "Verbose" },
 ];
+
+// F2.8b: color the derived execution-posture chip by how much the session can do — read-only floor (green/safe) →
+// full host risk (red). One glanceable label replacing the scattered scope/risk/browser-toggle guesswork.
+const POSTURE_CHIP_CLASS: Record<ChatExecutionPosture, string> = {
+	isolated_read_only: "border-status-green/50 text-status-green",
+	sandboxed_confirming: "border-status-blue/50 text-status-blue",
+	host_confirming: "border-status-orange/50 text-status-orange",
+	full_risk: "border-status-red/50 text-status-red",
+};
 
 // §5.AE the user-selectable per-session skills (ids mirror the backend SKILL_REGISTRY). A skill's merged apiProfile
 // (reasoning intensity / structured output / temperature) is folded into this session's model call.
@@ -276,6 +286,14 @@ function SessionHeader({
 	// browser toggle flips immediately (no extra-confirmation dialog — unlike the unsafe-commands toggle).
 	const showRiskToggle = CAN_ACT_SCOPES.has(session.scope);
 
+	// F2.8b: the derived execution posture — one legible chip (label + a tooltip of capabilities/boundaries/how to
+	// change it) computed from the SAME persisted controls the gates enforce (scope + risk-ack + browser).
+	const posture = describeChatExecutionPosture({
+		scope: session.scope,
+		riskAcknowledged: session.riskAcknowledged,
+		browserEnabled: session.browserEnabled ?? false,
+	});
+
 	const handleBrowserToggle = (): void => {
 		onUpdate({ id: session.id, browserEnabled: !session.browserEnabled });
 	};
@@ -378,6 +396,21 @@ function SessionHeader({
 						}}
 					/>
 				</div>
+				<span
+					data-testid="chat-posture-chip"
+					title={[
+						posture.summary,
+						`Can: ${posture.capabilities.join("; ")}`,
+						`Asks / limits: ${posture.boundaries.join("; ")}`,
+						...(posture.escalation ? [`To change: ${posture.escalation}`] : []),
+					].join("\n")}
+					className={cn(
+						"inline-flex w-fit cursor-default select-none items-center gap-1 rounded border bg-surface-2 px-1.5 py-0.5 text-[11px]",
+						POSTURE_CHIP_CLASS[posture.posture],
+					)}
+				>
+					🛡️ {posture.label}
+				</span>
 				<p data-testid="chat-scope-mode-caption" className="m-0 text-[11px] leading-4 text-text-tertiary">
 					{SCOPE_MODE_CAPTIONS[session.scope]}
 				</p>

@@ -102,6 +102,7 @@ export default defineConfig({
 			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
 			"@runtime-escalation-suggestions": resolve(__dirname, "../src/core/escalation-suggestions.ts"),
 			"@runtime-escalation-resume-action": resolve(__dirname, "../src/core/escalation-resume-action.ts"),
+			"@runtime-chat-execution-posture": resolve(__dirname, "../src/chat/chat-execution-posture.ts"),
 		},
 	},
 	server: {

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Each chat now shows a clear badge of exactly what it's allowed to do.** The session header carries a color-coded
+  posture chip — "Isolated · read-only", "Sandboxed · confirms host actions", "Host · confirms mutations", or "Host ·
+  full risk acknowledged" — derived from that chat's scope, risk acknowledgement, and browsing toggle. Hover it for a
+  plain-language summary of what the chat can do, what it will ask you about first, and which control to change to
+  raise or lower its access. No more guessing from scattered toggles.
+
 - **A card held back because its result wrote outside its allowed files now shows up in your needs-you inbox as its
   own item.** When automatic delivery holds a card in Review because the work touched a protected or out-of-bounds
   path, it's now flagged distinctly (a "protected write" hold) rather than looking like a generic stop — so it

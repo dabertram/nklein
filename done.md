@@ -975,6 +975,15 @@
   auto-approve") — from the SAME persisted controls the gates enforce, with chip label, summary, capabilities,
   boundaries (incl. the browsing state), and the escalation hint that names the control changing it.
   Derivation-only by construction. 3 tests over every (scope × risk-ack) combination. tsc 0, fast 9552 green.
+- [x] **F2.8b — the execution-posture chip rendered in the chat session header** *(delivered 2026-07-14; completes
+  F2.8).* The F2.8a `describeChatExecutionPosture` core (exposed to web-ui via a new
+  `@runtime-chat-execution-posture` alias — tsconfig + vite + vitest) is now rendered: `SessionHeader`
+  (`chat-sidebar.tsx`) shows a `chat-posture-chip` above the scope caption — the posture label (🛡️ "Isolated ·
+  read-only" / "Sandboxed · confirms host actions" / "Host · confirms mutations" / "Host · full risk acknowledged"),
+  color-coded green→blue→orange→red by risk, with a `title` tooltip of the summary + capabilities + boundaries + how
+  to change it. Derived purely from the session's existing `scope` / `riskAcknowledged` / `browserEnabled` contract
+  fields (no new contract field — the derivation IS the exposure). New Playwright spec `chat-posture-chip.spec.ts`
+  (2 tests: chat_only floor / project_sandboxed). web-ui tsc 0; lint 0; e2e 2/2.
 - [x] **F2.9a — the unified chat-memory projection (provenance + typed delete controls)** *(delivered
   2026-07-13; the turn-context wiring + delete-control mount + UI provenance are F2.9b in todo).*
   `src/chat/chat-memory-projection.ts` replaces the chat-memory store's solo act with ONE read model over every
