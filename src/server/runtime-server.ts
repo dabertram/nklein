@@ -40,6 +40,7 @@ import {
 	regressionDeltaFromAcceptanceRuns,
 	shouldHoldEmptyPatchResult,
 } from "../core/delivery-evidence";
+import { assessDeliveryQuality } from "../core/delivery-quality-gate";
 import { isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
@@ -107,6 +108,7 @@ import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } f
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
 import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
+import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
@@ -172,6 +174,7 @@ import {
 import { loadQueuedTaskStartsFromDisk, saveQueuedTaskStartsToDisk } from "../trpc/runtime-task-start-queue-store";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
+import { getGitStdout } from "../workspace/git-utils";
 import { sweepLegacyTaskWorktrees } from "../workspace/legacy-worktree-sweep";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import {
@@ -1818,6 +1821,42 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									changedFiles,
 								)
 							: [];
+						// Delivery-quality scan (opencode-swarm ports: placeholder + quality budget) over the delivered
+						// diff's ADDED lines. RECORD-ONLY for now (mirrors the F1.21 observe-before-enforce stance): a
+						// hold is appended to the ledger as evidence but never blocks the merge, so behavior is unchanged
+						// while the false-positive rate is observed on real deliveries before it can gate.
+						if (deliveredResultCommit) {
+							void (async () => {
+								try {
+									const patch = await getGitStdout(
+										["diff", "--unified=0", `${deliveredResultCommit}^`, deliveredResultCommit],
+										scope.workspacePath,
+										{ trimStdout: false },
+									);
+									const qualityFiles = parseAddedLinesFromUnifiedDiff(patch);
+									if (qualityFiles.length === 0) {
+										return;
+									}
+									const quality = assessDeliveryQuality(qualityFiles);
+									if (!quality.hold) {
+										return;
+									}
+									await appendAgentLedgerEvent(
+										buildTransitionEvent({
+											workflowId: taskId,
+											taskId,
+											workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+											from: "review",
+											to: "delivery_quality_scan",
+											reason: quality.holdReasons.slice(0, 5).join("; ").slice(0, 900) || null,
+											controllerDecision: `delivery_quality:placeholders=${quality.placeholder?.findings.length ?? 0},budget=${quality.quality?.violations.length ?? 0}`,
+										}),
+									);
+								} catch {
+									// Observational only — never let a diff/ledger hiccup affect delivery.
+								}
+							})();
+						}
 						// F1.21 (record-only until the F1.22 parity lock): the delivery ACTION runs through the SAME
 						// manifest broker gate as chat/swarm tools — a run whose session ingested untrusted content
 						// (web/MCP taint, recorded on its terminal attempt) may not steer git delivery without a
