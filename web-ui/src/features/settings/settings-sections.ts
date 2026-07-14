@@ -1,5 +1,6 @@
 import { areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
 import { inputsToSwarmGuardrails } from "@/components/runtime-settings-swarm-guardrails";
+import type { SettingsNavId } from "@/components/settings-nav";
 import {
 	type SettingsConfigSnapshot,
 	type SettingsDraft,
@@ -140,14 +141,14 @@ export function dirtySections(draft: SettingsDraft, snapshot: SettingsConfigSnap
 	return SETTINGS_SECTION_IDS.filter((section) => isSectionDirty(section, draft, snapshot));
 }
 
-/** A new draft with ONE section reset to the snapshot's values; every other section keeps its edits. */
-export function resetSection(
-	section: SettingsSectionId,
+/** A new draft with `fields` reset to the snapshot's values; every other field keeps its edits. */
+function resetFields(
+	fields: readonly (keyof SettingsDraft)[],
 	draft: SettingsDraft,
 	snapshot: SettingsConfigSnapshot,
 ): SettingsDraft {
 	const next: SettingsDraft = { ...draft };
-	for (const field of SETTINGS_SECTION_FIELDS[section]) {
+	for (const field of fields) {
 		if (field === "swarmGuardrailInputs") {
 			next.swarmGuardrailInputs = snapshotSwarmGuardrailInputs(snapshot);
 			continue;
@@ -155,4 +156,61 @@ export function resetSection(
 		(next as unknown as Record<string, unknown>)[field] = snapshot[field as keyof SettingsConfigSnapshot];
 	}
 	return next;
+}
+
+/** A new draft with ONE section reset to the snapshot's values; every other section keeps its edits. */
+export function resetSection(
+	section: SettingsSectionId,
+	draft: SettingsDraft,
+	snapshot: SettingsConfigSnapshot,
+): SettingsDraft {
+	return resetFields(SETTINGS_SECTION_FIELDS[section], draft, snapshot);
+}
+
+/**
+ * F1.29b — the NAV-ALIGNED dirty/reset axis. {@link SETTINGS_SECTION_FIELDS} partitions the draft by STATE domain
+ * (each field in exactly one section), but the dialog's nav tabs group the SAME fields differently — a single draft
+ * section (e.g. `sandbox`) renders its controls across several nav tabs. So per-TAB dirty indicators + a per-tab
+ * Reset need this second map: the editable draft fields rendered UNDER each nav tab. It is populated ONE TAB PER LEAF
+ * (F1.29b) — a nav tab absent here simply has no per-tab affordance yet, and a tab's entry must list EVERY editable
+ * draft field rendered in that tab's body region (else its dirty dot would miss a change). Values reuse the SAME
+ * {@link fieldDirty} comparison as the whole-dialog dirty check, so a per-tab indicator can never disagree with Save.
+ */
+export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof SettingsDraft)[]>> = {
+	general: [
+		"developerModeEnabled",
+		"replayCardsEnabled",
+		"knowsTodayEnabled",
+		"chatAdaptiveTruncationEnabled",
+		"reasoningBudgetEnabled",
+		"retrievalEgressEnabled",
+		"retrievalSearchBackendUrl",
+		"sandboxMcpServersEnabled",
+		"basicMemoryEnabled",
+		"capabilityBrokerEnabled",
+		"maxAgentWritableFileLines",
+	],
+	notifications: ["readyForReviewNotificationsEnabled"],
+};
+
+/** Whether any editable field rendered under ONE nav tab differs from the config snapshot. */
+export function isNavSectionDirty(nav: SettingsNavId, draft: SettingsDraft, snapshot: SettingsConfigSnapshot): boolean {
+	const fields = SETTINGS_NAV_FIELDS[nav];
+	return fields ? fields.some((field) => fieldDirty(field, draft, snapshot)) : false;
+}
+
+/** Every nav tab (with a per-tab affordance) whose slice is dirty — the per-tab dirty-dot basis. */
+export function dirtyNavSections(draft: SettingsDraft, snapshot: SettingsConfigSnapshot): SettingsNavId[] {
+	return (Object.keys(SETTINGS_NAV_FIELDS) as SettingsNavId[]).filter((nav) =>
+		isNavSectionDirty(nav, draft, snapshot),
+	);
+}
+
+/** A new draft with ONE nav tab's editable fields reset to the snapshot; every other field keeps its edits. */
+export function resetNavSection(
+	nav: SettingsNavId,
+	draft: SettingsDraft,
+	snapshot: SettingsConfigSnapshot,
+): SettingsDraft {
+	return resetFields(SETTINGS_NAV_FIELDS[nav] ?? [], draft, snapshot);
 }

@@ -70,6 +70,7 @@ import {
 	validateAndParseSettingsNumbers,
 	validateCodeEmbeddingDefaultsForSave,
 } from "@/features/settings/settings-save";
+import { dirtyNavSections, SETTINGS_NAV_FIELDS } from "@/features/settings/settings-sections";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import { useRuntimeSettingsNKleinMcpController } from "@/hooks/use-runtime-settings-nklein-mcp-controller";
@@ -174,6 +175,34 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
 	{ id: "project", label: "Project", icon: <FolderOpen size={16} /> },
 ];
+
+/**
+ * F1.29b — the per-section Reset affordance in a nav tab's sticky header. Shown ONLY when that tab has unsaved edits;
+ * clicking reverts just this tab's fields to the loaded config (see `handleResetNavSection`), leaving other tabs' edits.
+ */
+function SectionResetButton({
+	navId,
+	dirty,
+	onReset,
+}: {
+	navId: SettingsNavId;
+	dirty: boolean;
+	onReset: (nav: SettingsNavId) => void;
+}): React.ReactElement | null {
+	if (!dirty) {
+		return null;
+	}
+	return (
+		<button
+			type="button"
+			data-testid={`settings-section-reset-${navId}`}
+			onClick={() => onReset(navId)}
+			className="ml-auto shrink-0 inline-flex items-center rounded-md border border-border bg-surface-0 px-2 py-1 text-[12px] font-medium text-text-secondary hover:bg-surface-2 hover:text-text-primary cursor-pointer"
+		>
+			Reset section
+		</button>
+	);
+}
 
 const TASK_AUTO_REVIEW_MODE_OPTIONS: Array<{ value: RuntimeTaskAutoReviewMode; label: string }> = [
 	{ value: "commit", label: "Commit" },
@@ -819,6 +848,63 @@ export function RuntimeSettingsDialog({
 		],
 	);
 
+	// F1.29b: which nav tabs (with a per-tab affordance) have unsaved edits — drives the nav dirty dot + the
+	// per-section Reset button. Uses the SAME field comparison as the whole-dialog dirty check, so it can never
+	// disagree with Save.
+	const dirtyNavIdSet = useMemo(
+		() => new Set(config === null ? [] : dirtyNavSections(draft, configSnapshot)),
+		[config, draft, configSnapshot],
+	);
+
+	// F1.29b: revert just ONE nav tab's editable fields to the loaded config, leaving every other tab's edits intact.
+	// Each field dispatches to its own setter from the snapshot (React state is per-field); the covered set is
+	// SETTINGS_NAV_FIELDS, kept in lockstep with what each tab actually renders.
+	const handleResetNavSection = useCallback(
+		(nav: SettingsNavId) => {
+			for (const field of SETTINGS_NAV_FIELDS[nav] ?? []) {
+				switch (field) {
+					case "developerModeEnabled":
+						setDeveloperModeEnabled(configSnapshot.developerModeEnabled);
+						break;
+					case "replayCardsEnabled":
+						setReplayCardsEnabled(configSnapshot.replayCardsEnabled);
+						break;
+					case "knowsTodayEnabled":
+						setKnowsTodayEnabled(configSnapshot.knowsTodayEnabled);
+						break;
+					case "chatAdaptiveTruncationEnabled":
+						setChatAdaptiveTruncationEnabled(configSnapshot.chatAdaptiveTruncationEnabled);
+						break;
+					case "reasoningBudgetEnabled":
+						setReasoningBudgetEnabled(configSnapshot.reasoningBudgetEnabled);
+						break;
+					case "retrievalEgressEnabled":
+						setRetrievalEgressEnabled(configSnapshot.retrievalEgressEnabled);
+						break;
+					case "retrievalSearchBackendUrl":
+						setRetrievalSearchBackendUrl(configSnapshot.retrievalSearchBackendUrl);
+						break;
+					case "sandboxMcpServersEnabled":
+						setSandboxMcpServersEnabled(configSnapshot.sandboxMcpServersEnabled);
+						break;
+					case "basicMemoryEnabled":
+						setBasicMemoryEnabled(configSnapshot.basicMemoryEnabled);
+						break;
+					case "capabilityBrokerEnabled":
+						setCapabilityBrokerEnabled(configSnapshot.capabilityBrokerEnabled);
+						break;
+					case "maxAgentWritableFileLines":
+						setMaxAgentWritableFileLines(configSnapshot.maxAgentWritableFileLines);
+						break;
+					case "readyForReviewNotificationsEnabled":
+						setReadyForReviewNotificationsEnabled(configSnapshot.readyForReviewNotificationsEnabled);
+						break;
+				}
+			}
+		},
+		[configSnapshot],
+	);
+
 	// Reset the draft to the loaded config whenever the dialog opens or a watched config field changes.
 	// The dependency list is intentionally field-level (NOT the snapshot object): a config refresh that
 	// returns identical values must not clobber in-progress edits.
@@ -1321,7 +1407,11 @@ export function RuntimeSettingsDialog({
 			>
 				<DialogHeader title="Settings" icon={<Settings size={16} />} />
 				<div className="flex h-[min(760px,calc(100vh-120px))]">
-					<SettingsNav items={navItems} activeId={activeSection} onSelect={handleNavSelect} />
+					<SettingsNav
+						items={navItems.map((item) => ({ ...item, dirty: dirtyNavIdSet.has(item.id) }))}
+						activeId={activeSection}
+						onSelect={handleNavSelect}
+					/>
 					<div
 						ref={bodyRef}
 						onScroll={handleBodyScroll}
@@ -1330,10 +1420,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- General ---- */}
 						<div data-settings-section="general" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<SlidersHorizontal size={16} className="text-text-secondary" />
-								General
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<SlidersHorizontal size={16} className="text-text-secondary" />
+									General
+								</h2>
+								<SectionResetButton
+									navId="general"
+									dirty={dirtyNavIdSet.has("general")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
@@ -2791,10 +2888,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Notifications ---- */}
 						<div data-settings-section="notifications" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Bell size={16} className="text-text-secondary" />
-								Notifications
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Bell size={16} className="text-text-secondary" />
+									Notifications
+								</h2>
+								<SectionResetButton
+									navId="notifications"
+									dirty={dirtyNavIdSet.has("notifications")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<div className="flex items-center gap-2">

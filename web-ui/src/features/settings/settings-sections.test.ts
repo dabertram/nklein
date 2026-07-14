@@ -6,9 +6,13 @@ import {
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
 import {
+	dirtyNavSections,
 	dirtySections,
+	isNavSectionDirty,
 	isSectionDirty,
+	resetNavSection,
 	resetSection,
+	SETTINGS_NAV_FIELDS,
 	SETTINGS_SECTION_FIELDS,
 	SETTINGS_SECTION_IDS,
 } from "@/features/settings/settings-sections";
@@ -89,5 +93,48 @@ describe("per-section dirty + reset", () => {
 		expect(isSectionDirty("models", edited, base)).toBe(true);
 		const reset = resetSection("models", edited, base);
 		expect(isSectionDirty("models", reset, base)).toBe(false);
+	});
+});
+
+describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
+	it("every covered nav tab names only real draft fields, with no field claimed by two tabs", () => {
+		const draftKeys = new Set(Object.keys(draftFrom(snapshot())));
+		const assigned = new Map<string, string>();
+		for (const [nav, fields] of Object.entries(SETTINGS_NAV_FIELDS)) {
+			for (const field of fields ?? []) {
+				expect(draftKeys.has(field), `nav "${nav}" names non-draft field "${field}"`).toBe(true);
+				expect(assigned.has(field), `${field} claimed by both ${assigned.get(field)} and ${nav}`).toBe(false);
+				assigned.set(field, nav);
+			}
+		}
+	});
+
+	it("a per-tab edit dirties ONLY that tab, and per-tab reset restores it without touching other tabs", () => {
+		const base = snapshot();
+		const clean = draftFrom(base);
+		expect(dirtyNavSections(clean, base)).toEqual([]);
+
+		const edited: SettingsDraft = {
+			...clean,
+			developerModeEnabled: !base.developerModeEnabled, // rendered under the General tab
+			readyForReviewNotificationsEnabled: !base.readyForReviewNotificationsEnabled, // under the Notifications tab
+		};
+		expect(isNavSectionDirty("general", edited, base)).toBe(true);
+		expect(isNavSectionDirty("notifications", edited, base)).toBe(true);
+		expect(dirtyNavSections(edited, base).sort()).toEqual(["general", "notifications"]);
+
+		const reset = resetNavSection("general", edited, base);
+		expect(isNavSectionDirty("general", reset, base)).toBe(false);
+		// The Notifications edit survives a General-only reset.
+		expect(isNavSectionDirty("notifications", reset, base)).toBe(true);
+		expect(reset.readyForReviewNotificationsEnabled).toBe(!base.readyForReviewNotificationsEnabled);
+	});
+
+	it("a tab with no per-tab affordance is never dirty and resets to a no-op", () => {
+		const base = snapshot();
+		const edited: SettingsDraft = { ...draftFrom(base), requestTimeoutMs: "9000" };
+		// "agents" is not in SETTINGS_NAV_FIELDS yet (multi-tab draft sections render there — a later leaf).
+		expect(isNavSectionDirty("agents", edited, base)).toBe(false);
+		expect(resetNavSection("agents", edited, base)).toEqual(edited);
 	});
 });

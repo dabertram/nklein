@@ -515,4 +515,30 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 3_000 });
 		expect(getSaveConfigBodies()).toHaveLength(0);
 	});
+
+	test("F1.29b: editing a General field shows the nav dirty dot + a per-section Reset that reverts just that tab", async ({
+		page,
+	}) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+
+		// Clean on open: no per-tab dirty dot, no per-section Reset.
+		await expect(page.getByTestId("settings-nav-dirty-general")).toHaveCount(0);
+		await expect(page.getByTestId("settings-section-reset-general")).toHaveCount(0);
+
+		// Toggle a General-tab field (Developer Mode).
+		await page.locator("#runtime-settings-developer-mode").click();
+
+		// The General nav tab now shows the dirty dot and a Reset section button.
+		await expect(page.getByTestId("settings-nav-dirty-general")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-general")).toBeVisible();
+		// A field in another tab was untouched, so its tab stays clean.
+		await expect(page.getByTestId("settings-nav-dirty-notifications")).toHaveCount(0);
+
+		// Resetting the section reverts the edit — dot + button disappear.
+		await page.getByTestId("settings-section-reset-general").click();
+		await expect(page.getByTestId("settings-nav-dirty-general")).toHaveCount(0);
+		await expect(page.getByTestId("settings-section-reset-general")).toHaveCount(0);
+	});
 });

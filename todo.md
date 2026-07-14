@@ -725,14 +725,24 @@ These are known defects or incomplete migrations. Clear them before widening cap
   two logs for a dogfood card — apply the result branch to a temp worktree, run the aimock dev-test scenario
   suite (deterministic, no live models) capturing its ledger, and compare against the pre-patch baseline capture;
   retain via the shipped event. A `nklein dev replay-eval <taskId>` CLI is the natural first mount.
-- [ ] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13).** The typed
-  contract exists: `web-ui/src/features/settings/settings-sections.ts` — every `SettingsDraft` field belongs to
-  exactly ONE of 9 sections (completeness + disjointness LOCKED by a test over the real draft shape), with
-  `isSectionDirty` / `dirtySections` / `resetSection` mirroring the whole-dialog dirty rules (trimmed
-  numeric-strings, deep structured compare, the guardrail-inputs structural equality). REMAINING: adopt it in
-  `runtime-settings-dialog.tsx` — per-section dirty indicators in the nav, per-section Reset (and optionally
-  per-section Save via the existing settings-save path), one section per leaf with Playwright re-validation
-  (settings.spec.ts) since the dialog UI changes.
+- [ ] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
+  axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
+  every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
+  `isSectionDirty`/`dirtySections`/`resetSection`. **KEY FINDING 2026-07-14: that draft-state partition does NOT
+  align with the dialog's nav tabs** — a single draft section (e.g. `sandbox`) renders its controls across THREE nav
+  tabs (general/agents/tasks), `features` spans general+notifications, `rulesets_guardrails` spans
+  general+nklein+project. So "per-section dirty indicator IN THE NAV" is ill-posed against the state partition; the
+  fix is a SECOND, NAV-ALIGNED map. **SHIPPED (nav-aligned axis + leaf 1):** `SETTINGS_NAV_FIELDS`
+  (Partial<Record<SettingsNavId, fields>>) + `isNavSectionDirty`/`dirtyNavSections`/`resetNavSection` (reuse the SAME
+  `fieldDirty`, so a per-tab dot can never disagree with Save; new test: every covered tab names only real draft
+  fields, no field claimed twice); the nav renders a per-tab dirty DOT (`settings-nav-dirty-<id>`) and each covered
+  tab's sticky header shows a **Reset section** button (`settings-section-reset-<id>`) that reverts just that tab's
+  fields from the snapshot, leaving other tabs' edits (Playwright in settings.spec.ts). **Leaf 1 covers `general`
+  (11 fields) + `notifications` (1)** — the two tabs whose editable fields are all top-level and fully enumerable.
+  REMAINING (one tab per leaf): populate `SETTINGS_NAV_FIELDS` for the other nav tabs (agents/tasks/guardrails/
+  nklein/code-intelligence/git-prompts/appearance/project) — each needs an audit of EVERY editable field rendered in
+  that tab's body region INCLUDING sub-component-rendered fields (model roles, project overrides, guardrail inputs),
+  else a tab's dot misses a change; then optionally per-section Save via the settings-save path.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

@@ -28,6 +28,8 @@ export function SettingsNav({
 		icon: React.ReactNode;
 		/** §10c#9: optional count pill (e.g. active per-project overrides on the Project entry); title lists them. */
 		badge?: { count: number; title: string };
+		/** F1.29b: unsaved-edits indicator for this tab's slice (a dot before the count pill). */
+		dirty?: boolean;
 	}>;
 	activeId: SettingsNavId;
 	onSelect: (id: SettingsNavId) => void;
@@ -50,6 +52,15 @@ export function SettingsNav({
 					>
 						<span className="shrink-0 opacity-80">{item.icon}</span>
 						<span>{item.label}</span>
+						{item.dirty ? (
+							<span
+								data-testid={`settings-nav-dirty-${item.id}`}
+								role="img"
+								title="Unsaved changes in this section"
+								aria-label="Unsaved changes"
+								className={cn("ml-auto shrink-0 h-1.5 w-1.5 rounded-full bg-accent", item.badge ? "mr-1" : "")}
+							/>
+						) : null}
 						{item.badge && item.badge.count > 0 ? (
 							<span
 								data-testid={`settings-nav-badge-${item.id}`}
