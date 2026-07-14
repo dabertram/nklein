@@ -105,6 +105,7 @@ function createChatSession(id: string): ChatSession {
 		outstandingAsks: [],
 		selectedSkillIds: [],
 		totalTokensUsed: 0,
+		taintLabels: [],
 		createdAt: 1,
 		updatedAt: 1,
 	};

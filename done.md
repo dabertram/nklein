@@ -895,6 +895,19 @@
   Summaries can no longer launder taint BY CONSTRUCTION: labels live at session granularity, not message
   granularity, so consolidating the transcript never drops them. 3 tests incl. the cross-turn block + the
   inert-when-off lock. tsc 0, fast 9515 green.
+- [x] **F2.1b — session taint PERSISTED across a runtime restart (the restart launder closed)** *(delivered
+  2026-07-14; completes F2.1's restart hole).* F2.1a's registry was in-memory, so a runtime RESTART cleared taint
+  while the tainted transcript survived — a protected-sink call after restart executed against a clean window (the
+  launder window). Now taint lives ALONGSIDE the chat session: a new `taintLabels` field on the `ChatSession`
+  record (persisted schema `.optional()` → normalised to `[]` on old records; canonicalised via `propagateTaint`
+  on replay), a dedicated `recordChatSessionTaint` store mutator (serialized union that PRESERVES `updatedAt` so
+  taint accumulation never reorders the session list; no-op when covered or the session is gone). The resolver
+  re-seeds the in-memory registry from `session.taintLabels` before each turn reads it (idempotent union — so the
+  first turn after restart re-hydrates), and `onTaintChange` now persists the folded set back (best-effort). Session
+  DELETE already removes the record, so taint still dies with the session. 4 store tests incl. the fresh-read
+  restart-survival + updatedAt-preservation + no-double-count; 5 ChatSession fixtures updated for the new field.
+  (Forward note carried over: threading the retrieval-loop `synthesize` output labels waits on that model-coupled
+  adapter, which is not yet live.) tsc 0; web-ui tsc 0; lint 0.
 - [x] **F2.2a — least-scope capability grants with the retry-never-widens rule** *(delivered 2026-07-13; the
   interactive confirm dialog + swarm-side escalation park are F2.2b in todo).* `src/core/capability-grants.ts`:
   a grant covers EXACTLY the scope the user confirmed — `scopeKeyForChatCall` keys the narrowest stable identity

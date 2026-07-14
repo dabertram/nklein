@@ -12,6 +12,7 @@ import {
 	findChatSessionByOwnedWorkspace,
 	getChatSession,
 	listChatSessions,
+	recordChatSessionTaint,
 	updateChatSession,
 } from "../../../src/chat/chat-session-store";
 import { appendChatMessage, readChatTranscript } from "../../../src/chat/chat-transcript-store";
@@ -43,6 +44,42 @@ describe("chat-session-store", () => {
 		expect(await getChatSession(created.id, { rootDir })).toMatchObject({ id: created.id, title: "Debug the merge" });
 		expect(await listChatSessions({ rootDir })).toHaveLength(1);
 		expect(await getChatSession("missing", { rootDir })).toBeNull();
+	});
+
+	describe("recordChatSessionTaint (F2.1b — persist taint, close the restart launder)", () => {
+		it("persists taint on the session so a FRESH read (as a restarted process does) re-seeds it", async () => {
+			const created = await createChatSession({ title: "Tainted" }, { rootDir, now });
+			expect(created.taintLabels).toEqual([]);
+			clock = 2000;
+			await recordChatSessionTaint(created.id, ["web", "mcp"], { rootDir, now });
+			// Canonical order (TAINT_LABELS): web before mcp. A fresh read carries the persisted taint forward.
+			expect((await getChatSession(created.id, { rootDir }))?.taintLabels).toEqual(["web", "mcp"]);
+		});
+
+		it("preserves updatedAt so taint accumulation never reorders the session list", async () => {
+			const created = await createChatSession({ title: "Tainted" }, { rootDir, now });
+			clock = 9000;
+			await recordChatSessionTaint(created.id, ["web"], { rootDir, now });
+			expect((await getChatSession(created.id, { rootDir }))?.updatedAt).toBe(created.updatedAt);
+		});
+
+		it("unions labels (dedup) and no-ops when they are already covered", async () => {
+			const created = await createChatSession({ title: "Tainted" }, { rootDir, now });
+			await recordChatSessionTaint(created.id, ["web"], { rootDir, now });
+			await recordChatSessionTaint(created.id, ["web", "secret_like"], { rootDir, now });
+			const labels = [...((await getChatSession(created.id, { rootDir }))?.taintLabels ?? [])].sort();
+			expect(labels).toEqual(["secret_like", "web"]);
+			// Recording an already-covered label leaves the set unchanged (no double-count).
+			await recordChatSessionTaint(created.id, ["web"], { rootDir, now });
+			expect((await getChatSession(created.id, { rootDir }))?.taintLabels).toHaveLength(2);
+		});
+
+		it("no-ops on a missing session or empty labels", async () => {
+			await expect(recordChatSessionTaint("missing", ["web"], { rootDir, now })).resolves.toBeUndefined();
+			const created = await createChatSession({ title: "Clean" }, { rootDir, now });
+			await recordChatSessionTaint(created.id, [], { rootDir, now });
+			expect((await getChatSession(created.id, { rootDir }))?.taintLabels).toEqual([]);
+		});
 	});
 
 	it("defaults riskAcknowledged to false, and update toggles + round-trips it (§5.M G3b)", async () => {

@@ -35,6 +35,7 @@ function makeSession(id = "session-1"): ChatSession {
 		outstandingAsks: [],
 		selectedSkillIds: [],
 		totalTokensUsed: 0,
+		taintLabels: [],
 		createdAt: 1,
 		updatedAt: 1,
 	};

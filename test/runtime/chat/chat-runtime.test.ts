@@ -24,6 +24,7 @@ function session(overrides: Partial<ChatSession> = {}): ChatSession {
 		outstandingAsks: [],
 		selectedSkillIds: [],
 		totalTokensUsed: 0,
+		taintLabels: [],
 		createdAt: 0,
 		updatedAt: 0,
 		...overrides,

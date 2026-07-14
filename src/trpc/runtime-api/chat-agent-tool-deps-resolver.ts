@@ -21,7 +21,7 @@ import { isSandboxWritePathApproved, resolveSandboxWritablePathMounts } from "..
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import { chatSessionGrantStore } from "../../chat/chat-session-grants";
-import type { ChatSession } from "../../chat/chat-session-store";
+import { type ChatSession, recordChatSessionTaint } from "../../chat/chat-session-store";
 import { chatSessionTaintRegistry } from "../../chat/chat-session-taint";
 import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
@@ -199,15 +199,23 @@ export function buildChatAgentToolDepsResolver(input: {
 		const activeDefinitions = phasePlan?.definitions ?? definitions;
 
 		const capabilityBrokerEnabled = (await input.getCapabilityBrokerEnabled?.()) ?? false;
+		// F2.1b: the taint registry is in-memory, so re-seed it from the session's PERSISTED taint before this turn
+		// reads it — after a runtime RESTART the persisted transcript survives while the registry was cleared, so
+		// re-folding (idempotent union) closes that launder window. Inert when the broker is off.
+		if (capabilityBrokerEnabled) {
+			chatSessionTaintRegistry.fold(session.id, session.taintLabels);
+		}
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
 			mode,
-			// F2.1: session-persistent taint — untrusted content ingested by EARLIER turns (still in context, verbatim
-			// or summarized) seeds this turn's window, and this turn's additions persist back. Inert when the broker is
-			// off (the executor never folds), and the registry then stays empty too.
+			// F2.1/F2.1b: session-persistent taint — untrusted content ingested by EARLIER turns (still in context,
+			// verbatim or summarized) seeds this turn's window, and this turn's additions persist back. Each turn's
+			// additions are persisted to the session (best-effort) so the NEXT restart re-seeds too. Inert when the
+			// broker is off (the executor never folds, the registry stays empty).
 			initialTaint: capabilityBrokerEnabled ? chatSessionTaintRegistry.get(session.id) : [],
 			onTaintChange: (labels) => {
-				chatSessionTaintRegistry.fold(session.id, labels);
+				const folded = chatSessionTaintRegistry.fold(session.id, labels);
+				void recordChatSessionTaint(session.id, folded).catch(() => {});
 			},
 			// F2.2: least-scope confirmation grants (exact scope key, bounded TTL) — a widened retry re-confirms.
 			...(capabilityBrokerEnabled

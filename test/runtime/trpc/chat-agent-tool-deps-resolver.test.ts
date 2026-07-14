@@ -54,6 +54,7 @@ function makeSession(scope: ChatSession["scope"], sandboxWritablePaths: readonly
 		outstandingAsks: [],
 		selectedSkillIds: [],
 		totalTokensUsed: 0,
+		taintLabels: [],
 		createdAt: 1,
 		updatedAt: 1,
 	};

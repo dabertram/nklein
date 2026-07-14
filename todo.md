@@ -810,19 +810,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 2A. Chat execution and safety *(legacy §5.L, §5.M, §5.S)*
 
-- [ ] **F2.1b — Persist session taint + close the restart launder (session-persistence SHIPPED 2026-07-13).**
-  The big F2.1 hole is closed: chat taint now lives at SESSION granularity (`src/chat/chat-session-taint.ts`
-  registry; the executor gained `initialTaint`/`onTaintChange` seams; the resolver seeds every turn's window from
-  the session and folds additions back, gated on `capabilityBrokerEnabled`), so a protected-sink call N turns
-  after a tainted page read is still broker-gated and SUMMARIZATION CANNOT LAUNDER taint by construction (labels
-  outlive the message that carried them; the rolling summary's content stays covered). Session delete clears the
-  entry (transcript dies with it). Already covered before this pass: source labeling (web/mcp/repo via
-  `labelsForSource` + content-scan secret detection), tool/sink manifests (F1.20 taintSource/taintSinks), the
-  fail-closed dangerous-combination gate (`decideCapabilityBrokerGate` at chat + delivery seams), and retrieval
-  fetch stamping injection-risk findings onto evidence. REMAINING: the registry is in-memory — a runtime RESTART
-  clears taint while the persisted transcript survives (a launder window); persist labels alongside the chat
-  session and re-seed on load. Also thread the retrieval loop's `synthesize` output labels explicitly when that
-  adapter lands (F1-era note: synthesize is model-coupled, not yet live).
 - [ ] **F2.2b — Interactive confirm surface + swarm-side escalation park (grants core SHIPPED 2026-07-13).**
   Least-scope capability grants are live at the chat seam: `src/core/capability-grants.ts`
   (`scopeKeyForChatCall` — the exact command/path/host is the grant's identity, so a retry that widens ANYTHING

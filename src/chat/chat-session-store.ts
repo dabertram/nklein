@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { BoardChatVerbosity } from "../core/board-chat-feedback";
+import { propagateTaint, TAINT_LABELS, type TaintLabel } from "../core/taint-labels";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { chatSessionGrantStore } from "./chat-session-grants";
 import { chatSessionTaintRegistry } from "./chat-session-taint";
@@ -91,6 +92,10 @@ export interface ChatSession {
 	selectedSkillIds: readonly string[];
 	/** §5.M: running total of tokens this session's turns have consumed (usage.total_tokens summed across turns). */
 	totalTokensUsed: number;
+	/** F2.1b: the session's ACCUMULATED taint labels, persisted so a runtime RESTART re-seeds the in-memory taint
+	 *  registry — otherwise a restart would clear taint while the tainted transcript survives (a launder window).
+	 *  Accumulate-only; canonical order; dies with the session (delete removes the record). Default empty. */
+	taintLabels: readonly TaintLabel[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -139,6 +144,8 @@ const chatSessionPersistedSchema = z.object({
 		.optional(),
 	selectedSkillIds: z.array(z.string()).optional(),
 	totalTokensUsed: z.number().optional(),
+	// F2.1b: absent on records written before session taint was persisted → normalised to empty.
+	taintLabels: z.array(z.enum(TAINT_LABELS)).optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -254,6 +261,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				selectedSkillIds: event.session.selectedSkillIds ?? [],
 				// §5.M back-compat: sessions persisted before token tracking → 0.
 				totalTokensUsed: event.session.totalTokensUsed ?? 0,
+				// F2.1b back-compat: sessions persisted before taint tracking → empty; canonicalised on replay.
+				taintLabels: propagateTaint([], event.session.taintLabels ?? []),
 			});
 		}
 	}
@@ -306,11 +315,40 @@ export async function createChatSession(
 		outstandingAsks: [],
 		selectedSkillIds: input.selectedSkillIds ?? [],
 		totalTokensUsed: 0,
+		taintLabels: [],
 		createdAt: now,
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);
 	return session;
+}
+
+/**
+ * F2.1b: fold new taint labels into a session's PERSISTED set (union, canonical order), PRESERVING `updatedAt` so
+ * taint accumulation never reorders the session list. Serialized like the other mutators. The in-memory registry
+ * stays the live source; this only makes a runtime restart re-seedable. No-op when the session is gone or the union
+ * adds nothing (so a repeated taint over an already-covered session writes nothing).
+ */
+export async function recordChatSessionTaint(
+	id: string,
+	labels: readonly TaintLabel[],
+	options: ChatSessionStoreOptions = {},
+): Promise<void> {
+	if (labels.length === 0) {
+		return;
+	}
+	await serializeChatSessionWrite(options.rootDir, async () => {
+		const existing = await getChatSession(id, options);
+		if (!existing) {
+			return;
+		}
+		const merged = propagateTaint(existing.taintLabels, labels);
+		if (merged.length === existing.taintLabels.length) {
+			return; // union added nothing — no write.
+		}
+		const session: ChatSession = { ...existing, taintLabels: merged };
+		await appendChatSessionEvent({ type: "upsert", at: (options.now ?? Date.now)(), session }, options.rootDir);
+	});
 }
 
 /**
