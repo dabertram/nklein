@@ -3,6 +3,7 @@ import {
 	Bot,
 	ChevronDown,
 	ChevronRight,
+	ImagePlus,
 	ListChecks,
 	MessageSquare,
 	MessageSquarePlus,
@@ -10,6 +11,7 @@ import {
 	Send,
 	Square,
 	Trash2,
+	X,
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
@@ -56,7 +58,7 @@ import type {
 	RuntimeChatSessionScope,
 } from "@/runtime/types";
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
-import { useChatData } from "./use-chat-data";
+import { type ChatImageAttachmentInput, useChatData } from "./use-chat-data";
 
 const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string }> = [
 	{ value: "planner_architect", label: "Planner / architect" },
@@ -1020,6 +1022,35 @@ function ChatPanel({
 	const composerRef = useRef<HTMLTextAreaElement | null>(null);
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 	const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
+	// F2.7b: images staged in the composer to send with the next message (base64, no data-URL prefix). Sent to the
+	// model only when the selected model claims vision + they fit budget (the server gates + explains on refusal).
+	const [pendingImages, setPendingImages] = useState<ChatImageAttachmentInput[]>([]);
+	const imageInputRef = useRef<HTMLInputElement | null>(null);
+	const attachImageFiles = async (files: FileList | null): Promise<void> => {
+		if (!files) {
+			return;
+		}
+		const staged: ChatImageAttachmentInput[] = [];
+		for (const file of Array.from(files)) {
+			if (!file.type.startsWith("image/")) {
+				continue;
+			}
+			const dataUrl = await new Promise<string>((resolve) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(String(reader.result ?? ""));
+				reader.onerror = () => resolve("");
+				reader.readAsDataURL(file);
+			});
+			const comma = dataUrl.indexOf(",");
+			if (comma < 0) {
+				continue;
+			}
+			staged.push({ data: dataUrl.slice(comma + 1), mimeType: file.type, name: file.name });
+		}
+		if (staged.length > 0) {
+			setPendingImages((current) => [...current, ...staged]);
+		}
+	};
 	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
 
 	// §5.BB intuitive scrolling: follow live output only while the user is at the bottom — scrolling up detaches
@@ -1100,7 +1131,8 @@ function ChatPanel({
 		}
 		setDraft("");
 		setMention(null);
-		void chat.sendMessage(message);
+		void chat.sendMessage(message, pendingImages.length > 0 ? pendingImages : undefined);
+		setPendingImages([]);
 	};
 
 	// §5.AU click-to-focus: clicking a stream in the overview appends its explicit `@stream:<id>` handle to the composer
@@ -1456,6 +1488,55 @@ function ChatPanel({
 										))}
 									</div>
 								) : null}
+								{pendingImages.length > 0 ? (
+									<div
+										data-testid="chat-pending-attachments"
+										className="absolute bottom-full left-3 right-3 mb-1 flex flex-wrap gap-2 rounded-md border border-border bg-surface-1 p-2"
+									>
+										{pendingImages.map((image, index) => (
+											<span
+												key={`${image.name ?? "image"}-${index}`}
+												className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-[11px] text-text-secondary"
+											>
+												<ImagePlus size={11} className="shrink-0" />
+												<span className="max-w-[120px] truncate">{image.name ?? "image"}</span>
+												<button
+													type="button"
+													aria-label={`Remove ${image.name ?? "image"}`}
+													data-testid="chat-attachment-remove"
+													onClick={() =>
+														setPendingImages((current) => current.filter((_, i) => i !== index))
+													}
+													className="shrink-0 text-text-tertiary hover:text-text-primary"
+												>
+													<X size={11} />
+												</button>
+											</span>
+										))}
+									</div>
+								) : null}
+								<input
+									ref={imageInputRef}
+									type="file"
+									accept="image/png,image/jpeg,image/webp,image/gif"
+									multiple
+									className="hidden"
+									data-testid="chat-attach-input"
+									onChange={(event) => {
+										void attachImageFiles(event.currentTarget.files);
+										event.currentTarget.value = "";
+									}}
+								/>
+								<button
+									type="button"
+									data-testid="chat-attach-button"
+									aria-label="Attach images"
+									title="Attach images (sent to vision-capable models)"
+									onClick={() => imageInputRef.current?.click()}
+									className="shrink-0 self-end rounded-md border border-border bg-surface-2 p-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+								>
+									<ImagePlus size={14} />
+								</button>
 								<textarea
 									ref={composerRef}
 									data-testid="chat-composer-input"

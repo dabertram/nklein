@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **You can now attach images to a chat and send them to a vision-capable model.** The chat composer has an image
+  button — attach one or more images, see them as removable chips, and send. If the selected model supports vision the
+  images go along with your message; if it doesn't (or they're too large), the message still sends as text and the chat
+  tells you why. (Showing sent images in the chat history comes next.)
+
 - **Settings now shows which section has unsaved changes, and lets you undo one section at a time.** When you edit a
   setting, a dot appears next to its section in the left-hand nav, and that section's header gains a "Reset section"
   button that reverts just those fields to what's saved — leaving your edits elsewhere untouched. (Rolling out one

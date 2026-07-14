@@ -12,6 +12,9 @@ import type {
 } from "@/runtime/types";
 import { useTrpcQuery } from "@/runtime/use-trpc-query";
 
+/** F2.7b: a base64 image attachment the composer sends with a chat message (mirrors the contract's request shape). */
+export type ChatImageAttachmentInput = { data: string; mimeType: string; name?: string };
+
 /**
  * Data layer for the board-independent chat surface (todo §5.M). It talks to the non-workspace `chat` tRPC
  * sub-router (so `getRuntimeTrpcClient(null)` — chat sessions aren't tied to a board), keeping the session list,
@@ -57,7 +60,7 @@ export interface UseChatDataResult {
 	createSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession | null>;
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
 	deleteSession: (id: string) => Promise<void>;
-	sendMessage: (message: string) => Promise<void>;
+	sendMessage: (message: string, imageAttachments?: ChatImageAttachmentInput[]) => Promise<void>;
 	steerTurn: (message: string) => Promise<boolean>;
 	refetchSessions: () => Promise<unknown>;
 	/** The selected session's autonomous run (todo §5.0.1): null until one is started this mount. */
@@ -198,7 +201,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	);
 
 	const sendMessage = useCallback(
-		async (message: string) => {
+		async (message: string, imageAttachments?: ChatImageAttachmentInput[]) => {
 			const trimmed = message.trim();
 			if (!trimmed || !selectedSessionId) {
 				return;
@@ -218,7 +221,11 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 				let settled = false;
 				let stallTimer: ReturnType<typeof setTimeout> | null = null;
 				const subscription = client.chat.streamMessage.subscribe(
-					{ sessionId: selectedSessionId, message: trimmed },
+					{
+						sessionId: selectedSessionId,
+						message: trimmed,
+						...(imageAttachments && imageAttachments.length > 0 ? { imageAttachments } : {}),
+					},
 					{
 						onData: (event) => {
 							armStallWatchdog();

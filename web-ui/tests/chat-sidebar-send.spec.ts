@@ -210,4 +210,47 @@ test.describe("Chat sidebar send + AutonomousRunBar (§5.M)", () => {
 		await expect.poll(() => handles.wasSent(), { timeout: 5_000 }).toBe(true);
 		await expect(page.getByText(USER_TEXT).first()).toBeVisible({ timeout: 5_000 });
 	});
+
+	test("F2.7b: attaching an image shows a chip and sends imageAttachments; removing clears it", async ({ page }) => {
+		await setupMocks(page);
+		// Capture the streamMessage request (LIFO — registered after setupMocks so it wins) to inspect the payload.
+		let streamRequest = "";
+		await page.route(
+			(url) => url.pathname.startsWith("/api/trpc/") && url.pathname.includes("chat.streamMessage"),
+			async (route) => {
+				streamRequest = decodeURIComponent(`${route.request().url()} ${route.request().postData() ?? ""}`);
+				await route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
+			},
+		);
+		await page.goto("/");
+		await openChatSidebarAndSelect(page);
+
+		// A 1x1 PNG (valid base64) staged via the hidden attach input.
+		const pngBuffer = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+			"base64",
+		);
+		await page
+			.getByTestId("chat-attach-input")
+			.setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: pngBuffer });
+
+		// The pending-attachment chip appears with the filename.
+		await expect(page.getByTestId("chat-pending-attachments")).toBeVisible();
+		await expect(page.getByTestId("chat-pending-attachments")).toContainText("shot.png");
+
+		// Removing clears the chip.
+		await page.getByTestId("chat-attachment-remove").click();
+		await expect(page.getByTestId("chat-pending-attachments")).toHaveCount(0);
+
+		// Re-attach, then send — the request carries imageAttachments and the chip clears afterward.
+		await page
+			.getByTestId("chat-attach-input")
+			.setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: pngBuffer });
+		await expect(page.getByTestId("chat-pending-attachments")).toBeVisible();
+		await page.getByTestId("chat-composer-input").fill(USER_TEXT);
+		await page.getByTestId("chat-send-button").click();
+
+		await expect.poll(() => streamRequest, { timeout: 5_000 }).toContain("imageAttachments");
+		await expect(page.getByTestId("chat-pending-attachments")).toHaveCount(0);
+	});
 });

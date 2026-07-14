@@ -149,7 +149,7 @@ describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
 		const edited: SettingsDraft = {
 			...clean,
 			maxConcurrentTasksOverride: 9,
-			codeEmbeddingOverride: { provider: "openai", model: "text-embedding-3-small", baseUrl: null },
+			codeEmbeddingOverride: { provider: "openai_compatible", model: "text-embedding-3-small", baseUrl: null },
 		};
 		expect(isNavSectionDirty("project", edited, base)).toBe(true);
 		// Editing only Project fields must not dirty an unrelated tab.

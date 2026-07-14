@@ -932,10 +932,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   an ADDITIVE optional `parts?` on `ChatPromptMessage`/`LocalLlmChatMessage` (string path byte-identical) — the adapter
   forwards it on BOTH the tool-discovery and final-stream calls, and the client sends it AS the wire `content` array.
   Capability resolved via `resolveLlmfitModelCapabilityIds` (cached catalog, fail-closed to []). 7 unit tests
-  (send-seam gate + wire mapping). REMAINING (a coherent UI slice, best done together so the UX isn't half): (1)
-  transcript store persists the sent images bounded (else history can't render them); (2) web-ui composer attach
-  control (file→base64→`imageAttachments` on the streamMessage send) + accessible inline rendering (alt text, keyboard
-  nav); (3) live-validate on a vision-capable local model (e.g. a gemma/qwen-VL) before enabling by default.
+  (send-seam gate + wire mapping). **COMPOSER ATTACH+SEND SHIPPED 2026-07-14 (`<this commit>`):** the chat sidebar
+  composer has an image-attach button (`chat-attach-button`) → reads files as base64 → pending chips
+  (`chat-pending-attachments`, removable) → `use-chat-data.sendMessage(message, imageAttachments)` forwards them on the
+  streamMessage send; chips clear after send. Playwright proves attach→chip→remove and that a send carries
+  `imageAttachments`. REMAINING (each independent now): (1) transcript store persists the sent images bounded so
+  HISTORY can render them (a storage-shape decision — inline-base64 vs a blob store keyed by message id; today the
+  send works but past images aren't shown); (2) accessible inline rendering of persisted images (alt text, keyboard
+  nav) once (1) lands; (3) live-validate on a vision-capable local model (e.g. a gemma/qwen-VL) before enabling by
+  default (fleet-gated).
 - [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
