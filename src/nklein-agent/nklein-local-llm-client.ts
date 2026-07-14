@@ -1,3 +1,4 @@
+import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
@@ -40,6 +41,12 @@ export interface LocalLlmSamplingOptions {
 export interface LocalLlmChatMessage {
 	role: "system" | "user" | "assistant";
 	content: string;
+	/**
+	 * F2.7b: OpenAI-compatible multimodal content parts (a `text` + `image_url` data-URL sequence). When present it
+	 * REPLACES `content` on the wire (the provider's vision format); `content` stays the plain-text equivalent for
+	 * every non-wire reader (logging, summaries, system-merge). Only set on a vision-capable user turn with images.
+	 */
+	parts?: MultimodalContentPart[];
 }
 
 /** OpenAI-compatible `response_format`; also carries a raw llama.cpp `grammar` (GBNF) when provided. */
@@ -178,7 +185,13 @@ export class LocalLlmClient {
 			// Consolidate all system content into ONE leading system message (§5.AA recover-in-!Klein): some models ship a
 			// strict Jinja template that 400s when a system message isn't first (live-found: qwopus3.5-9b-coder-mtp's
 			// `raise_exception('System message must be at the beginning')`). No-op for the already-system-first common case.
-			messages: mergeSystemMessagesFirst(request.messages),
+			// F2.7b: a message carrying multimodal `parts` sends them AS the OpenAI-compatible array `content`; the
+			// plain-string path is byte-identical (no `parts` ⇒ the original {role, content} object flows through).
+			messages: mergeSystemMessagesFirst(request.messages).map((message) =>
+				message.parts
+					? { role: message.role, content: message.parts }
+					: { role: message.role, content: message.content },
+			),
 			stream: false,
 		};
 		if (sampling.temperature !== undefined) body.temperature = sampling.temperature;

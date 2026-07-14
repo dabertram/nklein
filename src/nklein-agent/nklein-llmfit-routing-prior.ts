@@ -42,6 +42,16 @@ export function createLlmfitCapabilityPriorResolver(
 }
 
 /**
+ * F2.7b: resolve a model's NORMALIZED llmfit capability ids (e.g. `["vision", "tool_use"]`) from the cached catalog —
+ * the chat send seam's vision gate. Fail-closed: an unknown model / empty catalog / llmfit error resolves `[]`, so
+ * images are refused rather than sent to a model not known to read them. Cached (llmfit's DB doesn't change per turn).
+ */
+export async function resolveLlmfitModelCapabilityIds(modelId: string): Promise<readonly string[]> {
+	const models = await loadCachedLlmfitModels().catch(() => [] as LlmfitModel[]);
+	return findLlmfitMatch(modelId, models)?.capabilityIds ?? [];
+}
+
+/**
  * Opt-in only: when `NKLEIN_LLMFIT_PRIOR` is truthy, run/cache `llmfit recommend` and return score/tok/s routing priors
  * for loaded-model REAL names. Disabled by default, so normal task starts and decompositions remain local.
  */

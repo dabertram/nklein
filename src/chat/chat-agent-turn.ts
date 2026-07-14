@@ -1,3 +1,4 @@
+import type { ChatImageAttachment } from "../core/chat-multimodal";
 import { isTruthyEnv } from "../core/env-flag";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { decideFocusChainNudge } from "../core/focus-chain-nudge";
@@ -12,6 +13,7 @@ import {
 	runChatAgentLoop,
 } from "./chat-agent-loop";
 import type { ChatMemory } from "./chat-memory-store";
+import { applyImageAttachmentsToPrompt } from "./chat-multimodal-turn";
 import type { ChatSession } from "./chat-session-store";
 import type { ChatSteeringMessage } from "./chat-steering";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -88,6 +90,9 @@ export interface ChatAgentTurnResult {
 	totalTokens: number;
 	/** §5.AF: the §5.AA recovery rungs that fired across the turn's model calls, in order (deduped). */
 	promptStrategies: string[];
+	/** F2.7b: a user-facing notice when image attachments were REFUSED (non-vision model or over-budget); null when
+	 *  none were sent or they were accepted. The turn still ran text-only. */
+	attachmentNotice: string | null;
 }
 
 /** Neutral user-facing reply when the model produced only (empty-after-strip) narrated markup and ran no tools. */
@@ -107,6 +112,10 @@ export async function runChatAgentTurn(
 		targetNote?: string | null;
 		/** F2.19b/F2.20b: the klein_self corpus grounding note (routed docs + freshness citations); null/absent = none. */
 		kleinSelfCorpusNote?: string | null;
+		/** F2.7b: image attachments for this user turn — sent to the model only when it claims `vision` and they fit budget. */
+		imageAttachments?: readonly ChatImageAttachment[];
+		/** F2.7b: the selected model's normalized llmfit capability ids (e.g. `["vision"]`) — the acceptance gate. */
+		modelCapabilityIds?: readonly string[];
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -166,6 +175,15 @@ export async function runChatAgentTurn(
 				: []),
 		...prompt,
 	];
+	// F2.7b: fold this turn's image attachments into the user message (capability + budget gated; text-only + a
+	// surfaced reason on refusal). Pure — see chat-multimodal-turn.ts.
+	const attachmentResult = applyImageAttachmentsToPrompt({
+		messages,
+		...(input.imageAttachments ? { imageAttachments: input.imageAttachments } : {}),
+		...(input.modelCapabilityIds ? { modelCapabilityIds: input.modelCapabilityIds } : {}),
+	});
+	const withAttachments = attachmentResult.messages;
+	const attachmentNotice = attachmentResult.attachmentNotice;
 	// §5.AA controller evidence-gate: when the instruction explicitly names ≥2 offered tools (a clear multi-tool task,
 	// e.g. the e2e capstone), don't let the loop accept a premature "done" until every named tool has actually run —
 	// the fix for the ≤4B "I've completed all steps" prose-done-after-one-tool failure. Single-/no-named-tool turns
@@ -205,7 +223,7 @@ export async function runChatAgentTurn(
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const loop = await runChatAgentLoop(
 		{
-			messages,
+			messages: withAttachments,
 			...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
 			...(input.onToken ? { onToken: input.onToken } : {}),
 			...(deps.pollSteeringMessages ? { pollSteeringMessages: deps.pollSteeringMessages } : {}),
@@ -243,6 +261,7 @@ export async function runChatAgentTurn(
 		hitIterationLimit: loop.hitIterationLimit,
 		promptStrategies: loop.promptStrategies,
 		totalTokens: loop.totalTokens,
+		attachmentNotice,
 	};
 }
 

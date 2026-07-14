@@ -313,7 +313,12 @@ export function createChatModelDeps(
 	return {
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {
-			const messages = prompt.map((message) => ({ role: message.role, content: message.content }));
+			const messages = prompt.map((message) => ({
+				role: message.role,
+				content: message.content,
+				// F2.7b: forward multimodal parts (present only on a vision user turn) to the wire as array content.
+				...(message.parts ? { parts: message.parts } : {}),
+			}));
 			if (onToken && client.completeStream) {
 				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged)
 				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
@@ -410,7 +415,13 @@ export function createChatAgentModel(
 	const sampling =
 		apiRequest.temperature !== null ? { ...baseSampling, temperature: apiRequest.temperature } : baseSampling;
 	return async (messages, allowTools, _onToken, usedToolNames, forceToolCall) => {
-		let wire = messages.map((message) => ({ role: message.role, content: message.content }));
+		let wire = messages.map((message) => ({
+			role: message.role,
+			content: message.content,
+			// F2.7b: carry multimodal parts (present only on a vision user turn) so the model SEES images during
+			// tool discovery, not just on the final answer. `replaceLastUserText` spreads the message, preserving them.
+			...(message.parts ? { parts: message.parts } : {}),
+		}));
 		if (apiRequest.thinkingDirective) {
 			wire = replaceLastUserText(wire, `${lastUserText(messages)}\n\n${apiRequest.thinkingDirective}`);
 		}

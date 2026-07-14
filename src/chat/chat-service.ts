@@ -7,6 +7,7 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
+import type { ChatImageAttachment } from "../core/chat-multimodal";
 import { buildTargetPickerPrompt, parseTargetPickerChoice } from "../core/message-target-picker";
 import {
 	type MessageTargetIndex,
@@ -74,6 +75,9 @@ export interface ChatServiceOptions {
 	/** §5.AL: the active project's effective model-gate policy (global default ← per-project override) used as the gate's
 	 *  base, so chat honors a per-project policy like task-start does (the env knobs still layer on top). Omit ⇒ env+default. */
 	resolveModelGatePolicyBase?: () => Promise<{ onUnsuitable: string; onUnknown: string } | null>;
+	/** F2.7b: the selected model's normalized llmfit capability ids (e.g. `["vision"]`) — gates image attachments.
+	 *  Omit ⇒ [] ⇒ attachments are refused (fail-closed: never send images to a model not known to read them). */
+	resolveModelCapabilityIds?: (modelId: string) => Promise<readonly string[]>;
 	/** §5.AC: the resolved "knows today" switch for this turn (the runtime-config setting, OFF BY DEFAULT). Read per turn
 	 *  so a live config change takes effect immediately. Omitted ⇒ the turn's env fallback (`NKLEIN_KNOWS_TODAY`) decides. */
 	resolveKnowsTodayEnabled?: () => boolean;
@@ -207,6 +211,8 @@ export interface ChatService {
 			message: string;
 			tokenBudget?: number;
 			memoryLimit?: number;
+			/** F2.7b: image attachments for this turn (sent to the model only when it claims vision + they fit budget). */
+			imageAttachments?: readonly ChatImageAttachment[];
 		},
 		onToken?: (delta: string) => void,
 		/** W3.1 (server-side only): live tool start/end activity while the turn runs, for the composer's chips. */
@@ -620,6 +626,12 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							session.scope === "klein_self" && options.buildKleinSelfCorpusNote
 								? await options.buildKleinSelfCorpusNote(session, input.message).catch(() => null)
 								: null;
+						// F2.7b: resolve the selected model's vision capability at the send seam (fail-closed to [] — a model
+						// not known vision-capable refuses images rather than sending bytes it can't read).
+						const modelCapabilityIds =
+							modelDeps.modelId && options.resolveModelCapabilityIds
+								? await options.resolveModelCapabilityIds(modelDeps.modelId)
+								: [];
 						const agentResult = await runChatAgentTurn(
 							{
 								session,
@@ -632,6 +644,10 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								...(onToken ? { onToken } : {}),
 								...(targetNote ? { targetNote } : {}),
 								...(kleinSelfCorpusNote ? { kleinSelfCorpusNote } : {}),
+								...(input.imageAttachments && input.imageAttachments.length > 0
+									? { imageAttachments: input.imageAttachments }
+									: {}),
+								...(modelCapabilityIds.length > 0 ? { modelCapabilityIds } : {}),
 							},
 							{
 								...storeDeps,
@@ -675,10 +691,16 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						}
 						// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
 						await maybeConsolidateSessionMemories(session.id, agentResult.context.summary, modelDeps);
+						// F2.7b: a refused attachment (non-vision model / over-budget) surfaces alongside any model-gate notice.
+						const combinedNotice = agentResult.attachmentNotice
+							? capabilityNotice
+								? `${capabilityNotice}\n${agentResult.attachmentNotice}`
+								: agentResult.attachmentNotice
+							: capabilityNotice;
 						return {
 							userMessage: toRuntimeChatMessage(agentResult.userMessage),
 							assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
-							...(capabilityNotice ? { capabilityNotice } : {}),
+							...(combinedNotice ? { capabilityNotice: combinedNotice } : {}),
 							...(targetLabel ? { targetLabel } : {}),
 							// W3.4 truncation indicator: the lean window rolled older messages into a summary this turn.
 							...(agentResult.context.summary !== null ? { contextTruncated: true } : {}),

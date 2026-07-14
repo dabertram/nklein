@@ -1,3 +1,4 @@
+import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { consolidateChatContextWindow, splitChatContextWindow } from "./chat-context-window";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store";
@@ -80,6 +81,12 @@ function isPromptRole(message: ChatMessage): message is ChatMessage & { role: Ch
 export interface ChatPromptMessage {
 	role: ChatPromptRole;
 	content: string;
+	/**
+	 * F2.7b: optional OpenAI-compatible multimodal content parts for a vision turn. When set, the local-LLM adapter
+	 * forwards these as the wire `content`; `content` remains the plain-text equivalent so every other consumer
+	 * (rendering, token estimation, transcript) is unaffected.
+	 */
+	parts?: MultimodalContentPart[];
 }
 
 /**

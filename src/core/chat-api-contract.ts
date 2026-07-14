@@ -218,11 +218,21 @@ export const runtimeChatBoardStreamsResponseSchema = z.object({
 });
 export type RuntimeChatBoardStreamsResponse = z.infer<typeof runtimeChatBoardStreamsResponseSchema>;
 
+/** F2.7b: a single image attachment on a chat send — base64 payload (no data-URL prefix) + its mime type. */
+export const runtimeChatImageAttachmentSchema = z.object({
+	data: z.string().min(1),
+	mimeType: z.string().min(1),
+	name: z.string().optional(),
+});
+export type RuntimeChatImageAttachment = z.infer<typeof runtimeChatImageAttachmentSchema>;
+
 export const runtimeChatSendMessageRequestSchema = z.object({
 	sessionId: z.string(),
 	message: z.string().min(1),
 	tokenBudget: z.number().int().positive().optional(),
 	memoryLimit: z.number().int().positive().optional(),
+	/** F2.7b: image attachments — sent to the model only when it claims `vision` and they fit the byte/count budget. */
+	imageAttachments: z.array(runtimeChatImageAttachmentSchema).optional(),
 });
 export type RuntimeChatSendMessageRequest = z.infer<typeof runtimeChatSendMessageRequestSchema>;
 

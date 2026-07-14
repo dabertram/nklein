@@ -78,6 +78,7 @@ import { NKLEIN_DEV_TEST_PROJECT_MARKER_PATH } from "../nklein-agent/nklein-dev-
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
+import { resolveLlmfitModelCapabilityIds } from "../nklein-agent/nklein-llmfit-routing-prior";
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
@@ -277,6 +278,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// policy like task-start does (env knobs still override on top).
 			resolveModelGatePolicyBase: async () =>
 				deps.getActiveRuntimeConfig?.()?.effectiveModelSuitabilityPolicy ?? null,
+			// F2.7b: the selected model's llmfit capability ids (the vision gate for image attachments), from the cached
+			// catalog — fail-closed to [] on an unknown model / catalog miss so images are never sent to a non-vision model.
+			resolveModelCapabilityIds: (modelId) => resolveLlmfitModelCapabilityIds(modelId),
 			// §5.AC: resolve the "knows today" switch per turn = the runtime-config setting (off by default) OR the
 			// `NKLEIN_KNOWS_TODAY` env override, so a live config change (or a dev flag) takes effect on the next turn.
 			resolveKnowsTodayEnabled: () =>
