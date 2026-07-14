@@ -5,6 +5,7 @@ import {
 	type ResolveMessageTargetInput,
 	renderMessageTargetNote,
 	resolveMessageTarget,
+	resolveTargetFromCandidate,
 	stripAddressingHandle,
 } from "../../../src/core/message-target-resolver";
 
@@ -153,6 +154,48 @@ describe("resolveMessageTarget — rung 3: focus, and rung 4: goal default", () 
 			}),
 		);
 		expect(t.kind).toBe("answer");
+	});
+});
+
+describe("resolveTargetFromCandidate (F2.16b — route a chosen candidate like an explicit handle)", () => {
+	it("builds a high-confidence card target from a card candidate", () => {
+		expect(resolveTargetFromCandidate({ kind: "card", id: "c1", label: "card Fix parser" })).toEqual({
+			kind: "card",
+			id: "c1",
+			displayLabel: "card Fix parser",
+			confidence: "high",
+			source: "explicit_handle",
+		});
+	});
+
+	it("carries the ASK pendingKey through for an answer candidate", () => {
+		expect(
+			resolveTargetFromCandidate({
+				kind: "answer",
+				id: "task-7",
+				label: "How should auth work?",
+				pendingKey: "task-7:needs_input",
+			}),
+		).toEqual({
+			kind: "answer",
+			id: "task-7",
+			pendingKey: "task-7:needs_input",
+			displayLabel: "How should auth work?",
+			confidence: "high",
+			source: "explicit_handle",
+		});
+	});
+
+	it("omits pendingKey for a stream candidate", () => {
+		const target = resolveTargetFromCandidate({ kind: "stream", id: "s1", label: "#auth" });
+		expect(target).toEqual({
+			kind: "stream",
+			id: "s1",
+			displayLabel: "#auth",
+			confidence: "high",
+			source: "explicit_handle",
+		});
+		expect(target.pendingKey).toBeUndefined();
 	});
 });
 

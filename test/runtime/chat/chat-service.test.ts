@@ -445,6 +445,90 @@ describe("createChatService", () => {
 		expect(result?.assistantMessage.content).toContain("Which did you mean?");
 	});
 
+	it("§5.AU rung 5 (F2.16b): the isolated picker RESOLVES an ambiguous message → relays to the chosen candidate", async () => {
+		const pickerPrompts: string[] = [];
+		const relayed: { targetId?: string; message: string }[] = [];
+		const service = createChatService({
+			rootDir,
+			// The isolated picker turn runs through modelDeps.complete; return the exact id of the chosen candidate.
+			resolveModelDeps: async () => ({
+				complete: async (prompt) => {
+					pickerPrompts.push(prompt.map((message) => message.content).join("\n"));
+					return "card-2";
+				},
+				summarize: async () => "",
+			}),
+			resolveAgentToolDeps: async () => ({
+				model: async () => ({ text: "MODEL REPLY", toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+			resolveMessageTargetIndex: async () => ({
+				cards: [
+					{ id: "card-1", title: "Fix parser" },
+					{ id: "card-2", title: "Fix parser" },
+				],
+				streams: [],
+			}),
+			relayAddressedMessage: async (target, message) => {
+				if (target.kind === "card" && target.id) {
+					relayed.push({ targetId: target.id, message });
+					return `Delivered to [${target.id}].`;
+				}
+				return null;
+			},
+		});
+		const session = await service.createSession({ title: "Rung5", scope: "chat_only" });
+		const result = await service.sendMessage({ sessionId: session.id, message: "@fix-parser prioritize" });
+
+		// The picker turn saw both candidate ids; it chose card-2, which was relayed — no operator clarify needed.
+		expect(pickerPrompts).toHaveLength(1);
+		expect(pickerPrompts[0]).toContain("card-1");
+		expect(pickerPrompts[0]).toContain("card-2");
+		expect(result?.assistantMessage.content).toBe("Delivered to [card-2].");
+		expect(result?.clarifyCandidates).toBeUndefined();
+		expect(relayed).toEqual([{ targetId: "card-2", message: "@fix-parser prioritize" }]);
+	});
+
+	it("§5.AU rung 5 (F2.16b): the picker ABSTAINS → falls back to the operator clarify picker", async () => {
+		const cardRelays: string[] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "ABSTAIN", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => ({ text: "MODEL REPLY", toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+			resolveMessageTargetIndex: async () => ({
+				cards: [
+					{ id: "card-1", title: "Fix parser" },
+					{ id: "card-2", title: "Fix parser" },
+				],
+				streams: [],
+			}),
+			// Mirror the real relay: only a concrete card target delivers; a needs_clarify target returns null (so the
+			// deterministic relay falls through to the picker, which abstains here).
+			relayAddressedMessage: async (target) => {
+				if (target.kind === "card" && target.id) {
+					cardRelays.push(target.id);
+					return `Delivered to [${target.id}].`;
+				}
+				return null;
+			},
+		});
+		const session = await service.createSession({ title: "Abstain", scope: "chat_only" });
+		const result = await service.sendMessage({ sessionId: session.id, message: "@fix-parser prioritize" });
+
+		// Abstain never routes to a candidate — it falls back to surfacing the candidates for the composer's picker.
+		expect(cardRelays).toEqual([]);
+		expect(result?.clarifyCandidates).toEqual([
+			{ kind: "card", id: "card-1", label: "card Fix parser" },
+			{ kind: "card", id: "card-2", label: "card Fix parser" },
+		]);
+		expect(result?.assistantMessage.content).toContain("Which did you mean?");
+	});
+
 	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {
 		const service = createChatService({
 			rootDir,

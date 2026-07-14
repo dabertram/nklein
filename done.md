@@ -1054,6 +1054,18 @@
   load→probe→unload, machine restored):** 4/4 — "finish the login form" → the auth card, "use port 8080" → the
   API-port answer candidate, an unrelated weather question and a vague "do the thing" both → ABSTAIN, and it
   NEVER invented a route (each 2s, clean parse). 5 core tests. tsc 0, fast 9568 green.
+- [x] **F2.16b — the isolated target picker wired into the ambiguous-resolution path** *(delivered 2026-07-14;
+  completes F2.16b).* The F2.16a core was pure-and-validated but uncalled. Now, when `resolveMessageTarget`
+  returns `needs_clarify` (ambiguous ≥2 candidates), chat-service runs an ISOLATED disambiguation turn BEFORE
+  bothering the operator — `modelDeps.complete([system,user])` over `buildTargetPickerPrompt` (no tools, board, or
+  history), parsed by the STRICT `parseTargetPickerChoice`. A confident pick routes exactly like an explicit
+  @handle via a new pure `resolveTargetFromCandidate` (card/stream/answer → resolved target, carrying an answer's
+  `pendingKey`) through the existing relay; ABSTAIN / no relay / relay-declined falls through to today's operator
+  clarify picker — so the model can never escalate ambiguity into a wrong route (worst case: it declines and the
+  human picks). Gated on `relayAddressedMessage` being wired (chat-only services without it are unchanged), and
+  the deterministic relay still runs first (a needs_clarify target returns null there, then the picker runs). 3
+  `resolveTargetFromCandidate` tests + 2 chat-service wiring tests (pick→relay, abstain→clarify); the pre-existing
+  "no model turn" ambiguous test stays green (no relay wired ⇒ picker skipped). tsc 0; lint 0; fast green.
 - [x] **F2.17a — protected-write threaded into the operator inbox as its own no-double-count source**
   *(delivered 2026-07-13; the live boundary-hold producer is F2.17b in todo).* The §5.AG inbox already covered
   clarification / host-ack / held-delivery / setup blockers; F2.17's missing PROTECTED-WRITE source is now

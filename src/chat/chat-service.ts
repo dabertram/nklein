@@ -7,11 +7,13 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
+import { buildTargetPickerPrompt, parseTargetPickerChoice } from "../core/message-target-picker";
 import {
 	type MessageTargetIndex,
 	type ResolvedMessageTarget,
 	renderMessageTargetNote,
 	resolveMessageTarget,
+	resolveTargetFromCandidate,
 } from "../core/message-target-resolver";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
@@ -524,18 +526,71 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 										};
 									}
 								}
-								// §5.AU item 9 — needs_clarify PICKER: addressing was ambiguous (>1 slug/ASK match). Surface the
-								// candidates for the composer's picker instead of guessing or spending a model turn: post a
-								// deterministic clarify prompt + return the candidates. The user picks one (inserts its @handle) and
-								// re-sends. No model turn.
+								// §5.AU item 9 / F2.16b rung 5 — needs_clarify: addressing was ambiguous (>1 slug/ASK match).
 								if (target.kind === "needs_clarify" && target.candidates && target.candidates.length > 0) {
-									const clarifyCandidates: RuntimeChatClarifyCandidate[] = target.candidates.map(
-										(candidate) => ({
-											kind: candidate.kind,
-											id: candidate.id,
-											label: candidate.label,
-										}),
-									);
+									const candidates = target.candidates;
+									// F2.16b rung 5: before bothering the operator, run an ISOLATED disambiguation turn — no tools,
+									// board, or history, just the message + the enumerated candidates. It picks exactly one candidate's
+									// id or ABSTAINs (parseTargetPickerChoice is STRICT — an unknown/hallucinated id also abstains), so
+									// it can never invent a route. A confident pick routes exactly like an explicit @handle (via the
+									// relay); ABSTAIN / no relay / relay-declined falls through to the operator's clarify picker below.
+									if (options.relayAddressedMessage) {
+										const picker = buildTargetPickerPrompt({
+											message: input.message,
+											candidates: candidates.map((candidate) => ({
+												id: candidate.id,
+												kind: candidate.kind,
+												label: candidate.label,
+											})),
+										});
+										const rawChoice = await modelDeps
+											.complete([
+												{ role: "system", content: picker.system },
+												{ role: "user", content: picker.user },
+											])
+											.catch(() => null);
+										const choice =
+											rawChoice === null
+												? { abstain: true as const }
+												: parseTargetPickerChoice(
+														rawChoice,
+														candidates.map((candidate) => candidate.id),
+													);
+										if ("chosenId" in choice) {
+											const picked = candidates.find((candidate) => candidate.id === choice.chosenId);
+											if (picked) {
+												const confirmation = await options.relayAddressedMessage(
+													resolveTargetFromCandidate(picked),
+													input.message,
+												);
+												if (confirmation !== null) {
+													const userMsg = await appendChatMessage(
+														session.id,
+														{ role: "user", content: input.message },
+														transcriptOptions,
+													);
+													const assistantMsg = await appendChatMessage(
+														session.id,
+														{ role: "assistant", content: confirmation },
+														transcriptOptions,
+													);
+													return {
+														userMessage: toRuntimeChatMessage(userMsg),
+														assistantMessage: toRuntimeChatMessage(assistantMsg),
+														targetLabel: picked.label,
+													};
+												}
+											}
+										}
+									}
+									// ABSTAIN / no relay / relay-declined: surface the candidates for the composer's picker instead of
+									// guessing — post a deterministic clarify prompt + return the candidates. The user picks one (inserts
+									// its @handle) and re-sends. No further model turn.
+									const clarifyCandidates: RuntimeChatClarifyCandidate[] = candidates.map((candidate) => ({
+										kind: candidate.kind,
+										id: candidate.id,
+										label: candidate.label,
+									}));
 									const options_ = clarifyCandidates.map((candidate) => `"${candidate.label}"`).join(", ");
 									const userMsg = await appendChatMessage(
 										session.id,

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **When a chat message could address more than one card, the agent now tries to figure out which you meant before
+  asking.** Previously an ambiguous message (e.g. an `@handle` that matched two same-named cards) always stopped to
+  ask you to pick. Now a quick, isolated model turn first attempts to resolve it from the message alone — and only
+  if it can't confidently choose does it fall back to asking. It can only ever pick one of the actual candidates or
+  abstain; it never invents a target or starts anything on its own.
+
 - **Ask-about-!Klein chats now ground their answers in the project's current source, with freshness shown.** When a
   chat is in the read-only "!Klein self" scope, each question is routed to the most authoritative planning docs
   (done.md for "what exists", todo.md for "what's planned / known issues", and so on), and the agent is told to read

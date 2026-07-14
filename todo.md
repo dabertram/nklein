@@ -957,15 +957,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
-  pass over stream→DAG→card→thread→back; fold any gap found there.- [ ] **F2.16b — Wire the isolated target picker into the ambiguous-resolution path (core SHIPPED + LIVE-VALIDATED
-  2026-07-13).** `src/core/message-target-picker.ts`: `buildTargetPickerPrompt` (names ONLY the enumerated
-  candidates, instructs pick-one-id-or-ABSTAIN, forbids inventing) + `parseTargetPickerChoice` (STRICT — accepts
-  only an id in the supplied set, everything else → abstain: an unknown/hallucinated id, empty, ties, or prose
-  all abstain, so the model can never escalate ambiguity into a wrong action). LIVE-VALIDATED on qwen3-8b (m5max):
-  4/4 — clear messages picked the right card / answer candidate, unrelated + genuinely-ambiguous messages
-  ABSTAINed, and it NEVER invented a route. REMAINING: call it from the caller when `resolveMessageTarget` returns
-  `source:"ambiguous"` — run an ISOLATED model turn (no tools/board/history) with the prompt, parse strictly, and
-  on abstain fall back to today's `needs_clarify` operator ask (never auto-route or start a card).- [ ] **F2.17b — Light up the protected-write inbox source from the live boundary hold (inbox source SHIPPED
+  pass over stream→DAG→card→thread→back; fold any gap found there.
+- [ ] **F2.17b — Light up the protected-write inbox source from the live boundary hold (inbox source SHIPPED
   2026-07-13).** The operator inbox already threaded unresolved clarification, host-action ack, held-delivery,
   and setup blockers; the missing F2.17 source — PROTECTED-WRITE — is now a first-class inbox entry:
   `OperatorTaskSignals.protectedPathHeld` classifies `risky`, `collectOperatorInbox` emits `protectedWrites[]`,

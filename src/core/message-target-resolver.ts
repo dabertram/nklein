@@ -63,6 +63,34 @@ export interface ResolvedMessageTarget {
 	reason?: string;
 }
 
+/** One disambiguation candidate (a `needs_clarify` target's `candidates` entry). */
+export type MessageTargetCandidate = NonNullable<ResolvedMessageTarget["candidates"]>[number];
+
+/**
+ * F2.16b: build the resolved target for a candidate chosen from an ambiguous set (by the rung-5 LLM picker or the
+ * operator's clarify picker), so a chosen candidate routes EXACTLY like an explicit @handle would. Pure. An
+ * `answer` carries its ASK's `pendingKey`; a `card`/`stream` carries only its id + label.
+ */
+export function resolveTargetFromCandidate(candidate: MessageTargetCandidate): ResolvedMessageTarget {
+	if (candidate.kind === "answer") {
+		return {
+			kind: "answer",
+			id: candidate.id,
+			...(candidate.pendingKey ? { pendingKey: candidate.pendingKey } : {}),
+			displayLabel: candidate.label,
+			confidence: "high",
+			source: "explicit_handle",
+		};
+	}
+	return {
+		kind: candidate.kind,
+		id: candidate.id,
+		displayLabel: candidate.label,
+		confidence: "high",
+		source: "explicit_handle",
+	};
+}
+
 /** Slugify a title for `@<slug>` matching: lowercase, non-alphanumerics → single hyphens, trimmed. */
 function slugify(text: string): string {
 	return text
