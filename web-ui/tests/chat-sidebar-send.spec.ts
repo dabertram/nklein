@@ -294,4 +294,74 @@ test.describe("Chat sidebar send + AutonomousRunBar (§5.M)", () => {
 		// The persisted image renders inline (the shared TaskImageStrip <img> with the data URL).
 		await expect(page.locator('img[src^="data:image/png;base64,"]').first()).toBeVisible({ timeout: 5_000 });
 	});
+
+	test("F2.9b: the memory panel lists records and forgets a deletable one", async ({ page }) => {
+		await setupMocks(page);
+		const deleteBodies: unknown[] = [];
+		await page.route(
+			(url) => url.pathname.startsWith("/api/trpc/") && url.pathname.includes("chat.getSessionMemory"),
+			async (route) => {
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify([
+						{
+							result: {
+								data: {
+									records: [
+										{
+											source: "session",
+											id: "mem-1",
+											text: "the user prefers dark mode",
+											salience: 1,
+											provenance: "chat memory",
+											deleteControl: { kind: "chat_memory", memoryId: "mem-1" },
+										},
+										{
+											source: "semantic",
+											id: "layer-1",
+											text: "a fact from the ledger",
+											salience: 0.5,
+											provenance: "immutable projection",
+											deleteControl: { kind: "none", reason: "projection of the ledger" },
+										},
+									],
+								},
+							},
+						},
+					]),
+				});
+			},
+		);
+		await page.route(
+			(url) => url.pathname.startsWith("/api/trpc/") && url.pathname.includes("chat.deleteSessionMemory"),
+			async (route) => {
+				try {
+					deleteBodies.push(route.request().postDataJSON());
+				} catch {
+					/* empty */
+				}
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify([{ result: { data: { outcome: "deleted" } } }]),
+				});
+			},
+		);
+		await page.goto("/");
+		await openChatSidebarAndSelect(page);
+
+		await page.getByTestId("session-memory-toggle").click();
+		await expect(page.getByTestId("session-memory-item")).toHaveCount(2);
+		// The immutable projection is "kept" (no forget button); the chat memory has a forget button.
+		await expect(page.getByTestId("session-memory-locked")).toHaveCount(1);
+		await expect(page.getByTestId("session-memory-forget")).toHaveCount(1);
+
+		await page.getByTestId("session-memory-forget").click();
+		await expect.poll(() => deleteBodies.length, { timeout: 3_000 }).toBeGreaterThan(0);
+		const arg = (deleteBodies[0] as Record<string, Record<string, unknown>>)["0"] ?? {};
+		expect(arg.control).toEqual({ kind: "chat_memory", memoryId: "mem-1" });
+		// The forgotten record disappears optimistically.
+		await expect(page.getByTestId("session-memory-item")).toHaveCount(1);
+	});
 });

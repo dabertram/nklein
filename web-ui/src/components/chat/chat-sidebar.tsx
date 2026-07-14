@@ -24,6 +24,7 @@ import {
 	getActiveMention,
 	type MentionCandidate,
 } from "@/components/chat/composer-mention";
+import { SessionMemoryPanel } from "@/components/chat/session-memory-panel";
 import { StreamOverviewPanel } from "@/components/chat/stream-overview-panel";
 import {
 	type ChatMessageCardReferences,
@@ -534,6 +535,8 @@ function SessionHeader({
 				</div>
 				{/* F2.12b: host actions only occur in can-act scopes, so the audit history shows there. */}
 				{showRiskToggle ? <ChatHostActionAuditPanel sessionId={session.id} /> : null}
+				{/* F2.9b: the session's unified memory view — see what the chat remembers + forget entries. */}
+				<SessionMemoryPanel sessionId={session.id} />
 			</div>
 			<RiskAckConfirmDialog open={riskDialogOpen} onConfirm={handleRiskConfirm} onCancel={handleRiskCancel} />
 		</>

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -79,6 +79,26 @@ export async function readChatMemories(options: ChatMemoryStoreOptions = {}): Pr
 		return [];
 	}
 	return parseValidatedJsonl(raw, chatMemorySchema, "chat-memory-store");
+}
+
+/**
+ * F2.9b: delete ONE memory by id — rewrite the append-only log without it. Returns true when a row was removed
+ * (false when the id was absent). Rewrites only when something changed, so a no-op delete never rewrites the file.
+ */
+export async function deleteChatMemory(memoryId: string, options: ChatMemoryStoreOptions = {}): Promise<boolean> {
+	const memories = await readChatMemories(options);
+	const kept = memories.filter((memory) => memory.id !== memoryId);
+	if (kept.length === memories.length) {
+		return false;
+	}
+	const root = options.rootDir ?? DEFAULT_ROOT;
+	await mkdir(root, { recursive: true });
+	await writeFile(
+		resolveLogPath(options.rootDir),
+		kept.map((memory) => `${JSON.stringify(memory)}\n`).join(""),
+		"utf8",
+	);
+	return true;
 }
 
 /**

@@ -23,7 +23,15 @@ import type { ChatToolSet } from "./chat-board-tools";
 import { maybeEnforceReasoning } from "./chat-enforced-reasoning";
 import { deleteSessionImages, readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
-import { appendChatMemory, readChatMemories, writeConsolidatedMemories } from "./chat-memory-store";
+import { executeMemoryDeleteControl, type MemoryDeleteOutcome } from "./chat-memory-delete";
+import { projectUnifiedMemory, type UnifiedMemoryRecord } from "./chat-memory-projection";
+import {
+	accessibleChatMemories,
+	appendChatMemory,
+	deleteChatMemory,
+	readChatMemories,
+	writeConsolidatedMemories,
+} from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
 import type { ChatSession } from "./chat-session-store";
 import {
@@ -205,6 +213,10 @@ export interface ChatService {
 	readTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
 	/** F2.7b: a message's out-of-band image attachments (data-URL-ready), for history rendering; [] when none. */
 	getMessageImages: (sessionId: string, messageId: string) => Promise<ChatImageAttachment[]>;
+	/** F2.9b: the session's unified memory view (provenance + typed delete control per record). */
+	getSessionMemory: (sessionId: string) => Promise<UnifiedMemoryRecord[]>;
+	/** F2.9b: execute a memory record's delete control (chat-memory / basic-memory); refuses non-deletable records. */
+	deleteSessionMemory: (control: UnifiedMemoryRecord["deleteControl"]) => Promise<MemoryDeleteOutcome>;
 	/** Run one chat turn against a session (composes memory + goal, calls the model, persists both messages).
 	 *  Returns null when the session doesn't exist; throws when no model is configured. `onToken` (server-side only;
 	 *  callbacks can't cross the tRPC wire) streams the assistant reply incrementally when the model supports it. */
@@ -436,6 +448,25 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			return messages.map(toRuntimeChatMessage);
 		},
 		getMessageImages: (sessionId, messageId) => readChatMessageImages(sessionId, messageId, imageOptions),
+		getSessionMemory: async (sessionId) => {
+			// F2.9b: the deletable, high-value source first — the session's own + shared chat memories, unified with
+			// provenance. (The §5.M four-layer + Basic-Memory sources compose in later, when their turn-feed lands.)
+			const memories = accessibleChatMemories(await readChatMemories(memoryOptions), sessionId);
+			return projectUnifiedMemory({
+				sessionMemories: memories.map((memory) => ({
+					id: memory.id,
+					text: memory.text,
+					score: 1,
+					shared: memory.shared,
+				})),
+			});
+		},
+		deleteSessionMemory: (control) =>
+			executeMemoryDeleteControl(control, {
+				deleteChatMemory: (memoryId) => deleteChatMemory(memoryId, memoryOptions),
+				// Basic-Memory note deletion composes in with its turn-feed source (not gathered here yet).
+				deleteBasicMemoryNote: async () => false,
+			}),
 		sendMessage: (input, onToken, onToolEvent) =>
 			serializeSessionTurn(input.sessionId, async () => {
 				const activeTurn = createActiveChatTurn();

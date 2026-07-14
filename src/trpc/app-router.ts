@@ -189,6 +189,9 @@ import type {
 	RuntimeChatSteerTurnRequest,
 	RuntimeChatSteerTurnResponse,
 	RuntimeChatUpdateSessionRequest,
+	RuntimeDeleteMemoryResponse,
+	RuntimeMemoryDeleteControl,
+	RuntimeSessionMemoryResponse,
 } from "../core/chat-api-contract.js";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import { buildChatRouter } from "./routers/chat-router";
@@ -476,6 +479,8 @@ export interface RuntimeTrpcContext {
 			sessionId: string;
 			messageId: string;
 		}) => Promise<RuntimeChatMessageImagesResponse>;
+		getChatSessionMemory: (input: { sessionId: string }) => Promise<RuntimeSessionMemoryResponse>;
+		deleteChatSessionMemory: (input: { control: RuntimeMemoryDeleteControl }) => Promise<RuntimeDeleteMemoryResponse>;
 		/** §5.BB: the session's live focus chain (the agent's plan checklist), or null when none drafted. */
 		getChatFocusChain: (sessionId: string) => Promise<RuntimeChatFocusChainResponse>;
 		updateChatFocusChain: (input: RuntimeChatFocusChainUpdateRequest) => Promise<RuntimeChatFocusChainUpdateResponse>;

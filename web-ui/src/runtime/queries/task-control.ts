@@ -37,6 +37,20 @@ export async function fetchChatHostActionAudit(sessionId: string, limit = 100) {
 	return (await trpcClient.runtime.getChatHostActionAudit.query({ sessionId, limit })).entries;
 }
 
+/** F2.9b: the session's unified memory (records with provenance + a typed delete control). */
+export async function fetchSessionMemory(sessionId: string) {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.chat.getSessionMemory.query({ sessionId })).records;
+}
+
+export type SessionMemoryRecord = Awaited<ReturnType<typeof fetchSessionMemory>>[number];
+
+/** F2.9b: delete a memory via its typed control (chat-memory / basic-memory); returns the outcome string. */
+export async function deleteSessionMemory(control: SessionMemoryRecord["deleteControl"]): Promise<string> {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.chat.deleteSessionMemory.mutate({ control })).outcome;
+}
+
 /** F2.2b/F2.12b: the host-action confirmations a chat turn parked awaiting the operator's OK. */
 export async function fetchPendingHostActionConfirms() {
 	const trpcClient = getRuntimeTrpcClient(null);

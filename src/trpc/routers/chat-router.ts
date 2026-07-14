@@ -27,6 +27,10 @@ import {
 	runtimeChatTranscriptRequestSchema,
 	runtimeChatTranscriptResponseSchema,
 	runtimeChatUpdateSessionRequestSchema,
+	runtimeDeleteMemoryRequestSchema,
+	runtimeDeleteMemoryResponseSchema,
+	runtimeSessionMemoryRequestSchema,
+	runtimeSessionMemoryResponseSchema,
 } from "../../core/chat-api-contract.js";
 import type { RuntimeTrpcBuilder } from "../app-router";
 
@@ -76,6 +80,15 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 			.input(runtimeChatMessageImagesRequestSchema)
 			.output(runtimeChatMessageImagesResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatMessageImages(input)),
+		// F2.9b: the session's unified memory view (provenance + typed delete control) + delete execution.
+		getSessionMemory: t.procedure
+			.input(runtimeSessionMemoryRequestSchema)
+			.output(runtimeSessionMemoryResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatSessionMemory(input)),
+		deleteSessionMemory: t.procedure
+			.input(runtimeDeleteMemoryRequestSchema)
+			.output(runtimeDeleteMemoryResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.deleteChatSessionMemory(input)),
 		// §5.BB focus-chain surface: the agent's live plan checklist for the transcript's plan strip.
 		getFocusChain: t.procedure
 			.input(z.object({ sessionId: z.string() }))

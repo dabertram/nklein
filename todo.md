@@ -965,11 +965,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   deterministic). **DELETE-POLICY CORE SHIPPED 2026-07-14 (a-leaf, `<this commit>`):** `chat-memory-delete.ts`
   `executeMemoryDeleteControl` — the pure fail-closed dispatch from a typed `MemoryDeleteControl` to the right store
   deletion (chat_memory by id / basic_memory_note by permalink), REFUSING a `none` control (immutable projection /
-  plan step) or an unknown kind rather than guessing; pure over injected deleters (4 unit tests). REMAINING (an
-  interdependent read→show→delete slice, best built together): feed the projection at the turn-context assembly seam
-  (store recall + §5.M memory-layers + basic-memory search + focus chain — this is the HOT-PATH change whose value
-  needs live-model validation), a read endpoint gathering those 4 sources, the delete endpoint over
-  `executeMemoryDeleteControl`, and the provenance UI ("why recalled") with delete buttons.
+  plan step) or an unknown kind rather than guessing; pure over injected deleters (4 unit tests). **READ→SHOW→DELETE
+  UI SHIPPED 2026-07-14 (`<this commit>`):** `deleteChatMemory` store op (rewrite the append-only log without the id;
+  2 tests); `chat.getSessionMemory` tRPC (gathers the session's chat memories → `projectUnifiedMemory` →
+  provenance-carrying records) + `chat.deleteSessionMemory` (over `executeMemoryDeleteControl`); a `SessionMemoryPanel`
+  in the chat header — records with source+provenance, a Forget button on deletable ones, a "kept" marker (why on
+  hover) on immutable projections. Playwright proves list + forget-carries-the-control + optimistic removal.
+  REMAINING: (1) the HOT-PATH turn-context feed (replace the chat-memory store's solo recall with the projection —
+  needs live-model validation of recall quality); (2) compose in the §5.M four-layer + Basic-Memory sources (the read
+  endpoint gathers chat memories today; the other sources + basic-memory deletion land with the turn-feed).
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —

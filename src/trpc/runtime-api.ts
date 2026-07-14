@@ -1208,6 +1208,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getChatMessageImages: async (input) => ({
 			images: await chatService.getMessageImages(input.sessionId, input.messageId),
 		}),
+		// F2.9b: the session's unified memory (provenance + typed delete control per record) + delete execution.
+		getChatSessionMemory: async (input) => ({ records: await chatService.getSessionMemory(input.sessionId) }),
+		deleteChatSessionMemory: async (input) => ({ outcome: await chatService.deleteSessionMemory(input.control) }),
 		// §5.BB focus-chain surface: read-only projection of the session's live plan checklist (default store root —
 		// the same place the agent-turn's readFocusChain dep reads).
 		updateChatFocusChain: async (input) => {

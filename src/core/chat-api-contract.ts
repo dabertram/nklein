@@ -248,6 +248,32 @@ export const runtimeChatMessageImagesResponseSchema = z.object({
 });
 export type RuntimeChatMessageImagesResponse = z.infer<typeof runtimeChatMessageImagesResponseSchema>;
 
+/** F2.9b: the typed delete control on a unified-memory record (mirrors chat-memory-projection's MemoryDeleteControl). */
+export const runtimeMemoryDeleteControlSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("chat_memory"), memoryId: z.string() }),
+	z.object({ kind: z.literal("basic_memory_note"), permalink: z.string() }),
+	z.object({ kind: z.literal("none"), reason: z.string() }),
+]);
+export type RuntimeMemoryDeleteControl = z.infer<typeof runtimeMemoryDeleteControlSchema>;
+export const runtimeUnifiedMemoryRecordSchema = z.object({
+	source: z.enum(["session", "working", "episodic", "semantic", "procedural", "basic_memory", "focus_chain"]),
+	id: z.string(),
+	text: z.string(),
+	salience: z.number(),
+	provenance: z.string(),
+	deleteControl: runtimeMemoryDeleteControlSchema,
+});
+export const runtimeSessionMemoryRequestSchema = z.object({ sessionId: z.string() });
+export const runtimeSessionMemoryResponseSchema = z.object({
+	records: z.array(runtimeUnifiedMemoryRecordSchema),
+});
+export type RuntimeSessionMemoryResponse = z.infer<typeof runtimeSessionMemoryResponseSchema>;
+export const runtimeDeleteMemoryRequestSchema = z.object({ control: runtimeMemoryDeleteControlSchema });
+export const runtimeDeleteMemoryResponseSchema = z.object({
+	outcome: z.enum(["deleted", "not_found", "not_deletable", "unknown_control"]),
+});
+export type RuntimeDeleteMemoryResponse = z.infer<typeof runtimeDeleteMemoryResponseSchema>;
+
 export const runtimeChatTurnDeliverySchema = z.enum(["queue", "steer"]);
 export type RuntimeChatTurnDelivery = z.infer<typeof runtimeChatTurnDeliverySchema>;
 
