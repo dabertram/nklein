@@ -805,9 +805,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   work], thresholds injectable, severity-first order, ids = dedup keys), `buildRailFindingRetentionEvent` +
   `readRetainedRailFindingEvents` (F1.26-style latest-wins ledger retention, controllerDecision `rail_analysis`),
   and `proposeRailBacklogPackages` (ONE proposal per project at worst severity, deduped vs existing proposal ids,
-  PROPOSE-ONLY — never writes todo.md). REMAINING: mount it — extend `nklein dev rail-evidence` to print
-  findings + proposals (and optionally retain to the ledger with `--retain`), and let the F1.31b rail tick feed
-  fresh reports through it so the operator surface (F1.35) can show "what the rail found" without re-analysis.
+  PROPOSE-ONLY — never writes todo.md). **CLI MOUNT SHIPPED 2026-07-14 (`<this commit>`):** `nklein dev rail-evidence
+  --findings` classifies the harvested reports → prints typed findings (most-severe-first) + propose-only backlog
+  packages via a new pure `formatRailFindingsReport` (2 unit tests); `--retain` also appends each finding's
+  F1.26-style retention event to the ledger; `--json` emits both machine-readable. REMAINING (fleet-gated): let the
+  F1.31b rail TICK feed fresh reports through this live so the operator surface (F1.35) shows "what the rail found"
+  without re-analysis — needs the F1.31b rail running on the fleet.
 - [ ] **F1.34b — Live-validate test-driven mode, then decide the default flip (mode COMPLETE 2026-07-13).** The
   per-project override shipped (`testDrivenModeOverride` true/false/null-inherit through the full config stack:
   types → state factory `effectiveTestDrivenMode` → load/update/save/file-io/change-detection → contract; the

@@ -254,3 +254,34 @@ export function proposeRailBacklogPackages(
 	});
 	return proposals;
 }
+
+/**
+ * F1.33b — human-readable rail-findings report for the `nklein dev rail-evidence --findings` CLI mount: the typed
+ * findings (most-severe first) then the propose-only backlog packages. Pure; the command supplies the classified
+ * report + proposals. Returns a "no findings" line when the rail is clean, so the mount always prints something.
+ */
+export function formatRailFindingsReport(
+	report: RailFindingsReport,
+	proposals: readonly RailBacklogProposal[],
+): string {
+	if (report.findings.length === 0) {
+		return "Rail findings — none (no regressions, flakes, quality gaps, or ideas in the harvested evidence).\n";
+	}
+	const lines: string[] = [`Rail findings — ${report.findings.length} (most severe first):`];
+	for (const finding of report.findings) {
+		lines.push(
+			`  [${finding.severity}] ${finding.kind.padEnd(11)} ${finding.project.padEnd(16)} ${finding.summary}` +
+				` (${finding.evidence.runs} run(s), ${pct(finding.evidence.deliveryRate)} delivered${finding.evidence.newlyBroken ? ", newly-broken" : ""})`,
+		);
+	}
+	if (proposals.length > 0) {
+		lines.push("", `Proposed backlog packages (${proposals.length}, propose-only — nothing writes todo.md):`);
+		for (const proposal of proposals) {
+			lines.push(
+				`  [${proposal.severity}] ${proposal.title}`,
+				...proposal.detail.split("\n").map((line) => `    ${line}`),
+			);
+		}
+	}
+	return `${lines.join("\n")}\n`;
+}

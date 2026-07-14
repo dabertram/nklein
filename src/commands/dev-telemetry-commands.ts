@@ -23,6 +23,12 @@ import { lookupModelCapability } from "../core/model-capability-catalog";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import {
+	buildRailFindingRetentionEvent,
+	classifyRailFindings,
+	formatRailFindingsReport,
+	proposeRailBacklogPackages,
+} from "../core/rail-findings";
+import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
 	type RuntimeRunOutcome,
@@ -30,8 +36,9 @@ import {
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
+import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
-import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 
@@ -315,8 +322,37 @@ export async function runDevEscalationCommand(options: {
 	}
 }
 
-export async function runDevRailEvidenceCommand(options: { json?: boolean; advisor?: boolean }): Promise<void> {
-	const aggregate = aggregateRailEvidence(await readRailEvidenceReports());
+export async function runDevRailEvidenceCommand(options: {
+	json?: boolean;
+	advisor?: boolean;
+	findings?: boolean;
+	retain?: boolean;
+}): Promise<void> {
+	const reports = await readRailEvidenceReports();
+	// F1.33b: the findings mount — classify the harvested reports into typed findings + propose-only backlog packages,
+	// optionally retaining each finding to the ledger (F1.26-style latest-wins) with --retain.
+	if (options.findings || options.retain) {
+		const report = classifyRailFindings(reports);
+		const proposals = proposeRailBacklogPackages(report.findings);
+		if (options.retain) {
+			const workspacePathHash = hashWorkspacePathForLedger(process.cwd());
+			for (const finding of report.findings) {
+				await appendAgentLedgerEvent(buildRailFindingRetentionEvent({ workspacePathHash, finding }));
+			}
+		}
+		if (options.json) {
+			process.stdout.write(
+				`${JSON.stringify({ findings: report.findings, proposals, retained: options.retain ? report.findings.length : 0 }, null, 2)}\n`,
+			);
+			return;
+		}
+		process.stdout.write(formatRailFindingsReport(report, proposals));
+		if (options.retain && report.findings.length > 0) {
+			process.stdout.write(`\nRetained ${report.findings.length} finding(s) to the ledger.\n`);
+		}
+		return;
+	}
+	const aggregate = aggregateRailEvidence(reports);
 	if (options.advisor) {
 		const request = buildRailEvidenceAnalysisPrompt(aggregate);
 		process.stdout.write(`# ${request.title}\n\n${request.prompt}\n`);

@@ -748,7 +748,9 @@ export function registerDevCommand(program: Command): void {
 		.description("Aggregate the harvested dev-test rail evidence (rail-*.json) into a per-project scorecard (§5.AI).")
 		.option("--json", "Print machine-readable JSON.")
 		.option("--advisor", "Print the analysis prompt that asks a model to propose todo bullets from the evidence.")
-		.action(async (options: { json?: boolean; advisor?: boolean }) => {
+		.option("--findings", "Classify the evidence into typed findings + propose-only backlog packages (F1.33b).")
+		.option("--retain", "With --findings: also retain each finding to the ledger (latest-wins). Implies --findings.")
+		.action(async (options: { json?: boolean; advisor?: boolean; findings?: boolean; retain?: boolean }) => {
 			await runDevRailEvidenceCommand(options);
 		});
 
