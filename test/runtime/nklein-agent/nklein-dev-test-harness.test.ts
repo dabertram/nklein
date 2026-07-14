@@ -121,6 +121,19 @@ describe("runDevTestProject", () => {
 		expect(result.runtimeReachable).toBe(false);
 	});
 
+	it("tolerates a TRANSIENT unreachable poll under saturation — no false runtime_down (live fix 2026-07-14)", async () => {
+		// One slow/timed-out poll (a model-saturated single-machine runtime) between two REACHABLE reads must NOT end the
+		// run as down: the runtime was up the whole time, and classification uses the last reachable read.
+		const deps = makeDeps([
+			board({ in_progress: 2 }),
+			{ runtimeReachable: false, board: null },
+			board({ completed: 2, trash: 1 }),
+		]);
+		const result = await runDevTestProject({ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main" }, deps);
+		expect(result.runtimeReachable).toBe(true);
+		expect(result.classification.outcome).not.toBe("runtime_down");
+	});
+
 	it("stops after maxWaitMs even if work never settles", async () => {
 		let clock = 0;
 		const deps = makeDeps([board({ in_progress: 1 })], {

@@ -94,6 +94,11 @@ export interface RunDevTestProjectOptions extends BuildDevTestSeedStartPayloadOp
 	 * Guards the decompose-seed race where the parent reaches Completed before its children materialize. Default 2.
 	 */
 	completeConfirmPolls?: number;
+	/**
+	 * Consecutive UNREACHABLE polls required before the run ends as `runtime_down`. A saturated single-machine runtime
+	 * can make one poll slow/time out without being down, so a single miss must not false-classify. Default 3.
+	 */
+	maxConsecutiveUnreachablePolls?: number;
 }
 
 export interface DevTestProjectRunResult {
@@ -114,6 +119,8 @@ const DEFAULT_STABLE_POLLS = 6;
 // 2026-07-11: a smoke seed showed Completed while its lone child was still stuck in Review). Require the complete shape
 // to hold for CONSECUTIVE polls with no session in flight before accepting it, so the pending children reset it.
 const DEFAULT_COMPLETE_CONFIRM_POLLS = 2;
+// Tolerate a short run of slow/timed-out polls (a model-saturated runtime) before declaring runtime_down.
+const DEFAULT_MAX_CONSECUTIVE_UNREACHABLE = 3;
 
 function countsKey(counts: DevTestBoardCounts): string {
 	return [counts.completed, counts.review, counts.planning, counts.inProgress, counts.backlog, counts.failed].join(
@@ -153,9 +160,17 @@ export async function runDevTestProject(
 	const startedAt = deps.now();
 	let polls = 0;
 	let lastState: DevTestStateRead = { board: null, runtimeReachable: true };
+	// The last read that actually REACHED the runtime — classification (counts + reachability) uses this, so a transient
+	// slow/failed poll under saturation doesn't blank the board or false-classify runtime_down.
+	let lastReachableState: DevTestStateRead = lastState;
 	let lastKey: string | null = null;
 	let unchangedPolls = 0;
 	let completeConfirmations = 0;
+	// A busy (single-machine, model-saturated) runtime can make ONE poll slow/time out without being down — require a few
+	// CONSECUTIVE misses before ending the run as unreachable (live-found 2026-07-14: a fresh dev-test against a
+	// still-draining single-machine board saw a slow poll → false runtime_down while the runtime was demonstrably up).
+	let consecutiveUnreachable = 0;
+	const maxConsecutiveUnreachable = options.maxConsecutiveUnreachablePolls ?? DEFAULT_MAX_CONSECUTIVE_UNREACHABLE;
 
 	while (deps.now() - startedAt <= maxWaitMs) {
 		const state = await deps.readState();
@@ -179,10 +194,18 @@ export async function runDevTestProject(
 		} else {
 			completeConfirmations = 0;
 		}
-		// A vanished runtime ends the monitor immediately; the last persisted read is what we classify.
+		// Tolerate transient unreachability under load: only a RUN of consecutive misses ends the monitor as down. A
+		// reachable read resets the streak and becomes the state we classify from (so one slow poll can't blank the board).
 		if (!state.runtimeReachable) {
-			break;
+			consecutiveUnreachable += 1;
+			if (consecutiveUnreachable >= maxConsecutiveUnreachable) {
+				break;
+			}
+			await deps.sleep(pollIntervalMs);
+			continue;
 		}
+		consecutiveUnreachable = 0;
+		lastReachableState = state;
 		const key = countsKey(counts);
 		if (key === lastKey && !sessionActive) {
 			unchangedPolls += 1;
@@ -196,13 +219,18 @@ export async function runDevTestProject(
 		await deps.sleep(pollIntervalMs);
 	}
 
-	const finalCounts = readCounts(lastState);
+	// Classify from the last read that REACHED the runtime, and treat it as down ONLY if we saw a genuine run of
+	// consecutive misses — a transient slow poll under saturation is not runtime_down.
+	const runtimeConfirmedReachable = consecutiveUnreachable < maxConsecutiveUnreachable;
+	const finalCounts = readCounts(lastReachableState);
 	const acceptancePassed = deps.runAcceptance ? await deps.runAcceptance() : null;
 	const classification = classifyDevTestRun({
 		counts: finalCounts,
 		acceptancePassed,
-		runtimeReachable: lastState.runtimeReachable,
-		...(typeof lastState.attentionCardCount === "number" ? { attentionCardCount: lastState.attentionCardCount } : {}),
+		runtimeReachable: runtimeConfirmedReachable,
+		...(typeof lastReachableState.attentionCardCount === "number"
+			? { attentionCardCount: lastReachableState.attentionCardCount }
+			: {}),
 	});
 
 	return {
@@ -210,7 +238,7 @@ export async function runDevTestProject(
 		startMessage: start.message ?? null,
 		classification,
 		polls,
-		runtimeReachable: lastState.runtimeReachable,
+		runtimeReachable: runtimeConfirmedReachable,
 		finalCounts,
 	};
 }
