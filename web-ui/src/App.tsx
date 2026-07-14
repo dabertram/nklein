@@ -14,6 +14,7 @@ import { BoardDagView } from "@/components/board-dag-view";
 import { deriveReasoningSnippetByTask } from "@/components/board-reasoning-snippets";
 import { CardDetailView } from "@/components/card-detail-view";
 import { ChatPrimaryPane, ChatSidebar } from "@/components/chat/chat-sidebar";
+import { HostActionConfirmDialog } from "@/components/chat/host-action-confirm-dialog";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
@@ -1565,6 +1566,9 @@ export default function App(): ReactElement {
 					onComplete={() => void projectSetupWizard.complete()}
 					onSkip={projectSetupWizard.skip}
 				/>
+
+				{/* F2.2b/F2.12b: prompts the operator to approve/deny a chat's parked confirm-tier host action. */}
+				<HostActionConfirmDialog />
 
 				<AddProjectDialog
 					open={isAddProjectDialogOpen}

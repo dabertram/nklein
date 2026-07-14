@@ -818,10 +818,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   re-prompt, a fresh confirmation records exactly the confirmed scope, absent ⇒ byte-identical) + session-scoped
   wiring gated on `capabilityBrokerEnabled` (`chat-session-grants.ts`, cleared on session delete; in-memory is
   deliberately FAIL-CLOSED — a restart just re-confirms). Deny/escalate already explains (broker + access
-  reasons in the result + audit). REMAINING: a real web-ui confirm dialog (today `confirm` resolves from session
-  flags — the §5.M note "no web-ui confirm dialog yet"), grant surfacing/revocation in the UI, and the SWARM-side
-  escalation park (a denied protected action parks the card with the explanation via the attention path instead
-  of burning retries).
+  reasons in the result + audit). CONFIRM DIALOG SHIPPED 2026-07-14: the not-pre-authorized-but-legitimate actions
+  now form a third `confirm` tier (`classifyChatToolConfirmation`, unit-pinned) that — under `capabilityBrokerEnabled`
+  — parks on a fail-closed host-action confirm queue (`src/core/host-action-confirm-queue.ts`, mirrors the egress
+  queue: bound to attempt+session+action+target, one-shot, expiry-is-deny) and AWAITS the operator via
+  `awaitHostActionConfirmation` (`host-action-confirm-wait.ts`; 60 s deadline, timeout consumes the entry so a late
+  approval can't apply). Control channel: `getPendingHostActionConfirms`/`resolveHostActionConfirm` tRPC; UI: a
+  globally-mounted `HostActionConfirmDialog` polls + renders action/target + approve/deny (round-trip Playwright +
+  bridge/classify unit tests). Broker-off path stays byte-identical (`resolveChatToolConfirmation` still `allow`-only).
+  REMAINING: five-field enrichment (thread `describeHostActionConfirmation`'s scope/consequence/duration through the
+  queue entry — today the dialog shows the two identity fields action+target), grant surfacing/revocation in the UI,
+  and the SWARM-side escalation park (a denied protected action parks the card with the explanation via the attention
+  path instead of burning retries).
 - [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
   `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:
   resolutions BOUND to attempt+target+role (any mismatch applies to NOTHING — the pending attempt keeps waiting
@@ -914,8 +922,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   time/text/executed, newest first) over the already-secret-safe records (`chat-audit-detail.ts` masks secrets
   before persistence — the secret-safety half is done). The AUDIT HISTORY view shipped 2026-07-14: a collapsible
   `ChatHostActionAuditPanel` in the chat session header (can-act scopes) over a new read-only `getChatHostActionAudit`
-  tRPC, with decision + executed-only filters (2 Playwright tests). REMAINING (ties F2.2b): the web-ui confirm DIALOG
-  rendering the five fields, replacing the current session-flag `confirm` resolve — a real async confirm round-trip.
+  tRPC, with decision + executed-only filters (2 Playwright tests). CONFIRM DIALOG + ROUND-TRIP SHIPPED 2026-07-14
+  (see F2.2b): the session-flag `confirm` resolve is replaced by a real async round-trip — a `confirm`-tier action
+  parks on the host-action confirm queue and the globally-mounted `HostActionConfirmDialog` prompts the operator
+  (approve/deny → `resolveHostActionConfirm`), fail-closed by construction. REMAINING (ties F2.2b): render all five
+  fields (today action+target only — the scope/consequence/duration from `describeHostActionConfirmation` still need
+  threading through the queue entry).
 - [x] **F2.13 — auto-clarification wiring finished (the restart-dedup bug fixed 2026-07-13).** The bind
   questions↔plan-state + resume-the-correct-card machinery was already complete (`resolvePlanQuestion` projects
   the answer, releases the parked `blockedTaskId`, records a `clarification_resolved` revision; `answer-plan-

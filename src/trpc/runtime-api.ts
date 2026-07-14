@@ -14,6 +14,7 @@ import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
 import { createChatService } from "../chat/chat-service";
+import { hostActionConfirmQueue } from "../chat/host-action-confirm-wait";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
@@ -521,6 +522,25 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getChatHostActionAudit: async (input) => {
 			const entries = await readChatHostActionAudit(input).catch(() => []);
 			return { entries: entries.map(({ schemaVersion: _schemaVersion, ...entry }) => entry) };
+		},
+		// F2.2b/F2.12b: the host-action confirm control channel — list the pending operator confirmations, and
+		// resolve one (approve/deny). The queue is a runtime singleton the chat `confirm` callback parks on.
+		getPendingHostActionConfirms: async (input) => {
+			const all = hostActionConfirmQueue.listPending(Date.now());
+			return { pending: input.sessionId ? all.filter((entry) => entry.sessionId === input.sessionId) : all };
+		},
+		resolveHostActionConfirm: async (input) => {
+			const outcome = hostActionConfirmQueue.resolve(
+				{
+					attemptId: input.attemptId,
+					sessionId: input.sessionId,
+					action: input.action,
+					target: input.target,
+					approve: input.approve,
+				},
+				Date.now(),
+			);
+			return { outcome };
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();

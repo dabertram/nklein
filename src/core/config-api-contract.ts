@@ -329,3 +329,37 @@ export const runtimeChatHostActionAuditResponseSchema = z.object({
 	entries: z.array(runtimeChatHostActionAuditEntrySchema),
 });
 export type RuntimeChatHostActionAuditResponse = z.infer<typeof runtimeChatHostActionAuditResponseSchema>;
+
+// F2.2b/F2.12b: the host-action CONFIRM control channel — a `confirm`-tier action a chat turn parked awaiting the
+// operator's per-action OK. List the pending ones; resolve one (approve/deny), bound to its exact identity.
+export const runtimeHostActionConfirmPendingSchema = z.object({
+	attemptId: z.string(),
+	sessionId: z.string(),
+	action: z.string(),
+	target: z.string(),
+	requestedAt: z.number(),
+	expiresAt: z.number(),
+});
+export type RuntimeHostActionConfirmPending = z.infer<typeof runtimeHostActionConfirmPendingSchema>;
+
+export const runtimeHostActionConfirmListRequestSchema = z.object({ sessionId: z.string().optional() });
+export type RuntimeHostActionConfirmListRequest = z.infer<typeof runtimeHostActionConfirmListRequestSchema>;
+
+export const runtimeHostActionConfirmListResponseSchema = z.object({
+	pending: z.array(runtimeHostActionConfirmPendingSchema),
+});
+export type RuntimeHostActionConfirmListResponse = z.infer<typeof runtimeHostActionConfirmListResponseSchema>;
+
+export const runtimeHostActionConfirmResolveRequestSchema = z.object({
+	attemptId: z.string(),
+	sessionId: z.string(),
+	action: z.string(),
+	target: z.string(),
+	approve: z.boolean(),
+});
+export type RuntimeHostActionConfirmResolveRequest = z.infer<typeof runtimeHostActionConfirmResolveRequestSchema>;
+
+export const runtimeHostActionConfirmResolveResponseSchema = z.object({
+	outcome: z.enum(["applied", "mismatch", "expired", "unknown", "already_resolved"]),
+});
+export type RuntimeHostActionConfirmResolveResponse = z.infer<typeof runtimeHostActionConfirmResolveResponseSchema>;

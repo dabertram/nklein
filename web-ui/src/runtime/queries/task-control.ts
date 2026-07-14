@@ -37,6 +37,21 @@ export async function fetchChatHostActionAudit(sessionId: string, limit = 100) {
 	return (await trpcClient.runtime.getChatHostActionAudit.query({ sessionId, limit })).entries;
 }
 
+/** F2.2b/F2.12b: the host-action confirmations a chat turn parked awaiting the operator's OK. */
+export async function fetchPendingHostActionConfirms() {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.runtime.getPendingHostActionConfirms.query({})).pending;
+}
+
+/** F2.2b/F2.12b: approve or deny a pending host-action confirmation (bound to its exact identity). */
+export async function resolveHostActionConfirm(
+	confirm: { attemptId: string; sessionId: string; action: string; target: string },
+	approve: boolean,
+): Promise<string> {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.runtime.resolveHostActionConfirm.mutate({ ...confirm, approve })).outcome;
+}
+
 export async function collectTaskEvidence(
 	workspaceId: string | null,
 	taskId: string,

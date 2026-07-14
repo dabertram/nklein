@@ -42,6 +42,10 @@ import type {
 	RuntimeGitSummaryResponse,
 	RuntimeGitSyncAction,
 	RuntimeGitSyncResponse,
+	RuntimeHostActionConfirmListRequest,
+	RuntimeHostActionConfirmListResponse,
+	RuntimeHostActionConfirmResolveRequest,
+	RuntimeHostActionConfirmResolveResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeListPlanQuestionsRequest,
@@ -222,6 +226,14 @@ export interface RuntimeTrpcContext {
 		sendCardMailboxNote: (input: RuntimeCardMailboxSendRequest) => Promise<RuntimeCardMailboxSendResponse>;
 		/** F2.12b: the host-action audit history for a chat session (read-only). */
 		getChatHostActionAudit: (input: RuntimeChatHostActionAuditRequest) => Promise<RuntimeChatHostActionAuditResponse>;
+		/** F2.2b/F2.12b: the pending operator confirmations a chat turn parked awaiting approval. */
+		getPendingHostActionConfirms: (
+			input: RuntimeHostActionConfirmListRequest,
+		) => Promise<RuntimeHostActionConfirmListResponse>;
+		/** F2.2b/F2.12b: resolve one pending confirmation (approve/deny), bound to its exact identity. */
+		resolveHostActionConfirm: (
+			input: RuntimeHostActionConfirmResolveRequest,
+		) => Promise<RuntimeHostActionConfirmResolveResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

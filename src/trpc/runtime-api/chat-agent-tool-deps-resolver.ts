@@ -23,11 +23,12 @@ import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import { chatSessionGrantStore } from "../../chat/chat-session-grants";
 import { type ChatSession, recordChatSessionTaint } from "../../chat/chat-session-store";
 import { chatSessionTaintRegistry } from "../../chat/chat-session-taint";
-import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
+import { classifyChatToolConfirmation } from "../../chat/chat-tool-confirmation";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
 import type { ChatPromptMessage } from "../../chat/chat-turn-context";
 import { createWebSearchTools } from "../../chat/chat-web-search-tool";
 import { createWorkspaceReadTools } from "../../chat/chat-workspace-tools";
+import { awaitHostActionConfirmation } from "../../chat/host-action-confirm-wait";
 import {
 	DEFAULT_LOCAL_CHAT_BASE_URL,
 	DEFAULT_LOCAL_CHAT_PROVIDER_ID,
@@ -240,8 +241,8 @@ export function buildChatAgentToolDepsResolver(input: {
 			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
 			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —
 			// otherwise it's denied. Other confirm-gated actions stay denied for now (no web-ui confirm dialog yet).
-			confirm: async (call) =>
-				resolveChatToolConfirmation({
+			confirm: async (call) => {
+				const verdict = classifyChatToolConfirmation({
 					name: call.name,
 					command: call.arguments.command,
 					riskAcknowledged: session.riskAcknowledged,
@@ -250,7 +251,24 @@ export function buildChatAgentToolDepsResolver(input: {
 						call.name === "write_file"
 							? isSandboxWritePathApproved(call.arguments.path, sandboxWritableMounts)
 							: false,
-				}),
+				});
+				if (verdict === "allow") {
+					return true;
+				}
+				// F2.2b/F2.12b: a `confirm`-tier action (legitimate but not pre-authorized) asks the OPERATOR when the
+				// broker is on — park it on the host-action queue and await an approve/deny (fail-closed on timeout).
+				// With the broker OFF it stays byte-identical (blocked), so the default path can never change behavior.
+				if (verdict === "confirm" && capabilityBrokerEnabled) {
+					const target = String(call.arguments.command ?? call.arguments.path ?? call.arguments.url ?? call.name);
+					return await awaitHostActionConfirmation({
+						attemptId: `${session.id}:${call.id}`,
+						sessionId: session.id,
+						action: call.name,
+						target,
+					});
+				}
+				return false;
+			},
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
 			},

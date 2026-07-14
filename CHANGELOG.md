@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A chat now asks before running a host action it isn't already cleared for.** When a chat with host access tries
+  something legitimate but not pre-authorized — an unsafe shell command without risk acknowledged, or a sandbox write
+  outside its approved folders — it no longer just refuses. A prompt appears showing exactly what it wants to do (the
+  action and the precise command or path) with Approve and Deny. Approving lets it run this once; denying, dismissing,
+  or simply not answering blocks it — the request fails closed after a minute, so an unattended prompt is always the
+  safe choice. (Applies when the capability broker is enabled; the default posture is unchanged.)
+
 - **You can now review the host actions a chat has taken.** A chat with host access shows a "Host action history"
   panel in its header — a read-only, secret-safe log of every gated host action it attempted: what it was, whether
   it was allowed, confirmed, or denied, and whether it actually ran. Filter by decision or to just the actions that

@@ -24,6 +24,10 @@ import {
 	runtimeFleetStatusResponseSchema,
 	runtimeFocusChainHistoryRequestSchema,
 	runtimeFocusChainHistoryResponseSchema,
+	runtimeHostActionConfirmListRequestSchema,
+	runtimeHostActionConfirmListResponseSchema,
+	runtimeHostActionConfirmResolveRequestSchema,
+	runtimeHostActionConfirmResolveResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeListPlanQuestionsRequestSchema,
@@ -175,6 +179,15 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeChatHostActionAuditRequestSchema)
 			.output(runtimeChatHostActionAuditResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatHostActionAudit(input)),
+		// F2.2b/F2.12b: the host-action confirm control channel.
+		getPendingHostActionConfirms: t.procedure
+			.input(runtimeHostActionConfirmListRequestSchema)
+			.output(runtimeHostActionConfirmListResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getPendingHostActionConfirms(input)),
+		resolveHostActionConfirm: t.procedure
+			.input(runtimeHostActionConfirmResolveRequestSchema)
+			.output(runtimeHostActionConfirmResolveResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.resolveHostActionConfirm(input)),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();
