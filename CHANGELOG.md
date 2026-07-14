@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The model telemetry browsers now show one row per model, not one per endpoint.** When the same model is served
+  under more than one runtime id (for example the same model on two machines), its fitness, behavior, and
+  self-observation history is now grouped under a single stable identity in the stats views — so its success rate and
+  confidence reflect all of its evidence together instead of being split into thinner, less-certain slices.
+
 - **You now get a desktop notification the moment a card needs you — not just when one's ready for review.** With
   notifications enabled, !Klein alerts you when a card asks a question, gets escalated, has its delivery held, or is
   blocked and waiting — as soon as it happens and only while you're looking elsewhere (a visible board already shows

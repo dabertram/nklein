@@ -972,18 +972,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (or build) a delivery path that threads the input into the SAME suspended state the redrive resumes, don't
   silently route it to a cold/persisted session (a lost-answer hazard). Then a Playwright pass over the resume
   buttons + the input-first flow.
-- [ ] **F2.21 — Re-key display/behavior telemetry by stable model identity** *(NEEDS A DESIGN CALL — flagged
-  2026-07-14 during the autonomous sweep; the mechanical-continuation vein runs thin here).* The stable-identity
-  PRIMITIVE already exists and is LIVE for ROUTING: `src/core/stable-model-identity.ts` (`resolveStableModelKey`,
-  the learned `RuntimeIdToModelKeyMap`, `rekeyTableToStableModelKeys`) + the shared runtime-id→modelKey map
-  (`initSharedRuntimeIdModelKeyMap` on boot, `learnSharedLoadedDescriptors` at task start,
-  `resolveStableRoutingModelId` at dispatch). What F2.21 asks for beyond that needs decisions before building,
-  not a force-fit core: (1) IS the identity `modelKey` alone (today's stable key), or the fuller
-  `provider + canonical-endpoint + model` composite the title names (which would distinguish the SAME model
-  served from m5max vs legion5pro in display/behavior views)? (2) the non-routing STORES (fitness table, behavior
-  profiles, self-observations) — apply `rekeyTableToStableModelKeys` at their read seams, which is EFFECTFUL
-  historical migration (cf. the difficulty-stamp no-double-count cutover) and needs a migration/retention call.
-  Recommend confirming the identity shape + migration approach before implementing.
 - [ ] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
 

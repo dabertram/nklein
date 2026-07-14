@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
 	bestFitnessCandidateForCell,
 	projectFailingCells,
+	projectFitnessRowsToStableModelKeys,
 	projectPassingCells,
 	rankFitnessCandidatesForCell,
 } from "../../../src/core/fitness-projections";
-import type { FitnessRow } from "../../../src/core/fitness-table-schema";
+import { type FitnessRow, fitnessCellKey } from "../../../src/core/fitness-table-schema";
 
 const row = (
 	over: Partial<FitnessRow> & Pick<FitnessRow, "modelKey" | "sampleCount" | "successCount">,
@@ -22,6 +23,42 @@ const row = (
 	knowledgeSkipCount: 0,
 	updatedAt: null,
 	...over,
+});
+
+const byCell = (rows: readonly FitnessRow[]): Record<string, FitnessRow> =>
+	Object.fromEntries(rows.map((r) => [fitnessCellKey(r), r]));
+
+describe("projectFitnessRowsToStableModelKeys (F2.21)", () => {
+	it("is a no-op when the resolver has no stable mapping (returns each row unchanged)", () => {
+		const rows = byCell([row({ modelKey: "runtime-abc", sampleCount: 3, successCount: 2 })]);
+		const projected = projectFitnessRowsToStableModelKeys(rows, (key) => key);
+		expect(projected).toEqual(rows);
+	});
+
+	it("merges two runtime-id rows that map to the same stable model + role + difficulty", () => {
+		const rows = byCell([
+			row({ modelKey: "runtime-a", role: "worker", difficultyTier: "medium", sampleCount: 4, successCount: 3 }),
+			row({ modelKey: "runtime-b", role: "worker", difficultyTier: "medium", sampleCount: 6, successCount: 2 }),
+		]);
+		const projected = projectFitnessRowsToStableModelKeys(rows, () => "qwen3-8b");
+		const cell = fitnessCellKey({ modelKey: "qwen3-8b", role: "worker", difficultyTier: "medium" });
+		expect(Object.keys(projected)).toEqual([cell]);
+		expect(projected[cell]?.modelKey).toBe("qwen3-8b");
+		expect(projected[cell]?.sampleCount).toBe(10);
+		expect(projected[cell]?.successCount).toBe(5);
+	});
+
+	it("keeps rows in DISTINCT role/difficulty cells separate even when the model key collapses", () => {
+		const rows = byCell([
+			row({ modelKey: "runtime-a", role: "worker", difficultyTier: "medium", sampleCount: 4, successCount: 4 }),
+			row({ modelKey: "runtime-b", role: "reviewer", difficultyTier: "medium", sampleCount: 5, successCount: 5 }),
+		]);
+		const projected = projectFitnessRowsToStableModelKeys(rows, () => "qwen3-8b");
+		expect(Object.keys(projected).sort()).toEqual([
+			fitnessCellKey({ modelKey: "qwen3-8b", role: "reviewer", difficultyTier: "medium" }),
+			fitnessCellKey({ modelKey: "qwen3-8b", role: "worker", difficultyTier: "medium" }),
+		]);
+	});
 });
 
 const rows: FitnessRow[] = [

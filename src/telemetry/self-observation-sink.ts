@@ -3,6 +3,7 @@ import { appendFile, mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 
 export type SelfObservationSeverity = "debug" | "info" | "warning" | "error";
 
@@ -256,6 +257,13 @@ export async function readSelfObservationEvents(
 			.filter((record): record is SelfObservationEventRecord => record !== null)
 			.filter((record) => !normalizedTaskId || record.taskId === normalizedTaskId)
 			.filter((record) => !workspacePathHash || record.workspacePathHash === workspacePathHash)
+			// F2.21 (David 2026-07-14): relabel each event's modelId to its STABLE identity so self-observation views
+			// group by one model (no-op when the shared runtime-id→modelKey map has no entry for the id).
+			.map((record) =>
+				record.modelId
+					? { ...record, modelId: resolveStableRoutingModelId(record.modelId).trim() || record.modelId }
+					: record,
+			)
 			.sort((left, right) => right.createdAt - left.createdAt);
 		events.push(...records);
 		if (events.length >= limit) {

@@ -25,6 +25,7 @@ import {
 } from "../core/model-behavior-profile";
 import { parseJsonLineWithSchema } from "../core/parse-json-line";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 
 const DEFAULT_MODEL_BEHAVIOR_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-behavior");
 
@@ -196,8 +197,12 @@ export async function readAllCombinedModelBehaviorProfiles(
 	const outcomes = await readCombinedOutcomes(options);
 	const byModel: Record<string, ModelBehaviorProfile> = {};
 	for (const entry of outcomes) {
-		const previous = byModel[entry.modelId] ?? emptyModelBehaviorProfile(entry.modelId);
-		byModel[entry.modelId] = recordModelBehaviorOutcome(previous, entry.outcome, {
+		// F2.21 (David 2026-07-14): fold the (time-ordered) outcome STREAM under the STABLE model identity, so two
+		// runtime ids for one model combine into ONE profile at the stream level — the EWMA-safe merge (a profile
+		// merge would be order-dependent and wrong). A no-op when the shared map has no entry for the id.
+		const stableModelId = resolveStableRoutingModelId(entry.modelId).trim() || entry.modelId;
+		const previous = byModel[stableModelId] ?? emptyModelBehaviorProfile(stableModelId);
+		byModel[stableModelId] = recordModelBehaviorOutcome(previous, entry.outcome, {
 			alpha: options.alpha,
 			now: () => entry.recordedAt,
 		});

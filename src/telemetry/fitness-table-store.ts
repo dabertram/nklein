@@ -15,7 +15,11 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildFitnessTableFromLedger } from "../core/agent-ledger-projections";
-import { type FitnessSelectionQuery, rankFitnessCandidatesForCell } from "../core/fitness-projections";
+import {
+	type FitnessSelectionQuery,
+	projectFitnessRowsToStableModelKeys,
+	rankFitnessCandidatesForCell,
+} from "../core/fitness-projections";
 import {
 	emptyFitnessRow,
 	type FitnessKey,
@@ -27,6 +31,7 @@ import {
 	recordFitnessOutcome,
 } from "../core/fitness-table-schema";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 
 const DEFAULT_FITNESS_TABLE_PATH = join(resolveNkleinRuntimeHomePath(homedir()), "fitness-table.json");
 
@@ -108,7 +113,10 @@ export async function readMergedFitnessRows(
 		const existing = merged[cell];
 		merged[cell] = existing ? mergeFitnessRows(existing, row) : row;
 	}
-	return merged;
+	// F2.21 (David 2026-07-14): read-seam projection onto STABLE model identity — a no-op when the shared
+	// runtime-id→modelKey map has no entry for a row's key, so legacy/store rows keep their key until a mapping is
+	// learned. Groups display + eval by one identity even when older rows were written under a runtime id.
+	return projectFitnessRowsToStableModelKeys(merged, resolveStableRoutingModelId);
 }
 
 export async function readFitnessRow(

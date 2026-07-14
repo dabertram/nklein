@@ -1166,8 +1166,19 @@
   dialog's convention (its test file exercises pure helpers, not JSX; no e2e opens this nested telemetry dialog, and
   the dev backend has no fitness rows to render). 10 new unit tests (each filter, both new sorts with sample-count
   tie-breaks, staleness split incl. unknown-time). web-ui tsc 0; lint 0; dialog suite 14/14.
-
-## 5. Completed open-work (finished `§5` items — ids preserved from `todo.md`)
+- [x] **F2.21 — display/behavior telemetry re-keyed by stable model identity** *(delivered 2026-07-14; David's
+  design call via AskUserQuestion — **identity = modelKey only** (not a provider+endpoint+model composite, to keep
+  quality evidence pooled), **migration = read-seam projection** (non-destructive, no write cutover)).* The stable-
+  identity primitive was live for ROUTING only; now the three non-routing telemetry stores project onto the stable
+  identity at their READ seams (a no-op when the shared runtime-id→modelKey map has no entry, so nothing changes
+  until a mapping is learned — and the F1.15b fitness fixture-lock stays green): (1) **fitness** — new pure
+  `projectFitnessRowsToStableModelKeys` (`fitness-projections.ts`) rebuilds each cell key with the stable modelKey
+  and combines collapsed (model × role × difficulty) cells via `mergeFitnessRows`, applied in `readMergedFitnessRows`
+  (the browser + eval seam); (2) **behavior profiles** — `readAllCombinedModelBehaviorProfiles` folds the time-
+  ordered outcome STREAM under the stable id (the EWMA-safe merge — a profile merge would be order-dependent and
+  wrong); (3) **self-observations** — `readSelfObservationEvents` relabels each event's `modelId` to its stable
+  identity. So the same model served under two runtime ids no longer shows as two rows in the telemetry browsers. 3
+  projection tests (no-op / merge / distinct-cells) + all existing store fixtures green (37). tsc 0; lint 0.
 
 > These sections reached 100% `[x]` and were moved here from `todo.md` §5 in their delivering commits. Their ids are
 > unchanged so cross-references keep working.

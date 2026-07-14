@@ -8,9 +8,38 @@
 import {
 	type FitnessDifficultyTier,
 	type FitnessRow,
+	fitnessCellKey,
 	fitnessKnowledgeUseRate,
 	fitnessSuccessRate,
+	mergeFitnessRows,
 } from "./fitness-table-schema.js";
+
+/**
+ * F2.21 — read-seam projection: re-key a fitness table (keyed by {@link fitnessCellKey}) by STABLE model identity.
+ * Each row's `modelKey` is mapped through `resolveStableModelKey` (identity when the id has no stable mapping — so
+ * an empty map is a no-op), the cell key is rebuilt, and rows that collapse to the same (stable model × role ×
+ * difficulty) cell are combined with {@link mergeFitnessRows}. Non-destructive: applied at READ time so the browser
+ * + eval group by stable identity even when older rows were written under a runtime id. Pure + total (the resolver
+ * is injected — no shared-state read here).
+ */
+export function projectFitnessRowsToStableModelKeys(
+	rowsByCellKey: Readonly<Record<string, FitnessRow>>,
+	resolveStableModelKey: (modelKey: string) => string,
+): Record<string, FitnessRow> {
+	const out: Record<string, FitnessRow> = {};
+	for (const row of Object.values(rowsByCellKey)) {
+		const stableModelKey = resolveStableModelKey(row.modelKey).trim() || row.modelKey;
+		const stableRow = stableModelKey === row.modelKey ? row : { ...row, modelKey: stableModelKey };
+		const cellKey = fitnessCellKey({
+			modelKey: stableModelKey,
+			role: stableRow.role,
+			difficultyTier: stableRow.difficultyTier,
+		});
+		const existing = out[cellKey];
+		out[cellKey] = existing ? mergeFitnessRows(existing, stableRow) : stableRow;
+	}
+	return out;
+}
 
 export interface BelowBarCriteria {
 	/** The success-rate bar; a well-sampled cell below this is "failing". */
