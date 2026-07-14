@@ -4,6 +4,7 @@ import { RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
 import { Check, ExternalLink, Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { hasSelfHostedOnboardingMedia } from "@/components/onboarding-media-source";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import { cn } from "@/components/ui/cn";
 import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
@@ -124,13 +125,12 @@ function isMediaOnboardingSlide(slide: OnboardingSlide): slide is MediaOnboardin
 }
 
 /**
- * A media slide only renders its media frame when it actually points at an asset
- * (video URL, image URL, or local stem). Asset-less media slides — e.g. while
- * !Klein's own onboarding clips are pending — render as title + description only,
- * rather than the "add onboarding media" developer placeholder.
+ * A media slide only renders its media frame when it points at a SELF-HOSTED asset (a same-origin path the CSP `self`
+ * policy allows). Asset-less slides — or ones whose only source is off-origin (e.g. the removed external S3 demos) —
+ * render as title + description only (F5.4's text fallback), never a broken frame or the developer placeholder.
  */
 function hasOnboardingMediaSource(slide: MediaOnboardingSlide): boolean {
-	return Boolean(slide.assetVideoUrl || slide.assetImageUrl || slide.assetStemPath);
+	return hasSelfHostedOnboardingMedia(slide);
 }
 
 function AgentStatusBadge({ label, statusClassName }: { label: string; statusClassName: string }): ReactElement {
