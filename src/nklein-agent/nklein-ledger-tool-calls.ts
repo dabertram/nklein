@@ -14,6 +14,43 @@ import { hashToolResultContent } from "../core/tool-result-record";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
 
+/** Input keys whose string value(s) name a file path a tool touched (read/edit/write/create). */
+const FILE_PATH_INPUT_KEYS = new Set([
+	"path",
+	"file_path",
+	"filePath",
+	"target_file",
+	"targetFile",
+	"file",
+	"filename",
+]);
+/** Input keys whose value is an ARRAY of file paths (multi-file tools). */
+const FILE_PATH_ARRAY_KEYS = new Set(["paths", "files", "target_files", "targetFiles", "file_paths"]);
+
+/**
+ * Derive the file paths a tool call touched from its input (shallow scan of the known path-bearing keys). Pure + total:
+ * unknown/non-file tools yield []. This is what populates {@link AttemptToolCall.filePaths} for PRM's context-thrash.
+ */
+export function deriveToolCallFilePaths(input: unknown): string[] {
+	if (!input || typeof input !== "object") {
+		return [];
+	}
+	const record = input as Record<string, unknown>;
+	const paths = new Set<string>();
+	for (const [key, value] of Object.entries(record)) {
+		if (FILE_PATH_INPUT_KEYS.has(key) && typeof value === "string" && value.trim().length > 0) {
+			paths.add(value.trim());
+		} else if (FILE_PATH_ARRAY_KEYS.has(key) && Array.isArray(value)) {
+			for (const entry of value) {
+				if (typeof entry === "string" && entry.trim().length > 0) {
+					paths.add(entry.trim());
+				}
+			}
+		}
+	}
+	return [...paths];
+}
+
 export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMessage[]): AttemptToolCall[] {
 	const calls: AttemptToolCall[] = [];
 	const callIndexByUseId = new Map<string, number>();
@@ -24,10 +61,13 @@ export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMe
 		for (const block of message.content) {
 			if (block.type === "tool_use") {
 				callIndexByUseId.set(block.id, calls.length);
+				const filePaths = deriveToolCallFilePaths(block.input);
 				calls.push({
 					name: block.name,
 					fingerprint: computeNKleinToolInputFingerprint(block.input),
 					outcome: null,
+					// Only carry the field when it says something (keeps legacy-shaped lines lean).
+					...(filePaths.length > 0 ? { filePaths } : {}),
 				});
 			} else if (block.type === "tool_result") {
 				const index = callIndexByUseId.get(block.tool_use_id);

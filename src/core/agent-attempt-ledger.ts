@@ -70,6 +70,11 @@ const attemptToolCallSchema = z.object({
 	outcome: z.string().nullable(),
 	/** F1.16: durable content hash of what the tool returned (replay evidence); absent on legacy lines. */
 	resultHash: z.string().nullable().optional(),
+	/**
+	 * File paths this call read/wrote (from its input) — the per-step context signal PRM's `context_thrash` detector
+	 * needs. Absent on legacy lines and on non-file tools; additive + backward-compatible.
+	 */
+	filePaths: z.array(z.string()).optional(),
 });
 export type AttemptToolCall = z.infer<typeof attemptToolCallSchema>;
 
