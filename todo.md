@@ -746,11 +746,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   MIXED-AXIS tab: its dot ORs its draft fields (workspaceBaseDir/deviceRamGb/agentRulesets, all verified edited only in
   this tab) with its LOCAL non-draft task-defaults (start-in-plan / auto-review on+mode, which live in the `local`
   dirty inputs), and its Reset reverts both (draft from the snapshot, local from their initials). Playwright proves the
-  LOCAL-field path lights the dot + reverts. REMAINING (harder, one tab per leaf): `agents` (many draft fields, all in
-  the main body — the largest but tractable audit: timeouts + planning/review + sandbox subset), `nklein`/`project`/
-  `code-intelligence` use STRUCTURED/DERIVED sub-state (model roles, per-project overrides, `codeEmbedding*` is a
-  `useMemo` not a `useState` → no direct setter), so those need child-component-aware dirty+reset. `appearance` is
-  theme-only (local `draftThemeId` vs `initialThemeId`) → a tiny local-only leaf if wanted. Then optionally per-section Save.
+  LOCAL-field path lights the dot + reverts. **Leaf 4 SHIPPED 2026-07-14:** `agents` — the LARGEST tab, all 28 draft
+  fields (agent/timeouts/sandbox-subset/planning-review) via an exhaustive range audit + typecheck of 27 new reset
+  cases. FIXED a latent leaf-3 bug found here: `agentRulesets` is edited in BOTH the agents tab (full
+  `AgentRulesetsSettingsPanel`) AND the tasks tab (simplified presets) — the leaf-3 `setAgentRulesets(` grep MISSED the
+  panel's bare `onChange={setAgentRulesets}`, so an agents-tab rulesets edit lit the TASKS dot. Now `agentRulesets` is a
+  DOCUMENTED shared field (`KNOWN_SHARED_NAV_FIELDS`) in both tabs → editing it lights both dots (correct: both controls
+  mutate one object); the test permits only declared shared fields. **6 of 10 nav tabs covered.** REMAINING:
+  `nklein`/`project`/`code-intelligence` use STRUCTURED/DERIVED sub-state (model roles, per-project overrides,
+  `codeEmbedding*` is a `useMemo` not a `useState` → no direct setter), so those need child-component-aware
+  dirty+reset. `appearance` is theme-only (local `draftThemeId` vs `initialThemeId`) → a tiny local-only leaf if
+  wanted. Then optionally per-section Save.
 - [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown

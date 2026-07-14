@@ -930,6 +930,87 @@ export function RuntimeSettingsDialog({
 					case "agentRulesets":
 						setAgentRulesets(configSnapshot.agentRulesets);
 						break;
+					case "selectedAgentId":
+						setSelectedAgentId(configSnapshot.selectedAgentId);
+						break;
+					case "agentAutonomousModeEnabled":
+						setAgentAutonomousModeEnabled(configSnapshot.agentAutonomousModeEnabled);
+						break;
+					case "agentTimeoutMode":
+						setAgentTimeoutMode(configSnapshot.agentTimeoutMode);
+						break;
+					case "agentTimeoutProfile":
+						setAgentTimeoutProfile(configSnapshot.agentTimeoutProfile);
+						break;
+					case "requestTimeoutMs":
+						setRequestTimeoutMs(configSnapshot.requestTimeoutMs);
+						break;
+					case "streamTimeoutMs":
+						setStreamTimeoutMs(configSnapshot.streamTimeoutMs);
+						break;
+					case "toolTimeoutMs":
+						setToolTimeoutMs(configSnapshot.toolTimeoutMs);
+						break;
+					case "agentTimeoutMs":
+						setAgentTimeoutMs(configSnapshot.agentTimeoutMs);
+						break;
+					case "conversationTimeoutMs":
+						setConversationTimeoutMs(configSnapshot.conversationTimeoutMs);
+						break;
+					case "lostHeartbeatPolicy":
+						setLostHeartbeatPolicy(configSnapshot.lostHeartbeatPolicy);
+						break;
+					case "sandboxIsolationProfileDefault":
+						setSandboxIsolationProfileDefault(configSnapshot.sandboxIsolationProfileDefault);
+						break;
+					case "sandboxMaxContainers":
+						setSandboxMaxContainers(configSnapshot.sandboxMaxContainers);
+						break;
+					case "sandboxAgentsPerContainer":
+						setSandboxAgentsPerContainer(configSnapshot.sandboxAgentsPerContainer);
+						break;
+					case "sandboxMemoryPerContainerMb":
+						setSandboxMemoryPerContainerMb(configSnapshot.sandboxMemoryPerContainerMb);
+						break;
+					case "sandboxCpusPerContainer":
+						setSandboxCpusPerContainer(configSnapshot.sandboxCpusPerContainer);
+						break;
+					case "sandboxIdleTimeoutMinutes":
+						setSandboxIdleTimeoutMinutes(configSnapshot.sandboxIdleTimeoutMinutes);
+						break;
+					case "sandboxEgressProxyEnabled":
+						setSandboxEgressProxyEnabled(configSnapshot.sandboxEgressProxyEnabled);
+						break;
+					case "sandboxEgressAllowlist":
+						setSandboxEgressAllowlist(configSnapshot.sandboxEgressAllowlist);
+						break;
+					case "decompositionAutoApplyEnabled":
+						setDecompositionAutoApplyEnabled(configSnapshot.decompositionAutoApplyEnabled);
+						break;
+					case "testDrivenModeEnabled":
+						setTestDrivenModeEnabled(configSnapshot.testDrivenModeEnabled);
+						break;
+					case "hardTaskRoutingMode":
+						setHardTaskRoutingMode(configSnapshot.hardTaskRoutingMode);
+						break;
+					case "secondOpinionReviewEnabled":
+						setSecondOpinionReviewEnabled(configSnapshot.secondOpinionReviewEnabled);
+						break;
+					case "reviewMaxRounds":
+						setReviewMaxRounds(configSnapshot.reviewMaxRounds);
+						break;
+					case "reviewLensesEnabled":
+						setReviewLensesEnabled(configSnapshot.reviewLensesEnabled);
+						break;
+					case "speculativeBestOfNEnabled":
+						setSpeculativeBestOfNEnabled(configSnapshot.speculativeBestOfNEnabled);
+						break;
+					case "speculativeMaxConcurrentSpecs":
+						setSpeculativeMaxConcurrentSpecs(configSnapshot.speculativeMaxConcurrentSpecs);
+						break;
+					case "speculativeMaxSpecsPerRun":
+						setSpeculativeMaxSpecsPerRun(configSnapshot.speculativeMaxSpecsPerRun);
+						break;
 				}
 			}
 			// The Tasks tab's local (non-draft) task-default controls revert to their loaded-config initials.
@@ -1794,10 +1875,17 @@ export function RuntimeSettingsDialog({
 						{/* ---- Agents ---- */}
 						<div data-settings-section="agents" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-								<Boxes size={16} className="text-text-secondary" />
-								Agents
-							</h2>
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<Boxes size={16} className="text-text-secondary" />
+									Agents
+								</h2>
+								<SectionResetButton
+									navId="agents"
+									dirty={dirtyNavIdSet.has("agents")}
+									onReset={handleResetNavSection}
+								/>
+							</div>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">

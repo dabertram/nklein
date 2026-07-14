@@ -582,4 +582,26 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(page.getByTestId("settings-nav-dirty-tasks")).toHaveCount(0);
 		await expect(startInPlan).toHaveAttribute("aria-checked", before ?? "false"); // reverted to the initial value
 	});
+
+	test("F1.29b: the Agents tab (largest, 28 fields) gets its own dirty dot + Reset", async ({ page }) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+		// Switch to the Agents tab so its controls are in view.
+		await page.getByRole("button", { name: "Agents", exact: true }).click();
+
+		await expect(page.getByTestId("settings-nav-dirty-agents")).toHaveCount(0);
+
+		// Autonomous mode is an Agents-tab field.
+		const autonomous = page.locator("#runtime-settings-bypass-permissions");
+		const before = await autonomous.getAttribute("aria-checked");
+		await autonomous.click();
+
+		await expect(page.getByTestId("settings-nav-dirty-agents")).toBeVisible();
+		await expect(page.getByTestId("settings-section-reset-agents")).toBeVisible();
+
+		await page.getByTestId("settings-section-reset-agents").click();
+		await expect(page.getByTestId("settings-nav-dirty-agents")).toHaveCount(0);
+		await expect(autonomous).toHaveAttribute("aria-checked", before ?? "false");
+	});
 });

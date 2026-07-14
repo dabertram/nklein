@@ -190,9 +190,40 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 		"capabilityBrokerEnabled",
 		"maxAgentWritableFileLines",
 	],
+	agents: [
+		"selectedAgentId",
+		"agentAutonomousModeEnabled",
+		"agentTimeoutMode",
+		"agentTimeoutProfile",
+		"requestTimeoutMs",
+		"streamTimeoutMs",
+		"toolTimeoutMs",
+		"agentTimeoutMs",
+		"conversationTimeoutMs",
+		"lostHeartbeatPolicy",
+		"agentRulesets", // SHARED with the Tasks tab (see KNOWN_SHARED_NAV_FIELDS) — edited by the full panel here.
+		"sandboxIsolationProfileDefault",
+		"sandboxMaxContainers",
+		"sandboxAgentsPerContainer",
+		"sandboxMemoryPerContainerMb",
+		"sandboxCpusPerContainer",
+		"sandboxIdleTimeoutMinutes",
+		"sandboxEgressProxyEnabled",
+		"sandboxEgressAllowlist",
+		"decompositionAutoApplyEnabled",
+		"testDrivenModeEnabled",
+		"hardTaskRoutingMode",
+		"secondOpinionReviewEnabled",
+		"reviewMaxRounds",
+		"reviewLensesEnabled",
+		"speculativeBestOfNEnabled",
+		"speculativeMaxConcurrentSpecs",
+		"speculativeMaxSpecsPerRun",
+	],
 	// NOTE: the Tasks tab ALSO renders local (non-draft) task-default controls; its dirty dot ORs those in at the
 	// dialog (see `dirtyNavIdSet`), so this draft-field list alone would UNDER-report — never read it in isolation
-	// for the Tasks tab.
+	// for the Tasks tab. `agentRulesets` is SHARED with the Agents tab (edited via the simplified presets here, the
+	// full panel there) — editing it lights BOTH dots, which is correct (both controls mutate the one object).
 	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs"],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],

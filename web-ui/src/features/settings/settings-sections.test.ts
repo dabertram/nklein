@@ -97,13 +97,22 @@ describe("per-section dirty + reset", () => {
 });
 
 describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
-	it("every covered nav tab names only real draft fields, with no field claimed by two tabs", () => {
+	// A field may legitimately be edited under more than one tab (the same object, two controls); those must be
+	// declared here so an ACCIDENTAL double-assignment still fails the test.
+	const KNOWN_SHARED_NAV_FIELDS = new Set<string>(["agentRulesets"]);
+
+	it("every covered nav tab names only real draft fields; double-assignment only for declared shared fields", () => {
 		const draftKeys = new Set(Object.keys(draftFrom(snapshot())));
 		const assigned = new Map<string, string>();
 		for (const [nav, fields] of Object.entries(SETTINGS_NAV_FIELDS)) {
 			for (const field of fields ?? []) {
 				expect(draftKeys.has(field), `nav "${nav}" names non-draft field "${field}"`).toBe(true);
-				expect(assigned.has(field), `${field} claimed by both ${assigned.get(field)} and ${nav}`).toBe(false);
+				if (assigned.has(field)) {
+					expect(
+						KNOWN_SHARED_NAV_FIELDS.has(field),
+						`${field} claimed by both ${assigned.get(field)} and ${nav} but is not a declared shared field`,
+					).toBe(true);
+				}
 				assigned.set(field, nav);
 			}
 		}
@@ -133,8 +142,8 @@ describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
 	it("a tab with no per-tab affordance is never dirty and resets to a no-op", () => {
 		const base = snapshot();
 		const edited: SettingsDraft = { ...draftFrom(base), requestTimeoutMs: "9000" };
-		// "agents" is not in SETTINGS_NAV_FIELDS yet (multi-tab draft sections render there — a later leaf).
-		expect(isNavSectionDirty("agents", edited, base)).toBe(false);
-		expect(resetNavSection("agents", edited, base)).toEqual(edited);
+		// "project" is not in SETTINGS_NAV_FIELDS (its per-project overrides need child-component-aware dirty — a later leaf).
+		expect(isNavSectionDirty("project", edited, base)).toBe(false);
+		expect(resetNavSection("project", edited, base)).toEqual(edited);
 	});
 });
