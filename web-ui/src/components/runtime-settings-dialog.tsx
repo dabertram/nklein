@@ -2222,15 +2222,17 @@ export function RuntimeSettingsDialog({
 									id={sandboxEgressAllowlistId}
 									value={sandboxEgressAllowlist}
 									onChange={(event) => setSandboxEgressAllowlist(event.target.value)}
-									placeholder={"api.github.com\nregistry.npmjs.org\npypi.org"}
+									placeholder={"api.github.com\nworker:registry.npmjs.org\nreviewer:pypi.org"}
 									disabled={controlsDisabled || !sandboxEgressProxyEnabled}
 									rows={3}
 									className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
 								/>
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Hosts allowlist-tier agents may reach — one per line (or comma-separated). Blank &rArr;
-									default-deny (no egress). Applies to newly created sandbox containers; v1 uses one global
-									list for every agent role.
+									Hosts allowlist-tier agents may reach — one per line (or comma-separated). A plain entry is
+									global (any role); prefix an entry with <code>role:</code> (e.g.{" "}
+									<code>worker:api.github.com</code>) to grant just that role — a worker can never use a
+									reviewer-scoped host. Blank &rArr; default-deny (no egress). Applies to newly created sandbox
+									containers.
 								</p>
 							</div>
 						</div>

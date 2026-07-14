@@ -840,9 +840,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
   container entrypoint, composing with the per-role listeners that already isolate each role's snapshot — a
   worker can never use an architect-scoped host. TIGHTENING APPLIES IMMEDIATELY: `ensureEgressProxyAvailable`
   compares the running container's allowlist env against the desired value and replaces the container on ANY
-  drift (a stale wider policy never keeps serving; tested both directions). REMAINING: document the role-scoped
-  syntax in the Settings field hint (web-ui), and live-validate on the fleet (a worker CONNECT to a
-  worker-scoped host succeeds while a reviewer CONNECT to it is denied + audited).
+  drift (a stale wider policy never keeps serving; tested both directions). The Settings field hint now documents
+  the role-scoped syntax (2026-07-14: `role:host` grants one role, plain = global; `runtime-settings-dialog.tsx`).
+  REMAINING (fleet-gated): live-validate on the fleet — a worker CONNECT to a worker-scoped host succeeds while a
+  reviewer CONNECT to it is denied + audited.
 - [ ] **F2.5b — Issue per-task credentials at sandbox creation + require-auth decision (attribution SHIPPED
   2026-07-13).** The proxy now ATTRIBUTES every CONNECT verdict: `parseProxyAuthorizationHeader` (pure,
   attribution-only — malformed/absent claims never affect the verdict) extracts the `Basic taskId:token` claim
