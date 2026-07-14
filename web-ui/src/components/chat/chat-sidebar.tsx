@@ -13,7 +13,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
 import { ChatHostActionAuditPanel } from "@/components/chat/chat-host-action-audit-panel";
@@ -49,6 +49,7 @@ import { ResizeHandle } from "@/resize/resize-handle";
 import { clampBetween } from "@/resize/resize-persistence";
 import { CHAT_SIDEBAR_WIDTH_BOUNDS, useChatSidebarLayout } from "@/resize/use-chat-sidebar-layout";
 import { useResizeDrag } from "@/resize/use-resize-drag";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeChatAutonomousRunStatus,
 	RuntimeChatAutonomousStopReason,
@@ -619,6 +620,7 @@ function SessionRow({
  */
 function MessageBubble({
 	message,
+	sessionId,
 	boardCards = [],
 	onOpenCard,
 	onHoverCard,
@@ -627,6 +629,8 @@ function MessageBubble({
 	onToggleTimestampsCollapsed = () => {},
 }: {
 	message: RuntimeChatMessage;
+	/** F2.7b: the owning session, so a user message with attachments can lazy-fetch its out-of-band images. */
+	sessionId?: string | null;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
 	/** §5.BB map spotlight: hovering a card chip highlights that bubble on the activity map. */
@@ -635,6 +639,37 @@ function MessageBubble({
 	timestampsCollapsed?: boolean;
 	onToggleTimestampsCollapsed?: () => void;
 }): React.ReactElement {
+	// F2.7b: a user message with attachments (count in meta, bytes out-of-band) lazy-fetches its images ONCE.
+	const imageCount = message.role === "user" ? (message.meta?.imageAttachmentCount ?? 0) : 0;
+	const [fetchedImages, setFetchedImages] = useState<
+		Array<{ id: string; data: string; mimeType: string; name?: string }>
+	>([]);
+	useEffect(() => {
+		if (imageCount <= 0 || !sessionId) {
+			return;
+		}
+		let cancelled = false;
+		void getRuntimeTrpcClient(null)
+			.chat.getMessageImages.query({ sessionId, messageId: message.id })
+			.then((result) => {
+				if (!cancelled) {
+					setFetchedImages(
+						result.images.map((image, index) => ({
+							id: `${message.id}-${index}`,
+							data: image.data,
+							mimeType: image.mimeType,
+							...(image.name ? { name: image.name } : {}),
+						})),
+					);
+				}
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [imageCount, sessionId, message.id]);
+	const messageForRender =
+		fetchedImages.length > 0 ? ({ ...message, images: fetchedImages } as RuntimeChatMessage) : message;
 	if (message.role === "system") {
 		return (
 			<div data-testid="chat-message" data-role="system" className="text-[11px] text-text-tertiary italic px-2 py-1">
@@ -657,7 +692,7 @@ function MessageBubble({
 	return (
 		<div data-testid="chat-message" data-role={message.role} className="min-w-0">
 			<NKleinChatMessageItem
-				message={message}
+				message={messageForRender}
 				durationMs={durationMs}
 				timestampsCollapsed={timestampsCollapsed}
 				onToggleTimestampsCollapsed={onToggleTimestampsCollapsed}
@@ -1280,6 +1315,7 @@ function ChatPanel({
 										<MessageBubble
 											key={item.message.id}
 											message={item.message}
+											sessionId={chat.selectedSessionId}
 											boardCards={boardCards}
 											onOpenCard={onOpenCard}
 											onHoverCard={onHoverCard}

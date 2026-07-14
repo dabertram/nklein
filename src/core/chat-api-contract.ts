@@ -141,6 +141,8 @@ export const runtimeChatMessageSchema = z.object({
 			toolName: z.string().nullable().optional(),
 			hookEventName: z.string().nullable().optional(),
 			messageKind: z.string().nullable().optional(),
+			/** F2.7b: image attachments on this (user) message, persisted out-of-band; fetch them via getChatMessageImages. */
+			imageAttachmentCount: z.number().nullable().optional(),
 		})
 		.nullable()
 		.optional(),
@@ -235,6 +237,16 @@ export const runtimeChatSendMessageRequestSchema = z.object({
 	imageAttachments: z.array(runtimeChatImageAttachmentSchema).optional(),
 });
 export type RuntimeChatSendMessageRequest = z.infer<typeof runtimeChatSendMessageRequestSchema>;
+
+/** F2.7b: fetch a message's out-of-band image attachments (data URLs) for history rendering. */
+export const runtimeChatMessageImagesRequestSchema = z.object({
+	sessionId: z.string(),
+	messageId: z.string(),
+});
+export const runtimeChatMessageImagesResponseSchema = z.object({
+	images: z.array(runtimeChatImageAttachmentSchema),
+});
+export type RuntimeChatMessageImagesResponse = z.infer<typeof runtimeChatMessageImagesResponseSchema>;
 
 export const runtimeChatTurnDeliverySchema = z.enum(["queue", "steer"]);
 export type RuntimeChatTurnDelivery = z.infer<typeof runtimeChatTurnDeliverySchema>;

@@ -253,4 +253,45 @@ test.describe("Chat sidebar send + AutonomousRunBar (§5.M)", () => {
 		await expect.poll(() => streamRequest, { timeout: 5_000 }).toContain("imageAttachments");
 		await expect(page.getByTestId("chat-pending-attachments")).toHaveCount(0);
 	});
+
+	test("F2.7b: a transcript message with attachments renders its images from getMessageImages", async ({ page }) => {
+		await setupMocks(page);
+		const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+		// A transcript with one user message that carries an attachment count (bytes live out-of-band).
+		await page.route(
+			(url) => url.pathname.startsWith("/api/trpc/") && url.pathname.includes("chat.getTranscript"),
+			async (route) => {
+				const message = {
+					id: "m-user-img",
+					role: "user",
+					content: "look at this",
+					createdAt: NOW + 1,
+					meta: { imageAttachmentCount: 1 },
+				};
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify([{ result: { data: { sessionId: MOCK_SESSION.id, messages: [message] } } }]),
+				});
+			},
+		);
+		// The out-of-band image fetch.
+		await page.route(
+			(url) => url.pathname.startsWith("/api/trpc/") && url.pathname.includes("chat.getMessageImages"),
+			async (route) => {
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify([
+						{ result: { data: { images: [{ data: PNG, mimeType: "image/png", name: "shot.png" }] } } },
+					]),
+				});
+			},
+		);
+		await page.goto("/");
+		await openChatSidebarAndSelect(page);
+
+		// The persisted image renders inline (the shared TaskImageStrip <img> with the data URL).
+		await expect(page.locator('img[src^="data:image/png;base64,"]').first()).toBeVisible({ timeout: 5_000 });
+	});
 });

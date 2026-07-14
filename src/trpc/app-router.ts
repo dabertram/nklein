@@ -180,6 +180,7 @@ import type {
 	RuntimeChatFocusChainUpdateRequest,
 	RuntimeChatFocusChainUpdateResponse,
 	RuntimeChatMessage,
+	RuntimeChatMessageImagesResponse,
 	RuntimeChatSendMessageRequest,
 	RuntimeChatSendMessageResponse,
 	RuntimeChatSession,
@@ -471,6 +472,10 @@ export interface RuntimeTrpcContext {
 		updateChatSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 		deleteChatSession: (id: string) => Promise<boolean>;
 		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
+		getChatMessageImages: (input: {
+			sessionId: string;
+			messageId: string;
+		}) => Promise<RuntimeChatMessageImagesResponse>;
 		/** §5.BB: the session's live focus chain (the agent's plan checklist), or null when none drafted. */
 		getChatFocusChain: (sessionId: string) => Promise<RuntimeChatFocusChainResponse>;
 		updateChatFocusChain: (input: RuntimeChatFocusChainUpdateRequest) => Promise<RuntimeChatFocusChainUpdateResponse>;

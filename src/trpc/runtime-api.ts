@@ -1204,6 +1204,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		updateChatSession: (input) => chatService.updateSession(input),
 		deleteChatSession: (id) => chatService.deleteSession(id),
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
+		// F2.7b: a chat message's out-of-band image attachments (data-URL-ready) for history rendering.
+		getChatMessageImages: async (input) => ({
+			images: await chatService.getMessageImages(input.sessionId, input.messageId),
+		}),
 		// §5.BB focus-chain surface: read-only projection of the session's live plan checklist (default store root —
 		// the same place the agent-turn's readFocusChain dep reads).
 		updateChatFocusChain: async (input) => {

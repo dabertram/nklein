@@ -21,6 +21,7 @@ import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./cha
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
 import type { ChatToolSet } from "./chat-board-tools";
 import { maybeEnforceReasoning } from "./chat-enforced-reasoning";
+import { readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { appendChatMemory, readChatMemories, writeConsolidatedMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
@@ -202,6 +203,8 @@ export interface ChatService {
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 	deleteSession: (id: string) => Promise<boolean>;
 	readTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
+	/** F2.7b: a message's out-of-band image attachments (data-URL-ready), for history rendering; [] when none. */
+	getMessageImages: (sessionId: string, messageId: string) => Promise<ChatImageAttachment[]>;
 	/** Run one chat turn against a session (composes memory + goal, calls the model, persists both messages).
 	 *  Returns null when the session doesn't exist; throws when no model is configured. `onToken` (server-side only;
 	 *  callbacks can't cross the tRPC wire) streams the assistant reply incrementally when the model supports it. */
@@ -248,6 +251,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		...(now ? { now } : {}),
 	};
 	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
+	// F2.7b: sent images live out-of-band from the transcript (own subdir) so the lean-window read stays lean.
+	const imageOptions = rootDir ? { rootDir: join(rootDir, "images") } : {};
 	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
 
 	interface ActiveChatTurn {
@@ -426,6 +431,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			});
 			return messages.map(toRuntimeChatMessage);
 		},
+		getMessageImages: (sessionId, messageId) => readChatMessageImages(sessionId, messageId, imageOptions),
 		sendMessage: (input, onToken, onToolEvent) =>
 			serializeSessionTurn(input.sessionId, async () => {
 				const activeTurn = createActiveChatTurn();
@@ -447,8 +453,10 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					const storeDeps = {
 						readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
 						readMemories: () => readChatMemories(memoryOptions),
-						appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
-							appendChatMessage(sessionId, message, transcriptOptions),
+						appendMessage: (
+							sessionId: string,
+							message: { role: ChatMessage["role"]; content: string; meta?: ChatMessage["meta"] },
+						) => appendChatMessage(sessionId, message, transcriptOptions),
 						estimateTokens,
 						...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
 					};
@@ -652,6 +660,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							{
 								...storeDeps,
 								summarize: modelDeps.summarize,
+								// F2.7b: persist the sent images out-of-band, keyed by the user message id, for history rendering.
+								persistImageAttachments: (messageId, images) =>
+									writeChatMessageImages(session.id, messageId, images, imageOptions),
 								...withToolTranscript(agentToolDeps, session.id, onToolEvent),
 								pollSteeringMessages: activeTurn.poll,
 								closeSteering: activeTurn.close,

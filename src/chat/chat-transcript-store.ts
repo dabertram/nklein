@@ -24,7 +24,13 @@ export interface ChatMessage {
 	content: string;
 	createdAt: number;
 	/** W3.1 display metadata for the shared renderer (tool name etc.). Absent on pre-W3.1 rows. */
-	meta?: { toolName?: string | null; hookEventName?: string | null; messageKind?: string | null } | null;
+	meta?: {
+		toolName?: string | null;
+		hookEventName?: string | null;
+		messageKind?: string | null;
+		/** F2.7b: how many image attachments this (user) message carries, persisted out-of-band. 0/absent ⇒ none. */
+		imageAttachmentCount?: number | null;
+	} | null;
 }
 
 export const chatMessageSchema = z.object({
@@ -38,6 +44,7 @@ export const chatMessageSchema = z.object({
 			toolName: z.string().nullable().optional(),
 			hookEventName: z.string().nullable().optional(),
 			messageKind: z.string().nullable().optional(),
+			imageAttachmentCount: z.number().nullable().optional(),
 		})
 		.nullable()
 		.optional(),

@@ -37,7 +37,14 @@ export interface ChatAgentTurnDeps {
 	readMemories: (sessionId: string) => Promise<ChatMemory[]>;
 	/** Load the session's focus chain (todo §5.M G4) so it's re-anchored into the turn; omit for no focus chain. */
 	readFocusChain?: (sessionId: string) => Promise<FocusChain | null>;
-	appendMessage: (sessionId: string, input: { role: ChatMessage["role"]; content: string }) => Promise<ChatMessage>;
+	appendMessage: (
+		sessionId: string,
+		input: { role: ChatMessage["role"]; content: string; meta?: ChatMessage["meta"] },
+	) => Promise<ChatMessage>;
+	/** F2.7b: persist the user turn's image attachments out-of-band (keyed by the appended message id) so history can
+	 *  render them. Called AFTER the user message is appended; fire-and-forget (must never throw the turn). Omit ⇒ no
+	 *  image persistence (the send still works; history just won't show them). */
+	persistImageAttachments?: (messageId: string, images: readonly ChatImageAttachment[]) => Promise<void>;
 	/** §5.AD opt-in enforced-reasoning hookup: given the turn's task + final draft, return the (possibly bounced)
 	 *  final answer. Absent ⇒ the draft is used as-is (byte-identical). Must be fail-soft (never throw the turn). */
 	enforceReasoning?: (input: { task: string; draft: string }) => Promise<string>;
@@ -220,7 +227,18 @@ export async function runChatAgentTurn(
 	// transcript rows appended DURING the loop (the service's executeTool wrapper) land between user and reply —
 	// the order the transcript reader renders. The turn context was composed above, so this append never feeds
 	// back into this turn's own prompt.
-	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
+	const imageCount = input.imageAttachments?.length ?? 0;
+	const userMessage = await deps.appendMessage(input.session.id, {
+		role: "user",
+		content: input.userMessage,
+		// F2.7b: record the image count (metadata only, no bytes) so the transcript stays lean but the renderer knows
+		// to fetch this message's images from the out-of-band store.
+		...(imageCount > 0 ? { meta: { imageAttachmentCount: imageCount } } : {}),
+	});
+	// F2.7b: persist the sent images out-of-band, keyed by this user message id, so history can render them later.
+	if (input.imageAttachments && input.imageAttachments.length > 0 && deps.persistImageAttachments) {
+		await deps.persistImageAttachments(userMessage.id, input.imageAttachments).catch(() => {});
+	}
 	const loop = await runChatAgentLoop(
 		{
 			messages: withAttachments,

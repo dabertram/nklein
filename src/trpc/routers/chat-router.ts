@@ -14,6 +14,8 @@ import {
 	runtimeChatFocusChainResponseSchema,
 	runtimeChatFocusChainUpdateRequestSchema,
 	runtimeChatFocusChainUpdateResponseSchema,
+	runtimeChatMessageImagesRequestSchema,
+	runtimeChatMessageImagesResponseSchema,
 	runtimeChatSendMessageRequestSchema,
 	runtimeChatSendMessageResponseSchema,
 	runtimeChatSessionResponseSchema,
@@ -69,6 +71,11 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 		getBoardStreams: t.procedure
 			.output(runtimeChatBoardStreamsResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getChatBoardStreams()),
+		// F2.7b: a message's out-of-band image attachments (data-URL-ready) for history rendering.
+		getMessageImages: t.procedure
+			.input(runtimeChatMessageImagesRequestSchema)
+			.output(runtimeChatMessageImagesResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatMessageImages(input)),
 		// §5.BB focus-chain surface: the agent's live plan checklist for the transcript's plan strip.
 		getFocusChain: t.procedure
 			.input(z.object({ sessionId: z.string() }))

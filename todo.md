@@ -936,11 +936,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   composer has an image-attach button (`chat-attach-button`) → reads files as base64 → pending chips
   (`chat-pending-attachments`, removable) → `use-chat-data.sendMessage(message, imageAttachments)` forwards them on the
   streamMessage send; chips clear after send. Playwright proves attach→chip→remove and that a send carries
-  `imageAttachments`. REMAINING (each independent now): (1) transcript store persists the sent images bounded so
-  HISTORY can render them (a storage-shape decision — inline-base64 vs a blob store keyed by message id; today the
-  send works but past images aren't shown); (2) accessible inline rendering of persisted images (alt text, keyboard
-  nav) once (1) lands; (3) live-validate on a vision-capable local model (e.g. a gemma/qwen-VL) before enabling by
-  default (fleet-gated).
+  `imageAttachments`. **PERSISTENCE + HISTORY RENDERING SHIPPED 2026-07-14 (`<this commit>`):** DECISION = a SEPARATE
+  out-of-band blob store, NOT inline-base64 in the JSONL (inline would bloat the transcript + load 8MB/msg into memory
+  on every lean-window `readChatTranscript`). New `chat-image-store.ts` (one JSON file per session:message hash; write
+  at the user-message append via a `persistImageAttachments` turn dep; 4 unit tests). The transcript message carries
+  only a lightweight `meta.imageAttachmentCount` (bytes stay out-of-band, lean-window stays lean); a new
+  `chat.getMessageImages` tRPC returns the data-URL-ready bytes; `MessageBubble` lazy-fetches ONCE for a user message
+  with count>0 and renders via the EXISTING shared `TaskImageStrip` (alt text built in). Playwright proves a persisted
+  image renders in history. REMAINING (fleet-gated only): live-validate on a vision-capable local model (e.g. a
+  gemma/qwen-VL) before enabling by default; also a minor hygiene follow-up — delete a session's image files on session
+  delete (`deleteChatMessageImages` exists but isn't wired to the delete path; files orphan harmlessly otherwise).
 - [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
