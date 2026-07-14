@@ -716,8 +716,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
-- [ ] **F1.26b — Orchestrate the baseline-fixture replay run for a dogfood card (evaluation contract SHIPPED
-  2026-07-13).** The comparison + retention machinery is complete: `evaluateSelfImprovementReplay` (the §5.AF
+- [x] **F1.26b — Orchestrate the baseline-fixture replay run for a dogfood card — COMPLETE 2026-07-14 (`c82f55b4`).**
+  The comparison + retention machinery is complete: `evaluateSelfImprovementReplay` (the §5.AF
   determinism comparator over captured-vs-replayed ledgers, divergence localized),
   `buildReplayEvalRetentionEvent` (retained as a `replay_eval_pass|fail` ledger transition; a later re-run
   supersedes), and the M4 gate READS the retained verdict at the delivery seam (`readRetainedReplayEvalVerdict` —
@@ -755,6 +755,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Deterministic (fixture-model, no fleet) so it CAN be validated headless — but it's a correctness-subtle integration
   (the captures must be sound + deterministic for the replay comparison to mean anything), best done as a focused build
   where the real captures can be inspected. NOT a clean leaf.
+  **DONE 2026-07-14 (`c82f55b4`, David's call: reuse the proven subprocess harness — the runtime is subprocess-only by
+  architecture, no in-process boot has ever existed):** `runScenarioSuite` (`src/nklein-agent/replay-eval-scenario-suite.ts`)
+  reuses `scripts/verify-simulated-flow.mts` — runs the TREE'S OWN harness (baseline=current, replay=patched worktree),
+  forces the child runtime's ledger to the orchestrator's dir via the new `NKLEIN_AGENT_LEDGER_ROOT` env override
+  (`resolveRootDir`: arg > scope > env > default), and symlinks `node_modules` into the dependency-less worktree. The
+  CLI now auto-captures when `--baseline/--replay` are omitted (composes `orchestrateReplayEvalAutoCapture` with the 3
+  live deps). **VALIDATED END-TO-END:** `runScenarioSuite` drove a real simulated flow in 22s (zero LLM compute) with 34
+  ledger events (30 transitions + 4 attempts) landing in the isolated dir. 6 unit tests (scenario-suite ×5 + env
+  override ×1) + the shipped worktree ×4 + orchestration core ×4. The replay/worktree half exercises live on a real
+  dogfood card that has a result branch.
 - [x] **F1.29b — Adopt the per-section Settings boundary in the dialog (boundary SHIPPED 2026-07-13; nav-aligned
   axis + leaf 1 SHIPPED 2026-07-14).** The state-domain contract exists: `settings-sections.ts` —
   every `SettingsDraft` field in exactly ONE of 9 sections (completeness+disjointness LOCKED), with
