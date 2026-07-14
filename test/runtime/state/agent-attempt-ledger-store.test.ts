@@ -7,6 +7,7 @@ import {
 	appendAgentLedgerEvent,
 	readAgentLedger,
 	readAllAgentLedger,
+	runWithAgentLedgerRoot,
 } from "../../../src/state/agent-attempt-ledger-store";
 
 const base = { workflowId: "wf-1", taskId: "t-1", workspacePathHash: "ws-A" };
@@ -71,6 +72,44 @@ describe("agent-attempt-ledger-store", () => {
 
 	it("returns an empty array for a workspace with no ledger yet", async () => {
 		expect(await readAgentLedger({ workspacePathHash: "never-written", rootDir })).toEqual([]);
+	});
+
+	it("F1.26b: runWithAgentLedgerRoot scopes an unscoped append/read to the isolated dir (default sees nothing)", async () => {
+		const isolated = await mkdtemp(join(tmpdir(), "nklein-ledger-iso-"));
+		try {
+			// Inside the scope, an append with NO explicit rootDir lands in `isolated`, and a scoped read sees it.
+			const scopedRead = await runWithAgentLedgerRoot(isolated, async () => {
+				await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "scoped" }));
+				return readAgentLedger({ workspacePathHash: "ws-A" });
+			});
+			expect(scopedRead.map((e) => e.eventId)).toEqual(["scoped"]);
+			// The event is physically in the isolated dir (a direct read of that dir sees it)...
+			expect(
+				(await readAgentLedger({ workspacePathHash: "ws-A", rootDir: isolated })).map((e) => e.eventId),
+			).toEqual(["scoped"]);
+			// ...and NOT in the beforeEach `rootDir` (the scope did not leak into the default/other roots).
+			expect(await readAgentLedger({ workspacePathHash: "ws-A", rootDir })).toEqual([]);
+		} finally {
+			await rm(isolated, { recursive: true, force: true });
+		}
+	});
+
+	it("F1.26b: an explicit rootDir arg wins over the ambient scope", async () => {
+		const isolated = await mkdtemp(join(tmpdir(), "nklein-ledger-iso-"));
+		try {
+			await runWithAgentLedgerRoot(isolated, async () => {
+				// Explicit rootDir overrides the scope → the event goes to `rootDir`, not `isolated`.
+				await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "explicit" }), {
+					rootDir,
+				});
+			});
+			expect((await readAgentLedger({ workspacePathHash: "ws-A", rootDir })).map((e) => e.eventId)).toEqual([
+				"explicit",
+			]);
+			expect(await readAgentLedger({ workspacePathHash: "ws-A", rootDir: isolated })).toEqual([]);
+		} finally {
+			await rm(isolated, { recursive: true, force: true });
+		}
 	});
 
 	it("readAllAgentLedger merges every workspace's events, chronological; empty when the dir is absent", async () => {

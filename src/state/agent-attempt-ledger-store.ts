@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFile, mkdir, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -18,8 +19,23 @@ import { parseValidatedJsonl } from "./jsonl-store";
 
 const DEFAULT_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "agent-attempt-ledger");
 
+/**
+ * F1.26b — an async-scoped ledger-root override so an isolated run (the replay-eval auto-capture's baseline/replay
+ * passes) can direct EVERY ledger write within its async context to a private dir WITHOUT threading a `rootDir`
+ * through the 16 deep `appendAgentLedgerEvent` call sites. Precedence: an explicit `rootDir` arg wins, then this
+ * ambient scope, then the HOME-derived default. Byte-identical when unused (`getStore()` is undefined ⇒ DEFAULT_ROOT).
+ * Uses `AsyncLocalStorage` (the same idiom as `LockedFileSystem`) so concurrent contexts never leak roots into each
+ * other and the scope auto-restores on return — no process-global mutable state.
+ */
+const ledgerRootScope = new AsyncLocalStorage<string>();
+
+/** Run `operation` with every unscoped ledger read/write inside it directed at `rootDir` (F1.26b isolated capture). */
+export function runWithAgentLedgerRoot<T>(rootDir: string, operation: () => Promise<T>): Promise<T> {
+	return ledgerRootScope.run(rootDir, operation);
+}
+
 function resolveRootDir(rootDir?: string): string {
-	return rootDir ?? DEFAULT_ROOT;
+	return rootDir ?? ledgerRootScope.getStore() ?? DEFAULT_ROOT;
 }
 
 function resolveLogPath(workspacePathHash: string, rootDir?: string): string {
