@@ -1323,10 +1323,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **AUDIT CORE SHIPPED (`8afd6d08`):** `src/core/memory-freshness-audit.ts` `auditMemoryFreshness` — cadence-gated,
   model-free structural audit flagging stale/orphaned/broken_link/duplicate_title notes + `shouldRunFreshnessAudit`
   cadence gate; 8 tests. Complementary to the model-driven TRUTH audit in `memory-audit.ts`. **REMAINING (b-leaf):**
-  `memoryFreshnessAudit` config object (enabled/cadenceMs/stalenessThresholdMs/paused) plumbed through the config stack
-  (contract→defaults→state-factory→save-payload→update-merge, the swarmGuardrails pattern); the idle-rail wiring that
-  reads real basic-memory notes into `AuditableMemoryNote` + runs on the cadence; and Settings controls (cadence/pause/
-  last-next-audit). Expose safe defaults, project override, last/next audit, and
+  `memoryFreshnessAudit` config object — DONE (`2f8295a8` contract + `29fe458a` full plumbing through
+  types/state-factory/save-payload/update-merge/change-detection/global-file-payload, 343 tests green, persists +
+  round-trips). **REMAINING (2 clean pickups): (1) Settings UI** — mirror the `swarmGuardrails` web-ui pattern:
+  `web-ui/src/features/settings/settings-draft.ts` (field + inputs converters), `settings-sections.ts`, `settings-save.ts`,
+  a `memory-audit-settings-panel.tsx` + a `runtime-settings-memory-audit.ts` converter, wired into `runtime-settings-dialog.tsx`;
+  browser-verify in the dev stack. **(2) Idle-rail wiring** — the runtime must READ basic-memory notes (an MCP query to
+  the basic-memory server — no existing note-read path in `src/`, only `basic-memory-provenance.ts`/`basic-memory-scoping.ts`;
+  needs an MCP list/search integration) → map to `AuditableMemoryNote` → run `auditMemoryFreshness` on the cadence via the
+  opportunistic-idle-work rail (gated by `shouldRunFreshnessAudit` + the `enabled`/`paused` config) → surface findings +
+  last/next-audit. Expose safe defaults, project override, last/next audit, and
   pause behavior without turning idle evaluation into polling churn.
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
   models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity
