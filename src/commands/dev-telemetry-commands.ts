@@ -58,6 +58,11 @@ import {
 import { buildReplayEvalOutcome, orchestrateReplayEvalAutoCapture } from "../core/replay-eval-orchestration";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import {
+	backfillRoutingOutcomes,
+	type RoutingOutcomeJoin,
+	summarizeRoutingCalibration,
+} from "../core/routing-decision-log";
+import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
 	type RuntimeRunOutcome,
@@ -73,6 +78,7 @@ import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
+import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
 import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import { createResultWorktree } from "../workspace/replay-eval-worktree";
@@ -552,6 +558,49 @@ export async function runDevOpportunisticValueCommand(options: { json?: boolean 
 				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
 		);
 	}
+}
+
+/** §5.AB — routing calibration: join recorded routing decisions with ledger outcomes, then summarize. */
+export async function runDevRoutingCalibrationCommand(options: { json?: boolean } = {}): Promise<void> {
+	const [decisions, ledgerEvents] = await Promise.all([
+		readAllRoutingDecisions().catch(() => []),
+		readAllAgentLedger().catch(() => []),
+	]);
+	// Build a taskId → terminal-outcome map from the ledger (last terminal attempt wins). qualityOk maps to the
+	// verifier verdict: true=pass, false=fail, null/absent=not_run.
+	const outcomesByTaskId = new Map<string, RoutingOutcomeJoin>();
+	for (const attempt of selectAttempts(ledgerEvents)) {
+		if (!attempt.taskId) {
+			continue;
+		}
+		outcomesByTaskId.set(attempt.taskId, {
+			actualOutcome: attempt.outcome,
+			verifierOutcome: attempt.qualityOk === true ? "pass" : attempt.qualityOk === false ? "fail" : "not_run",
+		});
+	}
+	const summary = summarizeRoutingCalibration(backfillRoutingOutcomes(decisions, outcomesByTaskId));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ ...summary, joinedOutcomes: outcomesByTaskId.size }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Routing calibration (§5.AB) — ${summary.total} recorded routing decision(s)\n\n`);
+	if (summary.total === 0) {
+		process.stdout.write("(no routing decisions recorded yet — start some tasks, then re-check)\n");
+		return;
+	}
+	const rc = summary.routeTypeCounts;
+	process.stdout.write(
+		`  routes: assign ${rc.assign} · route_up ${rc.route_up} · decompose ${rc.decompose} · escalate ${rc.escalate}\n`,
+	);
+	process.stdout.write(
+		`  escalation-rate ${(summary.escalationRate * 100).toFixed(0)}% · ${summary.runCount} run(s) joined · ` +
+			`success ${(summary.successRate * 100).toFixed(0)}% · verifier-pass ${(summary.verifierPassRate * 100).toFixed(0)}%\n`,
+	);
+	const gap = summary.uncertaintyFailureGap;
+	process.stdout.write(
+		`  uncertainty: ${summary.meanUncertainty === null ? "not recorded (no live confidence signal yet)" : summary.meanUncertainty.toFixed(2)}` +
+			`${gap === null ? "" : ` · failure-gap ${gap.toFixed(2)}`}\n`,
+	);
 }
 
 /** §5.AC — is online retrieval earning its keep? Project the ledger's retrieval events into a usefulness summary. */

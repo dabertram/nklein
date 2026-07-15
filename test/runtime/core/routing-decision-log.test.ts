@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	backfillRoutingOutcomes,
 	buildRoutingDecisionRecord,
 	type RoutingDecisionRecord,
+	type RoutingOutcomeJoin,
 	summarizeRoutingCalibration,
 } from "../../../src/core/routing-decision-log";
 
@@ -106,6 +108,39 @@ describe("routing-decision log", () => {
 			expect(
 				summarizeRoutingCalibration([record({ actualOutcome: "success", uncertainty: 0.2 })]).uncertaintyFailureGap,
 			).toBeNull();
+		});
+	});
+
+	describe("backfillRoutingOutcomes", () => {
+		it("fills actualOutcome + verifierOutcome from the ledger join, matched by taskId", () => {
+			const decisions = [record({ taskId: "a" }), record({ taskId: "b" })];
+			const join = new Map<string, RoutingOutcomeJoin>([
+				["a", { actualOutcome: "success", verifierOutcome: "pass" }],
+			]);
+			const [a, b] = backfillRoutingOutcomes(decisions, join);
+			expect(a?.actualOutcome).toBe("success");
+			expect(a?.verifierOutcome).toBe("pass");
+			// b has no ledger outcome — decision-time defaults (null / not_run) are preserved.
+			expect(b?.actualOutcome).toBeNull();
+			expect(b?.verifierOutcome).toBe("not_run");
+		});
+
+		it("is a no-op when the join map is empty (decision-only records stay intact)", () => {
+			const decisions = [record({ taskId: "a" })];
+			expect(backfillRoutingOutcomes(decisions, new Map())).toEqual(decisions);
+		});
+
+		it("threads joined outcomes into the calibration summary end-to-end", () => {
+			const decisions = [record({ taskId: "x", uncertainty: 0.8 }), record({ taskId: "y", uncertainty: 0.2 })];
+			const join = new Map<string, RoutingOutcomeJoin>([
+				["x", { actualOutcome: "timeout", verifierOutcome: "fail" }],
+				["y", { actualOutcome: "success", verifierOutcome: "pass" }],
+			]);
+			const s = summarizeRoutingCalibration(backfillRoutingOutcomes(decisions, join));
+			expect(s.runCount).toBe(2);
+			expect(s.successRate).toBeCloseTo(0.5, 5);
+			// more uncertain about the failed run (0.8) than the succeeded (0.2) ⇒ positive gap.
+			expect(s.uncertaintyFailureGap).toBeCloseTo(0.6, 5);
 		});
 	});
 });

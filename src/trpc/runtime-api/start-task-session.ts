@@ -34,6 +34,7 @@ import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import type { ModelClassFacts } from "../../core/role-model-class";
 import { selectSwarmRoleModel } from "../../core/role-model-swarm-pick";
+import { buildRoutingDecisionRecord } from "../../core/routing-decision-log";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { applySpeedCapabilityDial } from "../../core/speed-capability-dial";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
@@ -83,6 +84,7 @@ import {
 	listPendingCardMailbox,
 	markCardMailboxConsumedUpTo,
 } from "../../state/card-mailbox-store";
+import { appendRoutingDecision } from "../../state/routing-decision-log-store";
 import {
 	learnSharedLoadedDescriptors,
 	resolveStableRoutingModelId,
@@ -1066,6 +1068,23 @@ export async function handleStartTaskSession(
 			}),
 			taskAffinityTags,
 		});
+		// §5.AB routing-calibration: record the decision-time fields (route type / model / difficulty) for this pick;
+		// the terminal outcome is joined by taskId from the agent ledger at read time (dev routing-calibration). Best-
+		// effort + record-only — a log write must NEVER break task start. `uncertainty` stays null: the live seam
+		// computes no calibrated-confidence signal today (a follow-up would surface one from the capability blend).
+		void appendRoutingDecision(
+			buildRoutingDecisionRecord({
+				taskId: body.taskId,
+				routeType: routingDecision.type,
+				predictedModelKey:
+					routingDecision.type === "assign" || routingDecision.type === "route_up"
+						? routingDecision.modelKey
+						: null,
+				difficulty: taskDifficulty,
+				uncertainty: null,
+				recordedAt: Date.now(),
+			}),
+		).catch(() => {});
 		// §5.AQ observability: when the warmth preference is what steered the routed pick, say so on the selection
 		// reason the start log prints — the promotion is a surfaced signal (mirrors the diversity-waiver contract).
 		const warmthReasonSuffix =

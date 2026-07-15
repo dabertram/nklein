@@ -10,6 +10,7 @@
  * is pure over injected records. Composes {@link ModelOutcomeKind} by import only. Pure + total + deterministic.
  */
 
+import { z } from "zod";
 import type { ModelOutcomeKind } from "./model-behavior-profile.js";
 
 /** The route the router took (mirrors `NKleinTaskRoutingDecision["type"]`, kept as a string to stay decoupled). */
@@ -55,6 +56,30 @@ function clamp01OrNull(value: number | null | undefined): number | null {
 	}
 	return Math.max(0, Math.min(1, value));
 }
+
+const modelOutcomeKindSchema = z.enum([
+	"success",
+	"no_tool_call",
+	"narrated",
+	"loop",
+	"timeout",
+	"malformed",
+	"aborted",
+	"other_failure",
+]);
+
+/** Persisted-record schema (matches {@link RoutingDecisionRecord}) — for the jsonl store's validated read/append. */
+export const routingDecisionRecordSchema: z.ZodType<RoutingDecisionRecord> = z.object({
+	taskId: z.string(),
+	routeType: z.enum(["assign", "route_up", "decompose", "escalate"]),
+	predictedModelKey: z.string().nullable(),
+	difficulty: z.number(),
+	actualOutcome: modelOutcomeKindSchema.nullable(),
+	verifierOutcome: z.enum(["pass", "fail", "not_run"]),
+	uncertainty: z.number().nullable(),
+	resourceState: z.object({ freeGb: z.number().optional(), endpointBusy: z.boolean().optional() }).nullable(),
+	recordedAt: z.number(),
+});
 
 /** Build a normalized routing-decision record from a decision at the routing seam. Total: fills sensible defaults. */
 export function buildRoutingDecisionRecord(input: RoutingDecisionInput): RoutingDecisionRecord {
@@ -154,4 +179,29 @@ export function summarizeRoutingCalibration(records: readonly RoutingDecisionRec
 		routeTypeCounts,
 		uncertaintyFailureGap: meanFailed !== null && meanSucceeded !== null ? meanFailed - meanSucceeded : null,
 	};
+}
+
+/** The terminal outcome for a task, as joined from the agent ledger (the decision-time seam records neither). */
+export interface RoutingOutcomeJoin {
+	actualOutcome: ModelOutcomeKind;
+	verifierOutcome: VerifierOutcome;
+}
+
+/**
+ * Backfill each decision record's `actualOutcome` / `verifierOutcome` from a taskId→outcome map derived from the agent
+ * ledger — the read-time JOIN that lets the routing seam record only decision-time fields while calibration still sees
+ * how the run went. Pure: records with no ledger outcome keep their existing (null / not_run) values. Last outcome per
+ * taskId wins upstream (the caller builds the map); here we only apply it.
+ */
+export function backfillRoutingOutcomes(
+	records: readonly RoutingDecisionRecord[],
+	outcomesByTaskId: ReadonlyMap<string, RoutingOutcomeJoin>,
+): RoutingDecisionRecord[] {
+	return records.map((record) => {
+		const joined = outcomesByTaskId.get(record.taskId);
+		if (!joined) {
+			return record;
+		}
+		return { ...record, actualOutcome: joined.actualOutcome, verifierOutcome: joined.verifierOutcome };
+	});
 }

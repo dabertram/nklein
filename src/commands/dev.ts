@@ -60,6 +60,7 @@ import {
 	runDevReplayEvalCommand,
 	runDevRetrievalUsefulnessCommand,
 	runDevRostersCommand,
+	runDevRoutingCalibrationCommand,
 	runDevRoutingPreviewCommand,
 	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
@@ -798,6 +799,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevOpportunisticValueCommand(options);
+		});
+
+	dev.command("routing-calibration")
+		.description("Join recorded routing decisions with ledger outcomes into a calibration summary (§5.AB).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRoutingCalibrationCommand(options);
 		});
 
 	dev.command("knowledge-outcomes")
