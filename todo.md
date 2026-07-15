@@ -1227,14 +1227,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F4.12 — Wire reasoning-aware answer budgets across chat/swarm/review.** Separate reasoning and answer headroom,
   classify truncation accurately, and expose budget decisions in diagnostics.
 - [~] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
-  evidence while preserving required facts and citations. **PURE CORE SHIPPED (`model-sensitive-pruning.ts` —
-  `estimateDistractorSensitivity` + `pruneEvidenceForModel`). BLOCKED on the OBSERVATION PRODUCER (verified 2026-07-15):
-  needs `{noiseLevel, quality}` pairs per model, but no live path produces the noise dimension — the eval runner grades
-  `qualityScore` (now persisted, `model-eval-run-store.ts`) but never injects/varies distractor noise; `search_code`
-  emits `distractorsPruned: 0` (no pruning stage). Precursor = a noise-INJECTED eval variant (or a live reranking stage
-  that records pruned-vs-kept + downstream quality) — a distinct feature. NOTE: retrieval telemetry IS now live
-  (`729092e6`, search_code → ledger `retrieval` events) so retrieval-usefulness (§5.AC) has real data; F4.13 needs the
-  richer noise+quality signal on top.**
+  evidence while preserving required facts and citations. **PURE CORE + A/B SUBSTRATE SHIPPED (`fa2da18f`):
+  `model-sensitive-pruning.ts` (`estimateDistractorSensitivity`/`pruneEvidenceForModel`) +
+  `distractor-observation-store.ts` + an OPT-IN noise A/B pass in `runModelEval` (inject `noisyChat`+`noiseFraction`+
+  `recordDistractorSensitivity` ⇒ re-score each cell with distractor noise, record the baseline-vs-noisy pair; default
+  off = byte-identical) + `dev distractor-sensitivity` CLI. Mock-verified (11 tests). Each DistractorObservation is a
+  self-contained A/B pair (sensitivity = drop/noise per obs, no sweep). REMAINING = PRODUCER ACTIVATION: a real
+  `noisyChat` (wrap the base chat with a distractor-context prefix + its token-share noiseFraction) behind an opt-in
+  flag at the runModelEval call sites — CLEANER than F3.16's (noise injection is family-agnostic, no structured mismatch).**
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
