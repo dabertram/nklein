@@ -428,6 +428,31 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	const nkleinSettings: RuntimeTaskNKleinSettings | undefined = modelId
 		? { providerId: options.providerId?.trim() || "lmstudio", modelId }
 		: undefined;
+	// Preflight: child cards route by role, so a role whose model isn't loaded silently strands its cards (live-hit
+	// 2026-07-15: a review card stranded because the reviewer model was unloaded). Warn — but don't block — before
+	// seeding so the run isn't started into a guaranteed strand. Best-effort; never fails the run.
+	const [preflightConfig, preflightModels] = await Promise.all([
+		loadRuntimeConfig(cwd).catch(() => null),
+		fetchLmsPsModels(createDefaultLmsRunner()),
+	]);
+	if (preflightConfig) {
+		const readiness = checkRoleModelReadiness({
+			requirements: Object.entries(preflightConfig.modelRoles ?? {}).map(([role, settings]) => ({
+				role,
+				modelId: settings?.modelId ?? null,
+			})),
+			loaded: preflightModels.map((model) => ({ identifier: model.identifier, modelKey: model.modelKey })),
+		});
+		if (!readiness.ready) {
+			write(
+				`⚠ Role-model preflight: ${readiness.missing
+					.map((missing) => `${missing.role}=${missing.modelId}`)
+					.join(
+						", ",
+					)} NOT loaded — cards for these roles may strand. Load them (\`lms load <model>\`) or run \`dev role-preflight\`.\n`,
+			);
+		}
+	}
 	const { scenario, result } = await executeDevTestPreset({
 		client,
 		workspaceId: workspace.workspaceId,
