@@ -56,6 +56,7 @@ import {
 	runDevPlaceholderScanCommand,
 	runDevQualityBudgetCommand,
 	runDevRailEvidenceCommand,
+	runDevReasoningBenefitCommand,
 	runDevRemediationCommand,
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
@@ -814,6 +815,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevModelRoleStabilityCommand(options);
+		});
+
+	dev.command("reasoning-benefit")
+		.description("Over recorded reasoning A/B observations, does forcing reasoning help each cell (F3.16)?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevReasoningBenefitCommand(options);
 		});
 
 	dev.command("knowledge-outcomes")

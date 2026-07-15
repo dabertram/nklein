@@ -28,6 +28,7 @@ import { type EvalCellStability, scoreModelEvalStability } from "../core/model-e
 import type { ModelFitnessRecord } from "../core/model-fitness.js";
 import type { ToolCallAttempt } from "../core/prompt-family-scorers.js";
 import { selectStructuredOutputStrategy } from "../core/structured-output-strategy.js";
+import type { StoredReasoningObservation } from "../state/reasoning-observation-store.js";
 
 /** Map the corpus difficulty tier to a 0..1 number for the fitness fold (mirrors the CLI harness). */
 const DIFFICULTY_NUM: Readonly<Record<string, number>> = { easy: 0.33, medium: 0.66, hard: 1 };
@@ -227,7 +228,17 @@ async function scoreContextProbe(
  */
 export async function runModelEval(
 	config: ModelEvalConfig,
-	deps: { chat: ModelEvalChat; now?: () => number },
+	deps: {
+		chat: ModelEvalChat;
+		now?: () => number;
+		/**
+		 * F3.16 OPT-IN reasoning A/B: a second chat that applies enforced reasoning. When BOTH this and
+		 * `recordReasoningBenefit` are supplied, each scored cell is re-scored through it and both outcomes are recorded
+		 * as {@link StoredReasoningObservation}s. Omit (the default) ⇒ byte-identical single-pass eval, zero extra cost.
+		 */
+		enforcedChat?: ModelEvalChat;
+		recordReasoningBenefit?: (observations: readonly StoredReasoningObservation[]) => void;
+	},
 ): Promise<ModelEvalResult> {
 	const repeats = Math.max(1, Math.trunc(config.repeats ?? 1) || 1);
 	const passBar = config.passBar ?? 0.6;
@@ -252,15 +263,39 @@ export async function runModelEval(
 		}
 		for (let attempt = 1; attempt <= repeats; attempt += 1) {
 			const start = now();
-			const score =
+			const scoreWith = (chat: ModelEvalChat): Promise<number | null> =>
 				prompt.family === "decompose"
-					? await scoreDecompose(prompt, config.modelId, maxTokens, deps.chat)
+					? scoreDecompose(prompt, config.modelId, maxTokens, chat)
 					: prompt.family === "tool_use"
-						? await scoreToolUse(prompt as ToolUseEvalPrompt, maxTokens, deps.chat)
+						? scoreToolUse(prompt as ToolUseEvalPrompt, maxTokens, chat)
 						: prompt.family === "context_probe"
-							? await scoreContextProbe(prompt as ContextProbeEvalPrompt, maxTokens, deps.chat)
-							: await scoreReview(prompt as ReviewEvalPrompt, maxTokens, deps.chat);
+							? scoreContextProbe(prompt as ContextProbeEvalPrompt, maxTokens, chat)
+							: scoreReview(prompt as ReviewEvalPrompt, maxTokens, chat);
+			const score = await scoreWith(deps.chat);
 			const latencyMs = Math.max(0, now() - start);
+			// F3.16 opt-in A/B: re-score this cell through the enforced-reasoning chat and record both outcomes so
+			// learnReasoningBenefit can measure whether enforcing reasoning helps this (model, role, difficulty) cell.
+			if (deps.enforcedChat && deps.recordReasoningBenefit && score !== null) {
+				const enforcedScore = await scoreWith(deps.enforcedChat);
+				if (enforcedScore !== null) {
+					deps.recordReasoningBenefit([
+						{
+							modelId: config.modelId,
+							role: prompt.role,
+							difficulty: prompt.difficulty,
+							reasoningEnabled: false,
+							qualityScore: score,
+						},
+						{
+							modelId: config.modelId,
+							role: prompt.role,
+							difficulty: prompt.difficulty,
+							reasoningEnabled: true,
+							qualityScore: enforcedScore,
+						},
+					]);
+				}
+			}
 			totalAttempts += 1;
 			const effectiveScore = score ?? 0;
 			const passed = score !== null && score >= passBar;

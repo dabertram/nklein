@@ -6,6 +6,7 @@ import {
 	type ModelEvalChat,
 	runModelEval,
 } from "../../../src/nklein-agent/model-eval-runner.js";
+import type { StoredReasoningObservation } from "../../../src/state/reasoning-observation-store.js";
 
 /** Serve each corpus row its OWN answer key, so every cell scores 1.0 (the corpus self-tests to 1). */
 function perfectChat(): ModelEvalChat {
@@ -110,5 +111,36 @@ describe("runModelEval", () => {
 		expect(evalDifficultyToFitnessTier("easy")).toBe("easy");
 		expect(evalDifficultyToFitnessTier("hard")).toBe("hard");
 		expect(evalDifficultyToFitnessTier("bogus")).toBe("medium");
+	});
+
+	describe("F3.16 reasoning A/B", () => {
+		it("records baseline + enforced observations per scored cell when both deps are supplied", async () => {
+			const observations: StoredReasoningObservation[] = [];
+			const result = await runModelEval(
+				{ modelId: "coder-test", repeats: 1, promptIds: ["decompose-cli-version-flag"] },
+				{
+					chat: perfectChat(),
+					enforcedChat: perfectChat(),
+					recordReasoningBenefit: (batch) => observations.push(...batch),
+					now: () => 0,
+				},
+			);
+			// One scored cell ⇒ exactly one off + one on observation, both from the perfect chat (score 1).
+			expect(result.scoredAttempts).toBe(1);
+			expect(observations).toHaveLength(2);
+			expect(observations.map((o) => o.reasoningEnabled).sort()).toEqual([false, true]);
+			expect(observations.every((o) => o.qualityScore === 1 && o.modelId === "coder-test")).toBe(true);
+			expect(observations.every((o) => o.role === "architect" && o.difficulty === "easy")).toBe(true);
+		});
+
+		it("is byte-identical (no A/B pass, no recording) when the enforced deps are omitted", async () => {
+			let called = false;
+			await runModelEval(
+				{ modelId: "coder-test", repeats: 1, promptIds: ["decompose-cli-version-flag"] },
+				{ chat: perfectChat(), recordReasoningBenefit: () => (called = true), now: () => 0 },
+			);
+			// recordReasoningBenefit without an enforcedChat must NOT fire — the A/B pass is gated on both.
+			expect(called).toBe(false);
+		});
 	});
 });

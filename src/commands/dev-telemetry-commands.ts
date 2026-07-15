@@ -25,6 +25,7 @@ import {
 	type RoleQualityBar,
 } from "../core/capability-ceiling-recommendation";
 import { type RoutingCandidate, rankRoutingCandidates } from "../core/confidence-resource-routing";
+import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
@@ -80,6 +81,7 @@ import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
+import { readAllReasoningObservations } from "../state/reasoning-observation-store";
 import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
 import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
@@ -558,6 +560,39 @@ export async function runDevOpportunisticValueCommand(options: { json?: boolean 
 			`  ${row.kind.padEnd(28)} ${String(row.dispatched).padStart(4)} dispatched  ` +
 				`${String(Math.round(row.realizedRate * 100)).padStart(3)}% realized  ` +
 				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
+		);
+	}
+}
+
+/** F3.16 — over recorded reasoning A/B observations, does forcing reasoning help each (model, role, difficulty) cell? */
+export async function runDevReasoningBenefitCommand(options: { json?: boolean } = {}): Promise<void> {
+	const observations = await readAllReasoningObservations().catch(() => []);
+	// Group by cell (model × role × difficulty), then learn the benefit per cell.
+	const byCell = new Map<string, typeof observations>();
+	for (const obs of observations) {
+		const key = `${obs.modelId}::${obs.role}::${obs.difficulty}`;
+		const list = byCell.get(key) ?? [];
+		list.push(obs);
+		byCell.set(key, list);
+	}
+	const rows = [...byCell.entries()].map(([key, cellObs]) => ({ key, profile: learnReasoningBenefit(cellObs) }));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ observations: observations.length, cells: rows }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Reasoning benefit (F3.16) — ${observations.length} A/B observation(s)\n\n`);
+	if (rows.length === 0) {
+		process.stdout.write(
+			"(no reasoning A/B observations yet — run an eval with the enforced-reasoning probe enabled, then re-check)\n",
+		);
+		return;
+	}
+	for (const { key, profile } of rows) {
+		const benefit =
+			profile.benefit === null ? "n/a" : `${profile.benefit >= 0 ? "+" : ""}${(profile.benefit * 100).toFixed(0)}%`;
+		process.stdout.write(
+			`  ${key.padEnd(48)} ${profile.recommendation.padEnd(14)} benefit ${benefit.padStart(5)} ` +
+				`[on ${profile.onSamples} · off ${profile.offSamples}]\n`,
 		);
 	}
 }
