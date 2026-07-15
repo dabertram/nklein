@@ -39,6 +39,7 @@ import {
 	runtimeMergeHistoryResponseSchema,
 	runtimeModelBehaviorProfilesResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
+	runtimeModelTuningResponseSchema,
 	runtimeModelVerdictBadgesResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
 	runtimeNKleinAccountOrganizationsResponseSchema,
@@ -193,6 +194,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		// F1.40: per-card + per-project time tracking (age / active / LLM-processing), read-only.
 		getTimeTracking: workspaceProcedure.output(runtimeTimeTrackingResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getTimeTracking(ctx.workspaceScope);
+		}),
+		// Model-tuning recommendations (context cap / answer budget / retry budget) per model, read-only. Fleet-wide.
+		getModelTuning: t.procedure.output(runtimeModelTuningResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getModelTuning();
 		}),
 		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards.
 		getCardMailboxCounts: t.procedure

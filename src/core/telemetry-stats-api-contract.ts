@@ -425,3 +425,26 @@ export const runtimeTimeTrackingResponseSchema = z.object({
 	cards: z.array(z.object({ taskId: z.string(), title: z.string(), metrics: runtimeTimeTrackingMetricsSchema })),
 });
 export type RuntimeTimeTrackingResponse = z.infer<typeof runtimeTimeTrackingResponseSchema>;
+
+/**
+ * Model-tuning recommendations — a read-only UI surface consolidating three learned per-model budgets already exposed
+ * on the CLI (`dev context-recommendations` / `dev answer-budgets` / `dev retry-budgets`): the context cap that keeps
+ * latency healthy (F4.9), the typical answer size to budget output tokens for (F4.10), and how many same-model retries
+ * are worth attempting before a failure mode stops recovering (F3.30). All projected from the attempt ledger +
+ * model-performance observations — no new recording seam. Each field is nullable when evidence is too thin to judge.
+ */
+export const runtimeModelTuningRowSchema = z.object({
+	modelId: z.string(),
+	contextCapTokens: z.number().int().positive().nullable(),
+	answerBudgetTokens: z.number().int().positive().nullable(),
+	retryBudget: z.number().int().nonnegative().nullable(),
+	answerBudgetConfident: z.boolean(),
+	sampleCount: z.number().int().nonnegative(),
+});
+export type RuntimeModelTuningRow = z.infer<typeof runtimeModelTuningRowSchema>;
+
+export const runtimeModelTuningResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	models: z.array(runtimeModelTuningRowSchema),
+});
+export type RuntimeModelTuningResponse = z.infer<typeof runtimeModelTuningResponseSchema>;

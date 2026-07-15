@@ -75,6 +75,7 @@ import {
 	preferredPromptVariantFamily,
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
+import { buildModelTuningRecommendations } from "../core/model-tuning-recommendations";
 import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
@@ -124,6 +125,7 @@ import { appendReasoningObservations } from "../state/reasoning-observation-stor
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
+import { readModelPerformanceStats } from "../telemetry/model-performance-stats.js";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -712,6 +714,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				now,
 			});
 			return { generatedAt: now, project, cards: cardRows };
+		},
+		getModelTuning: async () => {
+			// Fleet-wide (not workspace-scoped): learned budgets are per-model across all recorded history.
+			const [ledgerEvents, stats] = await Promise.all([
+				readAllAgentLedger().catch(() => []),
+				readModelPerformanceStats({ limit: 5000 }).catch(() => ({ observations: [] as never[] })),
+			]);
+			const models = buildModelTuningRecommendations({
+				ledgerEvents,
+				answerSizeObservations: stats.observations.map((observation) => ({
+					modelId: observation.modelId,
+					usage: observation.usage,
+				})),
+			});
+			return { generatedAt: Date.now(), models };
 		},
 		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards (only non-zero entries returned).
 		getCardMailboxCounts: async (input) => {

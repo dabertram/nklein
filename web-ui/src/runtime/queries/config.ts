@@ -16,6 +16,7 @@ import type {
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeModelTuningResponse,
 	RuntimeModelVerdictBadgesResponse,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeRailControlRequest,
@@ -71,6 +72,12 @@ export async function fetchLedgerAnalytics(workspaceId: string | null): Promise<
 export async function fetchMemoryAudit(workspaceId: string | null): Promise<RuntimeMemoryAuditResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getMemoryAudit.query();
+}
+
+/** Model-tuning recommendations: learned context cap / answer budget / retry budget per model (read-only telemetry). */
+export async function fetchModelTuning(workspaceId: string | null): Promise<RuntimeModelTuningResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getModelTuning.query();
 }
 
 /** F1.35b: the background-eval rail controls/status snapshot (read-only). */

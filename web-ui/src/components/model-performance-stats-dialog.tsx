@@ -25,6 +25,7 @@ import {
 	fetchMemoryAudit,
 	fetchModelBehaviorProfiles,
 	fetchModelPerformanceStats,
+	fetchModelTuning,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeDecompositionKnowledgeUsageAggregate,
@@ -39,6 +40,7 @@ import type {
 	RuntimeModelPerformanceAggregate,
 	RuntimeModelPerformanceObservation,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeModelTuningResponse,
 } from "@/runtime/types";
 
 interface ModelPerformanceStatsDialogProps {
@@ -409,6 +411,7 @@ export function ModelPerformanceStatsDialog({
 	const [fitnessTable, setFitnessTable] = useState<RuntimeFitnessTableResponse | null>(null);
 	const [ledgerAnalytics, setLedgerAnalytics] = useState<RuntimeLedgerAnalyticsResponse | null>(null);
 	const [memoryAudit, setMemoryAudit] = useState<RuntimeMemoryAuditResponse | null>(null);
+	const [modelTuning, setModelTuning] = useState<RuntimeModelTuningResponse | null>(null);
 	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) / samples / confidence.
 	const [fitnessRoleFilter, setFitnessRoleFilter] = useState<string>("all");
 	const [fitnessSort, setFitnessSort] = useState<FitnessSortMode>("successRate");
@@ -433,6 +436,7 @@ export function ModelPerformanceStatsDialog({
 				nextFitnessTable,
 				nextLedgerAnalytics,
 				nextMemoryAudit,
+				nextModelTuning,
 			] = await Promise.all([
 				fetchModelPerformanceStats(workspaceId),
 				fetchKnowledgeToolUsageStats(workspaceId),
@@ -440,6 +444,7 @@ export function ModelPerformanceStatsDialog({
 				fetchFitnessTable(workspaceId),
 				fetchLedgerAnalytics(workspaceId),
 				fetchMemoryAudit(workspaceId),
+				fetchModelTuning(workspaceId),
 			]);
 			setStats(nextModelStats);
 			setKnowledgeStats(nextKnowledgeStats);
@@ -447,6 +452,7 @@ export function ModelPerformanceStatsDialog({
 			setFitnessTable(nextFitnessTable);
 			setLedgerAnalytics(nextLedgerAnalytics);
 			setMemoryAudit(nextMemoryAudit);
+			setModelTuning(nextModelTuning);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -846,6 +852,53 @@ export function ModelPerformanceStatsDialog({
 						</span>{" "}
 						· {memoryAudit.summary.orphaned} orphaned · {memoryAudit.summary.stale} stale ·{" "}
 						{memoryAudit.summary.duplicate_title} duplicate title(s)
+					</div>
+				)}
+				{modelTuning && modelTuning.models.length > 0 && (
+					<div
+						className="mb-3 overflow-x-auto rounded-md border border-border"
+						data-testid="model-tuning-recommendations"
+					>
+						<div className="bg-surface-0 px-2 py-1 font-semibold text-[12px] text-text-primary">
+							Model tuning — learned budgets from real history (context F4.9 / answer F4.10 / retry F3.30)
+						</div>
+						<table className="w-full min-w-[520px] border-collapse text-left text-[12px]">
+							<thead className="bg-surface-0 text-text-secondary">
+								<tr>
+									<TableHead>Model</TableHead>
+									<TableHead>Context cap (tok)</TableHead>
+									<TableHead>Answer budget (tok)</TableHead>
+									<TableHead>Retry budget</TableHead>
+									<TableHead>Samples</TableHead>
+								</tr>
+							</thead>
+							<tbody>
+								{modelTuning.models.map((row) => (
+									<tr
+										key={row.modelId}
+										className="border-t border-border bg-surface-2 text-text-primary"
+										data-testid="model-tuning-row"
+									>
+										<TableCell>{shortModelId(row.modelId)}</TableCell>
+										<TableCell>
+											{row.contextCapTokens === null ? "—" : formatNumber(row.contextCapTokens)}
+										</TableCell>
+										<TableCell>
+											{row.answerBudgetTokens === null ? (
+												"—"
+											) : (
+												<span className={row.answerBudgetConfident ? undefined : "text-text-tertiary"}>
+													{formatNumber(row.answerBudgetTokens)}
+													{row.answerBudgetConfident ? "" : " (low)"}
+												</span>
+											)}
+										</TableCell>
+										<TableCell>{row.retryBudget === null ? "—" : formatNumber(row.retryBudget)}</TableCell>
+										<TableCell>{formatNumber(row.sampleCount)}</TableCell>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					</div>
 				)}
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">

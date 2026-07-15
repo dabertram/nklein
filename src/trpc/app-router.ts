@@ -57,6 +57,7 @@ import type {
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeModelTuningResponse,
 	RuntimeModelVerdictBadgesResponse,
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -242,6 +243,8 @@ export interface RuntimeTrpcContext {
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** F1.40: per-card + per-project time tracking (age / active / LLM-processing), read-only. */
 		getTimeTracking: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeTimeTrackingResponse>;
+		/** Model-tuning recommendations (context cap / answer budget / retry budget) per model, read-only. Fleet-wide. */
+		getModelTuning: () => Promise<RuntimeModelTuningResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
 		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
 		/** F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive). */
