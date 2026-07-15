@@ -50,6 +50,7 @@ import {
 import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/background-eval-controls";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
+import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import {
@@ -62,6 +63,7 @@ import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-j
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { auditMemoryFreshness } from "../core/memory-freshness-audit";
+import { buildMemoryLayers } from "../core/memory-layers";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import {
 	dominantFailureMode,
@@ -75,6 +77,7 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
+import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
 import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
@@ -348,6 +351,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 								...(session.scope === "all_projects" ? { allProjects: true } : {}),
 							});
 							const focusChain = await readChatFocusChain(session.id).catch(() => null);
+							// F2.9b: also compose the §5.M four-layer projection (episodic/semantic from the ledger, procedural
+							// from the session's selected skills). Working-memory + Basic-Memory sources still compose later (the
+							// audit reader carries no note bodies; that needs a content-carrying reader + query ranking — deferred).
+							const ledgerEvents = await readAllAgentLedger().catch(() => []);
+							const knownSkillIds = new Set<string>(SELECTABLE_CHAT_SKILL_IDS);
+							const skillIds = session.selectedSkillIds.filter((id): id is SkillId => knownSkillIds.has(id));
+							const memoryLayers = buildMemoryLayers({ events: ledgerEvents, skillIds });
 							const records = projectUnifiedMemory({
 								sessionMemories: recalled.map((entry) => ({
 									id: entry.id,
@@ -355,6 +365,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									score: entry.score,
 									shared: entry.shared,
 								})),
+								layerRecords: memoryLayers.all,
 								...(focusChain
 									? {
 											focusChainSteps: focusChain.steps.map((step) => ({
