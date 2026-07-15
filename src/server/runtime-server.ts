@@ -1,9 +1,11 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { promisify } from "node:util";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { setChatAdapterRuntimeFlags } from "../chat/chat-local-llm-adapter";
 import {
@@ -116,6 +118,10 @@ import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-age
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
 import {
+	resolveNKleinDevTestProjectScenario,
+	scaffoldNKleinDevTestProject,
+} from "../nklein-agent/nklein-dev-test-project";
+import {
 	type NKleinEndpointSessionSnapshot,
 	scheduleNKleinEndpointStart,
 } from "../nklein-agent/nklein-endpoint-scheduler";
@@ -155,6 +161,7 @@ import {
 import {
 	listWorkspaceIndexEntries,
 	loadExistingWorkspaceBoardById,
+	loadWorkspaceContext,
 	loadWorkspaceContextById,
 	loadWorkspaceState,
 	mutateWorkspaceState,
@@ -193,6 +200,7 @@ import {
 } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
+import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./background-eval-rail-wiring";
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
@@ -847,6 +855,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 		};
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
+	// F1.31b: the background-eval rail wiring (service + control coordinator), built just before `createRuntimeApi` so
+	// its coordinator can be injected. Held here so `close()` can stop the service. Null until built.
+	let backgroundEvalRailWiring: BackgroundEvalRailWiring | null = null;
 	const autoStartTaskIds = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		taskIds: readonly string[],
@@ -3536,7 +3547,80 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		deps.workspaceRegistry.clearActiveWorkspace();
 	};
 
+	// F1.31b (§5.AI): build the background-eval rail before `createRuntimeApi` so its control coordinator can be injected.
+	// `NKLEIN_EVAL_RAIL` (default OFF) gates whether the F1.31 service is hosted; the coordinator is injected either way
+	// (service-less fallback when off ⇒ the F1.35 controls UI persists intent + reads disabled/idle, byte-identical
+	// production path). When on, the operator's enable/pause drives the service, and each admitted idle tick scaffolds +
+	// runs a throwaway dev-test eval, reaped by deadline / terminal state, then deletes its workspace.
+	const railExecFileAsync = promisify(execFile);
+	backgroundEvalRailWiring = wireBackgroundEvalRail({
+		enabled: isTruthyEnv(process.env.NKLEIN_EVAL_RAIL),
+		now: () => Date.now(),
+		maxConcurrentEvals: 1,
+		tickIntervalMs: 5 * 60_000,
+		maxRunMs: 30 * 60_000,
+		scenarioIds: ["mid_task"],
+		scaffoldEvalWorkspace: async (scenarioId) => {
+			const scaffold = await scaffoldNKleinDevTestProject({
+				scenario: resolveNKleinDevTestProjectScenario(scenarioId),
+			});
+			const ctx = await loadWorkspaceContext(scaffold.workspacePath, { autoCreateIfMissing: true });
+			return { workspacePath: scaffold.workspacePath, workspaceId: ctx.workspaceId };
+		},
+		startEvalSession: async ({ taskId, scenarioId, workspacePath, workspaceId }) => {
+			const scenario = resolveNKleinDevTestProjectScenario(scenarioId);
+			const baseRef = await railExecFileAsync("git", ["-C", workspacePath, "rev-parse", "--abbrev-ref", "HEAD"])
+				.then(({ stdout }) => stdout.trim() || "main")
+				.catch(() => "main");
+			const svc = await getScopedNKleinTaskSessionService({ workspaceId: workspaceId ?? "", workspacePath });
+			await svc.startTaskSession({
+				taskId,
+				cwd: workspacePath,
+				prompt: scenario.prompt,
+				taskTitle: scenario.title,
+				baseRef,
+				startInPlanMode: true,
+			});
+		},
+		getEvalSessionState: async ({ taskId, workspacePath }) => {
+			const ctx = await loadWorkspaceContext(workspacePath, { autoCreateIfMissing: false });
+			const svc = await getScopedNKleinTaskSessionService({ workspaceId: ctx.workspaceId, workspacePath });
+			return svc.getSummary(taskId)?.state ?? null;
+		},
+		stopEvalSession: async ({ taskId, workspacePath }) => {
+			const ctx = await loadWorkspaceContext(workspacePath, { autoCreateIfMissing: false });
+			const svc = await getScopedNKleinTaskSessionService({ workspaceId: ctx.workspaceId, workspacePath });
+			await svc.stopTaskSession(taskId);
+		},
+		removeWorkspace: async (workspacePath) => {
+			await rm(workspacePath, { recursive: true, force: true });
+		},
+		// Same-process leases resolve their path from the assembly's map; a lease recovered after a restart has no
+		// map entry, and we don't reverse workspaceId→path here (best-effort: such orphans are reaped, not path-cleaned).
+		resolveWorkspacePathById: () => null,
+		getSignals: async () => {
+			const allSessions = [...nkleinTaskSessionServiceByWorkspaceId.values()].flatMap((sessionService) =>
+				sessionService.listModelEndpointSessions(),
+			);
+			const runningWorker = allSessions.filter(
+				(session) =>
+					session.state === "running" &&
+					!isDerivedTaskSessionId(session.taskId) &&
+					!isHomeAgentSessionId(session.taskId) &&
+					!session.taskId.startsWith("devtest-"),
+			);
+			const loadedIds = await fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]);
+			return {
+				hasInteractiveWork: runningWorker.length > 0,
+				loadedModelIdle: loadedIds.length > 0 && runningWorker.length === 0,
+				resourceHeadroom: runningWorker.length === 0,
+			};
+		},
+		warn: deps.warn,
+	});
+
 	runtimeApi = createRuntimeApi({
+		railControlCoordinator: backgroundEvalRailWiring.coordinator,
 		getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
 		getActiveWorkspacePath: deps.workspaceRegistry.getActiveWorkspacePath,
 		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
@@ -3606,6 +3690,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		refreshAgentSandboxStatus,
 		isRemoteMode,
 	});
+
+	// F1.31b: start the background-eval service now iff the operator's persisted intent is already active (no-op when the
+	// rail flag is off or the intent is disabled/paused — the default). Fire-and-forget; the hook is fail-soft internally.
+	void backgroundEvalRailWiring.startAtBoot();
 
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {
 		const requestUrl = new URL(req.url ?? "/", "http://localhost");
@@ -3966,6 +4054,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	return {
 		url,
 		close: async () => {
+			// F1.31b: stop the background-eval service first — it force-stops + cleans every held eval workspace before the
+			// task-session services below are torn down (best-effort; never blocks shutdown on a stuck sandbox).
+			await backgroundEvalRailWiring?.stop().catch(() => undefined);
 			for (const drainTimer of queuedStartDrainTimersByWorkspaceId.values()) {
 				clearTimeout(drainTimer.timer);
 			}
