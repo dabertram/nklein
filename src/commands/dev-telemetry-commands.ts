@@ -33,6 +33,7 @@ import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
+import { estimateLearnedRetryBudget } from "../core/learned-retry-budget";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
@@ -65,6 +66,7 @@ import {
 } from "../core/rail-findings";
 import { buildReplayEvalOutcome, orchestrateReplayEvalAutoCapture } from "../core/replay-eval-orchestration";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
+import { buildRetryBudgetObservationsByModel } from "../core/retry-budget-projection";
 import {
 	backfillRoutingOutcomes,
 	type RoutingOutcomeJoin,
@@ -384,6 +386,29 @@ export async function runDevCapabilityCeilingCommand(
 		process.stdout.write(
 			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
 		);
+	}
+}
+
+/** F3.30 — per-model learned retry budgets (useful same-model retries before diminishing returns) from the ledger. */
+export async function runDevRetryBudgetsCommand(options: { json?: boolean } = {}): Promise<void> {
+	const byModel = buildRetryBudgetObservationsByModel(await readAllAgentLedger());
+	const rows = [...byModel.entries()].map(([modelId, observations]) => ({
+		modelId,
+		...estimateLearnedRetryBudget(observations),
+	}));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		"Learned retry budgets (F3.30) — useful same-model retries per model from real ledger history\n\n",
+	);
+	if (rows.length === 0) {
+		process.stdout.write("(no attempts recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	for (const row of rows) {
+		process.stdout.write(`  ${row.modelId}: ${row.recommendedMaxRetries} retries — ${row.reason}\n`);
 	}
 }
 

@@ -65,6 +65,7 @@ import {
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
 	runDevRetrievalUsefulnessCommand,
+	runDevRetryBudgetsCommand,
 	runDevRostersCommand,
 	runDevRoutingCalibrationCommand,
 	runDevRoutingPreviewCommand,
@@ -758,6 +759,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevAnswerBudgetsCommand(options);
+		});
+
+	dev.command("retry-budgets")
+		.description("Per-model learned retry budgets (F3.30) — useful same-model retries from real ledger history.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRetryBudgetsCommand(options);
 		});
 
 	dev.command("stubborn-failure")
