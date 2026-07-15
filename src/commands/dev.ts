@@ -50,6 +50,7 @@ import {
 	runDevMemoryAuditCommand,
 	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
+	runDevOpportunisticValueCommand,
 	runDevPlaceholderScanCommand,
 	runDevQualityBudgetCommand,
 	runDevRailEvidenceCommand,
@@ -789,6 +790,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevRetrievalUsefulnessCommand(options);
+		});
+
+	dev.command("opportunistic-value")
+		.description("Project the ledger into per-kind opportunistic-work realized-value rates (F1.36).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevOpportunisticValueCommand(options);
 		});
 
 	dev.command("remediation")

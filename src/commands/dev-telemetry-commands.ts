@@ -40,6 +40,7 @@ import {
 } from "../core/model-behavior-profile";
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
+import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
 import { scanForPlaceholders } from "../core/placeholder-scan";
 import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
@@ -493,6 +494,28 @@ export async function runDevRemediationCommand(options: { taskId: string; json?:
 	process.stdout.write(`  peak level: L${peak}\n\n`);
 	for (const finding of findings) {
 		process.stdout.write(`  [L${finding.level}] ${finding.pattern.padEnd(16)} — ${finding.detail}\n`);
+	}
+}
+
+/** F1.36 — did opportunistic idle work pay off? Project the ledger into per-kind dispatched/realized value rates. */
+export async function runDevOpportunisticValueCommand(options: { json?: boolean } = {}): Promise<void> {
+	const events = await readAllAgentLedger();
+	const summaries = summarizeOpportunisticValue(events);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(summaries, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Opportunistic-work value (F1.36) — ${summaries.length} work kind(s) in the ledger\n\n`);
+	if (summaries.length === 0) {
+		process.stdout.write("(no opportunistic-work outcomes recorded yet — enable the idle sweep, then re-check)\n");
+		return;
+	}
+	for (const row of summaries) {
+		process.stdout.write(
+			`  ${row.kind.padEnd(28)} ${String(row.dispatched).padStart(4)} dispatched  ` +
+				`${String(Math.round(row.realizedRate * 100)).padStart(3)}% realized  ` +
+				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
+		);
 	}
 }
 
