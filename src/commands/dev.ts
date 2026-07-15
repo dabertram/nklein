@@ -50,6 +50,7 @@ import {
 	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
 	runDevRailEvidenceCommand,
+	runDevRemediationCommand,
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
 	runDevRostersCommand,
@@ -764,6 +765,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("remediation")
+		.description(
+			"Replay a card's ledger trajectory through the process-remediation detector (PRM, opencode-swarm port).",
+		)
+		.requiredOption("--task <id>", "The task id to analyze.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { task: string; json?: boolean }) => {
+			await runDevRemediationCommand({ taskId: options.task, json: options.json });
 		});
 
 	dev.command("swarm")

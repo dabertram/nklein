@@ -40,6 +40,8 @@ import {
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
+import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
+import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import {
 	buildRailFindingRetentionEvent,
@@ -388,6 +390,35 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	for (const cell of ranked.slice(0, limit)) {
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
+	}
+}
+
+/** PRM (opencode-swarm port) — replay a card's real ledger trajectory through the process-remediation detector. */
+export async function runDevRemediationCommand(options: { taskId: string; json?: boolean }): Promise<void> {
+	const events = await readAllAgentLedger();
+	const trajectory = buildProcessTrajectoryFromLedger(events, options.taskId);
+	const findings = detectProcessRemediation(trajectory);
+	const peak = peakRemediationLevel(findings);
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ taskId: options.taskId, steps: trajectory.steps.length, peakLevel: peak, findings }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(
+		`Process remediation (PRM, opencode-swarm port) — task ${options.taskId}: ${trajectory.steps.length} trajectory step(s)\n\n`,
+	);
+	if (trajectory.steps.length === 0) {
+		process.stdout.write("(no attempt events for this task — run it, then re-check)\n");
+		return;
+	}
+	if (findings.length === 0) {
+		process.stdout.write("  no process-remediation patterns detected (healthy trajectory)\n");
+		return;
+	}
+	process.stdout.write(`  peak level: L${peak}\n\n`);
+	for (const finding of findings) {
+		process.stdout.write(`  [L${finding.level}] ${finding.pattern.padEnd(16)} — ${finding.detail}\n`);
 	}
 }
 
