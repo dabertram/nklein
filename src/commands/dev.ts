@@ -47,6 +47,7 @@ import {
 	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
 	runDevLedgerCommand,
+	runDevMemoryAuditCommand,
 	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
 	runDevPlaceholderScanCommand,
@@ -767,6 +768,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("memory-audit")
+		.description(
+			"Run the F5.2 freshness audit over ~/basic-memory (stale/orphaned/broken-link/duplicate, read-only).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
+		.option("--stale-days <n>", "Flag notes older than this many days as stale (default 180).", (v) => Number(v))
+		.action(async (options: { json?: boolean; root?: string; staleDays?: number }) => {
+			await runDevMemoryAuditCommand(options);
 		});
 
 	dev.command("remediation")

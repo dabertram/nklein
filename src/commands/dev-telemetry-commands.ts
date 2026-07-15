@@ -30,6 +30,7 @@ import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { auditMemoryFreshness } from "../core/memory-freshness-audit";
 import { classifyMemoryLifecycle } from "../core/memory-lifecycle";
 import {
 	dominantFailureMode,
@@ -491,6 +492,36 @@ export async function runDevRemediationCommand(options: { taskId: string; json?:
 	process.stdout.write(`  peak level: L${peak}\n\n`);
 	for (const finding of findings) {
 		process.stdout.write(`  [L${finding.level}] ${finding.pattern.padEnd(16)} — ${finding.detail}\n`);
+	}
+}
+
+/** F5.2 — run the memory freshness audit over the real ~/basic-memory corpus (stale/orphaned/broken_link/duplicate). */
+export async function runDevMemoryAuditCommand(
+	options: { json?: boolean; root?: string; staleDays?: number } = {},
+): Promise<void> {
+	const { homedir } = await import("node:os");
+	const { join } = await import("node:path");
+	const root = options.root?.trim() || join(homedir(), "basic-memory");
+	const staleDays = options.staleDays && options.staleDays > 0 ? options.staleDays : 180;
+	const notes = await readBasicMemoryNotes(root, nodeBasicMemoryFsDeps()).catch(() => []);
+	const config = { stalenessThresholdMs: staleDays * 24 * 60 * 60 * 1000, cadenceMs: 0 };
+	const result = auditMemoryFreshness(notes, config, Date.now());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ root, staleDays, ...result }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		`Memory freshness audit (F5.2) — ${result.notesAudited} note(s) at ${root} (stale > ${staleDays}d)\n\n`,
+	);
+	const { summary } = result;
+	process.stdout.write(
+		`  stale ${summary.stale} · orphaned ${summary.orphaned} · broken_link ${summary.broken_link} · duplicate_title ${summary.duplicate_title}\n\n`,
+	);
+	for (const finding of result.findings.slice(0, 30)) {
+		process.stdout.write(`  [${finding.kind}] ${finding.noteTitle.slice(0, 48).padEnd(48)} — ${finding.detail}\n`);
+	}
+	if (result.findings.length > 30) {
+		process.stdout.write(`  … and ${result.findings.length - 30} more\n`);
 	}
 }
 
