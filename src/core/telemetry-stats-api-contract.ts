@@ -405,3 +405,23 @@ export const runtimeRailTunablesRequestSchema = z.object({
 	maxConcurrentEvals: z.number().int().positive().optional(),
 });
 export type RuntimeRailTunablesRequest = z.infer<typeof runtimeRailTunablesRequestSchema>;
+
+/**
+ * F1.40 — per-card and per-project TIME tracking (read-only telemetry). Age (total wall-clock) + active time (union of
+ * attempt spans, "!Klein actually working") + LLM processing time (total across attempts, and successful-only). All
+ * projected from the attempt ledger + board card timestamps — no new recording seam. Workspace-scoped.
+ */
+export const runtimeTimeTrackingMetricsSchema = z.object({
+	ageTotalMs: z.number().nonnegative(),
+	activeMs: z.number().nonnegative(),
+	llmTotalMs: z.number().nonnegative(),
+	llmSuccessfulMs: z.number().nonnegative(),
+});
+export type RuntimeTimeTrackingMetrics = z.infer<typeof runtimeTimeTrackingMetricsSchema>;
+
+export const runtimeTimeTrackingResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	project: runtimeTimeTrackingMetricsSchema,
+	cards: z.array(z.object({ taskId: z.string(), title: z.string(), metrics: runtimeTimeTrackingMetricsSchema })),
+});
+export type RuntimeTimeTrackingResponse = z.infer<typeof runtimeTimeTrackingResponseSchema>;

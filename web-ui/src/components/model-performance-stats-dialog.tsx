@@ -13,6 +13,7 @@ import {
 import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { RailControlsPanel } from "@/components/rail-controls-panel";
+import { TimeTrackingPanel } from "@/components/time-tracking-panel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -635,6 +636,9 @@ export function ModelPerformanceStatsDialog({
 				</div>
 				<div className="mt-4">
 					<RailControlsPanel workspaceId={workspaceId} />
+				</div>
+				<div className="mt-4">
+					<TimeTrackingPanel workspaceId={workspaceId} />
 				</div>
 				<SectionTitle title="By Model (global)" />
 				<div className="overflow-x-auto rounded-md border border-border">

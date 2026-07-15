@@ -23,6 +23,7 @@ import type {
 	RuntimeRailTunablesRequest,
 	RuntimeRunUpdateResponse,
 	RuntimeSetupPlanResponse,
+	RuntimeTimeTrackingResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
 
@@ -105,6 +106,12 @@ export async function fetchModelVerdictBadges(workspaceId: string | null): Promi
 export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getFleetStatus.query();
+}
+
+/** F1.40: per-card + per-project time tracking (age / active / LLM-processing), read-only. */
+export async function fetchTimeTracking(workspaceId: string | null): Promise<RuntimeTimeTrackingResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTimeTracking.query();
 }
 
 /** §5.AB "Evaluate connected models" (todo 6544): eval every loaded model against the corpus + persist fitness. */

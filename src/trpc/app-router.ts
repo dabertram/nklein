@@ -167,6 +167,7 @@ import type {
 	RuntimeTaskWorkspaceInfoRequest,
 	RuntimeTaskWorktreeMergeRequest,
 	RuntimeTaskWorktreeMergeResponse,
+	RuntimeTimeTrackingResponse,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceChangesRequest,
 	RuntimeWorkspaceChangesResponse,
@@ -239,6 +240,8 @@ export interface RuntimeTrpcContext {
 		setRailTunables: (input: RuntimeRailTunablesRequest) => Promise<RuntimeRailStatusResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
+		/** F1.40: per-card + per-project time tracking (age / active / LLM-processing), read-only. */
+		getTimeTracking: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeTimeTrackingResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
 		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
 		/** F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive). */

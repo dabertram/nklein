@@ -134,6 +134,7 @@ import {
 	runtimeTaskSessionStopResponseSchema,
 	runtimeTaskWorktreeMergeRequestSchema,
 	runtimeTaskWorktreeMergeResponseSchema,
+	runtimeTimeTrackingResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
@@ -188,6 +189,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		// §5.AX fleet-strip live status (machine names + warmth).
 		getFleetStatus: workspaceProcedure.output(runtimeFleetStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getFleetStatus(ctx.workspaceScope);
+		}),
+		// F1.40: per-card + per-project time tracking (age / active / LLM-processing), read-only.
+		getTimeTracking: workspaceProcedure.output(runtimeTimeTrackingResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getTimeTracking(ctx.workspaceScope);
 		}),
 		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards.
 		getCardMailboxCounts: t.procedure

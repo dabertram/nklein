@@ -76,6 +76,7 @@ import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projectio
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
+import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingAttempt } from "../core/time-tracking";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
 import { buildEnforcedEvalChat } from "../nklein-agent/enforced-eval-chat";
 import {
@@ -638,6 +639,44 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getWarmthLedger: () =>
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
 			});
+		},
+		// F1.40: per-card + per-project time tracking. Projects the attempt ledger grouped by taskId over the
+		// workspace's board cards -- age (now - createdAt), active time (union of attempt spans), and LLM processing
+		// time (total + successful). Read-only; empty-safe on any read failure.
+		getTimeTracking: async (workspaceScope) => {
+			const now = Date.now();
+			const [board, ledger] = await Promise.all([
+				loadWorkspaceState(workspaceScope.workspacePath)
+					.then((state) => state.board)
+					.catch(() => null),
+				readAllAgentLedger().catch(() => []),
+			]);
+			const attemptsByTask = new Map<string, TimeTrackingAttempt[]>();
+			for (const attempt of selectAttempts(ledger)) {
+				const list = attemptsByTask.get(attempt.taskId) ?? [];
+				list.push({
+					startedAt: attempt.startedAt ?? null,
+					completedAt: attempt.completedAt ?? null,
+					outcome: attempt.outcome,
+				});
+				attemptsByTask.set(attempt.taskId, list);
+			}
+			const cards = board ? board.columns.flatMap((column) => column.cards) : [];
+			const cardRows = cards.map((card) => ({
+				taskId: card.id,
+				title: card.title ?? card.id,
+				metrics: computeTimeTracking({
+					createdAt: card.createdAt,
+					attempts: attemptsByTask.get(card.id) ?? [],
+					now,
+				}),
+			}));
+			const project = computeProjectTimeTracking({
+				cards: cards.map((card) => ({ createdAt: card.createdAt })),
+				attempts: cards.flatMap((card) => attemptsByTask.get(card.id) ?? []),
+				now,
+			});
+			return { generatedAt: now, project, cards: cardRows };
 		},
 		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards (only non-zero entries returned).
 		getCardMailboxCounts: async (input) => {
