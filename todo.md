@@ -839,7 +839,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   verdicts + context floor, resource fit from `NKLEIN_DEVICE_RAM_GB` headroom, evidence from the fitness store via
   `planEvalCoverage`), persist rail run history for the recent-coverage window, and expose the mode + pins in
   config/Settings.
-- [ ] **F1.33b — Mount the rail-findings analysis (cores SHIPPED 2026-07-13).** `src/core/rail-findings.ts` does
+- [x] **F1.33b — Mount the rail-findings analysis (cores SHIPPED 2026-07-13).** `src/core/rail-findings.ts` does
   the full F1.33 brain: `classifyRailFindings` (regression [high when newly-broken] / flake [mixed outcomes,
   stable trend] / quality_gap [delivers ≥floor with anomaly runs] / idea [start-failure-dominated → harness
   work], thresholds injectable, severity-first order, ids = dedup keys), `buildRailFindingRetentionEvent` +
