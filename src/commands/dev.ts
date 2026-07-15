@@ -43,6 +43,7 @@ import {
 	runDevAdviceCommand,
 	runDevCapabilityCeilingCommand,
 	runDevEscalationCommand,
+	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
 	runDevLedgerCommand,
 	runDevModelVerdictCommand,
@@ -717,6 +718,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--endpoint <url>", "Local provider endpoint to read loaded models from.")
 		.action(async (options: { json?: boolean; endpoint?: string }) => {
 			await runDevCapabilityCeilingCommand(options);
+		});
+
+	dev.command("eval-freshness")
+		.description("Rank fitness cells by re-evaluation priority (F3.26) — which cells to re-run first.")
+		.option("--json", "Print machine-readable JSON.")
+		.option("--limit <n>", "How many top cells to show (default 15).", (v) => Number.parseInt(v, 10))
+		.action(async (options: { json?: boolean; limit?: number }) => {
+			await runDevEvalFreshnessCommand(options);
 		});
 
 	dev.command("swarm")

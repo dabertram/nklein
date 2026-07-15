@@ -22,6 +22,7 @@ import {
 	type RoleQualityBar,
 } from "../core/capability-ceiling-recommendation";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
+import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
@@ -57,6 +58,7 @@ import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
+import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import { createResultWorktree } from "../workspace/replay-eval-worktree";
 import { createTaskResultBranchRef } from "../workspace/task-result-branches";
@@ -348,6 +350,39 @@ export async function runDevCapabilityCeilingCommand(
 		process.stdout.write(
 			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
 		);
+	}
+}
+
+/** F3.26 — rank fitness cells by re-evaluation priority (staleness × uncertainty × impact) from the real store. */
+export async function runDevEvalFreshnessCommand(options: { json?: boolean; limit?: number } = {}): Promise<void> {
+	const rows = Object.values(await readMergedFitnessRows());
+	const now = Date.now();
+	const cells: EvalCellFreshnessInput[] = rows.map((row) => ({
+		cellKey: `${row.modelKey}::${row.role}::${row.difficultyTier}`,
+		sampleCount: row.sampleCount,
+		lastEvaluatedAt: row.updatedAt,
+		// The store carries no per-cell version signature yet, so version-staleness is disabled (age-based only).
+		recordedVersionSignature: null,
+		currentVersionSignature: "",
+		usageCount: row.sampleCount,
+	}));
+	const ranked = rankEvalCellsForReevaluation(cells, undefined, now);
+	const limit = options.limit ?? 15;
+
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(ranked.slice(0, limit), null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		"Eval re-evaluation priority (F3.26) — cells to re-run first (staleness × uncertainty × impact)\n\n",
+	);
+	if (ranked.length === 0) {
+		process.stdout.write("(no fitness cells recorded yet — run some evals/tasks, then re-check)\n");
+		return;
+	}
+	for (const cell of ranked.slice(0, limit)) {
+		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
+		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
 	}
 }
 
