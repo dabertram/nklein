@@ -818,7 +818,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the risky structured-equality + reset logic; the header wiring is typecheck-verified and identical to the 9
   Playwright-tested tabs). **F1.29b nav-adoption COMPLETE across all 10 tabs.** REMAINING (optional, lower value):
   per-section *Save* (vs the current per-section Reset + whole-dialog Save) via the settings-save path.
-- [ ] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13).**
+- [~] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13; WIRED 2026-07-15, `c486152e`).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown
   throwaway-project cleanup with COLLECTED errors (a stuck sandbox can't wedge shutdown), checkpoint emptied on
@@ -840,6 +840,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   against a live sandbox/fleet — mock tests prove wiring shape, not behavior. So this is a fleet-ATTENDED build, not a
   safe headless one; the safe boot/close + coordinator wiring rides with it. Injectable-dep + `NKLEIN_EVAL_RAIL`
   default-off keeps production byte-identical either way.
+  **BUILT 2026-07-15 (`c486152e`):** `background-eval-runtime-deps.ts` (assemble service deps from atomic runtime ops,
+  owning the runId->workspace map for lease lifecycle + restart recovery) + `background-eval-rail-wiring.ts` (flag gate,
+  round-robin scenarios, reuse the durable lease checkpoint store, bind to the F1.35 coordinator) + the runtime-server
+  hookup (built before createRuntimeApi so the coordinator injects; real atoms use the STANDALONE `service.startTaskSession`
+  -- NO board seed needed, a key simplification; start-at-boot iff intent active; stop on close before task-session
+  teardown; global idle signals aggregate running worker sessions across workspaces, excluding derived/home/devtest ids).
+  18 unit tests; runtime boots clean with the flag OFF (byte-identical). **REMAINING = FLEET VALIDATION ONLY:** enable
+  `NKLEIN_EVAL_RAIL`, toggle the rail on in Model Performance, confirm it admits when idle / yields on real cards /
+  survives a restart mid-run / leaves zero throwaway workspaces. Follow-ups: F1.32 fitness-aware scenario+model picker
+  (round-robin now); the live tick interval is a 5-min const until the service reads the persisted cadence tunable.
 - [ ] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
   `src/core/background-eval-selection.ts` (`selectBackgroundEvalTarget`) is the pure picker: pinned
   (exact-or-nothing, never substitutes) / evidence (top coverage-probe priority via
