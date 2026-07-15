@@ -146,6 +146,7 @@ import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../securi
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { recordMergeHistory } from "../state/merge-history-store";
+import { appendModelEvalRuns } from "../state/model-eval-run-store";
 import {
 	defaultRuntimeIdModelKeyMapPath,
 	initSharedRuntimeIdModelKeyMap,
@@ -3380,6 +3381,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											},
 										},
 									);
+									// Persist raw per-run records for `dev model-role-stability` (settled-vs-flaky variance);
+									// the aggregate fold below loses the per-run spread. Best-effort; never breaks the re-eval.
+									void appendModelEvalRuns(result.runs).catch(() => {});
 									let recordedCells = 0;
 									for (const cell of result.cells) {
 										if (cell.score === null) {

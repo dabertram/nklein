@@ -50,6 +50,7 @@ import {
 	runDevLedgerCommand,
 	runDevMemoryAuditCommand,
 	runDevMemoryLifecycleCommand,
+	runDevModelRoleStabilityCommand,
 	runDevModelVerdictCommand,
 	runDevOpportunisticValueCommand,
 	runDevPlaceholderScanCommand,
@@ -806,6 +807,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevRoutingCalibrationCommand(options);
+		});
+
+	dev.command("model-role-stability")
+		.description("Over recorded eval runs, is each (model, role) settled or flaky (per-run quality spread)?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevModelRoleStabilityCommand(options);
 		});
 
 	dev.command("knowledge-outcomes")

@@ -104,6 +104,7 @@ import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
+import { appendModelEvalRuns } from "../state/model-eval-run-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
@@ -1056,6 +1057,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					}
 				};
 				const result = await runModelEval({ modelId, repeats }, { chat });
+				// Persist the raw per-run records so `dev model-role-stability` can measure settled-vs-flaky variance —
+				// the aggregate fitness fold below loses the per-run spread. Best-effort; never breaks the eval.
+				void appendModelEvalRuns(result.runs).catch(() => {});
 				for (const cell of result.cells) {
 					if (cell.score === null) {
 						continue;

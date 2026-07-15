@@ -41,6 +41,7 @@ import {
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
 import { lookupModelCapability } from "../core/model-capability-catalog";
+import { summarizeModelRoleStability } from "../core/model-eval-stability";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
@@ -77,6 +78,7 @@ import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/n
 import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
+import { readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
 import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
@@ -556,6 +558,29 @@ export async function runDevOpportunisticValueCommand(options: { json?: boolean 
 			`  ${row.kind.padEnd(28)} ${String(row.dispatched).padStart(4)} dispatched  ` +
 				`${String(Math.round(row.realizedRate * 100)).padStart(3)}% realized  ` +
 				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
+		);
+	}
+}
+
+/** Model-role stability: over recorded raw eval runs, is each (model, role) SETTLED or FLAKY (per-run quality spread)? */
+export async function runDevModelRoleStabilityCommand(options: { json?: boolean } = {}): Promise<void> {
+	const runs = await readAllModelEvalRuns().catch(() => []);
+	const rows = summarizeModelRoleStability(runs);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ runsRecorded: runs.length, rows }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Model-role stability — ${runs.length} recorded eval run(s)\n\n`);
+	if (rows.length === 0) {
+		process.stdout.write("(no eval runs recorded yet — run model evals, then re-check)\n");
+		return;
+	}
+	for (const row of rows) {
+		process.stdout.write(
+			`  ${row.modelId.slice(0, 38).padEnd(38)} ${row.role.padEnd(10)} ` +
+				`${String(Math.round(row.settledFraction * 100)).padStart(3)}% settled  ` +
+				`[settled ${row.settledCells} · flaky ${row.flakyCells} · thin ${row.thinCells} of ${row.cells} cell(s)] ` +
+				`conf ${row.meanConfidence.toFixed(2)}${row.totalRunsOwed > 0 ? ` · ${row.totalRunsOwed} re-eval(s) owed` : ""}\n`,
 		);
 	}
 }
