@@ -51,6 +51,7 @@ import {
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
 	runDevRostersCommand,
+	runDevRoutingPreviewCommand,
 	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
 } from "./dev-telemetry-commands";
@@ -735,6 +736,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { task: string; json?: boolean }) => {
 			await runDevStubbornFailureCommand({ taskId: options.task, json: options.json });
+		});
+
+	dev.command("routing-preview")
+		.description("Preview the confidence+resource-aware routing order for a role over the loaded fleet (F3.33).")
+		.option("--role <role>", "Role to rank for (architect|worker|reviewer|…).", "worker")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { role: string; json?: boolean }) => {
+			await runDevRoutingPreviewCommand(options);
 		});
 
 	dev.command("swarm")

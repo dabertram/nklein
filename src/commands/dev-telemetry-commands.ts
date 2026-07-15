@@ -21,6 +21,7 @@ import {
 	type FleetModelFitness,
 	type RoleQualityBar,
 } from "../core/capability-ceiling-recommendation";
+import { type RoutingCandidate, rankRoutingCandidates } from "../core/confidence-resource-routing";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
@@ -384,6 +385,46 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	for (const cell of ranked.slice(0, limit)) {
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
+	}
+}
+
+/** F3.33 — preview the confidence+resource-aware routing order for a role over the LOADED fleet (verifiable live). */
+export async function runDevRoutingPreviewCommand(options: { role: string; json?: boolean }): Promise<void> {
+	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
+	const loaded = (await fetchLmsPsModels(createDefaultLmsRunner()).catch(() => [])).filter((m) => !m.isEmbedding);
+	const roleFitness = advice.perRole.filter((r) => r.role === options.role);
+	const confidenceFor = (m: { identifier: string; modelKey: string }): number => {
+		const hit = roleFitness.find((r) => r.modelId.includes(m.identifier) || r.modelId.includes(m.modelKey));
+		return hit ? hit.successRate : 0.5; // unknown ⇒ neutral prior
+	};
+	// A loaded model is feasible by definition (it already fits in RAM) and warm (no cold load).
+	const candidates: RoutingCandidate[] = loaded.map((m) => ({
+		modelKey: m.identifier,
+		endpoint: m.machineId,
+		qualityConfidence: confidenceFor(m),
+		queueDepth: m.queued,
+		freeRamGb: 1,
+		requiredRamGb: 0,
+		estimatedLoadMs: 0,
+		endpointOccupancy: m.queued > 0 ? Math.min(1, m.queued / 4) : 0,
+		warmCacheValue: 0.5,
+	}));
+	const ranked = rankRoutingCandidates(candidates);
+
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ role: options.role, ranking: ranked }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Routing preview (F3.33) for role "${options.role}" over the loaded fleet — best first\n\n`);
+	if (ranked.length === 0) {
+		process.stdout.write("(no non-embedding models loaded)\n");
+		return;
+	}
+	for (const r of ranked) {
+		const reasons = r.reasons.length > 0 ? ` — ${r.reasons.join(", ")}` : "";
+		process.stdout.write(
+			`  ${String(Math.round(r.score * 100)).padStart(3)}  ${r.modelKey.padEnd(38)} @${r.endpoint}${reasons}\n`,
+		);
 	}
 }
 
