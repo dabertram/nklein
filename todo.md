@@ -1128,12 +1128,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
   feed agreement/cost into reliability and routing.
 - [~] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
-  only when evidence says they help. **PURE CORE SHIPPED (`enforced-reasoning-benefit.ts` — `learnReasoningBenefit` +
-  `shouldEnforceReasoning`). BLOCKED on the OBSERVATION PRODUCER (verified 2026-07-15, signal-level): the learner needs
-  `{reasoningEnabled, qualityScore}` pairs per cell, but no live path produces both — chat has the enforced-reasoning
-  loop (`chat-enforced-reasoning.ts`) but NO 0-1 quality grade; the graded board/eval path never varies+records reasoning
-  enforcement. The precursor is a reasoning-TOGGLED eval variant (generate each cell baseline + enforced, score both) =
-  a deliberate 2x-eval-cost A/B experiment, fleet-gated — a David resource decision, not a recording seam.**
+  only when evidence says they help. **PURE CORE + A/B SUBSTRATE SHIPPED (`7607b9da`): `enforced-reasoning-benefit.ts`
+  (`learnReasoningBenefit`/`shouldEnforceReasoning`) + `reasoning-observation-store.ts` + an OPT-IN A/B pass in
+  `runModelEval` (inject `enforcedChat`+`recordReasoningBenefit` ⇒ re-score each cell through the enforced chat, record
+  both; default off = byte-identical, zero cost) + `dev reasoning-benefit` CLI. Mock-verified (9 tests). REMAINING =
+  PRODUCER ACTIVATION, design-gated: no production caller passes `enforcedChat` because enforced-reasoning is a free-form
+  PROSE refinement (`maybeEnforceReasoning` bounces a draft) while the eval families are STRUCTURED (decompose→tool-call
+  JSON, tool_use→calls) — grafting a prose bounce onto them needs a design decision (which families A/B? how to enforce
+  on structured output?). Opt-in flag + a sound enforcedChat adapter at the runModelEval call sites = the activation.**
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
