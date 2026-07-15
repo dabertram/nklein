@@ -1234,9 +1234,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `distractor-observation-store.ts` + an OPT-IN noise A/B pass in `runModelEval` (inject `noisyChat`+`noiseFraction`+
   `recordDistractorSensitivity` ⇒ re-score each cell with distractor noise, record the baseline-vs-noisy pair; default
   off = byte-identical) + `dev distractor-sensitivity` CLI. Mock-verified (11 tests). Each DistractorObservation is a
-  self-contained A/B pair (sensitivity = drop/noise per obs, no sweep). REMAINING = PRODUCER ACTIVATION: a real
-  `noisyChat` (wrap the base chat with a distractor-context prefix + its token-share noiseFraction) behind an opt-in
-  flag at the runModelEval call sites — CLEANER than F3.16's (noise injection is family-agnostic, no structured mismatch).**
+  self-contained A/B pair (sensitivity = drop/noise per obs, no sweep). **ACTIVATION SHIPPED (`c5241158`):
+  `buildNoisyEvalChat` (prepends `DEFAULT_EVAL_DISTRACTOR` + reports noiseFraction) wired at the runtime-api
+  evaluateConnectedModels seam behind the `NKLEIN_EVAL_DISTRACTOR_PROBE` flag (default off = byte-identical; on = the
+  A/B second pass, doubles eval cost). COMPLETE as a flag-gated feature — enable on the fleet and `dev
+  distractor-sensitivity` fills with real data. Only real DATA is fleet-gated; the wrapper + wiring are mock/type-verified.**
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
