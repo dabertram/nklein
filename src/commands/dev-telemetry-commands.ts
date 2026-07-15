@@ -53,6 +53,7 @@ import {
 	proposeRailBacklogPackages,
 } from "../core/rail-findings";
 import { buildReplayEvalOutcome, orchestrateReplayEvalAutoCapture } from "../core/replay-eval-orchestration";
+import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
@@ -493,6 +494,30 @@ export async function runDevRemediationCommand(options: { taskId: string; json?:
 	for (const finding of findings) {
 		process.stdout.write(`  [L${finding.level}] ${finding.pattern.padEnd(16)} — ${finding.detail}\n`);
 	}
+}
+
+/** §5.AC — is online retrieval earning its keep? Project the ledger's retrieval events into a usefulness summary. */
+export async function runDevRetrievalUsefulnessCommand(options: { json?: boolean } = {}): Promise<void> {
+	const events = await readAllAgentLedger();
+	const summary = summarizeRetrievalUsefulness(events);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Retrieval usefulness (§5.AC) — ${summary.total} retrieval event(s) in the ledger\n\n`);
+	if (summary.total === 0) {
+		process.stdout.write("(no retrieval events recorded yet — run some retrieval turns, then re-check)\n");
+		return;
+	}
+	const prune =
+		summary.meanDistractorPruneRatio === null ? "n/a" : `${(summary.meanDistractorPruneRatio * 100).toFixed(0)}%`;
+	process.stdout.write(
+		`  helped ${summary.helped} · hurt ${summary.hurt} · neutral ${summary.neutral} · unknown ${summary.unknown}\n`,
+	);
+	process.stdout.write(
+		`  helpful-rate ${(summary.helpfulRate * 100).toFixed(0)}% (of verdicted) · mean distractor-prune ${prune} · ` +
+			`${summary.totalCitations} citation(s) across ${summary.distinctCitedSources} distinct source(s)\n`,
+	);
 }
 
 /** F5.2 — run the memory freshness audit over the real ~/basic-memory corpus (stale/orphaned/broken_link/duplicate). */

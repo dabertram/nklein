@@ -56,6 +56,7 @@ import {
 	runDevRemediationCommand,
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
+	runDevRetrievalUsefulnessCommand,
 	runDevRostersCommand,
 	runDevRoutingPreviewCommand,
 	runDevStubbornFailureCommand,
@@ -779,6 +780,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--stale-days <n>", "Flag notes older than this many days as stale (default 180).", (v) => Number(v))
 		.action(async (options: { json?: boolean; root?: string; staleDays?: number }) => {
 			await runDevMemoryAuditCommand(options);
+		});
+
+	dev.command("retrieval-usefulness")
+		.description(
+			"Project the ledger's retrieval events into a usefulness summary (§5.AC — is retrieval earning its keep?).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRetrievalUsefulnessCommand(options);
 		});
 
 	dev.command("remediation")
