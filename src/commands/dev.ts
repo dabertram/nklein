@@ -47,6 +47,7 @@ import {
 	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
 	runDevLedgerCommand,
+	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
 	runDevRailEvidenceCommand,
 	runDevReplayEvalAutoCaptureCommand,
@@ -755,6 +756,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { task: string; json?: boolean }) => {
 			await runDevControllerTraceCommand({ taskId: options.task, json: options.json });
+		});
+
+	dev.command("memory-lifecycle")
+		.description("Classify the ~/basic-memory corpus into promote/retire/merge (opencode-swarm port, read-only).")
+		.option("--json", "Print machine-readable JSON.")
+		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
+		.action(async (options: { json?: boolean; root?: string }) => {
+			await runDevMemoryLifecycleCommand(options);
 		});
 
 	dev.command("swarm")

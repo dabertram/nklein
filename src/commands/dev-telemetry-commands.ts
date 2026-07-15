@@ -15,6 +15,7 @@ import {
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
+import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import {
 	assessCapabilityCeiling,
 	ceilingHitRoles,
@@ -29,6 +30,7 @@ import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { classifyMemoryLifecycle } from "../core/memory-lifecycle";
 import {
 	dominantFailureMode,
 	learnedQualityEffectiveBudget,
@@ -386,6 +388,36 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	for (const cell of ranked.slice(0, limit)) {
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
+	}
+}
+
+/** memory-lifecycle (opencode-swarm port) — classify the real ~/basic-memory corpus into promote/retire/merge/keep. */
+export async function runDevMemoryLifecycleCommand(options: { json?: boolean; root?: string } = {}): Promise<void> {
+	const { homedir } = await import("node:os");
+	const { join } = await import("node:path");
+	const root = options.root?.trim() || join(homedir(), "basic-memory");
+	const notes = await readBasicMemoryNotes(root, nodeBasicMemoryFsDeps()).catch(() => []);
+	const recommendations = classifyMemoryLifecycle(notes, {}, undefined, Date.now());
+	const actionable = recommendations.filter((r) => r.action !== "keep");
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ root, notesRead: notes.length, recommendations: actionable }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(`Memory lifecycle (opencode-swarm port) — ${notes.length} note(s) at ${root}\n\n`);
+	const summary = { promote: 0, retire: 0, merge: 0, keep: 0 } as Record<string, number>;
+	for (const rec of recommendations) {
+		summary[rec.action] += 1;
+	}
+	process.stdout.write(
+		`  promote ${summary.promote} · retire ${summary.retire} · merge ${summary.merge} · keep ${summary.keep}\n\n`,
+	);
+	for (const rec of actionable.slice(0, 20)) {
+		process.stdout.write(`  [${rec.action}] ${rec.noteTitle.slice(0, 54).padEnd(54)} — ${rec.rationale}\n`);
+	}
+	if (actionable.length > 20) {
+		process.stdout.write(`  … and ${actionable.length - 20} more\n`);
 	}
 }
 
