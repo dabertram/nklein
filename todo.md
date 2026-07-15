@@ -1232,7 +1232,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and make the default fully dynamic without hidden env-only behavior.
 - [ ] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
-- [ ] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
+- [x] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
   provenance/effect, and avoid retrying equivalent fragments.
 - [ ] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash,
   outcomes, supersession, and provenance as durable procedural memory.
