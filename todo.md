@@ -1201,9 +1201,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   genuinely-missing capability: `extractPublicationDate(html)` (parse article:published_time / JSON-LD datePublished /
   date meta / <time>, null when absent, never fabricated) + `evidenceTrustFromRef(url)` (trust DERIVED via existing
   `scoreSourceTrust` — no new policy, my earlier "needs a trust policy" was wrong) + `buildCurrencyEvidenceFromSource`.
-  Pure, mock-verified (8 tests). REMAINING ACTIVATION: call the composer in the web-research fetch (where raw HTML lives)
-  + persist the CurrencyEvidence + the output ANNOTATION ("show ... in agent output" = a chat-rendering concern). Both
-  are effectful wiring on top of the shipped measurement substrate.**
+  Pure, mock-verified (8 tests). **CAPTURE + MEASUREMENT SHIPPED (`e5a1b65d`): `currency-evidence-store.ts` +
+  best-effort capture wired in `runWebResearchFetch` (parses date + derives trust per fetched source, egress-gated) +
+  `dev evidence-currency` CLI (status + support/high-trust/conflict counts + the sanitized `annotation`). REMAINING =
+  render `summary.annotation` INLINE in agent output ("show ... in agent output" — a chat-rendering concern); the
+  annotation STRING is already produced + surfaced via the CLI, so only the turn-response wiring is left.**
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
 - [ ] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict,
