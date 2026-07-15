@@ -22,7 +22,11 @@ import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../ch
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
-import { selectAttempts } from "../core/agent-attempt-ledger";
+import {
+	selectAttempts,
+	summarizeKnowledgeDebtOutcomes,
+	summarizeKnowledgeOutcomeByModel,
+} from "../core/agent-attempt-ledger";
 import type {
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeTaskContextImportResponse,
@@ -63,7 +67,9 @@ import {
 } from "../core/model-behavior-profile";
 import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
+import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
@@ -524,6 +530,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return {
 				generatedAt: Date.now(),
 				rows: buildFitnessTableView(Object.values(rows)),
+			};
+		},
+		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value — the same three
+		// projections behind the `dev retrieval-usefulness` / `dev knowledge-outcomes` / `dev opportunistic-value`
+		// CLIs, folded read-only for the operator telemetry UI. Empty-safe: a missing/unreadable ledger yields zeros.
+		getLedgerAnalytics: async () => {
+			const events = await readAllAgentLedger().catch(() => []);
+			return {
+				generatedAt: Date.now(),
+				retrieval: summarizeRetrievalUsefulness(events),
+				knowledgeByModel: summarizeKnowledgeOutcomeByModel(events),
+				knowledgeDebt: summarizeKnowledgeDebtOutcomes(events),
+				opportunistic: summarizeOpportunisticValue(events),
 			};
 		},
 		// §5.AL/§10c#11: degraded-model badges for the model selector — derived from persisted self-observation

@@ -30,6 +30,7 @@ import {
 	runtimeHostActionConfirmResolveResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
+	runtimeLedgerAnalyticsResponseSchema,
 	runtimeListPlanQuestionsRequestSchema,
 	runtimeListPlanQuestionsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
@@ -157,6 +158,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getFitnessTable: t.procedure
 			.output(runtimeFitnessTableResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getFitnessTable()),
+		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value (global ledger, read-only).
+		getLedgerAnalytics: t.procedure
+			.output(runtimeLedgerAnalyticsResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getLedgerAnalytics()),
 		getModelVerdictBadges: t.procedure
 			.output(runtimeModelVerdictBadgesResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getModelVerdictBadges()),

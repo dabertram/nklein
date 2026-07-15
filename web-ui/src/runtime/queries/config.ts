@@ -11,6 +11,7 @@ import type {
 	RuntimeFleetStatusResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeLedgerAnalyticsResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
@@ -53,6 +54,12 @@ export async function fetchModelBehaviorProfiles(
 export async function fetchFitnessTable(workspaceId: string | null): Promise<RuntimeFitnessTableResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getFitnessTable.query();
+}
+
+/** Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value (read-only telemetry). */
+export async function fetchLedgerAnalytics(workspaceId: string | null): Promise<RuntimeLedgerAnalyticsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getLedgerAnalytics.query();
 }
 
 /** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */

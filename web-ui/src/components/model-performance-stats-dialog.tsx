@@ -19,6 +19,7 @@ import {
 	evaluateConnectedModels,
 	fetchFitnessTable,
 	fetchKnowledgeToolUsageStats,
+	fetchLedgerAnalytics,
 	fetchModelBehaviorProfiles,
 	fetchModelPerformanceStats,
 } from "@/runtime/runtime-config-query";
@@ -29,6 +30,7 @@ import type {
 	RuntimeKnowledgeToolUsageAggregate,
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeLedgerAnalyticsResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceAggregate,
 	RuntimeModelPerformanceObservation,
@@ -329,6 +331,34 @@ export function deriveTopReevalCells(rows: readonly FitnessRow[], now: number, l
 	return rankEvalCellsForReevaluation(cells, undefined, now).slice(0, limit);
 }
 
+type KnowledgeLiftRow = RuntimeLedgerAnalyticsResponse["knowledgeByModel"][number];
+
+/**
+ * The strongest knowledge-lift signals to surface: rows where BOTH with- and without-knowledge evidence exists (lift is
+ * non-null), ranked by absolute lift so the clearest "knowledge helps / hurts" rows lead. Pure so the panel + a web test
+ * agree — mirrors the `dev knowledge-outcomes` CLI's per-model lift view.
+ */
+export function selectTopKnowledgeLift(rows: readonly KnowledgeLiftRow[], limit = 3): KnowledgeLiftRow[] {
+	return rows
+		.filter((row) => row.knowledgeLift !== null)
+		.sort((a, b) => Math.abs(b.knowledgeLift ?? 0) - Math.abs(a.knowledgeLift ?? 0))
+		.slice(0, limit);
+}
+
+/** Format a knowledge/debt lift as a signed percentage, or an em-dash when there is no paired evidence. */
+export function formatKnowledgeLift(lift: number | null): string {
+	if (lift === null) {
+		return "—";
+	}
+	return `${lift >= 0 ? "+" : ""}${Math.round(lift * 100)}%`;
+}
+
+/** Trim a long provider:model:endpoint id to the model segment for a compact display. */
+function shortModelId(modelId: string): string {
+	const parts = modelId.split(":");
+	return parts[1] ?? modelId;
+}
+
 function summarizeObservations(observations: RuntimeModelPerformanceObservation[]): {
 	totalRuns: number;
 	completedRuns: number;
@@ -373,6 +403,7 @@ export function ModelPerformanceStatsDialog({
 	const [knowledgeStats, setKnowledgeStats] = useState<RuntimeKnowledgeToolUsageStatsResponse | null>(null);
 	const [behaviorProfiles, setBehaviorProfiles] = useState<RuntimeModelBehaviorProfilesResponse | null>(null);
 	const [fitnessTable, setFitnessTable] = useState<RuntimeFitnessTableResponse | null>(null);
+	const [ledgerAnalytics, setLedgerAnalytics] = useState<RuntimeLedgerAnalyticsResponse | null>(null);
 	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) / samples / confidence.
 	const [fitnessRoleFilter, setFitnessRoleFilter] = useState<string>("all");
 	const [fitnessSort, setFitnessSort] = useState<FitnessSortMode>("successRate");
@@ -390,16 +421,19 @@ export function ModelPerformanceStatsDialog({
 		setLoading(true);
 		setError(null);
 		try {
-			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles, nextFitnessTable] = await Promise.all([
-				fetchModelPerformanceStats(workspaceId),
-				fetchKnowledgeToolUsageStats(workspaceId),
-				fetchModelBehaviorProfiles(workspaceId),
-				fetchFitnessTable(workspaceId),
-			]);
+			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles, nextFitnessTable, nextLedgerAnalytics] =
+				await Promise.all([
+					fetchModelPerformanceStats(workspaceId),
+					fetchKnowledgeToolUsageStats(workspaceId),
+					fetchModelBehaviorProfiles(workspaceId),
+					fetchFitnessTable(workspaceId),
+					fetchLedgerAnalytics(workspaceId),
+				]);
 			setStats(nextModelStats);
 			setKnowledgeStats(nextKnowledgeStats);
 			setBehaviorProfiles(nextBehaviorProfiles);
 			setFitnessTable(nextFitnessTable);
+			setLedgerAnalytics(nextLedgerAnalytics);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -468,6 +502,10 @@ export function ModelPerformanceStatsDialog({
 	const topReevalCells = useMemo(
 		() => deriveTopReevalCells(fitnessTable?.rows ?? [], Date.now()),
 		[fitnessTable?.rows],
+	);
+	const topKnowledgeLift = useMemo(
+		() => selectTopKnowledgeLift(ledgerAnalytics?.knowledgeByModel ?? []),
+		[ledgerAnalytics?.knowledgeByModel],
 	);
 	const fitnessRows = useMemo(
 		() =>
@@ -726,6 +764,55 @@ export function ModelPerformanceStatsDialog({
 								{cell.cellKey.split("::").slice(-2).join("/")} ({Math.round(cell.priority * 100)})
 							</span>
 						))}
+					</div>
+				)}
+				{ledgerAnalytics && (
+					<div className="mb-3 grid gap-2 sm:grid-cols-3" data-testid="ledger-analytics">
+						<div
+							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+							data-testid="retrieval-usefulness-summary"
+						>
+							<div className="font-semibold text-text-primary">Retrieval usefulness (§5.AC)</div>
+							{ledgerAnalytics.retrieval.total === 0 ? (
+								<div className="text-text-tertiary">no retrieval turns yet</div>
+							) : (
+								<div>
+									{Math.round(ledgerAnalytics.retrieval.helpfulRate * 100)}% helpful ·{" "}
+									{ledgerAnalytics.retrieval.helped}↑ / {ledgerAnalytics.retrieval.hurt}↓ ·{" "}
+									{ledgerAnalytics.retrieval.distinctCitedSources} source(s)
+								</div>
+							)}
+						</div>
+						<div
+							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+							data-testid="knowledge-lift-summary"
+						>
+							<div className="font-semibold text-text-primary">Knowledge lift (F1.1)</div>
+							{topKnowledgeLift.length === 0 ? (
+								<div className="text-text-tertiary">insufficient paired evidence</div>
+							) : (
+								topKnowledgeLift.map((row) => (
+									<div key={`${row.modelId}::${row.role}`}>
+										{formatKnowledgeLift(row.knowledgeLift)} {shortModelId(row.modelId)} ({row.role})
+									</div>
+								))
+							)}
+						</div>
+						<div
+							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+							data-testid="opportunistic-value-summary"
+						>
+							<div className="font-semibold text-text-primary">Opportunistic value (F1.36)</div>
+							{ledgerAnalytics.opportunistic.length === 0 ? (
+								<div className="text-text-tertiary">no idle work dispatched</div>
+							) : (
+								ledgerAnalytics.opportunistic.map((row) => (
+									<div key={row.kind}>
+										{row.kind}: {Math.round(row.realizedRate * 100)}% of {row.dispatched}
+									</div>
+								))
+							)}
+						</div>
 					</div>
 				)}
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">

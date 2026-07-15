@@ -272,3 +272,60 @@ export const runtimeModelBehaviorProfilesResponseSchema = z.object({
 	profiles: z.array(runtimeModelBehaviorProfileViewSchema),
 });
 export type RuntimeModelBehaviorProfilesResponse = z.infer<typeof runtimeModelBehaviorProfilesResponseSchema>;
+
+/**
+ * Read-only ledger-analytics surface for the operator telemetry UI — three projections over the agent attempt ledger
+ * that already back the `dev retrieval-usefulness` / `dev knowledge-outcomes` / `dev opportunistic-value` CLIs:
+ *   • retrieval: is online retrieval earning its keep (helped/hurt + helpful-rate + prune ratio + citation breadth)?
+ *   • knowledge: does consulting knowledge tools (and carrying knowledge debt) change per-model success (the LIFT)?
+ *   • opportunistic: did idle opportunistic work pay off (per-kind realized-value rates)?
+ * Mirrors the core summary shapes (retrieval-ledger-projection / agent-attempt-ledger / opportunistic-work-value); the
+ * router validates against this so the browser stays honest about missing/partial evidence (nullable lifts).
+ */
+export const runtimeRetrievalUsefulnessViewSchema = z.object({
+	total: z.number().int().nonnegative(),
+	helped: z.number().int().nonnegative(),
+	hurt: z.number().int().nonnegative(),
+	neutral: z.number().int().nonnegative(),
+	unknown: z.number().int().nonnegative(),
+	helpfulRate: z.number(),
+	meanDistractorPruneRatio: z.number().nullable(),
+	totalCitations: z.number().int().nonnegative(),
+	distinctCitedSources: z.number().int().nonnegative(),
+});
+
+export const runtimeKnowledgeOutcomeRowSchema = z.object({
+	modelId: z.string(),
+	role: z.string(),
+	attemptsWithKnowledge: z.number().int().nonnegative(),
+	successesWithKnowledge: z.number().int().nonnegative(),
+	attemptsWithoutKnowledge: z.number().int().nonnegative(),
+	successesWithoutKnowledge: z.number().int().nonnegative(),
+	knowledgeLift: z.number().nullable(),
+});
+
+export const runtimeKnowledgeDebtOutcomeSchema = z.object({
+	attemptsWithDebt: z.number().int().nonnegative(),
+	successesWithDebt: z.number().int().nonnegative(),
+	attemptsWithoutDebt: z.number().int().nonnegative(),
+	successesWithoutDebt: z.number().int().nonnegative(),
+	debtLift: z.number().nullable(),
+});
+
+export const runtimeOpportunisticValueRowSchema = z.object({
+	kind: z.string(),
+	dispatched: z.number().int().nonnegative(),
+	realized: z.number().int().nonnegative(),
+	noValue: z.number().int().nonnegative(),
+	errored: z.number().int().nonnegative(),
+	realizedRate: z.number(),
+});
+
+export const runtimeLedgerAnalyticsResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	retrieval: runtimeRetrievalUsefulnessViewSchema,
+	knowledgeByModel: z.array(runtimeKnowledgeOutcomeRowSchema),
+	knowledgeDebt: runtimeKnowledgeDebtOutcomeSchema,
+	opportunistic: z.array(runtimeOpportunisticValueRowSchema),
+});
+export type RuntimeLedgerAnalyticsResponse = z.infer<typeof runtimeLedgerAnalyticsResponseSchema>;

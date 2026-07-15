@@ -48,6 +48,7 @@ import type {
 	RuntimeHostActionConfirmResolveResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeLedgerAnalyticsResponse,
 	RuntimeListPlanQuestionsRequest,
 	RuntimeListPlanQuestionsResponse,
 	RuntimeLlmfitCatalogUpdateCheckResponse,
@@ -222,6 +223,8 @@ export interface RuntimeTrpcContext {
 		getModelVerdictBadges: () => Promise<RuntimeModelVerdictBadgesResponse>;
 		/** §5.AA learned model behavior: the per-model ModelBehaviorProfile fold, read-only for Settings telemetry. */
 		getModelBehaviorProfiles: () => Promise<RuntimeModelBehaviorProfilesResponse>;
+		/** Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value, read-only telemetry. */
+		getLedgerAnalytics: () => Promise<RuntimeLedgerAnalyticsResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
