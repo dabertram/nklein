@@ -17,6 +17,8 @@ import {
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
+import { learnAnswerBudget } from "../core/answer-budget-learn";
+import { buildAnswerSizesByModel } from "../core/answer-budget-projection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import {
 	assessCapabilityCeiling,
@@ -90,6 +92,7 @@ import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readAllReasoningObservations } from "../state/reasoning-observation-store";
 import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
 import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
+import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import { createResultWorktree } from "../workspace/replay-eval-worktree";
 import { createTaskResultBranchRef } from "../workspace/task-result-branches";
@@ -381,6 +384,28 @@ export async function runDevCapabilityCeilingCommand(
 		process.stdout.write(
 			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
 		);
+	}
+}
+
+/** F4.10 — per-model learned answer budgets (output-token p90+margin) from real model-performance observations. */
+export async function runDevAnswerBudgetsCommand(options: { json?: boolean } = {}): Promise<void> {
+	const stats = await readModelPerformanceStats({ limit: 5000 });
+	const byModel = buildAnswerSizesByModel(
+		stats.observations.map((observation) => ({ modelId: observation.modelId, usage: observation.usage })),
+	);
+	const rows = [...byModel.entries()].map(([modelId, sizes]) => ({ modelId, ...learnAnswerBudget(sizes) }));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Learned answer budgets (F4.10) — per-model output-token budget from real observations\n\n");
+	if (rows.length === 0) {
+		process.stdout.write("(no observations with token usage yet — run some tasks, then re-check)\n");
+		return;
+	}
+	for (const row of rows) {
+		const confidence = row.confident ? "" : " (low-confidence)";
+		process.stdout.write(`  ${row.modelId}: ${row.budgetTokens} tok${confidence} (${row.samples} samples)\n`);
 	}
 }
 

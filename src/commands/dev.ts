@@ -41,6 +41,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import {
 	runDevAdviceCommand,
+	runDevAnswerBudgetsCommand,
 	runDevCapabilityCeilingCommand,
 	runDevContextRecommendationsCommand,
 	runDevControllerTraceCommand,
@@ -750,6 +751,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevContextRecommendationsCommand(options);
+		});
+
+	dev.command("answer-budgets")
+		.description("Per-model learned answer budgets (F4.10) — output-token budget from real observations.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevAnswerBudgetsCommand(options);
 		});
 
 	dev.command("stubborn-failure")
