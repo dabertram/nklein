@@ -1131,11 +1131,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   only when evidence says they help. **PURE CORE + A/B SUBSTRATE SHIPPED (`7607b9da`): `enforced-reasoning-benefit.ts`
   (`learnReasoningBenefit`/`shouldEnforceReasoning`) + `reasoning-observation-store.ts` + an OPT-IN A/B pass in
   `runModelEval` (inject `enforcedChat`+`recordReasoningBenefit` ⇒ re-score each cell through the enforced chat, record
-  both; default off = byte-identical, zero cost) + `dev reasoning-benefit` CLI. Mock-verified (9 tests). REMAINING =
-  PRODUCER ACTIVATION, design-gated: no production caller passes `enforcedChat` because enforced-reasoning is a free-form
-  PROSE refinement (`maybeEnforceReasoning` bounces a draft) while the eval families are STRUCTURED (decompose→tool-call
-  JSON, tool_use→calls) — grafting a prose bounce onto them needs a design decision (which families A/B? how to enforce
-  on structured output?). Opt-in flag + a sound enforcedChat adapter at the runModelEval call sites = the activation.**
+  both; default off = byte-identical, zero cost) + `dev reasoning-benefit` CLI. Mock-verified. **ACTIVATION SHIPPED
+  (`7a21cb22`): `enforced-eval-chat.ts` `buildEnforcedEvalChat` (drafts via base → maybeEnforceReasoning → enhanced
+  answer; enforce INJECTED so fully mock-verified) wired at the runtime-api evaluateConnectedModels seam behind the
+  `NKLEIN_ENFORCED_REASONING` flag (default off = byte-identical; on = the A/B second pass). Recording the A/B for ALL
+  families is valid — the data shows reasoning helping prose / possibly hurting structured, which is what F3.16 learns
+  (no family-gating needed; my earlier "structured mismatch blocks it" was OVERSTATED). COMPLETE as a flag-gated feature
+  — enable on the fleet and `dev reasoning-benefit` fills with real data.**
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
