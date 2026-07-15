@@ -829,6 +829,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   a classified outcome); `cleanupProject` deleting the throwaway workspace (reuse the dev-cleanup machinery);
   scenario choice = minimal rotation until F1.32. Validate live on the fleet (rail admits when idle, yields on a
   real card, survives a runtime restart mid-run, leaves zero throwaway workspaces after exit).
+  **STATUS (2026-07-15): the CONSUMING surface (F1.35b controls/status UI) is now SHIPPED + browser-verified
+  (`7aa47224`) and drives the service via the coordinator's start/stop when a service is present. What remains for
+  F1.31b is exactly the effectful dep-assembly, and its crux is a genuinely NEW subsystem: a lease-based async
+  `startRun(project) → {runId, workspaceId, deadlineAt}` (+ `isRunActive`/`stopRun`/`cleanupProject`). The only existing
+  dev-test runner (`runDevTestProjectCommand`, dev.ts:396) is BLOCKING/run-to-completion (it `executeDevTestPreset`-polls
+  to done), so it can't back a non-blocking lease the runner reaps by deadline — a new async launcher must be built on
+  `scaffoldNKleinDevTestProject` + a non-blocking task-session start + status-poll + cancel + workspace delete. That
+  primitive's correctness (does a real background eval start/poll/stop/clean against the sandbox?) is ONLY verifiable
+  against a live sandbox/fleet — mock tests prove wiring shape, not behavior. So this is a fleet-ATTENDED build, not a
+  safe headless one; the safe boot/close + coordinator wiring rides with it. Injectable-dep + `NKLEIN_EVAL_RAIL`
+  default-off keeps production byte-identical either way.
 - [ ] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
   `src/core/background-eval-selection.ts` (`selectBackgroundEvalTarget`) is the pure picker: pinned
   (exact-or-nothing, never substitutes) / evidence (top coverage-probe priority via
@@ -862,7 +873,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet): drive one real testless card and one test-backed card through a live swarm (bounce → re-work
   → park vs. clean review), then decide whether to flip the global default ON; optionally expose the override in
   the Settings project section (rides F1.29b).
-- [ ] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13).**
+- [x] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13; UI SHIPPED + browser-verified 2026-07-15, `7aa47224`).**
   `src/core/background-eval-controls.ts` is the whole F1.35 brain: `applyRailControlCommand` (enable/disable/
   pause/resume reducer emitting the exact start/stop action for the F1.31 service — idempotent, pause holds
   survive enable, resume restores), `createRailOutcomeLog` (bounded newest-first latest-outcomes),
@@ -877,7 +888,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   panel = ~20 coordinated touch points), and its live-data half (activeLeases/lastTick) stays INERT until F1.31b wires
   the F1.31 service. So the deliverable is a real-but-half-functional control surface: legitimate persisted-intent
   substrate (F1.31b reads `enabled`), NOT a standalone user feature. Worth doing as an attended F1.31b+F1.35b PAIR, not
-  a lone unattended half-build.
+  a lone unattended half-build. **DONE 2026-07-15 (`7aa47224`):** scoped the persistence to a dedicated
+  `rail-control-store.ts` (NOT the ~14-file config stack) + a `rail-control-service.ts` coordinator (binds the pure
+  cores to the store + the optional F1.31 service, service-less fallback for runtimes without the flag) + the tRPC slice
+  (getRailStatus/setRailControl/setRailTunables) + a `RailControlsPanel` mounted in the Model Performance dialog.
+  Browser-verified on the running stack: renders real default status, Enable→Idle→Disable round-trips persist through
+  the runtime+store, zero console errors. The live-data half (activeLeases/lastTick) fills in once F1.31b hosts the
+  service; the control INTENT it persists is what that service reads.
 - [ ] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
   §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
   now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
