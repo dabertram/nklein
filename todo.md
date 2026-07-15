@@ -1088,6 +1088,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the working-memory snapshot + Basic-Memory notes — the audit reader (`readBasicMemoryNotes`) carries NO note bodies, so
   Basic-Memory recall needs a CONTENT-carrying reader + query-relevance ranking (reuse `lexicalSimilarity`), which is the
   design-deferred "recall tuning" half.
+  **BASIC-MEMORY HALF DONE 2026-07-15 (`25de3b0c`):** built `readBasicMemoryRecallSources` (content-carrying reader) +
+  `rankBasicMemoryNotesForRecall` (lexical token-overlap ranker → the `projectUnifiedMemory` input shape, 4 tests) +
+  wired at the seam (flag-gated). **F2.9b RECALL COMPOSITION IS NOW SUBSTANTIVELY COMPLETE** — session + §5.M four-layer +
+  Basic-Memory + focus-chain all unify. GENUINE REMAINDER: (1) the working-memory SNAPSHOT — needs the LIVE turn's
+  working-memory state, which the runtime-api recall seam doesn't hold (a different integration point); (2) deeper
+  SEMANTIC recall tuning (the lexical ranker is a first cut) — design/fleet, not a mechanical wire.
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
