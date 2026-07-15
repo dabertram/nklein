@@ -1332,7 +1332,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   task/evidence recency, result handles, and model-specific sensitivity while enforcing the 32k floor.
 - [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
   constraints, and acceptance criteria without duplicating large context.
-- [ ] **F4.9 — Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a
+- [~] **F4.9 — Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [ ] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than
   blindly filling the advertised window; retain safety margins.
