@@ -15,6 +15,12 @@ import {
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
+import {
+	assessCapabilityCeiling,
+	ceilingHitRoles,
+	type FleetModelFitness,
+	type RoleQualityBar,
+} from "../core/capability-ceiling-recommendation";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
@@ -284,6 +290,64 @@ export async function runDevAdviceCommand(options: { json?: boolean }): Promise<
 		for (const note of advice.notes) {
 			process.stdout.write(`  • ${note}\n`);
 		}
+	}
+}
+
+/** Default per-role quality bars for the capability-ceiling read (a loaded model must clear these). */
+const DEFAULT_ROLE_QUALITY_BARS: Readonly<Record<string, number>> = {
+	architect: 0.7,
+	decompose: 0.7,
+	reviewer: 0.7,
+	worker: 0.6,
+};
+const FALLBACK_ROLE_BAR = 0.6;
+
+/** F3.35 — surface the roles the LOADED fleet cannot clear, from real ledger fitness + `lms ps` loaded state. */
+export async function runDevCapabilityCeilingCommand(
+	options: { json?: boolean; endpoint?: string } = {},
+): Promise<void> {
+	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
+	const base = options.endpoint?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	const descriptors = await fetchLoadedModelDescriptors(base).catch(() => []);
+	const loadedTokens = descriptors.flatMap((d) => [d.runtimeId, d.modelKey].filter((t): t is string => Boolean(t)));
+	const isLoaded = (modelId: string): boolean => loadedTokens.some((token) => modelId.includes(token));
+
+	const fitness: FleetModelFitness[] = advice.perRole.map((row) => ({
+		modelKey: row.modelId,
+		role: row.role,
+		qualityConfidence: row.successRate,
+		loaded: isLoaded(row.modelId),
+	}));
+	const roles = [...new Set(advice.perRole.map((row) => row.role))];
+	const bars: RoleQualityBar[] = roles.map((role) => ({
+		role,
+		minConfidence: DEFAULT_ROLE_QUALITY_BARS[role] ?? FALLBACK_ROLE_BAR,
+	}));
+	const verdicts = assessCapabilityCeiling(bars, fitness);
+	const hits = ceilingHitRoles(verdicts);
+
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ verdicts, ceilingHits: hits }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		"Capability ceiling (F3.35) — roles the LOADED fleet cannot clear, from real ledger fitness\n\n",
+	);
+	if (roles.length === 0) {
+		process.stdout.write("(no model attempts recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	if (hits.length === 0) {
+		process.stdout.write("✓ No capability ceiling: every measured role has a loaded model clearing its bar.\n");
+	}
+	for (const hit of hits) {
+		process.stdout.write(`  ⚠ ${hit.recommendation}\n`);
+	}
+	const sufficient = verdicts.filter((v) => v.status === "sufficient");
+	if (sufficient.length > 0) {
+		process.stdout.write(
+			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
+		);
 	}
 }
 

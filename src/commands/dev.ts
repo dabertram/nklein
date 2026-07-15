@@ -41,6 +41,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import {
 	runDevAdviceCommand,
+	runDevCapabilityCeilingCommand,
 	runDevEscalationCommand,
 	runDevFleetAdviceCommand,
 	runDevLedgerCommand,
@@ -708,6 +709,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevAdviceCommand(options);
+		});
+
+	dev.command("capability-ceiling")
+		.description("Show roles the LOADED fleet cannot clear (F3.35) — load a stronger model where flagged.")
+		.option("--json", "Print machine-readable JSON.")
+		.option("--endpoint <url>", "Local provider endpoint to read loaded models from.")
+		.action(async (options: { json?: boolean; endpoint?: string }) => {
+			await runDevCapabilityCeilingCommand(options);
 		});
 
 	dev.command("swarm")
