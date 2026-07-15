@@ -895,6 +895,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Browser-verified on the running stack: renders real default status, Enable→Idle→Disable round-trips persist through
   the runtime+store, zero console errors. The live-data half (activeLeases/lastTick) fills in once F1.31b hosts the
   service; the control INTENT it persists is what that service reads.
+- [ ] **F1.40 — Time tracking per project and per card (David request 2026-07-15).** Surface, per CARD and per
+  PROJECT: **age** (total = now − createdAt; active = time !Klein was actually running work on it) and **LLM
+  processing time** (total across all attempts; successful = attempts whose outcome is a success). ALL derivable from
+  existing data — no new recording seam:
+  - LLM time per attempt = `completedAt − startedAt` (both on the §5.AF attempt ledger, `agent-attempt-ledger.ts`);
+    successful ⇔ `outcome` is a success kind. Group attempts by `taskId` (card) and `workspacePathHash` (project).
+  - Card age total = now − card `createdAt` (`board-api-contract.ts`); if done, `completedAt − createdAt`.
+  - Active time = the UNION (merge overlaps) of the entity's attempt `[startedAt, completedAt]` spans — "active" =
+    at least one attempt was running. (Broader than raw LLM sum because parallel/overlapping attempts don't double-count.)
+  - Project age total = now − earliest card `createdAt` in the workspace (or workspace creation time).
+  - Project active time = union of ALL its cards' attempt spans; project LLM total/successful = sum across cards.
+  BUILD: a PURE core `time-tracking.ts` (`computeCardTimeTracking(attempts, card, now)` + `computeProjectTimeTracking`)
+  = fully unit-testable; then a tRPC read slice (getTimeTracking) + display (per-card in the card detail; per-project in
+  the project header or Model Performance dialog). Mostly headless-verifiable (compute over fixture ledgers) + browser-
+  verify the render. GOTCHA to decide: attempts with null startedAt/completedAt (legacy) skip the LLM/active term.
 - [ ] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
   §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
   now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
