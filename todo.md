@@ -1209,9 +1209,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.34 — Add an egress-gated “research this model” flow.** For unknown/failing local models, search current
   primary documentation for API switches, tool dialect, reasoning controls, context/quant quirks, and fit; present a
   provisional catalog update for review and never auto-apply model downloads or unsafe settings.
-- [ ] **F3.35 — Surface capability-ceiling model recommendations.** When the loaded fleet cannot clear a role/challenge,
+- [~] **F3.35 — Surface capability-ceiling model recommendations.** When the loaded fleet cannot clear a role/challenge,
   show the evidence, exact promising local model/quant, target machine, expected fit, and uncertainty; recommendations
-  never download/delete/load without the user-controlled policy.
+  never download/delete/load without the user-controlled policy. **DETECTION HALF SHIPPED + LIVE (verified 2026-07-15):**
+  `src/core/capability-ceiling-recommendation.ts` `assessCapabilityCeiling(bars, fitness)` → per-role ceiling_hit/
+  sufficient/no_evidence with best-loaded model + shortfall + propose-only text; consumed by `dev` CLI AND renders live in
+  the Model Performance dialog ("Capability ceiling (F3.35): reviewer/architect below bar — load a stronger model").
+  **REMAINING (genuine feature, F3.34-adjacent):** the ENRICHMENT — name the *exact promising local catalog model/quant*
+  (not the generic "a stronger model"), the *target machine* (needs the fleet RAM map), and the *expected fit* +
+  *uncertainty* of that candidate. That requires cross-referencing the llmfit/model catalog for not-currently-loaded
+  candidates + a fit prior; design-coupled with F3.34's research flow and the curated fleet-model recommendations. NOT a
+  mechanical close.
 
 ### Phase 4 — feature completion: retrieval, context, skills, MCP, and inference efficiency
 
