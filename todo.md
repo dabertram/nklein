@@ -1273,7 +1273,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   explain every selection, and balance parallel work without downgrading critical roles.
 - [ ] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
   the best partial artifact, then park with a complete evidence report.
-- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation.
+- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live).
   by cost, deadline, and diminishing returns.
 - [ ] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
