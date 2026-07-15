@@ -17,6 +17,7 @@ import {
 	resolveTargetFromCandidate,
 } from "../core/message-target-resolver";
 import { resolveProviderImageQuirks } from "../core/multimodal-provider-compat";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
@@ -736,6 +737,21 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 												...(system ? [{ role: "system" as const, content: system }] : []),
 												{ role: "user" as const, content: user },
 											]),
+									}),
+								// F3.5 RECORD-ONLY: a degenerate (repetitive / length-ceiling) final generation is observed, never
+								// interrupted — the false-positive rate accrues in telemetry before any bounce/park gate consumes it.
+								onRunawayDetected: (verdict) =>
+									recordSelfObservation({
+										signal: "custom",
+										severity: "warning",
+										message: `Chat turn produced a degenerate ${verdict.reason ?? "runaway"} generation.`,
+										...(modelDeps.modelId !== undefined ? { modelId: modelDeps.modelId } : {}),
+										metadata: {
+											operation: "runaway_generation_detected",
+											...(verdict.reason ? { reason: verdict.reason } : {}),
+											...(verdict.detail ? { detail: verdict.detail } : {}),
+											sessionId: session.id,
+										},
 									}),
 							},
 						);

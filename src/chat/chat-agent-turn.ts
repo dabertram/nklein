@@ -4,6 +4,7 @@ import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain"
 import { decideFocusChainNudge } from "../core/focus-chain-nudge";
 import type { ProviderImageQuirks } from "../core/multimodal-provider-compat";
 import { buildSafeReasoningCapture } from "../core/reasoning-capture";
+import { detectRunawayGeneration, type RunawayVerdict } from "../core/runaway-generation-detector";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
@@ -50,6 +51,10 @@ export interface ChatAgentTurnDeps {
 	/** §5.AD opt-in enforced-reasoning hookup: given the turn's task + final draft, return the (possibly bounced)
 	 *  final answer. Absent ⇒ the draft is used as-is (byte-identical). Must be fail-soft (never throw the turn). */
 	enforceReasoning?: (input: { task: string; draft: string }) => Promise<string>;
+	/** F3.5 RECORD-ONLY runaway-generation observer: called (fire-and-forget) when the model's raw output looks
+	 *  degenerate (repetition / length ceiling). NEVER interrupts the turn — observe-first, so the false-positive rate
+	 *  is measured before any gate. Omit ⇒ no observation (byte-identical). */
+	onRunawayDetected?: (verdict: RunawayVerdict) => void;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	estimateTokens: (text: string) => number;
 	embed?: (text: string) => Promise<number[] | null>;
@@ -267,6 +272,15 @@ export async function runChatAgentTurn(
 	);
 	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they
 	// did. Strip that markup from the user-facing reply; if nothing readable remains but tools ran, confirm briefly.
+	// F3.5 record-only: flag degenerate generation (repetition / length ceiling) in the model's RAW output. Never
+	// interrupts (observe-first, mirroring the PRM/delivery-quality record-only wires) — the signal accrues so the
+	// false-positive rate is measured before any bounce/park gate consumes it.
+	if (deps.onRunawayDetected) {
+		const runaway = detectRunawayGeneration(loop.finalText);
+		if (runaway.runaway) {
+			deps.onRunawayDetected(runaway);
+		}
+	}
 	const cleaned = stripNarratedToolCallMarkup(loop.finalText);
 	// When the whole reply was narrated tool-call markup, `cleaned` is empty. If tools actually ran, confirm
 	// them; otherwise fall back to a neutral note — NEVER `loop.finalText`, which is the raw markup this strip

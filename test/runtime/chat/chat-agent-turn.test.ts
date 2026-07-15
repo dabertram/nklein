@@ -103,6 +103,62 @@ describe("runChatAgentTurn", () => {
 		expect(result.assistantMessage.content).toBe("The answer is 42.");
 	});
 
+	it("F3.5 record-only: a degenerate (looping) final generation fires onRunawayDetected, never interrupting the turn", async () => {
+		const observed: Array<{ reason?: string; detail?: string }> = [];
+		// A cyclic tail (~40-char unit × 20) trips the repetition verdict; the turn still returns the text unchanged.
+		const runawayText = "I will now retry the same step again.\n".repeat(20);
+		const result = await runChatAgentTurn(
+			{ session: session(), userMessage: "go", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => ({
+					schemaVersion: 1,
+					id: "m1",
+					role: input.role,
+					content: input.content,
+					createdAt: 0,
+				}),
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({ text: runawayText, toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: appendChatToolExchange,
+				onRunawayDetected: (verdict) => observed.push({ reason: verdict.reason, detail: verdict.detail }),
+			},
+		);
+		expect(observed).toHaveLength(1);
+		expect(observed[0]?.reason).toBe("repetition");
+		// Record-only: the turn is unaffected — the runaway text is still delivered verbatim.
+		expect(result.assistantMessage.content).toBe(runawayText);
+	});
+
+	it("F3.5 record-only: a normal final generation does NOT fire onRunawayDetected", async () => {
+		const observed: unknown[] = [];
+		const result = await runChatAgentTurn(
+			{ session: session(), userMessage: "go", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => ({
+					schemaVersion: 1,
+					id: "m1",
+					role: input.role,
+					content: input.content,
+					createdAt: 0,
+				}),
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({ text: "The README documents the project.", toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: appendChatToolExchange,
+				onRunawayDetected: () => observed.push(true),
+			},
+		);
+		expect(observed).toHaveLength(0);
+		expect(result.assistantMessage.content).toBe("The README documents the project.");
+	});
+
 	it("F2.23: without captureReasoning, no reasoning row is persisted (byte-identical transcript)", async () => {
 		const appended: Array<{ role: string; content: string }> = [];
 		await runChatAgentTurn(
