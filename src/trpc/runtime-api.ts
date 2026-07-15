@@ -77,6 +77,7 @@ import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
 import {
+	buildNoisyEvalChat,
 	evalDifficultyToFitnessTier,
 	type ModelEvalChat,
 	type ModelEvalChatChoice,
@@ -103,6 +104,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
+import { appendDistractorObservations } from "../state/distractor-observation-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
 import { loadWorkspaceState } from "../state/workspace-state";
@@ -1056,7 +1058,25 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return null;
 					}
 				};
-				const result = await runModelEval({ modelId, repeats }, { chat });
+				// F4.13 OPT-IN (NKLEIN_EVAL_DISTRACTOR_PROBE, default off): also run each cell with distractor noise so
+				// `dev distractor-sensitivity` learns per-cell degradation. Doubles this eval's cost when enabled; a
+				// no-op otherwise (byte-identical single pass). Fleet produces the real data; the wiring is verifiable.
+				const distractorProbe = isTruthyEnv(process.env.NKLEIN_EVAL_DISTRACTOR_PROBE)
+					? buildNoisyEvalChat(chat)
+					: null;
+				const result = await runModelEval(
+					{ modelId, repeats },
+					{
+						chat,
+						...(distractorProbe
+							? {
+									noisyChat: distractorProbe.noisyChat,
+									noiseFraction: distractorProbe.noiseFraction,
+									recordDistractorSensitivity: (obs) => void appendDistractorObservations(obs).catch(() => {}),
+								}
+							: {}),
+					},
+				);
 				// Persist the raw per-run records so `dev model-role-stability` can measure settled-vs-flaky variance —
 				// the aggregate fitness fold below loses the per-run spread. Best-effort; never breaks the eval.
 				void appendModelEvalRuns(result.runs).catch(() => {});

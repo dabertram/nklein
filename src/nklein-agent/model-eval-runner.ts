@@ -372,6 +372,35 @@ export async function runModelEval(
 	};
 }
 
+/**
+ * A block of plausible-but-IRRELEVANT technical context — the distractor noise for the F4.13 probe. Marginally-related
+ * to software (so it isn't trivially ignorable) but useless to any eval prompt, so a robust model shrugs it off and a
+ * distraction-prone one degrades. Deliberately generic: it must not accidentally answer any corpus cell.
+ */
+export const DEFAULT_EVAL_DISTRACTOR =
+	"Unrelated background note: the legacy billing service rotates its TLS certificates every 90 days via a cron job " +
+	"in us-east-2, and the on-call rotation for the payments team is tracked in a separate spreadsheet. The office " +
+	"coffee machine was serviced last Tuesday. None of this is relevant to the task below; ignore it entirely.";
+
+/**
+ * Wrap an eval chat so every call carries a leading distractor system message — the F4.13 noise arm. Returns the wrapped
+ * chat plus the approximate `noiseFraction` (the distractor's share of a typical prompt) to record with each observation.
+ * Pure wrapper (no I/O of its own); the injected `base` does the real completion.
+ */
+export function buildNoisyEvalChat(
+	base: ModelEvalChat,
+	distractor: string = DEFAULT_EVAL_DISTRACTOR,
+	typicalPromptChars = 1200,
+): { noisyChat: ModelEvalChat; noiseFraction: number } {
+	const noisyChat: ModelEvalChat = (messages, extra) =>
+		base([{ role: "system", content: distractor }, ...messages], extra);
+	const noiseFraction = Math.max(
+		0,
+		Math.min(1, distractor.length / (distractor.length + Math.max(1, typicalPromptChars))),
+	);
+	return { noisyChat, noiseFraction };
+}
+
 /** The difficulty tiers a fitness-store persist needs (identity map — the corpus tiers already match the store). */
 export function evalDifficultyToFitnessTier(tier: string): FitnessDifficultyTier {
 	return (tier === "easy" || tier === "medium" || tier === "hard" ? tier : "medium") as FitnessDifficultyTier;

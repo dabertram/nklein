@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { EVAL_PROMPT_CORPUS, type ReviewEvalPrompt } from "../../../src/core/eval-prompt-corpus.js";
 import {
+	buildNoisyEvalChat,
 	evalDifficultyToFitnessTier,
 	type ModelEvalChat,
+	type ModelEvalChatMessage,
 	runModelEval,
 } from "../../../src/nklein-agent/model-eval-runner.js";
 import type { StoredDistractorObservation } from "../../../src/state/distractor-observation-store.js";
@@ -176,6 +178,21 @@ describe("runModelEval", () => {
 				{ chat: perfectChat(), recordDistractorSensitivity: () => (called = true), now: () => 0 },
 			);
 			expect(called).toBe(false);
+		});
+
+		it("buildNoisyEvalChat prepends the distractor and reports a bounded noise fraction", async () => {
+			const seen: ModelEvalChatMessage[][] = [];
+			const base: ModelEvalChat = async (messages) => {
+				seen.push(messages);
+				return { message: { content: "ok" } };
+			};
+			const { noisyChat, noiseFraction } = buildNoisyEvalChat(base, "DISTRACTOR", 90);
+			await noisyChat([{ role: "user", content: "real question" }], {});
+			// The distractor rides as a LEADING system message; the original messages follow untouched.
+			expect(seen[0]?.[0]).toEqual({ role: "system", content: "DISTRACTOR" });
+			expect(seen[0]?.[1]).toEqual({ role: "user", content: "real question" });
+			// noiseFraction = 10 ("DISTRACTOR") / (10 + 90) = 0.1, in [0,1].
+			expect(noiseFraction).toBeCloseTo(0.1, 5);
 		});
 	});
 });
