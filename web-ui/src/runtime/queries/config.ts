@@ -12,6 +12,7 @@ import type {
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeLedgerAnalyticsResponse,
+	RuntimeMemoryAuditResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
@@ -60,6 +61,12 @@ export async function fetchFitnessTable(workspaceId: string | null): Promise<Run
 export async function fetchLedgerAnalytics(workspaceId: string | null): Promise<RuntimeLedgerAnalyticsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getLedgerAnalytics.query();
+}
+
+/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes (read-only telemetry). */
+export async function fetchMemoryAudit(workspaceId: string | null): Promise<RuntimeMemoryAuditResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getMemoryAudit.query();
 }
 
 /** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */

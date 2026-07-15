@@ -53,6 +53,7 @@ import type {
 	RuntimeListPlanQuestionsResponse,
 	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeLlmfitCatalogUpdatePullResponse,
+	RuntimeMemoryAuditResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
@@ -225,6 +226,8 @@ export interface RuntimeTrpcContext {
 		getModelBehaviorProfiles: () => Promise<RuntimeModelBehaviorProfilesResponse>;
 		/** Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value, read-only telemetry. */
 		getLedgerAnalytics: () => Promise<RuntimeLedgerAnalyticsResponse>;
+		/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes, read-only telemetry. */
+		getMemoryAudit: () => Promise<RuntimeMemoryAuditResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */

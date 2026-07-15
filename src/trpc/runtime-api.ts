@@ -47,6 +47,7 @@ import {
 	parseShellSessionStartRequest,
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
+import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
@@ -59,6 +60,7 @@ import {
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { auditMemoryFreshness } from "../core/memory-freshness-audit";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import {
 	dominantFailureMode,
@@ -543,6 +545,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				knowledgeByModel: summarizeKnowledgeOutcomeByModel(events),
 				knowledgeDebt: summarizeKnowledgeDebtOutcomes(events),
 				opportunistic: summarizeOpportunisticValue(events),
+			};
+		},
+		// F5.2 memory-corpus health: the freshness audit (behind `dev memory-audit`) over the on-disk basic-memory
+		// notes the knowledge tools read from. Only counts + bounded finding summaries cross the wire, never note
+		// bodies. Empty-safe: a missing/unreadable corpus reports available=false with zero findings.
+		getMemoryAudit: async () => {
+			const { homedir } = await import("node:os");
+			const { join } = await import("node:path");
+			const root = join(homedir(), "basic-memory");
+			const notes = await readBasicMemoryNotes(root, nodeBasicMemoryFsDeps()).catch(() => []);
+			const result = auditMemoryFreshness(
+				notes,
+				{ stalenessThresholdMs: 180 * 24 * 60 * 60 * 1000, cadenceMs: 0 },
+				Date.now(),
+			);
+			return {
+				generatedAt: Date.now(),
+				available: notes.length > 0,
+				notesAudited: result.notesAudited,
+				summary: result.summary,
+				topFindings: result.findings
+					.slice(0, 20)
+					.map((finding) => ({ kind: finding.kind, noteTitle: finding.noteTitle, detail: finding.detail })),
 			};
 		},
 		// §5.AL/§10c#11: degraded-model badges for the model selector — derived from persisted self-observation

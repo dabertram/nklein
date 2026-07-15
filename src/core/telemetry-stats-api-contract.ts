@@ -329,3 +329,30 @@ export const runtimeLedgerAnalyticsResponseSchema = z.object({
 	opportunistic: z.array(runtimeOpportunisticValueRowSchema),
 });
 export type RuntimeLedgerAnalyticsResponse = z.infer<typeof runtimeLedgerAnalyticsResponseSchema>;
+
+/**
+ * Read-only memory-corpus health for the operator telemetry UI — the F5.2 freshness audit (behind the
+ * `dev memory-audit` CLI) over the on-disk basic-memory notes the knowledge tools read from: stale / orphaned /
+ * broken-link / duplicate-title counts + a bounded sample of findings (kind + note title + specifics only — never the
+ * note body). Empty-safe: a missing/unreadable corpus yields zeros. `available` is false when no corpus was found so the
+ * UI can distinguish "clean" from "not present".
+ */
+export const runtimeMemoryAuditFindingSchema = z.object({
+	kind: z.enum(["stale", "orphaned", "broken_link", "duplicate_title"]),
+	noteTitle: z.string(),
+	detail: z.string(),
+});
+
+export const runtimeMemoryAuditResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	available: z.boolean(),
+	notesAudited: z.number().int().nonnegative(),
+	summary: z.object({
+		stale: z.number().int().nonnegative(),
+		orphaned: z.number().int().nonnegative(),
+		broken_link: z.number().int().nonnegative(),
+		duplicate_title: z.number().int().nonnegative(),
+	}),
+	topFindings: z.array(runtimeMemoryAuditFindingSchema),
+});
+export type RuntimeMemoryAuditResponse = z.infer<typeof runtimeMemoryAuditResponseSchema>;

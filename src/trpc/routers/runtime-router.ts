@@ -35,6 +35,7 @@ import {
 	runtimeListPlanQuestionsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
 	runtimeLlmfitCatalogUpdatePullResponseSchema,
+	runtimeMemoryAuditResponseSchema,
 	runtimeMergeHistoryResponseSchema,
 	runtimeModelBehaviorProfilesResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
@@ -162,6 +163,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getLedgerAnalytics: t.procedure
 			.output(runtimeLedgerAnalyticsResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getLedgerAnalytics()),
+		// F5.2 memory-corpus health: freshness audit over on-disk basic-memory notes (global, read-only).
+		getMemoryAudit: t.procedure
+			.output(runtimeMemoryAuditResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getMemoryAudit()),
 		getModelVerdictBadges: t.procedure
 			.output(runtimeModelVerdictBadgesResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getModelVerdictBadges()),

@@ -20,6 +20,7 @@ import {
 	fetchFitnessTable,
 	fetchKnowledgeToolUsageStats,
 	fetchLedgerAnalytics,
+	fetchMemoryAudit,
 	fetchModelBehaviorProfiles,
 	fetchModelPerformanceStats,
 } from "@/runtime/runtime-config-query";
@@ -31,6 +32,7 @@ import type {
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeLedgerAnalyticsResponse,
+	RuntimeMemoryAuditResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceAggregate,
 	RuntimeModelPerformanceObservation,
@@ -404,6 +406,7 @@ export function ModelPerformanceStatsDialog({
 	const [behaviorProfiles, setBehaviorProfiles] = useState<RuntimeModelBehaviorProfilesResponse | null>(null);
 	const [fitnessTable, setFitnessTable] = useState<RuntimeFitnessTableResponse | null>(null);
 	const [ledgerAnalytics, setLedgerAnalytics] = useState<RuntimeLedgerAnalyticsResponse | null>(null);
+	const [memoryAudit, setMemoryAudit] = useState<RuntimeMemoryAuditResponse | null>(null);
 	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) / samples / confidence.
 	const [fitnessRoleFilter, setFitnessRoleFilter] = useState<string>("all");
 	const [fitnessSort, setFitnessSort] = useState<FitnessSortMode>("successRate");
@@ -421,19 +424,27 @@ export function ModelPerformanceStatsDialog({
 		setLoading(true);
 		setError(null);
 		try {
-			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles, nextFitnessTable, nextLedgerAnalytics] =
-				await Promise.all([
-					fetchModelPerformanceStats(workspaceId),
-					fetchKnowledgeToolUsageStats(workspaceId),
-					fetchModelBehaviorProfiles(workspaceId),
-					fetchFitnessTable(workspaceId),
-					fetchLedgerAnalytics(workspaceId),
-				]);
+			const [
+				nextModelStats,
+				nextKnowledgeStats,
+				nextBehaviorProfiles,
+				nextFitnessTable,
+				nextLedgerAnalytics,
+				nextMemoryAudit,
+			] = await Promise.all([
+				fetchModelPerformanceStats(workspaceId),
+				fetchKnowledgeToolUsageStats(workspaceId),
+				fetchModelBehaviorProfiles(workspaceId),
+				fetchFitnessTable(workspaceId),
+				fetchLedgerAnalytics(workspaceId),
+				fetchMemoryAudit(workspaceId),
+			]);
 			setStats(nextModelStats);
 			setKnowledgeStats(nextKnowledgeStats);
 			setBehaviorProfiles(nextBehaviorProfiles);
 			setFitnessTable(nextFitnessTable);
 			setLedgerAnalytics(nextLedgerAnalytics);
+			setMemoryAudit(nextMemoryAudit);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -813,6 +824,20 @@ export function ModelPerformanceStatsDialog({
 								))
 							)}
 						</div>
+					</div>
+				)}
+				{memoryAudit?.available && (
+					<div
+						className="mb-3 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+						data-testid="memory-corpus-summary"
+					>
+						<span className="font-semibold text-text-primary">Memory corpus health (F5.2):</span>{" "}
+						{memoryAudit.notesAudited} note(s) —{" "}
+						<span className={memoryAudit.summary.broken_link > 0 ? "text-status-orange" : undefined}>
+							{memoryAudit.summary.broken_link} broken link(s)
+						</span>{" "}
+						· {memoryAudit.summary.orphaned} orphaned · {memoryAudit.summary.stale} stale ·{" "}
+						{memoryAudit.summary.duplicate_title} duplicate title(s)
 					</div>
 				)}
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
