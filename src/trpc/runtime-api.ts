@@ -362,7 +362,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							const ledgerEvents = await readAllAgentLedger().catch(() => []);
 							const knownSkillIds = new Set<string>(SELECTABLE_CHAT_SKILL_IDS);
 							const skillIds = session.selectedSkillIds.filter((id): id is SkillId => knownSkillIds.has(id));
-							const memoryLayers = buildMemoryLayers({ events: ledgerEvents, skillIds });
+							const currentStep = focusChain?.steps.find((step) => step.status === "in_progress")?.text ?? null;
+							const memoryLayers = buildMemoryLayers({
+								events: ledgerEvents,
+								skillIds,
+								snapshot: { activeGoal: session.goal, currentStep },
+							});
 							const { homedir } = await import("node:os");
 							const { join } = await import("node:path");
 							const basicMemorySources = await readBasicMemoryRecallSources(
