@@ -93,4 +93,32 @@ describe("nklein retrieval tools", () => {
 		expect(result.matches[0]?.snippet).toContain("createDriver");
 		expect(result.matches[0]?.snippet).toContain("refs=");
 	});
+
+	it("hands each search_code turn to the recordRetrieval sink (query + hits + cited paths)", async () => {
+		const workspacePath = await createWorkspace();
+		const records: Array<{ query: string; hitsConsidered: number; citations: readonly string[] }> = [];
+		const searchTool = createNKleinRetrievalTools({
+			workspacePath,
+			recordRetrieval: (record) => records.push(record),
+		}).find((candidate) => candidate.name === "search_code");
+		if (!searchTool) {
+			throw new Error("Missing search_code tool");
+		}
+
+		const result = (await searchTool.execute({ query: "betaFeature", maxResults: 2 }, undefined as never)) as {
+			matches: Array<{ path: string }>;
+		};
+
+		expect(records).toHaveLength(1);
+		expect(records[0]?.query).toBe("betaFeature");
+		// hitsConsidered mirrors the returned matches; citations are their source paths.
+		expect(records[0]?.hitsConsidered).toBe(result.matches.length);
+		expect(records[0]?.citations).toEqual(result.matches.map((match) => match.path));
+	});
+
+	it("omitting recordRetrieval is safe (no sink, no throw)", async () => {
+		const workspacePath = await createWorkspace();
+		const searchTool = getTool("search_code", workspacePath);
+		await expect(searchTool.execute({ query: "betaFeature" }, undefined as never)).resolves.toBeDefined();
+	});
 });

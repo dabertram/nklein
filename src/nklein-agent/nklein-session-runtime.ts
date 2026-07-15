@@ -17,12 +17,14 @@ export {
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native NKlein sessions without exposing SDK details upstream.
 
+import { buildRetrievalEvent } from "../core/agent-attempt-ledger";
 import {
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
+import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
 import { createNKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -38,6 +40,7 @@ import {
 	releaseAllNKleinLargeFileWorkflows,
 	releaseNKleinLargeFileWorkflow,
 } from "./nklein-large-file-workflow";
+import { hashWorkspacePathForLedger } from "./nklein-ledger-attempt";
 import { CLOUD_ENABLED } from "./nklein-local-only-policy";
 import {
 	createNKleinMcpRuntimeService,
@@ -251,6 +254,20 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				...createNKleinRetrievalTools({
 					workspacePath: agentPerceivedCwd,
 					embeddingProvider: request.codeEmbeddingProvider ?? createNKleinCodeEmbeddingProvider(),
+					// §5.AC: record each search_code turn to the agent ledger (workflowId = taskId; signal stays "unknown"
+					// — this seam knows what was retrieved, not whether it helped). Best-effort; never breaks the tool.
+					recordRetrieval: (retrieval) => {
+						void appendAgentLedgerEvent(
+							buildRetrievalEvent({
+								taskId: request.taskId,
+								workflowId: request.taskId,
+								workspacePathHash: hashWorkspacePathForLedger(agentPerceivedCwd),
+								query: retrieval.query,
+								hitsConsidered: retrieval.hitsConsidered,
+								citations: retrieval.citations,
+							}),
+						).catch(() => {});
+					},
 				}),
 				...createFileDiscoveryTools({
 					workspacePath: agentPerceivedCwd,

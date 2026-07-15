@@ -3,6 +3,19 @@ import { searchNKleinCode } from "./nklein-code-search";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import type { AgentTool } from "./sdk-agent-types";
 
+/** One retrieval turn's observable telemetry — query + how many hits were considered + the cited source paths. */
+export interface RetrievalRecord {
+	query: string;
+	hitsConsidered: number;
+	citations: readonly string[];
+}
+
+/**
+ * Sink for retrieval telemetry — the retrieval tools stay ledger-agnostic and just hand each turn's record here; the
+ * caller (which owns the task/workflow identity) decides whether/how to persist it. Best-effort: must never throw.
+ */
+export type RetrievalRecorder = (record: RetrievalRecord) => void;
+
 const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1_200;
 const MAX_REPO_MAP_TOKEN_BUDGET = 12_000;
 const DEFAULT_REPO_MAP_MAX_FILES = 1_000;
@@ -74,7 +87,11 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 	};
 }
 
-function createCodeSearchTool(workspacePath: string, embeddingProvider?: NKleinCodeEmbeddingProvider): AgentTool {
+function createCodeSearchTool(
+	workspacePath: string,
+	embeddingProvider?: NKleinCodeEmbeddingProvider,
+	recordRetrieval?: RetrievalRecorder,
+): AgentTool {
 	return {
 		name: "search_code",
 		description:
@@ -118,6 +135,13 @@ function createCodeSearchTool(workspacePath: string, embeddingProvider?: NKleinC
 				contextLines: asBoundedInteger(record.contextLines, 3, 0, 12),
 				embeddingProvider,
 			});
+			// §5.AC retrieval telemetry (record-only): the model considered these matches and their source files. The
+			// helped/hurt `signal` is left to the caller/ledger (unknown here) — this seam only knows what was retrieved.
+			recordRetrieval?.({
+				query: search.query,
+				hitsConsidered: search.matches.length,
+				citations: search.matches.map((match) => match.path),
+			});
 			return {
 				query: search.query,
 				filesScanned: search.filesScanned,
@@ -133,9 +157,11 @@ function createCodeSearchTool(workspacePath: string, embeddingProvider?: NKleinC
 export function createNKleinRetrievalTools(options: {
 	workspacePath: string;
 	embeddingProvider?: NKleinCodeEmbeddingProvider;
+	/** Optional sink for §5.AC retrieval telemetry; omit (e.g. sandbox tool sets with no task identity) to skip recording. */
+	recordRetrieval?: RetrievalRecorder;
 }): AgentTool[] {
 	return [
 		createRepoMapTool(options.workspacePath),
-		createCodeSearchTool(options.workspacePath, options.embeddingProvider),
+		createCodeSearchTool(options.workspacePath, options.embeddingProvider, options.recordRetrieval),
 	];
 }
