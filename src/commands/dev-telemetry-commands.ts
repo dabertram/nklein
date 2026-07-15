@@ -43,6 +43,7 @@ import { projectCardControllerTrace } from "../core/outer-controller-fsm";
 import { scanForPlaceholders } from "../core/placeholder-scan";
 import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
+import { assessQualityBudget } from "../core/quality-budget";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import {
 	buildRailFindingRetentionEvent,
@@ -395,21 +396,24 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	}
 }
 
-/** placeholder-scan (opencode-swarm port) — scan a real git diff's added lines for unfinished-work markers and stubs. */
-export async function runDevPlaceholderScanCommand(options: { base?: string; json?: boolean } = {}): Promise<void> {
+/** Run `git diff <base>` and parse it into per-file added lines — the shared input for the diff-based dev scanners. */
+async function readDiffAddedLineFiles(base: string): Promise<{ path: string; addedLines: readonly string[] }[]> {
 	const { execFile } = await import("node:child_process");
 	const { promisify } = await import("node:util");
 	const run = promisify(execFile);
-	const base = options.base?.trim() || "HEAD";
 	const { stdout } = await run("git", ["diff", "--no-color", base], { maxBuffer: 64 * 1024 * 1024 }).catch(
 		(error: unknown) => {
 			throw new Error(`git diff ${base} failed: ${error instanceof Error ? error.message : String(error)}`);
 		},
 	);
-	const files = parseAddedLinesFromUnifiedDiff(stdout).map((file) => ({
-		path: file.path,
-		content: file.addedLines.join("\n"),
-	}));
+	return parseAddedLinesFromUnifiedDiff(stdout).map((file) => ({ path: file.path, addedLines: file.addedLines }));
+}
+
+/** placeholder-scan (opencode-swarm port) — scan a real git diff's added lines for unfinished-work markers and stubs. */
+export async function runDevPlaceholderScanCommand(options: { base?: string; json?: boolean } = {}): Promise<void> {
+	const base = options.base?.trim() || "HEAD";
+	const diffFiles = await readDiffAddedLineFiles(base);
+	const files = diffFiles.map((file) => ({ path: file.path, content: file.addedLines.join("\n") }));
 	const result = scanForPlaceholders(files);
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify({ base, filesScanned: files.length, ...result }, null, 2)}\n`);
@@ -432,6 +436,32 @@ export async function runDevPlaceholderScanCommand(options: { base?: string; jso
 	}
 	if (result.findings.length > 40) {
 		process.stdout.write(`  … and ${result.findings.length - 40} more\n`);
+	}
+}
+
+/** quality-budget (opencode-swarm port) — assess a real git diff against the per-file/test-ratio/duplication budget. */
+export async function runDevQualityBudgetCommand(options: { base?: string; json?: boolean } = {}): Promise<void> {
+	const base = options.base?.trim() || "HEAD";
+	const files = await readDiffAddedLineFiles(base);
+	const result = assessQualityBudget(files);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ base, filesScanned: files.length, ...result }, null, 2)}\n`);
+		return;
+	}
+	const { metrics } = result;
+	process.stdout.write(
+		`Quality budget (opencode-swarm port) — added lines of \`git diff ${base}\` across ${files.length} file(s)\n\n`,
+	);
+	process.stdout.write(
+		`  source +${metrics.sourceAddedLines} · test +${metrics.testAddedLines} · test-ratio ${metrics.testRatio.toFixed(2)} · ` +
+			`largest file +${metrics.maxFileAddedLines} · duplication ${(metrics.duplicationRatio * 100).toFixed(0)}%\n\n`,
+	);
+	if (result.withinBudget) {
+		process.stdout.write("  within budget (no quality violations)\n");
+		return;
+	}
+	for (const violation of result.violations) {
+		process.stdout.write(`  [${violation.kind}] ${violation.path ?? "(whole change)"}: ${violation.detail}\n`);
 	}
 }
 

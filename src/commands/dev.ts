@@ -50,6 +50,7 @@ import {
 	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
 	runDevPlaceholderScanCommand,
+	runDevQualityBudgetCommand,
 	runDevRailEvidenceCommand,
 	runDevRemediationCommand,
 	runDevReplayEvalAutoCaptureCommand,
@@ -786,6 +787,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { base?: string; json?: boolean }) => {
 			await runDevPlaceholderScanCommand(options);
+		});
+
+	dev.command("quality-budget")
+		.description(
+			"Assess a git diff against the per-file/test-ratio/duplication quality budget (opencode-swarm port).",
+		)
+		.option("--base <ref>", "Diff against this ref (defaults to HEAD — working-tree changes).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { base?: string; json?: boolean }) => {
+			await runDevQualityBudgetCommand(options);
 		});
 
 	dev.command("swarm")
