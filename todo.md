@@ -967,7 +967,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
   the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
   package's e2e run.
-- [ ] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** `src/core/chat-multimodal.ts`
+- [~] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** [E2E WIRING RE-VERIFIED 2026-07-15:
+  composer image picker (draftImages + TaskImageStrip + vision warning) → panel onSendMessage(images) →
+  sendTaskChatMessage → runtime.sendTaskChatMessage → task-session service threads images → SDK turn
+  applyImageAttachmentsToPrompt, with the vision-capability fail-closed check at runtime-api.ts:298. CODE COMPLETE;
+  only the LIVE vision-model validation remains (needs a vision model loaded — none currently in the fleet).]
+  `src/core/chat-multimodal.ts`
   carries the F2.7 policy: `decideChatAttachmentAcceptance` (images ONLY when the selected model claims the
   llmfit `vision` capability; audio/PDF refused outright with an explanatory reason until a local parser is
   integrated), `boundChatImageAttachments` (fail-closed count/per-image/total byte budgets — refuse with the
