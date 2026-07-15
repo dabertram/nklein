@@ -1082,6 +1082,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `runtime-api.ts:~318` `projectUnifiedMemory({...})` (feeds sessionMemories + focusChainSteps today). Only sub-step (1)
   is BUILDABLE (small, additive, flag-gated, unit-testable — compose the §5.M four-layer + Basic-Memory notes into that
   call); (2)+(3) are fleet/design. Marked `[~]` — near-complete, not open greenfield.
+  **FOUR-LAYER HALF DONE 2026-07-15 (`1bdf02ca`):** the unified-recall note now also composes the §5.M four-layer
+  projection (`buildMemoryLayers({events: ledger, skillIds: session skills}).all` → episodic/semantic/procedural) when
+  `NKLEIN_UNIFIED_MEMORY` is on; flag-gated (byte-identical off); skillIds filtered to the known SkillId set. REMAINING:
+  the working-memory snapshot + Basic-Memory notes — the audit reader (`readBasicMemoryNotes`) carries NO note bodies, so
+  Basic-Memory recall needs a CONTENT-carrying reader + query-relevance ranking (reuse `lexicalSimilarity`), which is the
+  design-deferred "recall tuning" half.
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
