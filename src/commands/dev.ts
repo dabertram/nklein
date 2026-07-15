@@ -43,6 +43,7 @@ import {
 	runDevAdviceCommand,
 	runDevCapabilityCeilingCommand,
 	runDevControllerTraceCommand,
+	runDevDistractorSensitivityCommand,
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
@@ -822,6 +823,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevReasoningBenefitCommand(options);
+		});
+
+	dev.command("distractor-sensitivity")
+		.description("Over recorded noise A/B observations, how distractor-sensitive is each cell (F4.13)?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevDistractorSensitivityCommand(options);
 		});
 
 	dev.command("knowledge-outcomes")

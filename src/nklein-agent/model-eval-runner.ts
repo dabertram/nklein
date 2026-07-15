@@ -28,6 +28,7 @@ import { type EvalCellStability, scoreModelEvalStability } from "../core/model-e
 import type { ModelFitnessRecord } from "../core/model-fitness.js";
 import type { ToolCallAttempt } from "../core/prompt-family-scorers.js";
 import { selectStructuredOutputStrategy } from "../core/structured-output-strategy.js";
+import type { StoredDistractorObservation } from "../state/distractor-observation-store.js";
 import type { StoredReasoningObservation } from "../state/reasoning-observation-store.js";
 
 /** Map the corpus difficulty tier to a 0..1 number for the fitness fold (mirrors the CLI harness). */
@@ -238,6 +239,14 @@ export async function runModelEval(
 		 */
 		enforcedChat?: ModelEvalChat;
 		recordReasoningBenefit?: (observations: readonly StoredReasoningObservation[]) => void;
+		/**
+		 * F4.13 OPT-IN distractor A/B: a second chat that injects marginally-relevant NOISE (a distractor context
+		 * prefix). When this + `noiseFraction` + `recordDistractorSensitivity` are supplied, each scored cell is
+		 * re-scored through it and the baseline-vs-noisy pair recorded. Omit ⇒ no noise pass, zero extra cost.
+		 */
+		noisyChat?: ModelEvalChat;
+		noiseFraction?: number;
+		recordDistractorSensitivity?: (observations: readonly StoredDistractorObservation[]) => void;
 	},
 ): Promise<ModelEvalResult> {
 	const repeats = Math.max(1, Math.trunc(config.repeats ?? 1) || 1);
@@ -292,6 +301,23 @@ export async function runModelEval(
 							difficulty: prompt.difficulty,
 							reasoningEnabled: true,
 							qualityScore: enforcedScore,
+						},
+					]);
+				}
+			}
+			// F4.13 opt-in noise A/B: re-score this cell with distractor noise injected and record the baseline-vs-noisy
+			// pair so estimateDistractorSensitivity can learn how much this cell degrades under marginally-relevant context.
+			if (deps.noisyChat && deps.recordDistractorSensitivity && score !== null) {
+				const noisyScore = await scoreWith(deps.noisyChat);
+				if (noisyScore !== null) {
+					deps.recordDistractorSensitivity([
+						{
+							modelId: config.modelId,
+							role: prompt.role,
+							difficulty: prompt.difficulty,
+							noiseFraction: Math.max(0, Math.min(1, deps.noiseFraction ?? 0)),
+							baselineQuality: score,
+							noisyQuality: noisyScore,
 						},
 					]);
 				}

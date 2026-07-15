@@ -6,6 +6,7 @@ import {
 	type ModelEvalChat,
 	runModelEval,
 } from "../../../src/nklein-agent/model-eval-runner.js";
+import type { StoredDistractorObservation } from "../../../src/state/distractor-observation-store.js";
 import type { StoredReasoningObservation } from "../../../src/state/reasoning-observation-store.js";
 
 /** Serve each corpus row its OWN answer key, so every cell scores 1.0 (the corpus self-tests to 1). */
@@ -140,6 +141,40 @@ describe("runModelEval", () => {
 				{ chat: perfectChat(), recordReasoningBenefit: () => (called = true), now: () => 0 },
 			);
 			// recordReasoningBenefit without an enforcedChat must NOT fire — the A/B pass is gated on both.
+			expect(called).toBe(false);
+		});
+	});
+
+	describe("F4.13 distractor noise A/B", () => {
+		it("records the baseline-vs-noisy quality pair per scored cell when the noise deps are supplied", async () => {
+			const observations: StoredDistractorObservation[] = [];
+			await runModelEval(
+				{ modelId: "coder-test", repeats: 1, promptIds: ["decompose-cli-version-flag"] },
+				{
+					chat: perfectChat(),
+					noisyChat: perfectChat(),
+					noiseFraction: 0.4,
+					recordDistractorSensitivity: (batch) => observations.push(...batch),
+					now: () => 0,
+				},
+			);
+			expect(observations).toHaveLength(1);
+			expect(observations[0]).toMatchObject({
+				modelId: "coder-test",
+				role: "architect",
+				difficulty: "easy",
+				noiseFraction: 0.4,
+				baselineQuality: 1,
+				noisyQuality: 1,
+			});
+		});
+
+		it("does not fire when the noisy deps are omitted", async () => {
+			let called = false;
+			await runModelEval(
+				{ modelId: "coder-test", repeats: 1, promptIds: ["decompose-cli-version-flag"] },
+				{ chat: perfectChat(), recordDistractorSensitivity: () => (called = true), now: () => 0 },
+			);
 			expect(called).toBe(false);
 		});
 	});

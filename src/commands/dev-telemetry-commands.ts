@@ -44,6 +44,7 @@ import {
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { summarizeModelRoleStability } from "../core/model-eval-stability";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
+import { estimateDistractorSensitivity } from "../core/model-sensitive-pruning";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
 import { scanForPlaceholders } from "../core/placeholder-scan";
@@ -78,6 +79,7 @@ import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attemp
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { readAllDistractorObservations } from "../state/distractor-observation-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
@@ -560,6 +562,40 @@ export async function runDevOpportunisticValueCommand(options: { json?: boolean 
 			`  ${row.kind.padEnd(28)} ${String(row.dispatched).padStart(4)} dispatched  ` +
 				`${String(Math.round(row.realizedRate * 100)).padStart(3)}% realized  ` +
 				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
+		);
+	}
+}
+
+/** F4.13 — over recorded noise A/B observations, how distractor-SENSITIVE is each (model, role, difficulty) cell? */
+export async function runDevDistractorSensitivityCommand(options: { json?: boolean } = {}): Promise<void> {
+	const observations = await readAllDistractorObservations().catch(() => []);
+	const byCell = new Map<string, typeof observations>();
+	for (const obs of observations) {
+		const key = `${obs.modelId}::${obs.role}::${obs.difficulty}`;
+		const list = byCell.get(key) ?? [];
+		list.push(obs);
+		byCell.set(key, list);
+	}
+	const rows = [...byCell.entries()].map(([key, cellObs]) => ({
+		key,
+		sensitivity: estimateDistractorSensitivity(cellObs),
+		samples: cellObs.length,
+	}));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ observations: observations.length, cells: rows }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Distractor sensitivity (F4.13) — ${observations.length} noise A/B observation(s)\n\n`);
+	if (rows.length === 0) {
+		process.stdout.write(
+			"(no noise A/B observations yet — run an eval with the distractor probe enabled, then re-check)\n",
+		);
+		return;
+	}
+	for (const { key, sensitivity, samples } of rows.sort((a, b) => b.sensitivity - a.sensitivity)) {
+		process.stdout.write(
+			`  ${key.padEnd(48)} sensitivity ${sensitivity.toFixed(2)} (${sensitivity >= 0.5 ? "prune hard" : "robust"}) ` +
+				`[${samples} sample(s)]\n`,
 		);
 	}
 }
