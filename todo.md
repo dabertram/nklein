@@ -1369,7 +1369,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
 - [x] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
   provenance/effect, and avoid retrying equivalent fragments.
-- [ ] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash,
+- [~] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash, **RECORD+STORE DONE 2026-07-15:** procedural-skill-record.ts (ProceduralSkill model + pure ops) + procedural-skill-store.ts (snapshot-json CRUD + supersession + getCurrent, 4 tests). Retrieval-matching + lifecycle-transition consumer wire remaining.
   outcomes, supersession, and provenance as durable procedural memory.
 
 #### 4D. Safe community Agent Skills ingestion *(legacy §5.AP)*
