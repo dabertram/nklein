@@ -1363,7 +1363,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F4.15 — Finish per-skill/API feature-profile wiring.** Apply thinking directive, structured-output strategy,
   proactive force-call, sampler, and budget preferences at chat and swarm call seams.
-- [ ] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state,
+- [~] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). Dynamics-level config resolution wire remaining.
   and make the default fully dynamic without hidden env-only behavior.
 - [ ] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
@@ -1418,7 +1418,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F4.37 — Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
   chat/swarm/review, and expose global/project controls.
-- [ ] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and
+- [~] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and **CORE DONE 2026-07-15:** auto-decomposition-depth.ts resolveAutoDecompositionDepth (difficulty×effective-context → depth + reason, 4 tests). AUTO-depth wire into decompose remaining.
   difficulty, with a visible reason and deterministic fallback.
 - [~] **F4.39 — Complete prompt intent modes.** Apply minimize/balance/max-task-info consistently and prove they affect **CORE DONE 2026-07-15 (`5f76b592`):** prompt-intent-mode.ts selectPromptComponentsForIntent (minimize/balance/max by tier, never drops invariants, 4 tests). Prompt-builder adoption = remaining wire.
   component selection without bypassing invariants.
