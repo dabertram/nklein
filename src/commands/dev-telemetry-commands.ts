@@ -25,6 +25,8 @@ import {
 	type RoleQualityBar,
 } from "../core/capability-ceiling-recommendation";
 import { type RoutingCandidate, rankRoutingCandidates } from "../core/confidence-resource-routing";
+import { recommendContextCap } from "../core/context-size-recommender";
+import { buildContextTimingObservationsByModel } from "../core/context-timing-projection";
 import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
@@ -379,6 +381,35 @@ export async function runDevCapabilityCeilingCommand(
 		process.stdout.write(
 			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
 		);
+	}
+}
+
+/** F4.9 — per-model context-size recommendations from real ledger timing (context load vs wall time / stalls). */
+export async function runDevContextRecommendationsCommand(options: { json?: boolean } = {}): Promise<void> {
+	const byModel = buildContextTimingObservationsByModel(await readAllAgentLedger());
+	const rows = [...byModel.entries()].map(([modelId, observations]) => ({
+		modelId,
+		...recommendContextCap(observations),
+	}));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		"Context-size recommendations (F4.9) — per-model caps from real ledger context-vs-speed timing\n\n",
+	);
+	if (rows.length === 0) {
+		process.stdout.write("(no attempts with recorded context timing yet — run some tasks, then re-check)\n");
+		return;
+	}
+	for (const row of rows) {
+		const cap =
+			row.recommendedMaxContextTokens === null ? "no cap needed" : `cap ${row.recommendedMaxContextTokens} tok`;
+		const confidence = row.confident ? "" : " (low-confidence)";
+		process.stdout.write(`  ${row.modelId}: ${cap}${confidence} — ${row.reason}\n`);
+		for (const adaptation of row.adaptations) {
+			process.stdout.write(`      · ${adaptation}\n`);
+		}
 	}
 }
 

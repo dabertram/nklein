@@ -42,6 +42,7 @@ import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-
 import {
 	runDevAdviceCommand,
 	runDevCapabilityCeilingCommand,
+	runDevContextRecommendationsCommand,
 	runDevControllerTraceCommand,
 	runDevDistractorSensitivityCommand,
 	runDevEscalationCommand,
@@ -742,6 +743,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--limit <n>", "How many top cells to show (default 15).", (v) => Number.parseInt(v, 10))
 		.action(async (options: { json?: boolean; limit?: number }) => {
 			await runDevEvalFreshnessCommand(options);
+		});
+
+	dev.command("context-recommendations")
+		.description("Per-model context-size caps (F4.9) from real ledger context-load-vs-speed timing.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevContextRecommendationsCommand(options);
 		});
 
 	dev.command("stubborn-failure")
