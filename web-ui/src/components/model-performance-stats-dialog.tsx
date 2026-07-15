@@ -12,6 +12,7 @@ import {
 } from "@runtime-eval-freshness";
 import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ModelTuningPanel } from "@/components/model-tuning-panel";
 import { RailControlsPanel } from "@/components/rail-controls-panel";
 import { TimeTrackingPanel } from "@/components/time-tracking-panel";
 import { Button } from "@/components/ui/button";
@@ -854,53 +855,7 @@ export function ModelPerformanceStatsDialog({
 						{memoryAudit.summary.duplicate_title} duplicate title(s)
 					</div>
 				)}
-				{modelTuning && modelTuning.models.length > 0 && (
-					<div
-						className="mb-3 overflow-x-auto rounded-md border border-border"
-						data-testid="model-tuning-recommendations"
-					>
-						<div className="bg-surface-0 px-2 py-1 font-semibold text-[12px] text-text-primary">
-							Model tuning — learned budgets from real history (context F4.9 / answer F4.10 / retry F3.30)
-						</div>
-						<table className="w-full min-w-[520px] border-collapse text-left text-[12px]">
-							<thead className="bg-surface-0 text-text-secondary">
-								<tr>
-									<TableHead>Model</TableHead>
-									<TableHead>Context cap (tok)</TableHead>
-									<TableHead>Answer budget (tok)</TableHead>
-									<TableHead>Retry budget</TableHead>
-									<TableHead>Samples</TableHead>
-								</tr>
-							</thead>
-							<tbody>
-								{modelTuning.models.map((row) => (
-									<tr
-										key={row.modelId}
-										className="border-t border-border bg-surface-2 text-text-primary"
-										data-testid="model-tuning-row"
-									>
-										<TableCell>{shortModelId(row.modelId)}</TableCell>
-										<TableCell>
-											{row.contextCapTokens === null ? "—" : formatNumber(row.contextCapTokens)}
-										</TableCell>
-										<TableCell>
-											{row.answerBudgetTokens === null ? (
-												"—"
-											) : (
-												<span className={row.answerBudgetConfident ? undefined : "text-text-tertiary"}>
-													{formatNumber(row.answerBudgetTokens)}
-													{row.answerBudgetConfident ? "" : " (low)"}
-												</span>
-											)}
-										</TableCell>
-										<TableCell>{row.retryBudget === null ? "—" : formatNumber(row.retryBudget)}</TableCell>
-										<TableCell>{formatNumber(row.sampleCount)}</TableCell>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				)}
+				<ModelTuningPanel tuning={modelTuning} />
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
 					<table className="w-full min-w-[820px] border-collapse text-left text-[12px]">
 						<thead className="bg-surface-0 text-text-secondary">
