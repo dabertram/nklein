@@ -1205,9 +1205,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `scoreSourceTrust` — no new policy, my earlier "needs a trust policy" was wrong) + `buildCurrencyEvidenceFromSource`.
   Pure, mock-verified (8 tests). **CAPTURE + MEASUREMENT SHIPPED (`e5a1b65d`): `currency-evidence-store.ts` +
   best-effort capture wired in `runWebResearchFetch` (parses date + derives trust per fetched source, egress-gated) +
-  `dev evidence-currency` CLI (status + support/high-trust/conflict counts + the sanitized `annotation`). REMAINING =
-  render `summary.annotation` INLINE in agent output ("show ... in agent output" — a chat-rendering concern); the
-  annotation STRING is already produced + surfaced via the CLI, so only the turn-response wiring is left.**
+  `dev evidence-currency` CLI (status + support/high-trust/conflict counts + the sanitized `annotation`). **INLINE OUTPUT
+  SHIPPED (`78c025e1`): the `web_research` tool RESULT now carries a per-source `currency` annotation (date/trust/status,
+  never body) so the model sees each source's freshness inline and cites it — F4.3's "show ... in agent output".
+  COMPLETE for per-source currency; cross-source conflict resolution is separately F4.5.**
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
 - [ ] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict,
