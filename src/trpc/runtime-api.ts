@@ -10,6 +10,7 @@ import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
+import { rankBasicMemoryNotesForRecall } from "../chat/basic-memory-recall";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
@@ -48,7 +49,11 @@ import {
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
 import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/background-eval-controls";
-import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
+import {
+	nodeBasicMemoryFsDeps,
+	readBasicMemoryNotes,
+	readBasicMemoryRecallSources,
+} from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
 import { isTruthyEnv } from "../core/env-flag";
@@ -358,6 +363,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							const knownSkillIds = new Set<string>(SELECTABLE_CHAT_SKILL_IDS);
 							const skillIds = session.selectedSkillIds.filter((id): id is SkillId => knownSkillIds.has(id));
 							const memoryLayers = buildMemoryLayers({ events: ledgerEvents, skillIds });
+							const { homedir } = await import("node:os");
+							const { join } = await import("node:path");
+							const basicMemorySources = await readBasicMemoryRecallSources(
+								join(homedir(), "basic-memory"),
+								nodeBasicMemoryFsDeps(),
+							).catch(() => []);
+							const basicMemoryNotes = rankBasicMemoryNotesForRecall(basicMemorySources, query, 6);
 							const records = projectUnifiedMemory({
 								sessionMemories: recalled.map((entry) => ({
 									id: entry.id,
@@ -366,6 +378,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									shared: entry.shared,
 								})),
 								layerRecords: memoryLayers.all,
+								basicMemoryNotes,
 								...(focusChain
 									? {
 											focusChainSteps: focusChain.steps.map((step) => ({

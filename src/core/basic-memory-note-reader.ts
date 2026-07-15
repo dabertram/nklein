@@ -11,6 +11,24 @@
 import { parseBasicMemoryNote } from "./basic-memory-note-parse.js";
 import type { AuditableMemoryNote } from "./memory-freshness-audit.js";
 
+/** A basic-memory note WITH its body text — the input the F2.9b chat-recall ranker scores against a query. */
+export interface BasicMemoryRecallSource {
+	permalink: string;
+	title: string;
+	/** The note body (frontmatter stripped). */
+	body: string;
+}
+
+/** Drop a leading YAML frontmatter block, returning just the note body. Mirrors {@link readPermalink}'s cheap scan. */
+function stripFrontmatter(content: string): string {
+	const normalized = content.replace(/\r\n/g, "\n");
+	if (!normalized.startsWith("---\n")) {
+		return normalized;
+	}
+	const closeIndex = normalized.indexOf("\n---", 3);
+	return closeIndex === -1 ? normalized : normalized.slice(closeIndex + 4).replace(/^\n+/, "");
+}
+
 export interface BasicMemoryFsDeps {
 	/** Recursively list every `*.md` file under `rootDir`, returned as absolute paths. */
 	listMarkdownFiles(rootDir: string): Promise<string[]>;
@@ -69,6 +87,32 @@ export async function readBasicMemoryNotes(rootDir: string, deps: BasicMemoryFsD
 		notes.push(parseBasicMemoryNote({ id, content, updatedAt }));
 	}
 	return notes;
+}
+
+/**
+ * Read every note under `rootDir` WITH its body text — the F2.9b chat-recall source (the audit reader above drops the
+ * body). A file that fails to read/stat is skipped (degrade gracefully). The id is the permalink when present, matching
+ * the audit's link-target resolution.
+ */
+export async function readBasicMemoryRecallSources(
+	rootDir: string,
+	deps: BasicMemoryFsDeps,
+): Promise<BasicMemoryRecallSource[]> {
+	const files = await deps.listMarkdownFiles(rootDir);
+	const sources: BasicMemoryRecallSource[] = [];
+	for (const path of files) {
+		let content: string;
+		let updatedAt: number;
+		try {
+			[content, updatedAt] = await Promise.all([deps.readFile(path), deps.statMtimeMs(path)]);
+		} catch {
+			continue;
+		}
+		const id = readPermalink(content) ?? relativeNoteId(rootDir, path);
+		const { title } = parseBasicMemoryNote({ id, content, updatedAt });
+		sources.push({ permalink: id, title, body: stripFrontmatter(content) });
+	}
+	return sources;
 }
 
 /** The live node:fs implementation of {@link BasicMemoryFsDeps}. */
