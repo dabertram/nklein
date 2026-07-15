@@ -101,6 +101,7 @@ export default defineConfig({
 			"@runtime-operator-board-health": resolve(__dirname, "../src/core/operator-board-health.ts"),
 			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
 			"@runtime-capability-ceiling": resolve(__dirname, "../src/core/capability-ceiling-recommendation.ts"),
+			"@runtime-eval-freshness": resolve(__dirname, "../src/core/eval-freshness-decay.ts"),
 			"@runtime-escalation-suggestions": resolve(__dirname, "../src/core/escalation-suggestions.ts"),
 			"@runtime-escalation-resume-action": resolve(__dirname, "../src/core/escalation-resume-action.ts"),
 			"@runtime-chat-execution-posture": resolve(__dirname, "../src/chat/chat-execution-posture.ts"),

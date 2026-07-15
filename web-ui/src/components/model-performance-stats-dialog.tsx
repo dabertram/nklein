@@ -5,6 +5,11 @@ import {
 	type FleetModelFitness,
 	type RoleQualityBar,
 } from "@runtime-capability-ceiling";
+import {
+	type EvalCellFreshnessInput,
+	type EvalCellReevaluationScore,
+	rankEvalCellsForReevaluation,
+} from "@runtime-eval-freshness";
 import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -308,6 +313,22 @@ export function deriveFitnessCapabilityCeiling(rows: readonly FitnessRow[]): Cap
 	return ceilingHitRoles(assessCapabilityCeiling(barsForPresentRoles, fitness));
 }
 
+/**
+ * F3.26 re-evaluation priority over the fitness rows: which cells to re-run first (staleness × uncertainty × impact),
+ * from the same rows already in the browser. Shared core so the CLI (`nklein dev eval-freshness`) and this view agree.
+ */
+export function deriveTopReevalCells(rows: readonly FitnessRow[], now: number, limit = 3): EvalCellReevaluationScore[] {
+	const cells: EvalCellFreshnessInput[] = rows.map((row) => ({
+		cellKey: `${row.modelKey}::${row.role}::${row.difficultyTier}`,
+		sampleCount: row.sampleCount,
+		lastEvaluatedAt: row.updatedAt,
+		recordedVersionSignature: null,
+		currentVersionSignature: "",
+		usageCount: row.sampleCount,
+	}));
+	return rankEvalCellsForReevaluation(cells, undefined, now).slice(0, limit);
+}
+
 function summarizeObservations(observations: RuntimeModelPerformanceObservation[]): {
 	totalRuns: number;
 	completedRuns: number;
@@ -442,6 +463,10 @@ export function ModelPerformanceStatsDialog({
 	);
 	const capabilityCeilingHits = useMemo(
 		() => deriveFitnessCapabilityCeiling(fitnessTable?.rows ?? []),
+		[fitnessTable?.rows],
+	);
+	const topReevalCells = useMemo(
+		() => deriveTopReevalCells(fitnessTable?.rows ?? [], Date.now()),
 		[fitnessTable?.rows],
 	);
 	const fitnessRows = useMemo(
@@ -688,6 +713,19 @@ export function ModelPerformanceStatsDialog({
 							</span>
 						))}
 						— load a stronger model for these roles.
+					</div>
+				)}
+				{topReevalCells.length > 0 && (
+					<div
+						className="mb-2 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+						data-testid="reeval-priority-summary"
+					>
+						<span className="font-semibold text-text-primary">Re-evaluate first (F3.26):</span>{" "}
+						{topReevalCells.map((cell) => (
+							<span key={cell.cellKey} className="mr-2">
+								{cell.cellKey.split("::").slice(-2).join("/")} ({Math.round(cell.priority * 100)})
+							</span>
+						))}
 					</div>
 				)}
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
