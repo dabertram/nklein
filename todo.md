@@ -906,12 +906,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the runtime+store, zero console errors. The live-data half (activeLeases/lastTick) fills in once F1.31b hosts the
   service; the control INTENT it persists is what that service reads.
 - [x] **F1.40 — Time tracking per project and per card (David request 2026-07-15; SHIPPED + browser-verified `7de87372`).**
-  **NOTE on "LLM processing time":** implemented as the SUM of each attempt's `completedAt − startedAt` (attempt wall
-  duration). This counts PARALLEL attempts on one card additively (correct for "total processing" — a decompose→N-workers
-  card legitimately shows LLM-total ≫ active/age) AND includes any wait/idle time inside an attempt's span. If a purer
-  token-generation metric is wanted later, derive it from `tokensPerSec` × output tokens instead. Active time (the union)
-  is the tight "wall-clock !Klein was working" signal. Verified live: project row + 18 per-card rows with real data,
-  cards with no attempts show "—". Surface, per CARD and per
+  **"LLM processing time" = prompt-sent → response-streaming-ended (David's definition, `ab2d7afe`):** the SUM of each
+  run's `timeToLastOutputMs` (from the §5.Q model-performance observations), NOT the attempt wall duration (which
+  included tool + inter-call idle time). Successful = runs with outcome `completed`. Active time = union of run wall
+  spans `[startedAt, startedAt+wallTimeMs]`. Data source switched from the attempt ledger to
+  `handleGetModelPerformanceStats`. Verified live twice: after the fix the numbers are realistic (project 13 cards:
+  17h age / 6h active / 18h LLM-total / 4.5h LLM-ok — LLM-total sums parallel runs, active merges overlap). Surface, per CARD and per
   PROJECT: **age** (total = now − createdAt; active = time !Klein was actually running work on it) and **LLM
   processing time** (total across all attempts; successful = attempts whose outcome is a success). ALL derivable from
   existing data — no new recording seam:
