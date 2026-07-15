@@ -42,6 +42,7 @@ import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-
 import {
 	runDevAdviceCommand,
 	runDevCapabilityCeilingCommand,
+	runDevControllerTraceCommand,
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
@@ -744,6 +745,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { role: string; json?: boolean }) => {
 			await runDevRoutingPreviewCommand(options);
+		});
+
+	dev.command("controller-trace")
+		.description(
+			"Project a card's lifecycle onto the outer-controller phases (F3.12) — plan→act→verify→repair→finish.",
+		)
+		.requiredOption("--task <id>", "The task id to trace.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { task: string; json?: boolean }) => {
+			await runDevControllerTraceCommand({ taskId: options.task, json: options.json });
 		});
 
 	dev.command("swarm")

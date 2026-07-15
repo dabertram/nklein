@@ -74,6 +74,52 @@ export function advanceController(
 	}
 }
 
+/**
+ * Project a real card-lifecycle transition (`to` value) onto the controller's phase vocabulary — an observability
+ * mapping so a card's actual trajectory can be read in orient→plan→act→verify→repair→finish terms (validates the FSM
+ * vocabulary covers real lifecycles). Returns null for transitions that don't correspond to a controller phase.
+ */
+export function classifyLifecyclePhase(transitionTo: string): ControllerPhase | null {
+	const to = transitionTo.toLowerCase();
+	if (to === "wf:planning" || to === "wf:idle" || to === "idle") {
+		return "plan";
+	}
+	if (to === "running" || to === "wf:implementing" || to.startsWith("focus:in_progress")) {
+		return "act";
+	}
+	if (to === "awaiting_review" || to === "wf:awaiting_review" || to === "wf:awaiting_acceptance") {
+		return "verify";
+	}
+	if (to === "delivery_merge" || to === "completed") {
+		return "finish";
+	}
+	if (
+		to === "review_changes_requested" ||
+		to === "delivery_open_pr" ||
+		to === "delivery_commit" ||
+		to.startsWith("trouble_") ||
+		to.startsWith("remediation_")
+	) {
+		return "repair";
+	}
+	if (to === "failed" || to === "wf:failed" || to === "interrupted") {
+		return "failed";
+	}
+	return null;
+}
+
+/** The sequence of controller phases a card actually passed through (dedup consecutive repeats), from its transitions. */
+export function projectCardControllerTrace(transitionTos: readonly string[]): ControllerPhase[] {
+	const trace: ControllerPhase[] = [];
+	for (const to of transitionTos) {
+		const phase = classifyLifecyclePhase(to);
+		if (phase !== null && trace[trace.length - 1] !== phase) {
+			trace.push(phase);
+		}
+	}
+	return trace;
+}
+
 /** Convenience: run a full outcome sequence from the initial state (for tests / dry-runs). Pure. */
 export function runControllerSequence(
 	outcomes: readonly PhaseOutcome[],

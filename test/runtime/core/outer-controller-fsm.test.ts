@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
 	advanceController,
 	type ControllerState,
+	classifyLifecyclePhase,
 	INITIAL_CONTROLLER_STATE,
 	isTerminalPhase,
+	projectCardControllerTrace,
 	runControllerSequence,
 } from "../../../src/core/outer-controller-fsm.js";
 
@@ -76,5 +78,33 @@ describe("runControllerSequence", () => {
 			"ok", // repair 4 → failed
 		]);
 		expect(end.phase).toBe("failed");
+	});
+});
+
+describe("lifecycle projection (F3.12 observability)", () => {
+	it("maps real card transitions onto controller phases", () => {
+		expect(classifyLifecyclePhase("wf:planning")).toBe("plan");
+		expect(classifyLifecyclePhase("running")).toBe("act");
+		expect(classifyLifecyclePhase("awaiting_review")).toBe("verify");
+		expect(classifyLifecyclePhase("delivery_merge")).toBe("finish");
+		expect(classifyLifecyclePhase("review_changes_requested")).toBe("repair");
+		expect(classifyLifecyclePhase("delivery_open_pr")).toBe("repair");
+		expect(classifyLifecyclePhase("trouble_silent")).toBe("repair");
+		expect(classifyLifecyclePhase("failed")).toBe("failed");
+		expect(classifyLifecyclePhase("some:unrelated")).toBeNull();
+	});
+
+	it("projects a card's transitions into a deduped phase trace", () => {
+		const trace = projectCardControllerTrace([
+			"wf:planning",
+			"running",
+			"running", // dedup consecutive
+			"awaiting_review",
+			"delivery_open_pr", // review not approved → repair
+			"running", // re-work
+			"awaiting_review",
+			"delivery_merge",
+		]);
+		expect(trace).toEqual(["plan", "act", "verify", "repair", "act", "verify", "finish"]);
 	});
 });

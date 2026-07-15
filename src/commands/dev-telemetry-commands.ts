@@ -37,6 +37,7 @@ import {
 } from "../core/model-behavior-profile";
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
+import { projectCardControllerTrace } from "../core/outer-controller-fsm";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import {
 	buildRailFindingRetentionEvent,
@@ -386,6 +387,32 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
 	}
+}
+
+/** F3.12 — project a card's real ledger lifecycle onto the outer-controller phases (orient→plan→act→verify→repair→finish). */
+export async function runDevControllerTraceCommand(options: { taskId: string; json?: boolean }): Promise<void> {
+	const events = await readAllAgentLedger();
+	const transitionTos = events
+		.filter((e) => e.kind === "transition" && e.taskId === options.taskId)
+		.map((e) => (e as Extract<AgentLedgerEvent, { kind: "transition" }>).to);
+	const trace = projectCardControllerTrace(transitionTos);
+	const terminal = trace[trace.length - 1];
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ taskId: options.taskId, trace, terminal: terminal ?? null }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(`Controller trace (F3.12) for ${options.taskId}\n\n`);
+	if (trace.length === 0) {
+		process.stdout.write("(no controller-relevant transitions recorded for this task)\n");
+		return;
+	}
+	process.stdout.write(`  ${trace.join(" → ")}\n`);
+	const repairs = trace.filter((p) => p === "repair").length;
+	process.stdout.write(
+		`\n  terminal: ${terminal ?? "in-progress"}${repairs > 0 ? ` · ${repairs} repair cycle(s)` : ""}\n`,
+	);
 }
 
 /** F3.33 — preview the confidence+resource-aware routing order for a role over the LOADED fleet (verifiable live). */
