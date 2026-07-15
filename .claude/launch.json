@@ -6,6 +6,12 @@
 			"runtimeExecutable": "npm",
 			"runtimeArgs": ["run", "dev", "--prefix", "web-ui"],
 			"port": 4173
+		},
+		{
+			"name": "dev-full",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "dev:full"],
+			"port": 4173
 		}
 	]
 }
