@@ -76,6 +76,7 @@ import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
+import { buildEnforcedEvalChat } from "../nklein-agent/enforced-eval-chat";
 import {
 	buildNoisyEvalChat,
 	evalDifficultyToFitnessTier,
@@ -107,6 +108,7 @@ import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-ma
 import { appendDistractorObservations } from "../state/distractor-observation-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
+import { appendReasoningObservations } from "../state/reasoning-observation-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
@@ -1064,6 +1066,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const distractorProbe = isTruthyEnv(process.env.NKLEIN_EVAL_DISTRACTOR_PROBE)
 					? buildNoisyEvalChat(chat)
 					: null;
+				// F3.16 OPT-IN (NKLEIN_ENFORCED_REASONING): also run each cell through the enforced-reasoning loop so
+				// `dev reasoning-benefit` learns whether forcing reasoning helps. Same doubling/no-op contract.
+				const enforcedChat = isTruthyEnv(process.env.NKLEIN_ENFORCED_REASONING)
+					? buildEnforcedEvalChat(chat, modelId)
+					: null;
 				const result = await runModelEval(
 					{ modelId, repeats },
 					{
@@ -1073,6 +1080,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									noisyChat: distractorProbe.noisyChat,
 									noiseFraction: distractorProbe.noiseFraction,
 									recordDistractorSensitivity: (obs) => void appendDistractorObservations(obs).catch(() => {}),
+								}
+							: {}),
+						...(enforcedChat
+							? {
+									enforcedChat,
+									recordReasoningBenefit: (obs) => void appendReasoningObservations(obs).catch(() => {}),
 								}
 							: {}),
 					},
