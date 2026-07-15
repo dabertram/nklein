@@ -106,7 +106,7 @@ import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-ma
 import { readMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
 import { loadWorkspaceState } from "../state/workspace-state";
-import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
+import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";

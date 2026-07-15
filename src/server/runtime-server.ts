@@ -158,7 +158,7 @@ import {
 	loadWorkspaceState,
 	mutateWorkspaceState,
 } from "../state/workspace-state";
-import { readFitnessTable, readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
+import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
