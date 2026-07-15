@@ -870,7 +870,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   tick/error, cleanup errors), and `createRailStatusPublisher` (CHANGE-ONLY push — notify on tick/control events,
   publish only when the snapshot differs; no tight poll loop by construction). REMAINING (rides the F1.31b
   wiring): tRPC commands mapping to the reducer, snapshot fan-out via the runtime state hub, persistence of the
-  control state + cadence/cap in config, and the Settings/status UI.
+  control state + cadence/cap in config, and the Settings/status UI. **BUILDABILITY (surveyed 2026-07-15):** this is
+  BUILDABLE-UI and browser-verifiable on the running stack WITHOUT fleet data — the controls + config persistence +
+  disabled/idle/paused status are a pure reducer over persisted state. BUT it's a LARGE slice (a new config field must
+  thread the whole config stack — the `testDrivenMode` template touches ~14 files — plus 2 tRPC procedures + a Settings
+  panel = ~20 coordinated touch points), and its live-data half (activeLeases/lastTick) stays INERT until F1.31b wires
+  the F1.31 service. So the deliverable is a real-but-half-functional control surface: legitimate persisted-intent
+  substrate (F1.31b reads `enabled`), NOT a standalone user feature. Worth doing as an attended F1.31b+F1.35b PAIR, not
+  a lone unattended half-build.
 - [ ] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
   §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
   now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
@@ -1001,7 +1008,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet-gated ONLY): live-validate the wire round-trip on a vision-capable local model (e.g. a gemma/qwen-VL)
   — a verification step, not new code. Everything else in F2.7b is implemented + tested (attach→send→vision response→
   history render, all gated fail-closed).
-- [ ] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
+- [~] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
   semantic/procedural — NOT deletable: projections of immutable substrate, with the reason saying so), Basic
@@ -1022,7 +1029,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `selectMemoryBand` → new pure `buildUnifiedMemoryNote` (mirrors the kleinSelfCorpusNote injection; 2 tests). REMAINING
   (David's decisions were "build flag-gated now, tune later"): (1) compose in the §5.M four-layer + Basic-Memory
   sources; (2) live-tune recall quality on small models, then decide enable-by-default; (3) optionally suppress the
-  solo recall when the note is on (today it's additive).
+  solo recall when the note is on (today it's additive). **STATUS CORRECTION (surveyed 2026-07-15): the HEADLINE is
+  DONE** — delete core + READ→SHOW→DELETE UI (Playwright) + the flag-gated turn-feed all shipped; the seam is
+  `runtime-api.ts:~318` `projectUnifiedMemory({...})` (feeds sessionMemories + focusChainSteps today). Only sub-step (1)
+  is BUILDABLE (small, additive, flag-gated, unit-testable — compose the §5.M four-layer + Basic-Memory notes into that
+  call); (2)+(3) are fleet/design. Marked `[~]` — near-complete, not open greenfield.
 - [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
   The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
   abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
