@@ -1,29 +1,29 @@
 /**
- * F1.40 — per-card and per-project TIME tracking (pure). Derived entirely from data the runtime already records: the
- * §5.AF attempt ledger (`startedAt`/`completedAt`/`outcome` per attempt) and the board card timestamps. No new recording
- * seam — this is a projection.
+ * F1.40 — per-card and per-project TIME tracking (pure). Derived from data the runtime already records: the §5.Q
+ * model-performance observations (per session run: `startedAt`, `wallTimeMs`, `timeToLastOutputMs`, `outcome`) and the
+ * board card `createdAt`. No new recording seam — a projection.
  *
  * Four metrics per entity:
  *   - `ageTotalMs`     — wall-clock lifespan: `now − createdAt` (capped at `completedAt` once the entity is done).
- *   - `activeMs`       — time !Klein was actually working on it: the UNION (overlaps merged, never double-counted) of
- *                        the entity's attempt `[startedAt, completedAt]` spans.
- *   - `llmTotalMs`     — total LLM processing: the SUM of every attempt's `completedAt − startedAt`.
- *   - `llmSuccessfulMs`— the same sum restricted to attempts whose outcome is a success.
+ *   - `activeMs`       — time !Klein was actually running work on it: the UNION (overlaps merged, never double-counted)
+ *                        of the entity's run wall spans `[startedAt, startedAt + wallTimeMs]`.
+ *   - `llmTotalMs`     — total LLM processing: the SUM of every run's `timeToLastOutputMs` — the duration from the
+ *                        prompt being sent to the LLM until its response finished streaming (David's definition, 2026-07-15).
+ *   - `llmSuccessfulMs`— the same sum restricted to runs whose outcome is a success (`completed`).
  *
- * `llmTotalMs` ≥ `activeMs` whenever attempts overlap (parallel work), and `activeMs` ≤ `ageTotalMs` always. Attempts
- * missing a start or end timestamp (legacy rows) contribute to neither the LLM sum nor the active union.
+ * `llmTotalMs` sums per-run LLM time (parallel runs count additively); `activeMs` merges overlap, so `activeMs` ≤
+ * `ageTotalMs` always. Runs missing a timing field contribute to neither the LLM sum nor the active union.
  */
 
-/** The single success outcome kind (mirrors `ModelOutcomeKind`'s `"success"`). */
-const SUCCESS_OUTCOME = "success";
-
-export interface TimeTrackingAttempt {
-	/** Attempt start (ms epoch), or null for legacy rows without timing. */
+export interface TimeTrackingActivity {
+	/** Run start (ms epoch), or null for legacy rows without timing. */
 	startedAt: number | null;
-	/** Attempt completion (ms epoch), or null when unknown/still-running. */
-	completedAt: number | null;
-	/** The classified outcome; `"success"` counts toward the successful LLM total. */
-	outcome: string;
+	/** Run wall-clock end (`startedAt + wallTimeMs`), or null when unknown; used for the active-time union. */
+	endedAt: number | null;
+	/** Prompt-sent → response-streaming-ended, in ms (`timeToLastOutputMs`), or null when unmeasured. */
+	llmMs: number | null;
+	/** Whether the run succeeded (outcome `completed`) — for the successful-LLM total. */
+	successful: boolean;
 }
 
 export interface TimeTrackingMetrics {
@@ -38,19 +38,16 @@ interface Span {
 	end: number;
 }
 
-/** A well-formed `[start, end]` span for an attempt, or null when it lacks timing / ends before it starts. */
-function attemptSpan(attempt: TimeTrackingAttempt): Span | null {
-	if (attempt.startedAt === null || attempt.completedAt === null || attempt.completedAt < attempt.startedAt) {
+/** A well-formed `[start, end]` wall span for a run, or null when it lacks timing / ends before it starts. */
+function activitySpan(activity: TimeTrackingActivity): Span | null {
+	if (activity.startedAt === null || activity.endedAt === null || activity.endedAt < activity.startedAt) {
 		return null;
 	}
-	return { start: attempt.startedAt, end: attempt.completedAt };
+	return { start: activity.startedAt, end: activity.endedAt };
 }
 
 /** Total length of the UNION of the given spans (overlaps merged once). */
 function unionDurationMs(spans: readonly Span[]): number {
-	if (spans.length === 0) {
-		return 0;
-	}
 	const [first, ...rest] = [...spans].sort((a, b) => a.start - b.start);
 	if (!first) {
 		return 0;
@@ -70,19 +67,17 @@ function unionDurationMs(spans: readonly Span[]): number {
 	return total + (currentEnd - currentStart);
 }
 
-/** LLM-time (total + successful-only) folded over the attempts. */
-function llmDurations(attempts: readonly TimeTrackingAttempt[]): { total: number; successful: number } {
+/** LLM-time (total + successful-only) folded over the runs. */
+function llmDurations(activities: readonly TimeTrackingActivity[]): { total: number; successful: number } {
 	let total = 0;
 	let successful = 0;
-	for (const attempt of attempts) {
-		const span = attemptSpan(attempt);
-		if (!span) {
+	for (const activity of activities) {
+		if (activity.llmMs === null || activity.llmMs < 0) {
 			continue;
 		}
-		const duration = span.end - span.start;
-		total += duration;
-		if (attempt.outcome === SUCCESS_OUTCOME) {
-			successful += duration;
+		total += activity.llmMs;
+		if (activity.successful) {
+			successful += activity.llmMs;
 		}
 	}
 	return { total, successful };
@@ -93,12 +88,12 @@ export function computeTimeTracking(input: {
 	createdAt: number;
 	/** When set, the entity is done and its age is measured to completion, not to `now`. */
 	completedAt?: number | null;
-	attempts: readonly TimeTrackingAttempt[];
+	activities: readonly TimeTrackingActivity[];
 	now: number;
 }): TimeTrackingMetrics {
 	const ageEnd = input.completedAt ?? input.now;
-	const spans = input.attempts.map(attemptSpan).filter((span): span is Span => span !== null);
-	const { total, successful } = llmDurations(input.attempts);
+	const spans = input.activities.map(activitySpan).filter((span): span is Span => span !== null);
+	const { total, successful } = llmDurations(input.activities);
 	return {
 		ageTotalMs: Math.max(0, ageEnd - input.createdAt),
 		activeMs: unionDurationMs(spans),
@@ -109,19 +104,19 @@ export function computeTimeTracking(input: {
 
 /**
  * Project-level metrics: age runs from the EARLIEST card's `createdAt`; active + LLM times aggregate across ALL the
- * project's attempts (the union merges overlap across cards, so two cards working at once don't double-count active
- * time). An empty project (no cards) reports zero age but still folds any stray attempts.
+ * project's runs (the union merges overlap across cards, so two cards working at once don't double-count active time).
+ * An empty project (no cards) reports zero age but still folds any stray runs.
  */
 export function computeProjectTimeTracking(input: {
 	cards: readonly { createdAt: number; completedAt?: number | null }[];
-	attempts: readonly TimeTrackingAttempt[];
+	activities: readonly TimeTrackingActivity[];
 	now: number;
 }): TimeTrackingMetrics {
 	if (input.cards.length === 0) {
-		const spans = input.attempts.map(attemptSpan).filter((span): span is Span => span !== null);
-		const { total, successful } = llmDurations(input.attempts);
+		const spans = input.activities.map(activitySpan).filter((span): span is Span => span !== null);
+		const { total, successful } = llmDurations(input.activities);
 		return { ageTotalMs: 0, activeMs: unionDurationMs(spans), llmTotalMs: total, llmSuccessfulMs: successful };
 	}
 	const earliestCreatedAt = Math.min(...input.cards.map((card) => card.createdAt));
-	return computeTimeTracking({ createdAt: earliestCreatedAt, attempts: input.attempts, now: input.now });
+	return computeTimeTracking({ createdAt: earliestCreatedAt, activities: input.activities, now: input.now });
 }

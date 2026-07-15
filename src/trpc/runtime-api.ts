@@ -76,7 +76,7 @@ import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projectio
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
-import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingAttempt } from "../core/time-tracking";
+import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
 import { buildEnforcedEvalChat } from "../nklein-agent/enforced-eval-chat";
 import {
@@ -640,26 +640,32 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
 			});
 		},
-		// F1.40: per-card + per-project time tracking. Projects the attempt ledger grouped by taskId over the
-		// workspace's board cards -- age (now - createdAt), active time (union of attempt spans), and LLM processing
-		// time (total + successful). Read-only; empty-safe on any read failure.
+		// F1.40: per-card + per-project time tracking. Projects the model-performance observations (per session run)
+		// grouped by taskId over the workspace's board cards -- age (now - createdAt), active time (union of run wall
+		// spans [startedAt, startedAt+wallTimeMs]), and LLM processing time (SUM of timeToLastOutputMs = prompt-sent ->
+		// response-streaming-ended, per David 2026-07-15; successful = outcome "completed"). Empty-safe on read failure.
 		getTimeTracking: async (workspaceScope) => {
 			const now = Date.now();
-			const [board, ledger] = await Promise.all([
+			const [board, stats] = await Promise.all([
 				loadWorkspaceState(workspaceScope.workspacePath)
 					.then((state) => state.board)
 					.catch(() => null),
-				readAllAgentLedger().catch(() => []),
+				handleGetModelPerformanceStats(workspaceScope).catch(() => ({ observations: [] as never[] })),
 			]);
-			const attemptsByTask = new Map<string, TimeTrackingAttempt[]>();
-			for (const attempt of selectAttempts(ledger)) {
-				const list = attemptsByTask.get(attempt.taskId) ?? [];
+			const activitiesByTask = new Map<string, TimeTrackingActivity[]>();
+			for (const observation of stats.observations) {
+				const list = activitiesByTask.get(observation.taskId) ?? [];
+				const endedAt =
+					observation.startedAt !== null && observation.wallTimeMs !== null
+						? observation.startedAt + observation.wallTimeMs
+						: null;
 				list.push({
-					startedAt: attempt.startedAt ?? null,
-					completedAt: attempt.completedAt ?? null,
-					outcome: attempt.outcome,
+					startedAt: observation.startedAt,
+					endedAt,
+					llmMs: observation.timeToLastOutputMs,
+					successful: observation.outcome === "completed",
 				});
-				attemptsByTask.set(attempt.taskId, list);
+				activitiesByTask.set(observation.taskId, list);
 			}
 			const cards = board ? board.columns.flatMap((column) => column.cards) : [];
 			const cardRows = cards.map((card) => ({
@@ -667,13 +673,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				title: card.title ?? card.id,
 				metrics: computeTimeTracking({
 					createdAt: card.createdAt,
-					attempts: attemptsByTask.get(card.id) ?? [],
+					activities: activitiesByTask.get(card.id) ?? [],
 					now,
 				}),
 			}));
 			const project = computeProjectTimeTracking({
 				cards: cards.map((card) => ({ createdAt: card.createdAt })),
-				attempts: cards.flatMap((card) => attemptsByTask.get(card.id) ?? []),
+				activities: cards.flatMap((card) => activitiesByTask.get(card.id) ?? []),
 				now,
 			});
 			return { generatedAt: now, project, cards: cardRows };

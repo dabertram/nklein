@@ -2,56 +2,65 @@ import { describe, expect, it } from "vitest";
 import {
 	computeProjectTimeTracking,
 	computeTimeTracking,
-	type TimeTrackingAttempt,
+	type TimeTrackingActivity,
 } from "../../../src/core/time-tracking";
 
-const attempt = (startedAt: number | null, completedAt: number | null, outcome = "success"): TimeTrackingAttempt => ({
-	startedAt,
-	completedAt,
-	outcome,
+// A run: started at `start`, wall-ended at `end`, with `llmMs` of prompt→response-end LLM time, success by default.
+const run = (
+	start: number | null,
+	end: number | null,
+	llmMs: number | null,
+	successful = true,
+): TimeTrackingActivity => ({
+	startedAt: start,
+	endedAt: end,
+	llmMs,
+	successful,
 });
 
 describe("computeTimeTracking (F1.40 card metrics)", () => {
 	it("ages to now while open, and to completedAt once done", () => {
-		expect(computeTimeTracking({ createdAt: 100, attempts: [], now: 1_100 }).ageTotalMs).toBe(1_000);
-		expect(computeTimeTracking({ createdAt: 100, completedAt: 600, attempts: [], now: 5_000 }).ageTotalMs).toBe(500);
+		expect(computeTimeTracking({ createdAt: 100, activities: [], now: 1_100 }).ageTotalMs).toBe(1_000);
+		expect(computeTimeTracking({ createdAt: 100, completedAt: 600, activities: [], now: 5_000 }).ageTotalMs).toBe(
+			500,
+		);
 	});
 
-	it("sums LLM time over all attempts, and successful-only over success outcomes", () => {
+	it("LLM time is the SUM of per-run prompt→response durations; successful-only over success outcomes", () => {
 		const metrics = computeTimeTracking({
 			createdAt: 0,
 			now: 10_000,
-			attempts: [attempt(0, 1_000, "success"), attempt(2_000, 2_500, "loop"), attempt(3_000, 3_800, "success")],
+			activities: [run(0, 1_000, 800, true), run(2_000, 2_500, 400, false), run(3_000, 3_800, 700, true)],
 		});
-		// total = 1000 + 500 + 800; successful = 1000 + 800
-		expect(metrics.llmTotalMs).toBe(2_300);
-		expect(metrics.llmSuccessfulMs).toBe(1_800);
+		expect(metrics.llmTotalMs).toBe(1_900); // 800 + 400 + 700
+		expect(metrics.llmSuccessfulMs).toBe(1_500); // 800 + 700
 	});
 
-	it("active time is the UNION of attempt spans (overlaps merged, never double-counted)", () => {
+	it("active time is the UNION of run WALL spans (overlaps merged, never double-counted)", () => {
 		const metrics = computeTimeTracking({
 			createdAt: 0,
 			now: 10_000,
 			// [0,1000] and [500,1500] overlap → union [0,1500] = 1500; plus a disjoint [3000,3200] = 200.
-			attempts: [attempt(0, 1_000), attempt(500, 1_500), attempt(3_000, 3_200)],
+			activities: [run(0, 1_000, 900), run(500, 1_500, 900), run(3_000, 3_200, 100)],
 		});
 		expect(metrics.activeMs).toBe(1_700);
-		// LLM total double-counts the overlap: 1000 + 1000 + 200.
-		expect(metrics.llmTotalMs).toBe(2_200);
+		// LLM total is independent of the wall spans — it sums the measured LLM durations.
+		expect(metrics.llmTotalMs).toBe(1_900);
 	});
 
-	it("skips attempts missing a start or end (legacy rows) in the LLM + active terms", () => {
+	it("skips runs missing wall timing (active) or LLM timing (LLM sum) independently", () => {
 		const metrics = computeTimeTracking({
 			createdAt: 0,
 			now: 5_000,
-			attempts: [attempt(null, 1_000), attempt(2_000, null), attempt(3_000, 3_500, "success")],
+			// run 1: no start → not active, but has llmMs. run 2: has span, no llmMs. run 3: both.
+			activities: [run(null, 1_000, 300), run(2_000, 2_400, null), run(3_000, 3_500, 250)],
 		});
-		expect(metrics.llmTotalMs).toBe(500);
-		expect(metrics.activeMs).toBe(500);
+		expect(metrics.llmTotalMs).toBe(550); // 300 + 250
+		expect(metrics.activeMs).toBe(900); // [2000,2400]=400 + [3000,3500]=500
 	});
 
 	it("never returns a negative age (clock skew guard)", () => {
-		expect(computeTimeTracking({ createdAt: 5_000, attempts: [], now: 1_000 }).ageTotalMs).toBe(0);
+		expect(computeTimeTracking({ createdAt: 5_000, activities: [], now: 1_000 }).ageTotalMs).toBe(0);
 	});
 });
 
@@ -61,16 +70,16 @@ describe("computeProjectTimeTracking (F1.40 project metrics)", () => {
 			now: 10_000,
 			cards: [{ createdAt: 2_000 }, { createdAt: 500 }, { createdAt: 4_000 }],
 			// Two cards active at once: [1000,3000] and [2000,2500] → union [1000,3000] = 2000.
-			attempts: [attempt(1_000, 3_000), attempt(2_000, 2_500)],
+			activities: [run(1_000, 3_000, 1_500), run(2_000, 2_500, 400)],
 		});
 		expect(metrics.ageTotalMs).toBe(9_500); // now - earliest(500)
 		expect(metrics.activeMs).toBe(2_000);
-		expect(metrics.llmTotalMs).toBe(2_500); // 2000 + 500 (double-counts overlap)
+		expect(metrics.llmTotalMs).toBe(1_900); // 1500 + 400 (LLM sum counts both)
 	});
 
-	it("an empty project reports zero age but still folds stray attempts", () => {
-		const metrics = computeProjectTimeTracking({ now: 10_000, cards: [], attempts: [attempt(0, 400, "success")] });
+	it("an empty project reports zero age but still folds stray runs", () => {
+		const metrics = computeProjectTimeTracking({ now: 10_000, cards: [], activities: [run(0, 400, 300, true)] });
 		expect(metrics.ageTotalMs).toBe(0);
-		expect(metrics.llmSuccessfulMs).toBe(400);
+		expect(metrics.llmSuccessfulMs).toBe(300);
 	});
 });
