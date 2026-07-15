@@ -1127,8 +1127,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   available; measure whether it improves the result.
 - [ ] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
   feed agreement/cost into reliability and routing.
-- [ ] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
-  only when evidence says they help.
+- [~] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
+  only when evidence says they help. **PURE CORE SHIPPED (`enforced-reasoning-benefit.ts` — `learnReasoningBenefit` +
+  `shouldEnforceReasoning`). BLOCKED on the OBSERVATION PRODUCER (verified 2026-07-15, signal-level): the learner needs
+  `{reasoningEnabled, qualityScore}` pairs per cell, but no live path produces both — chat has the enforced-reasoning
+  loop (`chat-enforced-reasoning.ts`) but NO 0-1 quality grade; the graded board/eval path never varies+records reasoning
+  enforcement. The precursor is a reasoning-TOGGLED eval variant (generate each cell baseline + enforced, score both) =
+  a deliberate 2x-eval-cost A/B experiment, fleet-gated — a David resource decision, not a recording seam.**
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
@@ -1188,8 +1193,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   fetch errors, selected spans, synthesis model, unsupported claims, and final use.
 - [ ] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
-- [ ] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
-  leaking raw untrusted instructions.
+- [~] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
+  leaking raw untrusted instructions. **PURE CORE SHIPPED (`evidence-currency-status.ts` — `summarizeEvidenceCurrency`,
+  sanitized: counts/ages/trust only, never bodies). BLOCKED on the SOURCE-DATE PRODUCER (verified 2026-07-15): the core
+  needs `sourceDateMs` per source, but the live `WebResearchResult` (`nklein-web-research-tool.ts`) carries only
+  url/title/sourceDomain — NO publication date — so `sourceDateMs` would be constant null and the freshness verdict
+  (the whole point) can't compute. Precursor = a publication-date EXTRACTION feature (parse dates from fetched pages,
+  unreliable) + a domain→trust policy — a distinct feature, not a recording seam.**
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
 - [ ] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict,
@@ -1214,8 +1224,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   require no regression on capable models.
 - [ ] **F4.12 — Wire reasoning-aware answer budgets across chat/swarm/review.** Separate reasoning and answer headroom,
   classify truncation accurately, and expose budget decisions in diagnostics.
-- [ ] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
-  evidence while preserving required facts and citations.
+- [~] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
+  evidence while preserving required facts and citations. **PURE CORE SHIPPED (`model-sensitive-pruning.ts` —
+  `estimateDistractorSensitivity` + `pruneEvidenceForModel`). BLOCKED on the OBSERVATION PRODUCER (verified 2026-07-15):
+  needs `{noiseLevel, quality}` pairs per model, but no live path produces the noise dimension — the eval runner grades
+  `qualityScore` (now persisted, `model-eval-run-store.ts`) but never injects/varies distractor noise; `search_code`
+  emits `distractorsPruned: 0` (no pruning stage). Precursor = a noise-INJECTED eval variant (or a live reranking stage
+  that records pruned-vs-kept + downstream quality) — a distinct feature. NOTE: retrieval telemetry IS now live
+  (`729092e6`, search_code → ledger `retrieval` events) so retrieval-usefulness (§5.AC) has real data; F4.13 needs the
+  richer noise+quality signal on top.**
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
