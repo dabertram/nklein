@@ -1230,7 +1230,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   required tool.
 - [ ] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
   example/result handle across tool boundaries so the controller can repair one failure without dumping bulk context.
-- [ ] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through
+- [~] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through **EXECUTOR DONE 2026-07-15:** action-plan-executor.ts executeActionPlan (validate→topo-dispatch→checkpoint→failure-skip over injected dispatch, 4 tests). Wire into decomposition-subtask-dag remaining.
   the manifest, checkpoint evidence/results, and recover/replan one failed step without replaying completed side effects.
 - [ ] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
   route near-valid payloads through tolerant repair, and fall back without weakening semantic validation.
