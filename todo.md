@@ -1150,8 +1150,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 3B. Evaluation, routing, and machine pools *(legacy §5.AB, §5.AL)*
 
-- [ ] **F3.18 — Finish per-task model selection.** Score card difficulty/skills/constraints against loaded-model fitness,
-  cost, context, and availability at dispatch and retry.
+- [x] **F3.18 — Finish per-task model selection.** Score card difficulty/skills/constraints against loaded-model fitness,
+  cost, context, and availability at dispatch and retry. **ALREADY COMPLETE (verified 2026-07-15) in `routeNKleinTask`
+  (`nklein-task-router.ts`), called at `start-task-session.ts:1048`: difficulty = feasibility (`capability >=
+  difficulty`); fitness = `observedCapability` (registry score BLENDED with the ledger's observed success, §5.AF);
+  context = the context-window safety guard; cost = `costRank`; availability = only loaded candidates are passed;
+  skills = `taskAffinityTags` overlap (resolved from the card's skills, preferred among feasible). AT RETRY: redrive
+  re-enters `startTaskSession` ⇒ re-routes with fresh loaded-model + ledger evidence (the retry LADDER may deliberately
+  reuse via same_model_retry — a policy choice, not a routing gap). The `- [ ]` was stale.**
 - [x] **F3.19 — Make autonomous guardrails power/model aware.** Derive wall-time/turn budgets from measured speed and
   task shape so slow capable local models are not falsely killed. **COMPLETE (`8c9111b4` core+seam, `7e7fef23` caller):
   `speed-aware-liveness.ts` `deriveLivenessThresholds` floors stalledAfterMs at (expected output tokens / measured
