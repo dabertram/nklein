@@ -1103,8 +1103,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   effectiveness without contaminating stable cache prefixes.
 - [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
   for verified non-reasoners; fall back to prose extraction conservatively.
-- [ ] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
-  interrupt safely, and feed classification/recovery metrics.
+- [~] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
+  interrupt safely, and feed classification/recovery metrics. **RECORD-ONLY WIRE SHIPPED 2026-07-15 (`7236debc`):**
+  the pure detector (`src/core/runaway-generation-detector.ts` `detectRunawayGeneration`) is now wired into the live SDK
+  chat turn (`src/chat/chat-agent-turn.ts`, injected `onRunawayDetected?` hook fired after the model's raw final text);
+  the `chat-service` caller records a `custom`/`warning` self-observation (`operation:"runaway_generation_detected"`) so
+  the false-positive rate accrues in telemetry BEFORE any gate — observe-first, mirroring the PRM/delivery-quality wires.
+  Byte-identical when the hook is omitted; unit-tested (looping text fires + records, clean text doesn't). **Remaining:**
+  the "interrupt safely" half (sample the in-flight stream + abort a runaway into the §5.AA retry ladder) is deferred like
+  the PRM gate — activate only once telemetry confirms the detector's live false-positive rate is acceptably low.
 - [ ] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
 - [~] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
