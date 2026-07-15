@@ -1338,7 +1338,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   blindly filling the advertised window; retain safety margins.
 - [ ] **F4.11 — Prove learned-budget quality.** Compare compacted versus overflow-threshold prompts on small models and
   require no regression on capable models.
-- [ ] **F4.12 — Wire reasoning-aware answer budgets across chat/swarm/review.** Separate reasoning and answer headroom,
+- [~] **F4.12 — Wire reasoning-aware answer budgets across chat/swarm/review.** Separate reasoning and answer headroom, **TRUNCATION-CLASSIFIER DONE 2026-07-15:** output-truncation-classification.ts classifyOutputTruncation (reasoning-starved/answer-budget/total-ceiling, 4 tests); planReasoningOutputBudget already splits headroom. Diagnostics wire across chat/swarm/review remaining.
   classify truncation accurately, and expose budget decisions in diagnostics.
 - [~] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
   evidence while preserving required facts and citations. **PURE CORE + A/B SUBSTRATE SHIPPED (`fa2da18f`):
