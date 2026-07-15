@@ -18,6 +18,7 @@ import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } fro
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
+import { checkRoleModelReadiness, type RoleModelRequirement } from "../core/role-model-readiness";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { countActiveAgentSessions, countAttentionParkedSessions } from "../core/task-session-api-contract";
@@ -583,6 +584,52 @@ async function runDevCapacityCommand(options: DevCapacityOptions = {}): Promise<
 	process.stdout.write(`\n${formatContextSizeAdvice(contextAdvice)}`);
 }
 
+interface DevRolePreflightOptions {
+	json?: boolean;
+	cwd?: string;
+	write?: (text: string) => void;
+}
+
+/**
+ * Preflight the configured model roles against the loaded fleet: a live dev-test (2026-07-15) stranded a review card
+ * because the configured reviewer/worker model was not loaded (child cards route by role, so a role with no loaded
+ * model has nothing to dispatch to). This read-only check reports which role models are loaded vs missing so a run
+ * isn't started into a guaranteed strand.
+ */
+async function runDevRolePreflightCommand(options: DevRolePreflightOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const cwd = options.cwd ?? process.cwd();
+	const [config, models] = await Promise.all([loadRuntimeConfig(cwd), fetchLmsPsModels(createDefaultLmsRunner())]);
+	const requirements: RoleModelRequirement[] = Object.entries(config.modelRoles ?? {}).map(([role, settings]) => ({
+		role,
+		modelId: settings?.modelId ?? null,
+	}));
+	const result = checkRoleModelReadiness({
+		requirements,
+		loaded: models.map((model) => ({ identifier: model.identifier, modelKey: model.modelKey })),
+	});
+	if (options.json) {
+		write(`${JSON.stringify({ ...result, loadedCount: models.length }, null, 2)}\n`);
+		return;
+	}
+	write("Role-model preflight (read-only: configured modelRoles vs loaded `lms ps`)\n\n");
+	if (requirements.every((requirement) => !requirement.modelId)) {
+		write("  No per-role models configured — all roles inherit the default model.\n");
+		return;
+	}
+	for (const satisfied of result.satisfied) {
+		write(`  ✓ ${satisfied.role}: ${satisfied.modelId} (loaded)\n`);
+	}
+	for (const missing of result.missing) {
+		write(`  ✗ ${missing.role}: ${missing.modelId} — NOT LOADED (cards for this role will strand)\n`);
+	}
+	write(
+		result.ready
+			? "\nReady: every configured role model is loaded.\n"
+			: `\nNOT READY: ${result.missing.length} role model(s) missing — load them (e.g. \`lms load <model>\`) before an autonomous run.\n`,
+	);
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
@@ -720,6 +767,17 @@ export function registerDevCommand(program: Command): void {
 		)
 		.action(async (options: DevCapacityOptions) => {
 			await runDevCapacityCommand(options);
+		});
+
+	dev.command("role-preflight")
+		.description("Check that every configured model role has its model loaded on the fleet (prevents card strands).")
+		.option("--json", "Print machine-readable JSON.")
+		.option(
+			"--cwd <path>",
+			"Workspace path whose runtime/project config should be read (default: current directory).",
+		)
+		.action(async (options: DevRolePreflightOptions) => {
+			await runDevRolePreflightCommand(options);
 		});
 
 	dev.command("advice")
