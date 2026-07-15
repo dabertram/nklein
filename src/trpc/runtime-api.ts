@@ -47,6 +47,7 @@ import {
 	parseShellSessionStartRequest,
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
+import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/background-eval-controls";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
@@ -103,11 +104,13 @@ import {
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { openInBrowser } from "../server/browser";
+import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { appendDistractorObservations } from "../state/distractor-observation-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
+import { loadRailControlSettings, saveRailControlSettings } from "../state/rail-control-store";
 import { appendReasoningObservations } from "../state/reasoning-observation-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
@@ -221,6 +224,35 @@ async function resolveLlmfitCatalogUpdateMode(
  * final-answer streaming path: when the loop passes an `onToken` (the no-tool final reply), it streams via the client's
  * SSE completion (hybrid streaming) so a tool-routed turn that ends in plain text still emits token deltas.
  */
+/**
+ * F1.35b — the service-less fallback rail coordinator: used when no `railControlCoordinator` dep is supplied (the
+ * runtime didn't opt into hosting the F1.31 service). It is backed by the real on-disk store, so the operator's control
+ * intent + tunables still persist and the status reads `disabled`/`idle`; there is simply nothing to start/stop.
+ * Memoized once so its outcome log is stable across calls.
+ */
+/** Map the core's readonly snapshot onto the wire contract's (mutable-array) shape. Structurally identical otherwise. */
+function toRailStatusResponse(snapshot: RailStatusSnapshot) {
+	return {
+		...snapshot,
+		activeLeases: [...snapshot.activeLeases],
+		cleanupErrors: [...snapshot.cleanupErrors],
+		recentOutcomes: [...snapshot.recentOutcomes],
+	};
+}
+let fallbackRailCoordinator: RailControlCoordinator | null = null;
+function resolveRailCoordinator(deps: CreateRuntimeApiDependencies): RailControlCoordinator {
+	if (deps.railControlCoordinator) {
+		return deps.railControlCoordinator;
+	}
+	fallbackRailCoordinator ??= createRailControlCoordinator({
+		loadSettings: () => loadRailControlSettings(),
+		saveSettings: (settings) => saveRailControlSettings(settings),
+		service: null,
+		outcomeLog: createRailOutcomeLog(),
+	});
+	return fallbackRailCoordinator;
+}
+
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const nkleinProviderService = createNKleinProviderService();
 	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
@@ -575,6 +607,17 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					.map((finding) => ({ kind: finding.kind, noteTitle: finding.noteTitle, detail: finding.detail })),
 			};
 		},
+		// F1.35b: background-eval rail controls/status. Read-only snapshot + the two operator mutations, all over the
+		// injected (or fallback store-backed) coordinator. Byte-safe: without the F1.31 service the controls persist
+		// intent + the status reads disabled/idle; a capable runtime hosts the service and enable/pause drive it.
+		getRailStatus: async () => toRailStatusResponse(await resolveRailCoordinator(deps).getStatus()),
+		setRailControl: async (input) =>
+			toRailStatusResponse(
+				await resolveRailCoordinator(deps).applyCommand(
+					input.kind === "pause" ? { kind: "pause", reason: input.reason ?? null } : { kind: input.kind },
+				),
+			),
+		setRailTunables: async (input) => toRailStatusResponse(await resolveRailCoordinator(deps).updateTunables(input)),
 		// §5.AL/§10c#11: degraded-model badges for the model selector — derived from persisted self-observation
 		// events + the ledger run denominator (same recipe as `dev model-verdict`). Read-only; empty on any error.
 		getModelVerdictBadges: async () => {

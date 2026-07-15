@@ -356,3 +356,52 @@ export const runtimeMemoryAuditResponseSchema = z.object({
 	topFindings: z.array(runtimeMemoryAuditFindingSchema),
 });
 export type RuntimeMemoryAuditResponse = z.infer<typeof runtimeMemoryAuditResponseSchema>;
+
+/**
+ * F1.35b (§5.AI) — the background-eval RAIL controls/status surface. Read-only status snapshot (`composeRailStatus`)
+ * plus the two operator mutations (control command + cadence/cap tunables), all returning the fresh snapshot. The
+ * `state` is `disabled` unless the operator enabled the rail; `active`/`idle` distinguish "a background eval is running"
+ * from "enabled but nothing running right now". `activeLeases`/`lastTick` populate only when the runtime hosts the F1.31
+ * service (the `NKLEIN_EVAL_RAIL` boot flag); otherwise the surface shows the persisted intent + tunables with an empty
+ * live section — the operator can still configure the rail before enabling it on a capable runtime.
+ */
+const runtimeRailLeaseSchema = z.object({
+	runId: z.string(),
+	project: z.string(),
+	workspaceId: z.string().nullable(),
+	startedAt: z.number().int(),
+	deadlineAt: z.number().int(),
+});
+const runtimeRailTickOutcomeSchema = z.object({
+	at: z.number().int(),
+	reason: z.string(),
+	admittedProject: z.string().nullable(),
+	reapedCount: z.number().int().nonnegative(),
+});
+export const runtimeRailStatusResponseSchema = z.object({
+	state: z.enum(["disabled", "paused", "active", "idle"]),
+	pauseReason: z.string().nullable(),
+	cadenceMs: z.number().int().positive(),
+	maxConcurrentEvals: z.number().int().positive(),
+	timeoutProfile: z.string().nullable(),
+	activeLeases: z.array(runtimeRailLeaseSchema),
+	lastTick: z
+		.object({ at: z.number().int(), reason: z.string(), reapedCount: z.number().int().nonnegative() })
+		.nullable(),
+	lastTickError: z.string().nullable(),
+	cleanupErrors: z.array(z.string()),
+	recentOutcomes: z.array(runtimeRailTickOutcomeSchema),
+});
+export type RuntimeRailStatusResponse = z.infer<typeof runtimeRailStatusResponseSchema>;
+
+export const runtimeRailControlRequestSchema = z.object({
+	kind: z.enum(["enable", "disable", "pause", "resume"]),
+	reason: z.string().nullable().optional(),
+});
+export type RuntimeRailControlRequest = z.infer<typeof runtimeRailControlRequestSchema>;
+
+export const runtimeRailTunablesRequestSchema = z.object({
+	cadenceMs: z.number().int().positive().optional(),
+	maxConcurrentEvals: z.number().int().positive().optional(),
+});
+export type RuntimeRailTunablesRequest = z.infer<typeof runtimeRailTunablesRequestSchema>;

@@ -12,6 +12,7 @@ import {
 } from "@runtime-eval-freshness";
 import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { RailControlsPanel } from "@/components/rail-controls-panel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -631,6 +632,9 @@ export function ModelPerformanceStatsDialog({
 					<Metric label="Completed" value={formatNumber(totals.completedRuns)} />
 					<Metric label="Interrupted" value={formatNumber(totals.interruptedRuns)} />
 					<Metric label="Failed" value={formatNumber(totals.failedRuns)} />
+				</div>
+				<div className="mt-4">
+					<RailControlsPanel workspaceId={workspaceId} />
 				</div>
 				<SectionTitle title="By Model (global)" />
 				<div className="overflow-x-auto rounded-md border border-border">

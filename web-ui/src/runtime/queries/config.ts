@@ -18,6 +18,9 @@ import type {
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeModelVerdictBadgesResponse,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
+	RuntimeRailControlRequest,
+	RuntimeRailStatusResponse,
+	RuntimeRailTunablesRequest,
 	RuntimeRunUpdateResponse,
 	RuntimeSetupPlanResponse,
 	RuntimeUpdateStatusResponse,
@@ -67,6 +70,30 @@ export async function fetchLedgerAnalytics(workspaceId: string | null): Promise<
 export async function fetchMemoryAudit(workspaceId: string | null): Promise<RuntimeMemoryAuditResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getMemoryAudit.query();
+}
+
+/** F1.35b: the background-eval rail controls/status snapshot (read-only). */
+export async function fetchRailStatus(workspaceId: string | null): Promise<RuntimeRailStatusResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getRailStatus.query();
+}
+
+/** F1.35b: apply an enable/disable/pause/resume rail control command; returns the fresh status. */
+export async function setRailControl(
+	workspaceId: string | null,
+	input: RuntimeRailControlRequest,
+): Promise<RuntimeRailStatusResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.setRailControl.mutate(input);
+}
+
+/** F1.35b: persist new rail cadence/concurrency tunables; returns the fresh status. */
+export async function setRailTunables(
+	workspaceId: string | null,
+	input: RuntimeRailTunablesRequest,
+): Promise<RuntimeRailStatusResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.setRailTunables.mutate(input);
 }
 
 /** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */

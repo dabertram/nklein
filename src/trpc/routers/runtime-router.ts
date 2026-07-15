@@ -94,6 +94,9 @@ import {
 	runtimeOpenWorkspaceInRequestSchema,
 	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeProtectedTestApprovalGrantResponseSchema,
+	runtimeRailControlRequestSchema,
+	runtimeRailStatusResponseSchema,
+	runtimeRailTunablesRequestSchema,
 	runtimeRecordNKleinPlanGapRequestSchema,
 	runtimeRecordNKleinPlanGapResponseSchema,
 	runtimeRunUpdateResponseSchema,
@@ -167,6 +170,18 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getMemoryAudit: t.procedure
 			.output(runtimeMemoryAuditResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getMemoryAudit()),
+		// F1.35b: background-eval rail controls/status (read-only snapshot + two operator mutations).
+		getRailStatus: t.procedure
+			.output(runtimeRailStatusResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getRailStatus()),
+		setRailControl: t.procedure
+			.input(runtimeRailControlRequestSchema)
+			.output(runtimeRailStatusResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.setRailControl(input)),
+		setRailTunables: t.procedure
+			.input(runtimeRailTunablesRequestSchema)
+			.output(runtimeRailStatusResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.setRailTunables(input)),
 		getModelVerdictBadges: t.procedure
 			.output(runtimeModelVerdictBadgesResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getModelVerdictBadges()),

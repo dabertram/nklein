@@ -122,6 +122,9 @@ import type {
 	RuntimeProjectsResponse,
 	RuntimeProtectedTestApprovalGrantRequest,
 	RuntimeProtectedTestApprovalGrantResponse,
+	RuntimeRailControlRequest,
+	RuntimeRailStatusResponse,
+	RuntimeRailTunablesRequest,
 	RuntimeRecordNKleinPlanGapRequest,
 	RuntimeRecordNKleinPlanGapResponse,
 	RuntimeRunUpdateResponse,
@@ -228,6 +231,12 @@ export interface RuntimeTrpcContext {
 		getLedgerAnalytics: () => Promise<RuntimeLedgerAnalyticsResponse>;
 		/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes, read-only telemetry. */
 		getMemoryAudit: () => Promise<RuntimeMemoryAuditResponse>;
+		/** F1.35b: the background-eval rail controls/status snapshot (read-only). */
+		getRailStatus: () => Promise<RuntimeRailStatusResponse>;
+		/** F1.35b: apply an enable/disable/pause/resume rail control command; returns the fresh status. */
+		setRailControl: (input: RuntimeRailControlRequest) => Promise<RuntimeRailStatusResponse>;
+		/** F1.35b: persist new rail cadence/concurrency tunables; returns the fresh status. */
+		setRailTunables: (input: RuntimeRailTunablesRequest) => Promise<RuntimeRailStatusResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */

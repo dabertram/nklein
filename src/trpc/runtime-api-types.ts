@@ -10,6 +10,7 @@ import type {
 } from "../core/api-contract";
 import type { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
+import type { RailControlCoordinator } from "../server/rail-control-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import type { RuntimeTrpcWorkspaceScope } from "./app-router";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
@@ -61,4 +62,7 @@ export interface CreateRuntimeApiDependencies {
 	 * test helpers that do not set it continue to work.
 	 */
 	isRemoteMode?: boolean;
+	/** F1.35b: the background-eval rail coordinator (controls/status). Absent ⇒ a default store-backed, service-less
+	 *  coordinator is used, so the controls persist + status reads `disabled`/`idle` even without the F1.31 service. */
+	railControlCoordinator?: RailControlCoordinator;
 }
