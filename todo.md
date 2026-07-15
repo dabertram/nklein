@@ -1273,7 +1273,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   explain every selection, and balance parallel work without downgrading critical roles.
 - [ ] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
   the best partial artifact, then park with a complete evidence report.
-- [ ] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it
+- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation.
   by cost, deadline, and diminishing returns.
 - [ ] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
@@ -1318,7 +1318,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   COMPLETE for per-source currency; cross-source conflict resolution is separately F4.5.**
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
-- [ ] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict,
+- [~] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. Synthesis-path consumer wire = remaining.
   retain minority evidence, and mark unresolved material claims.
 - [ ] **F4.6 — Trim synthesis evidence to relevant spans.** Apply extraction before the model call, preserve citation
   addressability, and measure context saving/answer quality.
@@ -1382,7 +1382,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   compute SHA-256 over the canonical preimage, persist TOFU pins, and force re-review on change.
 - [ ] **F4.23 — Wire skill execution containment.** Enforce effective tool grants, per-file no-auto-execute approvals,
   Docker/egress policy, credential/identity constraints, and the session-level Rule of Two.
-- [ ] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally
+- [~] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. Bundle-load consumer wire = remaining.
   collect advisory scanner signals, and persist quarantine flags at the containment boundary.
 - [>] **F4.26 — Implement suggest-only auto skill mode** *(after F4.20–F4.24).* The planner may suggest pinned,
   pre-screened skills as quarantined data; human approval is required before execution context use.
@@ -1420,7 +1420,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   chat/swarm/review, and expose global/project controls.
 - [ ] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and
   difficulty, with a visible reason and deterministic fallback.
-- [ ] **F4.39 — Complete prompt intent modes.** Apply minimize/balance/max-task-info consistently and prove they affect
+- [~] **F4.39 — Complete prompt intent modes.** Apply minimize/balance/max-task-info consistently and prove they affect **CORE DONE 2026-07-15 (`5f76b592`):** prompt-intent-mode.ts selectPromptComponentsForIntent (minimize/balance/max by tier, never drops invariants, 4 tests). Prompt-builder adoption = remaining wire.
   component selection without bypassing invariants.
 - [ ] **F4.40 — Finish byte-stable cache-aware layout.** Stabilize ordering/serialization across all prompt builders,
   isolate volatile suffixes, and regression-test prefix identity.
