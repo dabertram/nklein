@@ -6,6 +6,8 @@ import {
 	agentLedgerEventSchema,
 	buildTaskEscalationReport,
 	selectAttempts,
+	summarizeKnowledgeDebtOutcomes,
+	summarizeKnowledgeOutcomeByModel,
 } from "../core/agent-attempt-ledger";
 import { renderSwarmEfficiencyReport, summarizeSwarmEfficiency } from "../core/agent-ledger-efficiency";
 import {
@@ -495,6 +497,39 @@ export async function runDevRemediationCommand(options: { taskId: string; json?:
 	for (const finding of findings) {
 		process.stdout.write(`  [L${finding.level}] ${finding.pattern.padEnd(16)} — ${finding.detail}\n`);
 	}
+}
+
+/** F1.1 — does consulting knowledge tools (and carrying knowledge debt) actually change outcomes? Ledger projection. */
+export async function runDevKnowledgeOutcomesCommand(options: { json?: boolean } = {}): Promise<void> {
+	const events = await readAllAgentLedger();
+	const byModel = summarizeKnowledgeOutcomeByModel(events);
+	const debt = summarizeKnowledgeDebtOutcomes(events);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ byModel, debt }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Knowledge outcomes (F1.1) — does consulting knowledge tools change success?\n\n");
+	if (byModel.length === 0) {
+		process.stdout.write("(no attempts with knowledge-tool signals recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	process.stdout.write("Per-model knowledge lift (success rate WITH knowledge − WITHOUT):\n");
+	for (const row of byModel) {
+		const lift =
+			row.knowledgeLift === null
+				? "  n/a"
+				: `${row.knowledgeLift >= 0 ? "+" : ""}${(row.knowledgeLift * 100).toFixed(0)}%`;
+		process.stdout.write(
+			`  ${row.modelId.padEnd(38)} ${row.role.padEnd(10)} lift ${lift.padStart(5)}  ` +
+				`[with ${row.successesWithKnowledge}/${row.attemptsWithKnowledge} · without ${row.successesWithoutKnowledge}/${row.attemptsWithoutKnowledge}]\n`,
+		);
+	}
+	const debtLift =
+		debt.debtLift === null ? "n/a" : `${debt.debtLift >= 0 ? "+" : ""}${(debt.debtLift * 100).toFixed(0)}%`;
+	process.stdout.write(
+		`\nKnowledge-debt lift: ${debtLift} ` +
+			`[with-debt ${debt.successesWithDebt}/${debt.attemptsWithDebt} · without ${debt.successesWithoutDebt}/${debt.attemptsWithoutDebt}]\n`,
+	);
 }
 
 /** F1.36 — did opportunistic idle work pay off? Project the ledger into per-kind dispatched/realized value rates. */

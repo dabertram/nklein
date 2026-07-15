@@ -46,6 +46,7 @@ import {
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
 	runDevFleetAdviceCommand,
+	runDevKnowledgeOutcomesCommand,
 	runDevLedgerCommand,
 	runDevMemoryAuditCommand,
 	runDevMemoryLifecycleCommand,
@@ -797,6 +798,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevOpportunisticValueCommand(options);
+		});
+
+	dev.command("knowledge-outcomes")
+		.description("Project the ledger into knowledge-tool + knowledge-debt success lift per model (F1.1).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevKnowledgeOutcomesCommand(options);
 		});
 
 	dev.command("remediation")
