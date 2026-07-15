@@ -9,6 +9,7 @@ import { consecutiveNoProgressAttempts } from "../core/attempt-progress-tracker"
 import { detectProcessRemediation, type RemediationFinding } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
 import { assessRunLiveness, type RunLivenessThresholds } from "../core/run-attention-signals";
+import { deriveLivenessThresholds, type SpeedAwareLivenessInput } from "../core/speed-aware-liveness";
 import { assessTaskTrouble, type TaskTroubleVerdict } from "../core/task-trouble-signal";
 
 /**
@@ -34,12 +35,24 @@ export interface RunningTaskTroubleInput {
 	events: readonly AgentLedgerEvent[];
 	summary: RuntimeTaskSessionSummary;
 	nowMs: number;
+	/** Explicit thresholds win over everything (tests / overrides). */
 	thresholds?: RunLivenessThresholds;
+	/**
+	 * F3.19 — when supplied, DERIVE power- + speed-aware thresholds from the running model's measured throughput +
+	 * task shape (the caller builds this from the ledger's tok/s, the card difficulty, and the host power mode), so a
+	 * slow-but-working local model in low power isn't falsely flagged. Absent ⇒ the generous fixed base (byte-identical).
+	 */
+	speedContext?: Omit<SpeedAwareLivenessInput, "base">;
 }
 
 /** Evaluate the unified trouble verdict for one RUNNING task from the ledger + its session summary. */
 export function evaluateRunningTaskTrouble(input: RunningTaskTroubleInput): TaskTroubleVerdict {
 	const { events, summary } = input;
+	const thresholds =
+		input.thresholds ??
+		(input.speedContext
+			? deriveLivenessThresholds({ ...input.speedContext, base: RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS })
+			: RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS);
 	const stucknessSignals = buildStucknessSignalsFromLedger(events, summary.taskId);
 	const snapshots = buildAttemptProgressSnapshotsFromLedger(events, summary.taskId);
 	const liveness = assessRunLiveness(
@@ -51,7 +64,7 @@ export function evaluateRunningTaskTrouble(input: RunningTaskTroubleInput): Task
 			// zero-token wedge sweep's jurisdiction, not a liveness "silent".
 			expectsHeartbeat: summary.state === "running" && summary.lastOutputAt !== null,
 		},
-		input.thresholds ?? RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS,
+		thresholds,
 	);
 	return assessTaskTrouble({
 		stuckness: classifyAgentStuckness(stucknessSignals),

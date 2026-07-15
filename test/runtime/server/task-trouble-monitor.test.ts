@@ -141,4 +141,20 @@ describe("evaluateRunningTaskTrouble", () => {
 		});
 		expect(verdict.trouble).toBe(false);
 	});
+
+	it("F3.19: a low-power speedContext widens the silence window so a slow-but-beating run isn't falsely flagged", () => {
+		// 25 min since the last output+heartbeat: past the fixed 20-min silence bound.
+		const stale = summary({ lastOutputAt: NOW - 1_500_000, lastHookAt: NOW - 1_500_000 });
+		// Base (fixed 20-min heartbeat bound) ⇒ silent ⇒ trouble.
+		const base = evaluateRunningTaskTrouble({ events: [], summary: stale, nowMs: NOW });
+		expect(base.kind).toBe("silent");
+		// Low-power speedContext doubles the heartbeat window to 40 min ⇒ 25 min < 40 min ⇒ NOT flagged.
+		const derived = evaluateRunningTaskTrouble({
+			events: [],
+			summary: stale,
+			nowMs: NOW,
+			speedContext: { measuredTokensPerSec: 5, expectedOutputTokens: 5000, powerMode: "low" },
+		});
+		expect(derived.trouble).toBe(false);
+	});
 });
