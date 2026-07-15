@@ -1056,7 +1056,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet-gated ONLY): live-validate the wire round-trip on a vision-capable local model (e.g. a gemma/qwen-VL)
   — a verification step, not new code. Everything else in F2.7b is implemented + tested (attach→send→vision response→
   history render, all gated fail-closed).
-- [~] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13).**
+- [x] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13; COMPOSITION COMPLETE 2026-07-15 `59ae8926`).**
+  All recall sources now unify behind `NKLEIN_UNIFIED_MEMORY`: session memories + §5.M four layers (working from goal/
+  focus-step, episodic/semantic from the ledger, procedural from session skills) + query-ranked Basic-Memory notes +
+  focus chain; delete/provenance UI shipped earlier. Only a separate QUALITY item remains (deeper semantic recall tuning
+  — the Basic-Memory ranker is a first-cut lexical scorer); that's design/fleet, not part of F2.9b's wiring scope.
   `src/chat/chat-memory-projection.ts` unifies every recall source into ONE provenance-carrying read model:
   session chat memories (deletable via `chat_memory` control), the §5.M four-layer projection (working/episodic/
   semantic/procedural — NOT deletable: projections of immutable substrate, with the reason saying so), Basic
