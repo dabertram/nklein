@@ -1,4 +1,4 @@
-import type { AgentLedgerEvent } from "../core/agent-attempt-ledger";
+import { type AgentLedgerEvent, selectAttempts, summarizeModelSpeed } from "../core/agent-attempt-ledger";
 import {
 	buildAttemptProgressSnapshotsFromLedger,
 	buildStucknessSignalsFromLedger,
@@ -6,11 +6,44 @@ import {
 import { classifyAgentStuckness } from "../core/agent-stuckness";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { consecutiveNoProgressAttempts } from "../core/attempt-progress-tracker";
+import type { PowerMode } from "../core/power-aware-timeout";
 import { detectProcessRemediation, type RemediationFinding } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
 import { assessRunLiveness, type RunLivenessThresholds } from "../core/run-attention-signals";
 import { deriveLivenessThresholds, type SpeedAwareLivenessInput } from "../core/speed-aware-liveness";
 import { assessTaskTrouble, type TaskTroubleVerdict } from "../core/task-trouble-signal";
+
+/** Rough expected turn output size per difficulty tier — the task-shape term of the F3.19 budget. */
+const DIFFICULTY_OUTPUT_TOKENS: Readonly<Record<string, number>> = {
+	trivial: 600,
+	easy: 900,
+	medium: 2000,
+	hard: 4000,
+	"very-hard": 6000,
+};
+
+/**
+ * F3.19 — build the speed context for a running card from its own ledger: the model of its latest attempt, that model's
+ * measured tok/s, and its difficulty → expected output tokens, paired with the host power mode. Null when the task has
+ * no attempt yet (nothing to derive from ⇒ the caller keeps the fixed base). Pure over the injected events.
+ */
+export function buildCardSpeedContext(
+	events: readonly AgentLedgerEvent[],
+	taskId: string,
+	powerMode: PowerMode,
+): Omit<SpeedAwareLivenessInput, "base"> | null {
+	const attempts = selectAttempts(events).filter((attempt) => attempt.taskId === taskId);
+	const latest = attempts[attempts.length - 1];
+	if (!latest) {
+		return null;
+	}
+	const speed = summarizeModelSpeed(events).find((row) => row.modelId === latest.modelId);
+	return {
+		measuredTokensPerSec: speed?.avgTokensPerSec ?? null,
+		expectedOutputTokens: DIFFICULTY_OUTPUT_TOKENS[latest.difficulty ?? "medium"] ?? 2000,
+		powerMode,
+	};
+}
 
 /**
  * F1.10 — the runtime's first-class STUCK/AT-RISK read for a RUNNING task: composes the unified trouble signal
@@ -38,20 +71,27 @@ export interface RunningTaskTroubleInput {
 	/** Explicit thresholds win over everything (tests / overrides). */
 	thresholds?: RunLivenessThresholds;
 	/**
-	 * F3.19 — when supplied, DERIVE power- + speed-aware thresholds from the running model's measured throughput +
-	 * task shape (the caller builds this from the ledger's tok/s, the card difficulty, and the host power mode), so a
-	 * slow-but-working local model in low power isn't falsely flagged. Absent ⇒ the generous fixed base (byte-identical).
+	 * F3.19 — an explicit speed context (mostly for tests). Usually prefer `powerMode`, which builds the context from
+	 * this task's own ledger. Absent (and no `powerMode`) ⇒ the generous fixed base (byte-identical).
 	 */
 	speedContext?: Omit<SpeedAwareLivenessInput, "base">;
+	/**
+	 * F3.19 — the host power mode (the caller detects it once per watchdog tick). When set, the thresholds are derived
+	 * from this task's own ledger (its model's measured tok/s + difficulty) scaled by power, so a slow-but-working
+	 * local model in low power isn't falsely flagged. `low` alone already stretches every window.
+	 */
+	powerMode?: PowerMode;
 }
 
 /** Evaluate the unified trouble verdict for one RUNNING task from the ledger + its session summary. */
 export function evaluateRunningTaskTrouble(input: RunningTaskTroubleInput): TaskTroubleVerdict {
 	const { events, summary } = input;
+	const speedContext =
+		input.speedContext ?? (input.powerMode ? buildCardSpeedContext(events, summary.taskId, input.powerMode) : null);
 	const thresholds =
 		input.thresholds ??
-		(input.speedContext
-			? deriveLivenessThresholds({ ...input.speedContext, base: RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS })
+		(speedContext
+			? deriveLivenessThresholds({ ...speedContext, base: RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS })
 			: RUNNING_TASK_TROUBLE_LIVENESS_THRESHOLDS);
 	const stucknessSignals = buildStucknessSignalsFromLedger(events, summary.taskId);
 	const snapshots = buildAttemptProgressSnapshotsFromLedger(events, summary.taskId);

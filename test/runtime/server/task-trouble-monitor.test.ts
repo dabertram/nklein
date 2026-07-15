@@ -3,7 +3,11 @@ import { type AgentLedgerEvent, buildAttemptEvent } from "../../../src/core/agen
 import { buildAttemptProgressSnapshotsFromLedger } from "../../../src/core/agent-ledger-projections";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
-import { buildTroubleSteeringMessage, evaluateRunningTaskTrouble } from "../../../src/server/task-trouble-monitor";
+import {
+	buildCardSpeedContext,
+	buildTroubleSteeringMessage,
+	evaluateRunningTaskTrouble,
+} from "../../../src/server/task-trouble-monitor";
 
 /**
  * F1.10 — the runtime's first-class stuck/at-risk read: the unified trouble verdict composed from the ledger's
@@ -156,5 +160,47 @@ describe("evaluateRunningTaskTrouble", () => {
 			speedContext: { measuredTokensPerSec: 5, expectedOutputTokens: 5000, powerMode: "low" },
 		});
 		expect(derived.trouble).toBe(false);
+	});
+
+	it("F3.19: buildCardSpeedContext reads the task's latest attempt model tok/s + difficulty", () => {
+		const events = [
+			buildAttemptEvent({
+				workflowId: "wf",
+				taskId: "task-1",
+				workspacePathHash: "hash",
+				attemptId: "a1",
+				modelId: "slow-model",
+				outcome: "success",
+				recordedAt: NOW,
+				difficulty: "hard",
+				tokensPerSec: 5,
+			}),
+		];
+		const ctx = buildCardSpeedContext(events, "task-1", "low");
+		expect(ctx).not.toBeNull();
+		expect(ctx?.measuredTokensPerSec).toBe(5);
+		expect(ctx?.expectedOutputTokens).toBe(4000); // "hard" tier
+		expect(ctx?.powerMode).toBe("low");
+		expect(buildCardSpeedContext([], "task-1", "normal")).toBeNull();
+	});
+
+	it("F3.19: the powerMode input derives thresholds from the task's own ledger (end-to-end)", () => {
+		// A slow model (5 tok/s) on a hard task, 25 min quiet, in low power ⇒ widened windows ⇒ not flagged.
+		const events = [
+			buildAttemptEvent({
+				workflowId: "wf",
+				taskId: "task-1",
+				workspacePathHash: "hash",
+				attemptId: "a1",
+				modelId: "slow-model",
+				outcome: "success",
+				recordedAt: NOW - 1_800_000,
+				difficulty: "hard",
+				tokensPerSec: 5,
+			}),
+		];
+		const stale = summary({ lastOutputAt: NOW - 1_500_000, lastHookAt: NOW - 1_500_000 });
+		expect(evaluateRunningTaskTrouble({ events, summary: stale, nowMs: NOW }).kind).toBe("silent");
+		expect(evaluateRunningTaskTrouble({ events, summary: stale, nowMs: NOW, powerMode: "low" }).trouble).toBe(false);
 	});
 });

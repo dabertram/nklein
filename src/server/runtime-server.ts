@@ -69,6 +69,7 @@ import {
 	type OpportunisticWorkOutcome,
 } from "../core/opportunistic-work-value";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
+import { detectSystemPowerMode } from "../core/power-aware-timeout";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -2761,6 +2762,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const troubleEvents = await readAgentLedger({
 								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
 							}).catch(() => []);
+							// F3.19: detect the host power mode ONCE per tick (only when there are running cards). Feeds the
+							// speed+power-aware liveness budget so a slow local model in low power isn't falsely flagged.
+							const troublePowerMode = await detectSystemPowerMode().catch(() => "unknown" as const);
 							const notifiedKinds =
 								troubleNotifiedKindByWorkspaceId.get(scope.workspaceId) ?? new Map<string, string>();
 							troubleNotifiedKindByWorkspaceId.set(scope.workspaceId, notifiedKinds);
@@ -2802,6 +2806,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									events: troubleEvents,
 									summary,
 									nowMs: Date.now(),
+									powerMode: troublePowerMode,
 								});
 								if (!verdict.trouble) {
 									notifiedKinds.delete(summary.taskId);
