@@ -49,6 +49,7 @@ import {
 	runDevLedgerCommand,
 	runDevMemoryLifecycleCommand,
 	runDevModelVerdictCommand,
+	runDevPlaceholderScanCommand,
 	runDevRailEvidenceCommand,
 	runDevRemediationCommand,
 	runDevReplayEvalAutoCaptureCommand,
@@ -775,6 +776,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { task: string; json?: boolean }) => {
 			await runDevRemediationCommand({ taskId: options.task, json: options.json });
+		});
+
+	dev.command("placeholder-scan")
+		.description(
+			"Scan a git diff's added lines for TODO/FIXME/stub/not-implemented placeholders (opencode-swarm port).",
+		)
+		.option("--base <ref>", "Diff against this ref (defaults to HEAD — working-tree changes).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { base?: string; json?: boolean }) => {
+			await runDevPlaceholderScanCommand(options);
 		});
 
 	dev.command("swarm")

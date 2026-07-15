@@ -40,6 +40,7 @@ import {
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
+import { scanForPlaceholders } from "../core/placeholder-scan";
 import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
@@ -59,6 +60,7 @@ import { assessStubbornFailure, type EscalationAttempt } from "../core/stubborn-
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
+import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
@@ -390,6 +392,46 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	for (const cell of ranked.slice(0, limit)) {
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
+	}
+}
+
+/** placeholder-scan (opencode-swarm port) — scan a real git diff's added lines for unfinished-work markers and stubs. */
+export async function runDevPlaceholderScanCommand(options: { base?: string; json?: boolean } = {}): Promise<void> {
+	const { execFile } = await import("node:child_process");
+	const { promisify } = await import("node:util");
+	const run = promisify(execFile);
+	const base = options.base?.trim() || "HEAD";
+	const { stdout } = await run("git", ["diff", "--no-color", base], { maxBuffer: 64 * 1024 * 1024 }).catch(
+		(error: unknown) => {
+			throw new Error(`git diff ${base} failed: ${error instanceof Error ? error.message : String(error)}`);
+		},
+	);
+	const files = parseAddedLinesFromUnifiedDiff(stdout).map((file) => ({
+		path: file.path,
+		content: file.addedLines.join("\n"),
+	}));
+	const result = scanForPlaceholders(files);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ base, filesScanned: files.length, ...result }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		`Placeholder scan (opencode-swarm port) — added lines of \`git diff ${base}\` across ${files.length} file(s)\n\n`,
+	);
+	if (!result.hasPlaceholders) {
+		process.stdout.write("  no placeholders introduced by this diff (clean)\n");
+		return;
+	}
+	const summaryLine = Object.entries(result.summary)
+		.filter(([, count]) => count > 0)
+		.map(([kind, count]) => `${kind}×${count}`)
+		.join(" ");
+	process.stdout.write(`  ${summaryLine}\n\n`);
+	for (const finding of result.findings.slice(0, 40)) {
+		process.stdout.write(`  [${finding.kind}] ${finding.path} +${finding.line}: ${finding.snippet}\n`);
+	}
+	if (result.findings.length > 40) {
+		process.stdout.write(`  … and ${result.findings.length - 40} more\n`);
 	}
 }
 
