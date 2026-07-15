@@ -51,6 +51,7 @@ import {
 	runDevReplayEvalAutoCaptureCommand,
 	runDevReplayEvalCommand,
 	runDevRostersCommand,
+	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
 } from "./dev-telemetry-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
@@ -726,6 +727,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--limit <n>", "How many top cells to show (default 15).", (v) => Number.parseInt(v, 10))
 		.action(async (options: { json?: boolean; limit?: number }) => {
 			await runDevEvalFreshnessCommand(options);
+		});
+
+	dev.command("stubborn-failure")
+		.description("Assess a task's stubborn-failure state (F3.29) from its ledger attempts — exhausted? best partial?")
+		.requiredOption("--task <id>", "The task id to assess.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { task: string; json?: boolean }) => {
+			await runDevStubbornFailureCommand({ taskId: options.task, json: options.json });
 		});
 
 	dev.command("swarm")

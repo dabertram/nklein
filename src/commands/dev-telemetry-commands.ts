@@ -49,6 +49,7 @@ import {
 	combineSuitabilityVerdicts,
 	type RuntimeRunOutcome,
 } from "../core/runtime-model-verdict";
+import { assessStubbornFailure, type EscalationAttempt } from "../core/stubborn-failure-escalation";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
@@ -383,6 +384,46 @@ export async function runDevEvalFreshnessCommand(options: { json?: boolean; limi
 	for (const cell of ranked.slice(0, limit)) {
 		const reasons = cell.reasons.length > 0 ? ` — ${cell.reasons.join(", ")}` : "";
 		process.stdout.write(`  ${String(Math.round(cell.priority * 100)).padStart(3)}  ${cell.cellKey}${reasons}\n`);
+	}
+}
+
+/** F3.29 — assess a task's stubborn-failure state from its real ledger attempts (exhausted? best partial? park report?). */
+export async function runDevStubbornFailureCommand(options: { taskId: string; json?: boolean }): Promise<void> {
+	const events = await readAllAgentLedger();
+	const attempts: EscalationAttempt[] = events
+		.filter(
+			(e): e is Extract<AgentLedgerEvent, { kind: "attempt" }> =>
+				e.kind === "attempt" && e.taskId === options.taskId,
+		)
+		.map((a) => ({
+			attemptId: a.attemptId,
+			modelId: a.modelId,
+			approach: a.promptStrategy ?? "default",
+			outcome: a.outcome === "success" ? "success" : "failure",
+			qualityScore: a.qualityScore,
+			artifactRef: a.artifacts?.resultBranch ?? null,
+		}));
+	const verdict = assessStubbornFailure(attempts);
+	if (options.json) {
+		process.stdout.write(
+			`${JSON.stringify({ taskId: options.taskId, attempts: attempts.length, verdict }, null, 2)}\n`,
+		);
+		return;
+	}
+	process.stdout.write(
+		`Stubborn-failure assessment (F3.29) for ${options.taskId} — ${attempts.length} attempt(s)\n\n`,
+	);
+	process.stdout.write(`  status: ${verdict.status}\n`);
+	process.stdout.write(
+		`  remaining budget: ${verdict.remaining.models} model(s), ${verdict.remaining.approaches} approach(es), ${verdict.remaining.attempts} attempt(s)\n`,
+	);
+	if (verdict.bestPartial) {
+		process.stdout.write(
+			`  best partial: ${verdict.bestPartial.modelId} via "${verdict.bestPartial.approach}" (quality ${verdict.bestPartial.qualityScore ?? 0}) ${verdict.bestPartial.artifactRef ?? "(no artifact)"}\n`,
+		);
+	}
+	if (verdict.evidenceReport) {
+		process.stdout.write(`\n${verdict.evidenceReport}\n`);
 	}
 }
 
