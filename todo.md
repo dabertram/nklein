@@ -1196,12 +1196,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
 - [~] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
-  leaking raw untrusted instructions. **PURE CORE SHIPPED (`evidence-currency-status.ts` — `summarizeEvidenceCurrency`,
-  sanitized: counts/ages/trust only, never bodies). BLOCKED on the SOURCE-DATE PRODUCER (verified 2026-07-15): the core
-  needs `sourceDateMs` per source, but the live `WebResearchResult` (`nklein-web-research-tool.ts`) carries only
-  url/title/sourceDomain — NO publication date — so `sourceDateMs` would be constant null and the freshness verdict
-  (the whole point) can't compute. Precursor = a publication-date EXTRACTION feature (parse dates from fetched pages,
-  unreliable) + a domain→trust policy — a distinct feature, not a recording seam.**
+  leaking raw untrusted instructions. **PURE CORE + PRODUCER SUBSTRATE SHIPPED (`39e03c72`):
+  `evidence-currency-status.ts` (`summarizeEvidenceCurrency`, sanitized) + `evidence-currency-capture.ts` — the
+  genuinely-missing capability: `extractPublicationDate(html)` (parse article:published_time / JSON-LD datePublished /
+  date meta / <time>, null when absent, never fabricated) + `evidenceTrustFromRef(url)` (trust DERIVED via existing
+  `scoreSourceTrust` — no new policy, my earlier "needs a trust policy" was wrong) + `buildCurrencyEvidenceFromSource`.
+  Pure, mock-verified (8 tests). REMAINING ACTIVATION: call the composer in the web-research fetch (where raw HTML lives)
+  + persist the CurrencyEvidence + the output ANNOTATION ("show ... in agent output" = a chat-rendering concern). Both
+  are effectful wiring on top of the shipped measurement substrate.**
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
 - [ ] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict,
