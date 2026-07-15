@@ -1,3 +1,10 @@
+import {
+	assessCapabilityCeiling,
+	type CapabilityCeilingVerdict,
+	ceilingHitRoles,
+	type FleetModelFitness,
+	type RoleQualityBar,
+} from "@runtime-capability-ceiling";
 import { BarChart3, FlaskConical, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -276,6 +283,31 @@ export function filterAndSortFitnessRows(rows: readonly FitnessRow[], options: F
 	});
 }
 
+/** F3.35 (web surface): default per-role confidence bars a measured model must clear. */
+const FITNESS_CAPABILITY_BARS: readonly RoleQualityBar[] = [
+	{ role: "architect", minConfidence: 0.7 },
+	{ role: "decompose", minConfidence: 0.7 },
+	{ role: "reviewer", minConfidence: 0.7 },
+	{ role: "worker", minConfidence: 0.6 },
+];
+
+/**
+ * F3.35 capability-ceiling over the fitness rows already in the browser: which roles have NO measured model whose
+ * confidence (Wilson lower bound) clears the bar. Client-side over data already present — no new endpoint. Uses the
+ * shared core so the CLI (`nklein dev capability-ceiling`) and this view agree.
+ */
+export function deriveFitnessCapabilityCeiling(rows: readonly FitnessRow[]): CapabilityCeilingVerdict[] {
+	const fitness: FleetModelFitness[] = rows.map((row) => ({
+		modelKey: row.modelKey,
+		role: row.role,
+		qualityConfidence: row.confidenceLowerBound,
+		// "loaded" here means "measured" — the fitness browser only holds models with recorded evidence.
+		loaded: true,
+	}));
+	const barsForPresentRoles = FITNESS_CAPABILITY_BARS.filter((bar) => rows.some((row) => row.role === bar.role));
+	return ceilingHitRoles(assessCapabilityCeiling(barsForPresentRoles, fitness));
+}
+
 function summarizeObservations(observations: RuntimeModelPerformanceObservation[]): {
 	totalRuns: number;
 	completedRuns: number;
@@ -406,6 +438,10 @@ export function ModelPerformanceStatsDialog({
 	);
 	const fitnessRoles = useMemo(
 		() => [...new Set((fitnessTable?.rows ?? []).map((row) => row.role))].sort(),
+		[fitnessTable?.rows],
+	);
+	const capabilityCeilingHits = useMemo(
+		() => deriveFitnessCapabilityCeiling(fitnessTable?.rows ?? []),
 		[fitnessTable?.rows],
 	);
 	const fitnessRows = useMemo(
@@ -639,6 +675,21 @@ export function ModelPerformanceStatsDialog({
 						Below bar only
 					</label>
 				</div>
+				{capabilityCeilingHits.length > 0 && (
+					<div
+						className="mb-2 rounded-md border border-status-red/40 bg-status-red/10 p-2 text-[12px] text-text-primary"
+						data-testid="capability-ceiling-summary"
+					>
+						<span className="font-semibold text-status-red">Capability ceiling (F3.35):</span>{" "}
+						{capabilityCeilingHits.map((hit) => (
+							<span key={hit.role} className="mr-2">
+								{hit.role} (best {hit.bestLoaded?.confidence.toFixed(2) ?? "?"} &lt;{" "}
+								{(hit.shortfall + (hit.bestLoaded?.confidence ?? 0)).toFixed(2)})
+							</span>
+						))}
+						— load a stronger model for these roles.
+					</div>
+				)}
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
 					<table className="w-full min-w-[820px] border-collapse text-left text-[12px]">
 						<thead className="bg-surface-0 text-text-secondary">

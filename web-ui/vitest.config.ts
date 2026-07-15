@@ -27,6 +27,7 @@ export default defineConfig({
 			"@runtime-task-state": resolve(__dirname, "../src/core/task-board-mutations.ts"),
 			"@runtime-operator-board-health": resolve(__dirname, "../src/core/operator-board-health.ts"),
 			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
+			"@runtime-capability-ceiling": resolve(__dirname, "../src/core/capability-ceiling-recommendation.ts"),
 			"@runtime-escalation-suggestions": resolve(__dirname, "../src/core/escalation-suggestions.ts"),
 			"@runtime-escalation-resume-action": resolve(__dirname, "../src/core/escalation-resume-action.ts"),
 			"@runtime-chat-execution-posture": resolve(__dirname, "../src/chat/chat-execution-posture.ts"),
