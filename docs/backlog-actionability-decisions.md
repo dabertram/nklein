@@ -3,6 +3,22 @@
 Purpose: convert the whole todo.md backlog into an actionable queue so an agent can finish it autonomously.
 Every open/partial/deferred item was triaged (three parallel surveys, verified against source) into one of four gates.
 
+## David's decisions (2026-07-15) — the execution policy
+
+1. **BUILD-QUEUE:** build the ~90 BUILDABLE-NOW items autonomously, observe-first house pattern. ✅
+2. **FLEET:** run the ~40 FLEET-RUN validations + sweeps autonomously. **3 machines are connected to LM Studio** —
+   free to load/unload, but **do not overload the machines**. ✅
+3. **DEFAULT FLIPS:** flip a learner default-ON once its stated criterion is met, then report the flip + evidence. ✅
+4. **BIG INVESTMENTS:** pursue **both** — stand up the multi-machine (2-3) fleet, AND probe the LM Studio native
+   `/api/v1/chat` API. ✅
+
+Round-2 decisions (adopt recommended defaults unless David says otherwise; ask inline when an external fact is needed):
+- Community-skill trust (F4.21/23/26): build gate/screening logic now; keep human-approval, no auto-execution.
+- Egress (F2.5b): allowed-but-unattributed until live evidence, then flip to deny; DNS-stub = per-task UDP claim.
+- Onboarding media (F5.4): text/SVG-only. F3.9: non-vendored single-turn wrapper. R9.2 history: defer to release.
+- Phase 10 (D10.1-11): reject/defer per survey recommendations (confirm before closing any).
+- Design tokens (P8.1): do P8.2-4 now; P8.1 token-apply waits on sign-off. Vision model (F2.7b) + certs (F5.7): ask David.
+
 ## The shape
 
 | Gate | Count (~) | Meaning | Needs David? |
