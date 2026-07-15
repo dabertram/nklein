@@ -1152,8 +1152,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F3.18 — Finish per-task model selection.** Score card difficulty/skills/constraints against loaded-model fitness,
   cost, context, and availability at dispatch and retry.
-- [ ] **F3.19 — Make autonomous guardrails power/model aware.** Derive wall-time/turn budgets from measured speed and
-  task shape so slow capable local models are not falsely killed.
+- [~] **F3.19 — Make autonomous guardrails power/model aware.** Derive wall-time/turn budgets from measured speed and
+  task shape so slow capable local models are not falsely killed. **CORE + WATCHDOG SEAM SHIPPED (`8c9111b4`): `speed-aware-liveness.ts` `deriveLivenessThresholds` (floors stalledAfterMs at task-size/tok-s   d7 safety, scales by power mode, never shortens) + `evaluateRunningTaskTrouble` derives from an injected `speedContext` (absent = fixed base). 13 tests. REMAINING b-leaf: the runtime-server watchdog builds speedContext from live data (ledger tok/s + card difficulty + pmset power mode)   e2 best verified live on the fleet.**
 - [ ] **F3.20 — Discover/configure linked-machine pools.** Canonicalize endpoints, machine identity, roster, memory,
   power mode, and safe concurrency without hammering discovery APIs.
 - [ ] **F3.21 — Enforce per-pool capacity.** Account for models and shared resources per machine, serialize where needed,
