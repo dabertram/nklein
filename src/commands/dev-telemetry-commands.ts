@@ -28,6 +28,7 @@ import { type RoutingCandidate, rankRoutingCandidates } from "../core/confidence
 import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
+import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
@@ -79,6 +80,7 @@ import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attemp
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { readAllCurrencyEvidence } from "../state/currency-evidence-store";
 import { readAllDistractorObservations } from "../state/distractor-observation-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readAllModelEvalRuns } from "../state/model-eval-run-store";
@@ -564,6 +566,29 @@ export async function runDevOpportunisticValueCommand(options: { json?: boolean 
 				`[realized ${row.realized} · no-value ${row.noValue} · errored ${row.errored}]\n`,
 		);
 	}
+}
+
+/** F4.3 — over captured retrieved sources, is the evidence CURRENT (fresh/corroborated) or stale? Sanitized read. */
+export async function runDevEvidenceCurrencyCommand(options: { json?: boolean } = {}): Promise<void> {
+	const evidence = await readAllCurrencyEvidence().catch(() => []);
+	const summary = summarizeEvidenceCurrency(evidence, Date.now());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ sources: evidence.length, ...summary }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Evidence currency (F4.3) — ${evidence.length} captured source(s)\n\n`);
+	if (evidence.length === 0) {
+		process.stdout.write(
+			"(no retrieved sources captured yet — run web_research with the tool enabled, then re-check)\n",
+		);
+		return;
+	}
+	process.stdout.write(`  status: ${summary.status}\n`);
+	process.stdout.write(
+		`  ${summary.supportCount} supporting · ${summary.highTrustSupportCount} high-trust · ${summary.conflictCount} conflict(s)\n`,
+	);
+	// The sanitized, injection-safe annotation is F4.3's intended agent-output surface.
+	process.stdout.write(`  annotation: ${summary.annotation}\n`);
 }
 
 /** F4.13 — over recorded noise A/B observations, how distractor-SENSITIVE is each (model, role, difficulty) cell? */

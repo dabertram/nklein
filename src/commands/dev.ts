@@ -46,6 +46,7 @@ import {
 	runDevDistractorSensitivityCommand,
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
+	runDevEvidenceCurrencyCommand,
 	runDevFleetAdviceCommand,
 	runDevKnowledgeOutcomesCommand,
 	runDevLedgerCommand,
@@ -830,6 +831,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevDistractorSensitivityCommand(options);
+		});
+
+	dev.command("evidence-currency")
+		.description("Over captured retrieved sources, is the evidence current/corroborated or stale (F4.3)?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevEvidenceCurrencyCommand(options);
 		});
 
 	dev.command("knowledge-outcomes")

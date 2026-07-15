@@ -1,4 +1,6 @@
+import { buildCurrencyEvidenceFromSource } from "../core/evidence-currency-capture";
 import { withTransientRetry } from "../core/transient-error";
+import { appendCurrencyEvidence } from "../state/currency-evidence-store";
 import type { AgentTool } from "./sdk-agent-types";
 
 const DEFAULT_ALLOWED_DOMAINS = [
@@ -109,6 +111,11 @@ export async function runWebResearchFetch(input: {
 	const { raw, contentType } = await withTransientRetry(fetchOnce, { maxRetries: 2 });
 	const text = contentType.includes("text/html") ? stripHtml(raw) : raw.replace(/\s+/g, " ").trim();
 	const maxChars = input.maxChars ?? DEFAULT_MAX_CHARS;
+	// F4.3: capture the source's sanitized currency facts (parsed publication date + URL-derived trust — never the body)
+	// so `dev evidence-currency` / an output annotation can judge "is this current?". Best-effort; never breaks the fetch.
+	void appendCurrencyEvidence([
+		buildCurrencyEvidenceFromSource({ id: url.toString(), ref: url.toString(), html: raw }),
+	]).catch(() => {});
 	return {
 		url: url.toString(),
 		title: contentType.includes("text/html") ? extractTitle(raw) : null,
