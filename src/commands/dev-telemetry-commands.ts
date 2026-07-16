@@ -37,7 +37,7 @@ import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
-import { summarizeInjectionEvents } from "../core/injection-audit-summary";
+import { detectInjectionSpike, summarizeInjectionEvents } from "../core/injection-audit-summary";
 import { estimateLearnedRetryBudget } from "../core/learned-retry-budget";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
@@ -437,12 +437,24 @@ async function buildCapabilityCeilingUpgrades(
 
 /** Phase 7S / S11 — injection pre-screen audit: which ingestion surfaces are being hit, per recorded events. */
 export async function runDevSecurityEventsCommand(options: { json?: boolean } = {}): Promise<void> {
-	const summaries = summarizeInjectionEvents(await readAllInjectionEvents());
+	const events = await readAllInjectionEvents();
+	const summaries = summarizeInjectionEvents(events);
+	const alert = detectInjectionSpike(events, { now: Date.now() });
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify(summaries, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ alert, summaries }, null, 2)}\n`);
 		return;
 	}
 	process.stdout.write("Security events (Phase 7S / S11) — injection pre-screen hits per ingestion surface\n\n");
+	// Lead with the block-rate alert so an active campaign is the first thing the operator sees.
+	if (alert.triggered) {
+		process.stdout.write(`  ⚠ ALERT: ${alert.reason}\n`);
+		for (const s of alert.bySurface) {
+			process.stdout.write(`      · ${s.surface}: ${s.recentBlocks} recent block(s)\n`);
+		}
+		process.stdout.write("\n");
+	} else {
+		process.stdout.write(`  ✓ ${alert.reason}\n\n`);
+	}
 	if (summaries.length === 0) {
 		process.stdout.write("(no injection screen hits recorded — clean, or the recording wire is not yet active)\n");
 		return;

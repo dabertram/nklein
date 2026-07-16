@@ -1758,8 +1758,13 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   2026-07-16: agent `research` + agent `browse_url` + chat `browse_url` + chat `web_search` each fire a best-effort
   `onScreen` → `appendInjectionEvents` per non-clean source (fire-and-forget, never affects the tool result; clean
   content is never audited = no false-positive noise; each exposes an `injectionStoreRootDir` test seam). 14 tests.
-  REMAINING: add the quarantined-bundle / denied-egress / gated-action event sources (non-web boundaries), and an
-  operator alert on a block-rate spike.
+  **BLOCK-RATE ALERT SHIPPED 2026-07-16:** `detectInjectionSpike(events, {now})` (injection-audit-summary.ts, PURE — now
+  injected) flags an active campaign when recent BLOCKED events reach a volume threshold (default ≥3 in the last hour) OR
+  a coordinated distinct-source threshold (default ≥3 sources, even below the volume bar); `dev security-events` now
+  LEADS with the ⚠ ALERT line (per-surface recent-block breakdown) or a ✓ quiet line, and the `--json` output carries
+  `{alert, summaries}`. 8 tests (volume / coordination / window-exclusion / non-block-ignored / per-surface). REMAINING:
+  add the quarantined-bundle / denied-egress / gated-action event sources (non-web boundaries) so the audit covers action
+  sinks, not just ingestion screens.
 
 ### Phase 8 — visual polish and UX refinement
 
