@@ -1690,7 +1690,11 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   skill-injection-prescreen: scans directive-override / role-override / jailbreak / exfiltration / hidden-comment
   patterns + zero-width/bidi unicode, reuses the `InjectionFinding` codes/severities, → `clean|suspicious|block` verdict
   worst-first. Blocks the canonical GitHub-issue task-hijack payload; clean on benign prose (no false positives). Pure, 8
-  tests. REMAINING: call it at each ingestion point (composed via S2's `fenceUntrustedContent`) + record hits for S11.
+  tests. **FIRST INGESTION-POINT ADOPTION LIVE 2026-07-16:** `formatResearchResult` (nklein-research-tool.ts) now screens
+  every fetched web source before it reaches the agent — a `block` QUARANTINES the raw text (a poisoned page can't inject
+  via a research result), `suspicious` flags it data-only; benign evidence screens `clean` ⇒ byte-identical. Always-on (no
+  false positives on benign prose). 6 tests. REMAINING ingestion points: repo reads, MCP tool output, peer-agent messages
+  (S6) — same `screenUntrustedContent`/`fenceUntrustedContent` call + record hits for S11.
 - [>] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
   effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam.
