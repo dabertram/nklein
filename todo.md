@@ -2519,11 +2519,16 @@ verify-before-build caveat: confirm each against current code before implementin
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
   LiveCodeBench-Hard, +15.7% repair-success over TDD. Extends the acceptance-gate + F12.44 reward-hack family. (PBT/PGS 2506.18315; SolidCoder oracle assertions 2604.19825)
-- [ ] **F12.94 — Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
+- [~] **F12.94 — Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
   execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
   compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.
-  Rationale: more robust consensus than pick-best; PDR+RTV +6.7pp SWE-bench / +12.2pp Terminal-Bench; GenRM > discriminative >
-  LLM-judge for BoN reranking. Directly lifts aggregation !Klein already runs. (Semantic Voting 2605.08680; Symbolic Equiv 2604.06485; PDR+RTV 2604.16529; GenRM)
+  **CORE BUILT 2026-07-17:** `candidate-tournament.ts` — `clusterBySignature` (output-equivalence grouping, size-sorted) +
+  `recursiveTournamentVote` (single-elim bracket, best-of-`votesPerPair` per matchup, deterministic tie→lower-index) +
+  `selectBestCandidate` (cheap majority-cluster path with ZERO comparator calls, else dedup-to-reps then tournament). Fills
+  the gap `majorityVote` (self-consistency.ts) leaves — the ALL-SINGLETONS case where N diverse code candidates each produce
+  a unique output and plain plurality degenerates to "pick attempt #0". The two effectful signals (`signatureOf` = exec-output
+  hash; `compare` = discriminating-input exec / LLM A/B) are INJECTED; pure/deterministic. 14 tests. REMAINING: wire into the
+  §5.AW aggregation path (supply the exec-output signature + a real pairwise judge). (Semantic Voting 2605.08680; Symbolic Equiv 2604.06485; PDR+RTV 2604.16529; GenRM)
 - [ ] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
   prompt a local model to synthesize test inputs that expose their behavioral differences, run all in the sandbox, and vote by
   agreement. Complements F12.94 for the hard tie case. Rationale: +10–15% Best@k in "Scaling Agentic Verifier", sometimes
