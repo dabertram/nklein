@@ -251,7 +251,7 @@ export class DecompositionStallNudger {
 					[
 						"Your previous turn ran read_large_file and then stopped without making another real tool call.",
 						"Writing a tool call as text — for example a `<tool_call>{...}</tool_call>` block in your reasoning — does NOT execute anything; you must emit it as an actual tool call.",
-						"If specification.md is not fully read yet, call read_large_file again now with the `nextCursor` value from your last read_large_file result to continue. Do not summarize or decompose until the file is fully read.",
+						"If the file you were reading is not fully read yet, call read_large_file again now with the `nextCursor` value from your last read_large_file result to continue. Do not summarize or decompose until the file is fully read.",
 						"Once the spec is fully read, call `decompose_project` with the full task graph.",
 					].join(" "),
 					"act",
@@ -290,7 +290,7 @@ export class DecompositionStallNudger {
 							"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
 							"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
 							"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
-							"specification.md is the authoritative spec; read only what you still need, then call the tool now.",
+							"If the workspace has a specification file, it is authoritative — read only what you still need; otherwise plan from the task brief and existing code. Then call the tool now.",
 						].join(" "),
 				"act",
 			)

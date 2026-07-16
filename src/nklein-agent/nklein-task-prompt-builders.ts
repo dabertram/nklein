@@ -64,7 +64,7 @@ function buildNKleinPlanningSystemPrompt(
 				: null,
 			"Do not answer with a chat-only markdown plan, current-codebase report, or domain analysis; put the summary, assumptions, plan, and task graph in the `decompose_project` tool arguments.",
 			"If a duplicate read/list/size request is blocked because content is already available, do not retry that discovery step; continue directly to `decompose_project` from the existing context.",
-			"Use workspace-relative paths such as `specification.md` and treat that file as the authoritative product specification.",
+			"Always refer to files by workspace-relative paths (e.g. `src/foo.ts`), never absolute host or sandbox paths. If the workspace contains a `specification.md`, treat it as the authoritative product specification; if it is absent, plan from the task brief above and the existing code — do NOT attempt to read a `specification.md` that was never mentioned as present.",
 			"Do not invent replacement requirements or alternate input fields that are not in the specification or existing code.",
 			"If a generated leaf uses `testFirst: true`, include a concrete `acceptanceTestPrompt`; otherwise set `testFirst: false`.",
 			"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",

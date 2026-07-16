@@ -26,6 +26,21 @@ describe("buildNKleinStartPromptParts (§5.U)", () => {
 		expect(parts.systemWorkflowCommand).toBeNull();
 	});
 
+	it("the decomposition prompt makes specification.md CONDITIONAL and forbids absolute paths (bug: specification.md not-found + full-path leak)", () => {
+		const sys = buildNKleinStartPromptParts(
+			"Decompose: build a habit tracker CLI into dependent cards",
+			true,
+		).systemPrompt;
+		// Must NOT unconditionally assert the file is present (that caused a failed read + invented spec on real tasks).
+		expect(sys).toContain("If the workspace contains a `specification.md`");
+		expect(sys).toContain("if it is absent, plan from the task brief");
+		// Must instruct workspace-relative paths and forbid absolute host/sandbox paths (fixes the full-path leak).
+		expect(sys).toContain("workspace-relative paths");
+		expect(sys).toContain("never absolute host or sandbox paths");
+		// The dev-test fixture convention + phrasing are still present (existing scenarios rely on them).
+		expect(sys).toContain("authoritative product specification");
+	});
+
 	describe("F4.38 AUTO decomposition-depth guidance", () => {
 		const decomposePrompt = "Decompose: build a habit tracker CLI into dependent cards";
 
