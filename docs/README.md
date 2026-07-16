@@ -15,6 +15,8 @@ New to the codebase? Read in order:
 ## Layout
 
 - `architecture.md` — the system map.
+- `security-threat-model.md` — the Phase 7S trust-boundary map: untrusted ingestion points × privileged actions × the
+  defenses that cover each. The living anchor for the security work in `todo.md`.
 - `dev/` — maintained design, integration, simulator, and research references. They may explain evidence or current
   behavior, but all actionable work belongs in `todo.md`.
 

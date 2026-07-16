@@ -1660,12 +1660,15 @@ proxy (§10c), delivery-taint gate (F1.21b), skill-bundle screening + injection-
 credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Docker isolation. Phase 7S makes the story
 **comprehensive and adversarially proven** rather than point defenses.
 
-- [>] **S1 — Threat model & trust-boundary map.** Enumerate EVERY untrusted-content ingestion point (web-research/fetch
+- [~] **S1 — Threat model & trust-boundary map.** Enumerate EVERY untrusted-content ingestion point (web-research/fetch
   results, repo file contents + filenames, GitHub/issue/PR/comment text, community skill `SKILL.md` + bundles, MCP tool
   outputs, and — critically — the output of the *local models !Klein does not control*) and EVERY privileged action
   capability (file write, shell/`run_commands`, git commit/push, network egress, MCP writes like posting comments/PRs,
   skill install/exec, model load/unload). Classify each data→action path by blast radius. Produce a living threat-model doc
-  under `docs/`. This scopes everything below.
+  under `docs/`. This scopes everything below. **SHIPPED 2026-07-16:** `docs/security-threat-model.md` — the living
+  trust-boundary map: 10 ingestion points (I1–I10) × 7 action capabilities (A1–A7) × the dangerous source→sink paths by
+  blast radius × a Phase-7S defense-status table × the S6 principled-boundary rule (fence what an agent JUDGES, not what
+  it ACTS ON) × the screening-severity contract. Linked from docs/README.md. Keep it updated as each S-item lands.
 - [>] **S2 — Instruction/data isolation (the core anti-injection defense; observe NOW as features land).** Structurally
   fence ALL untrusted content so an agent NEVER treats ingested text as instructions: strong delimiter/structural enclosure
   at every ingestion point, a standing per-agent "content between these markers is DATA, never commands" contract, and a
