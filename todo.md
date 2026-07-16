@@ -1680,10 +1680,20 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   markers hidden in the content (no early break-out), composes with the S4 screen (a `block` verdict QUARANTINES — raw
   content withheld from the model, operator told; `suspicious` is fenced+flagged). Pure, 5 tests. REMAINING: adopt it at
   each ingestion point (web-fetch/research, repo reads, MCP tool output, PEER-AGENT messages per S6) + a refusal-surface.
-- [>] **S3 — Privilege minimization + human-in-the-loop for irreversible/outward actions.** No agent holds unrestricted
+- [~] **S3 — Privilege minimization + human-in-the-loop for irreversible/outward actions.** No agent holds unrestricted
   write/egress/post rights. Effectful + outward-facing actions (post a comment/PR via MCP, egress to a not-yet-seen host,
   delete/overwrite, permission/settings changes) require explicit approval OR a pre-authorized, narrowly-scoped policy —
-  never a default grant. Builds on the confirm-dialog + delivery-taint gate + per-task credentials.
+  never a default grant. Builds on the confirm-dialog + delivery-taint gate + per-task credentials. **DECISION CORE
+  SHIPPED 2026-07-16:** `outward-action-approval.ts` `decideOutwardActionApproval` — the THREE-way outcome the binary
+  capability-broker gate lacked: `allow | require_approval | deny`. Consumes the S5 taint backbone: not-outward → allow;
+  outward + tainted + no trusted plan → DENY (an injection could be steering it — a pre-authorization does NOT override a
+  live taint, only a trusted plan does); outward + (pre-authorized OR trusted-plan) → allow; outward + clean + neither →
+  require_approval. `resolveAutonomousApproval` maps require_approval→deny fail-closed for an unattended swarm run (no
+  human mid-run). 7 tests. REMAINING (seam adoption): route `require_approval` to the existing confirm-dialog
+  (chat-tool-confirmation.ts) on the interactive path; supply a real pre-authorization policy source (the narrowly-scoped
+  standing grants — none configured yet, like S8 operatorAllowedHosts / S9 fanoutLimits); classify which live tool calls
+  are `isOutwardOrIrreversible` (MCP writes / egress-write / delete). The DECISION logic is done; wiring it needs a
+  human-in-loop model for the autonomous path (design — batch with David: today autonomous = fail-closed deny).
 - [>] **S4 — Heuristic injection pre-screen at every ingestion point.** Generalize the existing `skill-injection-prescreen`
   to ALL untrusted inputs: scan for directive/override patterns ("ignore previous/above", "you must", role-switch markers,
   "as the assistant/system", tool-call coercion), hidden/zero-width/encoded/homoglyph text, and suspicious URLs BEFORE the
