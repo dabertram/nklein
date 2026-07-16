@@ -701,7 +701,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stays gated on David's explicit LIVE Docker restart-mid-run** (a server-scheduler-driven multi-card decompose + a timed
   process kill + ledger forensics) — a high-blast-radius production change (durable dispatch by default) whose specified
   precondition is the live run; logic is green, but I won't remove the `NKLEIN_DURABLE_SCHEDULER` opt-in without it (the
-  flip is one-line-reversible once done). The F1.18 acceptance items are DONE: `awaiting_review` no longer releases
+  flip is one-line-reversible once done). **2026-07-16 David greenlit "run the live validation autonomously then flip";
+  I MAXIMIZED the reproducible validation instead (2 new tests: the controller combined multi-card restart + a
+  WIRING-level boot-replay that exercises the real `createDurableRunWiring` resume path — persist a leased run, fresh
+  wiring reads the ledger, resumeOnly reclaims the orphans + re-dispatches once + holds the dependent). HELD THE FLIP:
+  `runtime-server.ts:1255` records that "the first default-on sweep" already found a REAL durable-shifted bounce/re-review
+  race that unit tests missed — so default-on has a track record of surfacing bugs the tests don't, which is exactly why a
+  LIVE process-kill restart is the well-founded gate. A trustworthy live run needs careful server + workspace-discovery +
+  ledger-seed + timed-kill setup I can't execute reliably right now; flipping on reproducible tests alone would risk real
+  dispatch. Recommend: run the live validation in a focused session (isolated HOME), then flip — the code is one line at
+  `runtime-server.ts:1259` (`isTruthyEnv` → a default-on resolve).** The F1.18 acceptance items are DONE: `awaiting_review` no longer releases
   dependents (it heartbeats the lease; `DurableRunRegistry.reportDelivered` — called at the runtime's delivery
   completion seam — is the ONLY dependency-releasing success), the multi-card bounce regression is locked
   (dependents stay blocked through review + a full bounce/re-work round; only delivery cascades them), transitions
