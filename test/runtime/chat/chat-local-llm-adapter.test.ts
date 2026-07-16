@@ -432,6 +432,39 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(toolsOffered).toEqual([1, 0]);
 	});
 
+	it("F4.12: records a 'swarm' truncation observation on a settled length-limited response", async () => {
+		const root = mkdtempSync(join(tmpdir(), "kanban-trunc-swarm-"));
+		const savedFlag = process.env.NKLEIN_TRUNCATION_DIAGNOSTICS;
+		process.env.NKLEIN_TRUNCATION_DIAGNOSTICS = "1";
+		try {
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async () => ({
+					content: "partial",
+					toolCalls: [],
+					finishReason: "length",
+					reasoningTokens: 900,
+					totalTokens: 950,
+					raw: { usage: { completion_tokens: 950, completion_tokens_details: { reasoning_tokens: 900 } } },
+				}),
+			};
+			const model = createChatAgentModel(client, tools, { modelId: "swarm-model", truncationStoreRootDir: root });
+			await model([{ role: "user", content: "go" }], false);
+			let obs = await readAllTruncationObservations({ rootDir: root });
+			for (let i = 0; i < 60 && obs.length === 0; i += 1) {
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				obs = await readAllTruncationObservations({ rootDir: root });
+			}
+			expect(obs).toHaveLength(1);
+			expect(obs[0]?.surface).toBe("swarm");
+			expect(obs[0]?.modelId).toBe("swarm-model");
+			expect(obs[0]?.reasoningTokens).toBe(900); // the tool completion's own count, preserved
+		} finally {
+			if (savedFlag === undefined) delete process.env.NKLEIN_TRUNCATION_DIAGNOSTICS;
+			else process.env.NKLEIN_TRUNCATION_DIAGNOSTICS = savedFlag;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("folds assistant text + tool results back as system notes", () => {
 		const base: ChatPromptMessage[] = [{ role: "user", content: "go" }];
 		const response: ChatAgentModelResponse = { text: "let me check", toolCalls: [] };

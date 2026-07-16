@@ -323,6 +323,54 @@ async function streamWithContinuationLadder(
 	return combined;
 }
 
+/**
+ * F4.12 — record ONE truncation observation, best-effort + opt-in (NKLEIN_TRUNCATION_DIAGNOSTICS, default OFF = no I/O).
+ * Shared by the chat + swarm completion wires. A `reasoningTokensHint`/`totalTokensHint` (which the swarm's tool
+ * completion reports directly) wins over the raw-parsed usage. Fire-and-forget: a recording never affects the turn.
+ */
+function recordTruncationObservation(input: {
+	modelId?: string;
+	surface: string;
+	role: string;
+	finishReason: string | null;
+	raw: unknown;
+	reasoningTokensHint?: number | null;
+	totalTokensHint?: number | null;
+	reasoningBudget: number;
+	answerBudget: number;
+	rootDir?: string;
+}): void {
+	if (!isTruthyEnv(process.env.NKLEIN_TRUNCATION_DIAGNOSTICS)) {
+		return;
+	}
+	try {
+		const usage = extractCompletionUsage(input.raw);
+		const reasoningTokens = input.reasoningTokensHint ?? usage.reasoningTokens ?? 0;
+		const answerTokens =
+			usage.answerTokens ??
+			(input.totalTokensHint != null
+				? Math.max(0, input.totalTokensHint - reasoningTokens)
+				: (usage.totalCompletionTokens ?? 0));
+		const observation = buildTruncationObservation({
+			modelId: input.modelId ?? "unknown",
+			surface: input.surface,
+			role: input.role,
+			hitLengthLimit: input.finishReason === "length",
+			reasoningTokens,
+			answerTokens,
+			reasoningBudget: input.reasoningBudget,
+			answerBudget: input.answerBudget,
+		});
+		if (observation) {
+			void appendTruncationObservations([observation], input.rootDir ? { rootDir: input.rootDir } : undefined).catch(
+				() => {},
+			);
+		}
+	} catch {
+		// best-effort telemetry — never throw into a turn
+	}
+}
+
 export function createChatModelDeps(
 	client: ChatCompletionClient,
 	options: {
@@ -335,32 +383,17 @@ export function createChatModelDeps(
 	const { sampling, reasoningBudget, answerBudget } = resolveChatTurnSampling(options);
 	// F4.12 — record WHY a chat completion truncated (opt-in NKLEIN_TRUNCATION_DIAGNOSTICS, default OFF = no I/O).
 	// Best-effort: any failure is swallowed so a recording never affects the chat turn. Fills `dev truncation-diagnostics`.
-	const recordTruncation = (surface: string, completion: LocalLlmCompletion): void => {
-		if (!isTruthyEnv(process.env.NKLEIN_TRUNCATION_DIAGNOSTICS)) {
-			return;
-		}
-		try {
-			const usage = extractCompletionUsage(completion.raw);
-			const observation = buildTruncationObservation({
-				modelId: options.modelId ?? "unknown",
-				surface,
-				role: "chat",
-				hitLengthLimit: completion.finishReason === "length",
-				reasoningTokens: usage.reasoningTokens ?? 0,
-				answerTokens: usage.answerTokens ?? usage.totalCompletionTokens ?? 0,
-				reasoningBudget,
-				answerBudget,
-			});
-			if (observation) {
-				void appendTruncationObservations(
-					[observation],
-					options.truncationStoreRootDir ? { rootDir: options.truncationStoreRootDir } : undefined,
-				).catch(() => {});
-			}
-		} catch {
-			// best-effort telemetry — never throw into a chat turn
-		}
-	};
+	const recordTruncation = (surface: string, completion: LocalLlmCompletion): void =>
+		recordTruncationObservation({
+			modelId: options.modelId,
+			surface,
+			role: "chat",
+			finishReason: completion.finishReason,
+			raw: completion.raw,
+			reasoningBudget,
+			answerBudget,
+			rootDir: options.truncationStoreRootDir,
+		});
 	return {
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {
@@ -451,6 +484,8 @@ export function createChatAgentModel(
 		/** §5.AA persistence hook: fired ONCE per prompt-variation-rung firing with the winning family (null when the
 		 *  whole ladder came up empty) — the live wiring appends it to the model-behavior store. */
 		onPromptVariantOutcome?: (outcome: { winningFamily: PromptVariantFamily | null }) => void;
+		/** F4.12 test seam: override the truncation-observation store root (defaults to the runtime home). */
+		truncationStoreRootDir?: string;
 	} = {},
 ): (
 	messages: readonly ChatPromptMessage[],
@@ -731,6 +766,21 @@ export function createChatAgentModel(
 				}
 			}
 		}
+		// F4.12 — record a swarm truncation on the settled response. The swarm uses a flat budget (no reasoning reserve),
+		// so reasoningBudget=0 + answerBudget=the sent budget; the actual reasoning/answer token split is preserved on the
+		// observation from the tool completion's own counts. Best-effort + opt-in (recordTruncationObservation gates).
+		recordTruncationObservation({
+			modelId: options.modelId,
+			surface: "swarm",
+			role: "swarm",
+			finishReason: response.finishReason,
+			raw: response.raw,
+			reasoningTokensHint: response.reasoningTokens,
+			totalTokensHint: response.totalTokens,
+			reasoningBudget: 0,
+			answerBudget: sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024,
+			...(options.truncationStoreRootDir ? { rootDir: options.truncationStoreRootDir } : {}),
+		});
 		return {
 			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
