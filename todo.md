@@ -1695,9 +1695,11 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   via a research result), `suspicious` flags it data-only; benign evidence screens `clean` ⇒ byte-identical. Always-on (no
   false positives on benign prose). 6 tests. **ALSO LIVE at `browse_url` 2026-07-16** (nklein-browse-tool.ts): the fetched
   page text is screened — `block` quarantines the raw text, `suspicious` prepends a data-only flag, benign pages pass
-  through unchanged (15 browse tests). Both live web-ingestion boundaries now screen. REMAINING ingestion points: MCP tool
-  output + peer-agent messages (S6) — those need the S2 FENCE (not always-on block) since the agent's own tool/file output
-  legitimately quotes injection examples (this repo's security docs would false-positive on a block).
+  through unchanged. **ALL FOUR external-web surfaces now screen fetched content 2026-07-16:** agent `research` + agent
+  `browse_url` + chat `browse_url` + chat `web_search` (result title/snippet). A poisoned web page/result can no longer
+  inject an agent via fetched content on ANY web-ingestion path. REMAINING ingestion points: MCP tool output + peer-agent
+  messages (S6) — those need the S2 FENCE (not always-on block) since the agent's own tool/file output legitimately quotes
+  injection examples (this repo's security docs would false-positive on a block); requires a untrusted-vs-own-tool boundary.
 - [>] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
   effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam.
