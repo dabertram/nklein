@@ -96,3 +96,23 @@ export function recordAction(state: ActionFanoutState, target: string): ActionFa
 export function hasAnyFanoutLimit(limits: ActionFanoutLimits): boolean {
 	return limits.maxTotal !== undefined || limits.maxPerTarget !== undefined || limits.maxDistinctTargets !== undefined;
 }
+
+/**
+ * A GENEROUS default session-total outward-action backstop (S9). Deliberately high: it only trips on egregious
+ * injection-driven runaway (post-spam / API-limit exhaustion), never on realistic research/coding work — a marathon
+ * session stays well under it. It is the ONLY cap safe to default-ON, because a session TOTAL has no read-vs-write
+ * granularity problem (per-target / per-tool caps still need real tool metadata and stay opt-in). Tune with real data.
+ */
+export const DEFAULT_OUTWARD_FANOUT_CAP = 250;
+
+/**
+ * Resolve the session-total outward-action cap from an env override. Unset/blank → {@link DEFAULT_OUTWARD_FANOUT_CAP};
+ * a positive integer → that value; `0` or an invalid value → `null` (disabled — unlimited). Pure/total.
+ */
+export function resolveOutwardFanoutCap(rawEnv: string | undefined): number | null {
+	if (rawEnv === undefined || rawEnv.trim() === "") {
+		return DEFAULT_OUTWARD_FANOUT_CAP;
+	}
+	const parsed = Number.parseInt(rawEnv.trim(), 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}

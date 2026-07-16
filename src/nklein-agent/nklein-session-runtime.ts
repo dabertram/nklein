@@ -17,6 +17,7 @@ export {
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native NKlein sessions without exposing SDK details upstream.
 
+import { resolveOutwardFanoutCap } from "../core/action-fanout-cap";
 import { buildRetrievalEvent } from "../core/agent-attempt-ledger";
 import {
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
@@ -355,7 +356,13 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				: []),
 		];
 		const mcpToolNames = new Set((mcpToolBundle?.tools ?? []).map((tool) => tool.name));
-		const swarmToolBrokerState = createSwarmToolBrokerState();
+		// S9: a GENEROUS session-total outward-action backstop is default-ON (only trips on egregious injection-driven
+		// fan-out / API-exhaustion; realistic sessions stay far under it). Tune or disable via NKLEIN_OUTWARD_FANOUT_CAP.
+		const outwardFanoutCap = resolveOutwardFanoutCap(process.env.NKLEIN_OUTWARD_FANOUT_CAP);
+		const swarmToolBrokerState = createSwarmToolBrokerState(
+			[],
+			outwardFanoutCap === null ? {} : { maxTotal: outwardFanoutCap },
+		);
 		this.swarmBrokerStateByTaskId.set(request.taskId, swarmToolBrokerState);
 		const extraTools = wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames });
 		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });

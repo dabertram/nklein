@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
 	type ActionFanoutState,
 	checkActionFanout,
+	DEFAULT_OUTWARD_FANOUT_CAP,
 	emptyActionFanoutState,
 	hasAnyFanoutLimit,
 	recordAction,
+	resolveOutwardFanoutCap,
 } from "../../../src/core/action-fanout-cap";
 
 describe("action-fanout-cap", () => {
@@ -68,5 +70,18 @@ describe("action-fanout-cap", () => {
 	it("hasAnyFanoutLimit detects a configured ceiling", () => {
 		expect(hasAnyFanoutLimit({ maxTotal: 5 })).toBe(true);
 		expect(hasAnyFanoutLimit({ maxDistinctTargets: 3 })).toBe(true);
+	});
+
+	it("resolveOutwardFanoutCap: unset/blank → generous default; positive int → that; 0/invalid → disabled", () => {
+		expect(resolveOutwardFanoutCap(undefined)).toBe(DEFAULT_OUTWARD_FANOUT_CAP);
+		expect(resolveOutwardFanoutCap("   ")).toBe(DEFAULT_OUTWARD_FANOUT_CAP);
+		expect(resolveOutwardFanoutCap("50")).toBe(50);
+		expect(resolveOutwardFanoutCap("0")).toBeNull(); // explicit disable
+		expect(resolveOutwardFanoutCap("-5")).toBeNull();
+		expect(resolveOutwardFanoutCap("nope")).toBeNull();
+	});
+
+	it("the default cap is generous enough to never trip realistic work", () => {
+		expect(DEFAULT_OUTWARD_FANOUT_CAP).toBeGreaterThanOrEqual(200);
 	});
 });

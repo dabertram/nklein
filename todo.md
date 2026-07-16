@@ -1825,6 +1825,13 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   mechanism ships now, activation is a config choice. REMAINING: choose + wire sensible default ceilings from real
   dev-test/fleet usage data (one-line change, low reversal cost); finer target granularity than tool-name if an MCP
   tool's target id (issue/PR) becomes extractable; abuse-specific per-time-window rate limits.
+  **DEFAULT-ON BACKSTOP ACTIVATED 2026-07-16 (safe, batched for David's review):** the runtime
+  (nklein-session-runtime.ts) now passes `{maxTotal: resolveOutwardFanoutCap(env)}` — a GENEROUS session-total
+  outward-action cap, DEFAULT 250, tunable via `NKLEIN_OUTWARD_FANOUT_CAP` (`0` disables). Only `maxTotal` is default-on
+  because a session TOTAL has no read-vs-write granularity problem; per-target/per-tool caps stay opt-in (they'd need real
+  tool metadata to avoid capping legit reads). 250 only trips egregious injection runaway — realistic sessions stay far
+  under. **DAVID: tune down (e.g. 40–80) once you have real outward-calls/session data, or set
+  NKLEIN_OUTWARD_FANOUT_CAP=0 to disable.** 3 resolver tests.
 - [~] **S10 — Adversarial red-team test suite (CI gate).** A dedicated corpus of injection payloads across EVERY ingestion
   surface (the GitHub-issue example, hidden-text, encoded, cross-agent, skill-bundle, MCP-result, web-fetch). CI asserts
   !Klein neither executes the injected instruction nor leaks data nor performs an unapproved outward action. Extend the
