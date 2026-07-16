@@ -1255,12 +1255,23 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
-- [ ] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
+- [~] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
   example/result handle across tool boundaries so the controller can repair one failure without dumping bulk context.
+  **NON-ZOD NORMALIZER SHIPPED 2026-07-17:** tool-error-contract.ts `toolErrorFromThrown(thrown, {toolName})` completes
+  the contract ACROSS tool boundaries (previously only `toolErrorFromZodError` covered arg-validation) — classifies a
+  thrown Error / JSON-parse / timeout / abort / ENOENT / network into a ToolErrorContract with an actionable hint;
+  conservative retryable (timeout/network/malformed/not-found retryable; abort + unknown NOT, so a real bug never loops).
+  8 tests. REMAINING: call it at each non-validation tool-execution boundary (the effectful wire).
 - [~] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through **EXECUTOR DONE 2026-07-15:** action-plan-executor.ts executeActionPlan (validate→topo-dispatch→checkpoint→failure-skip over injected dispatch, 4 tests). Wire into decomposition-subtask-dag remaining.
   the manifest, checkpoint evidence/results, and recover/replan one failed step without replaying completed side effects.
-- [ ] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
-  route near-valid payloads through tolerant repair, and fall back without weakening semantic validation.
+- [~] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
+  route near-valid payloads through tolerant repair, and fall back without weakening semantic validation. **DOWNGRADE
+  TRANSFORM SHIPPED 2026-07-17:** provider-schema-downgrade.ts `downgradeSchemaForProfile(schema, profile)` — the missing
+  OUTBOUND half (the selector `selectProviderSchemaProfile` + inbound `tool-argument-repair` were done): pure recursive
+  transform that strips `enum` (keeps/infers a type), forces `additionalProperties:false`, and collapses object nesting
+  past `maxDepth` (or entirely when nested objects unsupported) into a generic object — only relaxes constraints, never
+  mutates. 9 tests. REMAINING: apply it at the tool/structured-output schema seams before handing schemas to weak
+  endpoints (the effectful wire), + route near-valid payloads through the existing repair.
 
 #### 3B. Evaluation, routing, and machine pools *(legacy §5.AB, §5.AL)*
 
