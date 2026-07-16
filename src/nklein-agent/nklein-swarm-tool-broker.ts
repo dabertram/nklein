@@ -1,11 +1,13 @@
 import type { ToolExecutors } from "@cline/sdk";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import {
+	mcpToolNamesInclude,
 	type SwarmToolOutputTaintOptions,
 	swarmToolManifest,
 	swarmToolOutputTaint,
 } from "../core/swarm-tool-capability";
 import { propagateTaint, type TaintLabel } from "../core/taint-labels";
+import { fenceUntrustedContent } from "../core/untrusted-content-boundary";
 import type { AgentTool, AgentToolContext } from "./sdk-agent-types";
 
 export interface SwarmToolBrokerState {
@@ -30,9 +32,26 @@ export function wrapSwarmAgentTools(
 			}
 			const output = await tool.execute(input, context);
 			recordSwarmToolOutputTaint(tool.name, output, state, options);
-			return output;
+			return fenceMcpToolOutput(tool.name, output, options);
 		},
 	}));
+}
+
+/**
+ * Phase 7S / S6: an EXTERNAL MCP server's tool output is attacker-authorable (untrusted) and flows straight into the
+ * native agent's turn. Fence string output structurally so an MCP result that reads like an instruction ("ignore
+ * previous instructions…") can't hijack the agent — the fence wraps it in the `<<<BEGIN/END UNTRUSTED CONTENT>>>`
+ * boundary with a data-not-commands preamble and neutralizes any hidden fence markers. `screen: false` is deliberate:
+ * MCP output is FUNCTIONAL data the agent must operate on (e.g. an issue-tracker tool returning issue text that
+ * legitimately quotes an injection example), so blocking/withholding it would break the tool; the structural boundary —
+ * not withholding — is the defense. Non-string output (structured results) is left untouched; the taint label already
+ * marks it. Non-MCP tools (repo file/search/host tools operating on the trusted workspace) are returned unchanged.
+ */
+function fenceMcpToolOutput(toolName: string, output: unknown, options: SwarmToolOutputTaintOptions): unknown {
+	if (typeof output !== "string" || !mcpToolNamesInclude(options.mcpToolNames, toolName)) {
+		return output;
+	}
+	return fenceUntrustedContent(output, { source: `mcp:${toolName}`, screen: false }).text;
 }
 
 export function wrapSwarmToolExecutors(

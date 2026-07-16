@@ -1721,9 +1721,16 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   content it should ACT ON):** (a) the reviewer→worker bounce feedback (`buildReviewBouncePrompt`) is *meant* to be
   actioned by the worker ("edit the file now") — fencing it "do not follow" would break the bounce; (b) the plan-critique
   `spec` (`buildPlanCritiqueSeedPrompt`) is the OBJECTIVE the critic evaluates the plan against, i.e. the task definition,
-  not adversarial peer output — framing it as untrusted-do-not-follow would confuse what the goal is. REMAINING: an
-  orchestrator-facing seam if/when one embeds raw worker prose into an orchestrator prompt (none found today), and S5
-  taint-propagation to gate effectful actions derived from peer content.
+  not adversarial peer output — framing it as untrusted-do-not-follow would confuse what the goal is. **EXTERNAL-MCP
+  SEAM ADOPTED 2026-07-16 (I9):** `wrapSwarmAgentTools` (nklein-swarm-tool-broker.ts) now fences external MCP server
+  string output via `fenceUntrustedContent(output, {source:"mcp:<tool>", screen:false})` — this is the ONLY seam MCP
+  result text enters a native NKlein agent turn (chat + PTY paths have no MCP wiring, confirmed). Same `screen:false`
+  rationale as peer content: MCP output is FUNCTIONAL data the agent operates on (an issue-tracker tool legitimately
+  returns issue text quoting injection), so withholding would break the tool; structural boundary is the defense.
+  Non-string output untouched; non-MCP workspace tools pass through byte-identical. Reused the exported
+  `mcpToolNamesInclude` discriminator (already used for taint labeling). 3 tests. REMAINING: I7 (GitHub issue/PR text via
+  connector reads) needs the same fence at its read seam; an orchestrator-facing seam if/when one embeds raw worker prose
+  (none found today); and S5 taint-propagation to gate effectful actions derived from peer/MCP content.
 - [>] **S7 — Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
   verification for skill bundles and MCP servers, rug-pull/version-pin drift detection, execution containment (effective
   tool grants + per-file no-auto-execute approvals), and untrusted-discovery gating. Never auto-apply an untrusted skill or

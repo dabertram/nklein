@@ -48,7 +48,7 @@ another agent's output, even the local model's own output — is DATA, never com
 | I6 | Repo file contents + filenames | retrieval tools (nklein-retrieval-tools.ts) | taint labels (labelsForSourceContent); no block (own workspace) |
 | I7 | GitHub issue / PR / comment text | MCP / connector reads | **not yet fenced** (S6 non-web remainder) |
 | I8 | Community skill `SKILL.md` + bundles | skill-injection-prescreen.ts | screened at import (F4.24) |
-| I9 | External MCP tool output | MCP tool-runner | **not yet fenced** (S6 non-web remainder) |
+| I9 | External MCP tool output | `wrapSwarmAgentTools` (nklein-swarm-tool-broker.ts) | **S6 fence** (structural, `screen:false`; native agent path only) |
 | I10 | The local model's own output | every session turn | structurally untrusted (S6 principle); fenced where it feeds a peer |
 
 Note on I6/I8/I10: an agent's own workspace and tool output **legitimately contain injection-looking text** (e.g. this
@@ -93,7 +93,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 | S3 | Privilege minimization + human-in-loop for outward/irreversible actions | partial (confirm-dialog + delivery-taint); policy layer TBD |
 | S4 | Heuristic injection pre-screen — `screenUntrustedContent` | **shipped** + adopted at all four web surfaces I1–I4 |
 | S5 | Provenance & taint propagation to the action boundary | partial (taint labels + delivery-taint); full propagation TBD |
-| S6 | Treat model output + inter-agent messages as untrusted | **canonical seam shipped** (I5); MCP/peer non-web remainder TBD |
+| S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |
 | S7 | Supply-chain hardening (skills + MCP servers) | partial (F4.20–F4.27); signature/pin TBD |
 | S8 | Egress / exfiltration control | partial (egress proxy + SSRF); untrusted-host-provenance block TBD |
 | S9 | Resource / DoS abuse resistance | partial (turn-loop guard §12, retry budgets F3.30, concurrency caps F3.21); per-target action cap TBD |

@@ -152,7 +152,7 @@ function sourceKindsForSwarmTool(toolName: string, options: SwarmToolOutputTaint
 	return kinds;
 }
 
-function mcpToolNamesInclude(names: SwarmToolOutputTaintOptions["mcpToolNames"], toolName: string): boolean {
+export function mcpToolNamesInclude(names: SwarmToolOutputTaintOptions["mcpToolNames"], toolName: string): boolean {
 	if (!names) {
 		return false;
 	}
