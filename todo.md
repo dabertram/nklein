@@ -1298,8 +1298,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   samples, POPULATED by the 2026-07-16 fleet sweep) JOINed with a new `parseLmsLsCatalog` (`lms-model-catalog.ts`,
   machine+size) + the `NKLEIN_DEVICE_RAM_GB` RAM map. Verified end-to-end: 506 fitness rows → 169 joined candidates → a
   simulated reviewer ceiling produces "load qwen/qwen2.5-coder-14b on m4mini — 0.67 vs 0.50, +0.17, fits 8.3 GB,
-  propose-only". 17 tests (6 enrichment + 6 parser + 5 detection). REMAINING: render the enrichment line in the Model
-  Performance dialog (the detection already renders there); repeats>1 sweep for higher-confidence bands.
+  propose-only". **UI SHIPPED 2026-07-16 (`e6e55e4d`):** `getFitnessTable` returns `capabilityUpgrades` (server-computed
+  via a shared `computeFleetCapabilityUpgrades` so CLI+UI can't drift) + a propose-only "Recommended upgrades (F3.35)"
+  section in the Model Performance dialog. 22 core tests; backend+web tsc + web build green. Live UI data appears after
+  the runtime restarts (picks up the sweep-populated fitness store + new endpoint field). F3.35 COMPLETE except an
+  optional repeats>1 sweep for higher-confidence bands (fleet-gated operation, not code).
 
 ### Phase 4 — feature completion: retrieval, context, skills, MCP, and inference efficiency
 
