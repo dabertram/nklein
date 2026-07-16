@@ -97,6 +97,25 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
 	});
 
+	it("F1.18b restart-mid-run: a FRESH wiring resumes the persisted run — re-leases the orphaned cards once, keeps the dependent held", async () => {
+		const b = board({ backlog: ["a", "b", "c"] }, [{ fromTaskId: "b", toTaskId: "a" }]);
+		// Process 1: lease + dispatch the dependency-free cards (a, c) and PERSIST the lease events to its ledger.
+		const first = harness();
+		await first.wiring.ensureRun("ws1", "/w", b);
+		expect(first.dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
+		expect(first.ledger.length).toBeGreaterThan(0);
+
+		// RESTART: a fresh wiring whose readLedger returns process 1's persisted events. resumeOnly RESUMES the run —
+		// the crashed process's workers are dead, so the orphaned leases (a, c) are reclaimed and re-dispatched ONCE each.
+		// reclaimBackoffMs:0 so the reclaimed cards re-lease on the resume tick (the default 30s backoff would defer them).
+		const persisted = first.ledger as AgentLedgerEvent[];
+		const second = harness({ readLedger: () => persisted, config: { reclaimBackoffMs: 0 } });
+		const resumed = await second.wiring.ensureRun("ws1", "/w", b, { resumeOnly: true });
+		expect(resumed).toBe(true);
+		expect(second.dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]); // RESUMED, exactly once each (no dup)
+		expect(second.dispatches.filter((d) => d.taskId === "b")).toHaveLength(0); // dependent b stays HELD across restart
+	});
+
 	it("F1.18: review does NOT cascade — only the delivery completing dispatches the dependent", async () => {
 		const { wiring, dispatches } = harness();
 		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] }, [{ fromTaskId: "b", toTaskId: "a" }]));
