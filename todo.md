@@ -1804,6 +1804,11 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   verbs (fix committed with the corpus). REMAINING: wire the corpus through the LIVE tool surfaces end-to-end (drive a
   poisoned page through the actual chat/agent browse+search execute paths, assert no unapproved outward action) and add
   skill-bundle + MCP-result payload rows once those ingestion points adopt the fence (S6 non-web remainder).
+  **MCP-SURFACE END-TO-END ROWS ADDED 2026-07-16:** the corpus now also drives EVERY payload through the LIVE broker MCP
+  fence (`wrapSwarmAgentTools` + `createSwarmToolBrokerState`) and asserts each reaches the agent only inside the
+  `<<<BEGIN/END UNTRUSTED CONTENT>>>` fence with the break-out marker neutralized — proving the shipped S6/I9 MCP fence
+  holds against the full adversarial corpus, not just the pure `fenceUntrustedContent` unit. 33 tests total. REMAINING:
+  skill-bundle payload rows (once a bundle-ingestion fence lands) + a chat/agent browse+search egress-path row.
 - [>] **S11 — Security audit trail + alerting.** Log every action-boundary decision with its provenance/taint; surface a
   security-event view (blocked injections, quarantined bundles, denied egress, gated actions); alert the operator on
   blocked-injection attempts so a live campaign against them is visible. **FOUNDATION SHIPPED 2026-07-16:**
