@@ -1301,7 +1301,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   propose-only". **UI SHIPPED 2026-07-16 (`e6e55e4d`):** `getFitnessTable` returns `capabilityUpgrades` (server-computed
   via a shared `computeFleetCapabilityUpgrades` so CLI+UI can't drift) + a propose-only "Recommended upgrades (F3.35)"
   section in the Model Performance dialog. 22 core tests; backend+web tsc + web build green. Live UI data appears after
-  the runtime restarts (picks up the sweep-populated fitness store + new endpoint field). F3.35 COMPLETE except an
+  the runtime restarts (picks up the sweep-populated fitness store + new endpoint field). **LIVE-VERIFIED 2026-07-16:**
+  restarted the runtime, loaded a weak-reviewer model (gemma-4-e2b @ 0.33), and `runtime.getFitnessTable` returned a
+  real recommendation — "load gemma-4-12b-it-qat on legion5pro — 0.67 (+0.33, low, fits=True)". F3.35 COMPLETE except an
   optional repeats>1 sweep for higher-confidence bands (fleet-gated operation, not code).
 
 ### Phase 4 — feature completion: retrieval, context, skills, MCP, and inference efficiency
