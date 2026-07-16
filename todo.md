@@ -1693,8 +1693,11 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   tests. **FIRST INGESTION-POINT ADOPTION LIVE 2026-07-16:** `formatResearchResult` (nklein-research-tool.ts) now screens
   every fetched web source before it reaches the agent — a `block` QUARANTINES the raw text (a poisoned page can't inject
   via a research result), `suspicious` flags it data-only; benign evidence screens `clean` ⇒ byte-identical. Always-on (no
-  false positives on benign prose). 6 tests. REMAINING ingestion points: repo reads, MCP tool output, peer-agent messages
-  (S6) — same `screenUntrustedContent`/`fenceUntrustedContent` call + record hits for S11.
+  false positives on benign prose). 6 tests. **ALSO LIVE at `browse_url` 2026-07-16** (nklein-browse-tool.ts): the fetched
+  page text is screened — `block` quarantines the raw text, `suspicious` prepends a data-only flag, benign pages pass
+  through unchanged (15 browse tests). Both live web-ingestion boundaries now screen. REMAINING ingestion points: MCP tool
+  output + peer-agent messages (S6) — those need the S2 FENCE (not always-on block) since the agent's own tool/file output
+  legitimately quotes injection examples (this repo's security docs would false-positive on a block).
 - [>] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
   effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam.
