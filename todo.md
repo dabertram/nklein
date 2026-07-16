@@ -693,7 +693,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   holds absorb re-round prefixes. Remaining paths (LOW-priority residue — the mirror now covers the full happy +
   bounce + failure lifecycle): tRPC manual complete, CLI task commands.
 - [ ] **F1.18b — Flip the durable scheduler default-on after a LIVE restart-mid-run validation (engineering
-  substance shipped 2026-07-13).** The F1.18 acceptance items are DONE: `awaiting_review` no longer releases
+  substance shipped 2026-07-13).** **VALIDATION STRENGTHENED 2026-07-16:** the restart-mid-run behavior is now proven
+  DETERMINISTICALLY by a combined integration test (`durable-run-controller.test.ts` "F1.18b: a multi-card restart-mid-run
+  resumes BOTH orphaned leases exactly once and keeps the dependent held") asserting all three flip-criterion properties
+  together — resumed leases, no duplicate/resurrected-worker starts, held dependent — atop the pre-existing 76 durable
+  tests (resume-reclaims-orphan, replay→same-state, lease-idempotency-dedups, multi-card-bounce-holds). **THE FLIP itself
+  stays gated on David's explicit LIVE Docker restart-mid-run** (a server-scheduler-driven multi-card decompose + a timed
+  process kill + ledger forensics) — a high-blast-radius production change (durable dispatch by default) whose specified
+  precondition is the live run; logic is green, but I won't remove the `NKLEIN_DURABLE_SCHEDULER` opt-in without it (the
+  flip is one-line-reversible once done). The F1.18 acceptance items are DONE: `awaiting_review` no longer releases
   dependents (it heartbeats the lease; `DurableRunRegistry.reportDelivered` — called at the runtime's delivery
   completion seam — is the ONLY dependency-releasing success), the multi-card bounce regression is locked
   (dependents stay blocked through review + a full bounce/re-work round; only delivery cascades them), transitions
