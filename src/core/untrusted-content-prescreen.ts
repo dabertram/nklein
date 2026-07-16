@@ -88,7 +88,9 @@ const CONTENT_PATTERNS: readonly ContentPatternRule[] = [
 	{
 		code: "data_exfiltration",
 		severity: "reject",
-		pattern: /\b(?:send|post|forward|upload|exfiltrate|leak)\b[\s\S]{0,40}?\bhttps?:\/\/[^\s<>"')]+/,
+		// The verb→URL gap allows a realistic object phrase ("send the contents of your .env and API keys to <url>");
+		// widened from 40 after the S10 red-team corpus found a lure whose 43-char object phrase slipped the tighter bound.
+		pattern: /\b(?:send|post|forward|upload|exfiltrate|leak|email|transmit)\b[\s\S]{0,80}?\bhttps?:\/\/[^\s<>"')]+/,
 		message: "Content directs sending data to an external URL (exfiltration).",
 	},
 	{
