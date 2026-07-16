@@ -1703,10 +1703,24 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
 - [>] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
   effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam.
-- [>] **S6 — Treat model output + inter-agent messages as untrusted.** A local model is not trusted: its output can carry
+- [~] **S6 — Treat model output + inter-agent messages as untrusted.** A local model is not trusted: its output can carry
   injection aimed at DOWNSTREAM agents (a worker's diff/notes feeding the reviewer or orchestrator) or at the user. A
   compromised/malicious model, or a benign model that echoed injected repo text, must not be able to hijack a peer. Enforce
   S2's data-not-commands boundary on the worker→reviewer→orchestrator message paths, not just external ingestion.
+  **CANONICAL SEAM ADOPTED 2026-07-16:** `buildReviewSeedPrompt` (review-orchestration.ts) now S2-fences the three
+  genuinely peer-worker fields it embeds into the reviewer prompt — the worker DIFF (single + both A/B candidates), the
+  worker REASONING, and the worker FOCUS CHAIN — via `fenceUntrustedContent(content, {source, screen: false})`. The
+  reviewer must JUDGE this content but never OBEY it, so the fence's data-not-commands preamble + `<<<BEGIN/END UNTRUSTED
+  CONTENT>>>` boundary + hidden-marker neutralization is exactly right; `screen: false` (structural only, never
+  quarantine) is deliberate — a diff for a security card legitimately contains injection-looking text, so blocking would
+  withhold the very diff under review. 3 tests (fences+content-preserved / marker break-out neutralized / A/B both
+  fenced). **INTENTIONALLY NOT FENCED (principled boundary — fence only content a downstream agent should READ/JUDGE, not
+  content it should ACT ON):** (a) the reviewer→worker bounce feedback (`buildReviewBouncePrompt`) is *meant* to be
+  actioned by the worker ("edit the file now") — fencing it "do not follow" would break the bounce; (b) the plan-critique
+  `spec` (`buildPlanCritiqueSeedPrompt`) is the OBJECTIVE the critic evaluates the plan against, i.e. the task definition,
+  not adversarial peer output — framing it as untrusted-do-not-follow would confuse what the goal is. REMAINING: an
+  orchestrator-facing seam if/when one embeds raw worker prose into an orchestrator prompt (none found today), and S5
+  taint-propagation to gate effectful actions derived from peer content.
 - [>] **S7 — Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
   verification for skill bundles and MCP servers, rug-pull/version-pin drift detection, execution containment (effective
   tool grants + per-file no-auto-execute approvals), and untrusted-discovery gating. Never auto-apply an untrusted skill or

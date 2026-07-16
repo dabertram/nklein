@@ -19,6 +19,7 @@ import {
 	type ReviewRoundRecord,
 	type ReviewVerdict,
 } from "./review-loop.js";
+import { fenceUntrustedContent } from "./untrusted-content-boundary.js";
 
 /** A reviewer's structured verdict, mirroring `NKleinReviewSubmission` without the SDK/zod dependency. */
 export interface ReviewSubmissionInput {
@@ -162,6 +163,20 @@ function formatBoardContext(context: ReviewBoardContext | null | undefined): str
 
 const REVIEW_DIFF_BUDGET = 24_000;
 
+/**
+ * S6 (Phase 7S): fence peer-worker output so the reviewer treats it as DATA under review, never as instructions.
+ * A different agent (the worker) produced this text; a malicious or injection-echoing worker must not be able to
+ * hijack the reviewer via imperative text in its diff/reasoning/focus-chain. The fence wraps the content in an
+ * explicit `<<<BEGIN/END UNTRUSTED CONTENT>>>` boundary led by a data-not-commands preamble and NEUTRALIZES any
+ * fence markers hidden in the content (no break-out). Screening is disabled (`screen: false`) ON PURPOSE: a worker's
+ * diff legitimately contains injection-looking text when the card itself is about security, so a `block`/quarantine
+ * would withhold the very diff the reviewer must judge. The structural boundary — S2's primary defense — is the point
+ * here, not the heuristic filter.
+ */
+function fencePeerContent(content: string, source: string): string {
+	return fenceUntrustedContent(content, { source, screen: false }).text;
+}
+
 function clampDiffForReview(diff: string, budget: number = REVIEW_DIFF_BUDGET): string {
 	const trimmed = diff.trim();
 	if (trimmed.length <= budget) {
@@ -212,17 +227,23 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"This card was implemented twice, independently: Candidate A by the card's assigned worker, Candidate B by a different model working speculatively. Review BOTH against the objective and pick the one to deliver.",
 			"",
 			"### Candidate A — primary",
-			"```diff",
-			clampDiffForReview(input.diff, perCandidateBudget),
-			"```",
+			fencePeerContent(
+				clampDiffForReview(input.diff, perCandidateBudget),
+				`worker diff (Candidate A) for "${input.taskTitle}"`,
+			),
 			"",
 			"### Candidate B — speculative",
-			"```diff",
-			clampDiffForReview(speculativeDiff, perCandidateBudget),
-			"```",
+			fencePeerContent(
+				clampDiffForReview(speculativeDiff, perCandidateBudget),
+				`worker diff (Candidate B) for "${input.taskTitle}"`,
+			),
 		);
 	} else if (hasDiff) {
-		lines.push("", "## Diff under review", "```diff", clampDiffForReview(input.diff), "```");
+		lines.push(
+			"",
+			"## Diff under review",
+			fencePeerContent(clampDiffForReview(input.diff), `worker diff for "${input.taskTitle}"`),
+		);
 	} else {
 		lines.push(
 			"",
@@ -240,7 +261,7 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"",
 			"## Worker's reasoning",
 			"The implementer's own account of what it did and why. Judge the *reasoning*, not just the diff: a tidy-looking change built on a wrong assumption, or a 'no changes' justified by faulty reasoning, still warrants `request_changes`.",
-			clamped,
+			fencePeerContent(clamped, `worker reasoning for "${input.taskTitle}"`),
 		);
 	}
 	if (input.focusChain?.trim()) {
@@ -248,7 +269,7 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"",
 			"## Worker's focus chain (its self-authored plan)",
 			"The implementer's own ordered checklist for this card. Judge whether the work actually followed and completed its own plan — steps left unfinished or skipped that matter to the objective warrant `request_changes`; a chain whose done steps don't match the diff is a red flag.",
-			input.focusChain.trim(),
+			fencePeerContent(input.focusChain.trim(), `worker focus chain for "${input.taskTitle}"`),
 		);
 	}
 	lines.push(
