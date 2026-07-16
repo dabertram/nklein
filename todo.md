@@ -1980,6 +1980,51 @@ stays fast + complete.
   respect the repo's existing style/tests, and deliver reviewable diffs that fit in. Handle the hard realities: large
   repos exceeding a small model's context (retrieval + file-scope narrowing), existing failing/flaky tests, unfamiliar
   build systems, and monorepos. Acceptance runs the repo's OWN test/build command. This is the substrate F11.3 stress-tests.
+  **RESEARCH-DERIVED BREAKDOWN (deep sweep 2026-07-17; sources inline; the enemy at a 32k floor is context DILUTION not raw
+  capability — small models localize files ~86% at 14B+ but ~58% at 7B, so leverage is in the scaffolding around the model.
+  ⚠ several cited 2026 arXiv IDs are very recent preprints — sanity-check exact numbers before relying on them):**
+  - [ ] **F11.2a — PageRank-ranked repo map to a context-budget.** Rank symbols/files over the tree-sitter symbol graph
+    with personalized PageRank (boost task-mentioned identifiers 10×, in-context files 50×, sqrt reference counts), emit to
+    a token budget scaled to the target model. Compact "table of contents" so a weak model self-selects files. Supersedes
+    the F12.3 note. (aider repomap)
+  - [ ] **F11.2b — `search_ast` (ast-grep) + a 3-tool search router.** Add structural AST search beside lexical `search_code`
+    + the graph, and teach routing: strings→ripgrep, code-shape→ast-grep, who-calls/conceptual→graph/repo-map. Structural
+    search removes comment/string false positives that waste tiny context. Supersedes the F12.1 note. (zzet.org three-tools; ast-grep.github.io)
+  - [ ] **F11.2c — k-hop ego-graph localization action over codebase-memory.** Seed on task-mentioned symbols, return the
+    ranked k-hop neighborhood (callers/callees/imports/implements) as file:line targets. LocAgent/RepoGraph lift small
+    models to ~86–93% file localization + up to +32.8% resolve; !Klein already stores the graph — add the retrieval surface. (LocAgent 2503.09089; RepoGraph 2410.14684)
+  - [ ] **F11.2d — Coarse-to-fine hierarchical localizer in decompose.** Narrow file → class/function → edit-span
+    (Agentless-style) and pass only those spans to the coder — SOTA-cheap, fits limited context, avoids whole-file dumps
+    that trigger lost-in-the-middle. (Agentless 2407.01489)
+  - [ ] **F11.2e — Retrieval rerank/prune precision gate (ties to F4.13).** Insert an LLM-discriminator or a small local
+    SweRank-style reranker (a 137M code embedder + reranker beats big-model agentic search on Lite/LocBench) to drop
+    distractor files before the coder; log kept/dropped into the retrieval-usefulness / F4.13 distractor telemetry.
+    ContextBench: agents over-retrieve + drop 17–43% of context + distractors suppress parallel-module fixes — precision is
+    the #1 lever for ≥32k models. (ContextBench 2602.05892; SweRank 2505.07849; SWE-Pruner 2601.16746)
+  - [ ] **F11.2f — Repo onboarding profile: VERIFIED + MINIMAL + fact-based (not LLM prose).** Extract a STRUCTURED profile —
+    exact build/test/lint/format commands (package.json scripts, turbo.json/nx.json, `.github/` workflows), monorepo layout
+    + package graph, language/test framework, symbol-graph architecture summary. **Persist as DATA, not prose, and A/B-gate
+    before adoption:** a controlled study found LLM-generated AGENTS.md-style overviews DROPPED success 0.5–2% + raised cost
+    20–23%, while concrete command/tool instructions were followed 1.6–2.5×. (Evaluating-AGENTS.md 2602.11988; OpenHands repo.md; Discovery Agent)
+  - [ ] **F11.2g — Run the repo's OWN lint/format/test in the verify gate.** Execute the project's real test + linter +
+    formatter on the diff and feed failures back for self-heal — LLMs reliably self-heal against explicit lint rules;
+    matching existing tests/style IS "fitting the codebase." (factory.ai linters)
+  - [ ] **F11.2h — In-repo few-shot exemplar injection.** When editing, retrieve 1–2 semantically-similar EXISTING functions
+    and inject them as style/API exemplars — CEDAR-style retrieval-augmented few-shot beats fine-tuning at ~2 shots; cheapest
+    way to make a small model write code that looks native. (CEDAR ICSE23)
+  - [ ] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
+    split-then-merge), attach signature+imports+scope, never split a function mid-body (cAST +4.3 Recall@5 / +2.67 Pass@1).
+    Denser chunks free the small window. (cAST 2506.15655; Repomix --compress)
+  - [ ] **F11.2j — Dedicated read-only "explorer" subagent returning citations.** An explorer role (Read/Glob/Grep + the
+    search tools) that gathers context and returns only file:line citations + a one-line rationale to the coder. FastContext:
+    a 4B-RL explorer cuts main-agent tokens ~60% and BEATS a 30B-SFT explorer — directly validates !Klein's fleet+subagent
+    design (reading/searching is ~56% of tool turns). (FastContext 2606.14066)
+  - [ ] **F11.2k — Monorepo-aware context scoping.** Detect turbo/nx/pnpm-workspaces, scope the task to its package, load the
+    NEAREST AGENTS.md/CLAUDE.md, and use a TS dependency graph (madge/dependency-cruiser/ts-morph) for "who imports this?"
+    impact + optional cross-layer-import lint. !Klein is TS so the tooling is native. (agentbrisk monorepo; dependency-cruiser)
+  - [ ] **F11.2l — Hierarchical repo-summary artifact (local-model, hash-cached, incremental).** Bottom-up summarize
+    function→file→dir→project with a small local model, cache keyed by content hash, refresh only changed nodes; serve
+    top-down as the onboarding map. Local-LLM-friendly; mirrors codebase-memory's auto-sync + Cursor's Merkle-diff. (ICCSA 2025 hierarchical-summarization)
 - [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** Fetch a spread of real
   benchmark project codebases + tasks — SWE-bench / SWE-bench Verified (and similar: SWE-bench Lite, Multi-SWE, Commit0,
   RepoBench, etc.) — spanning LOWEST → HIGHEST complexity/difficulty, and prove !Klein handles them all with ease and
