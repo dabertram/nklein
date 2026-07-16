@@ -136,6 +136,66 @@ describe("extractReviewCaught (free-text review → canonical defect ids)", () =
 		}
 	});
 
+	it("credits each defect across varied natural wording (recall-broadened 2026-07-16 fleet-sweep audit)", () => {
+		// Every string is a GENUINE catch phrased the way a real reviewer would — the pre-audit matchers scored many of
+		// these as misses, depressing reviewer fitness fleet-wide.
+		const cases: Record<string, string[]> = {
+			"off-by-one": [
+				"This iterates one element too far.",
+				"Loop should stop at length-1, not length.",
+				"A classic fencepost error.",
+			],
+			"null-deref": [
+				"profile could be undefined here.",
+				"This dereferences a possibly-null object.",
+				"user might not have a profile, causing a crash.",
+			],
+			"toctou-race": [
+				"Two requests can both pass the exists check before either inserts.",
+				"The existence check and insert aren't atomic.",
+			],
+			"resource-leak": ["The connection isn't released.", "No finally block to close the handle."],
+			"sql-injection": ["The query isn't parameterized.", "Raw user input in the WHERE clause allows injection."],
+		};
+		for (const [defect, reviews] of Object.entries(cases)) {
+			for (const review of reviews) {
+				expect(extractReviewCaught(review, [defect])).toEqual([defect]);
+			}
+		}
+	});
+
+	it("does not cross-match: a single-defect catch credits only that defect (precision across the security trio)", () => {
+		const trio = ["toctou-race", "resource-leak", "sql-injection"];
+		expect(
+			extractReviewCaught("The only issue is SQL injection: `name` is concatenated into the query.", trio),
+		).toEqual(["sql-injection"]);
+		expect(
+			extractReviewCaught("The file handle from fs.open is never closed on success — a resource leak.", trio),
+		).toEqual(["resource-leak"]);
+		expect(extractReviewCaught("There's a check-then-act race between exists and insert; not atomic.", trio)).toEqual(
+			["toctou-race"],
+		);
+	});
+
+	it("stays silent on generic praise / non-catches (no false positives)", () => {
+		const allDefects = [
+			"off-by-one",
+			"null-deref",
+			"toctou-race",
+			"resource-leak",
+			"sql-injection",
+			"unhandled-rejection",
+		];
+		for (const review of [
+			"This function looks correct to me.",
+			"Consider adding input validation.",
+			"The variable name could be clearer.",
+			"Good use of async/await here.",
+		]) {
+			expect(extractReviewCaught(review, allDefects)).toEqual([]);
+		}
+	});
+
 	it("credits the security trio (toctou race, resource leak, sql injection)", () => {
 		const review =
 			"There is a check-then-act race condition between exists and insert. The file handle is never closed (a " +

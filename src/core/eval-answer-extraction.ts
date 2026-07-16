@@ -212,11 +212,16 @@ export function extractDecomposeEvalAnswer(raw: string): EvalAnswer | null {
  * actually seeded — an un-seeded defect can't be "caught"). Add an entry when the corpus adds a new defect id; an id with
  * no explicit matcher falls back to a token-derived pattern (see {@link defectMatcher}).
  */
+// Recall-broadened 2026-07-16: the fleet sweep (all 67 models) scored the review cells low across the board; auditing
+// found every matcher missed common CORRECT phrasings (a genuine catch scored as a miss depresses reviewer fitness
+// fleet-wide). Each pattern below credits varied natural wording while staying specific enough that a review catching
+// only ONE seeded defect doesn't cross-match another. Verified against correct-catch + generic-negative + cross-defect
+// sets (see eval-answer-extraction.test.ts).
 const DEFECT_MATCHERS: Readonly<Record<string, RegExp>> = {
 	"off-by-one":
-		/off[\s-]?by[\s-]?one|out[\s-]of[\s-]bounds|one past the|past the (end|array|last)|<=\s*[\w.]+\.length/i,
+		/off[\s-]?by[\s-]?one|out[\s-]of[\s-]bounds|one past the|past the (end|array|last)|<=?\s*[\w.]+\.length|fencepost|one (element|item|too)[\s\w]{0,10}(too )?(far|many)|length\s*-\s*1|stop at length|iterates? one[\s\w]{0,15}(far|many|too)/i,
 	"null-deref":
-		/(null|undefined)[\s\w]{0,30}(deref|dereferenc|\.\w)|(deref|access)[\s\w]{0,20}(null|undefined)|can be (null|undefined)|possibly (null|undefined)|may be null/i,
+		/(null|undefined)[\s\w]{0,30}(deref|dereferenc|\.\w|crash|throw)|(deref|access)[\s\w]{0,20}(null|undefined)|dereferenc|can be (null|undefined)|could be (null|undefined)|possibly[\s-](null|undefined)|possibly-null|(may|might) be (null|undefined)|(may|might) not (have|exist)|no null[\s-]?check/i,
 	// Recall-broadened 2026-07-16 (fleet-sweep found reviewer:medium universally scored 0.5 — the model reliably names
 	// this defect but in wording the old pattern missed: ".catch", "ignored", "no error handling", "fire-and-forget",
 	// "neither awaited nor caught"). Generic error-handling phrasings are ANCHORED to async/promise/fetch context so a
@@ -224,11 +229,11 @@ const DEFECT_MATCHERS: Readonly<Record<string, RegExp>> = {
 	"unhandled-rejection":
 		/unhandled[\s-]?(rejection|promise|error)|(never|not|missing|un-?)\s?awaited|neither\s+awaited|\buncaught\b|floating promise|fire[\s-]and[\s-]forget|\.catch\b|(promise|fetch|rejection|request|async|POST)[\s\w'()-]{0,30}(ignored|discarded|swallow|not (awaited|caught|handled)|no error handling|neither)|(ignored|discarded|swallow|unhandled|uncaught|no error handling|not handled)[\s\w'()-]{0,30}(promise|rejection|fetch|request|network|failure)/i,
 	"toctou-race":
-		/toctou|time[\s-]of[\s-]check|race condition|\brace\b|check[\s-]?then[\s-]?act|concurrent[\s\w]{0,20}(create|check|request)/i,
+		/toctou|time[\s-]of[\s-]check|race condition|\brace\b|check[\s-]?then[\s-]?act|concurrent[\s\w]{0,20}(create|check|request)|(not|isn't|aren't)[\s\w]{0,8}atomic|non-?atomic|both[\s\w]{0,20}(pass|check)[\s\w]{0,20}(before|then)|(check|exists?)[\s\w]{0,25}before[\s\w]{0,15}(insert|create|write)/i,
 	"resource-leak":
-		/resource leak|(file|handle|descriptor|fd|connection)[\s\w]{0,20}(leak|never closed|not closed|unclosed)|never closed|memory leak|\bleak(ed|s|ing)?\b/i,
+		/resource leak|(file|handle|descriptor|fd|connection|socket)[\s\w]{0,20}(leak|never closed|not closed|unclosed|isn't (closed|released)|not released)|never closed|memory leak|\bleak(ed|s|ing)?\b|no (finally|close)[\s\w]{0,20}(block|close|handle)?|not (closed|released)|isn't (closed|released)/i,
 	"sql-injection":
-		/sql[\s-]?injection|\binjection\b|interpolat[\s\w]{0,20}(sql|query|string)|unsanitiz|un-?parameteriz|concatenat[\s\w]{0,15}(sql|query)|string[\s\w]{0,15}(sql|query)/i,
+		/sql[\s-]?injection|\binjection\b|interpolat[\s\w]{0,20}(sql|query|string)|unsanitiz|(un-?|not |isn't |aren't )parameteriz|concatenat[\s\w]{0,15}(sql|query)|string[\s\w]{0,15}(sql|query)|raw user input[\s\w]{0,20}(query|where|sql)/i,
 };
 
 /** A loose token-derived fallback matcher for a defect id with no explicit entry: require all hyphen-split tokens present. */
