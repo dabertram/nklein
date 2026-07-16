@@ -2,6 +2,7 @@ import { labelsForSourceContent } from "../core/taint-content-scan";
 import { screenUntrustedContent } from "../core/untrusted-content-prescreen";
 import type { WebSearchError, WebSearchResponse } from "../core/web-search-contract";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
+import { appendInjectionEvents } from "../state/injection-event-store";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatTool } from "./chat-tool-executor";
 
@@ -21,6 +22,8 @@ export interface WebSearchToolOptions {
 	search: (query: string) => Promise<WebSearchResponse | WebSearchError>;
 	/** Cap on results rendered into the reply (keeps the context lean for small models). Default 8. */
 	maxResults?: number;
+	/** Phase 7S/S11 test seam: override the injection-event store root (defaults to the runtime home). */
+	injectionStoreRootDir?: string;
 }
 
 /** One actionable sentence per failure code — mirrors the swarm tool's instruction map, phrased for the chat model. */
@@ -31,7 +34,11 @@ const MESSAGE_BY_ERROR_CODE: Readonly<Record<WebSearchError["code"], string>> = 
 	empty_query: "Provide a non-empty search query.",
 };
 
-function formatResults(response: WebSearchResponse, maxResults: number): string {
+function formatResults(
+	response: WebSearchResponse,
+	maxResults: number,
+	onScreen?: (source: string, screen: ReturnType<typeof screenUntrustedContent>) => void,
+): string {
 	if (response.results.length === 0) {
 		return `No web results for "${response.query}".`;
 	}
@@ -40,6 +47,9 @@ function formatResults(response: WebSearchResponse, maxResults: number): string 
 		// Phase 7S / S4: a search result's title + snippet is UNTRUSTED web content. A `block` verdict QUARANTINES it
 		// (withheld — a poisoned result can't inject the agent), `suspicious` flags it data-only; benign passes through.
 		const screen = screenUntrustedContent(`${result.title}\n${result.snippet}`);
+		if (screen.verdict !== "clean") {
+			onScreen?.(result.url, screen);
+		}
 		if (screen.verdict === "block") {
 			return `${index + 1}. [title/snippet QUARANTINED — ${screen.reason}]\n   ${result.url}\n   ⚠ withheld: reads as an injection payload — a red flag about this result, not evidence.`;
 		}
@@ -77,7 +87,21 @@ export function createWebSearchTools(options: WebSearchToolOptions): ChatToolSet
 				if ("code" in outcome) {
 					return MESSAGE_BY_ERROR_CODE[outcome.code];
 				}
-				return formatResults(outcome, maxResults);
+				return formatResults(outcome, maxResults, (source, screen) => {
+					// S11: audit a blocked/flagged result (best-effort; never affects the tool result).
+					void appendInjectionEvents(
+						[
+							{
+								surface: "web_search",
+								source: source.slice(0, 200),
+								verdict: screen.verdict === "block" ? "block" : "suspicious",
+								worstFinding: screen.findings[0]?.code ?? "unknown",
+								at: Date.now(),
+							},
+						],
+						options.injectionStoreRootDir ? { rootDir: options.injectionStoreRootDir } : undefined,
+					).catch(() => {});
+				});
 			},
 		},
 	];

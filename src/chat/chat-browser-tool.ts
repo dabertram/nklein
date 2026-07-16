@@ -6,6 +6,7 @@ import { isPrivateOrReservedIp } from "../core/egress-proxy-verdict";
 import { labelsForSourceContent } from "../core/taint-content-scan";
 import { screenUntrustedContent } from "../core/untrusted-content-prescreen";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
+import { appendInjectionEvents } from "../state/injection-event-store";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatTool } from "./chat-tool-executor";
 
@@ -50,6 +51,8 @@ export interface BrowserToolOptions {
 	 * server. Defaults to false so existing test helpers that omit this continue to work.
 	 */
 	isRemoteMode?: boolean;
+	/** Phase 7S/S11 test seam: override the injection-event store root (defaults to the runtime home). */
+	injectionStoreRootDir?: string;
 }
 
 const DEFAULT_MAX_CHARS = 8_000;
@@ -225,14 +228,22 @@ export function buildSsrfGuardedPageFetcher(
 	};
 }
 
-/** Format the fetched page as a compact, agent-readable block (title + capped body text). */
-function formatPage(result: BrowserFetchResult, maxChars: number): string {
+/** Format the fetched page as a compact, agent-readable block (title + capped body text). `onScreen` (S11) fires once
+ * when the page's pre-screen is NOT clean, so the caller can audit blocked/flagged injections. */
+function formatPage(
+	result: BrowserFetchResult,
+	maxChars: number,
+	onScreen?: (source: string, screen: ReturnType<typeof screenUntrustedContent>) => void,
+): string {
 	const title = result.title.trim() || "(no title)";
 	const text = result.text.trim();
 	const body = text ? capText(text, maxChars) : "(no text content)";
 	// Phase 7S / S4: the fetched page is UNTRUSTED. Pre-screen before it reaches the chat agent — a `block` quarantines
 	// the raw body (a poisoned page must not inject the agent), `suspicious` flags it data-only, benign pages pass through.
 	const screen = screenUntrustedContent(body);
+	if (screen.verdict !== "clean") {
+		onScreen?.(result.url, screen);
+	}
 	if (screen.verdict === "block") {
 		return (
 			`URL: ${result.url}\nTitle: ${title}\n\n⚠ QUARANTINED (${screen.reason}) — this page's content was withheld: ` +
@@ -305,7 +316,21 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 					}
 				}
 
-				return formatPage(result, maxChars);
+				return formatPage(result, maxChars, (source, screen) => {
+					// S11: audit a blocked/flagged page (best-effort; never affects the tool result).
+					void appendInjectionEvents(
+						[
+							{
+								surface: "browse_url",
+								source: source.slice(0, 200),
+								verdict: screen.verdict === "block" ? "block" : "suspicious",
+								worstFinding: screen.findings[0]?.code ?? "unknown",
+								at: Date.now(),
+							},
+						],
+						options.injectionStoreRootDir ? { rootDir: options.injectionStoreRootDir } : undefined,
+					).catch(() => {});
+				});
 			},
 		},
 	];
