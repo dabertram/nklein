@@ -1948,6 +1948,55 @@ hardware/user action. Promote a research item into an earlier concrete package o
 - [?] **D10.14 — Docker Desktop memory-cap validation.** If the local VM remains below the required workload headroom,
   raise it under user control and rerun the affected multi-model/sandbox challenge; code must still fail clearly when low.
 
+### Phase 11 — Onboarding, existing-codebase excellence, and benchmark-driven validation (David 2026-07-17)
+
+**Why this is its own phase.** !Klein can decompose + execute, but the *front door* (getting a project properly specified
+so small local LLMs can succeed) and the *existing-codebase* path (starting work inside a real repo, not just greenfield)
+are the two biggest gaps between "works in a demo" and "works for real users on real projects." David set both as
+first-class, plus a mandate to prove excellence against real benchmark codebases and to lean hard on aimock so testing
+stays fast + complete.
+
+- [ ] **F11.1 — Guided project-initializer workflow (beginner-intuitive, professional-flexible).** A first-run/new-project
+  flow that asks *exactly the right questions* to fully specify a project so !Klein's decomposition + small local models
+  can execute it end-to-end without ambiguity — simple and to-the-point, never a bureaucratic wall. Beginner mode walks a
+  short guided path; pro mode lets you skip/batch and paste everything at once. **Must accept pasted OR linked spec files,
+  drafts, PRDs, design docs, issue links, and reference URLs** (ingested as untrusted content per Phase 7S — screened +
+  fenced). The elicited spec becomes the canonical project brief the decomposer + workers read. The question set (derive +
+  refine as design lands — this is the "ask the right things" core): (a) **outcome/vision** — what does "done" look like,
+  who is it for; (b) **stack/runtime** — language, framework, package manager, target platform, versions/constraints; (c)
+  **greenfield vs existing** — new project or an existing repo (hand off to F11.2); (d) **acceptance/definition-of-done** —
+  the command(s) that must pass (tests/build/lint), and concrete success criteria; (e) **scope boundaries** — explicitly
+  in-scope vs out-of-scope, so the decomposer doesn't sprawl; (f) **domain model / key concepts** — the nouns + rules a
+  small model won't infer; (g) **references** — the pasted/linked specs/drafts/examples above; (h) **constraints** —
+  perf/dependency/style/security limits, things NOT to do; (i) **risk/uncertainty** — the parts the user is unsure about,
+  so !Klein flags them for clarification instead of guessing; (j) **depth/effort** — rough size + how autonomous vs
+  checkpoint-heavy the user wants it. Produce a clean, editable brief + a preview of the initial decomposition before work
+  starts. Composes with the §5.S clarification cores + the F4.16 dynamics config. Surfaced in the web UI (Chat/Overview
+  onboarding) and offered on an empty board / a freshly-added project.
+- [ ] **F11.2 — First-class support for working in EXISTING codebases.** Today !Klein is strongest on greenfield; starting
+  inside a real repo is not yet nicely covered. Make it excellent: on adding an existing project, !Klein should map the
+  codebase (structure, entry points, test command, conventions — reuse codebase-memory/retrieval), let the user state a
+  task against it (bug fix, feature, refactor), decompose *against the existing architecture* (not a from-scratch plan),
+  respect the repo's existing style/tests, and deliver reviewable diffs that fit in. Handle the hard realities: large
+  repos exceeding a small model's context (retrieval + file-scope narrowing), existing failing/flaky tests, unfamiliar
+  build systems, and monorepos. Acceptance runs the repo's OWN test/build command. This is the substrate F11.3 stress-tests.
+- [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** Fetch a spread of real
+  benchmark project codebases + tasks — SWE-bench / SWE-bench Verified (and similar: SWE-bench Lite, Multi-SWE, Commit0,
+  RepoBench, etc.) — spanning LOWEST → HIGHEST complexity/difficulty, and prove !Klein handles them all with ease and
+  excellence via F11.2. Build a repeatable harness (fetch task + repo at the base commit → run !Klein → check the task's
+  own acceptance/patch-eval) so it doubles as a regression gate. Start small (a few easy tasks, verify the loop end-to-end)
+  then widen the difficulty range; record per-task outcomes. Egress-gated fetch of the datasets is an operator step.
+  Composes with the §5.AB eval harness + the H7.2 failure catalog. (Note: SWE-bench tasks are Python-repo-heavy — confirm
+  the sandbox/toolchain handles their languages/build systems, extending F11.2 as needed.)
+- [ ] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
+  responder) already backs the dev-test scenario suite; extend its use so testing stays fast + comprehensive as F11.1–F11.3
+  land: (a) record real-model transcripts from the F11.3 benchmark runs into aimock fixtures so the full onboarding →
+  decompose → work → review → deliver pipeline can be replayed deterministically in CI without a live model; (b) add aimock
+  coverage for the F11.1 initializer Q&A flow and the F11.2 existing-codebase mapping; (c) keep the "all dev-test sets
+  drain through aimock with 0 unmatched" invariant as the completeness check; (d) use aimock to reproduce + regression-lock
+  any real-model failure found in F11.3. Goal: real-model runs prove capability, aimock replays prove it *stays* working —
+  cheaply and in CI.
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
