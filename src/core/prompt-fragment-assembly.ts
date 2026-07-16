@@ -17,6 +17,8 @@
  * volatility class, so callers control intra-class layout).
  */
 
+import { isComponentIncludedForIntent, type PromptComponentTier, type PromptIntentMode } from "./prompt-intent-mode.js";
+
 /** Volatility classes, slowest-changing first. Order here IS the assembly order. */
 export const PROMPT_FRAGMENT_VOLATILITY_ORDER = ["static", "config", "daily", "task", "turn"] as const;
 
@@ -34,6 +36,14 @@ export interface PromptFragment {
 	 * reported in `headPinnedVolatileKeys` so the cache cost stays visible instead of silent.
 	 */
 	pinned?: "head";
+	/**
+	 * F4.39 prompt-intent tier. `essential` (the default when omitted) ships in EVERY intent mode; `standard` ships
+	 * from `balance` up; `enriching` only in `max_task_info`. Omitting it keeps the fragment in every mode — so an
+	 * un-tagged fragment set is byte-identical regardless of mode, and tiering is opt-in per fragment.
+	 */
+	tier?: PromptComponentTier;
+	/** F4.39: a safety/format/containment INVARIANT that ships in every mode regardless of tier. */
+	invariant?: boolean;
 }
 
 export interface AssembledPrompt {
@@ -76,6 +86,34 @@ export function assemblePromptFragments(fragments: readonly PromptFragment[]): A
 			.filter(({ fragment }) => (volatilityRank.get(fragment.volatility) ?? 0) > (volatilityRank.get("config") ?? 0))
 			.map(({ fragment }) => fragment.key),
 	};
+}
+
+/**
+ * F4.39: filter fragments down to those admitted by a prompt-intent mode BEFORE assembly. A fragment's `tier`
+ * (default `essential` when omitted) and `invariant` flag decide inclusion via {@link isComponentIncludedForIntent}:
+ * `minimize` keeps only essentials + invariants, `balance` adds `standard`, `max_task_info` keeps everything. Because
+ * an omitted tier defaults to `essential` (kept in every mode), an un-tagged fragment set is byte-identical in EVERY
+ * mode — tiering is opt-in per fragment, so adoption is incremental and safe. Order is preserved.
+ */
+export function selectPromptFragmentsForIntent(
+	fragments: readonly PromptFragment[],
+	mode: PromptIntentMode,
+): PromptFragment[] {
+	return fragments.filter((fragment) =>
+		isComponentIncludedForIntent({ tier: fragment.tier ?? "essential", invariant: fragment.invariant }, mode),
+	);
+}
+
+/**
+ * Convenience: select fragments for the intent `mode` ({@link selectPromptFragmentsForIntent}), then assemble them
+ * ({@link assemblePromptFragments}). With `max_task_info` (or any set of un-tiered fragments) this is byte-identical to
+ * assembling the fragments directly — so a caller can adopt intent modes without changing its default output.
+ */
+export function assemblePromptFragmentsForIntent(
+	fragments: readonly PromptFragment[],
+	mode: PromptIntentMode,
+): AssembledPrompt {
+	return assemblePromptFragments(selectPromptFragmentsForIntent(fragments, mode));
 }
 
 /**
