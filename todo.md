@@ -2368,6 +2368,70 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
   Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
 
+**Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
+- [ ] **F12.62 — Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an
+  ARCHITECT reasons about the fix in prose/pseudocode (card-tier model), an EDITOR only converts that into exact edits
+  (cheaper/faster model) — "a single model splits its attention between solving the problem and conforming to the edit
+  format." Even same-model-twice beats solo (Sonnet 77.4%→80.5%). !Klein has per-card model selection but one model does
+  both. (aider architect)
+- [ ] **F12.63 — Resilient edit-apply layer (turn format errors into successful edits).** Edit application is the #1
+  weak-model bottleneck. Augment diff application: exact → middle-out → Levenshtein-fuzzy (`:start_line:` hint, ~0.8
+  threshold) + a syntax/parse check that REJECTS a broken edit before it lands (SWE-agent ACI) + an optional small local
+  "apply model" (Morph/Relace-style, 1k–10k tok/s) that merges an approximate edit into the file. Directly attacks the
+  read_files/decompose malformation !Klein sees. Complements F12.16/F12.20. (RooCode search-replace; SWE-agent ACI; Cursor/Morph instant-apply)
+- [ ] **F12.64 — LSP-backed symbol tools (Serena-style).** Add `find_symbol` / `find_referencing_symbols` /
+  `get_symbols_overview` / `rename_symbol` via real language servers alongside grep — IDE-grade precision at a fraction of
+  grep-then-read-whole-file tokens; the saved budget extends a small model's reasoning room. Composes with F11.2b/c. (Serena MCP)
+- [ ] **F12.65 — Tool-output truncation + pagination defaults everywhere.** Cap every retrieval/tool result (Claude Code caps
+  at 25k tokens; SWE-agent uses a 100-line windowed file view) with head/tail + range/pagination params + sane defaults, so
+  one file dump can't blow a small window. Near-free; composes with F12.25. (Anthropic writing-tools-for-agents)
+- [ ] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
+  tools a card needs enter its context; consider a code-execution wrapper that calls MCP as a script API (Anthropic reports
+  150k→2k tokens, 98.7% cut, by not pushing every tool def + intermediate result through the model). Composes with F12.18. (Anthropic code-execution-with-MCP)
+- [ ] **F12.67 — Merkle-tree incremental cache for the repo-map/summary (F11.2l).** Cursor hashes files into a Merkle tree
+  and only re-embeds/re-summarizes the branches that changed (7.9s→0.5s time-to-first-query). Apply the Merkle-diff trick to
+  keep !Klein's cached repo-map / hierarchical summary (F11.2a/l) cheap to refresh incrementally. (cursor secure-codebase-indexing)
+
+**Local-inference levers for the fleet (all feed H7.x; verified vs llama.cpp official docs):**
+- [ ] **F12.68 — ⚠ FIX: llama.cpp `--ctx-size` is a SHARED budget across slots (latent bug vs the 32k floor).** With `-np N`
+  each session silently gets `ctx/N` unless you set `--ctx-size = 32k × concurrency_cap` (or `--kv-unified`). Combined with
+  the concurrency caps + 32k floor !Klein already has, mis-sizing here silently STARVES each session's context. Audit +
+  compute ctx-size from the cap. (llama.cpp server README; digitalapplied vram-guide)
+- [ ] **F12.69 — MTP + n-gram self-speculation as the zero-cost fast path.** Prefer Unsloth MTP GGUFs in LM Studio (toggle
+  MTP in load params — ~50% throughput, NO draft model in VRAM) + `--spec-type ngram-mod` for llama.cpp coder roles (zero
+  VRAM, shines on the templated/JSON output agents emit). ~1.5× free speedup, no draft-pair bookkeeping. (localllm MTP; llama.cpp ngram)
+- [ ] **F12.70 — Per-request speculative-decoding gate (batch-1, non-MoE only).** Draft-model speculation gives ~2–2.6×
+  single-stream (Qwen2.5-Coder-0.5B drafting a 7B, ~62% accept) but CUTS throughput 30–40% above ~8–16 concurrency and is
+  bad for MoE. Enable it only when live concurrency==1 and the target isn't MoE — keyed off the concurrency signal !Klein
+  already tracks. (ML-SpecQD 2503.13565; spheron speculative-guide)
+- [ ] **F12.71 — Quant-by-ROLE policy + imatrix builds (refines the Q4_K_M floor).** Long-horizon errors COMPOUND: Q4_K_M
+  ~0.5%/step → >10% over 50 steps; Q6 ~0.2%/step → ~4% at ~1.5× VRAM; code/math are the most quant-sensitive. Encode
+  long-horizon/critical roles → Q5_K_M/Q6 (imatrix — a free 10–30% perplexity win below Q6) where VRAM allows, ephemeral →
+  Q4_K_M; record error-rate-by-quant in the fitness store. (note.com Q4→Q6; imatrix DeepWiki)
+- [ ] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
+  (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
+  the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)
+- [ ] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
+  PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse 256` is on (KV-shifting) —
+  a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
+- [ ] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
+  long injected context); `--ubatch-size` is non-monotonic (one bench 59→582→collapse-to-15 tok/s; Apple Silicon likes
+  ub 1024/2048). Extend the sweep with a llama-bench pp/tg micro-sweep storing each machine's ubatch sweet spot. (marvin-42 ubatch; apple-silicon-tuning)
+- [ ] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
+  iogpu.wired_limit_mb=<MB>` (leave 8–16 GB for the OS) reclaims the wasted 25% — lets a Mac hold a bigger model or the full
+  32k KV GPU-resident. Treat the raised ceiling as usable VRAM in the machine-aware fit; helps the known m4mini swap-crash. (baykar increase-vram)
+- [ ] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
+  to task budget/difficulty selecting: backend (MLX for long-output, GGUF for short tool-call/prefill-bound), reasoning
+  on/off + `--reasoning-budget` (adaptive thinking saves ~50% compute on easy tasks, no quality loss), sampling (Qwen-coder
+  temp 0.6/top_p 0.95/top_k 20), max_tokens, and the spec-decode gate — driven by the fitness/difficulty score !Klein
+  already computes. (glukhov agentic-params; ICLR-2025 how-hard-to-think)
+- [ ] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).** Keep top-fitness models
+  resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
+  auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
+  TTL defaults 60 min). Bounds resident VRAM while avoiding reloads + the m4mini swap-crash from manual `lms load`. New
+  fleet candidates to sweep: Qwen3-Coder-30B-A3B (256K, best quality/GB), Devstral-24B (agent-first, 46.8% SWE-bench, 16GB),
+  GLM-4.5-Air (90.6% tool-call), Qwen3-Next-80B-A3B (hybrid-attn, ~10× throughput >32K, built-in MTP). (llama-swap; zenvanriel mac-mini; vllm qwen3-next)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
