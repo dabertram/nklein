@@ -1723,7 +1723,13 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   simulator with adversarial scenarios (composes with H7.2 failure-catalog coverage).
 - [>] **S11 — Security audit trail + alerting.** Log every action-boundary decision with its provenance/taint; surface a
   security-event view (blocked injections, quarantined bundles, denied egress, gated actions); alert the operator on
-  blocked-injection attempts so a live campaign against them is visible.
+  blocked-injection attempts so a live campaign against them is visible. **FOUNDATION SHIPPED 2026-07-16:**
+  `injection-event-store.ts` (append/read jsonl of {surface, source, verdict, worstFinding, at}) +
+  `injection-audit-summary.ts` `summarizeInjectionEvents` (per-surface blocked/flagged/distinct-sources/top-finding,
+  worst-first) + `dev security-events` CLI (live-verified). RECORDING WIRED into the `research` tool (an `onScreen`
+  audit hook fires per non-clean source → best-effort `appendInjectionEvents`). 10 tests. REMAINING: wire the same
+  onScreen audit hook into browse_url + web_search (they screen but don't yet record), add the quarantined-bundle /
+  denied-egress / gated-action event sources, and an operator alert on a block-rate spike.
 
 ### Phase 8 — visual polish and UX refinement
 

@@ -16,7 +16,8 @@
 
 import { z } from "zod";
 import type { RetrievalLoopResult } from "../core/retrieval-loop-driver";
-import { screenUntrustedContent } from "../core/untrusted-content-prescreen";
+import { screenUntrustedContent, type UntrustedContentScreenResult } from "../core/untrusted-content-prescreen";
+import { appendInjectionEvents } from "../state/injection-event-store";
 import type { AgentTool } from "./sdk-agent-types";
 
 /** Per-source evidence budget in the tool result (chars) — bounds the context the loop injects back. */
@@ -38,8 +39,12 @@ function clampEvidenceText(text: string): string {
 	return `${trimmed.slice(0, RESEARCH_EVIDENCE_PER_SOURCE_BUDGET)}\n… (source truncated)`;
 }
 
-/** Render a loop result into the readable tool-result text the agent reasons over. */
-export function formatResearchResult(result: RetrievalLoopResult): string {
+/** Render a loop result into the readable tool-result text the agent reasons over. `onScreen` (S11) fires once per source
+ * whose pre-screen was NOT clean, so the caller can audit blocked/flagged injections. */
+export function formatResearchResult(
+	result: RetrievalLoopResult,
+	onScreen?: (source: string, screen: UntrustedContentScreenResult) => void,
+): string {
 	const lines: string[] = [];
 	const verdict = result.sufficiency.sufficient ? "SUFFICIENT" : "INSUFFICIENT";
 	lines.push(
@@ -58,6 +63,9 @@ export function formatResearchResult(result: RetrievalLoopResult): string {
 		// flags it with a data-not-commands note. Benign evidence screens `clean` ⇒ rendered exactly as before.
 		const header = `[${index + 1}] ${source.url ?? source.id}`;
 		const screen = screenUntrustedContent(source.text);
+		if (screen.verdict !== "clean") {
+			onScreen?.(source.url ?? source.id, screen);
+		}
 		if (screen.verdict === "block") {
 			lines.push(
 				"",
@@ -118,7 +126,18 @@ export function createNKleinResearchTool(options: {
 					ok: true,
 					sufficient: result.sufficiency.sufficient,
 					sourceCount: result.evidence.length,
-					instruction: formatResearchResult(result),
+					// S11: audit each non-clean source (best-effort — a recording failure never affects the tool result).
+					instruction: formatResearchResult(result, (source, screen) => {
+						void appendInjectionEvents([
+							{
+								surface: "web-research",
+								source: source.slice(0, 200),
+								verdict: screen.verdict === "block" ? "block" : "suspicious",
+								worstFinding: screen.findings[0]?.code ?? "unknown",
+								at: Date.now(),
+							},
+						]).catch(() => {});
+					}),
 				};
 			} catch (error) {
 				return {

@@ -70,6 +70,7 @@ import {
 	runDevRostersCommand,
 	runDevRoutingCalibrationCommand,
 	runDevRoutingPreviewCommand,
+	runDevSecurityEventsCommand,
 	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
 	runDevTruncationDiagnosticsCommand,
@@ -859,6 +860,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevTruncationDiagnosticsCommand(options);
+		});
+
+	dev.command("security-events")
+		.description(
+			"Injection pre-screen hits per ingestion surface (Phase 7S/S11) — blocked/flagged untrusted content.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevSecurityEventsCommand(options);
 		});
 
 	dev.command("stubborn-failure")

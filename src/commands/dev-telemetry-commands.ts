@@ -37,6 +37,7 @@ import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
+import { summarizeInjectionEvents } from "../core/injection-audit-summary";
 import { estimateLearnedRetryBudget } from "../core/learned-retry-budget";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
@@ -94,6 +95,7 @@ import { runScenarioSuite } from "../nklein-agent/replay-eval-scenario-suite";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readAllCurrencyEvidence } from "../state/currency-evidence-store";
 import { readAllDistractorObservations } from "../state/distractor-observation-store";
+import { readAllInjectionEvents } from "../state/injection-event-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
@@ -430,6 +432,26 @@ async function buildCapabilityCeilingUpgrades(
 		return recommendCeilingUpgrades(verdicts, candidates, machines);
 	} catch {
 		return [];
+	}
+}
+
+/** Phase 7S / S11 — injection pre-screen audit: which ingestion surfaces are being hit, per recorded events. */
+export async function runDevSecurityEventsCommand(options: { json?: boolean } = {}): Promise<void> {
+	const summaries = summarizeInjectionEvents(await readAllInjectionEvents());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(summaries, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Security events (Phase 7S / S11) — injection pre-screen hits per ingestion surface\n\n");
+	if (summaries.length === 0) {
+		process.stdout.write("(no injection screen hits recorded — clean, or the recording wire is not yet active)\n");
+		return;
+	}
+	for (const s of summaries) {
+		process.stdout.write(
+			`  ${s.surface}: ${s.blocked} blocked · ${s.suspicious} flagged · ${s.distinctSources} source(s)` +
+				`${s.topFinding ? ` · top: ${s.topFinding}` : ""}\n`,
+		);
 	}
 }
 
