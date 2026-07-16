@@ -1749,9 +1749,21 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   verification for skill bundles and MCP servers, rug-pull/version-pin drift detection, execution containment (effective
   tool grants + per-file no-auto-execute approvals), and untrusted-discovery gating. Never auto-apply an untrusted skill or
   connect an unvetted MCP server. (Composes with decisions D10.2/D10.3 on sacrificial classification + auto-skill mode.)
-- [>] **S8 — Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
+- [~] **S8 — Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
   never place sensitive data in URL params/query strings; block egress to hosts introduced by untrusted content; keep the
   server/project egress policy authoritative over any per-session `browse_url` override (D10.4). Builds on the egress proxy.
+  **HOST-PROVENANCE BLOCK SHIPPED 2026-07-16 (consumes the S5 backbone).** `egress-provenance-gate.ts` (pure):
+  `extractHostsFromContent` pulls the hosts named in fetched web/MCP output; `decideEgressProvenance` refuses egress to a
+  host that was INTRODUCED BY untrusted content AND is not operator-authorized AND sensitive data is in context — the
+  exfiltration vector ("send X to https://evil.example"). **CRUCIAL correctness call:** the block is CONDITIONED on
+  `secret_like` taint being present — a plain read of a public page a source merely linked to is normal research and is
+  ALLOWED, so link-following isn't broken; only egress-to-attacker-host-WITH-secrets-in-context is refused. 11 core
+  tests. **WIRED into `SwarmToolBrokerState`**: web/mcp output accumulates `untrustedHosts`; the egress URL-tools
+  (browse_url/fetch_web_content) are gated before the fetch — verified end-to-end (exfil to evil.example blocked
+  pre-fetch when a secret is in context; research link-follow allowed when clean). 2 broker E2E tests. This is the
+  orthogonal PUBLIC-host layer above the SSRF guard (private hosts) + egress proxy. REMAINING: honor a server/project
+  operator allowlist for `operatorAllowedHosts` (currently empty — no host is ever operator-exempted yet); D10.4 policy
+  authority over per-session browse_url override.
 - [>] **S9 — Resource / DoS abuse resistance.** Injection that induces comment/PR spam, API-limit exhaustion, infinite
   tool loops, or runaway generation is bounded by the turn-loop guard (§12) + learned retry budgets (F3.30) + concurrency
   caps (F3.21); add abuse-specific rate limits + a per-target action cap so one poisoned issue can't fan out.

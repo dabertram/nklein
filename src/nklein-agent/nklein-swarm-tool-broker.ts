@@ -1,5 +1,6 @@
 import type { ToolExecutors } from "@cline/sdk";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
+import { decideEgressProvenance, extractHostsFromContent } from "../core/egress-provenance-gate";
 import {
 	mcpToolNamesInclude,
 	type SwarmToolOutputTaintOptions,
@@ -23,11 +24,22 @@ export interface SwarmToolBrokerState {
 	 * each taint label. The labels decide allow/deny; this names the culprit source when a gate fires and feeds S8/S11.
 	 */
 	provenance: readonly TaintProvenanceEntry[];
+	/**
+	 * S8: the distinct hosts that appeared in UNTRUSTED (web / MCP) tool output this turn — i.e. hosts "introduced by"
+	 * untrusted content. An egress to one of these while sensitive data is in context is refused as an exfiltration risk.
+	 */
+	untrustedHosts: readonly string[];
 }
 
 export function createSwarmToolBrokerState(initialTaint: readonly TaintLabel[] = []): SwarmToolBrokerState {
-	return { taintLabels: propagateTaint([], initialTaint), provenance: [] };
+	return { taintLabels: propagateTaint([], initialTaint), provenance: [], untrustedHosts: [] };
 }
+
+/** Egress URL-fetching tools whose target host must be checked against untrusted-introduced hosts (S8). */
+const EGRESS_URL_TOOL_NAMES = new Set(["browse_url", "fetch_web_content", "fetch_url"]);
+
+/** Taint labels whose content is EXTERNAL-untrusted and can "introduce" an exfiltration host (S8). */
+const HOST_INTRODUCING_LABELS: ReadonlySet<TaintLabel> = new Set<TaintLabel>(["web", "mcp"]);
 
 export function wrapSwarmAgentTools(
 	tools: readonly AgentTool[],
@@ -40,6 +52,10 @@ export function wrapSwarmAgentTools(
 			const denied = brokerDenialResult(tool.name, state, options);
 			if (denied) {
 				return denied;
+			}
+			const egressDenied = egressProvenanceDenial(tool.name, input, state);
+			if (egressDenied) {
+				return egressDenied;
 			}
 			const output = await tool.execute(input, context);
 			recordSwarmToolOutputTaint(tool.name, output, state, options);
@@ -176,7 +192,67 @@ function recordSwarmToolOutputTaint(
 			state.provenance,
 			outputTaint.map((label) => taintProvenanceEntry(label, toolName)),
 		);
+		// S8: if this output is EXTERNAL-untrusted (web/mcp), the hosts it names are "introduced by untrusted content"
+		// — accumulate them so a later egress to one (while sensitive data is in context) can be refused.
+		if (outputTaint.some((label) => HOST_INTRODUCING_LABELS.has(label))) {
+			const hosts = extractHostsFromContent(renderOutputText(output));
+			if (hosts.length > 0) {
+				state.untrustedHosts = dedupeAppend(state.untrustedHosts, hosts);
+			}
+		}
 	}
+}
+
+/** Render a tool output to searchable text for host extraction (strings as-is; structured output JSON-stringified). */
+function renderOutputText(output: unknown): string {
+	if (typeof output === "string") {
+		return output;
+	}
+	try {
+		return JSON.stringify(output) ?? "";
+	} catch {
+		return "";
+	}
+}
+
+/** Append new items to an accumulating string list, de-duplicated, order-stable. */
+function dedupeAppend(existing: readonly string[], incoming: readonly string[]): string[] {
+	const seen = new Set(existing);
+	const result = [...existing];
+	for (const item of incoming) {
+		if (!seen.has(item)) {
+			seen.add(item);
+			result.push(item);
+		}
+	}
+	return result;
+}
+
+/**
+ * S8: refuse an egress URL-tool call whose target host was introduced by untrusted content this turn AND sensitive data
+ * is in context (an exfiltration risk). Non-egress tools, a missing/malformed url, or a clean context return null (allow).
+ * The `secret_like` taint IS the "sensitive data in context" signal.
+ */
+function egressProvenanceDenial(toolName: string, input: unknown, state: SwarmToolBrokerState): string | null {
+	if (!EGRESS_URL_TOOL_NAMES.has(toolName)) {
+		return null;
+	}
+	const url = (input as { url?: unknown } | null | undefined)?.url;
+	if (typeof url !== "string" || url.trim().length === 0) {
+		return null;
+	}
+	let targetHost: string;
+	try {
+		targetHost = new URL(url.trim()).hostname;
+	} catch {
+		return null;
+	}
+	const verdict = decideEgressProvenance({
+		targetHost,
+		untrustedHosts: state.untrustedHosts,
+		contextCarriesSensitiveData: state.taintLabels.includes("secret_like"),
+	});
+	return verdict.allow ? null : deniedToolResult(toolName, verdict.reason ?? "egress refused by provenance gate");
 }
 
 /**
