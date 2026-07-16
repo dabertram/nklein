@@ -2083,12 +2083,16 @@ stays fast + complete.
 
 ### Phase 12 — research-derived capability improvements (David's deep-research mandate, 2026-07-17)
 
-**Provenance.** These items come from an extensive web-research sweep David commissioned (small-LLM agentic coding, SWE-bench,
-repo-level retrieval, context management, local inference, tool-calling reliability, verification, injection defense, the
-2026 model landscape, and coding-agent failure taxonomies). Each is cross-checked against what !Klein ALREADY has so it is
-a genuine gap/improvement, not a duplicate. Sources are named inline. (⚠ A research SUBAGENT returned a prompt-injection
-payload during this sweep — a real-world hit of exactly the Phase-7S threat; it was recognized as untrusted tool output
-and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
+**Provenance.** These items come from an extensive web-research sweep David commissioned (~350+ web lookups across small-LLM
+agentic coding, SWE-bench, repo-level retrieval, context management, local inference, tool-calling reliability, verification,
+injection defense, the 2026 model landscape, coding-agent failure taxonomies, orchestration, eval/observability, board UX,
+and the competitive-tool landscape). Each was cross-checked against what !Klein ALREADY has to stay non-duplicative; sources
+named inline. **⚠ VERIFY-BEFORE-BUILD CAVEAT:** the research agents were told what !Klein has but couldn't read the code, so
+a few items may partly duplicate existing capability (e.g. F12.34 turned out to be largely implemented as
+`pickDiverseReviewerModel`) — confirm each against current code before building, and downgrade/merge where already covered.
+Several cited 2026 arXiv IDs are very recent preprints — sanity-check exact numbers. (⚠ A research SUBAGENT returned a
+prompt-injection payload during this sweep — a real-world hit of exactly the Phase-7S threat; recognized as untrusted tool
+output and NOT acted on. Captured as F12.12.)
 
 **Retrieval & existing-codebase (feeds F11.2):**
 - [ ] **F12.1 — Add a STRUCTURAL (ast-grep) search tier between lexical and semantic.** 2026 consensus: code search is
@@ -2254,11 +2258,12 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   telemetry. (arxiv 2605.28840 behavioral-reproducibility; futureagi non-deterministic-prompts)
 
 **Multi-agent orchestration & review (deltas — feeds §5.AW review + routing):**
-- [ ] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Cross-model review finds 40–60% MORE issues than
-  same-model self-review; a model silently endorses ~31.7% of its OWN semantic-drift cases ("review diversity matters more
-  than reviewer sophistication"). Guarantee the second-opinion reviewer runs on a different model/family than the card's
-  worker; if only one model is loaded, at least force fresh context + a different role prompt/temperature. Near-free
-  precision win on !Klein's multi-model fleet. (zylos multi-model-review; Weaver)
+- [~] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Research VALIDATES this strongly: cross-model
+  review finds 40–60% MORE issues than same-model self-review; a model silently endorses ~31.7% of its OWN semantic-drift.
+  **ALREADY LARGELY IMPLEMENTED in !Klein** — `pickDiverseReviewerModel` (nklein-reviewer-model-selection.ts) picks a
+  lineage-DIVERSE reviewer. Remaining DELTA (verify against current code): the single-model-loaded FALLBACK (when no
+  diverse model is available, force fresh context + a different role prompt/temperature rather than silently self-reviewing),
+  and confirm diversity is ENFORCED not merely preferred. Lower-effort than a from-scratch build. (zylos multi-model-review; Weaver)
 - [ ] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
   pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
   cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample
