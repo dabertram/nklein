@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { detectPinDrift, hashBundleForPin, type PinnedArtifact } from "../../../src/core/skill-pin-drift";
+import type { SkillImportPinState } from "../../../src/core/skill-import-decision";
+import {
+	detectPinDrift,
+	hashBundleForPin,
+	type PinnedArtifact,
+	pinDriftToImportState,
+} from "../../../src/core/skill-pin-drift";
 
 const sha = (input: string) => createHash("sha256").update(input).digest("hex");
 
@@ -46,6 +52,26 @@ describe("detectPinDrift", () => {
 		const noVersion: PinnedArtifact = { id: "x", contentHash: "h", version: null };
 		expect(detectPinDrift(noVersion, { contentHash: "h", version: "  " }).kind).toBe("unchanged");
 		expect(detectPinDrift(noVersion, { contentHash: "h2", version: null }).kind).toBe("content-drift"); // rug-pull
+	});
+});
+
+describe("pinDriftToImportState (bridge to the Mode-C import keystone)", () => {
+	it("maps drift kinds onto the binary import pin state, treating any content change as 'changed'", () => {
+		// The result is assignable to the import keystone's SkillImportPinState (unification, not a parallel model).
+		const map: Record<string, SkillImportPinState> = {
+			unpinned: pinDriftToImportState("unpinned"),
+			unchanged: pinDriftToImportState("unchanged"),
+			"version-bump": pinDriftToImportState("version-bump"),
+			"content-drift": pinDriftToImportState("content-drift"),
+			"version-and-content": pinDriftToImportState("version-and-content"),
+		};
+		expect(map).toEqual({
+			unpinned: "new",
+			unchanged: "unchanged",
+			"version-bump": "unchanged", // metadata-only bump = identical content
+			"content-drift": "changed", // rug-pull → hardest friction (full re-screen)
+			"version-and-content": "changed",
+		});
 	});
 });
 
