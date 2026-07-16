@@ -1764,9 +1764,21 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   orthogonal PUBLIC-host layer above the SSRF guard (private hosts) + egress proxy. REMAINING: honor a server/project
   operator allowlist for `operatorAllowedHosts` (currently empty — no host is ever operator-exempted yet); D10.4 policy
   authority over per-session browse_url override.
-- [>] **S9 — Resource / DoS abuse resistance.** Injection that induces comment/PR spam, API-limit exhaustion, infinite
+- [~] **S9 — Resource / DoS abuse resistance.** Injection that induces comment/PR spam, API-limit exhaustion, infinite
   tool loops, or runaway generation is bounded by the turn-loop guard (§12) + learned retry budgets (F3.30) + concurrency
   caps (F3.21); add abuse-specific rate limits + a per-target action cap so one poisoned issue can't fan out.
+  **PER-TARGET ACTION CAP SHIPPED 2026-07-16.** `action-fanout-cap.ts` (pure): `checkActionFanout`/`recordAction`
+  enforce three ceilings per session — `maxTotal` (all capped actions), `maxPerTarget` (anti-hammering one target),
+  `maxDistinctTargets` (anti-fan-out breadth) — immutable state, first-ceiling-denies. 7 core tests. **WIRED opt-in into
+  the swarm broker**: `createSwarmToolBrokerState(initialTaint, fanoutLimits)` carries the ceilings; OUTWARD tools (any
+  external MCP tool + the egress read/fetch tools) count against them, gated BEFORE dispatch (the refused call never
+  fires). Target granularity = the tool name (caps repeated calls to one outward tool + total + distinct outward tools).
+  3 broker E2E tests (per-target cap stops the 3rd post_comment before it dispatches; workspace tools never counted).
+  **DELIBERATELY OPT-IN (empty limits ⇒ byte-identical no-op)**: a hair-trigger cap that strands legitimate multi-target
+  work is worse than none (cf. the review-finalize-rerun-strand bug), so the operator/config picks the numbers — the
+  mechanism ships now, activation is a config choice. REMAINING: choose + wire sensible default ceilings from real
+  dev-test/fleet usage data (one-line change, low reversal cost); finer target granularity than tool-name if an MCP
+  tool's target id (issue/PR) becomes extractable; abuse-specific per-time-window rate limits.
 - [~] **S10 — Adversarial red-team test suite (CI gate).** A dedicated corpus of injection payloads across EVERY ingestion
   surface (the GitHub-issue example, hidden-text, encoded, cross-agent, skill-bundle, MCP-result, web-fetch). CI asserts
   !Klein neither executes the injected instruction nor leaks data nor performs an unapproved outward action. Extend the

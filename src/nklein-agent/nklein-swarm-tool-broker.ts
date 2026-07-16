@@ -1,4 +1,12 @@
 import type { ToolExecutors } from "@cline/sdk";
+import {
+	type ActionFanoutLimits,
+	type ActionFanoutState,
+	checkActionFanout,
+	emptyActionFanoutState,
+	hasAnyFanoutLimit,
+	recordAction,
+} from "../core/action-fanout-cap";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { decideEgressProvenance, extractHostsFromContent } from "../core/egress-provenance-gate";
 import {
@@ -29,14 +37,30 @@ export interface SwarmToolBrokerState {
 	 * untrusted content. An egress to one of these while sensitive data is in context is refused as an exfiltration risk.
 	 */
 	untrustedHosts: readonly string[];
+	/** S9: accumulated OUTWARD-action counts (per outward tool) for the anti-fan-out cap. */
+	fanout: ActionFanoutState;
+	/** S9: the configured fan-out ceilings (opt-in; empty ⇒ no cap — a byte-identical no-op). */
+	fanoutLimits: ActionFanoutLimits;
 }
 
-export function createSwarmToolBrokerState(initialTaint: readonly TaintLabel[] = []): SwarmToolBrokerState {
-	return { taintLabels: propagateTaint([], initialTaint), provenance: [], untrustedHosts: [] };
+export function createSwarmToolBrokerState(
+	initialTaint: readonly TaintLabel[] = [],
+	fanoutLimits: ActionFanoutLimits = {},
+): SwarmToolBrokerState {
+	return {
+		taintLabels: propagateTaint([], initialTaint),
+		provenance: [],
+		untrustedHosts: [],
+		fanout: emptyActionFanoutState(),
+		fanoutLimits,
+	};
 }
 
 /** Egress URL-fetching tools whose target host must be checked against untrusted-introduced hosts (S8). */
 const EGRESS_URL_TOOL_NAMES = new Set(["browse_url", "fetch_web_content", "fetch_url"]);
+
+/** OUTWARD tools whose calls count against the S9 fan-out cap: egress reads/fetches + any external MCP tool. */
+const OUTWARD_EGRESS_TOOL_NAMES = new Set(["web_search", "browse_url", "fetch_web_content", "fetch_url"]);
 
 /** Taint labels whose content is EXTERNAL-untrusted and can "introduce" an exfiltration host (S8). */
 const HOST_INTRODUCING_LABELS: ReadonlySet<TaintLabel> = new Set<TaintLabel>(["web", "mcp"]);
@@ -56,6 +80,10 @@ export function wrapSwarmAgentTools(
 			const egressDenied = egressProvenanceDenial(tool.name, input, state);
 			if (egressDenied) {
 				return egressDenied;
+			}
+			const fanoutDenied = fanoutDenial(tool.name, state, options);
+			if (fanoutDenied) {
+				return fanoutDenied;
 			}
 			const output = await tool.execute(input, context);
 			recordSwarmToolOutputTaint(tool.name, output, state, options);
@@ -226,6 +254,34 @@ function dedupeAppend(existing: readonly string[], incoming: readonly string[]):
 		}
 	}
 	return result;
+}
+
+/**
+ * S9: refuse an OUTWARD tool call (MCP / egress) that would exceed the session's configured fan-out ceilings, so an
+ * injection can't drive spam across many targets. Returns null (allow) when no ceiling is configured, the tool is not
+ * outward, or the call is within limits — and RECORDS the action on the state when it allows (so the count advances only
+ * for calls actually dispatched). The target granularity is the tool name (caps repeated calls to one outward tool +
+ * total outward calls + distinct outward tools).
+ */
+function fanoutDenial(
+	toolName: string,
+	state: SwarmToolBrokerState,
+	options: SwarmToolOutputTaintOptions,
+): string | null {
+	if (!hasAnyFanoutLimit(state.fanoutLimits) || !isOutwardTool(toolName, options)) {
+		return null;
+	}
+	const verdict = checkActionFanout(state.fanout, toolName, state.fanoutLimits);
+	if (!verdict.allow) {
+		return deniedToolResult(toolName, verdict.reason ?? "outward action refused by fan-out cap");
+	}
+	state.fanout = recordAction(state.fanout, toolName);
+	return null;
+}
+
+/** Whether a tool reaches OUTWARD (an egress read/fetch or an external MCP tool) and so counts against the fan-out cap. */
+function isOutwardTool(toolName: string, options: SwarmToolOutputTaintOptions): boolean {
+	return OUTWARD_EGRESS_TOOL_NAMES.has(toolName) || mcpToolNamesInclude(options.mcpToolNames, toolName);
 }
 
 /**

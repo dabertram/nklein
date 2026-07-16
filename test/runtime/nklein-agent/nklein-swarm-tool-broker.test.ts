@@ -142,6 +142,56 @@ describe("nklein swarm tool broker wrappers", () => {
 		expect(await wBrowse.execute({ url: "https://docs.example/guide" }, TOOL_CONTEXT)).toBe("page body");
 	});
 
+	it("Phase 7S/S9: caps repeated outward MCP calls when a per-target limit is configured (opt-in)", async () => {
+		const state = createSwarmToolBrokerState([], { maxPerTarget: 2 });
+		let calls = 0;
+		const mcpTool: AgentTool = {
+			name: "issues__post_comment",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => {
+				calls++;
+				return "posted";
+			},
+		};
+		const [wrapped] = wrapSwarmAgentTools([mcpTool], state, { mcpToolNames: new Set(["issues__post_comment"]) });
+		expect(String(await wrapped.execute({}, TOOL_CONTEXT))).toContain("posted");
+		expect(String(await wrapped.execute({}, TOOL_CONTEXT))).toContain("posted");
+		const third = String(await wrapped.execute({}, TOOL_CONTEXT));
+		expect(third).toContain("Denied by capability broker");
+		expect(third).toContain("per-target action cap (2)");
+		expect(calls).toBe(2); // the 3rd call was refused before it ever dispatched — fan-out bounded
+	});
+
+	it("Phase 7S/S9: no cap by default — outward calls stay unlimited (byte-identical no-op)", async () => {
+		const state = createSwarmToolBrokerState(); // no fan-out limits configured
+		const mcpTool: AgentTool = {
+			name: "t__x",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => "ok",
+		};
+		const [wrapped] = wrapSwarmAgentTools([mcpTool], state, { mcpToolNames: new Set(["t__x"]) });
+		for (let i = 0; i < 20; i++) {
+			expect(String(await wrapped.execute({}, TOOL_CONTEXT))).toContain("ok");
+		}
+	});
+
+	it("Phase 7S/S9: a configured cap does NOT count non-outward workspace tools", async () => {
+		const state = createSwarmToolBrokerState([], { maxTotal: 1 });
+		const repoTool: AgentTool = {
+			name: "read_files",
+			description: "repo",
+			inputSchema: {},
+			execute: async () => "file contents",
+		};
+		const [wrapped] = wrapSwarmAgentTools([repoTool], state);
+		// read_files is not outward, so even a maxTotal of 1 never blocks repeated reads.
+		expect(await wrapped.execute({}, TOOL_CONTEXT)).toBe("file contents");
+		expect(await wrapped.execute({}, TOOL_CONTEXT)).toBe("file contents");
+		expect(state.fanout.total).toBe(0);
+	});
+
 	it("Phase 7S/S6: FENCES external MCP tool string output so it can't inject the agent", async () => {
 		const state = createSwarmToolBrokerState();
 		const tool: AgentTool = {

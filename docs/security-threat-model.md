@@ -96,7 +96,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 | S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |
 | S7 | Supply-chain hardening (skills + MCP servers) | partial (F4.20–F4.27); signature/pin TBD |
 | S8 | Egress / exfiltration control | **shipped**: egress-provenance-gate.ts blocks egress to an untrusted-introduced host when a secret is in context; wired into the swarm broker (+ egress proxy + SSRF) |
-| S9 | Resource / DoS abuse resistance | partial (turn-loop guard §12, retry budgets F3.30, concurrency caps F3.21); per-target action cap TBD |
+| S9 | Resource / DoS abuse resistance | **shipped**: action-fanout-cap.ts (total / per-target / distinct-target ceilings) wired opt-in into the broker's outward tools; + turn-loop guard §12, retry budgets F3.30, concurrency caps F3.21 |
 | S10 | Adversarial red-team test suite (CI gate) | **corpus shipped** (test/runtime/security/red-team-injection-corpus.test.ts) |
 | S11 | Security audit trail + alerting | **foundation + web-surface recording shipped**; non-web sources + block-rate alert TBD |
 
