@@ -161,6 +161,7 @@ import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
 import { createTimeoutController } from "./nklein-timeout-controller";
 import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
+import { maybeDistillAndStoreProcedure } from "./procedural-skill-producer";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
 import type { AgentTool } from "./sdk-agent-types";
@@ -2876,6 +2877,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);
+				// F4.19: distill this finished task into the ProceduralSkillBank (opt-in NKLEIN_PROCEDURAL_SKILLS — the SAME
+				// flag the consumer reads). A clean worker finish (`awaiting_review`, not failed/interrupted) with a
+				// substantive completed focus chain becomes a CANDIDATE procedure — never surfaced until the lifecycle
+				// promotes it on real helped/hurt evidence, so this can populate the bank without risking a live prompt.
+				if (difficultyCard) {
+					const chainSteps = this.focusChainStore.get(taskId)?.steps ?? [];
+					const focusChainText = chainSteps
+						.map((step) => `- [${step.status === "done" ? "x" : " "}] ${step.text}`)
+						.join("\n");
+					await maybeDistillAndStoreProcedure({
+						taskId,
+						taskTitle: difficultyCard.title?.trim() || difficultyCard.prompt.slice(0, 80),
+						taskObjective: difficultyCard.prompt,
+						focusChain: focusChainText,
+						succeeded: state === "awaiting_review",
+						role,
+						now: Date.now(),
+					});
+				}
 			} catch {
 				// Best-effort; never break the session loop on a ledger write.
 			}
