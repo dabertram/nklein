@@ -2288,10 +2288,14 @@ output and NOT acted on. Captured as F12.12.)
   Essential for unattended local overnight runs. (getunblocked auto-loop-tax; relayplane runaway-costs)
 
 **Evaluation & observability (mostly BUILDABLE-NOW pure cores over the existing ledger):**
-- [ ] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
+- [~] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
   ~15-pt deltas; most scaffolding tweaks flipped on "eyeballed green" are WITHIN NOISE. Replace green→flip with a powered
-  comparison: paired McNemar (binary success) + Wilson/bootstrap CIs + SPRT/O'Brien-Fleming sequential stopping, model held
-  fixed, refuse to flip until the delta clears the CI at configured power. Directly hardens every F1.xb default-flip decision. (dev.to eval-sizing; statsig sequential-testing)
+  comparison. **CORE BUILT 2026-07-17:** `ab-significance-gate.ts` — `decideDefaultFlip(pairs, {alpha, minEffect})` runs
+  paired **McNemar's EXACT test** (exact binomial on discordant pairs — correct at any n, unlike the chi-square approx that
+  fails in the small-eval regime; normal-approx only >2000 discordant) + `wilsonInterval` + only recommends a flip when the
+  candidate is significantly AND practically better. Numerically verified (10 worse/2 better ⇒ p≈0.0386; balanced ⇒ p≈1).
+  10 tests. REMAINING: wire it into the default-flip path (require paired A/B eval runs, hold the model fixed) for the F1.xb
+  flips. (dev.to eval-sizing; statsig sequential-testing)
 - [ ] **F12.42 — Trajectory-quality scorer (Ideal/Solid/Lucky) over the step ledger.** Pass/fail hides ~11% "lucky" wins +
   brittle process. Compute per-attempt from the ledger: steps-before-first-edit (ρ=+0.68 with success), opening-patch
   intensity (ρ=−0.78), validation-effort share (ρ=+0.50), retry/backtrack count — length is a CONFOUNDED non-signal.
