@@ -779,6 +779,25 @@ export function ModelPerformanceStatsDialog({
 						— load a stronger model for these roles.
 					</div>
 				)}
+				{(fitnessTable?.capabilityUpgrades ?? []).length > 0 && (
+					<div
+						className="mb-2 rounded-md border border-status-amber/40 bg-status-amber/10 p-2 text-[12px] text-text-primary"
+						data-testid="capability-upgrade-recommendations"
+					>
+						<div className="mb-1 font-semibold text-status-amber">Recommended upgrades (F3.35)</div>
+						<ul className="space-y-1">
+							{(fitnessTable?.capabilityUpgrades ?? []).map((upgrade) => (
+								<li key={`${upgrade.role}:${upgrade.candidateModelKey}`} data-testid="capability-upgrade-row">
+									<span className="font-semibold">{upgrade.role}:</span> load{" "}
+									<span className="font-mono">{upgrade.candidateModelKey}</span> on {upgrade.targetMachine} —{" "}
+									{upgrade.expectedCapability.toFixed(2)} (+{upgrade.projectedGain.toFixed(2)},{" "}
+									{upgrade.confidence}
+									{upgrade.fitsTargetMachine ? "" : ", does not fit"}). Propose-only.
+								</li>
+							))}
+						</ul>
+					</div>
+				)}
 				{topReevalCells.length > 0 && (
 					<div
 						className="mb-2 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"

@@ -132,6 +132,100 @@ export interface CeilingUpgradeRecommendation {
 	readonly recommendation: string;
 }
 
+/** One aggregated fitness observation per (model, role) — the enrichment's capability+samples input. */
+export interface RoleFitnessSample {
+	readonly modelKey: string;
+	readonly role: string;
+	readonly successCount: number;
+	readonly sampleCount: number;
+}
+
+/** A downloaded-model catalog entry (machine + size) — the enrichment's fit input (e.g. from `parseLmsLsCatalog`). */
+export interface CatalogEntry {
+	readonly modelKey: string;
+	readonly device: string;
+	readonly sizeGB: number;
+}
+
+/**
+ * Build the upgrade candidates by joining per-(model, role) fitness aggregates with the downloaded-model catalog
+ * (machine + size). Aggregates the passed fitness samples per (model, role) first (so difficulty-tier rows collapse to
+ * one capability = success rate + total samples), then keeps only models present in the catalog (fit needs machine +
+ * size). Pure. The shared builder both the CLI and the runtime API use so their enrichment can't drift.
+ */
+export function buildUpgradeCandidatesFromFitness(
+	fitnessSamples: readonly RoleFitnessSample[],
+	catalog: readonly CatalogEntry[],
+	isLoaded: (modelKey: string) => boolean,
+): CatalogModelCandidate[] {
+	const catalogByKey = new Map(catalog.map((c) => [c.modelKey, c]));
+	const agg = new Map<string, { modelKey: string; role: string; success: number; samples: number }>();
+	for (const s of fitnessSamples) {
+		const key = `${s.modelKey}::${s.role}`;
+		const cur = agg.get(key) ?? { modelKey: s.modelKey, role: s.role, success: 0, samples: 0 };
+		cur.success += s.successCount;
+		cur.samples += s.sampleCount;
+		agg.set(key, cur);
+	}
+	const candidates: CatalogModelCandidate[] = [];
+	for (const { modelKey, role, success, samples } of agg.values()) {
+		const cat = catalogByKey.get(modelKey);
+		if (!cat || samples <= 0) {
+			continue;
+		}
+		candidates.push({
+			modelKey,
+			role,
+			measuredCapability: Math.min(1, Math.max(0, success / samples)),
+			machine: cat.device,
+			sizeGB: cat.sizeGB,
+			samples,
+			loaded: isLoaded(modelKey),
+		});
+	}
+	return candidates;
+}
+
+/**
+ * The full fleet-upgrade computation, shared by the CLI and the runtime API so their enrichment can't drift: aggregate
+ * the fitness samples per (model, role) → detect which roles the LOADED fleet can't clear (success-rate vs bar) → for
+ * each hit role, name the best not-loaded catalog upgrade that fits. Pure over its gathered inputs (the caller does the
+ * effectful reads: fitness store, `lms ls`, `lms ps`, RAM map). `deviceRamGB` maps machine → usable GB.
+ */
+export function computeFleetCapabilityUpgrades(input: {
+	readonly fitnessSamples: readonly RoleFitnessSample[];
+	readonly catalog: readonly CatalogEntry[];
+	readonly deviceRamGB: Readonly<Record<string, number>>;
+	readonly isLoaded: (modelKey: string) => boolean;
+	readonly bars: readonly RoleQualityBar[];
+	readonly options?: CeilingUpgradeOptions;
+}): CeilingUpgradeRecommendation[] {
+	// Detection over the loaded fleet: aggregate per (model, role), confidence = success rate, loaded = real state.
+	const agg = new Map<string, { modelKey: string; role: string; success: number; samples: number }>();
+	for (const s of input.fitnessSamples) {
+		const key = `${s.modelKey}::${s.role}`;
+		const cur = agg.get(key) ?? { modelKey: s.modelKey, role: s.role, success: 0, samples: 0 };
+		cur.success += s.successCount;
+		cur.samples += s.sampleCount;
+		agg.set(key, cur);
+	}
+	const fitness: FleetModelFitness[] = [...agg.values()]
+		.filter((a) => a.samples > 0)
+		.map((a) => ({
+			modelKey: a.modelKey,
+			role: a.role,
+			qualityConfidence: Math.min(1, Math.max(0, a.success / a.samples)),
+			loaded: input.isLoaded(a.modelKey),
+		}));
+	const verdicts = assessCapabilityCeiling(input.bars, fitness);
+	const candidates = buildUpgradeCandidatesFromFitness(input.fitnessSamples, input.catalog, input.isLoaded);
+	const machines: MachineMemory[] = Object.entries(input.deviceRamGB).map(([machine, usableGB]) => ({
+		machine,
+		usableGB,
+	}));
+	return recommendCeilingUpgrades(verdicts, candidates, machines, input.options);
+}
+
 /** Uncertainty from eval sample count — mirrors the fitness store's confidence tiers (settled ≥ 4, high ≥ 10). */
 function upgradeConfidenceFromSamples(samples: number): UpgradeConfidence {
 	if (samples >= 10) {

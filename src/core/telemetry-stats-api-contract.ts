@@ -135,9 +135,27 @@ export const runtimeModelVerdictBadgesResponseSchema = z.object({
 });
 export type RuntimeModelVerdictBadgesResponse = z.infer<typeof runtimeModelVerdictBadgesResponseSchema>;
 
+// F3.35 enrichment: for a role the loaded fleet cannot clear, the exact NOT-loaded catalog model to load, where it
+// lives, whether it fits, and how confident the recommendation is. Propose-only — the UI never loads/downloads.
+export const runtimeCapabilityUpgradeSchema = z.object({
+	role: z.string(),
+	candidateModelKey: z.string(),
+	targetMachine: z.string(),
+	expectedCapability: z.number().min(0).max(1),
+	projectedGain: z.number(),
+	confidence: z.enum(["high", "medium", "low"]),
+	fitsTargetMachine: z.boolean(),
+	candidateSizeGB: z.number().nonnegative(),
+	recommendation: z.string(),
+});
+export type RuntimeCapabilityUpgrade = z.infer<typeof runtimeCapabilityUpgradeSchema>;
+
 export const runtimeFitnessTableResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	rows: z.array(runtimeFitnessRowSchema),
+	// F3.35 enrichment — best not-loaded upgrade per ceiling-hit role (empty when the fleet clears every role, or when
+	// the catalog/RAM-map inputs are unavailable). Server-computed so the CLI and UI share one code path.
+	capabilityUpgrades: z.array(runtimeCapabilityUpgradeSchema).default([]),
 });
 export type RuntimeFitnessTableResponse = z.infer<typeof runtimeFitnessTableResponseSchema>;
 

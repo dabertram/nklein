@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessCapabilityCeiling,
+	buildUpgradeCandidatesFromFitness,
 	type CatalogModelCandidate,
 	ceilingHitRoles,
+	computeFleetCapabilityUpgrades,
 	type FleetModelFitness,
 	type MachineMemory,
 	type RoleQualityBar,
@@ -143,5 +145,88 @@ describe("recommendCeilingUpgrades (F3.35 enrichment — name the exact model/ma
 			machines,
 		);
 		expect(recs[0]?.fitsTargetMachine).toBe(false);
+	});
+});
+
+describe("buildUpgradeCandidatesFromFitness", () => {
+	const catalog = [
+		{ modelKey: "big-strong", device: "m5max", sizeGB: 20 },
+		{ modelKey: "no-catalog-entry-ignored", device: "m5max", sizeGB: 5 },
+	];
+
+	it("aggregates fitness samples per (model, role) and joins the catalog for machine + size", () => {
+		const cands = buildUpgradeCandidatesFromFitness(
+			[
+				{ modelKey: "big-strong", role: "reviewer", successCount: 2, sampleCount: 2 }, // easy+medium
+				{ modelKey: "big-strong", role: "reviewer", successCount: 1, sampleCount: 2 }, // hard tier
+			],
+			catalog,
+			() => false,
+		);
+		expect(cands).toHaveLength(1);
+		expect(cands[0]).toMatchObject({
+			modelKey: "big-strong",
+			role: "reviewer",
+			machine: "m5max",
+			sizeGB: 20,
+			samples: 4,
+		});
+		expect(cands[0]?.measuredCapability).toBeCloseTo(0.75); // (2+1)/(2+2)
+	});
+
+	it("drops models absent from the catalog (no machine/size to check fit) and zero-sample aggregates", () => {
+		const cands = buildUpgradeCandidatesFromFitness(
+			[
+				{ modelKey: "ghost", role: "worker", successCount: 3, sampleCount: 3 }, // not in catalog
+				{ modelKey: "big-strong", role: "worker", successCount: 0, sampleCount: 0 }, // zero samples
+			],
+			catalog,
+			() => false,
+		);
+		expect(cands).toHaveLength(0);
+	});
+
+	it("carries the loaded flag from the predicate", () => {
+		const cands = buildUpgradeCandidatesFromFitness(
+			[{ modelKey: "big-strong", role: "worker", successCount: 1, sampleCount: 1 }],
+			catalog,
+			(k) => k === "big-strong",
+		);
+		expect(cands[0]?.loaded).toBe(true);
+	});
+});
+
+describe("computeFleetCapabilityUpgrades (shared CLI+API orchestrator)", () => {
+	it("detects a ceiling from loaded fitness and names a fitting not-loaded upgrade end-to-end", () => {
+		const upgrades = computeFleetCapabilityUpgrades({
+			fitnessSamples: [
+				// loaded weak reviewer: 1/2 = 0.50, below the 0.7 bar → ceiling hit
+				{ modelKey: "weak-loaded", role: "reviewer", successCount: 1, sampleCount: 2 },
+				// not-loaded strong reviewer: 10/10 = 1.0 → the upgrade
+				{ modelKey: "strong-shelf", role: "reviewer", successCount: 10, sampleCount: 10 },
+			],
+			catalog: [
+				{ modelKey: "weak-loaded", device: "m5max", sizeGB: 5 },
+				{ modelKey: "strong-shelf", device: "m5max", sizeGB: 20 },
+			],
+			deviceRamGB: { m5max: 95 },
+			isLoaded: (k) => k === "weak-loaded",
+			bars: [{ role: "reviewer", minConfidence: 0.7 }],
+		});
+		expect(upgrades).toHaveLength(1);
+		expect(upgrades[0]?.candidateModelKey).toBe("strong-shelf");
+		expect(upgrades[0]?.fitsTargetMachine).toBe(true);
+		expect(upgrades[0]?.confidence).toBe("high");
+	});
+
+	it("returns nothing when the loaded fleet already clears the bar", () => {
+		const upgrades = computeFleetCapabilityUpgrades({
+			fitnessSamples: [{ modelKey: "good-loaded", role: "worker", successCount: 9, sampleCount: 10 }],
+			catalog: [{ modelKey: "good-loaded", device: "m5max", sizeGB: 5 }],
+			deviceRamGB: { m5max: 95 },
+			isLoaded: () => true,
+			bars: [{ role: "worker", minConfidence: 0.6 }],
+		});
+		expect(upgrades).toHaveLength(0);
 	});
 });

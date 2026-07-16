@@ -22,7 +22,7 @@ import { buildAnswerSizesByModel } from "../core/answer-budget-projection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import {
 	assessCapabilityCeiling,
-	type CatalogModelCandidate,
+	buildUpgradeCandidatesFromFitness,
 	ceilingHitRoles,
 	type FleetModelFitness,
 	type MachineMemory,
@@ -37,7 +37,6 @@ import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
-import { fitnessSuccessRate } from "../core/fitness-table-schema";
 import { estimateLearnedRetryBudget } from "../core/learned-retry-budget";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
@@ -420,35 +419,7 @@ async function buildCapabilityCeilingUpgrades(
 			.then((r) => r.stdout)
 			.catch(() => "");
 		const catalog = parseLmsLsCatalog(lsOut, { localDeviceName: LOCAL_MACHINE_ID });
-		const catalogByKey = new Map(catalog.map((m) => [m.modelKey, m]));
-
-		// Aggregate fitness rows per (model, role) across difficulty tiers.
-		const agg = new Map<string, { modelKey: string; role: string; success: number; samples: number }>();
-		for (const row of fitnessRows) {
-			const key = `${row.modelKey}::${row.role}`;
-			const cur = agg.get(key) ?? { modelKey: row.modelKey, role: row.role, success: 0, samples: 0 };
-			cur.success += row.successCount;
-			cur.samples += row.sampleCount;
-			agg.set(key, cur);
-		}
-
-		const candidates: CatalogModelCandidate[] = [];
-		for (const { modelKey, role, success, samples } of agg.values()) {
-			const cat = catalogByKey.get(modelKey);
-			if (!cat) {
-				continue; // no machine/size known for this model — can't check fit, so not a nameable upgrade
-			}
-			candidates.push({
-				modelKey,
-				role,
-				measuredCapability: fitnessSuccessRate({ successCount: success, sampleCount: samples }),
-				machine: cat.device,
-				sizeGB: cat.sizeGB,
-				samples,
-				loaded: isLoaded(modelKey),
-			});
-		}
-
+		const candidates = buildUpgradeCandidatesFromFitness(fitnessRows, catalog, isLoaded);
 		const ramBytes = resolveDeviceRamBytesFromEnv();
 		const machines: MachineMemory[] = Object.entries(ramBytes).map(([machine, bytes]) => ({
 			machine,

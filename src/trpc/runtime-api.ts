@@ -55,7 +55,9 @@ import {
 	readBasicMemoryRecallSources,
 } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
+import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
+import { resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import {
@@ -64,7 +66,8 @@ import {
 	isHostOpenTargetId,
 	validateHostOpenFilePath,
 } from "../core/host-open-intents";
-import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
+import { parseLmsLsCatalog } from "../core/lms-model-catalog";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { auditMemoryFreshness } from "../core/memory-freshness-audit";
@@ -210,6 +213,48 @@ async function probeDockerVmMemoryMb(): Promise<number | null> {
 import type { CreateRuntimeApiDependencies } from "./runtime-api-types";
 
 export type { CreateRuntimeApiDependencies } from "./runtime-api-types";
+
+/** F3.35 per-role quality bars the LOADED fleet must clear (mirrors the `dev capability-ceiling` defaults). */
+const CAPABILITY_UPGRADE_BARS: readonly RoleQualityBar[] = [
+	{ role: "architect", minConfidence: 0.7 },
+	{ role: "decompose", minConfidence: 0.7 },
+	{ role: "reviewer", minConfidence: 0.7 },
+	{ role: "worker", minConfidence: 0.6 },
+];
+
+/**
+ * F3.35 enrichment for the fitness-table view: name the best NOT-loaded catalog upgrade per role the loaded fleet can't
+ * clear. Gathers the effectful inputs (the `lms ls` catalog, real loaded ids, the NKLEIN_DEVICE_RAM_GB map) and defers
+ * the logic to the shared {@link computeFleetCapabilityUpgrades}. Best-effort: the caller wraps this in `.catch(() => [])`.
+ */
+async function computeCapabilityUpgrades(
+	fitnessRows: readonly { modelKey: string; role: string; successCount: number; sampleCount: number }[],
+): Promise<ReturnType<typeof computeFleetCapabilityUpgrades>> {
+	const runner = createDefaultLmsRunner();
+	const [lsOut, loadedIds] = await Promise.all([
+		runner(["ls"])
+			.then((r) => r.stdout)
+			.catch(() => ""),
+		fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]),
+	]);
+	const catalog = parseLmsLsCatalog(lsOut, { localDeviceName: LOCAL_MACHINE_ID });
+	const isLoaded = (modelKey: string): boolean =>
+		loadedIds.some((id) => id === modelKey || modelKey.includes(id) || id.includes(modelKey));
+	const ramBytes = resolveDeviceRamBytesFromEnv();
+	const deviceRamGB = Object.fromEntries(Object.entries(ramBytes).map(([m, bytes]) => [m, bytes / 1024 ** 3]));
+	return computeFleetCapabilityUpgrades({
+		fitnessSamples: fitnessRows.map((r) => ({
+			modelKey: r.modelKey,
+			role: r.role,
+			successCount: r.successCount,
+			sampleCount: r.sampleCount,
+		})),
+		catalog,
+		deviceRamGB,
+		isLoaded,
+		bars: CAPABILITY_UPGRADE_BARS,
+	});
+}
 
 function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
 	return summary;
@@ -598,9 +643,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getFitnessTable: async () => {
 			// F1.15c: the unified read — persisted store (eval + legacy) merged with the live ledger projection.
 			const rows = await readMergedFitnessRows().catch(() => ({}) as Record<string, never>);
+			const fitnessRows = Object.values(rows);
 			return {
 				generatedAt: Date.now(),
-				rows: buildFitnessTableView(Object.values(rows)),
+				rows: buildFitnessTableView(fitnessRows),
+				// F3.35 enrichment — best not-loaded upgrade per ceiling-hit role, from the fitness rows + the `lms ls`
+				// catalog (machine + size) + the NKLEIN_DEVICE_RAM_GB map + real loaded state. Best-effort: any failing
+				// source degrades to no upgrades (never breaks the fitness view).
+				capabilityUpgrades: await computeCapabilityUpgrades(fitnessRows).catch(() => []),
 			};
 		},
 		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value — the same three
