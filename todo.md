@@ -2177,6 +2177,24 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
   so budget thinking adaptively per card difficulty. Fold into the model-role config + the H7.x inference-lever selection. (Cline local-models; promptquorum)
 
+**Self-improvement without fine-tuning (prompt optimization + skill evolution):**
+- [ ] **F12.28 — Automatic per-(model×role) prompt optimization from the attempt ledger (GEPA/MIPRO-style).** DSPy's GEPA
+  (reflective Genetic-Pareto optimizer, ICLR-2026 oral) evolves prompt INSTRUCTIONS via natural-language reflection on
+  execution traces — +13% over MIPROv2, 35× fewer rollouts, and 67%→93% on MATH from instruction refinement ALONE (no
+  fine-tuning). !Klein already records rich attempt-ledger traces per model×role; add an offline optimizer that reflects
+  over successes/failures to evolve the decompose/worker/reviewer system prompts PER model×role, gated behind an eval that
+  proves the evolved prompt beats the current one before adoption. Potentially a large capability multiplier for weak
+  local models. (gepa-ai/gepa; morphllm GEPA; DSPy MIPROv2)
+- [ ] **F12.29 — Execution-VALIDATED skill entries + dependency-aware retrieval (extends F4.19).** Voyager's lesson: a
+  persistent skill library works when skills are code VALIDATED BY EXECUTION, indexed by natural-language description, and
+  retrieved dependency-aware (3.3× more progress, no fine-tuning). !Klein's F4.19 distills focus-chains into CANDIDATE
+  procedures — strengthen it: attach an execution/acceptance-validation signal to promotion (not just helped/hurt tallies),
+  index procedures by an NL description for semantic retrieval, and make retrieval dependency-aware. (Voyager; SoK Agentic Skills 2602.20867)
+- [ ] **F12.30 — Ground-truth-free skill/procedure auditing for the F4.19 lifecycle.** SkillAudit evolves skills via PAIRED
+  TRAJECTORY auditing without ground truth — compare trajectories that used a procedure vs didn't, to decide promote/revise/
+  retire. This is the missing candidate→active promotion SIGNAL for the procedural bank when there's no labeled outcome:
+  audit paired attempts to detect whether a surfaced procedure actually helped. (SkillAudit 2606.14239; ACE evolving-playbooks)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
