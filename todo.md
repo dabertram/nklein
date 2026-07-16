@@ -1787,7 +1787,14 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   tests. REMAINING: (a) the effectful hashing-at-import producer — hash a skill bundle's / MCP server's actual CONTENT at
   resolution (bundle entries carry path/size/mode but NO content hash today) and pin/compare via the store; (b) gate
   auto-apply on `rugPull` (never auto-apply a content-drifted-same-version artifact); (c) skill/MCP SIGNING is still
-  credential-gated (Apple/Windows), David-deferred like F5.7.
+  credential-gated (Apple/Windows), David-deferred like F5.7. **RELATIONSHIP TO EXISTING SKILL-IMPORT TOFU (important —
+  don't run parallel):** `skill-import-decision.ts` ALREADY has a BINARY TOFU pin (`SkillImportPinState` new/unchanged/
+  changed + `SkillImportPin` {skillId, contentHash}) driving Mode-C friction, BUT it is skill-only, VERSION-UNAWARE (any
+  hash change → "changed", no rug-pull-vs-upgrade distinction), and takes the pin as INPUT with NO persisted store. The
+  S7 `detectPinDrift` GENERALIZES it (adds version-awareness + the rug-pull signal + MCP scope) and `skill-pin-store.ts`
+  provides the persistence it lacks. The import WIRE should UNIFY them — have skill-import-decision consume `detectPinDrift`
+  (map its `kind` → `SkillImportPinState`, treating `content-drift`/rug-pull as the hardest "changed") and persist via
+  `skill-pin-store`, NOT add a second parallel path.
 - [~] **S8 — Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
   never place sensitive data in URL params/query strings; block egress to hosts introduced by untrusted content; keep the
   server/project egress policy authoritative over any per-session `browse_url` override (D10.4). Builds on the egress proxy.
