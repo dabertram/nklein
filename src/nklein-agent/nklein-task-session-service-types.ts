@@ -10,6 +10,7 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
+import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import type { FocusChain } from "../core/focus-chain";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
@@ -45,6 +46,12 @@ export interface StartNKleinTaskSessionRequest {
 	baseRef?: string | null;
 	prompt: string;
 	startInPlanMode?: boolean;
+	/**
+	 * F4.38 — the AUTO decomposition-depth decision (from `resolveAutoDecompositionDepth`: card difficulty × the routed
+	 * model's quality-effective context), computed at the decompose route. Forwarded to the planning prompt builder as
+	 * one advisory guidance line. Absent ⇒ no depth line (byte-identical); only set for explicit decompose-in-plan tasks.
+	 */
+	autoDecompositionDepth?: AutoDecompositionDepthDecision | null;
 	/** Normalized !Klein task title; written to SDK session metadata (best-effort). */
 	taskTitle?: string;
 	initialMessages?: NKleinSdkPersistedMessage[];

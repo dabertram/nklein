@@ -1,5 +1,6 @@
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
+import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../core/auto-decomposition-depth";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
@@ -1281,6 +1282,16 @@ export async function handleStartTaskSession(
 		// instead of losing it. Best-effort: a mailbox read failure must never block a start.
 		const mailboxNotes = await listPendingCardMailbox(body.taskId).catch(() => []);
 		const promptWithMailbox = `${body.prompt}${composeMailboxPromptAddendum(mailboxNotes)}`;
+		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
+		// estimate × the routed model's quality-effective context, so the planning prompt steers breakdown granularity to
+		// what the task hardness + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
+		const autoDecompositionDepth =
+			body.startInPlanMode && isExplicitDecompositionPrompt(promptWithMailbox)
+				? resolveAutoDecompositionDepth({
+						difficulty: difficultyTierFromScore(taskDifficulty),
+						qualityEffectiveContextTokens: nkleinLaunchConfig.contextWindow ?? 40_000,
+					})
+				: null;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
@@ -1305,6 +1316,7 @@ export async function handleStartTaskSession(
 				: null,
 			mode: requestedNKleinTaskMode,
 			startInPlanMode: body.startInPlanMode,
+			autoDecompositionDepth, // F4.38 — advisory decompose-depth guidance (null for non-decompose tasks)
 			apiKey: nkleinLaunchConfig.apiKey,
 			baseUrl: nkleinLaunchConfig.baseUrl,
 			reasoningEffort: nkleinLaunchConfig.reasoningEffort,

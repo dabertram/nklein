@@ -68,3 +68,20 @@ export function resolveAutoDecompositionDepth(input: AutoDecompositionDepthInput
 function tierOf(value: DifficultyTier | string): DifficultyTier {
 	return value in BASE_DEPTH_BY_DIFFICULTY ? (value as DifficultyTier) : "medium";
 }
+
+/**
+ * Map the routing difficulty SCORE (the 5–100 number from `estimateNKleinStartDifficulty`) to the auto-depth tier.
+ * Thresholds anchored on the swarm's own low-difficulty cutoff (≤30 disables thinking — "low"): ≤15 trivial, ≤30 easy,
+ * ≤55 medium, ≤75 hard, else very-hard. Pure. Lets the decompose route feed its existing difficulty estimate straight
+ * into {@link resolveAutoDecompositionDepth} without a second estimator.
+ */
+export function difficultyTierFromScore(score: number): DifficultyTier {
+	if (!Number.isFinite(score)) {
+		return "medium";
+	}
+	if (score <= 15) return "trivial";
+	if (score <= 30) return "easy";
+	if (score <= 55) return "medium";
+	if (score <= 75) return "hard";
+	return "very-hard";
+}

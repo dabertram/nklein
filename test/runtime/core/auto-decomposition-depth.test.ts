@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAutoDecompositionDepth } from "../../../src/core/auto-decomposition-depth";
+import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../../src/core/auto-decomposition-depth";
 
 const NEUTRAL = 16_000; // between small (8k) and large (32k) → no context adjustment
 
@@ -41,5 +41,29 @@ describe("resolveAutoDecompositionDepth (F4.38)", () => {
 		const unknown = resolveAutoDecompositionDepth({ difficulty: "???", qualityEffectiveContextTokens: NEUTRAL });
 		expect(unknown.depth).toBe(1); // treated as medium
 		expect(unknown.reason).toContain("medium");
+	});
+});
+
+describe("difficultyTierFromScore (F4.38 — map the 5–100 routing difficulty to an auto-depth tier)", () => {
+	it("bands the score anchored on the swarm's ≤30 low-difficulty cutoff", () => {
+		expect(difficultyTierFromScore(10)).toBe("trivial");
+		expect(difficultyTierFromScore(15)).toBe("trivial");
+		expect(difficultyTierFromScore(25)).toBe("easy");
+		expect(difficultyTierFromScore(30)).toBe("easy");
+		expect(difficultyTierFromScore(45)).toBe("medium");
+		expect(difficultyTierFromScore(70)).toBe("hard");
+		expect(difficultyTierFromScore(90)).toBe("very-hard");
+	});
+
+	it("defaults a non-finite score to medium (never throws)", () => {
+		expect(difficultyTierFromScore(Number.NaN)).toBe("medium");
+	});
+
+	it("composes with resolveAutoDecompositionDepth end-to-end (a hard card at a small budget goes deep)", () => {
+		const decision = resolveAutoDecompositionDepth({
+			difficulty: difficultyTierFromScore(70), // hard
+			qualityEffectiveContextTokens: 4_000, // small → +1 finer
+		});
+		expect(decision.depth).toBe(3); // hard base 2 + 1 finer
 	});
 });

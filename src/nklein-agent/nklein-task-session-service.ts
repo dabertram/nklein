@@ -1418,6 +1418,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			request.prompt,
 			request.startInPlanMode,
 			isRefinableWorkCard,
+			request.autoDecompositionDepth ?? null, // F4.38 — advisory depth line (null ⇒ byte-identical)
 		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
