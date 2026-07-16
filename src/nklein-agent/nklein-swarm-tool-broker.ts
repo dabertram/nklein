@@ -7,15 +7,26 @@ import {
 	swarmToolOutputTaint,
 } from "../core/swarm-tool-capability";
 import { propagateTaint, type TaintLabel } from "../core/taint-labels";
+import {
+	explainTaintProvenance,
+	recordTaintProvenance,
+	type TaintProvenanceEntry,
+	taintProvenanceEntry,
+} from "../core/taint-provenance";
 import { fenceUntrustedContent } from "../core/untrusted-content-boundary";
 import type { AgentTool, AgentToolContext } from "./sdk-agent-types";
 
 export interface SwarmToolBrokerState {
 	taintLabels: readonly TaintLabel[];
+	/**
+	 * S5: the PROVENANCE ledger riding alongside {@link taintLabels} — which concrete source (tool name) introduced
+	 * each taint label. The labels decide allow/deny; this names the culprit source when a gate fires and feeds S8/S11.
+	 */
+	provenance: readonly TaintProvenanceEntry[];
 }
 
 export function createSwarmToolBrokerState(initialTaint: readonly TaintLabel[] = []): SwarmToolBrokerState {
-	return { taintLabels: propagateTaint([], initialTaint) };
+	return { taintLabels: propagateTaint([], initialTaint), provenance: [] };
 }
 
 export function wrapSwarmAgentTools(
@@ -26,9 +37,9 @@ export function wrapSwarmAgentTools(
 	return tools.map((tool) => ({
 		...tool,
 		async execute(input: unknown, context: AgentToolContext): Promise<unknown> {
-			const denial = decideSwarmToolDenial(tool.name, state, options);
-			if (denial) {
-				return deniedToolResult(tool.name, denial);
+			const denied = brokerDenialResult(tool.name, state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await tool.execute(input, context);
 			recordSwarmToolOutputTaint(tool.name, output, state, options);
@@ -66,9 +77,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.readFile) {
 		const readFile = executors.readFile;
 		wrapped.readFile = async (...args: Parameters<NonNullable<ToolExecutors["readFile"]>>) => {
-			const denial = decideSwarmToolDenial("read_files", state);
-			if (denial) {
-				return deniedToolResult("read_files", denial);
+			const denied = brokerDenialResult("read_files", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await readFile(...args);
 			recordSwarmToolOutputTaint("read_files", output, state, options);
@@ -78,9 +89,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.search) {
 		const search = executors.search;
 		wrapped.search = async (...args: Parameters<NonNullable<ToolExecutors["search"]>>) => {
-			const denial = decideSwarmToolDenial("search_codebase", state);
-			if (denial) {
-				return deniedToolResult("search_codebase", denial);
+			const denied = brokerDenialResult("search_codebase", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await search(...args);
 			recordSwarmToolOutputTaint("search_codebase", output, state, options);
@@ -90,9 +101,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.bash) {
 		const bash = executors.bash;
 		wrapped.bash = async (...args: Parameters<NonNullable<ToolExecutors["bash"]>>) => {
-			const denial = decideSwarmToolDenial("run_commands", state);
-			if (denial) {
-				return deniedToolResult("run_commands", denial);
+			const denied = brokerDenialResult("run_commands", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await bash(...args);
 			recordSwarmToolOutputTaint("run_commands", output, state, options);
@@ -102,9 +113,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.webFetch) {
 		const webFetch = executors.webFetch;
 		wrapped.webFetch = async (...args: Parameters<NonNullable<ToolExecutors["webFetch"]>>) => {
-			const denial = decideSwarmToolDenial("fetch_web_content", state);
-			if (denial) {
-				return deniedToolResult("fetch_web_content", denial);
+			const denied = brokerDenialResult("fetch_web_content", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await webFetch(...args);
 			recordSwarmToolOutputTaint("fetch_web_content", output, state, options);
@@ -114,9 +125,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.editor) {
 		const editor = executors.editor;
 		wrapped.editor = async (...args: Parameters<NonNullable<ToolExecutors["editor"]>>) => {
-			const denial = decideSwarmToolDenial("editor", state);
-			if (denial) {
-				return deniedToolResult("editor", denial);
+			const denied = brokerDenialResult("editor", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await editor(...args);
 			recordSwarmToolOutputTaint("editor", output, state, options);
@@ -126,9 +137,9 @@ export function wrapSwarmToolExecutors(
 	if (executors.applyPatch) {
 		const applyPatch = executors.applyPatch;
 		wrapped.applyPatch = async (...args: Parameters<NonNullable<ToolExecutors["applyPatch"]>>) => {
-			const denial = decideSwarmToolDenial("apply_patch", state);
-			if (denial) {
-				return deniedToolResult("apply_patch", denial);
+			const denied = brokerDenialResult("apply_patch", state, options);
+			if (denied) {
+				return denied;
 			}
 			const output = await applyPatch(...args);
 			recordSwarmToolOutputTaint("apply_patch", output, state, options);
@@ -160,7 +171,30 @@ function recordSwarmToolOutputTaint(
 	const outputTaint = swarmToolOutputTaint(toolName, output, options);
 	if (outputTaint.length > 0) {
 		state.taintLabels = propagateTaint(state.taintLabels, outputTaint);
+		// S5: record the SOURCE (this tool) for each label, so a later gate denial / audit can name the origin.
+		state.provenance = recordTaintProvenance(
+			state.provenance,
+			outputTaint.map((label) => taintProvenanceEntry(label, toolName)),
+		);
 	}
+}
+
+/**
+ * Compute the broker's denial for a tool call, or null if allowed. When it denies, the reason is ENRICHED (S5) with the
+ * untrusted source(s) currently tainting the turn, so the message names the culprit — e.g. "…untrusted content in this
+ * context originated from: browse_url" — instead of only the abstract taint class.
+ */
+function brokerDenialResult(
+	toolName: string,
+	state: SwarmToolBrokerState,
+	options: SwarmToolOutputTaintOptions = {},
+): string | null {
+	const denial = decideSwarmToolDenial(toolName, state, options);
+	if (!denial) {
+		return null;
+	}
+	const provenance = explainTaintProvenance(state.provenance);
+	return deniedToolResult(toolName, provenance ? `${denial} — ${provenance}` : denial);
 }
 
 function deniedToolResult(toolName: string, reason: string): string {

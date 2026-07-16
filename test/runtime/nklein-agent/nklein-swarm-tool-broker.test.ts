@@ -48,6 +48,42 @@ describe("nklein swarm tool broker wrappers", () => {
 		expect(state.taintLabels).toEqual(["mcp", "secret_like"]);
 	});
 
+	it("Phase 7S/S5: records provenance (label + source tool + trust level) alongside the taint labels", async () => {
+		const state = createSwarmToolBrokerState();
+		const tool: AgentTool = {
+			name: "issues__get_issue",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => "some benign issue text",
+		};
+		const [wrapped] = wrapSwarmAgentTools([tool], state, { mcpToolNames: new Set(["issues__get_issue"]) });
+		await wrapped.execute({}, TOOL_CONTEXT);
+
+		expect(state.taintLabels).toEqual(["mcp"]);
+		// S5: the flat label is now backed by which concrete source introduced it, at the graded trust level.
+		expect(state.provenance).toEqual([{ label: "mcp", source: "issues__get_issue", trust: "untrusted" }]);
+	});
+
+	it("Phase 7S/S5: accumulates a provenance entry per label, naming the web source and its secret_like layer", async () => {
+		const state = createSwarmToolBrokerState();
+		const tool: AgentTool = {
+			name: "web_search",
+			description: "search",
+			inputSchema: {},
+			execute: async () => ({
+				ok: true,
+				results: [{ title: "leak", snippet: "token = 'ghp_0123456789abcdefghijABCDEFGHIJ'" }],
+			}),
+		};
+		const [wrapped] = wrapSwarmAgentTools([tool], state);
+		await wrapped.execute({ query: "token" }, TOOL_CONTEXT);
+
+		expect(state.provenance).toEqual([
+			{ label: "web", source: "web_search", trust: "untrusted" },
+			{ label: "secret_like", source: "web_search", trust: "untrusted" },
+		]);
+	});
+
 	it("Phase 7S/S6: FENCES external MCP tool string output so it can't inject the agent", async () => {
 		const state = createSwarmToolBrokerState();
 		const tool: AgentTool = {

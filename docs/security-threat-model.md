@@ -92,7 +92,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 | S2 | Instruction/data isolation — `fenceUntrustedContent` | **shipped** (untrusted-content-boundary.ts); adopted at I5 |
 | S3 | Privilege minimization + human-in-loop for outward/irreversible actions | partial (confirm-dialog + delivery-taint); policy layer TBD |
 | S4 | Heuristic injection pre-screen — `screenUntrustedContent` | **shipped** + adopted at all four web surfaces I1–I4 |
-| S5 | Provenance & taint propagation to the action boundary | partial (taint labels + delivery-taint); full propagation TBD |
+| S5 | Provenance & taint propagation to the action boundary | **backbone shipped**: taint-provenance.ts (source + graded trust) wired into the swarm broker; broker denials name the culprit source |
 | S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |
 | S7 | Supply-chain hardening (skills + MCP servers) | partial (F4.20–F4.27); signature/pin TBD |
 | S8 | Egress / exfiltration control | partial (egress proxy + SSRF); untrusted-host-provenance block TBD |

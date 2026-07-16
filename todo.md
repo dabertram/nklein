@@ -1703,9 +1703,23 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   inject an agent via fetched content on ANY web-ingestion path. REMAINING ingestion points: MCP tool output + peer-agent
   messages (S6) — those need the S2 FENCE (not always-on block) since the agent's own tool/file output legitimately quotes
   injection examples (this repo's security docs would false-positive on a block); requires a untrusted-vs-own-tool boundary.
-- [>] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
+- [~] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
-  effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam.
+  effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam. **BACKBONE SHIPPED 2026-07-16 (David
+  chose this track).** The pre-existing taint-labels model tracked only the trust CLASS as a flat label set (enough to
+  gate, but it loses WHICH source introduced the taint). **Phase A — pure core** `taint-provenance.ts`: a
+  `(label, source, trust-level)` ledger that accumulates alongside the labels; `TrustLevel` graded scale
+  (operator>runtime>workspace>untrusted) derived purely from a label — ADDITIVE, does NOT change the proven
+  `taintedContentMayInfluence` gate predicate; `recordTaintProvenance` (append-only, dedup by label+source),
+  `untrustedTaintSources` (the distinct untrusted origins — the set S8 asks "was this egress host introduced by untrusted
+  content?"), `explainTaintProvenance`/`worstTrustLevel` for operator reporting. 11 tests. **Phase B — wired into
+  `SwarmToolBrokerState`**: a `provenance` ledger rides alongside `taintLabels`; `recordSwarmToolOutputTaint` records the
+  SOURCE (the tool name) per label; a broker denial is now ENRICHED (`brokerDenialResult`) to NAME the untrusted culprit
+  source(s) instead of only the abstract taint class. 9 broker tests. REMAINING: (a) finer-grained SOURCE than the tool
+  name (thread the actual URL/host from the web/browse tools — the S11 onScreen stream already has it; join the two);
+  (b) surface `untrustedTaintSources` to S8 host-provenance egress blocking; (c) persist provenance into the S11 audit on
+  a gate denial. The gate PREDICATE is deliberately unchanged — this slice adds the source/trust dimension, not new
+  allow/deny behavior.
 - [~] **S6 — Treat model output + inter-agent messages as untrusted.** A local model is not trusted: its output can carry
   injection aimed at DOWNSTREAM agents (a worker's diff/notes feeding the reviewer or orchestrator) or at the user. A
   compromised/malicious model, or a benign model that echoed injected repo text, must not be able to hijack a peer. Enforce
