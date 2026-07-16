@@ -2195,6 +2195,25 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   retire. This is the missing candidate→active promotion SIGNAL for the procedural bank when there's no labeled outcome:
   audit paired attempts to detect whether a surfaced procedure actually helped. (SkillAudit 2606.14239; ACE evolving-playbooks)
 
+**Supply-chain, determinism & reproducibility:**
+- [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
+  2026 MCP security consensus: >30% of deployed servers had an exploitable vuln; tool-poisoning hides instructions in a
+  tool's DESCRIPTION; a rug-pull swaps a clean tool for a malicious one after approval. The "single control that actually
+  stops rug pulls" is to hash the tool DESCRIPTION on first approval + re-prompt if it changes (S7 pin-drift already does
+  this for bundle CONTENT — extend it to MCP tool descriptions). Add: an explicit name+version server allowlist, and run
+  local stdio MCP servers in a container / restricted user with NO home / SSH-key / cloud-cred access (they run as agent-
+  privileged child processes by default). (glasp/pomerium/CSA MCP-security-2026; straiker MCP tool-poisoning)
+- [ ] **F12.32 — Content-addressable tool-result caching + deterministic replay (extends aimock F11.4).** LLM agents are
+  non-deterministic (up to ~15% accuracy variation run-to-run; even temp=0 isn't reproducible — float non-associativity +
+  batch-dependent kernels). The fix isn't eliminating it but BOUNDING it: record model+tool responses for deterministic
+  REPLAY (exactly aimock's design), and key a content-addressable cache by hash(prompt, tool-calls, retrieved context) to
+  reuse results across runs — cutting inference spend + smoothing tail latency. Wire aimock as the record/replay layer +
+  add the input-hash cache. (tianpan deterministic-replay; propelcode defeating-nondeterminism; "the log is the agent" 2605.21997)
+- [ ] **F12.33 — Behavioral-reproducibility metric per model×role (feeds the fitness store + routing).** Measure run-to-run
+  CONSISTENCY of a model×role on a fixed fixture (accuracy variation, tool-call stability) so routing can prefer STABLE
+  models for critical roles (reviewer/architect) even if a flakier model has a higher peak. Extends the model-role-stability
+  telemetry. (arxiv 2605.28840 behavioral-reproducibility; futureagi non-deterministic-prompts)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
