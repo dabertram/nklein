@@ -2451,15 +2451,19 @@ verify-before-build caveat: confirm each against current code before implementin
   JSON — never hard-constrain the reasoning turn. Rationale: the "Constraint Tax" — hard schema decode on small models lifts
   JSON validity 61.5%→100% but HALVES accuracy (19.7%→11%) and makes 88.9% of outputs wrong-but-valid; the failure is
   semantic, not structural. Fits the existing json_schema-only lever (LM Studio ignores top-level grammar). (Constraint Tax 2605.26128)
-- [ ] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
+- [~] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
   prompt; warn/auto-trim above a model-size-scaled cap (~150 for 32B, far lower for 4–7B) and report which volatility tier to
-  shed first. Rationale: IFScale — even frontier models hit only 68% instruction-following at 500 instructions; a 2,500-repo
-  study found >150-line rules add 20–23% inference cost with NO quality gain. Composes with the F4.40 cache-stable-prefix
-  assembler + F12.21 re-anchoring. (IFScale 2507.11538; GitHub AGENTS.md 2500-repo study)
-- [ ] **F12.80 — Positive-rewrite + prohibition-pairing linter for rules/prompt fragments.** Lint for "don't/never/avoid" and
+  shed first. **CORE BUILT 2026-07-17:** `prompt-fragment-lint.ts` — `extractInstructionUnits` (bullets + imperative-lead +
+  modal-marker sentences, ignores plain prose, word-boundary-safe so "mustard"≠"must") + `instructionCapForModel` (~5/B
+  clamped [20,150]: 4B→20, 7B→35, 32B→150) + `lintInstructionBudget` (count vs cap + overshoot advice). Pure heuristic
+  (under-counts rather than hallucinates). 11 tests (shared with F12.80). REMAINING: run it over the F4.40-assembled prompt +
+  surface the warning. (IFScale 2507.11538; GitHub AGENTS.md 2500-repo study)
+- [~] **F12.80 — Positive-rewrite + prohibition-pairing linter for rules/prompt fragments.** Lint for "don't/never/avoid" and
   either flip to a positive assertive form ("always use the shared apiClient") or REQUIRE a paired concrete alternative;
-  prefer "must" over "should". Rationale: the pink-elephant effect — negatives force the model to process the forbidden
-  concept and are weakly suppressed; the 2,500-repo study found warning-only rules underperform prohibition+alternative. (gadlet negative-prompting; 16x pink-elephant)
+  prefer "must" over "should". **CORE BUILT 2026-07-17:** `lintProhibitions` (in `prompt-fragment-lint.ts`) flags each
+  negative instruction that LACKS a nearby "instead / use X / rather than" alternative as bare (the pink-elephant risk),
+  leaving paired prohibitions uncounted; `lintPromptFragment` runs both checks + a `hasWarnings` roll-up. REMAINING: wire into
+  the rules-authoring / prompt-assembly lint pass. (gadlet negative-prompting; 16x pink-elephant)
 - [ ] **F12.81 — Ledger-sourced dynamic few-shot injection (message-format).** Extends F11.2h (in-repo exemplars) with a
   DIFFERENT signal: retrieve the 2–3 most semantically-similar SUCCESSFUL PAST ATTEMPTS from the agent ledger and inject them
   as real ChatML message turns (not string-concatenated), selected per-card. Rationale: biggest measured lever for small-model
