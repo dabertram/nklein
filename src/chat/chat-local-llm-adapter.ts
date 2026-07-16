@@ -278,9 +278,10 @@ async function streamWithContinuationLadder(
 	messages: LocalLlmChatMessage[],
 	sampling: LocalLlmSamplingOptions,
 	onToken: (delta: string) => void,
+	onFinalCompletion?: (completion: LocalLlmCompletion) => void,
 ): Promise<string> {
 	if (!client.completeStream) {
-		return completePlainWithTruncationLadder(client, messages, sampling);
+		return completePlainWithTruncationLadder(client, messages, sampling, onFinalCompletion);
 	}
 	// Bind, don't detach: the production client is a class instance whose completeStream reads `this.config` — the
 	// detached call broke EVERY streamed chat turn ("Cannot read properties of undefined (reading 'config')") while
@@ -288,11 +289,13 @@ async function streamWithContinuationLadder(
 	const completeStream = client.completeStream.bind(client);
 	const first = await completeStream({ messages, sampling }, onToken);
 	let combined = cleanModelReply(first.content);
-	let finishReason = first.finishReason;
+	let lastCompletion = first;
 	if (isAdaptiveTruncationLadderEnabled()) {
 		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
-			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
+			if (
+				!deriveTruncationSignal({ rawReason: lastCompletion.finishReason, tokenBudget: budget }).shouldRetryLarger
+			) {
 				break;
 			}
 			const escalated = raisedTokenBudget({ current: budget, attempt: 1, ceiling: TRUNCATION_RETRY_BUDGET_CEILING });
@@ -312,10 +315,11 @@ async function streamWithContinuationLadder(
 				onToken,
 			);
 			combined = `${combined}${STREAM_CONTINUATION_MARKER}${cleanModelReply(continuation.content)}`;
-			finishReason = continuation.finishReason;
+			lastCompletion = continuation;
 			budget = escalated;
 		}
 	}
+	onFinalCompletion?.(lastCompletion);
 	return combined;
 }
 
@@ -369,7 +373,9 @@ export function createChatModelDeps(
 			if (onToken && client.completeStream) {
 				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged)
 				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
-				return streamWithContinuationLadder(client, messages, sampling, onToken);
+				return streamWithContinuationLadder(client, messages, sampling, onToken, (c) =>
+					recordTruncation("chat-stream", c),
+				);
 			}
 			return completePlainWithTruncationLadder(client, messages, sampling, (c) => recordTruncation("chat", c));
 		},
