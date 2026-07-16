@@ -29,6 +29,30 @@ export interface MatchProceduralSkillsOptions {
 
 const norm = (tag: string): string => tag.trim().toLowerCase();
 
+/**
+ * Derive the context tags to match procedures against from a session's role + task text: the role plus the significant
+ * lowercase tokens of the task (≥ 4 chars, dedup). A procedure's `applicabilityTags` (task kinds / domains) match these
+ * — e.g. a task mentioning "migration" surfaces a migration procedure. Pure; caps the token count so a huge prompt can't
+ * balloon the match set.
+ */
+export function deriveProceduralContextTags(
+	role: string | null | undefined,
+	taskText: string,
+	maxTokens = 40,
+): string[] {
+	const tags = new Set<string>();
+	if (role && role.trim().length > 0) {
+		tags.add(role.trim().toLowerCase());
+	}
+	for (const token of (taskText ?? "").toLowerCase().match(/[a-z][a-z0-9+#.-]{3,}/g) ?? []) {
+		if (tags.size >= maxTokens) {
+			break;
+		}
+		tags.add(token);
+	}
+	return [...tags];
+}
+
 /** True when a skill may be surfaced to an agent: validated (`active`) and not superseded by a newer record. */
 export function isRetrievableProceduralSkill(skill: ProceduralSkill): boolean {
 	return skill.status === "active" && skill.supersededBy === null;

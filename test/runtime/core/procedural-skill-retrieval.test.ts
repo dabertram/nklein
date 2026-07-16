@@ -5,7 +5,11 @@ import {
 	recordProceduralSkillOutcome,
 	supersedeProceduralSkill,
 } from "../../../src/core/procedural-skill-record";
-import { isRetrievableProceduralSkill, matchProceduralSkills } from "../../../src/core/procedural-skill-retrieval";
+import {
+	deriveProceduralContextTags,
+	isRetrievableProceduralSkill,
+	matchProceduralSkills,
+} from "../../../src/core/procedural-skill-retrieval";
 
 const mk = (
 	id: string,
@@ -68,6 +72,36 @@ describe("matchProceduralSkills (F4.19 retrieval)", () => {
 
 	it("matches case-insensitively", () => {
 		expect(matchProceduralSkills([mk("a", ["CLI"])], ["cli"]).map((m) => m.skill.id)).toEqual(["a"]);
+	});
+});
+
+describe("deriveProceduralContextTags", () => {
+	it("includes the role and significant (≥4-char) task tokens, deduped + lowercased", () => {
+		const tags = deriveProceduralContextTags("architect", "Add a CLI migration for the parser");
+		expect(tags).toContain("architect");
+		expect(tags).toContain("migration");
+		expect(tags).toContain("parser");
+		expect(tags).not.toContain("a"); // too short
+		expect(tags).not.toContain("cli"); // 3 chars, below the ≥4 cutoff
+	});
+
+	it("end-to-end: a migration procedure surfaces for a task that mentions migration", () => {
+		const proc = createProceduralSkill({
+			id: "p1",
+			title: "Safe DB migration",
+			content: "steps",
+			contentHash: "h",
+			applicabilityTags: ["migration"],
+			provenance: { source: "learned", trust: "trusted", capturedAt: 0 },
+			status: "active",
+			now: 0,
+		});
+		const tags = deriveProceduralContextTags("worker", "Run the schema migration on startup");
+		expect(matchProceduralSkills([proc], tags).map((m) => m.skill.id)).toEqual(["p1"]);
+	});
+
+	it("tolerates a null role / empty text", () => {
+		expect(deriveProceduralContextTags(null, "")).toEqual([]);
 	});
 });
 

@@ -2,13 +2,28 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createProceduralSkill, type ProceduralSkill } from "../../../src/core/procedural-skill-record";
 import { buildSessionSkillFragments } from "../../../src/nklein-agent/nklein-session-skill-fragments";
 
 const FLAG = "NKLEIN_SKILL_PROMPT_FRAGMENTS";
+const PROC_FLAG = "NKLEIN_PROCEDURAL_SKILLS";
 
 describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 	let workspace: string;
 	let savedFlag: string | undefined;
+	let savedProcFlag: string | undefined;
+
+	const mkProc = (id: string, tags: string[]): ProceduralSkill =>
+		createProceduralSkill({
+			id,
+			title: `${id}-title`,
+			content: `${id}-steps`,
+			contentHash: `h-${id}`,
+			applicabilityTags: tags,
+			provenance: { source: "learned", trust: "trusted", capturedAt: 0 },
+			status: "active",
+			now: 0,
+		});
 
 	beforeEach(() => {
 		workspace = mkdtempSync(join(tmpdir(), "kanban-skillfrag-"));
@@ -20,6 +35,8 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 		);
 		savedFlag = process.env[FLAG];
 		delete process.env[FLAG];
+		savedProcFlag = process.env[PROC_FLAG];
+		delete process.env[PROC_FLAG];
 	});
 
 	afterEach(() => {
@@ -28,6 +45,11 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 			delete process.env[FLAG];
 		} else {
 			process.env[FLAG] = savedFlag;
+		}
+		if (savedProcFlag === undefined) {
+			delete process.env[PROC_FLAG];
+		} else {
+			process.env[PROC_FLAG] = savedProcFlag;
 		}
 	});
 
@@ -61,6 +83,38 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 			workspacePath: null,
 		});
 		expect(fragments.find((fragment) => fragment.key === "repo-map")).toBeUndefined();
+	});
+
+	it("F4.19: procedural flag OFF ⇒ no procedural fragments even with matching skills in the store (byte-identical)", async () => {
+		const fragments = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "run the schema migration",
+			workspacePath: null,
+			loadProceduralSkills: async () => [mkProc("p1", ["migration"])],
+		});
+		expect(fragments.find((f) => f.key.startsWith("procedural-skill:"))).toBeUndefined();
+	});
+
+	it("F4.19: procedural flag ON ⇒ surfaces a matching ACTIVE procedure as a fragment; empty store ⇒ none", async () => {
+		process.env[PROC_FLAG] = "1";
+		const withMatch = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "run the schema migration on startup",
+			workspacePath: null,
+			loadProceduralSkills: async () => [mkProc("p1", ["migration"]), mkProc("p2", ["unrelated"])],
+		});
+		const proc = withMatch.find((f) => f.key === "procedural-skill:p1");
+		expect(proc).toBeDefined();
+		expect(proc?.text).toContain("p1-steps");
+		expect(withMatch.find((f) => f.key === "procedural-skill:p2")).toBeUndefined(); // no tag overlap
+
+		const emptyStore = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "run the schema migration",
+			workspacePath: null,
+			loadProceduralSkills: async () => [],
+		});
+		expect(emptyStore.find((f) => f.key.startsWith("procedural-skill:"))).toBeUndefined();
 	});
 
 	it("§5.AE (approved follow-up 2026-07-05): the skill-dynamics level is HONORED — `assigned_skills` (no ids) suppresses the repo map", async () => {

@@ -10,11 +10,14 @@
  */
 
 import { isTruthyEnv } from "../core/env-flag.js";
+import type { ProceduralSkill } from "../core/procedural-skill-record.js";
+import { deriveProceduralContextTags, matchProceduralSkills } from "../core/procedural-skill-retrieval.js";
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
 import { selectSandboxMcpServersForModel } from "../core/sandbox-mcp-catalog.js";
 import { buildSkillPromptFragments } from "../core/skill-prompt-fragments.js";
 import { resolveActiveSkills, type SkillDynamicsLevel } from "../core/skill-resolver.js";
 import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-guidance.js";
+import { getCurrentProceduralSkills } from "../state/procedural-skill-store.js";
 import { buildNKleinRepoMap } from "./nklein-repo-map.js";
 
 export interface BuildSessionSkillFragmentsInput {
@@ -42,6 +45,11 @@ export interface BuildSessionSkillFragmentsInput {
 	 * session actually carries honor the setting. Absent ⇒ the resolver's own default (`fully_dynamic`).
 	 */
 	dynamicsLevel?: SkillDynamicsLevel;
+	/**
+	 * F4.19 — injectable procedural-skill loader (tests). Defaults to the runtime store's `getCurrentProceduralSkills`.
+	 * Only consulted when `NKLEIN_PROCEDURAL_SKILLS` is set; a rejecting loader yields no fragments (fail-soft).
+	 */
+	loadProceduralSkills?: () => Promise<ProceduralSkill[]>;
 }
 
 /** Resolve active skills → their `wired` context fragments → assembler PromptFragments (with real producer text). */
@@ -87,6 +95,21 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 					fragmentId === "repo_map" ? repoMapText : null,
 				),
 			);
+		}
+	}
+
+	// F4.19 — surface matched PROCEDURAL skills (the ProceduralSkillBank consumer side). Opt-in (NKLEIN_PROCEDURAL_SKILLS,
+	// default OFF = byte-identical) + empty-safe: only ACTIVE, not-superseded procedures whose applicability tags overlap
+	// the task's context are added (never an unvalidated skill). A missing/unreadable store yields nothing.
+	if (isTruthyEnv(process.env.NKLEIN_PROCEDURAL_SKILLS)) {
+		const contextTags = deriveProceduralContextTags(input.role, input.taskText);
+		const skills = await (input.loadProceduralSkills ?? getCurrentProceduralSkills)().catch(() => []);
+		for (const { skill } of matchProceduralSkills(skills, contextTags)) {
+			fragments.push({
+				key: `procedural-skill:${skill.id}`,
+				volatility: "config",
+				text: `Learned procedure — ${skill.title}:\n${skill.content}`,
+			});
 		}
 	}
 
