@@ -43,4 +43,20 @@ describe("formatSandboxToolFailure", () => {
 			"Sandbox tool unknown failed.\nNext step: inspect the command, file path, permissions, and sandbox output above; then retry with a smaller focused unknown request.",
 		);
 	});
+
+	it("F3.T2: a NOT_FOUND (missing file) gets path-specific advice, NOT the generic 'retry smaller'", () => {
+		const message = formatSandboxToolFailure(
+			"read_files",
+			"ENOENT: no such file or directory, stat 'specification.md'",
+		);
+		expect(message).toContain("Sandbox tool read_files failed.");
+		expect(message).toContain("not found"); // the NOT_FOUND hint
+		expect(message).toContain("workspace-relative path"); // check the path, not "retry smaller"
+		expect(message).not.toContain("retry with a smaller focused"); // the wrong generic advice is replaced
+	});
+
+	it("F3.T2: a timeout gets timeout-specific advice", () => {
+		const message = formatSandboxToolFailure("run_command", "command timed out after 60s");
+		expect(message).toContain("timed out");
+	});
 });
