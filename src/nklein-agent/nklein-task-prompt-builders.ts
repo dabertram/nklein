@@ -4,6 +4,7 @@
  * planning-, refinement-, or null system prompt and assemble the `NKleinStartPromptParts`. No session state.
  */
 
+import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
 import {
 	isDecompositionPlanningPrompt,
 	parseAcceptanceCommand,
@@ -16,7 +17,24 @@ export interface NKleinStartPromptParts {
 	systemWorkflowCommand: string | null;
 }
 
-function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boolean): string | null {
+/**
+ * F4.38 — render the AUTO decomposition-depth decision (from `resolveAutoDecompositionDepth`: difficulty × the model's
+ * quality-effective context) as one guidance line for the decompose prompt. Depth 0 ⇒ keep it shallow; depth ≥ 1 ⇒ aim
+ * for that many nested levels so each leaf fits the executor's real context. Advisory only — the model still decides;
+ * this steers granularity toward what the task hardness + model capacity actually warrant.
+ */
+export function formatAutoDecompositionDepthGuidance(decision: AutoDecompositionDepthDecision): string {
+	if (decision.depth <= 0) {
+		return "Decomposition depth (AUTO): keep the breakdown SHALLOW — a flat set of leaves is enough for this task; only nest a further split when a leaf is genuinely its own multi-step workstream.";
+	}
+	return `Decomposition depth (AUTO): aim for roughly ${decision.depth} level(s) of nested breakdown so each leaf fits the executor model's effective context — split a leaf further only when it clearly exceeds one focused unit of work.`;
+}
+
+function buildNKleinPlanningSystemPrompt(
+	prompt: string,
+	startInPlanMode?: boolean,
+	autoDepth?: AutoDecompositionDepthDecision | null,
+): string | null {
 	if (!startInPlanMode) {
 		return null;
 	}
@@ -39,6 +57,8 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 			minimumTaskCount !== null
 				? `When calling decompose_project, pass \`minimumTaskCount: ${minimumTaskCount}\`.`
 				: null,
+			// F4.38 — advisory AUTO depth guidance (omitted ⇒ byte-identical to the prior prompt).
+			autoDepth ? formatAutoDecompositionDepthGuidance(autoDepth) : null,
 			acceptanceCommand
 				? `Use \`defaultAcceptanceCommand: "${acceptanceCommand}"\` unless a generated leaf needs a narrower objective check.`
 				: null,
@@ -83,11 +103,12 @@ export function buildNKleinStartPromptParts(
 	prompt: string,
 	startInPlanMode?: boolean,
 	isRefinableWorkCard?: boolean,
+	autoDepth?: AutoDecompositionDepthDecision | null,
 ): NKleinStartPromptParts {
 	return {
 		userPrompt: prompt,
 		systemPrompt: startInPlanMode
-			? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode)
+			? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth)
 			: isRefinableWorkCard
 				? buildNKleinRefinementSystemPrompt()
 				: null,
