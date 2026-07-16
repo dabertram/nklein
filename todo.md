@@ -2090,6 +2090,48 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed
   `MALFORMED_PATCH` (via F3.T2) for immediate repair rather than a failed apply. (harnesses.sh mini-swe-agent lessons)
 
+**Small-model reliability deltas (second research pass — techniques weak local models specifically need):**
+- [ ] **F12.17 — Forgiving multi-format tool-call parser with auto-repair + `reasoning_content` fallback.** Small local
+  models emit malformed-but-recoverable calls (wrong param names/types, XML/YAML/Hermes/plain-text instead of JSON, or the
+  call buried in `reasoning_content`). Accept + repair these before counting a turn failed, instead of hard-failing. This
+  is the INBOUND complement to F3.T4's schema-downgrade + F3.T2's error contract. (github Doorman11991/smallcode; promptquorum tool-calling-2026)
+- [ ] **F12.18 — Retrieval-gate the tool catalog to ≤~8 relevant schemas per turn (extends F3.T1).** Selection accuracy
+  craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
+  halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
+  wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
+- [ ] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
+  invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
+  prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
+- [ ] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
+  #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
+  → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never
+  hard-fail the card. The wins are in the APPLICATION layer, not the diff format. (aider unified-diffs + 9-pass; Diff-XYZ 2510.12487; Morph/Relace fast-apply)
+- [ ] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
+  suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
+  prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
+  Near-free positioning win; composes with the F4.40 cache-stable-prefix assembler. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
+- [ ] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
+  (§12) bounds LENGTH but not SEMANTIC looping. Track no-progress rounds + repeated-identical tool calls + patch-spirals
+  (edit-same-file-no-diff), and on threshold break to a self-reflection + plan-revision step (Magentic-One progress-ledger
+  pattern). Subsumes/sharpens F12.15's thrashing detector. (Magentic-One 2411.04468; smallcode early-stop)
+- [ ] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
+  fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
+  worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)
+- [ ] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
+  card (stops loops on a broken tool/MCP); retry a failed edit with a temperature ramp (deterministic → exploratory) to
+  escape local minima. Small additions to the existing F3.30 retry machinery. (smallcode; promptquorum)
+- [ ] **F12.25 — Lint-on-edit reject + windowed file viewer (ACI micro-ergonomics).** Reject a syntactically-broken edit at
+  the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
+  search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)
+- [ ] **F12.26 — Capability-gated CodeAct (executable code actions) for 30B+ routes.** Composable code-actions (control flow
+  over multiple tool calls in one turn) give ~+20% success / ~30% fewer steps for CAPABLE models, but impose a "structure
+  tax" that HURTS <7B models. Offer it opt-in ONLY for cards routed to 30B+ local models — a natural fit for capability-
+  fitness routing. (CodeAct 2402.01030; HF structured-codeagent)
+- [ ] **F12.27 — Tool-role quantization floor + adaptive thinking budget (inference-lever, feeds H7.32).** Q3-and-below
+  degrades TOOL-CALL reliability before chat quality — keep Q4_K_M as the floor for tool-using roles; ≥32k context is
+  required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
+  so budget thinking adaptively per card difficulty. Fold into the model-role config + the H7.x inference-lever selection. (Cline local-models; promptquorum)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
