@@ -1,4 +1,5 @@
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
+import { extractCompletionUsage } from "../core/completion-usage";
 import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
@@ -6,6 +7,7 @@ import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { resolveApiProfileRequest } from "../core/skill-api-profile-request";
 import type { SkillApiProfile } from "../core/skill-registry";
+import { buildTruncationObservation } from "../core/truncation-diagnostics-summary";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
@@ -22,6 +24,7 @@ import {
 	type PromptVariantFamily,
 } from "../nklein-agent/nklein-prompt-variation";
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
+import { appendTruncationObservations } from "../state/truncation-observation-store";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
@@ -185,29 +188,40 @@ function isReasoningBudgetEnabled(): boolean {
  * did NOT already fix `maxTokens`, replace ONLY `maxTokens` with the reasoning-reserve total (the answer budget is the
  * DEFAULT_SAMPLING answer budget), leaving every other sampling field untouched.
  */
+/** The resolved sampling PLUS the reasoning/answer budget split it used (for F4.12 truncation diagnostics). */
+interface ResolvedChatTurnSampling {
+	sampling: LocalLlmSamplingOptions;
+	/** Tokens reserved for the reasoning channel (0 when the reasoning budget wasn't applied). */
+	reasoningBudget: number;
+	/** Tokens protected for the answer. */
+	answerBudget: number;
+}
+
 function resolveChatTurnSampling(options: {
 	sampling?: LocalLlmSamplingOptions;
 	modelId?: string;
-}): LocalLlmSamplingOptions {
+}): ResolvedChatTurnSampling {
 	const base = options.sampling ?? DEFAULT_SAMPLING;
+	const answerBudgetTokens = base.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 	// Only opt-in when the flag is ON, a modelId is known + reasons, and the caller did NOT pass an explicit
 	// `sampling.maxTokens` (an explicit caller budget always wins — we never inflate what the caller pinned). Any miss ⇒
-	// return `base` unchanged (byte-identical default). NOTE the guard checks the CALLER's `options.sampling?.maxTokens`,
-	// not `base.maxTokens` (which is always defined because DEFAULT_SAMPLING pins it) — so the fall-through only sizes the
-	// DEFAULT answer budget, never a caller-supplied one.
+	// return `base` unchanged (byte-identical default); the whole budget is then the answer budget (no reasoning reserve).
 	if (
 		options.sampling?.maxTokens !== undefined ||
 		!isReasoningBudgetEnabled() ||
 		!options.modelId ||
 		!isReasoningModel(options.modelId)
 	) {
-		return base;
+		return { sampling: base, reasoningBudget: 0, answerBudget: answerBudgetTokens };
 	}
 	// `base` is DEFAULT_SAMPLING here (caller passed no sampling, or sampling without maxTokens); size ONLY maxTokens off
 	// the default answer budget, preserving every other field.
-	const answerBudgetTokens = base.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 	const budget = planReasoningOutputBudget({ answerBudgetTokens, isReasoning: true });
-	return { ...base, maxTokens: budget.totalMaxTokens };
+	return {
+		sampling: { ...base, maxTokens: budget.totalMaxTokens },
+		reasoningBudget: budget.reasoningReserveTokens,
+		answerBudget: budget.answerBudgetTokens,
+	};
 }
 
 /**
@@ -224,26 +238,26 @@ async function completePlainWithTruncationLadder(
 	client: ChatCompletionClient,
 	messages: LocalLlmChatMessage[],
 	sampling: LocalLlmSamplingOptions,
+	// F4.12 — invoked with the FINAL completion (after any escalation) so the caller can record a truncation observation.
+	onFinalCompletion?: (completion: LocalLlmCompletion) => void,
 ): Promise<string> {
-	let { content, finishReason } = await client.complete({ messages, sampling });
+	let completion = await client.complete({ messages, sampling });
 	if (isAdaptiveTruncationLadderEnabled()) {
 		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
-			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
+			if (!deriveTruncationSignal({ rawReason: completion.finishReason, tokenBudget: budget }).shouldRetryLarger) {
 				break;
 			}
 			const escalated = raisedTokenBudget({ current: budget, attempt: 1, ceiling: TRUNCATION_RETRY_BUDGET_CEILING });
 			if (escalated <= budget) {
 				break;
 			}
-			({ content, finishReason } = await client.complete({
-				messages,
-				sampling: { ...sampling, maxTokens: escalated },
-			}));
+			completion = await client.complete({ messages, sampling: { ...sampling, maxTokens: escalated } });
 			budget = escalated;
 		}
 	}
-	return cleanModelReply(content);
+	onFinalCompletion?.(completion);
+	return cleanModelReply(completion.content);
 }
 
 /** The visible-but-subtle seam between a cut-off streamed reply and its continuation (§10c#12, user 2026-07-12). */
@@ -307,9 +321,42 @@ async function streamWithContinuationLadder(
 
 export function createChatModelDeps(
 	client: ChatCompletionClient,
-	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
+	options: {
+		sampling?: LocalLlmSamplingOptions;
+		modelId?: string;
+		/** F4.12 test seam: override the truncation-observation store root (defaults to the runtime home). */
+		truncationStoreRootDir?: string;
+	} = {},
 ): ChatModelDeps {
-	const sampling = resolveChatTurnSampling(options);
+	const { sampling, reasoningBudget, answerBudget } = resolveChatTurnSampling(options);
+	// F4.12 — record WHY a chat completion truncated (opt-in NKLEIN_TRUNCATION_DIAGNOSTICS, default OFF = no I/O).
+	// Best-effort: any failure is swallowed so a recording never affects the chat turn. Fills `dev truncation-diagnostics`.
+	const recordTruncation = (surface: string, completion: LocalLlmCompletion): void => {
+		if (!isTruthyEnv(process.env.NKLEIN_TRUNCATION_DIAGNOSTICS)) {
+			return;
+		}
+		try {
+			const usage = extractCompletionUsage(completion.raw);
+			const observation = buildTruncationObservation({
+				modelId: options.modelId ?? "unknown",
+				surface,
+				role: "chat",
+				hitLengthLimit: completion.finishReason === "length",
+				reasoningTokens: usage.reasoningTokens ?? 0,
+				answerTokens: usage.answerTokens ?? usage.totalCompletionTokens ?? 0,
+				reasoningBudget,
+				answerBudget,
+			});
+			if (observation) {
+				void appendTruncationObservations(
+					[observation],
+					options.truncationStoreRootDir ? { rootDir: options.truncationStoreRootDir } : undefined,
+				).catch(() => {});
+			}
+		} catch {
+			// best-effort telemetry — never throw into a chat turn
+		}
+	};
 	return {
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {
@@ -324,7 +371,7 @@ export function createChatModelDeps(
 				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
 				return streamWithContinuationLadder(client, messages, sampling, onToken);
 			}
-			return completePlainWithTruncationLadder(client, messages, sampling);
+			return completePlainWithTruncationLadder(client, messages, sampling, (c) => recordTruncation("chat", c));
 		},
 		extractMemories: async (summary) => {
 			const raw = await completePlainWithTruncationLadder(
@@ -334,6 +381,7 @@ export function createChatModelDeps(
 					{ role: "user", content: summary },
 				],
 				sampling,
+				(c) => recordTruncation("chat-memory", c),
 			);
 			return parseExtractedMemories(raw);
 		},
@@ -350,6 +398,7 @@ export function createChatModelDeps(
 					{ role: "user", content: transcript },
 				],
 				sampling,
+				(c) => recordTruncation("chat-summary", c),
 			);
 		},
 	};

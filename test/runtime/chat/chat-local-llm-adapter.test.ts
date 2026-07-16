@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
 import {
@@ -18,6 +21,7 @@ import type {
 	LocalLlmToolDefinition,
 } from "../../../src/nklein-agent/nklein-local-llm-client";
 import { buildPromptVariant } from "../../../src/nklein-agent/nklein-prompt-variation";
+import { readAllTruncationObservations } from "../../../src/state/truncation-observation-store";
 
 function fakeClient(reply: string): {
 	client: ChatCompletionClient;
@@ -35,6 +39,62 @@ function fakeClient(reply: string): {
 	};
 	return { client, calls, sampling };
 }
+
+describe("createChatModelDeps — F4.12 truncation recording", () => {
+	const FLAG = "NKLEIN_TRUNCATION_DIAGNOSTICS";
+	let saved: string | undefined;
+	let root: string;
+	beforeEach(() => {
+		saved = process.env[FLAG];
+		root = mkdtempSync(join(tmpdir(), "kanban-trunc-"));
+	});
+	afterEach(() => {
+		if (saved === undefined) delete process.env[FLAG];
+		else process.env[FLAG] = saved;
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	const truncatingClient = (): ChatCompletionClient => ({
+		// finish_reason "length" + a reasoning-heavy usage split (reasoning ate the budget, answer starved).
+		complete: async () => ({
+			content: "partial",
+			finishReason: "length",
+			raw: { usage: { completion_tokens: 1000, completion_tokens_details: { reasoning_tokens: 980 } } },
+		}),
+	});
+
+	// The record is intentionally fire-and-forget (chat must never block on telemetry I/O), so poll for the flush.
+	const waitForObservations = async (): Promise<Awaited<ReturnType<typeof readAllTruncationObservations>>> => {
+		for (let i = 0; i < 60; i += 1) {
+			const obs = await readAllTruncationObservations({ rootDir: root });
+			if (obs.length > 0) return obs;
+			await new Promise((resolve) => setTimeout(resolve, 5));
+		}
+		return readAllTruncationObservations({ rootDir: root });
+	};
+
+	it("records a truncation observation when the flag is ON", async () => {
+		process.env[FLAG] = "1";
+		const deps = createChatModelDeps(truncatingClient(), { modelId: "some-reasoner", truncationStoreRootDir: root });
+		await deps.complete([{ role: "user", content: "hi" }]);
+		const observations = await waitForObservations();
+		expect(observations).toHaveLength(1);
+		expect(observations[0]?.surface).toBe("chat");
+		expect(observations[0]?.modelId).toBe("some-reasoner");
+		// No reasoning reserve is applied for a non-reasoning-budget turn (reasoningBudget 0), and the answer didn't near
+		// its cap → the length limit is classified as the provider/context ceiling. The wire recorded the real verdict.
+		expect(observations[0]?.cause).toBe("total_ceiling");
+		expect(observations[0]?.reasoningTokens).toBe(980);
+	});
+
+	it("records NOTHING when the flag is OFF (default, byte-identical)", async () => {
+		delete process.env[FLAG];
+		const deps = createChatModelDeps(truncatingClient(), { modelId: "some-reasoner", truncationStoreRootDir: root });
+		await deps.complete([{ role: "user", content: "hi" }]);
+		await new Promise((resolve) => setTimeout(resolve, 30)); // give any errant async write a chance, then assert none
+		expect(await readAllTruncationObservations({ rootDir: root })).toEqual([]);
+	});
+});
 
 describe("createChatModelDeps", () => {
 	it("maps the rendered prompt to the client and strips inline reasoning from the reply", async () => {
