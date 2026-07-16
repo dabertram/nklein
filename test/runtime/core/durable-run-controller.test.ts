@@ -228,6 +228,34 @@ describe("DurableRunController", () => {
 		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a"]);
 	});
 
+	it("F1.18b: a multi-card restart-mid-run resumes BOTH orphaned leases exactly once and keeps the dependent held", async () => {
+		// Graph: a and c are independent roots; b depends on a. A prior process leased a + c (both in-flight) then crashed.
+		const graph = buildDurableJobGraph({
+			taskIds: ["a", "b", "c"],
+			dependencies: [{ fromTaskId: "b", toTaskId: "a" }],
+		});
+		const priorLog: DurableSchedulerLogEntry[] = [
+			{ kind: "scheduled", now: 0, action: { type: "lease", jobId: "a", workerId: "old-a", expiresAt: 100 } },
+			{ kind: "scheduled", now: 0, action: { type: "lease", jobId: "c", workerId: "old-c", expiresAt: 100 } },
+		];
+		const fake = fakePorts({ startNow: 5000 });
+		const controller = await DurableRunController.resume(graph, priorLog, config, fake.ports);
+
+		// RESUMED LEASES: both orphaned in-flight jobs were reclaimed to `ready` (their dead workers released).
+		const afterResume = controller.jobsSnapshot();
+		expect(afterResume.find((j) => j.jobId === "a")).toMatchObject({ state: "ready", attempts: 1 });
+		expect(afterResume.find((j) => j.jobId === "c")).toMatchObject({ state: "ready", attempts: 1 });
+		// HELD DEPENDENT: b's dependency (a) hasn't succeeded across the restart, so b stays blocked — never released early.
+		expect(afterResume.find((j) => j.jobId === "b")).toMatchObject({ state: "blocked" });
+
+		// NO DUPLICATE STARTS: the next tick re-dispatches a and c exactly ONCE each (never the dead workers again, never b).
+		await controller.tick();
+		expect(fake.dispatches.map((d) => d.jobId).sort()).toEqual(["a", "c"]);
+		expect(fake.dispatches.filter((d) => d.jobId === "b")).toHaveLength(0);
+		// The dispatched workers are FRESH ids (not the crashed old-a/old-c leases resurrected).
+		expect(fake.dispatches.every((d) => d.workerId !== "old-a" && d.workerId !== "old-c")).toBe(true);
+	});
+
 	it("fails an orphaned lease on resume when its attempt budget is already spent", async () => {
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		// Three prior leases (attempts exhausted at maxAttempts=3), still leased at crash.
