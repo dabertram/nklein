@@ -1726,10 +1726,12 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   blocked-injection attempts so a live campaign against them is visible. **FOUNDATION SHIPPED 2026-07-16:**
   `injection-event-store.ts` (append/read jsonl of {surface, source, verdict, worstFinding, at}) +
   `injection-audit-summary.ts` `summarizeInjectionEvents` (per-surface blocked/flagged/distinct-sources/top-finding,
-  worst-first) + `dev security-events` CLI (live-verified). RECORDING WIRED into the `research` tool (an `onScreen`
-  audit hook fires per non-clean source → best-effort `appendInjectionEvents`). 10 tests. REMAINING: wire the same
-  onScreen audit hook into browse_url + web_search (they screen but don't yet record), add the quarantined-bundle /
-  denied-egress / gated-action event sources, and an operator alert on a block-rate spike.
+  worst-first) + `dev security-events` CLI (live-verified). RECORDING WIRED into ALL FOUR web-ingestion surfaces
+  2026-07-16: agent `research` + agent `browse_url` + chat `browse_url` + chat `web_search` each fire a best-effort
+  `onScreen` → `appendInjectionEvents` per non-clean source (fire-and-forget, never affects the tool result; clean
+  content is never audited = no false-positive noise; each exposes an `injectionStoreRootDir` test seam). 14 tests.
+  REMAINING: add the quarantined-bundle / denied-egress / gated-action event sources (non-web boundaries), and an
+  operator alert on a block-rate spike.
 
 ### Phase 8 — visual polish and UX refinement
 
