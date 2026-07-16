@@ -76,3 +76,143 @@ export function ceilingHitRoles(verdicts: readonly CapabilityCeilingVerdict[]): 
 		.filter((v) => v.status === "ceiling_hit")
 		.sort((a, b) => b.shortfall - a.shortfall || a.role.localeCompare(b.role));
 }
+
+// ── F3.35 enrichment: name the exact promising NOT-loaded catalog model per under-served role ──────────────────────
+//
+// The detection half above says WHICH role is under-served and by how much. The enrichment answers "so load WHAT,
+// WHERE?": cross-reference the fleet eval catalog (the role×model capability matrix produced by the model sweep) for a
+// not-currently-loaded model that (a) actually out-performs the best loaded model for the role, (b) fits its home
+// machine's memory, and (c) carries enough eval evidence to trust. Propose-only — this NEVER loads/downloads anything.
+
+/** One (model, role) capability cell from the fleet eval catalog — the sweep's per-model role scores. */
+export interface CatalogModelCandidate {
+	readonly modelKey: string;
+	readonly role: string;
+	/** 0..1 measured capability for this (model, role) from the eval catalog (e.g. graded mean or Wilson lower bound). */
+	readonly measuredCapability: number;
+	/** The machine/pool this model lives on (its home endpoint). */
+	readonly machine: string;
+	/** On-disk size in GB — the load-footprint proxy checked against the machine's usable memory. */
+	readonly sizeGB: number;
+	/** How many eval samples backed `measuredCapability` — drives the uncertainty label. */
+	readonly samples: number;
+	/** Whether this model is currently loaded. A ceiling upgrade must recommend a NOT-loaded model (loaded ones are already in play). */
+	readonly loaded: boolean;
+	/**
+	 * The measurement was resource-constrained (e.g. a >VRAM model that CPU-offloaded), so its score is unreliable and
+	 * this candidate is excluded from recommendations. See the model-sweep gotcha on legion5pro VRAM limits.
+	 */
+	readonly measurementUnreliable?: boolean;
+}
+
+/** Usable memory budget per machine — the "fleet RAM map" the fit check needs. */
+export interface MachineMemory {
+	readonly machine: string;
+	/** Usable memory (GB) available to load a model on this machine. */
+	readonly usableGB: number;
+}
+
+export type UpgradeConfidence = "high" | "medium" | "low";
+
+export interface CeilingUpgradeRecommendation {
+	readonly role: string;
+	/** The recommended not-loaded catalog model. */
+	readonly candidateModelKey: string;
+	readonly targetMachine: string;
+	/** The candidate's measured 0..1 capability for the role. */
+	readonly expectedCapability: number;
+	/** expectedCapability minus the best loaded model's confidence — the projected gain from loading it. */
+	readonly projectedGain: number;
+	/** Uncertainty label from the backing sample count. */
+	readonly confidence: UpgradeConfidence;
+	/** Whether the candidate fits its home machine's usable memory (sizeGB ≤ usableGB). */
+	readonly fitsTargetMachine: boolean;
+	readonly candidateSizeGB: number;
+	/** Propose-only recommendation text. */
+	readonly recommendation: string;
+}
+
+/** Uncertainty from eval sample count — mirrors the fitness store's confidence tiers (settled ≥ 4, high ≥ 10). */
+function upgradeConfidenceFromSamples(samples: number): UpgradeConfidence {
+	if (samples >= 10) {
+		return "high";
+	}
+	return samples >= 4 ? "medium" : "low";
+}
+
+export interface CeilingUpgradeOptions {
+	/**
+	 * Minimum capability gain over the best loaded model for a candidate to count as a real upgrade (default 0.02) —
+	 * guards against recommending a swap for measurement noise.
+	 */
+	readonly minGain?: number;
+}
+
+/**
+ * For each ceiling-hit role, pick the single best NOT-loaded catalog model to load (pure, deterministic). A viable
+ * candidate must: match the role, be not-loaded, have a reliable measurement, and beat the best loaded confidence by at
+ * least `minGain`. Among the viable set, prefer the ones that FIT their home machine first, then highest capability,
+ * then most samples, then modelKey (stable tiebreak). Roles with no viable candidate are omitted — the honest "no
+ * better catalog model is available" answer, rather than a misleading recommendation.
+ */
+export function recommendCeilingUpgrades(
+	verdicts: readonly CapabilityCeilingVerdict[],
+	candidates: readonly CatalogModelCandidate[],
+	machines: readonly MachineMemory[],
+	options: CeilingUpgradeOptions = {},
+): CeilingUpgradeRecommendation[] {
+	const minGain = options.minGain ?? 0.02;
+	const usableByMachine = new Map(machines.map((m) => [m.machine, m.usableGB]));
+	const recommendations: CeilingUpgradeRecommendation[] = [];
+
+	for (const verdict of ceilingHitRoles(verdicts)) {
+		const bestLoadedConfidence = verdict.bestLoaded?.confidence ?? 0;
+		const viable = candidates
+			.filter(
+				(c) =>
+					c.role === verdict.role &&
+					!c.loaded &&
+					!c.measurementUnreliable &&
+					c.measuredCapability - bestLoadedConfidence >= minGain,
+			)
+			.map((c) => {
+				const usableGB = usableByMachine.get(c.machine);
+				// A machine with no known memory budget is treated as unknown-fit = false (never claim a fit we can't verify).
+				const fits = usableGB !== undefined && c.sizeGB <= usableGB;
+				return { candidate: c, fits };
+			})
+			.sort(
+				(a, b) =>
+					Number(b.fits) - Number(a.fits) ||
+					b.candidate.measuredCapability - a.candidate.measuredCapability ||
+					b.candidate.samples - a.candidate.samples ||
+					a.candidate.modelKey.localeCompare(b.candidate.modelKey),
+			);
+
+		const top = viable[0];
+		if (!top) {
+			continue;
+		}
+		const c = top.candidate;
+		const projectedGain = c.measuredCapability - bestLoadedConfidence;
+		const confidence = upgradeConfidenceFromSamples(c.samples);
+		const fitClause = top.fits
+			? `fits ${c.machine} (${c.sizeGB.toFixed(1)} GB)`
+			: `does NOT fit ${c.machine}'s memory as configured (${c.sizeGB.toFixed(1)} GB) — free memory or use a smaller quant`;
+		recommendations.push({
+			role: verdict.role,
+			candidateModelKey: c.modelKey,
+			targetMachine: c.machine,
+			expectedCapability: c.measuredCapability,
+			projectedGain,
+			confidence,
+			fitsTargetMachine: top.fits,
+			candidateSizeGB: c.sizeGB,
+			recommendation:
+				`For "${verdict.role}": load ${c.modelKey} on ${c.machine} — measured ${c.measuredCapability.toFixed(2)} ` +
+				`vs the best loaded ${bestLoadedConfidence.toFixed(2)} (projected +${projectedGain.toFixed(2)}, ${confidence} confidence). ` +
+				`${fitClause}. Propose-only — load it yourself; nothing is loaded or downloaded automatically.`,
+		});
+	}
+	return recommendations;
+}

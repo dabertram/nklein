@@ -1290,11 +1290,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `src/core/capability-ceiling-recommendation.ts` `assessCapabilityCeiling(bars, fitness)` → per-role ceiling_hit/
   sufficient/no_evidence with best-loaded model + shortfall + propose-only text; consumed by `dev` CLI AND renders live in
   the Model Performance dialog ("Capability ceiling (F3.35): reviewer/architect below bar — load a stronger model").
-  **REMAINING (genuine feature, F3.34-adjacent):** the ENRICHMENT — name the *exact promising local catalog model/quant*
-  (not the generic "a stronger model"), the *target machine* (needs the fleet RAM map), and the *expected fit* +
-  *uncertainty* of that candidate. That requires cross-referencing the llmfit/model catalog for not-currently-loaded
-  candidates + a fit prior; design-coupled with F3.34's research flow and the curated fleet-model recommendations. NOT a
-  mechanical close.
+  **ENRICHMENT SHIPPED + LIVE-VERIFIED 2026-07-16:** `recommendCeilingUpgrades(verdicts, candidates, machines)` names
+  the *exact NOT-loaded catalog model*, its *target machine*, *expected fit* (sizeGB ≤ machine usableGB), and
+  *uncertainty* (sample-count band) — prefers a fitting candidate over a higher-scoring one that doesn't fit, excludes
+  measurement-unreliable (VRAM-constrained) rows, treats unknown-memory machines as non-fitting, omits a role with no
+  real upgrade. Live wiring in `dev capability-ceiling`: candidates from the fitness store (capability=success-rate +
+  samples, POPULATED by the 2026-07-16 fleet sweep) JOINed with a new `parseLmsLsCatalog` (`lms-model-catalog.ts`,
+  machine+size) + the `NKLEIN_DEVICE_RAM_GB` RAM map. Verified end-to-end: 506 fitness rows → 169 joined candidates → a
+  simulated reviewer ceiling produces "load qwen/qwen2.5-coder-14b on m4mini — 0.67 vs 0.50, +0.17, fits 8.3 GB,
+  propose-only". 17 tests (6 enrichment + 6 parser + 5 detection). REMAINING: render the enrichment line in the Model
+  Performance dialog (the detection already renders there); repeats>1 sweep for higher-confidence bands.
 
 ### Phase 4 — feature completion: retrieval, context, skills, MCP, and inference efficiency
 

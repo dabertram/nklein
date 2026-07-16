@@ -22,20 +22,26 @@ import { buildAnswerSizesByModel } from "../core/answer-budget-projection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import {
 	assessCapabilityCeiling,
+	type CatalogModelCandidate,
 	ceilingHitRoles,
 	type FleetModelFitness,
+	type MachineMemory,
 	type RoleQualityBar,
+	recommendCeilingUpgrades,
 } from "../core/capability-ceiling-recommendation";
 import { type RoutingCandidate, rankRoutingCandidates } from "../core/confidence-resource-routing";
 import { recommendContextCap } from "../core/context-size-recommender";
 import { buildContextTimingObservationsByModel } from "../core/context-timing-projection";
+import { resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
 import { learnReasoningBenefit } from "../core/enforced-reasoning-benefit";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { type EvalCellFreshnessInput, rankEvalCellsForReevaluation } from "../core/eval-freshness-decay";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
+import { fitnessSuccessRate } from "../core/fitness-table-schema";
 import { estimateLearnedRetryBudget } from "../core/learned-retry-budget";
 import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
+import { parseLmsLsCatalog } from "../core/lms-model-catalog";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -364,8 +370,13 @@ export async function runDevCapabilityCeilingCommand(
 	const verdicts = assessCapabilityCeiling(bars, fitness);
 	const hits = ceilingHitRoles(verdicts);
 
+	// F3.35 enrichment: for each ceiling-hit role, name the exact NOT-loaded catalog model to load, where it lives, and
+	// whether it fits. Candidates come from the fitness store (capability + samples, populated by the model sweep), joined
+	// with the `lms ls` catalog (machine + size) and the fleet RAM map (NKLEIN_DEVICE_RAM_GB).
+	const upgrades = await buildCapabilityCeilingUpgrades(verdicts, isLoaded);
+
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ verdicts, ceilingHits: hits }, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ verdicts, ceilingHits: hits, upgrades }, null, 2)}\n`);
 		return;
 	}
 	process.stdout.write(
@@ -380,12 +391,72 @@ export async function runDevCapabilityCeilingCommand(
 	}
 	for (const hit of hits) {
 		process.stdout.write(`  ⚠ ${hit.recommendation}\n`);
+		const upgrade = upgrades.find((u) => u.role === hit.role);
+		if (upgrade) {
+			process.stdout.write(`     → ${upgrade.recommendation}\n`);
+		}
 	}
 	const sufficient = verdicts.filter((v) => v.status === "sufficient");
 	if (sufficient.length > 0) {
 		process.stdout.write(
 			`\nSufficient roles: ${sufficient.map((v) => `${v.role} (${v.bestLoaded?.modelKey.split(":")[1] ?? "?"})`).join(", ")}\n`,
 		);
+	}
+}
+
+/**
+ * F3.35 enrichment glue: build the fleet catalog inputs from live sources and rank the best NOT-loaded upgrade per
+ * ceiling-hit role. Candidates = fitness rows (capability = per-(model,role) success rate, samples = sampleCount)
+ * JOINED with the `lms ls` catalog for machine + size. Machines = the NKLEIN_DEVICE_RAM_GB map (bytes → GB). Best-effort:
+ * any source failing degrades to an empty recommendation set (never throws into the CLI).
+ */
+async function buildCapabilityCeilingUpgrades(
+	verdicts: readonly ReturnType<typeof assessCapabilityCeiling>[number][],
+	isLoaded: (modelId: string) => boolean,
+): Promise<ReturnType<typeof recommendCeilingUpgrades>> {
+	try {
+		const fitnessRows = Object.values(await readMergedFitnessRows());
+		const lsOut = await createDefaultLmsRunner()(["ls"])
+			.then((r) => r.stdout)
+			.catch(() => "");
+		const catalog = parseLmsLsCatalog(lsOut, { localDeviceName: LOCAL_MACHINE_ID });
+		const catalogByKey = new Map(catalog.map((m) => [m.modelKey, m]));
+
+		// Aggregate fitness rows per (model, role) across difficulty tiers.
+		const agg = new Map<string, { modelKey: string; role: string; success: number; samples: number }>();
+		for (const row of fitnessRows) {
+			const key = `${row.modelKey}::${row.role}`;
+			const cur = agg.get(key) ?? { modelKey: row.modelKey, role: row.role, success: 0, samples: 0 };
+			cur.success += row.successCount;
+			cur.samples += row.sampleCount;
+			agg.set(key, cur);
+		}
+
+		const candidates: CatalogModelCandidate[] = [];
+		for (const { modelKey, role, success, samples } of agg.values()) {
+			const cat = catalogByKey.get(modelKey);
+			if (!cat) {
+				continue; // no machine/size known for this model — can't check fit, so not a nameable upgrade
+			}
+			candidates.push({
+				modelKey,
+				role,
+				measuredCapability: fitnessSuccessRate({ successCount: success, sampleCount: samples }),
+				machine: cat.device,
+				sizeGB: cat.sizeGB,
+				samples,
+				loaded: isLoaded(modelKey),
+			});
+		}
+
+		const ramBytes = resolveDeviceRamBytesFromEnv();
+		const machines: MachineMemory[] = Object.entries(ramBytes).map(([machine, bytes]) => ({
+			machine,
+			usableGB: bytes / 1024 ** 3,
+		}));
+		return recommendCeilingUpgrades(verdicts, candidates, machines);
+	} catch {
+		return [];
 	}
 }
 
