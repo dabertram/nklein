@@ -192,3 +192,79 @@ export function toolErrorFromZodError(
 export function isRetryableToolError(err: ToolErrorContract): boolean {
 	return err.retryable;
 }
+
+// ---------------------------------------------------------------------------
+// toolErrorFromThrown — normalize a NON-Zod tool failure (F3.T2)
+// ---------------------------------------------------------------------------
+
+/** Extract a lowercased message + error name from an arbitrary thrown value, for classification. */
+function describeThrown(thrown: unknown): { message: string; name: string } {
+	if (thrown instanceof Error) {
+		return { message: thrown.message ?? "", name: thrown.name ?? "Error" };
+	}
+	if (typeof thrown === "string") {
+		return { message: thrown, name: "" };
+	}
+	try {
+		return { message: JSON.stringify(thrown) ?? String(thrown), name: "" };
+	} catch {
+		return { message: String(thrown), name: "" };
+	}
+}
+
+/**
+ * Normalize an arbitrary NON-Zod tool failure — a thrown `Error`, a JSON-parse failure, a timeout, an abort, a
+ * missing file, a network error, or a malformed tool result — into a {@link ToolErrorContract} (F3.T2: "the contract
+ * ACROSS tool boundaries", complementing {@link toolErrorFromZodError} which only covers arg-validation). Classification
+ * is heuristic on the error name/message and is CONSERVATIVE about `retryable`: transient/correctable failures (timeout,
+ * network, malformed output, wrong path) are retryable so the model can try again; an ABORT (deliberate cancel) and an
+ * UNKNOWN execution error are NOT retryable, so a genuine bug never drives an infinite retry loop. Pure + total; never
+ * throws on any input.
+ */
+export function toolErrorFromThrown(thrown: unknown, options?: { toolName?: string }): ToolErrorContract {
+	const { message, name } = describeThrown(thrown);
+	const m = message.toLowerCase();
+	const n = name.toLowerCase();
+	const where = options?.toolName ? ` (${options.toolName})` : "";
+
+	if (n === "aborterror" || /\baborted\b|\bcancell?ed\b/.test(m)) {
+		return { code: "ABORTED", retryable: false, hint: `The tool call${where} was aborted; do not retry it.` };
+	}
+	if (n === "timeouterror" || /\btimed?\s*out\b|\btimeout\b/.test(m)) {
+		return {
+			code: "TIMEOUT",
+			retryable: true,
+			hint: `The tool call${where} timed out; retry, or narrow the request so it completes faster.`,
+		};
+	}
+	if (n === "syntaxerror" || /\b(json|parse|unexpected token|malformed)\b/.test(m)) {
+		return {
+			code: "MALFORMED_OUTPUT",
+			retryable: true,
+			hint: "The tool output could not be parsed as valid JSON; re-emit strictly valid JSON with no surrounding prose.",
+		};
+	}
+	if (/\benoent\b|no such file|not found|does not exist|cannot find/.test(m)) {
+		return {
+			code: "NOT_FOUND",
+			retryable: true,
+			hint: `The target was not found${where}; check the workspace-relative path exists (list the directory first) and retry with a correct path.`,
+		};
+	}
+	if (/\beconnrefused\b|\benotfound\b|\betimedout\b|fetch failed|network|socket hang up|connection/.test(m)) {
+		return {
+			code: "NETWORK",
+			retryable: true,
+			hint: `A network error occurred${where}; retry shortly or continue without that result.`,
+		};
+	}
+	// Unknown execution failure — surface the message but do NOT mark retryable (avoids looping on a real bug).
+	return {
+		code: "TOOL_EXECUTION_ERROR",
+		retryable: false,
+		hint:
+			message.trim().length > 0
+				? `The tool${where} failed: ${message.trim().slice(0, 200)}`
+				: `The tool${where} failed.`,
+	};
+}

@@ -5,6 +5,7 @@ import {
 	isRetryableToolError,
 	type ToolErrorContract,
 	toolErrorContractSchema,
+	toolErrorFromThrown,
 	toolErrorFromZodError,
 } from "../../../src/core/tool-error-contract";
 
@@ -171,5 +172,54 @@ describe("toolErrorFromZodError (§5.O tool-arg rejection seam)", () => {
 		expect(message).toContain("[MISSING_FIELD]");
 		expect(message).toContain('field="query"');
 		expect(message).toContain("Retry: yes.");
+	});
+});
+
+describe("toolErrorFromThrown (F3.T2 — non-Zod tool failures)", () => {
+	it("classifies a timeout as retryable", () => {
+		const err = toolErrorFromThrown(new Error("Request timed out after 30s"));
+		expect(err).toMatchObject({ code: "TIMEOUT", retryable: true });
+		expect(toolErrorContractSchema.parse(err)).toBeTruthy();
+	});
+
+	it("classifies an AbortError as NON-retryable (deliberate cancel)", () => {
+		const abort = new Error("The operation was aborted");
+		abort.name = "AbortError";
+		expect(toolErrorFromThrown(abort)).toMatchObject({ code: "ABORTED", retryable: false });
+	});
+
+	it("classifies a JSON/parse failure as retryable malformed output", () => {
+		expect(toolErrorFromThrown(new SyntaxError("Unexpected token < in JSON"))).toMatchObject({
+			code: "MALFORMED_OUTPUT",
+			retryable: true,
+		});
+	});
+
+	it("classifies ENOENT / not-found as retryable with a path hint", () => {
+		const err = toolErrorFromThrown(new Error("ENOENT: no such file or directory, open 'spec.md'"), {
+			toolName: "read_files",
+		});
+		expect(err).toMatchObject({ code: "NOT_FOUND", retryable: true });
+		expect(err.hint).toContain("read_files");
+		expect(err.hint).toContain("workspace-relative");
+	});
+
+	it("classifies a network failure as retryable", () => {
+		expect(toolErrorFromThrown(new Error("fetch failed: ECONNREFUSED"))).toMatchObject({
+			code: "NETWORK",
+			retryable: true,
+		});
+	});
+
+	it("an unknown error is NON-retryable (never loop on a real bug) and surfaces the message", () => {
+		const err = toolErrorFromThrown(new Error("something exploded internally"));
+		expect(err).toMatchObject({ code: "TOOL_EXECUTION_ERROR", retryable: false });
+		expect(err.hint).toContain("something exploded internally");
+	});
+
+	it("never throws on non-Error input (string / object / null)", () => {
+		expect(toolErrorFromThrown("plain string boom").code).toBe("TOOL_EXECUTION_ERROR");
+		expect(toolErrorFromThrown({ weird: true }).retryable).toBe(false);
+		expect(() => toolErrorFromThrown(null)).not.toThrow();
 	});
 });
