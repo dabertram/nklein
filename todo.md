@@ -1775,10 +1775,19 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   `mcpToolNamesInclude` discriminator (already used for taint labeling). 3 tests. REMAINING: I7 (GitHub issue/PR text via
   connector reads) needs the same fence at its read seam; an orchestrator-facing seam if/when one embeds raw worker prose
   (none found today); and S5 taint-propagation to gate effectful actions derived from peer/MCP content.
-- [>] **S7 — Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
+- [~] **S7 — Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
   verification for skill bundles and MCP servers, rug-pull/version-pin drift detection, execution containment (effective
   tool grants + per-file no-auto-execute approvals), and untrusted-discovery gating. Never auto-apply an untrusted skill or
   connect an unvetted MCP server. (Composes with decisions D10.2/D10.3 on sacrificial classification + auto-skill mode.)
+  **RUG-PULL / PIN-DRIFT DETECTION SHIPPED 2026-07-16:** `skill-pin-drift.ts` (pure) `detectPinDrift(pinned, current)` —
+  TOFU pin (content hash + version at first approval) vs current, classifying `unpinned` (first-sight) / `unchanged` /
+  `content-drift` (THE RUG-PULL: hash changed, version SAME = silent swap of a trusted version → `drifted`+`rugPull`) /
+  `version-bump` (metadata only) / `version-and-content` (ordinary upgrade, re-review). 7 tests. `skill-pin-store.ts`
+  (state) persists pins keyed by artifact id with `getSkillPin`/`upsertSkillPin` (re-pin replaces = TOFU re-review). 3
+  tests. REMAINING: (a) the effectful hashing-at-import producer — hash a skill bundle's / MCP server's actual CONTENT at
+  resolution (bundle entries carry path/size/mode but NO content hash today) and pin/compare via the store; (b) gate
+  auto-apply on `rugPull` (never auto-apply a content-drifted-same-version artifact); (c) skill/MCP SIGNING is still
+  credential-gated (Apple/Windows), David-deferred like F5.7.
 - [~] **S8 — Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
   never place sensitive data in URL params/query strings; block egress to hosts introduced by untrusted content; keep the
   server/project egress policy authoritative over any per-session `browse_url` override (D10.4). Builds on the egress proxy.

@@ -94,7 +94,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 | S4 | Heuristic injection pre-screen — `screenUntrustedContent` | **shipped** + adopted at all four web surfaces I1–I4 |
 | S5 | Provenance & taint propagation to the action boundary | **backbone shipped**: taint-provenance.ts (source + graded trust) wired into the swarm broker; broker denials name the culprit source |
 | S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |
-| S7 | Supply-chain hardening (skills + MCP servers) | partial (F4.20–F4.27); signature/pin TBD |
+| S7 | Supply-chain hardening (skills + MCP servers) | partial: F4.20–F4.27 + **rug-pull/pin-drift detection** (skill-pin-drift.ts + skill-pin-store.ts — TOFU pin, flags content-drift-with-same-version). Hashing-at-import wire + signing (credential-gated) TBD |
 | S8 | Egress / exfiltration control | **shipped**: egress-provenance-gate.ts blocks egress to an untrusted-introduced host when a secret is in context; wired into the swarm broker (+ egress proxy + SSRF) |
 | S9 | Resource / DoS abuse resistance | **shipped**: action-fanout-cap.ts (total / per-target / distinct-target ceilings) wired opt-in into the broker's outward tools; + turn-loop guard §12, retry budgets F3.30, concurrency caps F3.21 |
 | S10 | Adversarial red-team test suite (CI gate) | **corpus shipped** (test/runtime/security/red-team-injection-corpus.test.ts) |
