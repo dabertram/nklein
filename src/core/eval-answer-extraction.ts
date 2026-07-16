@@ -217,8 +217,12 @@ const DEFECT_MATCHERS: Readonly<Record<string, RegExp>> = {
 		/off[\s-]?by[\s-]?one|out[\s-]of[\s-]bounds|one past the|past the (end|array|last)|<=\s*[\w.]+\.length/i,
 	"null-deref":
 		/(null|undefined)[\s\w]{0,30}(deref|dereferenc|\.\w)|(deref|access)[\s\w]{0,20}(null|undefined)|can be (null|undefined)|possibly (null|undefined)|may be null/i,
+	// Recall-broadened 2026-07-16 (fleet-sweep found reviewer:medium universally scored 0.5 — the model reliably names
+	// this defect but in wording the old pattern missed: ".catch", "ignored", "no error handling", "fire-and-forget",
+	// "neither awaited nor caught"). Generic error-handling phrasings are ANCHORED to async/promise/fetch context so a
+	// review that only caught the co-seeded null-deref ("no error handling for the null deref") does NOT falsely match.
 	"unhandled-rejection":
-		/unhandled[\s-]?(rejection|promise|error)|never awaited|not awaited|missing await|un-?awaited|floating promise|promise[\s\w]{0,20}not (awaited|handled)/i,
+		/unhandled[\s-]?(rejection|promise|error)|(never|not|missing|un-?)\s?awaited|neither\s+awaited|\buncaught\b|floating promise|fire[\s-]and[\s-]forget|\.catch\b|(promise|fetch|rejection|request|async|POST)[\s\w'()-]{0,30}(ignored|discarded|swallow|not (awaited|caught|handled)|no error handling|neither)|(ignored|discarded|swallow|unhandled|uncaught|no error handling|not handled)[\s\w'()-]{0,30}(promise|rejection|fetch|request|network|failure)/i,
 	"toctou-race":
 		/toctou|time[\s-]of[\s-]check|race condition|\brace\b|check[\s-]?then[\s-]?act|concurrent[\s\w]{0,20}(create|check|request)/i,
 	"resource-leak":

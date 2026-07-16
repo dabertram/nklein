@@ -107,6 +107,35 @@ describe("extractReviewCaught (free-text review → canonical defect ids)", () =
 		);
 	});
 
+	it("credits an unhandled-rejection catch regardless of wording (recall-broadened 2026-07-16)", () => {
+		// Every phrasing below is a GENUINE catch of the fetch-not-awaited defect; the old matcher only recognized
+		// "not/never awaited" and scored all the others as a miss — the systematic reviewer:medium 0.5 in the fleet sweep.
+		for (const review of [
+			"The fetch() promise is ignored — add a .catch() or await it.",
+			"There is no error handling on the fetch request.",
+			"fetch is fire-and-forget; its rejection is silently dropped.",
+			"You should await fetch or attach a .catch handler.",
+			"Network errors from fetch are swallowed because the promise isn't handled.",
+			"fetch returns a promise that's neither awaited nor caught.",
+		]) {
+			expect(extractReviewCaught(review, ["unhandled-rejection"])).toEqual(["unhandled-rejection"]);
+		}
+	});
+
+	it("does NOT credit unhandled-rejection when the review only speaks to the co-seeded null-deref (precision held)", () => {
+		// "no error handling"/"not handled" ABOUT the null deref must not falsely match the rejection defect — the
+		// generic error-handling phrasings are anchored to async/promise/fetch context, which these lack.
+		for (const review of [
+			"There is no error handling for the null dereference.",
+			"The email could be undefined which is not handled.",
+			"The value can be null or undefined here.",
+		]) {
+			expect(extractReviewCaught(review, ["null-deref", "unhandled-rejection"])).not.toContain(
+				"unhandled-rejection",
+			);
+		}
+	});
+
 	it("credits the security trio (toctou race, resource leak, sql injection)", () => {
 		const review =
 			"There is a check-then-act race condition between exists and insert. The file handle is never closed (a " +
