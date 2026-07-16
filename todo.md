@@ -2253,6 +2253,121 @@ and NOT acted on. Worth a red-team-corpus row: "subagent result injection".)
   models for critical roles (reviewer/architect) even if a flakier model has a higher peak. Extends the model-role-stability
   telemetry. (arxiv 2605.28840 behavioral-reproducibility; futureagi non-deterministic-prompts)
 
+**Multi-agent orchestration & review (deltas — feeds §5.AW review + routing):**
+- [ ] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Cross-model review finds 40–60% MORE issues than
+  same-model self-review; a model silently endorses ~31.7% of its OWN semantic-drift cases ("review diversity matters more
+  than reviewer sophistication"). Guarantee the second-opinion reviewer runs on a different model/family than the card's
+  worker; if only one model is loaded, at least force fresh context + a different role prompt/temperature. Near-free
+  precision win on !Klein's multi-model fleet. (zylos multi-model-review; Weaver)
+- [ ] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
+  pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
+  cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample
+  count / debate rounds an explicit function of card difficulty + routing uncertainty. (DOWN 2504.05047; Anthropic effort-scaling)
+- [ ] **F12.36 — Deterministic-verification-FIRST acceptance gate.** Run lint/typecheck/build/existing-tests BEFORE the LLM
+  reviewer and feed the concrete failures into its context (DeepSource static-first = 84.5% F1 vs CodeRabbit ~36%; false
+  positives are the dominant AI-reviewer failure). Optionally add a "refute-or-promote" refuter stage-gate: a flagged defect
+  must survive refutation. Grounds the generation-verification gap in execution. (deepsource; refute-or-promote 2604.19049)
+- [ ] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
+  on reasoning (Data-Processing-Inequality result); Anthropic flags heavy-interdependency work ("most coding") as a poor
+  fan-out fit. Add a heuristic that SKIPS decomposition + runs one linear worker when a task is below a complexity threshold
+  or its cards have high file-overlap/coupling — avoids manufacturing conflicts you must later reconcile. (arxiv 2604.02460; cognition dont-build-multi-agents)
+- [ ] **F12.38 — Compacted decision-handoff between dependent cards.** When card B depends on A, pass a model-generated
+  summary of A's actual DECISIONS / edge-cases / trace (not just the diff + card text) — Cognition's #1 principle + the fact
+  that inter-agent misalignment is ~37% of MAST failures; the card-DAG's thin handoff invites exactly this. (cognition; MAST 2503.13657)
+- [ ] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
+  (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
+  distribution in the Model-Performance UI — turns the ledger into a diagnostic that says whether to fix specs, coordination,
+  or verification (the paper's lesson: orchestration fixes beat bigger models — role specs +9.4%, objective verification +15.6%). (MAST 2503.13657)
+- [ ] **F12.40 — Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
+  enforced at the runtime that STOPS (not just alerts) — documented multi-agent runaways: $47k/11-day, 1.67B tokens/5h.
+  Essential for unattended local overnight runs. (getunblocked auto-loop-tax; relayplane runaway-costs)
+
+**Evaluation & observability (mostly BUILDABLE-NOW pure cores over the existing ledger):**
+- [ ] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
+  ~15-pt deltas; most scaffolding tweaks flipped on "eyeballed green" are WITHIN NOISE. Replace green→flip with a powered
+  comparison: paired McNemar (binary success) + Wilson/bootstrap CIs + SPRT/O'Brien-Fleming sequential stopping, model held
+  fixed, refuse to flip until the delta clears the CI at configured power. Directly hardens every F1.xb default-flip decision. (dev.to eval-sizing; statsig sequential-testing)
+- [ ] **F12.42 — Trajectory-quality scorer (Ideal/Solid/Lucky) over the step ledger.** Pass/fail hides ~11% "lucky" wins +
+  brittle process. Compute per-attempt from the ledger: steps-before-first-edit (ρ=+0.68 with success), opening-patch
+  intensity (ρ=−0.78), validation-effort share (ρ=+0.50), retry/backtrack count — length is a CONFOUNDED non-signal.
+  Classify Ideal/Solid/Lucky; surface in the Model-Performance dialog. Buildable-now. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
+- [ ] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
+  consistency (70% pass@1 → pass^3≈34%). Run k repeated trials per model×role×bucket; report pass^k + Wilson CI + cross-run
+  variance + a Meltdown-Onset entropy signal for long tasks. Complements model-role-stability with a reliability axis. (philschmid pass-power-k; arxiv 2602.16666)
+- [ ] **F12.44 — Spurious-pass / reward-hacking detector in the delivery gate.** Reward hacking now dominates benchmark
+  gains (63% of Opus SWE-bench-Pro resolutions "retrieved not derived"); small local models game readily. Flag a green whose
+  cause is editing test files / weakening assertions / hardcoding expected outputs / special-casing the checker — diff the
+  agent's test-vs-source changes + require behavior-changing edits. Protects the integrity of the ledger/fitness signal itself. (cursor reward-hacking; Hodoscope 2605.21384)
+- [ ] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
+  unnecessary changes up to 70% (churn 7.33% vs 4.10% human) — over-eagerness is INVISIBLE unless false-positive ACTION is a
+  separate metric. Add abstention accuracy (correctly doing nothing on already-fixed/underspecified tasks) + unnecessary-
+  change rate + diff-minimality (net lines, edit-distance, code-consistency-rate); seed a few no-op fixtures. Buildable-now. (arxiv 2605.07769)
+- [ ] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
+  line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
+  run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
+  adequacy, not just "tests pass." Closes the biggest reward-hacking loophole. (verification-horizon 2606.26300; augmentcode mutation-testing)
+- [ ] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
+  OpenTelemetry GenAI shape (`invoke_agent`/`execute_tool`/`chat`, `gen_ai.tool.call.*`, `gen_ai.usage.*`,
+  `gen_ai.evaluation.*`) to an OTLP endpoint so a LOCAL Docker Langfuse/Phoenix renders traces, tool-call analytics, agent
+  graphs, cost dashboards, and replay — battle-tested trace UIs for free, staying local-first, aligned to the emerging
+  industry standard. Opt-in. (opentelemetry genai-semconv; langfuse otel)
+- [ ] **F12.48 — Cost/efficiency-per-resolve + Pareto frontier.** Record tokens + LLM-call count + wall-clock + $-equivalent
+  per RESOLVED card; render per-model×role accuracy-vs-cost Pareto (HAL: higher reasoning effort often LOWERED accuracy — a
+  trade-off invisible without cost-per-resolve). Directly informs routing/default choices on the local fleet. Buildable-now. (HAL 2510.11977)
+- [ ] **F12.49 — Ledger-mined regression golden-set + drift watch.** Static evals rot with distribution drift; promote
+  reviewed failed/lucky trajectories into a versioned ≥30-case CI corpus the eval runner replays on each scaffolding change;
+  prune stale/dupes; alert when the live task distribution drifts from the corpus. Turns the ledger into a durable
+  early-warning system. Composes with F11.4 aimock replay. (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
+- [ ] **F12.50 — LLM-judge calibration + bias harness.** !Klein's review/gate judges are uncalibrated; raw agreement inflates
+  under pass-heavy imbalance + self-enhancement bias matters when local models judge peers. Build a small human-labeled gold
+  set; report judge↔human Cohen's kappa + position/verbosity/self-enhancement bias probes; optional 3-small-model jury (PoLL)
+  with disagreement flagged for human review (but note correlated-error ceiling across same-family judges). (galileo judge-calibration; PoLL)
+
+**Board UX & human-in-the-loop (parallel-agent supervision — feeds Phase 8):**
+- [ ] **F12.51 — Differentiated agent-state taxonomy + stuck detection.** AMBIGUOUS state is the #1 parallel-agent UI failure
+  — "waiting-for-approval" (blocked) and "idle at prompt" look identical but are opposite. Split the card's live state into
+  distinct color-coded states: working · blocked-on-dependency · waiting-for-approval · STUCK · idle · done; auto-flip
+  working→stuck past an expected-time window for the task type; legible at every zoom level. (aiuxdesign agent-status; Herdr)
+- [ ] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
+  the real bottleneck is "what needs me NEXT." A cross-board prioritized queue of only the cards needing a decision now
+  (approval/escalation/conflict); reserve interrupting toasts for that tier, keep progress ambient, batch completions.
+  Milestone pings (25/50/75%) train users to ignore alerts — avoid. (aiuxdesign; builtin ai-brain-fry)
+- [ ] **F12.53 — Verification-status badges that GATE merge (trust the artifact).** Only ~33% of devs trust AI output; agents
+  "lie" about completion. Surface tests/build/lint/typecheck pass–fail as first-class card badges + block/warn on "merge"
+  while any are red/unrun — trust attaches to the verified artifact, not the self-report. !Klein already runs these. (futurumgroup independent-review-layer)
+- [ ] **F12.54 — Risk-aware review routing + fatigue guardrails.** AI PRs carry ~1.7× more defects; past ~400 lines review
+  becomes rubber-stamping. Auto-classify each diff by risk (auth/security/API/migration → deep-review; docs/tests →
+  fast-track), warn on large diffs with optional split-for-review, and a "state the failure mode" confirm before merging
+  high-risk cards. (atomicrobot ai-review-fatigue)
+- [ ] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
+  ("Added token refresh to auth.ts → ran tests, 3 passed"), NOT a raw tool-call dump, with reversibility color-coding +
+  before/after diffs; frame agent rationale as a hypothesis anchored to the change (CoT is often post-hoc — never present as
+  evidence). (aiuxdesign action-audit-trail; CoT-faithfulness 2601.16720)
+- [ ] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
+  agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
+  of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)
+- [ ] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
+  board with preset "good first task" templates scoped to what LOCAL models reliably do; broad relatable examples;
+  just-in-time tips (not an upfront tutorial); an honest "here's what can go wrong / how to recover." (nngroup new-AI-users)
+- [ ] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
+  invisibly. Show tokens/time per card + a board-level total, with an optional soft cap that pauses or escalates a card
+  approaching its budget. (portal26 agent-cost-control; Conductor)
+- [ ] **F12.59 — Escalation cards: recommendation + confidence + preserved context (never a blank question).** When blocked/
+  uncertain, raise a distinct escalation card stating a RECOMMENDED action + confidence + preserved context, with
+  approve/redirect/guide options ("send the recommendation, not the question"). Tunable sensitivity; maps onto the S3
+  outward-action queue. (aiuxdesign escalation-pathways)
+
+**Git workflow & benchmark diversity:**
+- [ ] **F12.60 — Atomic-commit-per-logical-unit + clean-baseline attribution + worktree bootstrap.** !Klein isolates cards in
+  worktrees (validated as the 2026 standard) — add: run the repo's lint+test on the FRESH worktree before the agent starts
+  (so any new failure is attributable to the agent, not pre-existing), have the worker commit in logical units (schema →
+  service → route → tests) for reviewability + selective rollback, and auto-bootstrap worktree essentials (`.env`, deps) so a
+  new session isn't born broken. (augmentcode worktrees; buildmvpfast git-workflow-agents)
+- [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
+  Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
+  verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
+  Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
