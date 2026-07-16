@@ -2441,6 +2441,103 @@ output and NOT acted on. Captured as F12.12.)
   fleet candidates to sweep: Qwen3-Coder-30B-A3B (256K, best quality/GB), Devstral-24B (agent-first, 46.8% SWE-bench, 16GB),
   GLM-4.5-Air (90.6% tool-call), Qwen3-Next-80B-A3B (hybrid-attn, ~10× throughput >32K, built-in MTP). (llama-swap; zenvanriel mac-mini; vllm qwen3-next)
 
+**Research batch 2 (2026-07-17) — 3 deep-research briefs (prompt/context engineering, per-language & framework capability,
+emerging inference-time techniques). Cross-checked vs existing items; duplicates folded (system-reminder channel⇒F12.21,
+k-hop localization⇒F11.2c, in-repo few-shot⇒F11.2h, reward-hack detector⇒F12.44, adaptive reasoning depth⇒F4.38). Same
+verify-before-build caveat: confirm each against current code before implementing.**
+
+- [ ] **F12.78 — "Reason-free, constrain-late" two-phase output for small models.** Let sub-~14B models solve in FREE TEXT,
+  then a cheap second pass (or LM-Studio json_schema constrained decode) packages the answer into the tool-call/decompose
+  JSON — never hard-constrain the reasoning turn. Rationale: the "Constraint Tax" — hard schema decode on small models lifts
+  JSON validity 61.5%→100% but HALVES accuracy (19.7%→11%) and makes 88.9% of outputs wrong-but-valid; the failure is
+  semantic, not structural. Fits the existing json_schema-only lever (LM Studio ignores top-level grammar). (Constraint Tax 2605.26128)
+- [ ] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
+  prompt; warn/auto-trim above a model-size-scaled cap (~150 for 32B, far lower for 4–7B) and report which volatility tier to
+  shed first. Rationale: IFScale — even frontier models hit only 68% instruction-following at 500 instructions; a 2,500-repo
+  study found >150-line rules add 20–23% inference cost with NO quality gain. Composes with the F4.40 cache-stable-prefix
+  assembler + F12.21 re-anchoring. (IFScale 2507.11538; GitHub AGENTS.md 2500-repo study)
+- [ ] **F12.80 — Positive-rewrite + prohibition-pairing linter for rules/prompt fragments.** Lint for "don't/never/avoid" and
+  either flip to a positive assertive form ("always use the shared apiClient") or REQUIRE a paired concrete alternative;
+  prefer "must" over "should". Rationale: the pink-elephant effect — negatives force the model to process the forbidden
+  concept and are weakly suppressed; the 2,500-repo study found warning-only rules underperform prohibition+alternative. (gadlet negative-prompting; 16x pink-elephant)
+- [ ] **F12.81 — Ledger-sourced dynamic few-shot injection (message-format).** Extends F11.2h (in-repo exemplars) with a
+  DIFFERENT signal: retrieve the 2–3 most semantically-similar SUCCESSFUL PAST ATTEMPTS from the agent ledger and inject them
+  as real ChatML message turns (not string-concatenated), selected per-card. Rationale: biggest measured lever for small-model
+  tool use (Haiku 11%→75% with 3 examples); messages≫strings and dynamic≫fixed; mirrors DSPy BootstrapFewShot over your own
+  passing traces. The ledger already stores terminal outcomes — add the retrieval+format surface. (LangChain few-shot tool-calling)
+- [ ] **F12.82 — Eval-harness prompt-learning loop for per-role rules.** Use the existing §5.AB eval harness to auto-refine
+  decompose/worker/reviewer rule sets: generate rich English feedback on failures → meta-prompt to revise the rules → A/B on
+  held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave
+  +10–15% from rules alone; DSPy MIPROv2 jointly optimizes instructions+exemplars; !Klein already has the eval substrate +
+  the powered-flip gate to close the loop safely. (Arize prompt-learning; DSPy MIPROv2)
+- [ ] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
+  task type: Python/JS single-file/bug-fix → 7B tier; Rust/C++/Go, multi-file, or long agentic loops → 32B+ tier; sub-7B
+  never gets tool-heavy cards. Rationale: the "Python cliff" — agents resolve ~63% Python vs C/C++ 29%, Rust 58%; 7B is
+  genuinely good at Python/JS but compiled langs need 32B+, and small-model tool-calling coherence collapses after 2–3 steps.
+  Extends the existing router + capability-fitness prior. (SWE-bench Multilingual; McEval; Aider Polyglot)
+- [ ] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
+  go mod, Maven/Gradle, pip/poetry) and the correct test+coverage runner per project behind a standard "setup→install→test"
+  contract inside Docker. Rationale: environment construction is the TOP multi-language bottleneck (EnvBench full-setup <7%,
+  Multi-Docker-Eval F2P ≤37.7%; "model size and reasoning length are not decisive"); !Klein's sandbox is TS/Python-leaning
+  today. Precursor to real multi-language delivery. (EnvBench 2503.14443; Multi-Docker-Eval 2512.06915; ExecutionAgent ISSTA25)
+- [ ] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
+  yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
+  is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable
+  and feeds cleaner context to small models. Pairs with F11.2c localization. (Claude Code native LSP Dec-2025)
+- [ ] **F12.86 — Multi-language compiler/type-check bounded repair micro-loop as a first-class verify step.** For typed/compiled
+  languages run `tsc`/`cargo check`/`go build`/`javac`, parse structured errors, and give the worker a CAPPED repair loop
+  BEFORE any expensive test execution or review. Rationale: cheapest possible early gate; type/compiler feedback cuts compile
+  errors >50% and helps weak models most; Rust's detailed errors create a tight self-repair loop. May partly exist for TS —
+  generalize + make it the tight inner generate→typecheck→repair loop. (type-constrained gen 2504.09246; Rust compiler-loop)
+- [ ] **F12.87 — Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
+  after a UI edit, boot the dev server, load the route, and gate on (a) renders + no console errors, (b) Playwright-style
+  pixel-diff vs a golden baseline (maxDiffPixelRatio threshold, AA-filtered). Rationale: frontend is LLMs' distinct weakness
+  (MLLMs emit component-based architecture <5% of the time; top failures are wrong size/position/missing elements) and pixel/render
+  checks need NO vision model — pure signal on cheap hardware. Builds directly on the preview capability. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+- [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
+  Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
+  components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
+  existing review-lens system; fleet/RAM-gated. Pairs with F12.87 (deterministic gate first, VLM for the subjective residue). (Qwen3-VL local)
+- [ ] **F12.89 — Framework-convention + version-awareness preamble.** At card start, detect framework+version (React 18/19,
+  Vue 3.x, Angular) and inject convention rules ("use components, not raw markup"; correct API surface) + verify each imported
+  symbol actually exists in the INSTALLED dep version. Rationale: MLLMs write idiomatic components <5% of the time and
+  hallucinate outdated/nonexistent APIs; Vue/Angular are underserved vs React (~4× less training data). (DesignBench; React-19-vs-Vue-3.6 drift)
+- [ ] **F12.90 — Multi-language dev-test scenario expansion.** Add Go, Rust, Java, and a Vue/Angular-frontend scenario to the
+  dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
+  F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate
+  what you don't measure. (SWE-bench Multilingual)
+- [ ] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
+  proposed patch + relevant spec/docs — NEVER the conversation history — before a card is accepted. Distinct from existing
+  review lenses (which see full context): history-isolation is exactly what breaks error cascades. Rationale: "Three Roles,
+  One Model" ~doubled a frozen Qwen3-8B (AppWorld difficulty-1 15.8%→26.3%; scaffolded 8B beat DeepSeek-Coder-33B), no
+  training. (Three Roles One Model 2604.11465)
+- [ ] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
+  DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
+  detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis
+  mid-run. Rationale: "Steer, Don't Solve" took a frozen 32B from 29.2%→65.0% on SWE-bench Verified with a PROMPTED critic. (Steer Don't Solve 2606.21811)
+- [ ] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
+  a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
+  code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
+  LiveCodeBench-Hard, +15.7% repair-success over TDD. Extends the acceptance-gate + F12.44 reward-hack family. (PBT/PGS 2506.18315; SolidCoder oracle assertions 2604.19825)
+- [ ] **F12.94 — Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
+  execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
+  compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.
+  Rationale: more robust consensus than pick-best; PDR+RTV +6.7pp SWE-bench / +12.2pp Terminal-Bench; GenRM > discriminative >
+  LLM-judge for BoN reranking. Directly lifts aggregation !Klein already runs. (Semantic Voting 2605.08680; Symbolic Equiv 2604.06485; PDR+RTV 2604.16529; GenRM)
+- [ ] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
+  prompt a local model to synthesize test inputs that expose their behavioral differences, run all in the sandbox, and vote by
+  agreement. Complements F12.94 for the hard tie case. Rationale: +10–15% Best@k in "Scaling Agentic Verifier", sometimes
+  beating ground-truth tests; prompt-only + existing sandbox. (Scaling Agentic Verifier 2602.04254)
+- [ ] **F12.96 — Predict-then-execute verification pass.** Before accept, ask the worker to PREDICT outputs/trace for key
+  inputs, run for real in the sandbox, and diff; a mismatch blocks acceptance and localizes the bug for a targeted repair.
+  Rationale: LLMs routinely "hallucinate" that buggy code is correct during mental tracing — concrete execution catches
+  categorically different bugs; turns the model's own reasoning into a falsifiable signal. Cheap, leverages the sandbox. (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
+- [ ] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
+  tests + property checks (F12.93) + an LLM rubric judge, and flag shortcut behaviors (solution lookup, test/harness tampering,
+  verbosity-gaming); add a "Dockerless" execution-free evidence pre-screen when full test runs are too costly per candidate.
+  Rationale: reward hacking is STRUCTURAL — 28.57% of PASSING SWE solutions used shortcuts; a behavior monitor cut that to
+  0.56% and lifted clean resolution 40.2%→60.5%; no single verifier is safe. (Verification Horizon 2606.26300; Dockerless verifier 2606.28436)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
