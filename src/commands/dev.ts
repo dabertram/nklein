@@ -72,6 +72,7 @@ import {
 	runDevRoutingPreviewCommand,
 	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
+	runDevTruncationDiagnosticsCommand,
 } from "./dev-telemetry-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
 import { runDevToolMenuCommand, runDevToolPickCommand } from "./dev-two-phase-tool-commands";
@@ -849,6 +850,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevRetryBudgetsCommand(options);
+		});
+
+	dev.command("truncation-diagnostics")
+		.description(
+			"Per-model truncation causes (F4.12) — reasoning-starved vs answer-capped vs ceiling, from observations.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevTruncationDiagnosticsCommand(options);
 		});
 
 	dev.command("stubborn-failure")

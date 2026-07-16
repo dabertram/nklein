@@ -86,6 +86,7 @@ import { assessStubbornFailure, type EscalationAttempt } from "../core/stubborn-
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
+import { summarizeTruncationDiagnostics } from "../core/truncation-diagnostics-summary";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
@@ -98,6 +99,7 @@ import { readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readAllReasoningObservations } from "../state/reasoning-observation-store";
 import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
+import { readAllTruncationObservations } from "../state/truncation-observation-store";
 import { readMergedFitnessRows } from "../telemetry/fitness-table-store";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
@@ -428,6 +430,28 @@ async function buildCapabilityCeilingUpgrades(
 		return recommendCeilingUpgrades(verdicts, candidates, machines);
 	} catch {
 		return [];
+	}
+}
+
+/** F4.12 — per-model truncation diagnostics (reasoning-starved vs answer-capped vs ceiling) from recorded observations. */
+export async function runDevTruncationDiagnosticsCommand(options: { json?: boolean } = {}): Promise<void> {
+	const summaries = summarizeTruncationDiagnostics(await readAllTruncationObservations());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(summaries, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Truncation diagnostics (F4.12) — WHY completions hit the length limit, per model\n\n");
+	if (summaries.length === 0) {
+		process.stdout.write(
+			"(no truncation observations recorded yet — the chat/swarm/review recording wire is opt-in; enable it, then re-check)\n",
+		);
+		return;
+	}
+	for (const s of summaries) {
+		process.stdout.write(
+			`  ${s.modelId}: ${s.total} truncation(s) — ${s.byCause.reasoning_starved_answer} reasoning-starved · ` +
+				`${s.byCause.answer_budget} answer-capped · ${s.byCause.total_ceiling} ceiling → ${s.recommendation}\n`,
+		);
 	}
 }
 
