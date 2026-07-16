@@ -2474,11 +2474,14 @@ verify-before-build caveat: confirm each against current code before implementin
   held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave
   +10–15% from rules alone; DSPy MIPROv2 jointly optimizes instructions+exemplars; !Klein already has the eval substrate +
   the powered-flip gate to close the loop safely. (Arize prompt-learning; DSPy MIPROv2)
-- [ ] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
+- [~] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
   task type: Python/JS single-file/bug-fix → 7B tier; Rust/C++/Go, multi-file, or long agentic loops → 32B+ tier; sub-7B
-  never gets tool-heavy cards. Rationale: the "Python cliff" — agents resolve ~63% Python vs C/C++ 29%, Rust 58%; 7B is
-  genuinely good at Python/JS but compiled langs need 32B+, and small-model tool-calling coherence collapses after 2–3 steps.
-  Extends the existing router + capability-fitness prior. (SWE-bench Multilingual; McEval; Aider Polyglot)
+  never gets tool-heavy cards. **CORE BUILT 2026-07-17:** `language-capability-routing.ts` — `detectLanguages(filePaths)`
+  (extension→language tally, source-only, basename-safe) + `recommendModelFloor({filePaths, taskType})` → a MIN model size
+  (billions): per-language floor (py/js/ts→7, java/ruby/php/go→14, rust/c/cpp→32) MAX'd with a task-shape floor (multi-file/
+  refactor/agentic→14, since small-model tool-calling collapses after 2–3 steps). A single Rust file in a Python card still
+  pins 32B. Orthogonal to `estimateTaskDifficulty` (difficulty chooses WITHIN the qualifying models). Hands a floor to the
+  router; pure. 11 tests. REMAINING: wire the floor into the fitness-prior model pick. (SWE-bench Multilingual; McEval; Aider Polyglot)
 - [ ] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
   go mod, Maven/Gradle, pip/poetry) and the correct test+coverage runner per project behind a standard "setup→install→test"
   contract inside Docker. Rationale: environment construction is the TOP multi-language bottleneck (EnvBench full-setup <7%,
