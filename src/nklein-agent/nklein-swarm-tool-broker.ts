@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ToolExecutors } from "@cline/sdk";
 import {
 	type ActionFanoutLimits,
@@ -9,13 +10,15 @@ import {
 } from "../core/action-fanout-cap";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { decideEgressProvenance, extractHostsFromContent } from "../core/egress-provenance-gate";
+import { decideOutwardActionApproval } from "../core/outward-action-approval";
+import { redactArgsSummary } from "../core/outward-action-queue";
 import {
 	mcpToolNamesInclude,
 	type SwarmToolOutputTaintOptions,
 	swarmToolManifest,
 	swarmToolOutputTaint,
 } from "../core/swarm-tool-capability";
-import { propagateTaint, type TaintLabel } from "../core/taint-labels";
+import { isTainted, propagateTaint, type TaintLabel } from "../core/taint-labels";
 import {
 	explainTaintProvenance,
 	recordTaintProvenance,
@@ -23,6 +26,7 @@ import {
 	taintProvenanceEntry,
 } from "../core/taint-provenance";
 import { fenceUntrustedContent } from "../core/untrusted-content-boundary";
+import { enqueueOutwardAction } from "../state/outward-action-queue-store";
 import type { AgentTool, AgentToolContext } from "./sdk-agent-types";
 
 export interface SwarmToolBrokerState {
@@ -41,11 +45,29 @@ export interface SwarmToolBrokerState {
 	fanout: ActionFanoutState;
 	/** S9: the configured fan-out ceilings (opt-in; empty ⇒ no cap — a byte-identical no-op). */
 	fanoutLimits: ActionFanoutLimits;
+	/**
+	 * S3: tool names that perform an OUTWARD-WRITE (post a comment/PR, etc.) and so get the human-in-loop approval
+	 * decision. Opt-in — the operator declares them (a tool name can't be classified read-vs-write generically). Empty ⇒
+	 * no tool is treated as outward-write (byte-identical).
+	 */
+	outwardWriteToolNames: ReadonlySet<string>;
+	/** S3: outward-write tools PRE-AUTHORIZED by a narrowly-scoped policy — these proceed without queuing. */
+	preAuthorizedOutwardTools: ReadonlySet<string>;
+	/** S3 test seam: override the outward-action review-queue store root. */
+	outwardQueueRootDir?: string;
+}
+
+/** Opt-in S3 outward-action config for {@link createSwarmToolBrokerState}. */
+export interface SwarmBrokerOutwardConfig {
+	outwardWriteToolNames?: Iterable<string>;
+	preAuthorizedOutwardTools?: Iterable<string>;
+	outwardQueueRootDir?: string;
 }
 
 export function createSwarmToolBrokerState(
 	initialTaint: readonly TaintLabel[] = [],
 	fanoutLimits: ActionFanoutLimits = {},
+	outward: SwarmBrokerOutwardConfig = {},
 ): SwarmToolBrokerState {
 	return {
 		taintLabels: propagateTaint([], initialTaint),
@@ -53,6 +75,9 @@ export function createSwarmToolBrokerState(
 		untrustedHosts: [],
 		fanout: emptyActionFanoutState(),
 		fanoutLimits,
+		outwardWriteToolNames: new Set(outward.outwardWriteToolNames ?? []),
+		preAuthorizedOutwardTools: new Set(outward.preAuthorizedOutwardTools ?? []),
+		outwardQueueRootDir: outward.outwardQueueRootDir,
 	};
 }
 
@@ -76,6 +101,10 @@ export function wrapSwarmAgentTools(
 			const denied = brokerDenialResult(tool.name, state, options);
 			if (denied) {
 				return denied;
+			}
+			const approvalBlock = outwardApprovalGate(tool.name, input, state);
+			if (approvalBlock) {
+				return approvalBlock;
 			}
 			const egressDenied = egressProvenanceDenial(tool.name, input, state);
 			if (egressDenied) {
@@ -282,6 +311,71 @@ function fanoutDenial(
 /** Whether a tool reaches OUTWARD (an egress read/fetch or an external MCP tool) and so counts against the fan-out cap. */
 function isOutwardTool(toolName: string, options: SwarmToolOutputTaintOptions): boolean {
 	return OUTWARD_EGRESS_TOOL_NAMES.has(toolName) || mcpToolNamesInclude(options.mcpToolNames, toolName);
+}
+
+/**
+ * S3 human-in-loop gate for a declared OUTWARD-WRITE tool (post a comment/PR, etc.). Applies the approval decision
+ * ({@link decideOutwardActionApproval}) using the current taint + the pre-authorization policy:
+ *  - `allow` (pre-authorized) → null, the call proceeds.
+ *  - `deny` (tainted context, no plan — injection-suspected) → a denial string; the call is refused, NOT queued.
+ *  - `require_approval` (novel outward action) → the intended call is RECORDED to the review queue (best-effort,
+ *    fire-and-forget) and a "queued for operator review" string is returned; the call is NOT performed.
+ * Returns null when the tool is not a declared outward-write (byte-identical for every other tool).
+ */
+function outwardApprovalGate(toolName: string, input: unknown, state: SwarmToolBrokerState): string | null {
+	if (!state.outwardWriteToolNames.has(toolName)) {
+		return null;
+	}
+	const decision = decideOutwardActionApproval({
+		isOutwardOrIrreversible: true,
+		contextTainted: isTainted(state.taintLabels),
+		backedByTrustedPlan: false,
+		preAuthorized: state.preAuthorizedOutwardTools.has(toolName),
+	});
+	if (decision.decision === "allow") {
+		return null;
+	}
+	if (decision.decision === "deny") {
+		return deniedToolResult(toolName, decision.reason);
+	}
+	// require_approval → queue the intended action for out-of-band operator review (David's chosen S3 model).
+	const at = Date.now();
+	const argsSummary = redactArgsSummary(input);
+	const id = createHash("sha256").update(`${toolName}|${argsSummary}|${at}`).digest("hex").slice(0, 12);
+	void enqueueOutwardAction(
+		{
+			id,
+			toolName,
+			target: outwardTargetFromInput(input) ?? toolName,
+			argsSummary,
+			reason: decision.reason,
+			status: "pending",
+			at,
+		},
+		state.outwardQueueRootDir ? { rootDir: state.outwardQueueRootDir } : undefined,
+	).catch(() => {});
+	return (
+		`Queued for operator review (id ${id}): ${toolName} was NOT performed — ${decision.reason} ` +
+		`The operator will approve or reject it out-of-band; continue with other work.`
+	);
+}
+
+/** Best-effort target label for a queued outward action, from common input keys (issue/pr/url/target). */
+function outwardTargetFromInput(input: unknown): string | null {
+	const record = input as Record<string, unknown> | null | undefined;
+	if (!record || typeof record !== "object") {
+		return null;
+	}
+	for (const key of ["target", "url", "issue", "issue_number", "number", "pr", "path", "repo"]) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim().length > 0) {
+			return value.trim().slice(0, 120);
+		}
+		if (typeof value === "number") {
+			return String(value);
+		}
+	}
+	return null;
 }
 
 /**

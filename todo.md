@@ -1692,8 +1692,18 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   human mid-run). 7 tests. REMAINING (seam adoption): route `require_approval` to the existing confirm-dialog
   (chat-tool-confirmation.ts) on the interactive path; supply a real pre-authorization policy source (the narrowly-scoped
   standing grants — none configured yet, like S8 operatorAllowedHosts / S9 fanoutLimits); classify which live tool calls
-  are `isOutwardOrIrreversible` (MCP writes / egress-write / delete). The DECISION logic is done; wiring it needs a
-  human-in-loop model for the autonomous path (design — batch with David: today autonomous = fail-closed deny).
+  are `isOutwardOrIrreversible` (MCP writes / egress-write / delete). **QUEUE-FOR-LATER-REVIEW MODEL SHIPPED 2026-07-16
+  (David chose it):** the autonomous path RECORDS a `require_approval` outward action for out-of-band operator review
+  instead of dropping or performing it. `outward-action-queue.ts` (pure: QueuedOutwardAction + `redactArgsSummary`
+  [secret-safe — never persists a raw token] + `summarizeOutwardActionQueue`) + `outward-action-queue-store.ts`
+  (enqueue/read + read-modify-write `setOutwardActionStatus`). **WIRED opt-in into the broker** via
+  `createSwarmToolBrokerState(initialTaint, fanoutLimits, {outwardWriteToolNames, preAuthorizedOutwardTools,
+  outwardQueueRootDir})`: a declared outward-WRITE tool runs the S3 decision — `allow` (pre-authorized) proceeds, `deny`
+  (tainted = injection-suspected) refuses NOT-queued, `require_approval` (clean, novel) is QUEUED + not performed. Opt-in
+  (empty outwardWriteToolNames = byte-identical). **`dev outward-queue` CLI** lists pending + `--approve`/`--reject <id>`
+  (live-verified). 3 broker E2E + 9 core/store tests. REMAINING: a REPLAY harness to execute an approved queued action
+  out-of-band (today approval only sets status); a config source for outwardWriteToolNames/preAuthorizedOutwardTools; the
+  chat confirm-dialog path for the interactive (non-autonomous) `require_approval`.
 - [>] **S4 — Heuristic injection pre-screen at every ingestion point.** Generalize the existing `skill-injection-prescreen`
   to ALL untrusted inputs: scan for directive/override patterns ("ignore previous/above", "you must", role-switch markers,
   "as the assistant/system", tool-call coercion), hidden/zero-width/encoded/homoglyph text, and suspicious URLs BEFORE the

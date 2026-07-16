@@ -90,7 +90,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 |------|---------|---------------------|
 | S1 | Threat-model doc (this file) | **this doc** |
 | S2 | Instruction/data isolation — `fenceUntrustedContent` | **shipped** (untrusted-content-boundary.ts); adopted at I5 |
-| S3 | Privilege minimization + human-in-loop for outward/irreversible actions | **decision core shipped**: outward-action-approval.ts (allow/require_approval/deny + pre-auth; autonomous maps require_approval→deny); + confirm-dialog + delivery-taint. Seam adoption TBD |
+| S3 | Privilege minimization + human-in-loop for outward/irreversible actions | **shipped**: outward-action-approval.ts + a queue-for-review model (outward-action-queue store + opt-in broker wire + `dev outward-queue`); autonomous `require_approval` → queued for operator review. Replay-of-approved TBD |
 | S4 | Heuristic injection pre-screen — `screenUntrustedContent` | **shipped** + adopted at all four web surfaces I1–I4 |
 | S5 | Provenance & taint propagation to the action boundary | **backbone shipped**: taint-provenance.ts (source + graded trust) wired into the swarm broker; broker denials name the culprit source |
 | S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |

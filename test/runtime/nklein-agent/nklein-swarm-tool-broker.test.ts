@@ -1,11 +1,30 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ToolExecutors } from "@cline/sdk";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
 	createSwarmToolBrokerState,
 	wrapSwarmAgentTools,
 	wrapSwarmToolExecutors,
 } from "../../../src/nklein-agent/nklein-swarm-tool-broker";
 import type { AgentTool, AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
+import { readOutwardActionQueue } from "../../../src/state/outward-action-queue-store";
+
+const queueRoots: string[] = [];
+afterAll(() => {
+	for (const root of queueRoots) {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+async function pollQueue(root: string) {
+	let queue = await readOutwardActionQueue({ rootDir: root });
+	for (let i = 0; i < 50 && queue.length === 0; i++) {
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		queue = await readOutwardActionQueue({ rootDir: root });
+	}
+	return queue;
+}
 
 const TOOL_CONTEXT: AgentToolContext = {
 	agentId: "agent-1",
@@ -190,6 +209,78 @@ describe("nklein swarm tool broker wrappers", () => {
 		expect(await wrapped.execute({}, TOOL_CONTEXT)).toBe("file contents");
 		expect(await wrapped.execute({}, TOOL_CONTEXT)).toBe("file contents");
 		expect(state.fanout.total).toBe(0);
+	});
+
+	it("Phase 7S/S3: queues a novel outward-write for operator review instead of performing it (clean context)", async () => {
+		const root = mkdtempSync(join(tmpdir(), "nklein-outq-broker-"));
+		queueRoots.push(root);
+		let posted = false;
+		const state = createSwarmToolBrokerState(
+			[],
+			{},
+			{ outwardWriteToolNames: ["issues__post_comment"], outwardQueueRootDir: root },
+		);
+		const tool: AgentTool = {
+			name: "issues__post_comment",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => {
+				posted = true;
+				return "posted";
+			},
+		};
+		const [wrapped] = wrapSwarmAgentTools([tool], state, { mcpToolNames: new Set(["issues__post_comment"]) });
+		const result = String(await wrapped.execute({ issue: 7, body: "hi" }, TOOL_CONTEXT));
+
+		expect(result).toContain("Queued for operator review");
+		expect(posted).toBe(false); // the outward action was NOT performed
+		const queue = await pollQueue(root);
+		expect(queue).toHaveLength(1);
+		expect(queue[0]).toMatchObject({ toolName: "issues__post_comment", status: "pending", target: "7" });
+	});
+
+	it("Phase 7S/S3: DENIES an outward-write when the context is tainted (injection-suspected — not queued)", async () => {
+		const root = mkdtempSync(join(tmpdir(), "nklein-outq-tainted-"));
+		queueRoots.push(root);
+		// A prior untrusted web ingestion taints the turn.
+		const state = createSwarmToolBrokerState(
+			["web"],
+			{},
+			{ outwardWriteToolNames: ["issues__post_comment"], outwardQueueRootDir: root },
+		);
+		const tool: AgentTool = {
+			name: "issues__post_comment",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => "posted",
+		};
+		const [wrapped] = wrapSwarmAgentTools([tool], state, { mcpToolNames: new Set(["issues__post_comment"]) });
+		const result = String(await wrapped.execute({ issue: 7 }, TOOL_CONTEXT));
+
+		expect(result).toContain("Denied by capability broker");
+		await new Promise((resolve) => setTimeout(resolve, 40));
+		expect(await readOutwardActionQueue({ rootDir: root })).toHaveLength(0); // denied, not queued
+	});
+
+	it("Phase 7S/S3: a PRE-AUTHORIZED outward-write executes normally", async () => {
+		let posted = false;
+		const state = createSwarmToolBrokerState(
+			[],
+			{},
+			{ outwardWriteToolNames: ["issues__post_comment"], preAuthorizedOutwardTools: ["issues__post_comment"] },
+		);
+		const tool: AgentTool = {
+			name: "issues__post_comment",
+			description: "mcp",
+			inputSchema: {},
+			execute: async () => {
+				posted = true;
+				return "posted";
+			},
+		};
+		const [wrapped] = wrapSwarmAgentTools([tool], state, { mcpToolNames: new Set(["issues__post_comment"]) });
+		expect(String(await wrapped.execute({}, TOOL_CONTEXT))).toContain("posted");
+		expect(posted).toBe(true);
 	});
 
 	it("Phase 7S/S6: FENCES external MCP tool string output so it can't inject the agent", async () => {

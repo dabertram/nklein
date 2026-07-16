@@ -58,6 +58,7 @@ import {
 	runDevModelRoleStabilityCommand,
 	runDevModelVerdictCommand,
 	runDevOpportunisticValueCommand,
+	runDevOutwardQueueCommand,
 	runDevPlaceholderScanCommand,
 	runDevQualityBudgetCommand,
 	runDevRailEvidenceCommand,
@@ -869,6 +870,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevSecurityEventsCommand(options);
+		});
+
+	dev.command("outward-queue")
+		.description(
+			"Outward-action review queue (Phase 7S/S3) — list outward actions awaiting review, or --approve/--reject an id.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.option("--approve <id>", "Mark the queued action with this id as approved.")
+		.option("--reject <id>", "Mark the queued action with this id as rejected.")
+		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
+			await runDevOutwardQueueCommand(options);
 		});
 
 	dev.command("stubborn-failure")

@@ -59,6 +59,7 @@ import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { estimateDistractorSensitivity } from "../core/model-sensitive-pruning";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { projectCardControllerTrace } from "../core/outer-controller-fsm";
+import { summarizeOutwardActionQueue } from "../core/outward-action-queue";
 import { scanForPlaceholders } from "../core/placeholder-scan";
 import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
@@ -98,6 +99,7 @@ import { readAllDistractorObservations } from "../state/distractor-observation-s
 import { readAllInjectionEvents } from "../state/injection-event-store";
 import { parseValidatedJsonl } from "../state/jsonl-store";
 import { readAllModelEvalRuns } from "../state/model-eval-run-store";
+import { readOutwardActionQueue, setOutwardActionStatus } from "../state/outward-action-queue-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { readAllReasoningObservations } from "../state/reasoning-observation-store";
 import { readAllRoutingDecisions } from "../state/routing-decision-log-store";
@@ -465,6 +467,44 @@ export async function runDevSecurityEventsCommand(options: { json?: boolean } = 
 				`${s.topFinding ? ` · top: ${s.topFinding}` : ""}\n`,
 		);
 	}
+}
+
+/**
+ * Phase 7S / S3 — the outward-action review queue: list pending/approved/rejected outward actions the autonomous path
+ * recorded for review, or approve/reject one by id. This is the operator's human-in-the-loop surface for the "queue for
+ * later review" model.
+ */
+export async function runDevOutwardQueueCommand(
+	options: { json?: boolean; approve?: string; reject?: string } = {},
+): Promise<void> {
+	if (options.approve || options.reject) {
+		const id = (options.approve ?? options.reject) as string;
+		const status = options.approve ? "approved" : "rejected";
+		const ok = await setOutwardActionStatus(id, status, undefined);
+		process.stdout.write(ok ? `Marked ${id} as ${status}.\n` : `No queued action with id ${id}.\n`);
+		return;
+	}
+	const actions = await readOutwardActionQueue();
+	const summary = summarizeOutwardActionQueue(actions);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ summary, actions }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Outward-action review queue (Phase 7S / S3) — outward actions awaiting operator review\n\n");
+	process.stdout.write(
+		`  ${summary.pending} pending · ${summary.approved} approved · ${summary.rejected} rejected\n\n`,
+	);
+	const pending = actions.filter((action) => action.status === "pending");
+	if (pending.length === 0) {
+		process.stdout.write("(nothing pending — the queue is empty or all actions are reviewed)\n");
+		return;
+	}
+	for (const action of pending) {
+		process.stdout.write(
+			`  [${action.id}] ${action.toolName} → ${action.target}\n      args: ${action.argsSummary}\n`,
+		);
+	}
+	process.stdout.write("\nApprove/reject with: dev outward-queue --approve <id> | --reject <id>\n");
 }
 
 /** F4.12 — per-model truncation diagnostics (reasoning-starved vs answer-capped vs ceiling) from recorded observations. */
