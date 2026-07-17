@@ -1,5 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
+import { classifyLiveAgentState, type LiveAgentState } from "@runtime-live-agent-state";
 import { formatNKleinToolCallLabel } from "@runtime-nklein-tool-call-display";
 import {
 	AlertCircle,
@@ -434,6 +435,22 @@ function thinkingText(reasoningSnippet: string | null): string {
 	return reasoningSnippet ? `Thinking: ${reasoningSnippet}` : "Thinking...";
 }
 
+/** F12.51 chip styling: each supervision state gets a DISTINCT color so no two states can be confused. */
+const LIVE_AGENT_STATE_CHIP: Record<LiveAgentState, { label: string; className: string }> = {
+	working: { label: "Working", className: "border-status-green/30 bg-status-green/10 text-status-green" },
+	blocked_on_dependency: {
+		label: "Blocked: upstream",
+		className: "border-status-blue/30 bg-status-blue/10 text-status-blue",
+	},
+	waiting_for_approval: {
+		label: "Needs you",
+		className: "border-status-gold/40 bg-status-gold/15 text-status-gold",
+	},
+	stuck: { label: "Stuck", className: "border-status-red/40 bg-status-red/10 text-status-red" },
+	idle: { label: "Idle", className: "border-border-bright bg-surface-1 text-text-tertiary" },
+	done: { label: "Done", className: "border-status-green/20 bg-surface-1 text-text-secondary" },
+};
+
 function getCardSessionActivity(
 	summary: RuntimeTaskSessionSummary | undefined,
 	reasoningSnippet: string | null = null,
@@ -547,6 +564,7 @@ export function BoardCard({
 	defaultAgentId = null,
 	pendingMailboxCount = 0,
 	reasoningSnippet = null,
+	blockedOnDependency = false,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -556,6 +574,8 @@ export function BoardCard({
 	pendingMailboxCount?: number;
 	/** §5.V: live reasoning-phase snippet (last thinking line) shown in the status line while the agent thinks. */
 	reasoningSnippet?: string | null;
+	/** F12.51: an OPEN upstream dependency blocks this card (derived board-side from the dependency edges). */
+	blockedOnDependency?: boolean;
 	selected?: boolean;
 	onClick?: () => void;
 	onStart?: (taskId: string) => void;
@@ -826,6 +846,26 @@ export function BoardCard({
 		return parts.length > 0 ? parts.join(" · ") : null;
 	}, [agentOverrideLabel, modelOverrideLabel]);
 	const roleBadge = useMemo(() => buildCardRoleBadge(card, sessionSummary), [card, sessionSummary]);
+
+	// F12.51: the six-state supervision chip — "whose turn is it" at a glance. Rendered only on in-flight lanes
+	// (backlog/completed/trash are unambiguous) and suppressed while the paused chip already covers the state.
+	const liveAgentState = useMemo(() => {
+		if (columnId !== "planning" && columnId !== "ready" && columnId !== "in_progress") {
+			return null;
+		}
+		const activityText = sessionSummary?.latestHookActivity?.activityText ?? "";
+		const lastActivityAtMs = Math.max(sessionSummary?.lastOutputAt ?? 0, sessionSummary?.lastHookAt ?? 0) || null;
+		return classifyLiveAgentState({
+			sessionState: sessionSummary?.state ?? null,
+			columnId,
+			waitingForOperator: activityText.startsWith("Waiting for approval"),
+			blockedOnDependency,
+			nowMs: Date.now(),
+			lastActivityAtMs,
+			heartbeatStatus: sessionSummary?.heartbeatStatus ?? null,
+			difficultyTier: null,
+		});
+	}, [columnId, sessionSummary, blockedOnDependency]);
 	// §5.AX signature chrome: the live/last session model (violet accent-2 = the AI's identity) and the
 	// review-ladder position. The session-activity dot above already carries the card's health signal.
 	const sessionModelId = sessionSummary?.modelId ?? null;
@@ -1144,6 +1184,20 @@ export function BoardCard({
 								</div>
 							) : null}
 							<div className="mt-1 flex flex-wrap items-center gap-1.5">
+								{liveAgentState && !isPausedSession ? (
+									<span
+										title={liveAgentState.reason}
+										data-testid="card-live-state-chip"
+										data-live-state={liveAgentState.state}
+										className={cn(
+											"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+											LIVE_AGENT_STATE_CHIP[liveAgentState.state].className,
+										)}
+									>
+										<span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
+										<span>{LIVE_AGENT_STATE_CHIP[liveAgentState.state].label}</span>
+									</span>
+								) : null}
 								<span
 									title={roleBadge.tooltip}
 									className={cn(

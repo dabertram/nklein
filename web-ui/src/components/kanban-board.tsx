@@ -8,6 +8,7 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
+import { openDependencyBlockers } from "@runtime-live-agent-state";
 import type { OperatorSignalOverrides } from "@runtime-operator-board-health";
 import {
 	Database,
@@ -529,6 +530,23 @@ export function KanbanBoard({
 		return titles;
 	}, [data.columns]);
 
+	// F12.51: card → "has an OPEN upstream dependency", for the live-state chip's blocked-on-dependency read.
+	const dependencyBlockedByTaskId = useMemo(() => {
+		const columnByTaskId = new Map<string, string>();
+		for (const column of data.columns) {
+			for (const card of column.cards) {
+				columnByTaskId.set(card.id, column.id);
+			}
+		}
+		const blocked: Record<string, boolean> = {};
+		for (const column of data.columns) {
+			for (const card of column.cards) {
+				blocked[card.id] = openDependencyBlockers(card.id, dependencies, columnByTaskId).length > 0;
+			}
+		}
+		return blocked;
+	}, [data.columns, dependencies]);
+
 	const fleetGroups = useMemo(
 		() =>
 			composeFleetRows({
@@ -976,6 +994,7 @@ export function KanbanBoard({
 			key={column.id}
 			column={column}
 			taskSessions={displayTaskSessions}
+			dependencyBlockedByTaskId={dependencyBlockedByTaskId}
 			onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
 			onStartTask={
 				column.id === "backlog" || column.id === "planning" || column.id === "ready" ? onStartTask : undefined

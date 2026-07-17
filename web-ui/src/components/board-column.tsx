@@ -14,6 +14,7 @@ import type { BoardCard as BoardCardModel, BoardColumnId, BoardColumn as BoardCo
 export function BoardColumn({
 	column,
 	taskSessions,
+	dependencyBlockedByTaskId,
 	onCreateTask,
 	onStartTask,
 	onPauseTask,
@@ -54,6 +55,8 @@ export function BoardColumn({
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
+	/** F12.51: card id → whether an OPEN upstream dependency blocks it (feeds the live-state chip). */
+	dependencyBlockedByTaskId?: Record<string, boolean>;
 	/** W3.4: pending §5.AU mailbox-note counts (taskId → n); absent/0 = no badge. */
 	mailboxCountByTaskId?: Record<string, number>;
 	/** §5.V: live reasoning-phase snippets (taskId → last thinking line); absent ⇒ generic "Thinking...". */
@@ -199,6 +202,7 @@ export function BoardColumn({
 											index={draggableIndex}
 											columnId={column.id}
 											sessionSummary={taskSessions[card.id]}
+											blockedOnDependency={dependencyBlockedByTaskId?.[card.id] ?? false}
 											pendingMailboxCount={mailboxCountByTaskId?.[card.id] ?? 0}
 											reasoningSnippet={reasoningSnippetByTaskId?.[card.id] ?? null}
 											onStart={onStartTask}

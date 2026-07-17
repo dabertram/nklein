@@ -1328,4 +1328,68 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("Thinking...");
 		expect(container.textContent).not.toContain("Thinking:");
 	});
+
+	// F12.51: the six-state supervision chip — the states that must never look alike.
+	it("shows a Working chip for an actively-emitting run and flips it to Stuck when stale", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", { lastOutputAt: Date.now() })}
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-live-state="working"]')?.textContent).toContain("Working");
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", { lastOutputAt: 1, lastHookAt: 1 })}
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-live-state="stuck"]')?.textContent).toContain("Stuck");
+	});
+
+	it("renders waiting-for-approval as Needs you — never as idle", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("idle", {
+						latestHookActivity: {
+							activityText: "Waiting for approval to run a host action",
+							toolName: null,
+							toolInputSummary: null,
+							finalMessage: null,
+							hookEventName: null,
+						} as never,
+					})}
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-live-state="waiting_for_approval"]')?.textContent).toContain("Needs you");
+		expect(container.querySelector('[data-live-state="idle"]')).toBeNull();
+	});
+
+	it("distinguishes blocked-on-dependency from idle and hides the chip off in-flight lanes", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="ready" blockedOnDependency={true} />);
+		});
+		expect(container.querySelector('[data-live-state="blocked_on_dependency"]')?.textContent).toContain(
+			"Blocked: upstream",
+		);
+
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="backlog" blockedOnDependency={true} />);
+		});
+		expect(container.querySelector("[data-live-state]")).toBeNull();
+	});
 });

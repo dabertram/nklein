@@ -26,6 +26,7 @@ export default defineConfig({
 			"@runtime-task-worktree-path": resolve(__dirname, "../src/workspace/task-worktree-path.ts"),
 			"@runtime-task-state": resolve(__dirname, "../src/core/task-board-mutations.ts"),
 			"@runtime-operator-board-health": resolve(__dirname, "../src/core/operator-board-health.ts"),
+			"@runtime-live-agent-state": resolve(__dirname, "../src/core/live-agent-state.ts"),
 			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
 			"@runtime-capability-ceiling": resolve(__dirname, "../src/core/capability-ceiling-recommendation.ts"),
 			"@runtime-eval-freshness": resolve(__dirname, "../src/core/eval-freshness-decay.ts"),

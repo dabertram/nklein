@@ -2454,10 +2454,17 @@ output and NOT acted on. Captured as F12.12.)
   swapped-order + cross-family probe RUNS are fleet operations. (galileo judge-calibration; PoLL)
 
 **Board UX & human-in-the-loop (parallel-agent supervision — feeds Phase 8):**
-- [ ] **F12.51 — Differentiated agent-state taxonomy + stuck detection.** AMBIGUOUS state is the #1 parallel-agent UI failure
+- [x] **F12.51 — Differentiated agent-state taxonomy + stuck detection.** AMBIGUOUS state is the #1 parallel-agent UI failure
   — "waiting-for-approval" (blocked) and "idle at prompt" look identical but are opposite. Split the card's live state into
   distinct color-coded states: working · blocked-on-dependency · waiting-for-approval · STUCK · idle · done; auto-flip
   working→stuck past an expected-time window for the task type; legible at every zoom level. (aiuxdesign agent-status; Herdr)
+  **SHIPPED 2026-07-17:** `live-agent-state.ts` — `classifyLiveAgentState` (6-state refinement of the operator
+  healthy/stuck/risky/done classifier; precedence = "whose turn is it"; working→stuck auto-flip reuses §5.AG liveness
+  windows scaled by difficulty tier via `livenessThresholdsForDifficulty`) + `openDependencyBlockers` (open-upstream
+  derivation over board dependency edges). Board wire: kanban-board derives per-card dependency-blocked, threads via
+  board-column into a distinct color-coded chip on board-card (in-flight lanes only; paused chip precedence; tooltip
+  carries the WHY). 8 core tests + 3 UI tests; web build green. Difficulty tier currently null at the call site (card
+  model carries no tier) — the scaling helper activates when a difficulty estimate reaches the card payload.
 - [ ] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
   the real bottleneck is "what needs me NEXT." A cross-board prioritized queue of only the cards needing a decision now
   (approval/escalation/conflict); reserve interrupting toasts for that tier, keep progress ambient, batch completions.
