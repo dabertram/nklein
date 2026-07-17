@@ -2571,11 +2571,16 @@ verify-before-build caveat: confirm each against current code before implementin
   BEFORE any expensive test execution or review. Rationale: cheapest possible early gate; type/compiler feedback cuts compile
   errors >50% and helps weak models most; Rust's detailed errors create a tight self-repair loop. May partly exist for TS —
   generalize + make it the tight inner generate→typecheck→repair loop. (type-constrained gen 2504.09246; Rust compiler-loop)
-- [ ] **F12.87 — Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
+- [~] **F12.87 — Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
   after a UI edit, boot the dev server, load the route, and gate on (a) renders + no console errors, (b) Playwright-style
   pixel-diff vs a golden baseline (maxDiffPixelRatio threshold, AA-filtered). Rationale: frontend is LLMs' distinct weakness
   (MLLMs emit component-based architecture <5% of the time; top failures are wrong size/position/missing elements) and pixel/render
-  checks need NO vision model — pure signal on cheap hardware. Builds directly on the preview capability. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+  checks need NO vision model — pure signal on cheap hardware. Builds directly on the preview capability. **CORE BUILT
+  2026-07-17:** `visual-verification-gate.ts` — `comparePixels` (RGBA, YIQ-luma perceptual distance, AA-tolerant
+  threshold, size-mismatch = not-comparable harness hint) + `decideVisualGate` (render-fail → console-errors →
+  baseline_created on first run → maxDiffPixelRatio budget, Playwright-semantics, dependency-free). 9 tests.
+  REMAINING (activation): a screenshot source for sandbox agents (the preview browser or a headless Playwright shot —
+  playwright is already a dep), a golden-baseline store per route, and the delivery-gate wire for UI-touching cards. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
 - [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
