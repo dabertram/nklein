@@ -46,6 +46,7 @@ import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
+import { recordBaselineProbe } from "../../nklein-agent/nklein-baseline-probe-registry";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
@@ -103,7 +104,7 @@ import {
 import { loadWorkspaceState } from "../../state/workspace-state";
 import { readFitnessTable } from "../../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../../telemetry/model-behavior-profile-store";
-import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
+import { readSelfObservationEvents, recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
@@ -1460,6 +1461,34 @@ export async function handleStartTaskSession(
 			summary,
 		});
 
+		// F12.60(a) (OPT-IN via NKLEIN_BASELINE_PROBE; default OFF — it costs a full sandbox acceptance run per
+		// start): probe the card's acceptance command against the BASE tree, fire-and-forget, so a red acceptance
+		// at review time can be attributed (pre-existing vs introduced). The probe never delays or blocks the
+		// start; a red baseline additionally leaves a ledger observation.
+		if (isTruthyEnv(process.env.NKLEIN_BASELINE_PROBE)) {
+			void nkleinTaskSessionService
+				.verifyTaskAcceptanceInSandbox({
+					taskId: body.taskId,
+					projectRepoPath: workspaceScope.workspacePath,
+					baseRef: body.baseRef,
+					taskPrompt: body.prompt,
+					useBaseTree: true,
+				})
+				.then((baseline) => {
+					recordBaselineProbe(body.taskId, { present: baseline.present, passed: baseline.passed });
+					if (baseline.present && baseline.passed === false) {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Baseline probe: the BASE tree already fails this card's acceptance check (${baseline.command ?? "?"}) — a red acceptance at review may be pre-existing, not the worker's.`,
+							taskId: body.taskId,
+							workspacePath: workspaceScope.workspacePath,
+							metadata: { category: "baseline_probe", passed: false },
+						});
+					}
+				})
+				.catch(() => undefined);
+		}
 		// F1.23: the started session USES its model — reset the auto-loaded idle clock (no-op for models
 		// !Klein didn't load).
 		if (nkleinLaunchConfig.modelId) {

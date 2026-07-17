@@ -2802,7 +2802,7 @@ output and NOT acted on. Captured as F12.12.)
   the F2.18b/c direct_redrive + input_then_redrive resume actions; sensitivity = the hard-stuck-only gate.
 
 **Git workflow & benchmark diversity:**
-- [ ] **F12.60 — Atomic-commit-per-logical-unit + clean-baseline attribution + worktree bootstrap.** !Klein isolates cards in
+- [~] **F12.60 — Atomic-commit-per-logical-unit + clean-baseline attribution + worktree bootstrap.** !Klein isolates cards in
   worktrees (validated as the 2026 standard) — add: run the repo's lint+test on the FRESH worktree before the agent starts
   (so any new failure is attributable to the agent, not pre-existing), have the worker commit in logical units (schema →
   service → route → tests) for reviewability + selective rollback, and auto-bootstrap worktree essentials (`.env`, deps) so a
@@ -2815,6 +2815,12 @@ output and NOT acted on. Captured as F12.12.)
   no worker git flow) — so this is a WORKFLOW redesign (give workers a commit step + teach capture to preserve the
   commit series), not a prompt line; (c) worktree bootstrap: no dep-install/.env copy exists at sandbox creation
   (grep-confirmed) — needs a per-repo bootstrap recipe (package-manager detect + allowlist) which is its own
+  **(a) SHIPPED 2026-07-17 (OPT-IN NKLEIN_BASELINE_PROBE):** fire-and-forget BASE-tree acceptance probe at card
+  start (never delays the start; reuses the #39 useBaseTree path) → baseline-probe registry (torn down with the
+  session) → the review's acceptance summary ATTRIBUTES a red check in both directions ("base already failed —
+  may be pre-existing; judge the diff on its merits" vs "base passed — the failure is attributable to this
+  change"), plus a ledger observation on a red baseline. Cost is the flag's to pay (one extra sandbox acceptance
+  run per start), exactly as David scoped. 5 formatter tests. (b)/(c) remain design work as scoped above.
   cost/policy decision. All three are effectful runtime changes; none is a quick mount.
 - [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +

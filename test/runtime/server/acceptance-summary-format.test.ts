@@ -43,4 +43,26 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 	it("unavailable evidence (null) tells the reviewer the gate fails closed", () => {
 		expect(formatAcceptanceSummaryForReview(null)).toContain("UNAVAILABLE");
 	});
+
+	it("F12.60(a): a red acceptance is ATTRIBUTED when a baseline probe ran — both directions", () => {
+		const red = {
+			present: true,
+			command: "npm test",
+			passed: false,
+			exitCode: 1,
+			output: "1 failing",
+		};
+		const preExisting = formatAcceptanceSummaryForReview(red, { present: true, passed: false });
+		expect(preExisting).toContain("ALREADY FAILED this check before any work");
+		const introduced = formatAcceptanceSummaryForReview(red, { present: true, passed: true });
+		expect(introduced).toContain("BASE tree PASSED this check before the work");
+		// No probe / green acceptance / inconclusive probe ⇒ no attribution line.
+		expect(formatAcceptanceSummaryForReview(red)).not.toContain("Baseline attribution");
+		expect(formatAcceptanceSummaryForReview(red, { present: true, passed: null })).not.toContain(
+			"Baseline attribution",
+		);
+		expect(formatAcceptanceSummaryForReview({ ...red, passed: true }, { present: true, passed: true })).not.toContain(
+			"Baseline attribution",
+		);
+	});
 });

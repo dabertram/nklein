@@ -73,6 +73,7 @@ import {
 	resolveNKleinAgentPerceivedCwd,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
+import { forgetBaselineProbe } from "./nklein-baseline-probe-registry";
 import { createContextBudgetController } from "./nklein-context-budget-controller";
 import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
 import { createContextOverflowController } from "./nklein-context-overflow-controller";
@@ -2391,6 +2392,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// divergence measurement F12.96's observe-first rollout depends on — forget them with the other per-task state.
 		forgetPredictedOutput(taskId);
 		forgetLiveTaskUsage(taskId);
+		forgetBaselineProbe(taskId);
 		forgetCompactionRequest(taskId);
 	}
 
@@ -2411,6 +2413,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.timeoutController.deleteSettings(taskId);
 		forgetPredictedOutput(taskId);
 		forgetLiveTaskUsage(taskId);
+		forgetBaselineProbe(taskId);
 		forgetCompactionRequest(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);

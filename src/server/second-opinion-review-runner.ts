@@ -26,6 +26,7 @@ import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-con
 import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
 import { decideVerificationFirst } from "../core/verification-first-gate";
 import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
+import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
 import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
@@ -188,6 +189,8 @@ const ACCEPTANCE_OUTPUT_TAIL_BUDGET = 800;
  */
 export function formatAcceptanceSummaryForReview(
 	acceptance: Pick<RuntimeTaskAcceptanceResult, "present" | "command" | "passed" | "exitCode" | "output"> | null,
+	// F12.60(a): the card-start BASE-tree probe, when one ran — turns a red acceptance into an ATTRIBUTED verdict.
+	baseline?: { present: boolean; passed: boolean | null } | null,
 ): string | null {
 	if (acceptance === null) {
 		return "Acceptance evidence UNAVAILABLE (the check could not run). Treat completion claims skeptically — the delivery gate will fail closed without a passing acceptance run.";
@@ -197,8 +200,17 @@ export function formatAcceptanceSummaryForReview(
 	}
 	const verdict = acceptance.passed === true ? "PASSED" : `FAILED (exit ${acceptance.exitCode ?? "?"})`;
 	const outputTail = acceptance.output.trim().slice(-ACCEPTANCE_OUTPUT_TAIL_BUDGET);
+	// F12.60(a) attribution: a red acceptance reads very differently when the BASE tree was already red before any
+	// work happened — say which world the reviewer is in, in both directions, only when a probe actually ran.
+	const attribution =
+		acceptance.passed === false && baseline?.present === true && baseline.passed !== null
+			? baseline.passed
+				? "Baseline attribution: the BASE tree PASSED this check before the work — this failure is attributable to the change."
+				: "Baseline attribution: the BASE tree ALREADY FAILED this check before any work — the failure may be pre-existing; judge the diff on its own merits rather than holding the worker to a baseline that was never green."
+			: null;
 	return [
 		`Command: \`${acceptance.command ?? "?"}\` — ${verdict}.`,
+		...(attribution ? [attribution] : []),
 		...(acceptance.passed === true
 			? []
 			: [
@@ -459,7 +471,7 @@ export async function runSecondOpinionReviewForTask(
 		...(preReviewVerdict ? { preReviewVerdict } : {}),
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
-		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),
+		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId)),
 		...(reviewLenses ? { reviewLenses } : {}),
 		escalationAvailable: Boolean(escalationCandidate),
 		// In-memory set ∪ the persisted flag — the one-escalation guard survives a runtime restart (#W4.2).
