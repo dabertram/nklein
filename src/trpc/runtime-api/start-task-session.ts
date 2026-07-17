@@ -4,6 +4,7 @@ import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../co
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
+import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence";
@@ -92,6 +93,7 @@ import {
 	resolveStableRoutingModelId,
 	sharedRuntimeIdModelKeyMap,
 } from "../../state/runtime-id-model-key-map-store";
+import { loadWorkspaceState } from "../../state/workspace-state";
 import { readFitnessTable } from "../../telemetry/fitness-table-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
@@ -1300,6 +1302,16 @@ export async function handleStartTaskSession(
 		// instead of losing it. Best-effort: a mailbox read failure must never block a start.
 		const mailboxNotes = await listPendingCardMailbox(body.taskId).catch(() => []);
 		const promptWithMailbox = `${body.prompt}${composeMailboxPromptAddendum(mailboxNotes)}`;
+		// F12.38 compacted decision-handoff: a dependent card inherits its COMPLETED upstream cards' ledgered
+		// decisions (completed plan steps, planned file scope, the review constraint that shaped acceptance) — not
+		// just the diff. Composed HERE because only the handler holds board access (the service prompt builder sees
+		// request.prompt alone). Edge semantics: `fromTaskId` depends on `toTaskId`, so this card's upstream cards
+		// are the `toTaskId`s of its own outgoing edges. Best-effort: a board read failure or a card with no
+		// dependencies yields no preamble and must never block the start. Deterministic half only — the
+		// model-written `workerNotes` slot stays null until the fleet-enrichment path exists.
+		const handoffPreamble = await loadWorkspaceState(workspaceScope.workspacePath)
+			.then((state) => composeDependencyHandoffPreamble(state.board, body.taskId))
+			.catch(() => "");
 		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
 		// estimate × the routed model's quality-effective context, so the planning prompt steers breakdown granularity to
 		// what the task hardness + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
@@ -1315,7 +1327,9 @@ export async function handleStartTaskSession(
 			cwd: workspaceScope.workspacePath,
 			workspaceRoot: workspaceScope.workspacePath,
 			baseRef: body.baseRef,
-			prompt: promptWithMailbox,
+			// F12.38: upstream handoff briefs FIRST, the card's own objective LAST (recency keeps the actual
+			// instruction closest to the model — the F12.21 ordering rule).
+			prompt: `${handoffPreamble}${promptWithMailbox}`,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,

@@ -68,8 +68,11 @@ export function livenessThresholdsForDifficulty(tier: "easy" | "medium" | "hard"
 }
 
 /**
- * The upstream task ids that still block a card: its dependency edges whose source task is not yet in a terminal
- * lane. Feed the result's non-emptiness into `classifyLiveAgentState` as `blockedOnDependency`.
+ * The upstream task ids that still block a card: its dependency edges whose UPSTREAM task is not yet in a terminal
+ * lane. Board edge semantics (task-board-mutations `wouldCreateDependencyCycle` doc + the add path): an edge
+ * `fromTaskId → toTaskId` means fromTaskId DEPENDS ON toTaskId — so this card's blockers are the `toTaskId`s of its
+ * own outgoing edges. (Direction was inverted before 2026-07-17, flagging upstream cards as blocked by their
+ * dependents.) Feed the result's non-emptiness into `classifyLiveAgentState` as `blockedOnDependency`.
  */
 export function openDependencyBlockers(
 	taskId: string,
@@ -77,8 +80,8 @@ export function openDependencyBlockers(
 	columnByTaskId: ReadonlyMap<string, string>,
 ): string[] {
 	return dependencies
-		.filter((edge) => edge.toTaskId === taskId)
-		.map((edge) => edge.fromTaskId)
+		.filter((edge) => edge.fromTaskId === taskId)
+		.map((edge) => edge.toTaskId)
 		.filter((upstreamId) => {
 			const column = columnByTaskId.get(upstreamId);
 			// An unknown upstream (deleted card) does not block; completed/trash lanes are settled.

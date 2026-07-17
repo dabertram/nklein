@@ -73,12 +73,15 @@ describe("openDependencyBlockers (F12.51)", () => {
 			["up-done", "completed"],
 			["up-trash", "trash"],
 		]);
+		// Board edge semantics: from DEPENDS ON to — "t" waiting on upstream is {fromTaskId: "t", toTaskId: upstream}.
 		const edges = [
-			{ fromTaskId: "up-open", toTaskId: "t" },
-			{ fromTaskId: "up-done", toTaskId: "t" },
-			{ fromTaskId: "up-trash", toTaskId: "t" },
-			{ fromTaskId: "up-deleted", toTaskId: "t" },
-			{ fromTaskId: "up-open", toTaskId: "other" },
+			{ fromTaskId: "t", toTaskId: "up-open" },
+			{ fromTaskId: "t", toTaskId: "up-done" },
+			{ fromTaskId: "t", toTaskId: "up-trash" },
+			{ fromTaskId: "t", toTaskId: "up-deleted" },
+			{ fromTaskId: "other", toTaskId: "up-open" },
+			// A dependent waiting ON "t" must never mark "t" itself blocked (the pre-fix inversion did).
+			{ fromTaskId: "downstream", toTaskId: "t" },
 		];
 		expect(openDependencyBlockers("t", edges, columns)).toEqual(["up-open"]);
 	});

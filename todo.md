@@ -2508,11 +2508,12 @@ output and NOT acted on. Captured as F12.12.)
   from card A's LEDGERED facts (completed focus-chain steps, files touched, the reviewer feedback that SHAPED the
   accepted result — flagged still-binding) with capped lists + honest remainders; empty facts render null (no
   boilerplate); a `workerNotes` slot takes the fleet-enriched model summary when available. 3 tests.
-  REMAINING (activation — SEAM SCOUTED 2026-07-17): compose in the START HANDLER (start-task-session.ts — it holds
-  board access; the service's buildNKleinStartPromptParts at ~1437 only sees request.prompt): for each COMPLETED
-  blocker of the starting card, gather title + focusChain completed steps + review.lastFeedback +
-  filesLikelyTouched, buildDecisionHandoff each, prepend the briefs to request.prompt. Model-written notes half is
-  fleet-gated.
+  **WIRE LIVE 2026-07-17:** `composeDependencyHandoffPreamble(board, taskId)` (same core file) briefs every
+  COMPLETED upstream dependency (edge semantics: from DEPENDS ON to), caps at 3 with an honest remainder, and the
+  start handler prepends it to the prompt (briefs first, card objective LAST — the F12.21 recency rule);
+  best-effort, a board-read failure never blocks a start. Model-written `workerNotes` half stays fleet-gated.
+  Wiring this exposed + fixed an INVERTED edge read in F12.51's `openDependencyBlockers` (live-agent-state.ts
+  flagged upstream cards as blocked by their dependents; canonical direction per task-board-mutations doc).
 - [ ] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
   (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
   distribution in the Model-Performance UI — turns the ledger into a diagnostic that says whether to fix specs, coordination,
