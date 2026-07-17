@@ -11,6 +11,7 @@
  */
 
 import type { RuntimeCardReview, RuntimeReviewRoundRecord } from "../core/api-contract";
+import { classifyDiffReviewRisk } from "../core/diff-review-risk";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import type { ReviewLens } from "../core/review-lenses";
 import {
@@ -201,10 +202,14 @@ export async function runNKleinSecondOpinionReview(
 	// §5.AW: a captured speculative candidate arms the A/B arbitration seed. Only a non-empty PRIMARY diff
 	// qualifies — a no-op primary keeps the ordinary no-changes review flow (the spec is discarded with it).
 	const speculativeDiff = diff ? ((await input.deps.getSpeculativeDiff?.(input.taskId))?.trim() ?? "") : "";
+	// F12.54: classify the diff's review risk and route the reviewer's attention (deep-review demand on high-risk
+	// surface, fast-track on docs/tests, fatigue warning on oversized) — a prompt directive, never a gate.
+	const diffRisk = diff ? classifyDiffReviewRisk(diff) : null;
 	const seedPrompt = buildReviewSeedPrompt({
 		taskTitle: card.title,
 		taskObjective: card.prompt,
 		diff,
+		riskDirective: diffRisk?.directive ?? null,
 		speculativeDiff: speculativeDiff || null,
 		workerReasoning: reviewContext?.workerReasoning ?? null,
 		boardContext: reviewContext?.boardContext ?? null,

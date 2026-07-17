@@ -2490,10 +2490,17 @@ output and NOT acted on. Captured as F12.12.)
   render Checks passed / Checks FAILED / Unverified; Commit/Open PR from the card get an explicit confirm when
   red/unrun (warn-not-block — user-initiated stays possible, never silent). Note: the badge is the ACCEPTANCE verdict;
   per-signal build/lint/typecheck split-out would ride the same field when those run per-card.
-- [ ] **F12.54 — Risk-aware review routing + fatigue guardrails.** AI PRs carry ~1.7× more defects; past ~400 lines review
+- [~] **F12.54 — Risk-aware review routing + fatigue guardrails.** AI PRs carry ~1.7× more defects; past ~400 lines review
   becomes rubber-stamping. Auto-classify each diff by risk (auth/security/API/migration → deep-review; docs/tests →
   fast-track), warn on large diffs with optional split-for-review, and a "state the failure mode" confirm before merging
   high-risk cards. (atomicrobot ai-review-fatigue)
+  **ROUTING SHIPPED 2026-07-17:** `diff-review-risk.ts` `classifyDiffReviewRisk` (path-pattern risk signals:
+  auth/security, API contract, migration, build/CI; docs/tests-only → fast_track; >400 added lines → fatigue warning
+  + split hint) → prompt-ready `directive` consumed by `buildReviewSeedPrompt.riskDirective` (empty = byte-identical
+  seed), classified live in `runNKleinSecondOpinionReview`. The reviewer now gets an explicit "state the failure mode
+  before approve" demand on high-risk diffs. 5 tests; 67 review-suite tests green. REMAINING: the human-side
+  "state the failure mode" confirm on MERGING high-risk cards (needs risk tier on the card payload — ride
+  `card.verification`-style field when wanted) — the model-side demand ships now.
 - [ ] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
   ("Added token refresh to auth.ts → ran tests, 3 passed"), NOT a raw tool-call dump, with reversibility color-coding +
   before/after diffs; frame agent rationale as a hypothesis anchored to the change (CoT is often post-hoc — never present as

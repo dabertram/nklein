@@ -106,6 +106,12 @@ export interface ReviewSeedPromptInput {
 	boardContext?: ReviewBoardContext | null;
 	/** Human acceptance-gate summary, when an acceptance check ran (e.g. "Acceptance check passed: npm test."). */
 	acceptanceSummary?: string | null;
+	/**
+	 * F12.54 risk-aware routing: the prompt-ready directive from `classifyDiffReviewRisk` (deep-review + failure-mode
+	 * demand for high-risk surface, fast-track for docs/tests, fatigue warning past ~400 added lines). Absent or
+	 * empty ⇒ the seed is byte-identical to the un-routed prompt.
+	 */
+	riskDirective?: string | null;
 	/** 1-based current review round. */
 	round: number;
 	/** The previous round's change-request feedback, included when re-reviewing so the reviewer can verify it. */
@@ -205,6 +211,9 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	}
 	if (input.priorFeedback?.trim()) {
 		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
+	}
+	if (input.riskDirective?.trim()) {
+		lines.push("", "## Review routing for THIS diff", input.riskDirective.trim());
 	}
 	if (input.lenses && input.lenses.length > 0) {
 		lines.push(
