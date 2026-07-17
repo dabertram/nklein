@@ -2384,9 +2384,15 @@ output and NOT acted on. Captured as F12.12.)
   4 identical no-write turns = stalled→force-replan; stable fingerprint WITH writes = steady work (never alarms);
   thin evidence = no verdict. 3 tests. Complements edit-thrash (F12.15 oscillation). REMAINING (activation): feed
   per-turn records from the session afterTool/turn seam and route `stalled` into the existing replan/nudge path.
-- [ ] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
+- [~] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)
+  **SHEET CORE SHIPPED 2026-07-17:** `repo-fact-sheet.ts` `buildRepoFactSheet` — deterministic first-turn facts
+  from package.json (name/ESM, the scripts that EXIST from a curated set, entry point, npm-workspaces monorepo
+  hint) + top-level layout; malformed/absent manifests say NOTHING (facts only, never guesses; empty renders null).
+  3 tests. REMAINING (activation): read the manifest at sandbox start and ride the start prompt (beside the F12.89
+  framework preamble — same workspace-stable cache position); other manifests (Cargo.toml, go.mod) slot in with
+  F12.84's language detection.
 - [~] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
   card (stops loops on a broken tool/MCP); retry a failed edit with a temperature ramp (deterministic → exploratory) to
   escape local minima. Small additions to the existing F3.30 retry machinery. (smallcode; promptquorum)
