@@ -1402,3 +1402,36 @@ export async function runDevPromptLintCommand(options: {
 	}
 	process.stdout.write(`\n  ${lint.hasWarnings ? "⚠ warnings present" : "✓ clean"}\n`);
 }
+
+/**
+ * F12.42 — score every ledger attempt's PROCESS quality (Ideal/Solid/Lucky) and roll up per model. Surfaces the lucky-win
+ * rate: a model with a strong resolve rate but many brittle (lucky) wins is over-credited by pass/fail alone.
+ */
+export async function runDevTrajectoryQualityCommand(options: { json?: boolean } = {}): Promise<void> {
+	const { summarizeTrajectoryQualityFromLedger } = await import("../core/trajectory-quality-projection");
+	const events = await readAllAgentLedger();
+	const result = summarizeTrajectoryQualityFromLedger(events);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Trajectory quality (F12.42) — ${result.overall.total} attempt(s) in the ledger\n\n`);
+	if (result.overall.total === 0) {
+		process.stdout.write("(no attempts recorded yet — run some tasks/fleet evals to populate the ledger)\n");
+		return;
+	}
+	const o = result.overall;
+	process.stdout.write(
+		`  overall: ideal ${o.ideal} · solid ${o.solid} · lucky ${o.lucky} · failed ${o.failed} — lucky-win rate ${(o.luckyWinRate * 100).toFixed(0)}%\n\n`,
+	);
+	for (const { modelId, summary } of result.perModel.slice(0, 20)) {
+		process.stdout.write(
+			`  ${modelId.slice(0, 46).padEnd(46)} n=${String(summary.total).padStart(3)} ` +
+				`I/S/L/F ${summary.ideal}/${summary.solid}/${summary.lucky}/${summary.failed} ` +
+				`lucky-win ${(summary.luckyWinRate * 100).toFixed(0)}%\n`,
+		);
+	}
+	if (result.perModel.length > 20) {
+		process.stdout.write(`  … and ${result.perModel.length - 20} more models\n`);
+	}
+}

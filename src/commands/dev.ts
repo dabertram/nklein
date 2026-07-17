@@ -75,6 +75,7 @@ import {
 	runDevSecurityEventsCommand,
 	runDevStubbornFailureCommand,
 	runDevSwarmCommand,
+	runDevTrajectoryQualityCommand,
 	runDevTruncationDiagnosticsCommand,
 } from "./dev-telemetry-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
@@ -916,6 +917,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("trajectory-quality")
+		.description(
+			"Per-model process quality (F12.42) — Ideal/Solid/Lucky over the ledger; surfaces the brittle lucky-win rate.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevTrajectoryQualityCommand(options);
 		});
 
 	dev.command("prompt-lint")

@@ -2311,8 +2311,13 @@ output and NOT acted on. Captured as F12.12.)
   to a 0–1 sub-score (localization/patchDiscipline/validation/resilience), weights by |ρ|, and classifies a PASSING attempt
   ideal(≥0.70)/solid(≥0.45)/lucky(<0.45) — "lucky" = the passing-but-brittle case; failing attempts still carry sub-scores.
   Raw length provably does NOT move the score (test-locked). `summarizeTrajectoryQuality` rolls up per-class counts + the
-  lucky-WIN-rate headline. Pure; composes with F12.94 (rank/prune) + the Model-Performance dialog. 8 tests. REMAINING:
-  project the signals off the step ledger + surface in the dialog. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
+  lucky-WIN-rate headline. Pure; composes with F12.94 (rank/prune) + the Model-Performance dialog. 8 tests. **MOUNTED +
+  LIVE-VERIFIED 2026-07-17:** `trajectory-quality-projection.ts` (`classifyToolAction` token-based edit/validation/read/other
+  + `projectTrajectorySignals` from the PERSISTED attempt event's `toolCalls`/`retriesBefore`/`outcome` — steps-before-edit,
+  retries, pass/fail EXACT; patch-intensity + validation-share honest ledger proxies) + `summarizeTrajectoryQualityFromLedger`
+  (per-model rollup) + `dev trajectory-quality [--json]` CLI. 8 projection tests. LIVE on the real 215-attempt ledger:
+  overall lucky-win 30%; surfaced qwen3-8b at 100% lucky-win (all wins brittle) vs devstral-small / qwopus3.6-27b-v2 at 0%
+  (disciplined) — a real signal pass/fail hides. REMAINING: optional Model-Performance dialog tRPC slice. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
 - [ ] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
   consistency (70% pass@1 → pass^3≈34%). Run k repeated trials per model×role×bucket; report pass^k + Wilson CI + cross-run
   variance + a Meltdown-Onset entropy signal for long tasks. Complements model-role-stability with a reliability axis. (philschmid pass-power-k; arxiv 2602.16666)
