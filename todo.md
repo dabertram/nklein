@@ -1216,8 +1216,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `nklein-model-failover-controller.ts` (mirrors the adaptive-budget controller shape) hooked at
   `captureTerminalRunSummary` next to the adaptive retry; candidates threaded from the start path's blended ranking
   via `setTaskFailoverCandidates` (interface + impl); re-drive via `sendTaskSessionInput` with a `modelId` override +
-  a self-observation record. 5 controller tests + 8 policy tests; full suite green. REMAINING for F3.2 proper: the
-  ENDPOINT-alternatives leg (same model, different endpoint) + live drain validation of a real failover. Original
+  a self-observation record. 5 controller tests + 10 policy tests; full suite green. **LIVE-VALIDATED
+  2026-07-17 (isolated rig, induced mid-generation unload of the worker's model):** error terminal with !Klein's
+  curated wrap → failover decision → re-drive on ministral (hop 1/2) → the substituted model actively GENERATING the
+  re-driven card. The validation loop live-found + fixed TWO real defects, both regression-locked: (1) the classifier
+  missed !Klein's curated error wrap (f7046645); (2) the failover picked the failed model's CANONICAL ALIAS — key-shape
+  normalization via stableFitnessModelKey on both sides, returning the bare runtime id (2840b3a6). REMAINING for F3.2
+  proper: the ENDPOINT-alternatives leg (same model, different endpoint). Original
   recipe kept below for the endpoint leg. **WIRE RECIPE (explored 2026-07-17, makes it
   mechanical):** the re-dispatch vehicle EXISTS — `restartTaskSessionFromResolvedConfig` (task-session-service:755)
   accepts `launchConfigOverrides` incl. `modelId` and handles sandbox-repo/restartable/persisted-snapshot cases; the
