@@ -2192,9 +2192,12 @@ output and NOT acted on. Captured as F12.12.)
   reuseRatio check. (thinksmart.life kv-cache-local-inference; bentoml prefix-caching)
   **AUDIT CORE SHIPPED 2026-07-17:** `kv-prefix-audit.ts` `auditPromptPrefixVolatility` — flags 6 volatility classes
   (timestamps, dates, UUIDs, 16+-char hex ids, attempt/retry counters, elapsed-durations) with char offset +
-  cacheSurvivalFraction (earliest leak = most cache lost). 3 tests. REMAINING: run it over the LIVE builders' output
-  (a CI invariant test feeding buildNKleinStartPromptParts/system-prompt output through the audit) + the telemetry
-  reuseRatio check (needs per-request cache-hit telemetry from LM Studio — fleet-gated observation).
+  cacheSurvivalFraction (earliest leak = most cache lost). 3 tests. **CI INVARIANT SHIPPED (same day):**
+  prompt-prefix-volatility-invariant.test.ts feeds the LIVE buildNKleinStartPromptParts output (planning/refinement/
+  framework-preamble variants) through the audit — all clean today; a future timestamp/id leak fails CI loudly. The
+  §5.AQ deliberately-volatile fragments (daily temporal block, session-env trailer) are bucketed after the stable
+  prefix by design and excluded. REMAINING: the telemetry reuseRatio check (needs per-request cache-hit telemetry
+  from LM Studio — fleet-gated observation).
 
 **Onboarding & spec (feeds F11.1):**
 - [ ] **F12.8 — EARS-notation acceptance criteria in the initializer.** Kiro/Spec-Kit converge on EARS ("WHEN <condition>
