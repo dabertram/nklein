@@ -114,7 +114,7 @@ import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import { forgetPredictedOutput, getPredictedOutput } from "./nklein-predict-output-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
-import { forgetCompactionRequest } from "./nklein-request-compaction-tool";
+import { forgetCompactionRequest, getCompactionRequest } from "./nklein-request-compaction-tool";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
@@ -2129,6 +2129,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								}),
 							);
 							if (!queueDelivery) {
+								// F12.6 consult (record-only first): the agent's own request_compaction fire is consumed at
+								// this turn boundary and logged beside whether the budget compaction then actually ran —
+								// once live data shows requests track real need, this flips to FORCING the compaction.
+								const compactionRequest = getCompactionRequest(taskId);
+								if (compactionRequest) {
+									forgetCompactionRequest(taskId);
+								}
 								const proactiveCompaction = await this.contextOverflowController.compactBeforeOverflow({
 									taskId,
 									entry,
@@ -2138,6 +2145,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									launchConfigOverrides,
 									contextWindow: resolvedContextWindow,
 								});
+								if (compactionRequest) {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Agent requested compaction (${compactionRequest.reason}); budget compaction ${proactiveCompaction ? "FIRED" : "did not fire"} at this boundary.`,
+										taskId,
+										metadata: {
+											category: "self_compaction_request",
+											budgetCompactionFired: Boolean(proactiveCompaction),
+										},
+									});
+								}
 								if (proactiveCompaction) {
 									return proactiveCompaction;
 								}

@@ -2243,9 +2243,11 @@ output and NOT acted on. Captured as F12.12.)
   fires only at ≥70% occupancy where the budget fallback looms anyway) + `request_compaction` agent tool
   (nklein-request-compaction-tool.ts, registered in the session-runtime list beside predict_output; a hold RETURNS
   the reason so the model learns; a fire records a per-task request — predict_output registry pattern). 5 tests.
-  REMAINING (activation): the service consult — at the turn boundary, `getCompactionRequest(taskId)` → trigger the
-  existing proactive-compaction path → `forgetCompactionRequest`; the budget threshold stays as fallback either way.
-  Occupancy getter currently null at the registration site (a context-budget lookup can be threaded later).
+  **CONSULT LIVE 2026-07-17 (record-only first):** the turn-boundary dispatch consumes a pending
+  request_compaction fire (getCompactionRequest → forget) and records whether the budget compaction then actually
+  ran (`self_compaction_request` observation with budgetCompactionFired) — once live data shows agent requests
+  track real need, the consult flips to FORCING the compaction; the budget threshold stays the fallback either way.
+  Occupancy getter at the tool registration remains null (threadable later).
 - [~] **F12.7 — Audit for KV-cache-killing dynamic prefix injection.** A single-token change early in the prompt (classic
   culprit: a timestamp in the system prompt) invalidates the KV cache from that point → up to a 10× throughput collapse at
   long agentic contexts. !Klein has the cache-stable-prefix assembler (F4.40) — extend it with an AUDIT that flags any
