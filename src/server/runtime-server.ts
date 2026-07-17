@@ -73,6 +73,7 @@ import {
 } from "../core/opportunistic-work-value";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import { detectSystemPowerMode } from "../core/power-aware-timeout";
+import { assessRewardHackSignals } from "../core/reward-hack-signals";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -1854,6 +1855,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										scope.workspacePath,
 										{ trimStdout: false },
 									);
+									// F12.44 reward-hack signals (record-only): tests-only greens, net assertion loss, added
+									// skips, vacuous assertions — evidence for the reviewer/ledger, never a block.
+									const rewardHack = assessRewardHackSignals(patch);
+									if (rewardHack.suspicious) {
+										await appendAgentLedgerEvent(
+											buildTransitionEvent({
+												workflowId: taskId,
+												taskId,
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+												from: "review",
+												to: "reward_hack_scan",
+												reason: rewardHack.reason.slice(0, 900),
+												controllerDecision: `reward_hack:${rewardHack.signals
+													.map((signal) => signal.kind)
+													.join(",")
+													.slice(0, 200)}`,
+											}),
+										).catch(() => {});
+									}
 									// F12.45 diff-minimality (record-only, same observe-before-enforce stance): a BLOATED
 									// delivery (>2× the changed-lines/files budget; scope signal activates once the card's
 									// filesLikelyTouched is threaded here) is appended as ledger evidence, never a block.

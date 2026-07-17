@@ -2382,10 +2382,17 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
   consistency (70% pass@1 → pass^3≈34%). Run k repeated trials per model×role×bucket; report pass^k + Wilson CI + cross-run
   variance + a Meltdown-Onset entropy signal for long tasks. Complements model-role-stability with a reliability axis. (philschmid pass-power-k; arxiv 2602.16666)
-- [ ] **F12.44 — Spurious-pass / reward-hacking detector in the delivery gate.** Reward hacking now dominates benchmark
+- [~] **F12.44 — Spurious-pass / reward-hacking detector in the delivery gate.** Reward hacking now dominates benchmark
   gains (63% of Opus SWE-bench-Pro resolutions "retrieved not derived"); small local models game readily. Flag a green whose
   cause is editing test files / weakening assertions / hardcoding expected outputs / special-casing the checker — diff the
-  agent's test-vs-source changes + require behavior-changing edits. Protects the integrity of the ledger/fitness signal itself. (cursor reward-hacking; Hodoscope 2605.21384)
+  agent's test-vs-source changes + require behavior-changing edits. Protects the integrity of the ledger/fitness signal
+  itself. **SLICE SHIPPED 2026-07-17 (record-only at the delivery seam):** `reward-hack-signals.ts` —
+  `assessRewardHackSignals(patch)` flags tests_only_change (test edits + ZERO source edits), assertion_removed (net
+  assertion loss per test file), test_skipped (added .skip/.todo/xit), expectation_weakened (vacuous expect(true));
+  quiet on honest fixes (source change + strengthened tests, test-locked). Wired beside the F12.45 minimality scan in
+  runtime-server (reward_hack_scan ledger transition, observe-before-enforce). 5 tests. REMAINING: hardcoded-expected-
+  output + checker-special-casing detection (needs source-aware analysis) + eventual gating once the false-positive
+  rate is observed. (cursor reward-hacking; Hodoscope 2605.21384)
 - [~] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
   unnecessary changes up to 70% (churn 7.33% vs 4.10% human) — over-eagerness is INVISIBLE unless false-positive ACTION is a
   separate metric. Add abstention accuracy (correctly doing nothing on already-fixed/underspecified tasks) + unnecessary-
