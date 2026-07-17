@@ -2296,10 +2296,15 @@ output and NOT acted on. Captured as F12.12.)
   candidate is significantly AND practically better. Numerically verified (10 worse/2 better ⇒ p≈0.0386; balanced ⇒ p≈1).
   10 tests. REMAINING: wire it into the default-flip path (require paired A/B eval runs, hold the model fixed) for the F1.xb
   flips. (dev.to eval-sizing; statsig sequential-testing)
-- [ ] **F12.42 — Trajectory-quality scorer (Ideal/Solid/Lucky) over the step ledger.** Pass/fail hides ~11% "lucky" wins +
+- [~] **F12.42 — Trajectory-quality scorer (Ideal/Solid/Lucky) over the step ledger.** Pass/fail hides ~11% "lucky" wins +
   brittle process. Compute per-attempt from the ledger: steps-before-first-edit (ρ=+0.68 with success), opening-patch
   intensity (ρ=−0.78), validation-effort share (ρ=+0.50), retry/backtrack count — length is a CONFOUNDED non-signal.
-  Classify Ideal/Solid/Lucky; surface in the Model-Performance dialog. Buildable-now. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
+  **CORE BUILT 2026-07-17:** `trajectory-quality-score.ts` — `scoreTrajectoryQuality(signals)` maps each ρ-correlated signal
+  to a 0–1 sub-score (localization/patchDiscipline/validation/resilience), weights by |ρ|, and classifies a PASSING attempt
+  ideal(≥0.70)/solid(≥0.45)/lucky(<0.45) — "lucky" = the passing-but-brittle case; failing attempts still carry sub-scores.
+  Raw length provably does NOT move the score (test-locked). `summarizeTrajectoryQuality` rolls up per-class counts + the
+  lucky-WIN-rate headline. Pure; composes with F12.94 (rank/prune) + the Model-Performance dialog. 8 tests. REMAINING:
+  project the signals off the step ledger + surface in the dialog. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
 - [ ] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
   consistency (70% pass@1 → pass^3≈34%). Run k repeated trials per model×role×bucket; report pass^k + Wilson CI + cross-run
   variance + a Meltdown-Onset entropy signal for long tasks. Complements model-role-stability with a reliability axis. (philschmid pass-power-k; arxiv 2602.16666)
