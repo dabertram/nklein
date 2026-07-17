@@ -2612,9 +2612,11 @@ verify-before-build caveat: confirm each against current code before implementin
   baseline_created on first run → maxDiffPixelRatio budget, Playwright-semantics, dependency-free). 9 tests.
   **BASELINE STORE SHIPPED 2026-07-17:** `visual-baseline-store.ts` — raw-RGBA persistence (the comparator's native
   format, no PNG codec dep) + JSON dimension sidecar under `~/.nklein/nklein/visual-baselines/<slug>`; corrupt/
-  mismatched baselines read as absent so the gate re-creates them. 3 tests. REMAINING (activation): a screenshot
-  SOURCE (headless Playwright shot — already a dep — or the preview browser) + the delivery-gate wire for UI-touching
-  cards (route detection → shoot → readVisualBaseline → decideVisualGate → write-on-baseline_created). (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+  mismatched baselines read as absent so the gate re-creates them. 3 tests. **PNG DECODE SHIPPED 2026-07-17:** `png-decode.ts` — minimal dependency-free PNG→RGBA
+  (exactly Playwright's output shape: 8-bit RGBA/RGB, non-interlaced, filters 0–4, node:zlib inflate; unsupported ⇒
+  null); tested against a hand-built filter-0 PNG oracle. 3 tests. REMAINING (activation, all pieces now exist):
+  `captureRouteScreenshot` (playwright chromium.launch → page.screenshot → decodePngToRgba) + the delivery-gate wire
+  for UI-touching cards (route detection → shoot → readVisualBaseline → decideVisualGate → write-on-baseline_created). (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
 - [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
