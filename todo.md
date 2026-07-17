@@ -2185,11 +2185,16 @@ output and NOT acted on. Captured as F12.12.)
   a threshold" — the agent is better placed than a token budget to decide WHEN to forget (fire when a sub-task resolves /
   the trajectory converges; hold mid-derivation / when stuck). !Klein compacts on a budget threshold; add a compaction
   TOOL the model can call, guided by a rubric, alongside the automatic budget fallback. (blakecrosley.com agent-context-compaction; Self-Compacting Agents arxiv 2606.23525)
-- [ ] **F12.7 — Audit for KV-cache-killing dynamic prefix injection.** A single-token change early in the prompt (classic
+- [~] **F12.7 — Audit for KV-cache-killing dynamic prefix injection.** A single-token change early in the prompt (classic
   culprit: a timestamp in the system prompt) invalidates the KV cache from that point → up to a 10× throughput collapse at
   long agentic contexts. !Klein has the cache-stable-prefix assembler (F4.40) — extend it with an AUDIT that flags any
   volatile content (dates, ids, counters) that leaked ahead of the stable prefix across the live builders, and a telemetry
   reuseRatio check. (thinksmart.life kv-cache-local-inference; bentoml prefix-caching)
+  **AUDIT CORE SHIPPED 2026-07-17:** `kv-prefix-audit.ts` `auditPromptPrefixVolatility` — flags 6 volatility classes
+  (timestamps, dates, UUIDs, 16+-char hex ids, attempt/retry counters, elapsed-durations) with char offset +
+  cacheSurvivalFraction (earliest leak = most cache lost). 3 tests. REMAINING: run it over the LIVE builders' output
+  (a CI invariant test feeding buildNKleinStartPromptParts/system-prompt output through the audit) + the telemetry
+  reuseRatio check (needs per-request cache-hit telemetry from LM Studio — fleet-gated observation).
 
 **Onboarding & spec (feeds F11.1):**
 - [ ] **F12.8 — EARS-notation acceptance criteria in the initializer.** Kiro/Spec-Kit converge on EARS ("WHEN <condition>
