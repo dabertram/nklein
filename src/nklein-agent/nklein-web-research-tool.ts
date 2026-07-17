@@ -2,6 +2,7 @@ import { buildCurrencyEvidenceFromSource } from "../core/evidence-currency-captu
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
 import { withTransientRetry } from "../core/transient-error";
 import { appendCurrencyEvidence } from "../state/currency-evidence-store";
+import { appendEgressReceipt } from "../state/egress-receipt-store";
 import type { AgentTool } from "./sdk-agent-types";
 
 const DEFAULT_ALLOWED_DOMAINS = [
@@ -119,6 +120,15 @@ export async function runWebResearchFetch(input: {
 	// freshness/trust inline and can cite it. Best-effort; never breaks the fetch.
 	const currencyEvidence = buildCurrencyEvidenceFromSource({ id: url.toString(), ref: url.toString(), html: raw });
 	void appendCurrencyEvidence([currencyEvidence]).catch(() => {});
+	// F12.99: append a hash-chained egress receipt for this outbound request (the trust-center's auditable record —
+	// destination + what was sent, per the egress inventory's "web_research" class). Best-effort; never breaks the fetch.
+	void appendEgressReceipt({
+		destination: url.toString(),
+		method: "GET",
+		requestSummary: url.toString(),
+		category: "web_research",
+		taintLabels: [],
+	}).catch(() => {});
 	return {
 		url: url.toString(),
 		title: contentType.includes("text/html") ? extractTitle(raw) : null,

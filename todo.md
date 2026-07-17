@@ -2693,10 +2693,16 @@ into the existing F12.31. Same verify-before-build caveat.**
   machine, what (if anything) leaves and to where, telemetry status (off by default), and the active egress-provenance gate
   (S3) state. Rationale: trust is earned by VERIFIABILITY, not claims; "zero-retention ≠ not-training ≠ no-telemetry" — surface
   the distinction the market conflates. Reads existing S3/audit state; no new capability. (Anthropic trust; Willison lethal-trifecta)
-- [ ] **F12.99 — Signed, user-verifiable egress receipts.** Every outbound request (model pull, web_research fetch, MCP call)
+- [~] **F12.99 — Signed, user-verifiable egress receipts.** Every outbound request (model pull, web_research fetch, MCP call)
   emits a signed receipt — timestamp, destination, payload hash, provenance/taint labels — into an append-only local log the
   user can inspect and verify. Rationale: turns "we don't exfiltrate" from a promise into an auditable record; composes with
-  the S3 egress-provenance gate + F4.3 evidence capture. (verifiability-as-trust; SLSA provenance)
+  the S3 egress-provenance gate + F4.3 evidence capture. **HASH-CHAINED V1 SHIPPED 2026-07-17:**
+  `egress-receipt.ts` (buildEgressReceipt + verifyEgressReceiptChain — each receipt embeds the previous hash, so
+  truncation/edits break the chain verifiably; tamper-EVIDENCE without key management, per-receipt signatures can
+  layer later) + `egress-receipt-store.ts` (append-only `~/.nklein/nklein/egress-receipts.jsonl`, serialized appends,
+  torn-tail tolerant) + WIRED at the web_research fetch (best-effort, beside the F4.3 currency capture). 4 tests.
+  REMAINING: receipts at future egress classes as they appear, session taint-labels threaded into the receipt, a
+  `dev egress-receipts --verify` CLI, and the Trust Panel surface. (verifiability-as-trust; SLSA provenance)
 - [ ] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
