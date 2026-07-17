@@ -2508,9 +2508,12 @@ output and NOT acted on. Captured as F12.12.)
   **STOP CORE SHIPPED 2026-07-17:** `runaway-budget-stop.ts` `assessRunawayBudget` — per-card token (500k) + turn
   (120) + board token (2M) HARD ceilings; a trip = STOP-and-park-with-evidence, never silent spending; ≤0 cap
   disables a ceiling (never stop on no-config); deliberately far above healthy operation so it can stay ENFORCING
-  (the advisory tiers below remain F12.58/§5.AG). 3 tests. REMAINING (activation): consult per-turn at the session
-  seam (card counters exist in run summaries; board total = F12.58's computeCardEffort) → park via the existing
-  park path; cap overrides ride runtime settings (David may tune defaults).
+  (the advisory tiers below remain F12.58/§5.AG). 3 tests. REMAINING (activation — SEAM SCOUTED 2026-07-17):
+  the natural host is `autonomy-budget-watchdog.check` (per-turn-checkpoint, parks via callbacks; its
+  maxAutonomousTurnsPerTask already covers the turn ceiling) — but the LIVE summary carries NO token usage field
+  (only terminal run-summaries do), so the token ceilings need a small per-task usage ACCUMULATOR in the service
+  (fed from SDK usage events) before the consult can fire; board total then sums the accumulator. Cap overrides
+  ride runtime settings (David may tune defaults).
 
 **Evaluation & observability (mostly BUILDABLE-NOW pure cores over the existing ledger):**
 - [~] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
