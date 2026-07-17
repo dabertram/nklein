@@ -2490,6 +2490,10 @@ output and NOT acted on. Captured as F12.12.)
   runtime-server (reward_hack_scan ledger transition, observe-before-enforce). 5 tests. REMAINING: hardcoded-expected-
   output + checker-special-casing detection (needs source-aware analysis) + eventual gating once the false-positive
   rate is observed. (cursor reward-hacking; Hodoscope 2605.21384)
+  **SOURCE-SIDE DETECTORS SHIPPED 2026-07-17 (item complete):** `output_hardcoded` (literal input special-cased
+  to a literal return) + `checker_special_cased` (source branching on test-env detection: NODE_ENV/VITEST/
+  JEST_WORKER_ID/isTest) now fire from the same delivery-seam scan; heuristics under-count rather than
+  hallucinate (multi-line evasions pass — reviewer scrutiny remains the backstop). 8 tests.
 - [~] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
   unnecessary changes up to 70% (churn 7.33% vs 4.10% human) — over-eagerness is INVISIBLE unless false-positive ACTION is a
   separate metric. Add abstention accuracy (correctly doing nothing on already-fixed/underspecified tasks) + unnecessary-

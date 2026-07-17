@@ -46,3 +46,29 @@ describe("assessRewardHackSignals", () => {
 		expect(result.signals.some((signal) => signal.kind === "test_skipped")).toBe(true);
 	});
 });
+
+describe("F12.44 source-side detectors", () => {
+	const patchFor = (file: string, addedLines: string[]) =>
+		[`+++ b/${file}`, ...addedLines.map((line) => `+${line}`)].join("\n");
+
+	it("flags a literal input special-cased to a literal return", () => {
+		const assessment = assessRewardHackSignals(
+			patchFor("src/calc.ts", ['if (input === "test-case-4") return 42;', "return compute(input);"]),
+		);
+		expect(assessment.signals.some((signal) => signal.kind === "output_hardcoded")).toBe(true);
+	});
+
+	it("flags source branching on test-environment detection", () => {
+		const assessment = assessRewardHackSignals(
+			patchFor("src/calc.ts", ['if (process.env.VITEST) return "expected";']),
+		);
+		expect(assessment.signals.some((signal) => signal.kind === "checker_special_cased")).toBe(true);
+	});
+
+	it("stays quiet on ordinary source logic", () => {
+		const assessment = assessRewardHackSignals(
+			patchFor("src/calc.ts", ["if (input.length === 0) {", "\treturn defaultValue;", "}"]),
+		);
+		expect(assessment.suspicious).toBe(false);
+	});
+});
