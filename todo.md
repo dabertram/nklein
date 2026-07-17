@@ -1212,7 +1212,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   attempt-ledger model history + the current ranked candidates, and on `failover:true` re-dispatch the card on
   `nextModelKey` (recording a ledger transition) instead of parking. Suggest default-ON with `NKLEIN_MODEL_FAILOVER=off`
   kill-switch, mirroring the fitness-routing precedent. Wire needs care: nklein-task-session-service is the
-  timing-sensitive 129-test file — do it as its own focused change.
+  timing-sensitive 129-test file — do it as its own focused change. **WIRE RECIPE (explored 2026-07-17, makes it
+  mechanical):** the re-dispatch vehicle EXISTS — `restartTaskSessionFromResolvedConfig` (task-session-service:755)
+  accepts `launchConfigOverrides` incl. `modelId` and handles sandbox-repo/restartable/persisted-snapshot cases; the
+  context-overflow-controller (nklein-context-overflow-controller.ts:105) already calls `restartTaskSession` the same
+  way — mirror ITS pattern. Steps: (1) at the service arm that lands `awaiting_review reason=error` (the adapter's
+  error/run-failed emits — hook where the service processes that summary), gate on `NKLEIN_MODEL_FAILOVER` != off;
+  (2) triedModelKeys from the task's attempt-ledger events (or a per-task Map, v1); (3) rankedCandidateKeys: thread
+  the router's ranked list from start-task-session into the launch config at start (one new optional field), so the
+  service has it locally at failure time; (4) decideModelFailover → on failover, restart with
+  `launchConfigOverrides:{modelId: nextModelKey}` + the persisted original prompt, and record a ledger `transition`
+  (kind failover) for observability; (5) verify with the isolated-drain rig (memory: ministral-alternation-debugging
+  has the rig recipe incl. the dev:full stale-server + /Users-path gotchas).
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
 - [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
