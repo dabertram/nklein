@@ -2614,9 +2614,14 @@ verify-before-build caveat: confirm each against current code before implementin
   format, no PNG codec dep) + JSON dimension sidecar under `~/.nklein/nklein/visual-baselines/<slug>`; corrupt/
   mismatched baselines read as absent so the gate re-creates them. 3 tests. **PNG DECODE SHIPPED 2026-07-17:** `png-decode.ts` — minimal dependency-free PNG→RGBA
   (exactly Playwright's output shape: 8-bit RGBA/RGB, non-interlaced, filters 0–4, node:zlib inflate; unsupported ⇒
-  null); tested against a hand-built filter-0 PNG oracle. 3 tests. REMAINING (activation, all pieces now exist):
-  `captureRouteScreenshot` (playwright chromium.launch → page.screenshot → decodePngToRgba) + the delivery-gate wire
-  for UI-touching cards (route detection → shoot → readVisualBaseline → decideVisualGate → write-on-baseline_created). (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+  null); tested against a hand-built filter-0 PNG oracle. 3 tests. **SHOT FUNCTION SHIPPED 2026-07-17:** `nklein-route-screenshot.ts` —
+  `captureRouteScreenshot({url, viewport, timeout}, launcher)` with the LAUNCHER injected (production: playwright's
+  chromium — root dep, binaries present from web-ui e2e): console-error + pageerror capture, rendered=false on
+  navigation failure, PNG→RGBA decode, guaranteed browser teardown. 3 mock-tests. ALL PIECES NOW EXIST (gate core +
+  baseline store + PNG decode + shot fn). REMAINING: the single delivery-gate wire for UI-touching cards (route
+  detection → shoot the dev-server route → readVisualBaseline → decideVisualGate → write-on-baseline_created →
+  record-only ledger transition, same stance as the other delivery scans) — needs a per-workspace dev-server URL
+  source, the one open design question. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
 - [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
