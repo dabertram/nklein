@@ -2470,9 +2470,11 @@ output and NOT acted on. Captured as F12.12.)
   **GATE CORE SHIPPED 2026-07-17:** `verification-first-gate.ts` `decideVerificationFirst` — any red deterministic
   check short-circuits the LLM review into a deterministic request_changes carrying EVERY failure (one repair round,
   zero reviewer tokens); all-green proceeds with the green count as reviewer context; could-not-run = no-signal,
-  never red. Plugs the existing `preReviewVerdict` seam (test-driven mode's pattern). 3 tests. REMAINING (activation):
-  in the review runner, run acceptance (already fresh at the seam) + tsc/lint when the repo profile knows the
-  commands, feed decideVerificationFirst, pass a bounce as preReviewVerdict — flag-gated like NKLEIN_TEST_DRIVEN_MODE.
+  never red. Plugs the existing `preReviewVerdict` seam (test-driven mode's pattern). 3 tests. **RUNNER WIRE LIVE
+  2026-07-17 (OPT-IN `NKLEIN_VERIFICATION_FIRST`, default off = byte-identical):** the fresh acceptance run at the
+  review seam feeds decideVerificationFirst; a RED check bounces via preReviewVerdict (the test-driven gate wins
+  when both fire — its bounce is more specific). tsc/lint checks join once F12.84's per-language command detection
+  lands (the F12.23 fact-sheet already names the commands that exist).
 - [~] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
   on reasoning (Data-Processing-Inequality result); Anthropic flags heavy-interdependency work ("most coding") as a poor
   fan-out fit. Add a heuristic that SKIPS decomposition + runs one linear worker when a task is below a complexity threshold
