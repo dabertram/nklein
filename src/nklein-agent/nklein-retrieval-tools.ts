@@ -1,3 +1,4 @@
+import { searchAstShapes } from "./nklein-ast-search";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCode } from "./nklein-code-search";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
@@ -154,6 +155,58 @@ function createCodeSearchTool(
 	};
 }
 
+/** F12.1(a): the STRUCTURAL tier — find code by SHAPE where a text grep drowns (callers/definitions/implementations). */
+function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalRecorder): AgentTool {
+	return {
+		name: "ast_search",
+		description:
+			"Structural code search by SHAPE (TypeScript/JavaScript): all CALLERS of a function, all DEFINITIONS of a symbol, or all classes IMPLEMENTING/extending a type. Escalation order: search_code for text, ast_search for shape questions text-search answers noisily, repo_map for orientation.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				kind: {
+					type: "string",
+					enum: ["callers", "definitions", "implementations"],
+					description:
+						"The shape to find: callers of, definitions of, or classes implementing/extending the symbol.",
+				},
+				symbol: { type: "string", description: "The exact identifier to match (case-sensitive)." },
+				maxResults: { type: "number", description: "Maximum matches to return. Defaults to 30." },
+			},
+			required: ["kind", "symbol"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			const kind =
+				record.kind === "callers" || record.kind === "definitions" || record.kind === "implementations"
+					? record.kind
+					: "definitions";
+			const symbol = typeof record.symbol === "string" ? record.symbol.trim() : "";
+			if (!symbol) {
+				return { error: "ast_search requires a non-empty `symbol`." };
+			}
+			const result = await searchAstShapes({
+				workspacePath,
+				query: { kind, symbol },
+				maxResults: asBoundedInteger(record.maxResults, 30, 1, 100),
+			});
+			recordRetrieval?.({
+				query: `${kind}:${symbol}`,
+				hitsConsidered: result.matches.length,
+				citations: result.matches.map((match) => match.path),
+			});
+			return {
+				...result,
+				instruction:
+					result.matches.length > 0
+						? "Read the smallest relevant ranges at these locations; the `enclosing` field names who contains each match."
+						: "No structural matches — the symbol may be misspelled, non-TS, or dynamic; fall back to search_code.",
+			};
+		},
+	};
+}
+
 export function createNKleinRetrievalTools(options: {
 	workspacePath: string;
 	embeddingProvider?: NKleinCodeEmbeddingProvider;
@@ -163,5 +216,6 @@ export function createNKleinRetrievalTools(options: {
 	return [
 		createRepoMapTool(options.workspacePath),
 		createCodeSearchTool(options.workspacePath, options.embeddingProvider, options.recordRetrieval),
+		createAstSearchTool(options.workspacePath, options.recordRetrieval),
 	];
 }

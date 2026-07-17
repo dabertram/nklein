@@ -2156,7 +2156,7 @@ prompt-injection payload during this sweep — a real-world hit of exactly the P
 output and NOT acted on. Captured as F12.12.)
 
 **Retrieval & existing-codebase (feeds F11.2):**
-- [ ] **F12.1 — Add a STRUCTURAL (ast-grep) search tier between lexical and semantic.** 2026 consensus: code search is
+- [~] **F12.1 — Add a STRUCTURAL (ast-grep) search tier between lexical and semantic.** 2026 consensus: code search is
   three complementary layers — lexical (ripgrep) → structural (ast-grep/tree-sitter) → semantic (repo-map) — orchestrated
   in that escalation order, NOT one modality. !Klein has lexical `search_code` + `repo_map`; the structural AST-query tier
   (find *by shape*: "all callers of X", "all classes implementing Y") is missing. Add an `ast_search` retrieval tool +
@@ -2168,7 +2168,12 @@ output and NOT acted on. Captured as F12.12.)
   facts today — a `find callers of X` walk is an extension, no new dep, covers this repo's dominant languages);
   (b) the ast-grep CLI could be baked into the sandbox image instead of a host napi module (aligns with the §5.AR
   in-sandbox pattern). Recommend (a) first; David can override to full ast-grep if multi-language shape-search
-  becomes real demand.
+  becomes real demand. **PATH (a) SHIPPED (same day):** `nklein-ast-search.ts` — `findAstShapeMatches` (pure, TS
+  compiler API: callers incl. method-style, definitions across all declaration forms, implementations/extends via
+  heritage clauses; enclosing-declaration named per match) + `searchAstShapes` workspace scan + the `ast_search`
+  retrieval tool registered beside search_code/repo_map (schema teaches the lexical→structural→semantic escalation;
+  §5.AC retrieval telemetry recorded; non-TS files honestly return nothing — the lexical tier owns those). 8 tests.
+  REMAINING: multi-language shape search = the deferred ast-grep decision above.
 - [x] **F12.2 — De-emphasize embedding retrieval for short keyword queries.** CoREB (May 2026) found short keyword queries —
   the format most agent searches actually use — collapse nearly every semantic embedding model to ~0 nDCG@10. Audit where
   !Klein leans on code embeddings (codebase-memory / code-embeddings) vs lexical+structural for keyword-shaped queries, and
