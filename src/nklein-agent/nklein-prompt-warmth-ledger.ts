@@ -1,5 +1,6 @@
 import { buildPromptShellKey, type PromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
+import { lintInstructionBudget, lintProhibitions } from "../core/prompt-fragment-lint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { now } from "./nklein-session-state";
 import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
@@ -106,6 +107,26 @@ export function createPromptWarmthLedger(): PromptWarmthLedger {
 					reuseRatio: Number(reuseRatio.toFixed(4)),
 					identical,
 					headPinnedVolatileKeys: assembled.headPinnedVolatileKeys,
+				},
+			});
+		}
+		// F12.79/F12.80 pre-flight lint (record-only): every assembled session prompt passes the instruction-budget
+		// + bare-prohibition linters — an over-budget or prohibition-heavy prompt is telemetry the operator can act
+		// on, never a block. Both start paths funnel through here, so one wire covers the whole surface.
+		const budget = lintInstructionBudget(assembled.text);
+		const prohibitions = lintProhibitions(assembled.text);
+		if (budget.overBudget || prohibitions.bareCount > 0) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Prompt pre-flight lint for ${modelKey}: ${budget.count} instruction unit(s) (cap ${budget.cap}${budget.overBudget ? ` — OVER by ${budget.overBy}` : ""}), ${prohibitions.bareCount} bare prohibition(s).`,
+				taskId: input.taskId,
+				metadata: {
+					category: "prompt_preflight_lint",
+					instructionUnits: budget.count,
+					instructionCap: budget.cap,
+					overBudget: budget.overBudget,
+					bareProhibitions: prohibitions.bareCount,
 				},
 			});
 		}

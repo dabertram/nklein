@@ -2771,8 +2771,10 @@ verify-before-build caveat: confirm each against current code before implementin
   shed first. **CORE BUILT 2026-07-17:** `prompt-fragment-lint.ts` — `extractInstructionUnits` (bullets + imperative-lead +
   modal-marker sentences, ignores plain prose, word-boundary-safe so "mustard"≠"must") + `instructionCapForModel` (~5/B
   clamped [20,150]: 4B→20, 7B→35, 32B→150) + `lintInstructionBudget` (count vs cap + overshoot advice). Pure heuristic
-  (under-counts rather than hallucinates). 11 tests (shared with F12.80). REMAINING: run it over the F4.40-assembled prompt +
-  surface the warning. (IFScale 2507.11538; GitHub AGENTS.md 2500-repo study)
+  (under-counts rather than hallucinates). 11 tests (shared with F12.80). **PRE-FLIGHT WIRE LIVE 2026-07-17:** every
+  assembled session prompt (both start paths funnel through the warmth-ledger choke point) now runs
+  lintInstructionBudget + lintProhibitions; over-budget/bare-prohibition counts land as record-only
+  `prompt_preflight_lint` self-observations. (IFScale 2507.11538; GitHub AGENTS.md 2500-repo study)
 - [~] **F12.80 — Positive-rewrite + prohibition-pairing linter for rules/prompt fragments.** Lint for "don't/never/avoid" and
   either flip to a positive assertive form ("always use the shared apiClient") or REQUIRE a paired concrete alternative;
   prefer "must" over "should". **CORE BUILT 2026-07-17:** `lintProhibitions` (in `prompt-fragment-lint.ts`) flags each
