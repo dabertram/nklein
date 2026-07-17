@@ -72,4 +72,19 @@ describe("decideModelFailover", () => {
 		expect(decision.failover).toBe(false);
 		expect(decision.reason).toContain("cap reached");
 	});
+
+	it("never fails over to the SAME model under a canonical alias (live-found: bare vs lmstudio:…:endpoint keys)", () => {
+		const decision = decideModelFailover({
+			errorMessage: "Engine protocol predict request returned 500",
+			failedModelKey: "google/gemma-4-31b-qat",
+			triedModelKeys: [],
+			rankedCandidateKeys: [
+				"lmstudio:google/gemma-4-31b-qat:http://localhost:1234/v1",
+				"lmstudio:mistralai/ministral-3-14b-reasoning:http://localhost:1234/v1",
+			],
+		});
+		expect(decision.failover).toBe(true);
+		// Skips the canonical alias of the failed model AND returns the bare runtime-usable id.
+		expect(decision.nextModelKey).toBe("mistralai/ministral-3-14b-reasoning");
+	});
 });

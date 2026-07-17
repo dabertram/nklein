@@ -13,6 +13,8 @@
  * ranked feasible candidates (the router's fitness-blended order) and re-dispatches; this core only decides.
  */
 
+import { stableFitnessModelKey } from "./fitness-routing-evidence";
+
 /** Error classes that implicate the model/engine pairing — the ONLY classes worth failing over. */
 const MODEL_SIDE_ERROR_PATTERNS: readonly RegExp[] = [
 	/engine protocol .*returned 5\d\d/i,
@@ -72,7 +74,10 @@ export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDec
 			reason: "error is not model-side (task/sandbox/user-scoped) — failover would repeat it.",
 		};
 	}
-	const tried = new Set([...input.triedModelKeys, input.failedModelKey]);
+	// Normalize BOTH sides onto the bare model id before exclusion: the start path stashes CANONICAL registry keys
+	// ("lmstudio:model:endpoint") while the terminal summary carries the bare runtime id — raw string comparison let a
+	// failover pick THE SAME unloaded model under its canonical alias (live-found 2026-07-17, drain-4 hop-1).
+	const tried = new Set([...input.triedModelKeys, input.failedModelKey].map(stableFitnessModelKey));
 	// Hops already consumed = distinct tried models beyond the original one.
 	const failoversUsed = Math.max(0, tried.size - 1);
 	if (failoversUsed >= maxFailovers) {
@@ -82,7 +87,9 @@ export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDec
 			reason: `failover cap reached (${failoversUsed}/${maxFailovers} hops) — parking for review.`,
 		};
 	}
-	const nextModelKey = input.rankedCandidateKeys.find((key) => !tried.has(key)) ?? null;
+	const nextCandidate = input.rankedCandidateKeys.find((key) => !tried.has(stableFitnessModelKey(key))) ?? null;
+	// Return the BARE id — launch-config overrides expect a runtime model id, not a canonical registry key.
+	const nextModelKey = nextCandidate === null ? null : stableFitnessModelKey(nextCandidate);
 	if (!nextModelKey) {
 		return {
 			failover: false,
