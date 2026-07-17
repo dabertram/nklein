@@ -2711,10 +2711,14 @@ into the existing F12.31. Same verify-before-build caveat.**
 - [ ] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
   diagram, retention (none-by-default), egress inventory, model licenses, and the EU-AI-Act / GDPR posture. Rationale: enterprise
   adoption needs a defensible written posture; the architecture already supports the strongest claims — document them. (EU AI Act 2026-08-02)
-- [ ] **F12.104 — Local-retrieval privacy guarantee.** Make it a stated, tested invariant that the retrieval index + embeddings
+- [~] **F12.104 — Local-retrieval privacy guarantee.** Make it a stated, tested invariant that the retrieval index + embeddings
   (codebase-memory graph, search) NEVER leave the machine, and surface it in the Trust Panel. Rationale: "your code embeddings
   never leave" is a concrete selling point vs cloud RAG; lock it with a test that fails if an embedding path gains an egress
-  edge. Composes with the retrieval-telemetry seam. (local RAG privacy)
+  edge. **INVARIANT TEST SHIPPED 2026-07-17:** `local-retrieval-privacy-invariant.test.ts` statically scans every
+  retrieval/embedding module for remote URLs — only localhost forms + the allowlisted nomic model DOWNLOAD (ingress,
+  public weights) pass; any new remote URL fails CI with an explicit privacy-guarantee message. Verified live: the
+  module set's ONLY remote URL today is the model download. REMAINING: surface the guarantee in the Trust Panel
+  (F12.98) + config-level assertion that codeEmbeddingDefaults.baseUrl stays local. (local RAG privacy)
 - [ ] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
   from the fitness prior / F3.35), ADVISE honestly — "this exceeds the local fleet; a larger local model or a cloud model would
   resolve it" — rather than silently delivering a weak result. Rationale: honesty is the trust play; pairs the local-first
