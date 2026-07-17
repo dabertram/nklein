@@ -2664,6 +2664,12 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
   tools a card needs enter its context; consider a code-execution wrapper that calls MCP as a script API (Anthropic reports
   150k→2k tokens, 98.7% cut, by not pushing every tool def + intermediate result through the model). Composes with F12.18. (Anthropic code-execution-with-MCP)
+  **AUDIT 2026-07-17:** the disclosure HALF substantially exists — §5.O two-phase tool narrowing runs at the
+  beforeModel seam (two-phase-before-model.ts: phase-1 pick → tools NARROWED to the pick) + model-tool-routing gates
+  by model; MCP bundle tools ride the same narrowing once registered. The genuine remainder = (a) not REGISTERING
+  un-picked MCP servers at all (schema never enters context, vs narrowed-after-load today — needs a per-card server
+  relevance pre-pick) and (b) the code-execution-with-MCP wrapper (a script-API sandbox — an architecture piece, pairs
+  with the F12.11 CaMeL decision). Both are design-first; fold into the F12.18 catalog-gating work when it lands.
 - [~] **F12.67 — Merkle-tree incremental cache for the repo-map/summary (F11.2l).** Cursor hashes files into a Merkle tree
   and only re-embeds/re-summarizes the branches that changed (7.9s→0.5s time-to-first-query). Apply the Merkle-diff trick to
   keep !Klein's cached repo-map / hierarchical summary (F11.2a/l) cheap to refresh incrementally. (cursor secure-codebase-indexing)
