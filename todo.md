@@ -2476,9 +2476,16 @@ output and NOT acted on. Captured as F12.12.)
   classifyTaskComplexity; advisory (an explicit operator decompose always wins). 4 tests. REMAINING (activation):
   consult at the decompose entry (pre-architect: complexity check; post-draft: coupling check over the proposed
   cards' filesLikelyTouched before applying the split).
-- [ ] **F12.38 — Compacted decision-handoff between dependent cards.** When card B depends on A, pass a model-generated
+- [~] **F12.38 — Compacted decision-handoff between dependent cards.** When card B depends on A, pass a model-generated
   summary of A's actual DECISIONS / edge-cases / trace (not just the diff + card text) — Cognition's #1 principle + the fact
   that inter-agent misalignment is ~37% of MAST failures; the card-DAG's thin handoff invites exactly this. (cognition; MAST 2503.13657)
+  **COMPOSER CORE SHIPPED 2026-07-17:** `decision-handoff.ts` `buildDecisionHandoff` — deterministic handoff brief
+  from card A's LEDGERED facts (completed focus-chain steps, files touched, the reviewer feedback that SHAPED the
+  accepted result — flagged still-binding) with capped lists + honest remainders; empty facts render null (no
+  boilerplate); a `workerNotes` slot takes the fleet-enriched model summary when available. 3 tests.
+  REMAINING (activation): compose at dependent-card START (facts from focus-chain summary + card-action-trail files
+  + card.review.lastFeedback of each completed blocker) and ride the start prompt; the model-written notes half is
+  fleet-gated.
 - [ ] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
   (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
   distribution in the Model-Performance UI — turns the ledger into a diagnostic that says whether to fix specs, coordination,
