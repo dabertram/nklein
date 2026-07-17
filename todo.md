@@ -1200,7 +1200,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
   planning, worker, reviewer, and retrieval turns; preserve useful artifacts and a clear reason.
 - [ ] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
-  failures, and stop cycling across canonical-equivalent endpoints.
+  failures, and stop cycling across canonical-equivalent endpoints. **LIVE EVIDENCE 2026-07-17 (2nd sighting — first was
+  the 2026-07-11 m4mini crash):** a model-side hard error on the SEED's first predict (ministral engine 500, since fixed
+  at the message layer) left the card `awaiting_review reason=error` with NO retry on another model/endpoint — the run
+  stagnated. The failover leg of this item is a REAL robustness gap for unattended drains: on a terminal model error,
+  retry the attempt on the next feasible candidate (the fitness-blended ranking already orders them) before parking.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
 - [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
