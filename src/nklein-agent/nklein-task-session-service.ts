@@ -159,7 +159,6 @@ import { createTaskFailureEmitter } from "./nklein-task-failure-emitter";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
-import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
@@ -1440,7 +1439,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.repeatedToolCallGuard.resetTask(request.taskId);
 		this.turnLoopGuard.resetTask(request.taskId);
 		this.decompositionStallNudger.resetTask(request.taskId);
-		if (request.startInPlanMode && isExplicitDecompositionPrompt(request.prompt)) {
+		// A plan-mode start IS a decomposition seed in this product — arm the planning tool restriction + the
+		// decomposition-stall nudger for ALL of them, not only prompts that happen to name the tool contract.
+		// (Live-found 2026-07-18, qwable deep_chain: a marker-less plan prompt produced a perfect trajectory that
+		// ENDED on "Decomposing into 9 cards…" prose without the decompose_project call — say-then-stop — and the
+		// nudger never armed because the registration demanded `decompose_project`/`minimumTaskCount` in the text.
+		// Realistic user prompts are vague; the flag, not magic words, carries the intent.)
+		if (request.startInPlanMode) {
 			this.explicitDecompositionTaskIds.add(request.taskId);
 		} else {
 			this.explicitDecompositionTaskIds.delete(request.taskId);
