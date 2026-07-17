@@ -2135,9 +2135,16 @@ stays fast + complete.
     Gated `NKLEIN_EXPLORER_SUBAGENT` (default OFF = tool absent, byte-identical sessions). 4 contract tests.
     REMAINING (fleet-gated): live validation + the token-saving A/B; later: route the explorer to a SMALLER
     loaded model (the 4B-explorer half of FastContext).
-  - [ ] **F11.2k — Monorepo-aware context scoping.** Detect turbo/nx/pnpm-workspaces, scope the task to its package, load the
+  - [~] **F11.2k — Monorepo-aware context scoping.** Detect turbo/nx/pnpm-workspaces, scope the task to its package, load the
     NEAREST AGENTS.md/CLAUDE.md, and use a TS dependency graph (madge/dependency-cruiser/ts-morph) for "who imports this?"
     impact + optional cross-layer-import lint. !Klein is TS so the tooling is native. (agentbrisk monorepo; dependency-cruiser)
+    **SHIPPED 2026-07-17:** detection = F11.2f fact-sheet delta; "who imports this?" = ego_graph/ast_search (native,
+    no madge dep); NEW: `monorepo-task-scope.ts` pure core (deepest-package resolution over likely files; honest
+    SPANS-packages scope-creep note; governing AGENTS.md/CLAUDE.md outermost-first so nearest wins recency) +
+    memoized workspace scan (depth-4, node_modules skipped, one walk per workspace) + start-handler wire (root-
+    scoped cards get NO note — the default context; live-proven: a web-ui card now gets exactly the "web-ui has
+    its own scripts" note that would have prevented the pre-commit-skips-web-ui-tsc slip). 4 tests.
+    REMAINING: optional cross-layer-import lint (needs a layering policy definition — David-conversation).
   - [ ] **F11.2l — Hierarchical repo-summary artifact (local-model, hash-cached, incremental).** Bottom-up summarize
     function→file→dir→project with a small local model, cache keyed by content hash, refresh only changed nodes; serve
     top-down as the onboarding map. Local-LLM-friendly; mirrors codebase-memory's auto-sync + Cursor's Merkle-diff. (ICCSA 2025 hierarchical-summarization)

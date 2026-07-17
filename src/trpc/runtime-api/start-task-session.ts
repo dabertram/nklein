@@ -36,6 +36,7 @@ import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
+import { deriveMonorepoTaskScope } from "../../core/monorepo-task-scope";
 import type { ModelClassFacts } from "../../core/role-model-class";
 import { selectSwarmRoleModel } from "../../core/role-model-swarm-pick";
 import { buildRoutingDecisionRecord } from "../../core/routing-decision-log";
@@ -65,6 +66,7 @@ import {
 	isLocalProvider,
 } from "../../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
+import { scanMonorepoFacts } from "../../nklein-agent/nklein-monorepo-scope-scan";
 import { clearProviderModelDiscoveryCache } from "../../nklein-agent/nklein-provider-model-discovery";
 import type {
 	createNKleinProviderService,
@@ -1356,6 +1358,23 @@ export async function handleStartTaskSession(
 					}).then((exemplars) => renderFewShotExemplarBlock(exemplars))
 				: null;
 		const exemplarPreamble = exemplarBlock ? `${exemplarBlock}\n\n` : "";
+		// F11.2k: monorepo scope note — when the card's likely files resolve into ONE non-root package (its own
+		// scripts/instructions govern) or SPAN packages (a scope-creep smell worth telling the worker). Scan is
+		// memoized per workspace; root-scoped cards get no note; best-effort, never blocks a start.
+		const scopeNote =
+			(body.filesLikelyTouched?.length ?? 0) > 0
+				? await scanMonorepoFacts(workspaceScope.workspacePath)
+						.then(
+							(facts) =>
+								deriveMonorepoTaskScope({
+									taskFiles: body.filesLikelyTouched ?? [],
+									packageDirs: facts.packageDirs,
+									instructionFiles: facts.instructionFiles,
+								}).note,
+						)
+						.catch(() => null)
+				: null;
+		const scopePreamble = scopeNote ? `${scopeNote}\n\n` : "";
 		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
 		// estimate × the routed model's quality-effective context, so the planning prompt steers breakdown granularity to
 		// what the task hardness + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
@@ -1373,7 +1392,7 @@ export async function handleStartTaskSession(
 			baseRef: body.baseRef,
 			// F12.38/F11.2h: upstream handoff briefs + style exemplars FIRST, the card's own objective LAST
 			// (recency keeps the actual instruction closest to the model — the F12.21 ordering rule).
-			prompt: `${handoffPreamble}${exemplarPreamble}${promptWithMailbox}`,
+			prompt: `${handoffPreamble}${scopePreamble}${exemplarPreamble}${promptWithMailbox}`,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,
