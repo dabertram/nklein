@@ -2092,9 +2092,16 @@ stays fast + complete.
   - [ ] **F11.2h — In-repo few-shot exemplar injection.** When editing, retrieve 1–2 semantically-similar EXISTING functions
     and inject them as style/API exemplars — CEDAR-style retrieval-augmented few-shot beats fine-tuning at ~2 shots; cheapest
     way to make a small model write code that looks native. (CEDAR ICSE23)
-  - [ ] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
+  - [x] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
     split-then-merge), attach signature+imports+scope, never split a function mid-body (cAST +4.3 Recall@5 / +2.67 Pass@1).
     Denser chunks free the small window. (cAST 2506.15655; Repomix --compress)
+    **SHIPPED 2026-07-17:** `nklein-ast-chunking.ts` `computeAstChunkSpans` on the vendored TS AST (no tree-sitter
+    dep): top-level statements are atoms, oversize atoms split at child boundaries (class members / body
+    statements / object-literal props, 3 structural levels, fixed lines last-resort), small atoms greedy-merge to
+    the budget; spans PARTITION the file exactly. `chunkFile` uses it for TS/JS (fixed windows stay for other
+    files) and heads each chunk with `// path — in <enclosing>` so the embedding carries scope.
+    CODE_INDEX_SCHEMA_VERSION → 2 (chunk texts changed; hash-keyed cache made old vectors unreachable anyway).
+    6 chunker tests + the existing 27 index/search tests green. Embedding-recall A/B = fleet-gated.
   - [ ] **F11.2j — Dedicated read-only "explorer" subagent returning citations.** An explorer role (Read/Glob/Grep + the
     search tools) that gathers context and returns only file:line citations + a one-line rationale to the coder. FastContext:
     a 4B-RL explorer cuts main-agent tokens ~60% and BEATS a 30B-SFT explorer — directly validates !Klein's fleet+subagent

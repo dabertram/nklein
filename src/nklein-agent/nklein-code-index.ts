@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { computeAstChunkSpans } from "./nklein-ast-chunking";
 import {
 	createNKleinCodeEmbeddingProvider,
 	type NKleinCodeEmbeddingProvider,
@@ -13,7 +14,8 @@ import { listSourceFiles } from "./source-file-scan";
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
 const DEFAULT_CHUNK_LINES = 80;
-const CODE_INDEX_SCHEMA_VERSION = 1;
+// v2: F11.2i AST-aware chunk spans + context headers changed every chunk text — old vectors are unreachable by hash anyway; the bump drops them from disk.
+const CODE_INDEX_SCHEMA_VERSION = 2;
 
 export interface NKleinCodeIndexChunk {
 	path: string;
@@ -342,13 +344,35 @@ async function persistVectorCache(options: {
 
 function chunkFile(file: SourceFile, chunkLines: number): NKleinCodeIndexChunk[] {
 	const lines = file.content.split("\n");
+	const numberedText = (lineStart: number, lineEnd: number): string =>
+		lines
+			.slice(lineStart - 1, lineEnd)
+			.map((line, index) => `${lineStart + index}: ${line}`)
+			.join("\n");
+	// F11.2i cAST-style chunking: TS/JS files chunk at declaration boundaries (split-then-merge — a function is
+	// never cut mid-body unless it alone exceeds the budget), each chunk headed by its file + enclosing
+	// declaration so the embedding represents a whole, situated thought. Other files keep fixed windows.
+	const spans = computeAstChunkSpans(file.path, file.content, chunkLines);
+	if (spans) {
+		const chunks: NKleinCodeIndexChunk[] = [];
+		for (const span of spans) {
+			const text = numberedText(span.lineStart, span.lineEnd);
+			if (text.trim().length === 0) {
+				continue;
+			}
+			chunks.push({
+				path: file.path,
+				lineStart: span.lineStart,
+				lineEnd: span.lineEnd,
+				text: `// ${file.path}${span.enclosing ? ` — in ${span.enclosing}` : ""}\n${text}`,
+			});
+		}
+		return chunks;
+	}
 	const chunks: NKleinCodeIndexChunk[] = [];
 	for (let startIndex = 0; startIndex < lines.length; startIndex += chunkLines) {
 		const endIndex = Math.min(lines.length, startIndex + chunkLines);
-		const text = lines
-			.slice(startIndex, endIndex)
-			.map((line, index) => `${startIndex + index + 1}: ${line}`)
-			.join("\n");
+		const text = numberedText(startIndex + 1, endIndex);
 		if (text.trim().length === 0) {
 			continue;
 		}
