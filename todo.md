@@ -2664,9 +2664,16 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
   tools a card needs enter its context; consider a code-execution wrapper that calls MCP as a script API (Anthropic reports
   150k→2k tokens, 98.7% cut, by not pushing every tool def + intermediate result through the model). Composes with F12.18. (Anthropic code-execution-with-MCP)
-- [ ] **F12.67 — Merkle-tree incremental cache for the repo-map/summary (F11.2l).** Cursor hashes files into a Merkle tree
+- [~] **F12.67 — Merkle-tree incremental cache for the repo-map/summary (F11.2l).** Cursor hashes files into a Merkle tree
   and only re-embeds/re-summarizes the branches that changed (7.9s→0.5s time-to-first-query). Apply the Merkle-diff trick to
   keep !Klein's cached repo-map / hierarchical summary (F11.2a/l) cheap to refresh incrementally. (cursor secure-codebase-indexing)
+  **DIFF ENGINE SHIPPED 2026-07-17:** `merkle-file-tree.ts` — `buildFileHashTree` (per-file hashes roll up through
+  every ancestor dir to a root hash; FNV-1a, dependency-free, entry-order-deterministic; untouched sibling dirs keep
+  stable hashes = the subtree-skip signal) + `diffFileHashTrees` (root-equality short-circuit; minimal
+  changed/removed set + unchangedShare). 3 tests. REMAINING (integration): the repo-map cache
+  (nklein-context-focus-extension getCachedRepoMap is keyed on personalization text ONLY — no file awareness) needs a
+  per-file symbol-parse cache in buildNKleinRepoMap so a diff re-parses just changedFiles and reuses the rest; same
+  trick then applies to the F11.2a/l hierarchical summary when it lands.
 
 **Local-inference levers for the fleet (all feed H7.x; verified vs llama.cpp official docs):**
 - [ ] **F12.68 — ⚠ FIX: llama.cpp `--ctx-size` is a SHARED budget across slots (latent bug vs the 32k floor).** With `-np N`
