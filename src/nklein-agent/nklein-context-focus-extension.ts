@@ -18,7 +18,7 @@ import { focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-polic
 import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
 import { getNKleinLargeFileWorkflow } from "./nklein-large-file-workflow";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
-import { buildNKleinRepoMap } from "./nklein-repo-map";
+import { buildNKleinRepoMap, type RepoMapFactsCacheEntry } from "./nklein-repo-map";
 import {
 	collectRepoMapPersonalizationText,
 	createRepoMapRailMessage,
@@ -132,6 +132,9 @@ export function createKanbanContextFocusExtension(
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
 	let lastOfferedToolNames: readonly string[] = [];
 	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
+	// F12.67: the per-session facts cache makes personalization-key rebuilds INCREMENTAL — unchanged files reuse
+	// their parsed facts (Merkle-style content-hash check inside buildNKleinRepoMap); only edited files re-parse.
+	const repoMapFactsCache = new Map<string, RepoMapFactsCacheEntry>();
 	const getCachedRepoMap = async (personalizationText: string) => {
 		const cacheKey = personalizationText;
 		if (cachedRepoMap?.key !== cacheKey) {
@@ -141,6 +144,7 @@ export function createKanbanContextFocusExtension(
 					workspacePath: orientationWorkspacePath,
 					tokenBudget: contextPressure.repoMapTokenBudget,
 					personalizationText,
+					factsCache: repoMapFactsCache,
 				})
 					.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
 					.catch(() => null),

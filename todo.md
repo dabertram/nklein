@@ -2676,10 +2676,11 @@ output and NOT acted on. Captured as F12.12.)
   **DIFF ENGINE SHIPPED 2026-07-17:** `merkle-file-tree.ts` — `buildFileHashTree` (per-file hashes roll up through
   every ancestor dir to a root hash; FNV-1a, dependency-free, entry-order-deterministic; untouched sibling dirs keep
   stable hashes = the subtree-skip signal) + `diffFileHashTrees` (root-equality short-circuit; minimal
-  changed/removed set + unchangedShare). 3 tests. REMAINING (integration): the repo-map cache
-  (nklein-context-focus-extension getCachedRepoMap is keyed on personalization text ONLY — no file awareness) needs a
-  per-file symbol-parse cache in buildNKleinRepoMap so a diff re-parses just changedFiles and reuses the rest; same
-  trick then applies to the F11.2a/l hierarchical summary when it lands.
+  changed/removed set + unchangedShare). 3 tests. **INTEGRATION SHIPPED (same day):** `buildNKleinRepoMap` accepts a
+  caller-owned `factsCache` (per-file content-hash → extraction facts; unchanged files SKIP the AST parse — proven by
+  reference-identity in tests; no cache = byte-identical full parse) and the context-focus extension owns a
+  per-session cache, so personalization-key rebuilds now re-parse ONLY edited files. 5 repo-map tests green.
+  REMAINING: apply the same trick to the F11.2a/l hierarchical summary when it lands (the diff engine is ready).
 
 **Local-inference levers for the fleet (all feed H7.x; verified vs llama.cpp official docs):**
 - [ ] **F12.68 — ⚠ FIX: llama.cpp `--ctx-size` is a SHARED budget across slots (latent bug vs the 32k floor).** With `-np N`

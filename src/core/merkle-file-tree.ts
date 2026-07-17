@@ -23,7 +23,8 @@ export interface FileHashTree {
 	readonly fileHashes: ReadonlyMap<string, string>;
 }
 
-function fnv1a(text: string): string {
+/** FNV-1a content hash (hex) — the tree's hash primitive, exported for callers building FileHashEntry lists. */
+export function fnv1aContentHash(text: string): string {
 	let hash = 0x811c9dc5;
 	for (let index = 0; index < text.length; index += 1) {
 		hash ^= text.charCodeAt(index);
@@ -31,6 +32,8 @@ function fnv1a(text: string): string {
 	}
 	return (hash >>> 0).toString(16).padStart(8, "0");
 }
+
+const fnv1a = fnv1aContentHash;
 
 function parentDir(path: string): string {
 	const slash = path.lastIndexOf("/");

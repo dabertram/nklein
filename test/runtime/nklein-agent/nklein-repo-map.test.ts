@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildNKleinRepoMap } from "../../../src/nklein-agent/nklein-repo-map";
+import { buildNKleinRepoMap, type RepoMapFactsCacheEntry } from "../../../src/nklein-agent/nklein-repo-map";
 
 async function createRepo(): Promise<string> {
 	const root = await mkdtemp(join(tmpdir(), "kanban-repo-map-"));
@@ -106,5 +106,29 @@ describe("nklein repo map", () => {
 		expect(renderScoreIndex).toBeGreaterThanOrEqual(0);
 		expect(normalizeScoreIndex).toBeGreaterThanOrEqual(0);
 		expect(renderScoreIndex).toBeLessThan(normalizeScoreIndex);
+	});
+
+	// F12.67: incremental parse — unchanged files reuse cached facts; edited files re-parse and refresh the entry.
+	it("reuses cached extraction facts for unchanged files and refreshes changed ones", async () => {
+		const workspacePath = await createRepo();
+		const factsCache = new Map<string, RepoMapFactsCacheEntry>();
+		await buildNKleinRepoMap({ workspacePath, factsCache });
+		expect(factsCache.size).toBe(2);
+		const scoreEntry = factsCache.get("src/score.ts");
+		const consumerEntry = factsCache.get("src/consumer.ts");
+		expect(scoreEntry).toBeDefined();
+
+		// Rebuild with one file edited: the edited entry refreshes (new hash + facts), the other is REUSED by
+		// reference (identity proves the parse was skipped, not merely equal).
+		await writeFile(
+			join(workspacePath, "src", "score.ts"),
+			"export function calculateScore(value: number): number { return value; }",
+			"utf8",
+		);
+		const rebuilt = await buildNKleinRepoMap({ workspacePath, factsCache });
+		expect(factsCache.get("src/consumer.ts")?.facts).toBe(consumerEntry?.facts);
+		expect(factsCache.get("src/score.ts")?.hash).not.toBe(scoreEntry?.hash);
+		expect(rebuilt.symbols.some((symbol) => symbol.name === "calculateScore")).toBe(true);
+		expect(rebuilt.symbols.some((symbol) => symbol.name === "normalizeScore")).toBe(false);
 	});
 });

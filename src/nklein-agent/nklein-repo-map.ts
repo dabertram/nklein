@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { fnv1aContentHash } from "../core/merkle-file-tree";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { createSymbol, extractAstSourceFacts } from "./nklein-repo-map-ast";
 import { addWeightedEdge, buildPersonalizationVector, calculatePageRank } from "./pagerank";
@@ -63,6 +64,18 @@ export interface BuildNKleinRepoMapOptions {
 	maxFiles?: number;
 	personalizationText?: string;
 	seedPaths?: string[];
+	/**
+	 * F12.67 Merkle-style incremental parse: a caller-owned cache of per-file extraction facts keyed by path. On a
+	 * rebuild, files whose content hash is unchanged reuse their cached facts instead of re-running the (AST) parse —
+	 * only changed files pay. The caller owns the Map's lifetime (per-session in the context-focus extension);
+	 * omitted ⇒ byte-identical full-parse behavior.
+	 */
+	factsCache?: Map<string, RepoMapFactsCacheEntry>;
+}
+
+export interface RepoMapFactsCacheEntry {
+	hash: string;
+	facts: Pick<SourceFile, "identifiers" | "imports" | "symbols">;
 }
 
 interface SourceFile {
@@ -377,7 +390,14 @@ export async function buildNKleinRepoMap(options: BuildNKleinRepoMapOptions): Pr
 	for (const filePath of filePaths) {
 		const sourcePath = relative(options.workspacePath, filePath);
 		const content = await readFile(filePath, "utf8");
-		const facts = extractSourceFacts(sourcePath, content);
+		// F12.67: unchanged files (same content hash) reuse their cached extraction facts — only changed files
+		// re-run the AST parse. The cache is caller-owned; no cache = the original full-parse path.
+		const hash = options.factsCache ? fnv1aContentHash(content) : null;
+		const cached = hash !== null ? options.factsCache?.get(sourcePath) : undefined;
+		const facts = cached && cached.hash === hash ? cached.facts : extractSourceFacts(sourcePath, content);
+		if (hash !== null && (!cached || cached.hash !== hash)) {
+			options.factsCache?.set(sourcePath, { hash, facts });
+		}
 		files.push({
 			path: sourcePath,
 			content,
