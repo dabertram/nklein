@@ -2179,10 +2179,16 @@ output and NOT acted on. Captured as F12.12.)
   `MALFORMED_PATCH` (via F3.T2) for immediate repair rather than a failed apply. (harnesses.sh mini-swe-agent lessons)
 
 **Small-model reliability deltas (second research pass — techniques weak local models specifically need):**
-- [ ] **F12.17 — Forgiving multi-format tool-call parser with auto-repair + `reasoning_content` fallback.** Small local
+- [~] **F12.17 — Forgiving multi-format tool-call parser with auto-repair + `reasoning_content` fallback.** Small local
   models emit malformed-but-recoverable calls (wrong param names/types, XML/YAML/Hermes/plain-text instead of JSON, or the
-  call buried in `reasoning_content`). Accept + repair these before counting a turn failed, instead of hard-failing. This
-  is the INBOUND complement to F3.T4's schema-downgrade + F3.T2's error contract. (github Doorman11991/smallcode; promptquorum tool-calling-2026)
+  call buried in `reasoning_content`). **CORE BUILT 2026-07-17:** `forgiving-tool-call-parser.ts` — `parseForgivingToolCall`
+  tries 5 formats most-structured-first (Hermes `<tool_call>`, XML `<function=>`/`<function_call name=>`, ```json fence, bare
+  JSON in prose via string-aware balanced-brace scan, Python `name(k=v)`); normalizes non-native keys (tool/function/
+  parameters/args/action_input), re-parses arguments-as-JSON-string, and repairs trailing commas / single quotes / Python
+  True·False·None. `parseToolCallFromChannels` falls back content→reasoning_content. `recovered` flag records when salvage
+  was needed. Pure. 16 tests (incl. no-misfire on mid-sentence parens). INBOUND complement to F3.T4 schema-downgrade + F3.T2
+  error contract. REMAINING: wire as a fallback when the native `tool_calls` channel is empty at the sandbox tool-harvest
+  seam. (github Doorman11991/smallcode; promptquorum tool-calling-2026)
 - [ ] **F12.18 — Retrieval-gate the tool catalog to ≤~8 relevant schemas per turn (extends F3.T1).** Selection accuracy
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
