@@ -2222,11 +2222,18 @@ output and NOT acted on. Captured as F12.12.)
   tool-calling) scores >74% on SWE-bench Verified and is model-agnostic — evidence that scaffolding should scale INVERSELY
   with model strength and be extended ONLY when a bottleneck is empirically shown. Add a minimal fenced-bash agent profile
   as a baseline/fallback for the weakest models, and treat each new scaffold feature as opt-in-until-proven. (mini-swe-agent.com; already noted in §4A research-2026-07-02)
-- [ ] **F12.15 — Failure-taxonomy-aligned live guards.** 2026 taxonomies (SWE-EVO, SAFEdit, IDE-Bench) name recurring
+- [~] **F12.15 — Failure-taxonomy-aligned live guards.** 2026 taxonomies (SWE-EVO, SAFEdit, IDE-Bench) name recurring
   failures !Klein should detect explicitly: THRASHING/backtracking (repeatedly editing one file with no progress — a
   distinct signal from the turn-loop guard), FILE/LINE localization failure (edited without viewing all files needing
   change), IMPORT/ModuleNotFound after a repo edit, and TEST-misinterpretation. Add detectors/guards for these as pure
-  cores feeding the H7.2 failure catalog + the watchdog. (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
+  cores feeding the H7.2 failure catalog + the watchdog. **COVERAGE MAP + THRASH CORE 2026-07-17:** localization-miss
+  ≈ F12.42's stepsBeforeFirstEdit signal; import/ModuleNotFound ≈ acceptance-failure-taxonomy's dependency_missing/
+  compile classes; multi-agent ping-pong + read-set context_thrash = PRM (process-remediation.ts). The genuinely
+  UNCOVERED one — single-file EDIT-CONTENT OSCILLATION — is now `edit-thrash-detector.ts`: `detectEditThrashing`
+  fingerprints each edit's resulting content per file (FNV-1a) and flags returns to previously-seen states (≥2
+  oscillations = thrashing; many edits to NEW states = busy, progress is not a fault; one revert tolerated). 5 tests.
+  REMAINING: feed write-tool edits into the detector at the watchdog seam + a TEST-misinterpretation detector (needs
+  a test-output parse — separate slice). (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
 - [ ] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
   pre-execution syntax/diff validator to catch malformed patches before they burn a turn (a "patch does not apply cleanly"
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed
