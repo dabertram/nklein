@@ -2426,10 +2426,14 @@ output and NOT acted on. Captured as F12.12.)
   qwopus3.6-27b-v2 = 100% @308s (n=7). KNOWN LIMIT: the frontier doesn't discount thin samples yet (an n=1 100% row
   can shadow an n=7 100% row) — Wilson-adjust when it matters. Complements summarizeSwarmEfficiency (waste scoreboard),
   built on the same events. (HAL 2510.11977)
-- [ ] **F12.49 — Ledger-mined regression golden-set + drift watch.** Static evals rot with distribution drift; promote
+- [~] **F12.49 — Ledger-mined regression golden-set + drift watch.** Static evals rot with distribution drift; promote
   reviewed failed/lucky trajectories into a versioned ≥30-case CI corpus the eval runner replays on each scaffolding change;
   prune stale/dupes; alert when the live task distribution drifts from the corpus. Turns the ledger into a durable
-  early-warning system. Composes with F11.4 aimock replay. (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
+  early-warning system. Composes with F11.4 aimock replay. **MINER CORE BUILT 2026-07-17:**
+  `golden-set-miner.ts` — `mineGoldenSetCandidates(events)` selects real FAILURES + F12.42-classified LUCKY WINS
+  (disciplined passes skipped), dedupes one slot per task with failure outranking lucky (order-independent), capped
+  for human curation. 4 tests. REMAINING: the versioned corpus format + promote/prune flow + the eval-runner replay
+  hook + the drift alert. (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
 - [ ] **F12.50 — LLM-judge calibration + bias harness.** !Klein's review/gate judges are uncalibrated; raw agreement inflates
   under pass-heavy imbalance + self-enhancement bias matters when local models judge peers. Build a small human-labeled gold
   set; report judge↔human Cohen's kappa + position/verbosity/self-enhancement bias probes; optional 3-small-model jury (PoLL)
