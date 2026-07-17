@@ -52,6 +52,7 @@ import {
 import { createNKleinMergeResolutionTool } from "./nklein-merge-resolution-tool";
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { createNKleinPlanCritiqueTool } from "./nklein-plan-critique-tool";
+import { createPredictOutputTool } from "./nklein-predict-output-tool";
 import { createNKleinPromotionTool } from "./nklein-promotion-tool";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool } from "./nklein-review-tool";
@@ -316,6 +317,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			}),
 			...workspaceExtraTools,
 			...(mcpToolBundle?.tools ?? []),
+			// F12.96 predict-then-execute: let the worker state its expected acceptance output BEFORE the run; the
+			// acceptance seam compares prediction vs reality (record-only) — a divergence localizes mental-trace bugs.
+			...createPredictOutputTool(request.taskId),
 			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
 			...createWebResearchTool({
 				// F12.101: the enforcing air-gap switch hard-closes web research regardless of the enable flag.

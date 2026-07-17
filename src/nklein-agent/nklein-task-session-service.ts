@@ -42,6 +42,7 @@ import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
+import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
@@ -110,6 +111,7 @@ import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
 import { createPlanCritiqueRunner } from "./nklein-plan-critique-runner";
 import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
+import { forgetPredictedOutput, getPredictedOutput } from "./nklein-predict-output-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
@@ -2527,7 +2529,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resultCommit?: string;
 		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult> {
-		return this.acceptanceVerifier.verify(input);
+		const result = await this.acceptanceVerifier.verify(input);
+		// F12.96 predict-then-execute (record-only): when the worker predicted the acceptance output, compare the
+		// prediction against REALITY — a divergence means its mental trace of its own code is wrong (a bug signal
+		// tests alone miss). Best-effort; never alters the acceptance result.
+		try {
+			const prediction = getPredictedOutput(input.taskId);
+			if (prediction && result.present) {
+				const verdict = assessPredictedExecution([
+					{ label: result.command ?? "acceptance", predicted: prediction.predicted, actual: result.output },
+				]);
+				forgetPredictedOutput(input.taskId);
+				if (!verdict.pass) {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: `Predicted-execution divergence for ${input.taskId}: ${verdict.reason}`,
+						taskId: input.taskId,
+						metadata: { category: "predicted_execution_divergence" },
+					});
+				}
+			}
+		} catch {
+			// Observational only.
+		}
+		return result;
 	}
 
 	/**
