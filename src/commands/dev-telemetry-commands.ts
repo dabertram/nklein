@@ -1450,3 +1450,35 @@ export async function runDevTrajectoryQualityCommand(options: { json?: boolean }
 		process.stdout.write(`  … and ${result.perModel.length - 20} more models\n`);
 	}
 }
+
+/**
+ * F12.48 — per-(model, role) cost-per-resolve + the Pareto frontier over the persisted attempt ledger. Cost only
+ * means something divided by delivered outcomes; the frontier names the models NOT dominated per role.
+ */
+export async function runDevCostPerResolveCommand(options: { json?: boolean } = {}): Promise<void> {
+	const { computeCostPerResolve, paretoFrontierOf } = await import("../core/cost-per-resolve");
+	const events = await readAllAgentLedger();
+	const rows = computeCostPerResolve(events);
+	const frontier = paretoFrontierOf(rows);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ rows, frontier }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Cost per resolve (F12.48) — ${rows.length} model×role row(s)\n\n`);
+	if (rows.length === 0) {
+		process.stdout.write("(no attempts in the ledger yet)\n");
+		return;
+	}
+	const frontierKeys = new Set(frontier.map((row) => `${row.modelId} ${row.role}`));
+	for (const row of rows.slice(0, 24)) {
+		const mark = frontierKeys.has(`${row.modelId} ${row.role}`) ? "★" : " ";
+		const cost =
+			row.wallMsPerResolve === null ? "      —" : `${(row.wallMsPerResolve / 1000).toFixed(0).padStart(5)}s`;
+		const tokens =
+			row.tokensPerResolve === null ? "     —" : `${(row.tokensPerResolve / 1000).toFixed(0).padStart(4)}kT`;
+		process.stdout.write(
+			`  ${mark} ${row.modelId.slice(0, 42).padEnd(44)} ${row.role.padEnd(10)} rate ${(row.resolveRate * 100).toFixed(0).padStart(3)}%  ${cost}/resolve  ${tokens}/resolve  (n=${row.attempts})\n`,
+		);
+	}
+	process.stdout.write(`\n  ★ = Pareto frontier for its role (not dominated on accuracy vs wall-cost)\n`);
+}

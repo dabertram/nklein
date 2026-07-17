@@ -46,6 +46,7 @@ import {
 	runDevCapabilityCeilingCommand,
 	runDevContextRecommendationsCommand,
 	runDevControllerTraceCommand,
+	runDevCostPerResolveCommand,
 	runDevDistractorSensitivityCommand,
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
@@ -917,6 +918,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("cost-per-resolve")
+		.description("Per-model×role cost-per-resolve + Pareto frontier (F12.48) over the attempt ledger.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevCostPerResolveCommand(options);
 		});
 
 	dev.command("trajectory-quality")

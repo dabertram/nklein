@@ -2400,9 +2400,15 @@ output and NOT acted on. Captured as F12.12.)
   `gen_ai.evaluation.*`) to an OTLP endpoint so a LOCAL Docker Langfuse/Phoenix renders traces, tool-call analytics, agent
   graphs, cost dashboards, and replay — battle-tested trace UIs for free, staying local-first, aligned to the emerging
   industry standard. Opt-in. (opentelemetry genai-semconv; langfuse otel)
-- [ ] **F12.48 — Cost/efficiency-per-resolve + Pareto frontier.** Record tokens + LLM-call count + wall-clock + $-equivalent
+- [~] **F12.48 — Cost/efficiency-per-resolve + Pareto frontier.** Record tokens + LLM-call count + wall-clock + $-equivalent
   per RESOLVED card; render per-model×role accuracy-vs-cost Pareto (HAL: higher reasoning effort often LOWERED accuracy — a
-  trade-off invisible without cost-per-resolve). Directly informs routing/default choices on the local fleet. Buildable-now. (HAL 2510.11977)
+  trade-off invisible without cost-per-resolve). Directly informs routing/default choices on the local fleet.
+  **BUILT + MOUNTED + LIVE 2026-07-17:** `cost-per-resolve.ts` (`computeCostPerResolve` per model×role — amortizes ALL
+  attempts' wall+tokens over RESOLVED tasks — + `paretoFrontierOf` non-dominated-per-role) + `dev cost-per-resolve
+  [--json]`. LIVE on the real ledger (15 rows): qwopus3.5-9b = 49% @6547s/resolve (the expensive workhorse),
+  qwopus3.6-27b-v2 = 100% @308s (n=7). KNOWN LIMIT: the frontier doesn't discount thin samples yet (an n=1 100% row
+  can shadow an n=7 100% row) — Wilson-adjust when it matters. Complements summarizeSwarmEfficiency (waste scoreboard),
+  built on the same events. (HAL 2510.11977)
 - [ ] **F12.49 — Ledger-mined regression golden-set + drift watch.** Static evals rot with distribution drift; promote
   reviewed failed/lucky trajectories into a versioned ≥30-case CI corpus the eval runner replays on each scaffolding change;
   prune stale/dupes; alert when the live task distribution drifts from the corpus. Turns the ledger into a durable
