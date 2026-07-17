@@ -23,6 +23,7 @@ import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
+import { decideVerificationFirst } from "../core/verification-first-gate";
 import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
 import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
@@ -425,6 +426,27 @@ export async function runSecondOpinionReviewForTask(
 				insight: null,
 			};
 			input.warn?.(`Test-driven gate: bouncing ${input.taskId} — ${gate.reason}`);
+		}
+	}
+	// F12.36 verification-FIRST gate (OPT-IN via NKLEIN_VERIFICATION_FIRST; default OFF = byte-identical): a RED
+	// fresh acceptance run short-circuits the LLM review into a deterministic request_changes carrying the machine's
+	// own failure summary — zero reviewer tokens on work a machine already rejected. Rides the same preReviewVerdict
+	// seam as the test-driven gate (which wins when both fire — its bounce is more specific).
+	if (
+		preReviewVerdict === null &&
+		isTruthyEnv(process.env.NKLEIN_VERIFICATION_FIRST) &&
+		acceptance?.present === true
+	) {
+		const verificationFirst = decideVerificationFirst([
+			{
+				name: acceptance.command ?? "acceptance",
+				passed: acceptance.passed,
+				detail: acceptance.failureHint ?? acceptance.failureCategory ?? null,
+			},
+		]);
+		if (verificationFirst.action === "deterministic_bounce") {
+			preReviewVerdict = verificationFirst.submission;
+			input.warn?.(`Verification-first gate: bouncing ${input.taskId} — ${verificationFirst.submission.summary}`);
 		}
 	}
 	stampPhase("review-resolution start");
