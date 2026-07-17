@@ -18,6 +18,7 @@ import {
 	type SandboxMcpServerDef,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
+import { capToolResult } from "../core/tool-output-cap";
 import {
 	buildMcpOauthCallbackUrl,
 	createOauthClientMetadata,
@@ -764,6 +765,16 @@ export function createNKleinMcpRuntimeService(
 
 			const tools: SdkMcpTool[] = [];
 
+			// F12.65: MCP results are the ONE tool surface with no built-in cap (SDK read/search/command all
+			// middle-truncate) — one oversized server response can blow a small model's whole window (codebase-memory
+			// has OOM'd a session before). Wrap every MCP tool's execute with the middle-truncation cap.
+			const capMcpToolOutputs = (serverTools: SdkMcpTool[]): SdkMcpTool[] =>
+				serverTools.map((tool) => ({
+					...tool,
+					execute: async (input: unknown, context: unknown) =>
+						capToolResult(await tool.execute(input, context as never)).value,
+				}));
+
 			for (const server of loadedSettings.servers) {
 				if (server.disabled || server.type === "stdio") {
 					continue;
@@ -773,7 +784,7 @@ export function createNKleinMcpRuntimeService(
 						serverName: server.name,
 						provider: manager,
 					});
-					tools.push(...serverTools);
+					tools.push(...capMcpToolOutputs(serverTools));
 				} catch (error) {
 					warnings.push(`Failed to load MCP server "${server.name}": ${toErrorMessage(error)}`);
 				}
@@ -794,7 +805,7 @@ export function createNKleinMcpRuntimeService(
 							),
 						);
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
-						tools.push(...serverTools);
+						tools.push(...capMcpToolOutputs(serverTools));
 					} catch (error) {
 						warnings.push(`Failed to load sandbox MCP server "${server.label}": ${toErrorMessage(error)}`);
 					}

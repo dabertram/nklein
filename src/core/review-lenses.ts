@@ -17,7 +17,10 @@ export type ReviewLensId =
 	| "correctness"
 	| "security"
 	| "performance"
-	| "simplicity";
+	| "simplicity"
+	// F12.5: the DYNAMIC rubric lens (per-card checklist from `verification-rubric.ts`) — never in REVIEW_LENSES
+	// (it has no static stance); the runner appends it when the card's spec yields a non-empty rubric.
+	| "rubric";
 
 export interface ReviewLens {
 	id: ReviewLensId;

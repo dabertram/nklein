@@ -23,6 +23,7 @@ import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
+import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
 import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
@@ -387,7 +388,16 @@ export async function runSecondOpinionReviewForTask(
 						complexity: classifyTaskComplexity({ taskText: card.prompt }),
 						reviewerTier: "mid",
 					});
-					return plan.lenses.length > 0 ? plan.lenses : undefined;
+					// F12.5: append the DYNAMIC rubric lens — an explicit per-item met/not-met/cannot-tell checklist
+					// derived from the card's own spec; omitted when the prompt yields nothing checklist-shaped.
+					const rubricStance = renderRubricLensStance(buildVerificationRubric(card.prompt));
+					const lenses = [
+						...plan.lenses,
+						...(rubricStance
+							? [{ id: "rubric" as const, stance: rubricStance, minReviewerTier: "weak" as const }]
+							: []),
+					];
+					return lenses.length > 0 ? lenses : undefined;
 				})()
 			: undefined;
 

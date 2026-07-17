@@ -54,6 +54,7 @@ import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { createNKleinPlanCritiqueTool } from "./nklein-plan-critique-tool";
 import { createPredictOutputTool } from "./nklein-predict-output-tool";
 import { createNKleinPromotionTool } from "./nklein-promotion-tool";
+import { createRequestCompactionTool } from "./nklein-request-compaction-tool";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
@@ -320,6 +321,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// F12.96 predict-then-execute: let the worker state its expected acceptance output BEFORE the run; the
 			// acceptance seam compares prediction vs reality (record-only) — a divergence localizes mental-trace bugs.
 			...createPredictOutputTool(request.taskId),
+			// F12.6 self-compaction: the agent proposes a safe forget-moment, the rubric disposes (fire/hold); a
+			// fire records a per-task request the service consults at the next turn boundary (budget fallback intact).
+			...createRequestCompactionTool(request.taskId),
 			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
 			...createWebResearchTool({
 				// F12.101: the enforcing air-gap switch hard-closes web research regardless of the enable flag.

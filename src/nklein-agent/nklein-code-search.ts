@@ -177,16 +177,36 @@ function normalizeMatches(
 	}));
 }
 
+/**
+ * F12.2 (CoREB, May 2026): short KEYWORD queries — an identifier, an error token, a couple of exact words — are
+ * where lexical search dominates and embedding retrieval mostly adds semantically-adjacent NOISE. Classify the query
+ * style so the hybrid ranker can de-emphasize the embedding tier for keyword queries; natural-language questions keep
+ * the full semantic weight.
+ */
+export function classifyQueryStyle(query: string, tokens: readonly string[]): "keyword" | "natural" {
+	if (tokens.length > 3) {
+		return "natural";
+	}
+	const naturalWords =
+		/^(how|what|why|where|when|which|does|do|is|are|can|should|the|a|an|to|for|with|of|in|on|that|this)$/i;
+	if (tokens.some((token) => naturalWords.test(token))) {
+		return "natural";
+	}
+	return "keyword";
+}
+
 export function rankHybridMatches(input: {
 	lexicalMatches: readonly NKleinCodeSearchMatch[];
 	repoMapMatches: readonly NKleinCodeSearchMatch[];
 	indexMatches: readonly NKleinCodeSearchMatch[];
 	maxResults: number;
+	/** F12.2: "keyword" halves the embedding tier's base weight (80 → 40) — lexical dominates where it should. */
+	queryStyle?: "keyword" | "natural";
 }): { matches: NKleinCodeSearchMatch[]; truncated: boolean } {
 	const combined = [
 		...normalizeMatches(input.lexicalMatches, "lexical", 100),
 		...normalizeMatches(input.repoMapMatches, "repo_map", 90),
-		...normalizeMatches(input.indexMatches, "index", 80),
+		...normalizeMatches(input.indexMatches, "index", input.queryStyle === "keyword" ? 40 : 80),
 	].filter((match) => match.score > 0);
 	const bestByRange = new Map<string, RankedNKleinCodeSearchMatch>();
 	for (const match of combined) {
@@ -257,6 +277,7 @@ export async function searchNKleinCode(options: SearchNKleinCodeOptions): Promis
 	});
 	const repoMapMatches = searchRepoMapSymbols(repoMap.symbols, query, queryTokens);
 	const hybrid = rankHybridMatches({
+		queryStyle: classifyQueryStyle(query, queryTokens),
 		lexicalMatches,
 		repoMapMatches,
 		indexMatches: indexMatches.matches.map((match) => ({

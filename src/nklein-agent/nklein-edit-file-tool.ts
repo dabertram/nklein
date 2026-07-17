@@ -9,6 +9,7 @@ import {
 	normalizeMaxAgentWritableFileLines,
 	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
+import { checkEditSyntax } from "../core/edit-syntax-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
@@ -258,6 +259,15 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 			if (secretFinding) {
 				throw new Error(
 					`Blocked edit_file: potential ${secretFinding.label} detected in ${request.path}. Remove the secret or store it in the runtime's configured secret store before retrying.`,
+				);
+			}
+			// F12.63 (SWE-agent ACI): a fuzzy-applied edit that leaves the file syntactically broken must fail NOW,
+			// while the model still holds the context to repair it — not two tool calls later as a compile error.
+			// The guard only rejects when the edit INTRODUCED the breakage (an already-broken file stays editable).
+			const syntaxAfter = checkEditSyntax(request.path, applied.content);
+			if (!syntaxAfter.ok && checkEditSyntax(request.path, original).ok) {
+				throw new Error(
+					`Blocked edit_file: the edit would break ${request.path} — ${syntaxAfter.issue} Re-check the search/replace boundaries and retry with the full surrounding block.`,
 				);
 			}
 
