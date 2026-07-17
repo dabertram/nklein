@@ -1884,8 +1884,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									}
 									// F12.45 diff-minimality (record-only, same observe-before-enforce stance): a BLOATED
 									// delivery (>2× the changed-lines/files budget; scope signal activates once the card's
-									// filesLikelyTouched is threaded here) is appended as ledger evidence, never a block.
-									const minimality = assessDiffMinimality({ patch });
+									// card's filesLikelyTouched) is appended as ledger evidence, never a block. (F12.45 scope wire live.)
+									const minimality = assessDiffMinimality({
+										patch,
+										...(deliveryCard?.filesLikelyTouched && deliveryCard.filesLikelyTouched.length > 0
+											? { filesLikelyTouched: deliveryCard.filesLikelyTouched }
+											: {}),
+									});
 									if (minimality.verdict === "bloated") {
 										await appendAgentLedgerEvent(
 											buildTransitionEvent({

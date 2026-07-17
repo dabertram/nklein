@@ -2493,6 +2493,8 @@ output and NOT acted on. Captured as F12.12.)
   `diff_minimality_scan` ledger transition on a BLOATED verdict (never blocks) — same stance as the placeholder/quality
   scan beside it. REMAINING: thread the card's filesLikelyTouched into the seam to activate the out-of-scope signal +
   the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
+  **SCOPE WIRE LIVE 2026-07-17:** deliveryCard.filesLikelyTouched now threads into assessDiffMinimality at the
+  delivery scan — the out-of-scope signal is active (record-only stance unchanged).
 - [ ] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
