@@ -2365,10 +2365,16 @@ output and NOT acted on. Captured as F12.12.)
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never
   hard-fail the card. The wins are in the APPLICATION layer, not the diff format. (aider unified-diffs + 9-pass; Diff-XYZ 2510.12487; Morph/Relace fast-apply)
-- [ ] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
+- [~] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
   Near-free positioning win; composes with the F4.40 cache-stable-prefix assembler. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
+  **CORE SHIPPED 2026-07-17:** `instruction-reanchor.ts` — `decideReanchor` (event-driven firing: loop >
+  stale-anchor tool-error > 12-turn periodic; quiet otherwise — spammed reminders get ignored) +
+  `buildReanchorReminder` (compact tail message: current step + done-means + trigger-specific guidance; absent
+  fields omitted). 4 tests. REMAINING (activation): inject via the F12.56 steer channel at the turn boundary
+  (rides the pending-prompt queue into the recency zone; never touches the F4.40 cache-stable prefix), with
+  turnsSinceAnchor tracked beside the session's turn counters.
 - [~] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
   (§12) bounds LENGTH but not SEMANTIC looping. Track no-progress rounds + repeated-identical tool calls + patch-spirals
   (edit-same-file-no-diff), and on threshold break to a self-reflection + plan-revision step (Magentic-One progress-ledger
