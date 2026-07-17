@@ -1,7 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import type { RuntimeTaskAcceptanceVerifyRequest, RuntimeTaskAcceptanceVerifyResponse } from "../../core/api-contract";
+import { cardVerificationFromAcceptance } from "../../core/delivery-evidence";
 import { findBoardCardWithColumn } from "../../core/task-board-mutations";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
+import { persistCardVerification } from "../../server/persist-card-verification";
 import { loadWorkspaceState } from "../../state/workspace-state";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 import { formatAcceptanceVerifyMessage } from "../runtime-task-message-formatting";
@@ -35,6 +37,12 @@ export async function handleVerifyTaskAcceptance(
 		taskPrompt: taskRecord.card.prompt,
 		timeoutMs: input.timeoutMs,
 	});
+	// F12.53: persist the snapshot onto the card so the badge + merge-warn read the newest REAL run. Best-effort.
+	void persistCardVerification(
+		workspaceScope.workspacePath,
+		input.taskId,
+		cardVerificationFromAcceptance(acceptance, Date.now()),
+	).catch(() => {});
 	return {
 		ok: acceptance.present === true && acceptance.passed === true,
 		taskId: input.taskId,

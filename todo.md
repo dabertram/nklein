@@ -2481,9 +2481,15 @@ output and NOT acted on. Captured as F12.12.)
   per task at its most urgent action); the board-header inbox chip is now a "Needs you" button opening the prioritized
   queue popover — click an entry to jump to its card. REMAINING: the layered NOTIFICATION policy (interrupting toasts
   restricted to this tier, completions batched) — needs an audit of existing notify call sites (separate slice).
-- [ ] **F12.53 — Verification-status badges that GATE merge (trust the artifact).** Only ~33% of devs trust AI output; agents
+- [x] **F12.53 — Verification-status badges that GATE merge (trust the artifact).** Only ~33% of devs trust AI output; agents
   "lie" about completion. Surface tests/build/lint/typecheck pass–fail as first-class card badges + block/warn on "merge"
   while any are red/unrun — trust attaches to the verified artifact, not the self-report. !Klein already runs these. (futurumgroup independent-review-layer)
+  **SHIPPED 2026-07-17:** `card.verification` (additive contract field) persists the artifact's own last acceptance
+  run — written at BOTH seams that actually run it (`verifyTaskAcceptance` handler + the auto-delivery fresh-acceptance
+  gate, via `persistCardVerification`; `cardVerificationFromAcceptance` never fabricates a green). Review-lane cards
+  render Checks passed / Checks FAILED / Unverified; Commit/Open PR from the card get an explicit confirm when
+  red/unrun (warn-not-block — user-initiated stays possible, never silent). Note: the badge is the ACCEPTANCE verdict;
+  per-signal build/lint/typecheck split-out would ride the same field when those run per-card.
 - [ ] **F12.54 — Risk-aware review routing + fatigue guardrails.** AI PRs carry ~1.7× more defects; past ~400 lines review
   becomes rubber-stamping. Auto-classify each diff by risk (auth/security/API/migration → deep-review; docs/tests →
   fast-track), warn on large diffs with optional split-for-review, and a "state the failure mode" confirm before merging

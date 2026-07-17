@@ -38,6 +38,7 @@ import { readPausedTasks } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
 import {
+	cardVerificationFromAcceptance,
 	deriveDeliveryGateEvidence,
 	regressionDeltaFromAcceptanceRuns,
 	shouldHoldEmptyPatchResult,
@@ -212,6 +213,7 @@ import {
 	createRuntimeTerminalTelemetryRecorders,
 	createSessionTransitionRecorder,
 } from "./nklein-runtime-terminal-telemetry";
+import { persistCardVerification } from "./persist-card-verification";
 import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -1598,6 +1600,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						preferredSpeculative ? deliveredBranchTaskId : undefined,
 						deliveredResultCommit,
 					);
+					// F12.53: persist this fresh run onto the card (the badge + merge-warn source). Best-effort.
+					void persistCardVerification(
+						scope.workspacePath,
+						taskId,
+						cardVerificationFromAcceptance(acceptance, Date.now()),
+					).catch(() => {});
 					// #39 (runs 32/35/36/38 — the scope-vs-acceptance trap): when the card's acceptance command
 					// fails on the DELIVERED tree, sample it once against the BASE tree. An identical baseline
 					// failure means the breakage predates this card (broken test infra, a sibling's debt) — the

@@ -1428,6 +1428,51 @@ export function BoardCard({
 									) : null}
 								</p>
 							) : null}
+							{columnId === "review" ? (
+								<div className="mt-1.5">
+									{(() => {
+										const verification = card.verification;
+										const state =
+											verification?.acceptancePassed === true
+												? "verified"
+												: verification?.acceptancePassed === false
+													? "failed"
+													: "unverified";
+										const chip =
+											state === "verified"
+												? {
+														label: "Checks passed",
+														className: "border-status-green/30 bg-status-green/10 text-status-green",
+													}
+												: state === "failed"
+													? {
+															label: "Checks FAILED",
+															className: "border-status-red/40 bg-status-red/10 text-status-red",
+														}
+													: {
+															label: "Unverified",
+															className: "border-border-bright bg-surface-1 text-text-tertiary",
+														};
+										return (
+											<span
+												title={
+													verification?.detail ??
+													"The acceptance check has not run for this artifact — run Verify or start a review."
+												}
+												data-testid="card-verification-badge"
+												data-verification={state}
+												className={cn(
+													"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+													chip.className,
+												)}
+											>
+												<span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
+												<span>{chip.label}</span>
+											</span>
+										);
+									})()}
+								</div>
+							) : null}
 							{showReviewGitActions ? (
 								<div className="flex gap-1.5 mt-1.5">
 									<Button

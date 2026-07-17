@@ -232,6 +232,25 @@ export function useGitActions({
 					return false;
 				}
 
+				// F12.53 verification gate (warn, not hard-block): trust attaches to the verified artifact. A red or
+				// never-run acceptance check gets an explicit confirm before Commit/PR proceeds — user-initiated
+				// actions stay possible, but never silently on an unverified artifact.
+				if (source === "card") {
+					const verification = selection.card.verification;
+					const red = verification?.acceptancePassed === false;
+					const unrun = !verification || verification.acceptancePassed === null;
+					if (red || unrun) {
+						const proceed = window.confirm(
+							red
+								? `The acceptance check FAILED for this card (${verification?.detail ?? "no detail"}). ${action === "commit" ? "Commit" : "Open a PR"} anyway?`
+								: `This card's artifact is UNVERIFIED — the acceptance check has not run. ${action === "commit" ? "Commit" : "Open a PR"} anyway?`,
+						);
+						if (!proceed) {
+							return false;
+						}
+					}
+				}
+
 				const prompt = buildTaskGitActionPrompt({
 					action,
 					gitContext: {

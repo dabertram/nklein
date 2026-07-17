@@ -2,6 +2,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeBoardColumnId,
 	RuntimeCardReview,
+	RuntimeCardVerification,
 	RuntimeFocusChain,
 	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
@@ -50,6 +51,8 @@ export interface BoardCard {
 	autoReviewStatus?: "running" | "failed";
 	autoReviewMessage?: string;
 	review?: RuntimeCardReview;
+	/** F12.53: the artifact's own last acceptance run (badge + merge-warn source) — not the reviewer's opinion. */
+	verification?: RuntimeCardVerification;
 	focusChain?: RuntimeFocusChain;
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;

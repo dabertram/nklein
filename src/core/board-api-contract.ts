@@ -105,6 +105,23 @@ export const runtimeCardReviewSchema = z.object({
 });
 export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;
 
+/**
+ * F12.53: the persisted per-card VERIFICATION snapshot — the artifact's own pass/fail, distinct from the reviewer's
+ * opinion (`review`), so trust attaches to the verified artifact rather than an agent self-report. Written wherever
+ * the acceptance check actually runs (the on-demand verify procedure + the auto-delivery gate); additive optional
+ * (CRDT whole-object LWW) so older boards load as-is.
+ */
+export const runtimeCardVerificationSchema = z.object({
+	/** Whether the card defines an acceptance command at all. */
+	acceptancePresent: z.boolean(),
+	/** The last acceptance run's verdict; null when the check could not run. */
+	acceptancePassed: z.boolean().nullable(),
+	/** Sanitized one-liner for the badge tooltip (command + failure hint — never raw output). */
+	detail: z.string().nullable(),
+	checkedAt: z.number(),
+});
+export type RuntimeCardVerification = z.infer<typeof runtimeCardVerificationSchema>;
+
 /** A single step of an agent's focus chain (todo §5.N). */
 export const runtimeFocusChainStepSchema = z.object({
 	text: z.string(),
@@ -134,6 +151,7 @@ export const runtimeBoardCardSchema = z
 		prompt: z.string(),
 		startInPlanMode: z.boolean(),
 		review: runtimeCardReviewSchema.optional(),
+		verification: runtimeCardVerificationSchema.optional(),
 		focusChain: runtimeFocusChainSchema.optional(),
 		// Per-card delivery-autonomy override (todo §5.L): when set, wins over the project + global/role delivery
 		// tier at the auto-delivery gate. Additive optional field (CRDT whole-object LWW), so older boards load as-is.

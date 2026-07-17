@@ -1392,4 +1392,53 @@ describe("BoardCard", () => {
 		});
 		expect(container.querySelector("[data-live-state]")).toBeNull();
 	});
+
+	// F12.53: the verification badge — the artifact's own pass/fail, never the agent's self-report.
+	it("shows the verification badge state on review-lane cards", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						verification: {
+							acceptancePresent: true,
+							acceptancePassed: true,
+							detail: "`npm test` passed.",
+							checkedAt: 1,
+						},
+					})}
+					index={0}
+					columnId="review"
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-verification="verified"]')?.textContent).toContain("Checks passed");
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						verification: {
+							acceptancePresent: true,
+							acceptancePassed: false,
+							detail: "`npm test` FAILED — 2 tests failed",
+							checkedAt: 1,
+						},
+					})}
+					index={0}
+					columnId="review"
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-verification="failed"]')?.textContent).toContain("Checks FAILED");
+
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="review" />);
+		});
+		expect(container.querySelector('[data-verification="unverified"]')?.textContent).toContain("Unverified");
+
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="in_progress" />);
+		});
+		expect(container.querySelector("[data-verification]")).toBeNull();
+	});
 });

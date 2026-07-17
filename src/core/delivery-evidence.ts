@@ -108,3 +108,45 @@ export function regressionDeltaFromAcceptanceRuns(
 export function shouldHoldEmptyPatchResult(input: { sandboxResult: string; reviewApproved: boolean }): boolean {
 	return input.sandboxResult === "empty_patch" && !input.reviewApproved;
 }
+
+/**
+ * F12.53: fold an acceptance run into the persisted per-card verification snapshot (the badge + merge-warn source).
+ * Pure; the caller stamps `checkedAt`. `acceptance` null = the check could not run (sandbox unavailable) — the badge
+ * shows "unverified", never a false green.
+ */
+export function cardVerificationFromAcceptance(
+	acceptance: {
+		present: boolean;
+		command: string | null;
+		passed: boolean | null;
+		failureHint: string | null;
+	} | null,
+	checkedAt: number,
+): {
+	acceptancePresent: boolean;
+	acceptancePassed: boolean | null;
+	detail: string | null;
+	checkedAt: number;
+} {
+	if (acceptance === null) {
+		return {
+			acceptancePresent: false,
+			acceptancePassed: null,
+			detail: "The acceptance check could not run.",
+			checkedAt,
+		};
+	}
+	if (!acceptance.present) {
+		return { acceptancePresent: false, acceptancePassed: null, detail: "No acceptance command defined.", checkedAt };
+	}
+	const command = acceptance.command ?? "acceptance";
+	return {
+		acceptancePresent: true,
+		acceptancePassed: acceptance.passed,
+		detail:
+			acceptance.passed === true
+				? `\`${command}\` passed.`
+				: `\`${command}\` ${acceptance.passed === false ? "FAILED" : "did not run"}${acceptance.failureHint ? ` — ${acceptance.failureHint}` : ""}`,
+		checkedAt,
+	};
+}
