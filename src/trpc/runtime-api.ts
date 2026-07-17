@@ -659,7 +659,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// F12.98 Trust & Privacy Panel: the trust-center's LIVE state — per-egress-class posture (F12.101 assessment)
 		// + the hash-chained receipt log's verification. Read-only; renders what the architecture currently enforces.
 		getTrustPosture: async () => {
-			const { assessAirGapPosture } = await import("../core/air-gap-posture");
+			const { assessAirGapPosture, isAirGappedMode } = await import("../core/air-gap-posture");
 			const { verifyEgressReceiptChain } = await import("../core/egress-receipt");
 			const { readEgressReceipts } = await import("../state/egress-receipt-store");
 			const { readFile } = await import("node:fs/promises");
@@ -682,10 +682,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					(JSON.parse(raw) as { providers?: Record<string, { settings?: { baseUrl?: string } }> }).providers
 						?.lmstudio?.settings?.baseUrl ?? null;
 			} catch {}
+			// F12.101: reflect the ENFORCING switch — the audit reports the EFFECTIVE posture, never "open" for a class
+			// the profile hard-closes at its gate.
+			const airGapped = isAirGappedMode();
 			const posture = assessAirGapPosture({
-				webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
-				autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE),
-				configuredMcpServers,
+				webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1" && !airGapped,
+				autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE) && !airGapped,
+				configuredMcpServers: airGapped ? 0 : configuredMcpServers,
 				providerBaseUrl,
 			});
 			const receipts = await readEgressReceipts().catch(() => []);

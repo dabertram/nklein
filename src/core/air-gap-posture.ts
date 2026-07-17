@@ -77,3 +77,13 @@ export function assessAirGapPosture(input: AirGapPostureInput): AirGapPosture {
 				: `NOT air-gapped: ${openClasses.length} class(es) open — ${openClasses.map((status) => status.egressClass).join(", ")}.`,
 	};
 }
+
+/**
+ * The ENFORCING air-gap switch (F12.101): `NKLEIN_AIR_GAPPED=1` hard-closes every !Klein-controlled egress class
+ * regardless of the individual flags — web research is refused even with KANBAN_ENABLE_WEB_RESEARCH=1, auto-update
+ * is suppressed, and non-curated MCP servers are not offered. One switch, checked AT each gate (fail-closed there,
+ * not here), auditable via `dev air-gap-status`.
+ */
+export function isAirGappedMode(env: Record<string, string | undefined> = process.env): boolean {
+	return env.NKLEIN_AIR_GAPPED === "1" || /^(true|on)$/i.test(env.NKLEIN_AIR_GAPPED ?? "");
+}

@@ -2725,8 +2725,12 @@ into the existing F12.31. Same verify-before-build caveat.**
   **AUDIT SLICE SHIPPED 2026-07-17:** `air-gap-posture.ts` (pure per-egress-class OPEN/closed assessment over the
   trust-center inventory: web_research flag, auto-update env, configured MCP servers, provider base-URL locality —
   a NON-local inference endpoint is flagged loudly) + `dev air-gap-status [--json]`. LIVE on this machine: 3 classes
-  closed, auto_update open ⇒ "NOT air-gapped: 1 class open" — one env var from a closed posture. 3 tests. REMAINING:
-  the one-switch hard-off PROFILE (enforce, not just audit) + signed self-attestation. (EU AI Act; air-gapped LLM demand)
+  closed, auto_update open ⇒ "NOT air-gapped: 1 class open" — one env var from a closed posture. 4 tests. **ENFORCING PROFILE
+  SHIPPED 2026-07-17:** `NKLEIN_AIR_GAPPED=1` (isAirGappedMode) hard-closes every !Klein-controlled class AT its gate —
+  web_research refused even when its enable flag is set (session-runtime), update checks suppressed (update.ts), user
+  MCP servers not offered (settings service; disk config untouched) — and BOTH posture consumers (dev CLI + the Trust
+  Panel's getTrustPosture) report the EFFECTIVE posture. LIVE-VERIFIED: profile ON ⇒ "AIR-GAPPED posture: every egress
+  class is closed." REMAINING: signed self-attestation (chain the posture into the egress-receipt log at run end). (EU AI Act; air-gapped LLM demand)
 - [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)

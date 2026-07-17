@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { readEnvWithLegacyFallback } from "../config/legacy-env";
+import { isAirGappedMode } from "../core/air-gap-posture";
 import {
 	extractDirectoryForSegmentPattern,
 	extractDirectoryForSegmentSequence,
@@ -318,6 +319,10 @@ export function detectAutoUpdateInstallation(options: {
 }
 
 function isAutoUpdateDisabled(env: NodeJS.ProcessEnv): boolean {
+	// F12.101: the enforcing air-gap switch suppresses update checks entirely.
+	if (isAirGappedMode(env)) {
+		return true;
+	}
 	if (
 		readEnvWithLegacyFallback({
 			currentName: "NKLEIN_NO_AUTO_UPDATE",

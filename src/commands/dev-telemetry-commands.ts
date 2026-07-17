@@ -1511,7 +1511,7 @@ export async function runDevEgressReceiptsCommand(options: { json?: boolean; ver
 
 /** F12.101 slice — audit the CURRENT air-gap posture per the trust-center's egress inventory. */
 export async function runDevAirGapStatusCommand(options: { json?: boolean } = {}): Promise<void> {
-	const { assessAirGapPosture } = await import("../core/air-gap-posture");
+	const { assessAirGapPosture, isAirGappedMode } = await import("../core/air-gap-posture");
 	const { readFile } = await import("node:fs/promises");
 	const { homedir } = await import("node:os");
 	const { join } = await import("node:path");
@@ -1531,10 +1531,13 @@ export async function runDevAirGapStatusCommand(options: { json?: boolean } = {}
 	} catch {
 		providerBaseUrl = null;
 	}
+	// F12.101: the ENFORCING switch closes the !Klein-controlled classes at their gates — the audit reflects
+	// the effective posture, not the raw flags, so it can never claim "open" for an enforced-closed class.
+	const airGapped = isAirGappedMode();
 	const posture = assessAirGapPosture({
-		webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
-		autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE),
-		configuredMcpServers,
+		webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1" && !airGapped,
+		autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE) && !airGapped,
+		configuredMcpServers: airGapped ? 0 : configuredMcpServers,
 		providerBaseUrl,
 	});
 	if (options.json) {

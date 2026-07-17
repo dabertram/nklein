@@ -19,6 +19,7 @@ export {
 
 import { resolveOutwardFanoutCap } from "../core/action-fanout-cap";
 import { buildRetrievalEvent } from "../core/agent-attempt-ledger";
+import { isAirGappedMode } from "../core/air-gap-posture";
 import {
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 	type RuntimeTaskImage,
@@ -317,7 +318,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(mcpToolBundle?.tools ?? []),
 			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
 			...createWebResearchTool({
-				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+				// F12.101: the enforcing air-gap switch hard-closes web research regardless of the enable flag.
+				enabled:
+					CLOUD_ENABLED &&
+					useHostWorkspaceTools &&
+					process.env.KANBAN_ENABLE_WEB_RESEARCH === "1" &&
+					!isAirGappedMode(),
 			}),
 			// Planning/Refinement → In Progress promotion (todo §5.B). Trusted control-plane board mutation, so it
 			// resolves against the host workspace root like the decomposition tools. Attached only when the service

@@ -36,3 +36,14 @@ describe("assessAirGapPosture", () => {
 		expect(posture.classes.find((s) => s.egressClass === "model_inference")?.open).toBe(false);
 	});
 });
+
+describe("isAirGappedMode (the enforcing switch)", () => {
+	it("recognizes 1/true/on and nothing else", async () => {
+		const { isAirGappedMode } = await import("../../../src/core/air-gap-posture");
+		expect(isAirGappedMode({ NKLEIN_AIR_GAPPED: "1" })).toBe(true);
+		expect(isAirGappedMode({ NKLEIN_AIR_GAPPED: "true" })).toBe(true);
+		expect(isAirGappedMode({ NKLEIN_AIR_GAPPED: "on" })).toBe(true);
+		expect(isAirGappedMode({ NKLEIN_AIR_GAPPED: "0" })).toBe(false);
+		expect(isAirGappedMode({})).toBe(false);
+	});
+});

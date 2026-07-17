@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
+import { isAirGappedMode } from "../core/air-gap-posture";
 
 import type { RuntimeNKleinMcpServer, RuntimeNKleinMcpSettingsResponse } from "../core/api-contract";
 import { lockedFileSystem } from "../fs/locked-file-system";
@@ -157,9 +158,11 @@ export function createNKleinMcpSettingsService(): NKleinMcpSettingsService {
 	return {
 		loadSettings(): RuntimeNKleinMcpSettingsResponse {
 			const path = resolveMcpSettingsPath();
+			// F12.101: the enforcing air-gap switch stops OFFERING user-configured MCP servers (each is an egress/
+			// ingress channel); the curated offline sandbox set is unaffected (--network none). Settings stay on disk.
 			return {
 				path,
-				servers: parseSettingsFile(path),
+				servers: isAirGappedMode() ? [] : parseSettingsFile(path),
 			};
 		},
 
