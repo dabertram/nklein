@@ -23,6 +23,10 @@ const MODEL_SIDE_ERROR_PATTERNS: readonly RegExp[] = [
 	/econnrefused|socket hang up|fetch failed|network/i,
 	/no scorable|empty (completion|content|response)/i,
 	/is not currently loaded/i,
+	// !Klein's own curated wrap of a mid-run model loss ("Local model … became unavailable mid-run (crashed or
+	// unloaded …)") — the service rewrites raw provider errors, so the wrapped TEXT is what reaches the summary
+	// (live-found 2026-07-17 during failover validation: the induced mid-run unload didn't match the raw patterns).
+	/became unavailable mid-run|crashed or unloaded/i,
 ];
 
 /** True when the error text implicates the model/engine pairing rather than the task, sandbox, or user. */

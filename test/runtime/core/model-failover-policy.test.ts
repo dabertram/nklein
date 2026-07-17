@@ -10,6 +10,14 @@ describe("isModelSideError", () => {
 		expect(isModelSideError("fetch failed: ECONNREFUSED 127.0.0.1:1234")).toBe(true);
 	});
 
+	it("classifies !Klein's curated mid-run model-loss wrap as model-side (live-found: the raw patterns missed it)", () => {
+		expect(
+			isModelSideError(
+				'Local model "google/gemma-4-31b-qat" on its endpoint became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure…). Reload the model in your local host, or pick a smaller model.',
+			),
+		).toBe(true);
+	});
+
 	it("refuses task/sandbox/user-scoped errors (failover would just repeat them)", () => {
 		expect(isModelSideError("Could not start Docker agent sandbox: bind source path does not exist")).toBe(false);
 		expect(isModelSideError("Task canceled by user")).toBe(false);
