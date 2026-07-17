@@ -2495,8 +2495,10 @@ output and NOT acted on. Captured as F12.12.)
   from card A's LEDGERED facts (completed focus-chain steps, files touched, the reviewer feedback that SHAPED the
   accepted result — flagged still-binding) with capped lists + honest remainders; empty facts render null (no
   boilerplate); a `workerNotes` slot takes the fleet-enriched model summary when available. 3 tests.
-  REMAINING (activation): compose at dependent-card START (facts from focus-chain summary + card-action-trail files
-  + card.review.lastFeedback of each completed blocker) and ride the start prompt; the model-written notes half is
+  REMAINING (activation — SEAM SCOUTED 2026-07-17): compose in the START HANDLER (start-task-session.ts — it holds
+  board access; the service's buildNKleinStartPromptParts at ~1437 only sees request.prompt): for each COMPLETED
+  blocker of the starting card, gather title + focusChain completed steps + review.lastFeedback +
+  filesLikelyTouched, buildDecisionHandoff each, prepend the briefs to request.prompt. Model-written notes half is
   fleet-gated.
 - [ ] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
   (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
