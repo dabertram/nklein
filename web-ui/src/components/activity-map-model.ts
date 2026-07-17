@@ -84,6 +84,11 @@ function bubbleStateFor(
 	if (session?.state === "running" || session?.state === "queued") {
 		return "running";
 	}
+	// F12.52: a parked/escalated review card needs the OPERATOR — it must read gold ("waiting / held"),
+	// never blend into ordinary purple in-review (the overview previously hid the one signal that matters).
+	if (card.review?.status === "parked" || card.review?.escalated === true) {
+		return "waiting";
+	}
 	if (columnId === "review") {
 		return "review";
 	}

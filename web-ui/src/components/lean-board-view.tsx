@@ -97,6 +97,9 @@ export function LeanBoardView({
 							{cards.map((card) => {
 								const session = sessions[card.id];
 								const live = session?.state === "running";
+								// F12.52 in lean: a parked/escalated card needs the OPERATOR — even the minimal view
+								// must let "what needs me" scan by tint, or the lean board hides the one signal that matters.
+								const needsOperator = card.review?.status === "parked" || card.review?.escalated === true;
 								return (
 									<button
 										key={card.id}
@@ -104,10 +107,15 @@ export function LeanBoardView({
 										onClick={() => onSelectCard(card.id)}
 										className={cn(
 											"mb-2 w-full rounded-md border bg-surface-2 px-2.5 py-2 text-left text-[12.5px] font-medium text-text-primary hover:bg-surface-3",
-											live ? "border-accent/45" : "border-border",
+											live ? "border-accent/45" : needsOperator ? "border-status-gold/50" : "border-border",
 										)}
 									>
 										{card.title}
+										{needsOperator && !live ? (
+											<span className="mt-1 block text-[10.5px] font-normal text-status-gold">
+												needs you
+											</span>
+										) : null}
 										{live ? (
 											<span className="mt-1 block text-[10.5px] font-normal text-accent">
 												{session?.modelId ? shortenModelIdForBadge(session.modelId) : "running"} ·{" "}
