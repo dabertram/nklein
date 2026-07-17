@@ -2141,6 +2141,14 @@ stays fast + complete.
   drain through aimock with 0 unmatched" invariant as the completeness check; (d) use aimock to reproduce + regression-lock
   any real-model failure found in F11.3. Goal: real-model runs prove capability, aimock replays prove it *stays* working —
   cheaply and in CI.
+  **(c) SWEEP RUNNER SHIPPED 2026-07-17:** `scripts/verify-all-simulated-flows.sh [first] [last]` — sequential
+  perfect+flaky drains of every scenario set with per-run isolated HOME and PER-RUN PORTS (the harness's fixed :3986
+  default is the stale-server trap — a lingering runtime gets "already running"-reused and reads unreachable).
+  Five drains validated same-day (scenarios 02 perfect+flaky, test-driven-mode flaky, eval-rail 07, pools fan-out —
+  all PASS; they deterministically closed the mechanism halves of F1.34b/F1.31b/F1.32b/F1.35b/G6.2/G6.9/G6.13).
+  ⚠ OPERATIONAL GOTCHA (live-found): the sim runtime's per-host CAPACITY view consults the REAL LM Studio gateway —
+  with real models loaded+busy (a parallel fleet eval) every sim turn queues on "host at its concurrent-session cap"
+  and the drain times out undrained. Run the sweep with the gateway IDLE (or sequence it after fleet work).
 
 ### Phase 12 — research-derived capability improvements (David's deep-research mandate, 2026-07-17)
 
