@@ -59,6 +59,7 @@ import {
 	runDevGoldenSetCommand,
 	runDevKnowledgeOutcomesCommand,
 	runDevLedgerCommand,
+	runDevMastModesCommand,
 	runDevMemoryAuditCommand,
 	runDevMemoryLifecycleCommand,
 	runDevModelRoleStabilityCommand,
@@ -967,6 +968,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--cap <tokens>", "Soft token cap per card — annotates within/approaching/over.", Number.parseInt)
 		.action(async (options: { json?: boolean; workspace?: string; cap?: number }) => {
 			await runDevCardEffortCommand(options);
+		});
+
+	dev.command("mast-modes")
+		.description("MAST failure-mode distribution per model (F12.39) over the attempt ledger, with remedy hints.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevMastModesCommand(options);
 		});
 
 	dev.command("cost-per-resolve")

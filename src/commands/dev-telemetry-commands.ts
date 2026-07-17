@@ -1455,6 +1455,37 @@ export async function runDevTrajectoryQualityCommand(options: { json?: boolean }
  * F12.48 — per-(model, role) cost-per-resolve + the Pareto frontier over the persisted attempt ledger. Cost only
  * means something divided by delivered outcomes; the frontier names the models NOT dominated per role.
  */
+/** F12.39: MAST failure-mode distribution per model over the attempt ledger — fix specs vs coordination vs verification. */
+export async function runDevMastModesCommand(options: { json?: boolean } = {}): Promise<void> {
+	const { rollupMastDistribution, mastRemedyHint } = await import("../core/mast-failure-modes");
+	const { selectAttempts } = await import("../core/agent-attempt-ledger");
+	const events = await readAllAgentLedger();
+	const rows = rollupMastDistribution(selectAttempts(events));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ rows }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`MAST failure modes (F12.39) — ${rows.length} model(s) with failed attempts\n\n`);
+	if (rows.length === 0) {
+		process.stdout.write("(no failed attempts in the ledger yet)\n");
+		return;
+	}
+	for (const row of rows.slice(0, 24)) {
+		const modes = Object.entries(row.byMode)
+			.filter(([, count]) => count > 0)
+			.map(([mode, count]) => `${mode}:${count}`)
+			.join("  ");
+		process.stdout.write(`${row.modelId}\n  ${row.failedAttempts} failed — ${modes}\n`);
+		if (row.dominantMode) {
+			process.stdout.write(`  → ${mastRemedyHint(row.dominantMode)}\n`);
+		}
+	}
+	process.stdout.write(
+		"\nHonesty note: tags come only from RECORDED evidence (outcome kinds, tool-call shapes); ignored-input\n" +
+			"needs conversation-grain evidence the ledger does not carry, so it is never claimed.\n",
+	);
+}
+
 export async function runDevCostPerResolveCommand(options: { json?: boolean } = {}): Promise<void> {
 	const { computeCostPerResolve, paretoFrontierOf } = await import("../core/cost-per-resolve");
 	const events = await readAllAgentLedger();

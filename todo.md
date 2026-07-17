@@ -2540,10 +2540,17 @@ output and NOT acted on. Captured as F12.12.)
   best-effort, a board-read failure never blocks a start. Model-written `workerNotes` half stays fleet-gated.
   Wiring this exposed + fixed an INVERTED edge read in F12.51's `openDependencyBlockers` (live-agent-state.ts
   flagged upstream cards as blocked by their dependents; canonical direction per task-board-mutations doc).
-- [ ] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
+- [~] **F12.39 — MAST failure-mode tagging on the ledger.** Classify each failed attempt into a small subset of MAST modes
   (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
   distribution in the Model-Performance UI — turns the ledger into a diagnostic that says whether to fix specs, coordination,
   or verification (the paper's lesson: orchestration fixes beat bigger models — role specs +9.4%, objective verification +15.6%). (MAST 2503.13657)
+  **CORE + CLI SHIPPED 2026-07-17:** `mast-failure-modes.ts` — evidence-honest mapping (loop→lost_history,
+  narrated→disobey_role, malformed/qualityOk:false→disobey_spec, no_tool_call/zero-work-abort→premature_termination,
+  wrote-without-verify→incomplete_verification; timeout/mid-work-abort→`environment`, rest→`unclassified` — counted,
+  never guessed; `ignored-input` needs conversation-grain evidence so it is NEVER claimed) + per-model rollup with
+  dominant-witnessed-mode + MAST remedy hints; `dev mast-modes [--json]`. LIVE on the real ledger: qwopus-9b +
+  qwen2.5.1-7b both dominate on disobey_spec ⇒ "tighten the spec" is the data-backed remedy. 4 tests.
+  REMAINING: the Model-Performance web-UI panel (David-gated UI surface).
 - [~] **F12.40 — Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
   enforced at the runtime that STOPS (not just alerts) — documented multi-agent runaways: $47k/11-day, 1.67B tokens/5h.
   Essential for unattended local overnight runs. (getunblocked auto-loop-tax; relayplane runaway-costs)
