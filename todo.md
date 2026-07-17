@@ -2441,10 +2441,17 @@ output and NOT acted on. Captured as F12.12.)
   model 42% (corpus lacks the newer sweep models) — the alert works. Also fixed --promote on a missing test/fixtures dir.
   REMAINING: the eval-runner replay hook — gated on per-case aimock recordings existing (F11.4 records new attempts;
   historical corpus cases have no recording to replay). (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
-- [ ] **F12.50 — LLM-judge calibration + bias harness.** !Klein's review/gate judges are uncalibrated; raw agreement inflates
+- [~] **F12.50 — LLM-judge calibration + bias harness.** !Klein's review/gate judges are uncalibrated; raw agreement inflates
   under pass-heavy imbalance + self-enhancement bias matters when local models judge peers. Build a small human-labeled gold
   set; report judge↔human Cohen's kappa + position/verbosity/self-enhancement bias probes; optional 3-small-model jury (PoLL)
-  with disagreement flagged for human review (but note correlated-error ceiling across same-family judges). (galileo judge-calibration; PoLL)
+  with disagreement flagged for human review (but note correlated-error ceiling across same-family judges).
+  **HARNESS MATH SHIPPED 2026-07-17:** `judge-calibration.ts` — `cohenKappa` (chance-corrected, exposes pass-heavy
+  inflation, degenerate-marginal honesty), `probePositionBias` (swapped-order pairs, >25% order-tracking flags),
+  `probeVerbosityBias` (point-biserial verdict↔length, |r|>0.3 flags), `probeSelfEnhancement` (own- vs other-family
+  pass-rate gap >15pt flags), `aggregateJury` (PoLL majority + dissent→human-review + same-family correlated-error
+  warning). 7 tests. REMAINING (activation, David-gated data): the human-labeled gold set (~30 review cases labeled
+  pass/fail by David) — then a `dev judge-calibration` mount joining gold labels against ledgered judge verdicts;
+  swapped-order + cross-family probe RUNS are fleet operations. (galileo judge-calibration; PoLL)
 
 **Board UX & human-in-the-loop (parallel-agent supervision — feeds Phase 8):**
 - [ ] **F12.51 — Differentiated agent-state taxonomy + stuck detection.** AMBIGUOUS state is the #1 parallel-agent UI failure
