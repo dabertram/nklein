@@ -94,6 +94,7 @@ import {
 	resolveTaskKnowledgeDebtPresent,
 } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
+import { forgetLiveTaskUsage, getLiveTaskUsage, sumLiveUsageTokens } from "./nklein-live-usage-registry";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
 	createMergeResolutionRunner,
@@ -605,6 +606,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			isTaskPaused: (taskId) => this.pauseController.isPaused(taskId),
 			parkTaskForPause: (input) => this.parkController.parkTaskForPause(input),
 			parkTaskForAutonomyBudget: (input) => this.parkController.parkTaskForAutonomyBudget(input),
+			// F12.40 (record-only): live cumulative spend from the registry the context-focus extension stamps.
+			getLiveUsageSignals: (taskId) => {
+				const live = getLiveTaskUsage(taskId);
+				return live
+					? { cardTokens: live.inputTokens + live.outputTokens, boardTokens: sumLiveUsageTokens() }
+					: null;
+			},
+			onRunawayBudgetSignal: ({ taskId, entry, verdict, signals }) => {
+				recordSelfObservation({
+					signal: "budget_wall",
+					severity: "warning",
+					message: `Runaway-budget breaker (record-only): ${verdict.reason}`,
+					taskId,
+					workspacePath: entry.summary.workspacePath,
+					metadata: {
+						category: "runaway_budget",
+						tripped: verdict.tripped,
+						cardTokens: signals.cardTokens,
+						cardTurns: signals.cardTurns,
+						boardTokens: signals.boardTokens,
+						// Honest basis label: run-cumulative SDK usage (context re-reads count), live runs only.
+						basis: "live_run_cumulative_sdk_usage",
+					},
+				});
+			},
 		};
 	}
 
@@ -2341,6 +2367,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// Review-found: a stale round-N prediction/compaction request surviving into round N+1 pollutes the very
 		// divergence measurement F12.96's observe-first rollout depends on — forget them with the other per-task state.
 		forgetPredictedOutput(taskId);
+		forgetLiveTaskUsage(taskId);
 		forgetCompactionRequest(taskId);
 	}
 
@@ -2360,6 +2387,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.clearTaskTimeouts(taskId);
 		this.timeoutController.deleteSettings(taskId);
 		forgetPredictedOutput(taskId);
+		forgetLiveTaskUsage(taskId);
 		forgetCompactionRequest(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);

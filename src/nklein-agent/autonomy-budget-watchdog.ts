@@ -34,6 +34,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { assessRunawayBudget, type RunawayBudgetSignals, type RunawayBudgetVerdict } from "../core/runaway-budget-stop";
 import { normalizeFinalAnswer } from "./nklein-response-loop-detection";
 import type { NKleinTaskSessionEntry } from "./nklein-session-state";
 import { now } from "./nklein-session-state";
@@ -122,6 +123,22 @@ export interface AutonomyBudgetWatchdogCallbacks {
 		message: string;
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary;
+	/**
+	 * F12.40 (record-only): the card's LIVE run-cumulative token spend + the board-wide live total, from the
+	 * live-usage registry; null before the first model call (or when the registry is unwired in a fake).
+	 */
+	getLiveUsageSignals?(taskId: string): { cardTokens: number; boardTokens: number } | null;
+	/**
+	 * F12.40 (record-only): sink for a tripped runaway-budget verdict. The breaker OBSERVES here — the SDK's
+	 * cumulative-input basis is several times larger than the F12.58 card-effort metric the default caps were
+	 * calibrated on, so the park flip is data-gated on what this records.
+	 */
+	onRunawayBudgetSignal?(input: {
+		taskId: string;
+		entry: NKleinTaskSessionEntry;
+		verdict: RunawayBudgetVerdict;
+		signals: RunawayBudgetSignals;
+	}): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +153,8 @@ export interface AutonomyBudgetWatchdogCallbacks {
 export class AutonomyBudgetWatchdog {
 	private readonly noDiffCheckpointByTaskId = new Map<string, NKleinTaskNoDiffState>();
 	private readonly repeatedFinalAnswerByTaskId = new Map<string, NKleinTaskRepeatedFinalAnswerState>();
+	/** F12.40: tasks whose runaway-budget trip was already recorded this run (one observation per task per run). */
+	private readonly runawayFlaggedTaskIds = new Set<string>();
 
 	constructor(private readonly callbacks: AutonomyBudgetWatchdogCallbacks) {}
 
@@ -253,6 +272,29 @@ export class AutonomyBudgetWatchdog {
 			});
 		}
 
+		// 6. F12.40 runaway-budget breaker — RECORD-ONLY. Consulted last so a real park always wins the turn; a
+		//    tripped ceiling records one observation per task per run instead of parking (the cumulative-usage
+		//    basis needs live calibration before the caps can be trusted to stop healthy work).
+		if (
+			this.callbacks.getLiveUsageSignals &&
+			this.callbacks.onRunawayBudgetSignal &&
+			!this.runawayFlaggedTaskIds.has(taskId)
+		) {
+			const live = this.callbacks.getLiveUsageSignals(taskId);
+			if (live) {
+				const signals: RunawayBudgetSignals = {
+					cardTokens: live.cardTokens,
+					cardTurns: checkpoint.turn,
+					boardTokens: live.boardTokens,
+				};
+				const verdict = assessRunawayBudget(signals);
+				if (verdict.stop) {
+					this.runawayFlaggedTaskIds.add(taskId);
+					this.callbacks.onRunawayBudgetSignal({ taskId, entry, verdict, signals });
+				}
+			}
+		}
+
 		return null;
 	}
 
@@ -263,6 +305,7 @@ export class AutonomyBudgetWatchdog {
 	resetTask(taskId: string): void {
 		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.repeatedFinalAnswerByTaskId.delete(taskId);
+		this.runawayFlaggedTaskIds.delete(taskId);
 	}
 
 	/**
@@ -271,6 +314,7 @@ export class AutonomyBudgetWatchdog {
 	dispose(): void {
 		this.noDiffCheckpointByTaskId.clear();
 		this.repeatedFinalAnswerByTaskId.clear();
+		this.runawayFlaggedTaskIds.clear();
 	}
 
 	// ---------------------------------------------------------------------------

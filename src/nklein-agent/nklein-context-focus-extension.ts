@@ -18,6 +18,7 @@ import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
 import { focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
 import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
 import { getNKleinLargeFileWorkflow } from "./nklein-large-file-workflow";
+import { forgetLiveTaskUsage, recordLiveTaskUsage } from "./nklein-live-usage-registry";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
 import { buildNKleinRepoMap, type RepoMapFactsCacheEntry } from "./nklein-repo-map";
 import {
@@ -181,6 +182,16 @@ export function createKanbanContextFocusExtension(
 		},
 		hooks: {
 			async beforeModel(context) {
+				// F12.40: stamp the SDK's run-cumulative usage into the live registry (one Map write per model call)
+				// so the autonomy-budget watchdog can see what a RUNNING card has spent — the summary only learns
+				// usage at run end. Defensive: odd runtimes/fakes may omit the snapshot.
+				const snapshotUsage = context.snapshot?.usage;
+				if (snapshotUsage && typeof snapshotUsage.inputTokens === "number") {
+					recordLiveTaskUsage(sessionId, {
+						inputTokens: snapshotUsage.inputTokens,
+						outputTokens: snapshotUsage.outputTokens,
+					});
+				}
 				const result = await appendRepoMapBeforeModel(
 					context,
 					agentPerceivedCwd,
@@ -443,6 +454,7 @@ export function forgetSessionFocusState(sessionId: string): void {
 	progressStallFlaggedSessionIds.delete(sessionId);
 	readPathsBySessionId.delete(sessionId);
 	ungroundedWriteFlaggedBySessionId.delete(sessionId);
+	forgetLiveTaskUsage(sessionId);
 	focusChainBySessionId.delete(sessionId);
 	goalReanchorLastTurnBySessionId.delete(sessionId);
 }

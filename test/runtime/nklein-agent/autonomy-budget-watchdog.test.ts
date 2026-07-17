@@ -203,4 +203,38 @@ describe("AutonomyBudgetWatchdog.check", () => {
 		expect(vi.mocked(callbacks.parkTaskForAutonomyBudget).mock.calls[0]?.[0].message).toContain("wall time");
 		expect(result?.reviewReason).toBe("attention");
 	});
+
+	it("F12.40: a tripped runaway budget RECORDS once per task per run and never parks; resetTask re-arms", () => {
+		const onRunawayBudgetSignal = vi.fn();
+		const callbacks = makeCallbacks({
+			getLiveUsageSignals: vi.fn(() => ({ cardTokens: 600_000, boardTokens: 600_000 })),
+			onRunawayBudgetSignal,
+		});
+		const watchdog = new AutonomyBudgetWatchdog(callbacks);
+		// Distinct commits so the no-diff guard never engages; turn stays under the max-turns guardrail.
+		expect(watchdog.check("t1", checkpoint({ turn: 2, commit: "c-a" }), entry())).toBeNull();
+		expect(onRunawayBudgetSignal).toHaveBeenCalledOnce();
+		const fired = onRunawayBudgetSignal.mock.calls[0]?.[0];
+		expect(fired.verdict.tripped).toBe("card_tokens");
+		expect(fired.signals).toEqual({ cardTokens: 600_000, cardTurns: 2, boardTokens: 600_000 });
+		expect(callbacks.parkTaskForAutonomyBudget).not.toHaveBeenCalled();
+		// Same run: no re-fire. After resetTask (new run): fires again.
+		expect(watchdog.check("t1", checkpoint({ turn: 3, commit: "c-b" }), entry())).toBeNull();
+		expect(onRunawayBudgetSignal).toHaveBeenCalledOnce();
+		watchdog.resetTask("t1");
+		expect(watchdog.check("t1", checkpoint({ turn: 2, commit: "c-c" }), entry())).toBeNull();
+		expect(onRunawayBudgetSignal).toHaveBeenCalledTimes(2);
+	});
+
+	it("F12.40: healthy spend below every cap records nothing (and absent callbacks stay inert)", () => {
+		const onRunawayBudgetSignal = vi.fn();
+		const callbacks = makeCallbacks({
+			getLiveUsageSignals: vi.fn(() => ({ cardTokens: 40_000, boardTokens: 90_000 })),
+			onRunawayBudgetSignal,
+		});
+		expect(new AutonomyBudgetWatchdog(callbacks).check("t1", checkpoint({ turn: 2 }), entry())).toBeNull();
+		expect(onRunawayBudgetSignal).not.toHaveBeenCalled();
+		// No registry wired (default fake): the consult is skipped entirely.
+		expect(new AutonomyBudgetWatchdog(makeCallbacks()).check("t1", checkpoint({ turn: 2 }), entry())).toBeNull();
+	});
 });
