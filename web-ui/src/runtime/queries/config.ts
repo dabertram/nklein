@@ -25,6 +25,7 @@ import type {
 	RuntimeRunUpdateResponse,
 	RuntimeSetupPlanResponse,
 	RuntimeTimeTrackingResponse,
+	RuntimeTrustPostureResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
 
@@ -66,6 +67,12 @@ export async function fetchFitnessTable(workspaceId: string | null): Promise<Run
 export async function fetchLedgerAnalytics(workspaceId: string | null): Promise<RuntimeLedgerAnalyticsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getLedgerAnalytics.query();
+}
+
+/** F12.98 Trust & Privacy: live egress posture + receipt-chain verification (read-only). */
+export async function fetchTrustPosture(workspaceId: string | null): Promise<RuntimeTrustPostureResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTrustPosture.query();
 }
 
 /** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes (read-only telemetry). */

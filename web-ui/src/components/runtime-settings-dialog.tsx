@@ -125,6 +125,7 @@ import {
 } from "./runtime-settings-dialog-rows";
 import { SettingsNav, type SettingsNavId } from "./settings-nav";
 import { ShortcutIconPicker } from "./shortcut-icon-picker";
+import { TrustPosturePanel } from "./trust-posture-panel";
 
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [
 	{ value: "commit", label: "Commit" },
@@ -176,6 +177,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	{ id: "code-intelligence", label: "Code Intelligence", icon: <Braces size={16} /> },
 	{ id: "git-prompts", label: "Git", icon: <GitCommit size={16} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
+	{ id: "trust", label: "Trust & Privacy", icon: <ShieldCheck size={16} /> },
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
 	{ id: "project", label: "Project", icon: <FolderOpen size={16} /> },
 ];
@@ -3133,6 +3135,20 @@ export function RuntimeSettingsDialog({
 								/>{" "}
 								to reference {TASK_GIT_BASE_REF_PROMPT_VARIABLE.description}
 							</p>
+						</div>
+
+						{/* ---- Trust & Privacy (F12.98, read-only) ---- */}
+						<div data-settings-section="trust" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<div className="flex items-center gap-2">
+								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+									<ShieldCheck size={16} className="text-text-secondary" />
+									Trust & Privacy
+								</h2>
+							</div>
+						</div>
+						<div className="mb-4">
+							<TrustPosturePanel workspaceId={workspaceId} />
 						</div>
 
 						{/* ---- Notifications ---- */}

@@ -14,6 +14,7 @@ export type SettingsNavId =
 	| "code-intelligence"
 	| "git-prompts"
 	| "notifications"
+	| "trust"
 	| "appearance"
 	| "project";
 

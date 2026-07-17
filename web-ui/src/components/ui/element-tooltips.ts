@@ -188,6 +188,11 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Notifications",
 		description: "Desktop notifications for review-ready and attention-needed cards.",
 	},
+	"settings-nav.trust": {
+		name: "Trust & Privacy",
+		description:
+			"Live egress posture per class + the hash-chained egress-receipt audit — what the architecture enforces right now.",
+	},
 	"settings-nav.appearance": {
 		name: "Appearance",
 		description: "Theme and visual preferences for the board and chat.",
