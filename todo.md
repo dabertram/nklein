@@ -2585,10 +2585,15 @@ verify-before-build caveat: confirm each against current code before implementin
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
   existing review-lens system; fleet/RAM-gated. Pairs with F12.87 (deterministic gate first, VLM for the subjective residue). (Qwen3-VL local)
-- [ ] **F12.89 — Framework-convention + version-awareness preamble.** At card start, detect framework+version (React 18/19,
+- [~] **F12.89 — Framework-convention + version-awareness preamble.** At card start, detect framework+version (React 18/19,
   Vue 3.x, Angular) and inject convention rules ("use components, not raw markup"; correct API surface) + verify each imported
   symbol actually exists in the INSTALLED dep version. Rationale: MLLMs write idiomatic components <5% of the time and
-  hallucinate outdated/nonexistent APIs; Vue/Angular are underserved vs React (~4× less training data). (DesignBench; React-19-vs-Vue-3.6 drift)
+  hallucinate outdated/nonexistent APIs; Vue/Angular are underserved vs React (~4× less training data). **CORE BUILT
+  2026-07-17:** `frontend-framework-preamble.ts` — `detectFrontendFramework(deps)` (react/vue/angular/svelte + major,
+  priority-ordered so a stray devtool doesn't misclassify) + `buildFrameworkPreamble` (TERSE ≤5 lines: component rule,
+  installed-version import rule, one version-scoped block — React 19 vs ≤18 APIs differ; respects the F12.79 budget +
+  F12.80 positive phrasing). 8 tests. REMAINING: read the workspace package.json at card start + inject for UI-touching
+  cards (the prompt-assembly seam). (DesignBench; React-19-vs-Vue-3.6 drift)
 - [ ] **F12.90 — Multi-language dev-test scenario expansion.** Add Go, Rust, Java, and a Vue/Angular-frontend scenario to the
   dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
   F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate
