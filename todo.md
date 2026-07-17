@@ -2432,8 +2432,10 @@ output and NOT acted on. Captured as F12.12.)
   early-warning system. Composes with F11.4 aimock replay. **MINER CORE BUILT 2026-07-17:**
   `golden-set-miner.ts` — `mineGoldenSetCandidates(events)` selects real FAILURES + F12.42-classified LUCKY WINS
   (disciplined passes skipped), dedupes one slot per task with failure outranking lucky (order-independent), capped
-  for human curation. 4 tests. REMAINING: the versioned corpus format + promote/prune flow + the eval-runner replay
-  hook + the drift alert. (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
+  for human curation. 4 tests. **CURATION CLI SHIPPED:** `dev golden-set [--json|--promote <taskId>]` — lists mined
+  candidates against the repo-versioned corpus (`test/fixtures/golden-set.json`, created on first promote); explicit
+  --promote per case keeps curation human. LIVE: 43 candidates mined from the real ledger. REMAINING: the eval-runner
+  replay hook (corpus cases re-run on scaffolding changes, aimock-backed per F11.4) + the drift alert. (galileo beyond-golden-datasets; Causal-Agent-Replay 2606.08275)
 - [ ] **F12.50 — LLM-judge calibration + bias harness.** !Klein's review/gate judges are uncalibrated; raw agreement inflates
   under pass-heavy imbalance + self-enhancement bias matters when local models judge peers. Build a small human-labeled gold
   set; report judge↔human Cohen's kappa + position/verbosity/self-enhancement bias probes; optional 3-small-model jury (PoLL)

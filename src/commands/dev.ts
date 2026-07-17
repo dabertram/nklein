@@ -54,6 +54,7 @@ import {
 	runDevEvalFreshnessCommand,
 	runDevEvidenceCurrencyCommand,
 	runDevFleetAdviceCommand,
+	runDevGoldenSetCommand,
 	runDevKnowledgeOutcomesCommand,
 	runDevLedgerCommand,
 	runDevMemoryAuditCommand,
@@ -920,6 +921,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("golden-set")
+		.description(
+			"List ledger-mined regression-corpus candidates; --promote curates one into the repo corpus (F12.49).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.option("--promote <taskId>", "Promote a reviewed candidate into test/fixtures/golden-set.json.")
+		.action(async (options: { json?: boolean; promote?: string }) => {
+			await runDevGoldenSetCommand(options);
 		});
 
 	dev.command("air-gap-status")

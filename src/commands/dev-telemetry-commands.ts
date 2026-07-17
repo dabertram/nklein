@@ -1565,3 +1565,61 @@ export async function runDevAirGapStatusCommand(options: { json?: boolean; attes
 		process.stdout.write(`  attestation appended: ${receipt.hash.slice(0, 16)}… (verify via dev egress-receipts)\n`);
 	}
 }
+
+/**
+ * F12.49 — list ledger-mined golden-set CANDIDATES (real failures + F12.42-lucky wins) and promote reviewed ones
+ * into the repo-versioned corpus (`test/fixtures/golden-set.json`). Curation stays human: nothing lands in the
+ * corpus without an explicit --promote.
+ */
+export async function runDevGoldenSetCommand(options: { json?: boolean; promote?: string } = {}): Promise<void> {
+	const { mineGoldenSetCandidates } = await import("../core/golden-set-miner");
+	const { readFile, writeFile } = await import("node:fs/promises");
+	const { join } = await import("node:path");
+	const corpusPath = join(process.cwd(), "test", "fixtures", "golden-set.json");
+	const events = await readAllAgentLedger();
+	const candidates = mineGoldenSetCandidates(events);
+	let corpus: { version: number; cases: { taskId: string; kind: string; reason: string; promotedAt: number }[] } = {
+		version: 1,
+		cases: [],
+	};
+	try {
+		corpus = JSON.parse(await readFile(corpusPath, "utf8"));
+	} catch {}
+	if (options.promote) {
+		const candidate = candidates.find((entry) => entry.taskId === options.promote);
+		if (!candidate) {
+			process.stdout.write(`No candidate with taskId ${options.promote} — run without --promote to list.\n`);
+			return;
+		}
+		if (corpus.cases.some((entry) => entry.taskId === candidate.taskId)) {
+			process.stdout.write(`${candidate.taskId} is already in the corpus (${corpus.cases.length} case(s)).\n`);
+			return;
+		}
+		corpus.cases.push({
+			taskId: candidate.taskId,
+			kind: candidate.kind,
+			reason: candidate.reason,
+			promotedAt: Date.now(),
+		});
+		await writeFile(corpusPath, `${JSON.stringify(corpus, null, "\t")}\n`, "utf8");
+		process.stdout.write(
+			`Promoted ${candidate.taskId} (${candidate.kind}) — corpus now ${corpus.cases.length} case(s) at ${corpusPath}.\n`,
+		);
+		return;
+	}
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ candidates, corpusSize: corpus.cases.length }, null, 2)}\n`);
+		return;
+	}
+	const inCorpus = new Set(corpus.cases.map((entry) => entry.taskId));
+	process.stdout.write(
+		`Golden-set candidates (F12.49) — ${candidates.length} mined, corpus has ${corpus.cases.length}\n\n`,
+	);
+	for (const candidate of candidates.slice(0, 25)) {
+		const mark = inCorpus.has(candidate.taskId) ? "✓" : " ";
+		process.stdout.write(
+			`  ${mark} [${candidate.kind === "failure" ? "FAIL " : "LUCKY"}] ${candidate.taskId.slice(0, 44).padEnd(46)} ${candidate.reason.slice(0, 70)}\n`,
+		);
+	}
+	process.stdout.write(`\n  promote with: dev golden-set --promote <taskId>  (✓ = already in the corpus)\n`);
+}
