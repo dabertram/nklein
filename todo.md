@@ -2386,8 +2386,11 @@ output and NOT acted on. Captured as F12.12.)
   **MINIMALITY CORE BUILT 2026-07-17:** `diff-minimality.ts` — `assessDiffMinimality({patch, expectedScopeFiles,
   budgets})` → minimal/acceptable/bloated/empty with the OUT-OF-SCOPE-files over-eagerness signal (touched files not in
   the card's filesLikelyTouched) + churn counts; `empty` = a valid-abstention verdict the caller confirms against
-  acceptance. 6 tests. REMAINING: wire at the delivery gate / reviewer prompt (patch + filesLikelyTouched are both at
-  that seam) + the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
+  acceptance. 6 tests. **DELIVERY-SEAM WIRE SHIPPED 2026-07-17 (record-only, observe-before-enforce):** runtime-server's
+  delivery-quality scan block now also runs `assessDiffMinimality` over the SAME delivered patch and appends a
+  `diff_minimality_scan` ledger transition on a BLOATED verdict (never blocks) — same stance as the placeholder/quality
+  scan beside it. REMAINING: thread the card's filesLikelyTouched into the seam to activate the out-of-scope signal +
+  the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
 - [ ] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on

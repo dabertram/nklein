@@ -43,6 +43,7 @@ import {
 	shouldHoldEmptyPatchResult,
 } from "../core/delivery-evidence";
 import { assessDeliveryQuality } from "../core/delivery-quality-gate";
+import { assessDiffMinimality } from "../core/diff-minimality";
 import { isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
@@ -1853,6 +1854,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										scope.workspacePath,
 										{ trimStdout: false },
 									);
+									// F12.45 diff-minimality (record-only, same observe-before-enforce stance): a BLOATED
+									// delivery (>2× the changed-lines/files budget; scope signal activates once the card's
+									// filesLikelyTouched is threaded here) is appended as ledger evidence, never a block.
+									const minimality = assessDiffMinimality({ patch });
+									if (minimality.verdict === "bloated") {
+										await appendAgentLedgerEvent(
+											buildTransitionEvent({
+												workflowId: taskId,
+												taskId,
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+												from: "review",
+												to: "diff_minimality_scan",
+												reason: minimality.reason.slice(0, 900),
+												controllerDecision: `diff_minimality:changed=${minimality.linesChanged},files=${minimality.filesTouched.length}`,
+											}),
+										).catch(() => {});
+									}
 									const qualityFiles = parseAddedLinesFromUnifiedDiff(patch);
 									if (qualityFiles.length === 0) {
 										return;
