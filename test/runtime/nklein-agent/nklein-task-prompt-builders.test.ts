@@ -93,4 +93,19 @@ describe("appendSystemPrompt", () => {
 		expect(appendSystemPrompt("BASE", null)).toBe("BASE");
 		expect(appendSystemPrompt("BASE", "   ")).toBe("BASE");
 	});
+
+	it("F12.89: appends the framework preamble to the system side; omitted/[] stays byte-identical", () => {
+		const base = buildNKleinStartPromptParts("do the thing", false, true);
+		const withEmpty = buildNKleinStartPromptParts("do the thing", false, true, null, []);
+		expect(withEmpty).toEqual(base);
+		const withPreamble = buildNKleinStartPromptParts("do the thing", false, true, null, [
+			"[frontend conventions — react 19]",
+			"Structure UI as reusable react COMPONENTS with props.",
+		]);
+		expect(withPreamble.systemPrompt).toContain(base.systemPrompt ?? "");
+		expect(withPreamble.systemPrompt).toContain("[frontend conventions — react 19]");
+		// A non-planning, non-refinable start (null base system prompt) still carries the preamble alone.
+		const bare = buildNKleinStartPromptParts("chat", false, false, null, ["[frontend conventions — vue 3]"]);
+		expect(bare.systemPrompt).toBe("[frontend conventions — vue 3]");
+	});
 });

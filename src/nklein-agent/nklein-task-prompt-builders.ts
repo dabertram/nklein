@@ -104,14 +104,25 @@ export function buildNKleinStartPromptParts(
 	startInPlanMode?: boolean,
 	isRefinableWorkCard?: boolean,
 	autoDepth?: AutoDecompositionDepthDecision | null,
+	// F12.89: workspace-stable frontend convention lines (detectFrontendFramework → buildFrameworkPreamble).
+	// Appended to the SYSTEM side so the KV-cache prefix stays stable per workspace; omitted/[] ⇒ byte-identical.
+	frameworkPreamble?: readonly string[],
 ): NKleinStartPromptParts {
+	const baseSystemPrompt = startInPlanMode
+		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth)
+		: isRefinableWorkCard
+			? buildNKleinRefinementSystemPrompt()
+			: null;
+	const preambleText = frameworkPreamble && frameworkPreamble.length > 0 ? frameworkPreamble.join("\n") : null;
+	const systemPrompt =
+		preambleText === null
+			? baseSystemPrompt
+			: baseSystemPrompt
+				? `${baseSystemPrompt}\n\n${preambleText}`
+				: preambleText;
 	return {
 		userPrompt: prompt,
-		systemPrompt: startInPlanMode
-			? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth)
-			: isRefinableWorkCard
-				? buildNKleinRefinementSystemPrompt()
-				: null,
+		systemPrompt,
 		systemWorkflowCommand: startInPlanMode ? "/kanban-decompose" : null,
 	};
 }
