@@ -172,6 +172,7 @@ import { handleLoadConfig, handleSaveConfig } from "./runtime-api/runtime-config
 import { handleGetGlobalSetupPlan, handleGetProjectSetupPlan } from "./runtime-api/setup-plan";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
+import { handleGetTaskActionTrail } from "./runtime-api/task-action-trail.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
 import {
 	handleGetNKleinSlashCommands,
@@ -988,6 +989,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		listNKleinPlanQuestions: async (workspaceScope, input) => handleListPlanQuestions(workspaceScope, input),
 		getTaskFocusChainHistory: async (workspaceScope, input) => handleGetFocusChainHistory(workspaceScope, input),
+		getTaskActionTrail: async (workspaceScope, input) => handleGetTaskActionTrail(workspaceScope, input),
 		answerNKleinPlanQuestion: async (workspaceScope, input) =>
 			handleAnswerPlanQuestion(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,

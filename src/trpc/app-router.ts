@@ -139,6 +139,8 @@ import type {
 	RuntimeSwarmStopResponse,
 	RuntimeTaskAcceptanceVerifyRequest,
 	RuntimeTaskAcceptanceVerifyResponse,
+	RuntimeTaskActionTrailRequest,
+	RuntimeTaskActionTrailResponse,
 	RuntimeTaskArtifactsDeleteRequest,
 	RuntimeTaskArtifactsDeleteResponse,
 	RuntimeTaskChatAbortRequest,
@@ -326,6 +328,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeFocusChainHistoryRequest,
 		) => Promise<RuntimeFocusChainHistoryResponse>;
+		getTaskActionTrail: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskActionTrailRequest,
+		) => Promise<RuntimeTaskActionTrailResponse>;
 		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,

@@ -3,6 +3,7 @@ import { Activity, Eye, Files, GitCompareArrows, Maximize2, MessageSquare, Minim
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { ActionTrailPanel } from "@/components/detail-panels/action-trail-panel";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { AgentWatchPanel } from "@/components/detail-panels/agent-watch-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
@@ -837,6 +838,7 @@ export function CardDetailView({
 								onUpdate={onUpdateFocusChain}
 								workspaceId={currentProjectId}
 							/>
+							<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -1025,6 +1027,7 @@ export function CardDetailView({
 									onUpdate={onUpdateFocusChain}
 									workspaceId={currentProjectId}
 								/>
+								<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

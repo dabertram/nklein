@@ -33,6 +33,33 @@ export const runtimeFocusChainHistoryResponseSchema = z.object({
 });
 export type RuntimeFocusChainHistoryResponse = z.infer<typeof runtimeFocusChainHistoryResponseSchema>;
 
+// F12.55 — the per-card plain-language action trail (projection of the attempt ledger; presentation of
+// `buildCardActionTrail`). Reversibility drives the panel's color-coding; `hypothesis` is the agent's own stated
+// intent and is ALWAYS framed as a working hypothesis, never as evidence (CoT-faithfulness).
+export const runtimeTaskActionTrailRequestSchema = z.object({
+	taskId: z.string().min(1),
+	/** Newest-tail cap; the trail is chronological and the last entries are the current story. */
+	limit: z.number().int().positive().max(500).optional(),
+});
+export type RuntimeTaskActionTrailRequest = z.infer<typeof runtimeTaskActionTrailRequestSchema>;
+
+export const runtimeTaskActionTrailEntrySchema = z.object({
+	at: z.number().nullable(),
+	kind: z.enum(["action", "retrieval", "transition", "attempt_end"]),
+	text: z.string(),
+	files: z.array(z.string()),
+	reversibility: z.enum(["read_only", "reversible", "irreversible"]),
+	hypothesis: z.string().nullable(),
+});
+export type RuntimeTaskActionTrailEntry = z.infer<typeof runtimeTaskActionTrailEntrySchema>;
+
+export const runtimeTaskActionTrailResponseSchema = z.object({
+	entries: z.array(runtimeTaskActionTrailEntrySchema),
+	/** Total entries before the tail cap — honest when the panel shows a truncated story. */
+	totalEntries: z.number().int().nonnegative(),
+});
+export type RuntimeTaskActionTrailResponse = z.infer<typeof runtimeTaskActionTrailResponseSchema>;
+
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
 	timeoutMs: z.number().int().positive().optional(),

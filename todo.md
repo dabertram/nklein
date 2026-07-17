@@ -2758,10 +2758,16 @@ output and NOT acted on. Captured as F12.12.)
   entries over the per-task ledger: file-anchored actions, retrievals with kept citations, controller transitions,
   attempt terminals; quiet read churn collapses to one "explored" line; `focusStep` rendered as "working hypothesis —
   not evidence" per CoT-faithfulness) + `classifyToolReversibility` (read_only/reversible/IRREVERSIBLE — outward verbs
-  win on unknown names) + `dev card-trail --task`. LIVE: 137-entry readable story on a real dev-test card. REMAINING:
-  the card-detail UI panel (tRPC per-task ledger slice mirroring getTaskFocusChainHistory + a timeline in
-  card-detail-view beside the existing DiffViewerPanel for the before/after anchor) — the projection is done, the
-  panel is presentation. Ledger toolCalls carry no result TEXT ("3 passed") — richer lines need a capture-time field.
+  win on unknown names) + `dev card-trail --task`. LIVE: 137-entry readable story on a real dev-test card.
+  **UI PANEL SHIPPED 2026-07-18:** `getTaskActionTrail` tRPC slice (schemas + handler over the workspace ledger,
+  newest-tail cap 120 with honest totalEntries) + `ActionTrailPanel` in card-detail-view at both mount sites
+  (collapsed-by-default; reversibility color-coding read/revertable/IRREVERSIBLE-red; hypotheses italic +
+  explicitly framed "a story to check against the diff, not evidence"; FAILED loads render distinctly from empty
+  trails — an unreachable endpoint must never read as inactivity). Browser-verified against David's LIVE runtime:
+  panel mounts, fires the correctly-shaped query (network-logged), error state renders (his long-running process
+  predates the endpoint — full data render proven by direct handler probe: 17 real entries for the same card;
+  in-browser data render activates on his next runtime restart). 2 component tests. REMAINING: richer result
+  lines need a capture-time toolCall result field (as noted).
 - [~] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)

@@ -109,6 +109,8 @@ import {
 	runtimeSwarmStopResponseSchema,
 	runtimeTaskAcceptanceVerifyRequestSchema,
 	runtimeTaskAcceptanceVerifyResponseSchema,
+	runtimeTaskActionTrailRequestSchema,
+	runtimeTaskActionTrailResponseSchema,
 	runtimeTaskChatAbortRequestSchema,
 	runtimeTaskChatAbortResponseSchema,
 	runtimeTaskChatCancelRequestSchema,
@@ -316,6 +318,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeFocusChainHistoryResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskFocusChainHistory(ctx.workspaceScope, input);
+			}),
+		getTaskActionTrail: workspaceProcedure
+			.input(runtimeTaskActionTrailRequestSchema)
+			.output(runtimeTaskActionTrailResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getTaskActionTrail(ctx.workspaceScope, input);
 			}),
 		listNKleinPlanQuestions: workspaceProcedure
 			.input(runtimeListPlanQuestionsRequestSchema)

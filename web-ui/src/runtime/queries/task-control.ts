@@ -3,6 +3,7 @@ import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeFocusChainHistoryResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
+	RuntimeTaskActionTrailResponse,
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceResponse,
 	RuntimeTaskPauseResponse,
@@ -107,4 +108,13 @@ export async function fetchTaskFocusChainHistory(
 ): Promise<RuntimeFocusChainHistoryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getTaskFocusChainHistory.query({ taskId });
+}
+
+/** F12.55 — the per-card plain-language action trail (ledger projection; presentation of buildCardActionTrail). */
+export async function fetchTaskActionTrail(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeTaskActionTrailResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTaskActionTrail.query({ taskId });
 }
