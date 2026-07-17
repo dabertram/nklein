@@ -2382,8 +2382,12 @@ output and NOT acted on. Captured as F12.12.)
   **DETECTOR CORE SHIPPED 2026-07-17:** `progress-stall-detector.ts` `assessProgressStall` — per-turn progress
   fingerprint (sorted written-files + claimed focus step + verification bit; read variety deliberately collapses);
   4 identical no-write turns = stalled→force-replan; stable fingerprint WITH writes = steady work (never alarms);
-  thin evidence = no verdict. 3 tests. Complements edit-thrash (F12.15 oscillation). REMAINING (activation): feed
-  per-turn records from the session afterTool/turn seam and route `stalled` into the existing replan/nudge path.
+  thin evidence = no verdict. 3 tests. Complements edit-thrash (F12.15 oscillation). **WIRE LIVE 2026-07-17
+  (record-only):** the context-focus extension's afterTool hook now accumulates per-CALL progress records (files
+  written from the F12.15 extractor, current focus-chain step, run_command-as-verification) and consults
+  assessProgressStall on a 12-call window (call-granular — the hook has no turn boundary); a stall records ONE
+  `progress_stall` observation per session; state torn down with the sibling maps. Routing `stalled` into the
+  FORCED-replan path stays the enforcing follow-up (a behavior change — observe first).
 - [~] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)

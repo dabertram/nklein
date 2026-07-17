@@ -11,6 +11,7 @@ import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { mergeConsecutiveSameRoleSdkMessages, type SdkShapedMessage } from "../core/normalize-system-first";
+import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
@@ -56,6 +57,12 @@ const focusChainBySessionId = new Map<string, FocusChain>();
 /** F12.15 edit-thrash watch: bounded per-session write-tool edit history + the files already flagged. */
 const EDIT_THRASH_HISTORY_CAP = 40;
 const editHistoryBySessionId = new Map<string, FileEditRecord[]>();
+// F12.22 progress-stall watch (record-only): per-session recent tool-call progress records (call-granular — the
+// afterTool hook has no turn boundary; a 12-call window approximates the 4-turn semantic) + the once-per-session flag.
+const progressRecordsBySessionId = new Map<string, TurnProgressRecord[]>();
+const progressStallFlaggedSessionIds = new Set<string>();
+const PROGRESS_RECORD_CAP = 24;
+const PROGRESS_STALL_CALL_WINDOW = 12;
 const editThrashFlaggedBySessionId = new Map<string, Set<string>>();
 
 /**
@@ -331,6 +338,32 @@ export function createKanbanContextFocusExtension(
 						editThrashFlaggedBySessionId.set(sessionId, flagged);
 					}
 				}
+				// F12.22 progress-stall consult (record-only): fingerprint this call's progress facts; a full window of
+				// identical no-write fingerprints = the session is circling (varied reads included) — record once.
+				const focusStep = getCurrentFocusStepForSession(sessionId);
+				const records = progressRecordsBySessionId.get(sessionId) ?? [];
+				records.push({
+					filesWritten: edits.map((edit) => edit.path),
+					focusStep,
+					ranVerification: /run_command/i.test(context.tool.name),
+				});
+				if (records.length > PROGRESS_RECORD_CAP) {
+					records.splice(0, records.length - PROGRESS_RECORD_CAP);
+				}
+				progressRecordsBySessionId.set(sessionId, records);
+				if (!progressStallFlaggedSessionIds.has(sessionId)) {
+					const stall = assessProgressStall(records, { windowTurns: PROGRESS_STALL_CALL_WINDOW });
+					if (stall.stalled) {
+						progressStallFlaggedSessionIds.add(sessionId);
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Progress stall for ${sessionId}: ${stall.reason}`,
+							taskId: sessionId,
+							metadata: { category: "progress_stall", unchangedCalls: stall.unchangedTurns },
+						});
+					}
+				}
 				return undefined;
 			},
 		},
@@ -351,9 +384,18 @@ export function recordSessionFocusChain(sessionId: string, chain: FocusChain): v
 }
 
 /** Runtime hook: forget one session's re-anchor state (focus chain + goal cadence) on session end/reset. */
+/** F12.22: the session's CURRENT focus-chain step text (null when no chain / no current step). */
+function getCurrentFocusStepForSession(sessionId: string): string | null {
+	const chain = focusChainBySessionId.get(sessionId);
+	const current = chain?.steps.find((step) => step.status === "in_progress");
+	return current?.text ?? null;
+}
+
 export function forgetSessionFocusState(sessionId: string): void {
 	editHistoryBySessionId.delete(sessionId);
 	editThrashFlaggedBySessionId.delete(sessionId);
+	progressRecordsBySessionId.delete(sessionId);
+	progressStallFlaggedSessionIds.delete(sessionId);
 	focusChainBySessionId.delete(sessionId);
 	goalReanchorLastTurnBySessionId.delete(sessionId);
 }
