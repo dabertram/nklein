@@ -2610,8 +2610,11 @@ verify-before-build caveat: confirm each against current code before implementin
   2026-07-17:** `visual-verification-gate.ts` — `comparePixels` (RGBA, YIQ-luma perceptual distance, AA-tolerant
   threshold, size-mismatch = not-comparable harness hint) + `decideVisualGate` (render-fail → console-errors →
   baseline_created on first run → maxDiffPixelRatio budget, Playwright-semantics, dependency-free). 9 tests.
-  REMAINING (activation): a screenshot source for sandbox agents (the preview browser or a headless Playwright shot —
-  playwright is already a dep), a golden-baseline store per route, and the delivery-gate wire for UI-touching cards. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+  **BASELINE STORE SHIPPED 2026-07-17:** `visual-baseline-store.ts` — raw-RGBA persistence (the comparator's native
+  format, no PNG codec dep) + JSON dimension sidecar under `~/.nklein/nklein/visual-baselines/<slug>`; corrupt/
+  mismatched baselines read as absent so the gate re-creates them. 3 tests. REMAINING (activation): a screenshot
+  SOURCE (headless Playwright shot — already a dep — or the preview browser) + the delivery-gate wire for UI-touching
+  cards (route detection → shoot → readVisualBaseline → decideVisualGate → write-on-baseline_created). (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
 - [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
