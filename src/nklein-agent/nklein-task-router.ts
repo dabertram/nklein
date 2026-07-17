@@ -40,6 +40,13 @@ export interface NKleinTaskRoutingRequest {
 	 * with this set before smallest-sufficient. Empty/absent ⇒ no preference (smallest-sufficient only) — back-compat.
 	 */
 	taskAffinityTags?: readonly string[];
+	/**
+	 * F3.7: candidate keys the learned `ModelBehaviorProfile` marks as PROVEN FAILURES for attempt starts (enough
+	 * fresh samples with success below the floor — `selectModelForAttempt`). Excluded up front, FAIL-OPEN: if
+	 * honoring the skips would leave no assignable model, the route re-runs on the full candidate set — a learned
+	 * skip must never freeze a board the way the flat capability prior once did. Empty/absent ⇒ byte-identical.
+	 */
+	behaviorSkippedModelKeys?: readonly string[];
 }
 
 export type NKleinTaskRoutingDecision =
@@ -216,6 +223,33 @@ function compareCandidates(left: ScoredCandidate, right: ScoredCandidate): numbe
 export const CAPABILITY_BEST_EFFORT_MARGIN = 15;
 
 export function routeNKleinTask(request: NKleinTaskRoutingRequest): NKleinTaskRoutingDecision {
+	// F3.7 learned-behavior skips: route STRICTLY (proven failures excluded) first; if that still assigns, ship it
+	// with an honest annotation. Otherwise FAIL-OPEN on the full set — an attempt the review gate validates beats a
+	// frozen card, and the fail-open is labeled so the ledger shows the skip was overridden, not ignored.
+	const behaviorSkips = new Set(request.behaviorSkippedModelKeys ?? []);
+	if (behaviorSkips.size > 0) {
+		const unskippedRequest: NKleinTaskRoutingRequest = { ...request, behaviorSkippedModelKeys: [] };
+		const remaining = request.candidates.filter((candidate) => !behaviorSkips.has(candidate.entry.key));
+		if (remaining.length === 0 || remaining.length === request.candidates.length) {
+			return routeNKleinTask(unskippedRequest);
+		}
+		const strict = routeNKleinTask({ ...unskippedRequest, candidates: remaining });
+		if (strict.type === "assign" || strict.type === "route_up") {
+			const skippedCount = request.candidates.length - remaining.length;
+			return {
+				...strict,
+				reason: `${strict.reason} (${skippedCount} proven-failure model(s) excluded by the learned behavior profile.)`,
+			};
+		}
+		const failOpen = routeNKleinTask(unskippedRequest);
+		if (failOpen.type === "assign" || failOpen.type === "route_up") {
+			return {
+				...failOpen,
+				reason: `${failOpen.reason} (Learned-behavior skips OVERRIDDEN: honoring them would leave no assignable model — fail-open; the review gate validates the attempt.)`,
+			};
+		}
+		return failOpen;
+	}
 	const difficulty = normalizeScore(request.difficulty);
 	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
 	const candidates = scoreCandidates(request);

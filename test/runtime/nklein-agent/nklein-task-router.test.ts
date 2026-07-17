@@ -420,6 +420,62 @@ describe("routeNKleinTask", () => {
 		expect(decision).toMatchObject({ modelKey: "lmstudio:z-two-tags:default" });
 	});
 
+	describe("F3.7 learned-behavior skips", () => {
+		const CANDIDATES = [
+			{
+				entry: createEntry({ key: "lmstudio:failer:default", capability: 60, contextWindow: 32_000 }),
+				role: "worker",
+			},
+			{
+				entry: createEntry({ key: "lmstudio:backup:default", capability: 55, contextWindow: 32_000 }),
+				role: "worker",
+			},
+		];
+
+		it("excludes a proven-failure model and annotates the reason", () => {
+			const decision = routeNKleinTask({
+				difficulty: 40,
+				fitBudgetTokens: 8_000,
+				candidates: CANDIDATES,
+				behaviorSkippedModelKeys: ["lmstudio:failer:default"],
+			});
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:backup:default" });
+			expect(decision.reason).toContain("1 proven-failure model(s) excluded");
+		});
+
+		it("fails OPEN (labeled) when honoring the skips would leave no assignable model", () => {
+			const decision = routeNKleinTask({
+				difficulty: 40,
+				fitBudgetTokens: 8_000,
+				candidates: [CANDIDATES[0] as (typeof CANDIDATES)[number]],
+				behaviorSkippedModelKeys: ["lmstudio:failer:default"],
+			});
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:failer:default" });
+			// All candidates skipped ⇒ the unskipped route runs; nothing was actually excluded so no annotation —
+			// but a PARTIAL skip whose strict route cannot assign must carry the override label:
+			const partial = routeNKleinTask({
+				difficulty: 40,
+				fitBudgetTokens: 8_000,
+				candidates: [
+					CANDIDATES[0] as (typeof CANDIDATES)[number],
+					{
+						// The only unskipped model cannot fit the window ⇒ strict route freezes ⇒ fail-open.
+						entry: createEntry({ key: "lmstudio:tiny:default", capability: 55, contextWindow: 1_000 }),
+						role: "worker",
+					},
+				],
+				behaviorSkippedModelKeys: ["lmstudio:failer:default"],
+			});
+			expect(partial).toMatchObject({ type: "assign", modelKey: "lmstudio:failer:default" });
+			expect(partial.reason).toContain("Learned-behavior skips OVERRIDDEN");
+		});
+
+		it("empty skips route byte-identically", () => {
+			const base = { difficulty: 40, fitBudgetTokens: 8_000, candidates: CANDIDATES };
+			expect(routeNKleinTask({ ...base, behaviorSkippedModelKeys: [] })).toEqual(routeNKleinTask(base));
+		});
+	});
+
 	describe("best-effort capability margin (§5.AB deadlock fix)", () => {
 		it("bridges the one-point cliff: a card just above the fleet's prior is assigned best-effort, not frozen", () => {
 			// The live deadlock: every model sits at the default prior 35, a card scores difficulty 36 → no strictly

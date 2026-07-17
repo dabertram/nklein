@@ -10,7 +10,7 @@ import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
-import { mergeConsecutiveSameRoleSdkMessages, type SdkShapedMessage } from "../core/normalize-system-first";
+import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";

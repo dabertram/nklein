@@ -1257,8 +1257,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   skips proven failures (enough fresh samples + success below floor) + models below their complexity ceiling, decays stale
   profiles toward a neutral 0.5 prior, unseen models get the neutral prior (cold-fleet runway). Pure/deterministic (now
   injected), 7 unit tests. DISTINCT from `rankModelsByLedgerFitnessWithVerdict` (display) — reuses the same profile
-  primitives. **REMAINING (b-leaf, fleet-gated):** wire into `routeNKleinTask` at attempt start (the router does NOT
-  consult the profile today) + validate the selection improves real-model outcomes.
+  primitives. **ROUTER WIRE LIVE 2026-07-17 (F3.7b):** `behaviorSkippedModelKeys` on the routing request — the handler folds
+  `readAllCombinedModelBehaviorProfiles` through `selectModelForAttempt` (stable-id keyed) and passes the
+  proven-failure keys; the router excludes them with router-side FAIL-OPEN (strict route first, annotated; if
+  honoring the skips cannot assign, full-set route ships with an explicit "skips OVERRIDDEN" label — a learned
+  skip must never freeze a board). Preference-by-learned-success already rides the blended capability scores, so
+  the wire adds exactly the "do not even try" half. REMAINING (fleet-gated): validate skips fire correctly on
+  live profiles + that selection improves outcomes.
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
 - [ ] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK

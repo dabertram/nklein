@@ -1,5 +1,6 @@
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
+import { selectModelForAttempt } from "../../core/attempt-model-selection";
 import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../core/auto-decomposition-depth";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
@@ -95,6 +96,7 @@ import {
 } from "../../state/runtime-id-model-key-map-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
 import { readFitnessTable } from "../../telemetry/fitness-table-store";
+import { readAllCombinedModelBehaviorProfiles } from "../../telemetry/model-behavior-profile-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -1066,11 +1068,37 @@ export async function handleStartTaskSession(
 			body.taskId,
 			warmthCandidatesByScore.map((candidate) => candidate.modelKey),
 		);
+		// F3.7b: consult the learned ModelBehaviorProfile at attempt start — the SKIP half (proven failures
+		// excluded, router-side fail-open); preference-by-learned-success already rides the blended capability
+		// scores, so this adds exactly what the blend cannot express: "do not even try this one". Profiles fold
+		// under STABLE model ids; skips map back to every candidate key sharing that stable id. Best-effort: a
+		// store read failure routes exactly as before.
+		const behaviorProfiles = await readAllCombinedModelBehaviorProfiles().catch(
+			() => ({}) as Awaited<ReturnType<typeof readAllCombinedModelBehaviorProfiles>>,
+		);
+		const stableIdForCandidate = (candidate: (typeof roleScopedSelectionCandidates)[number]): string =>
+			resolveStableRoutingModelId(candidate.entry.modelId).trim() || candidate.entry.modelId;
+		const behaviorSelection = selectModelForAttempt(
+			[
+				...new Map(
+					roleScopedSelectionCandidates.map((candidate) => {
+						const stableId = stableIdForCandidate(candidate);
+						return [stableId, { modelId: stableId, profile: behaviorProfiles[stableId] ?? null }];
+					}),
+				).values(),
+			],
+			{ now: Date.now() },
+		);
+		const behaviorSkippedStableIds = new Set(behaviorSelection.skipped.map((skip) => skip.modelId));
+		const behaviorSkippedModelKeys = roleScopedSelectionCandidates
+			.filter((candidate) => behaviorSkippedStableIds.has(stableIdForCandidate(candidate)))
+			.map((candidate) => candidate.entry.key);
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: routingOutputTokens,
+			behaviorSkippedModelKeys,
 			preferredModelKey: honoredTaskPinKey ?? honoredRolePinKey ?? optimizationPreferredKey,
 			candidates: roleScopedSelectionCandidates.map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
