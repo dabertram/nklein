@@ -2466,10 +2466,16 @@ output and NOT acted on. Captured as F12.12.)
   never red. Plugs the existing `preReviewVerdict` seam (test-driven mode's pattern). 3 tests. REMAINING (activation):
   in the review runner, run acceptance (already fresh at the seam) + tsc/lint when the repo profile knows the
   commands, feed decideVerificationFirst, pass a bounce as preReviewVerdict — flag-gated like NKLEIN_TEST_DRIVEN_MODE.
-- [ ] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
+- [~] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
   on reasoning (Data-Processing-Inequality result); Anthropic flags heavy-interdependency work ("most coding") as a poor
   fan-out fit. Add a heuristic that SKIPS decomposition + runs one linear worker when a task is below a complexity threshold
   or its cards have high file-overlap/coupling — avoids manufacturing conflicts you must later reconcile. (arxiv 2604.02460; cognition dont-build-multi-agents)
+  **GUARD CORE SHIPPED 2026-07-17:** `anti-decomposition-guard.ts` `decideDecomposition` — trivial complexity
+  never fans out (one linear worker); a draft card set whose mean pairwise Jaccard file-overlap exceeds 50%
+  serializes (the "parallel" cards would fight over the same code); loose sets decompose as planned. Composes
+  classifyTaskComplexity; advisory (an explicit operator decompose always wins). 4 tests. REMAINING (activation):
+  consult at the decompose entry (pre-architect: complexity check; post-draft: coupling check over the proposed
+  cards' filesLikelyTouched before applying the split).
 - [ ] **F12.38 — Compacted decision-handoff between dependent cards.** When card B depends on A, pass a model-generated
   summary of A's actual DECISIONS / edge-cases / trace (not just the diff + card text) — Cognition's #1 principle + the fact
   that inter-agent misalignment is ~37% of MAST failures; the card-DAG's thin handoff invites exactly this. (cognition; MAST 2503.13657)
