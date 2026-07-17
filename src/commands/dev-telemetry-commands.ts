@@ -1061,9 +1061,24 @@ export async function runDevRoutingPreviewCommand(options: { role: string; json?
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
 	const loaded = (await fetchLmsPsModels(createDefaultLmsRunner()).catch(() => [])).filter((m) => !m.isEmbedding);
 	const roleFitness = advice.perRole.filter((r) => r.role === options.role);
+	// §5.AB live sweep consumption (2026-07-17): mirror the router's evidence order — real-task ledger role evidence
+	// first, then the fitness table's swept role cells (so a freshly-swept model previews above the neutral prior,
+	// matching what routeNKleinTask now does via the capability blender's fitness tier).
+	const { buildFitnessRoutingEvidence, stableFitnessModelKey } = await import("../core/fitness-routing-evidence");
+	const { roleEvidenceKey } = await import("../core/ledger-evidence");
+	const { readFitnessTable } = await import("../telemetry/fitness-table-store");
+	const fitnessEvidence = buildFitnessRoutingEvidence(
+		Object.values((await readFitnessTable().catch(() => null))?.rows ?? {}),
+	);
 	const confidenceFor = (m: { identifier: string; modelKey: string }): number => {
 		const hit = roleFitness.find((r) => r.modelId.includes(m.identifier) || r.modelId.includes(m.modelKey));
-		return hit ? hit.successRate : 0.5; // unknown ⇒ neutral prior
+		if (hit) {
+			return hit.successRate;
+		}
+		const swept = fitnessEvidence.fitnessRoleSuccessByKey.get(
+			roleEvidenceKey(stableFitnessModelKey(m.identifier), options.role),
+		);
+		return swept && swept.samples >= 3 ? swept.successRate : 0.5; // unknown ⇒ neutral prior
 	};
 	// A loaded model is feasible by definition (it already fits in RAM) and warm (no cold load).
 	const candidates: RoutingCandidate[] = loaded.map((m) => ({

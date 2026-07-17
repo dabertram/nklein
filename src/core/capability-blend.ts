@@ -1,4 +1,5 @@
 import { blendCapabilityWithLedgerEvidence } from "./agent-ledger-projections";
+import { stableFitnessModelKey } from "./fitness-routing-evidence";
 import { roleEvidenceKey } from "./ledger-evidence";
 import { assessRuntimeModelVerdict } from "./runtime-model-verdict";
 
@@ -36,6 +37,13 @@ export interface CapabilityBlender {
 export function createCapabilityBlender(input: {
 	successByKey: ReadonlyMap<string, SuccessRow>;
 	roleSuccessByKey: ReadonlyMap<string, SuccessRow>;
+	/**
+	 * Optional §5.AB SWEEP evidence (fitness table projected by `buildFitnessRoutingEvidence`), keyed by
+	 * roleEvidenceKey(stableFitnessModelKey(model), role). Slots BETWEEN role-ledger evidence and the global rollup:
+	 * real tasks beat benchmarks, benchmarks beat nothing — so a freshly-swept model routes on its measured role
+	 * fitness instead of the neutral registry prior. Omitted ⇒ byte-identical to the ledger-only blend.
+	 */
+	fitnessRoleSuccessByKey?: ReadonlyMap<string, SuccessRow>;
 	verdictRuns: NonNullable<VerdictInput["runs"]>;
 	selfObservationEvents: NonNullable<VerdictInput["events"]>;
 }): CapabilityBlender {
@@ -61,10 +69,18 @@ export function createCapabilityBlender(input: {
 		modelId?: string,
 	): number => {
 		const roleObserved = role ? input.roleSuccessByKey.get(roleEvidenceKey(modelKey, role)) : undefined;
+		// Fitness (sweep) role evidence is keyed by the NORMALIZED model id so the eval harness's bare keys and the
+		// runtime's canonical keys resolve to the same row regardless of which shape the router passes.
+		const fitnessObserved =
+			role && input.fitnessRoleSuccessByKey
+				? input.fitnessRoleSuccessByKey.get(roleEvidenceKey(stableFitnessModelKey(modelKey), role))
+				: undefined;
 		const observed =
 			roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
 				? roleObserved
-				: input.successByKey.get(modelKey);
+				: fitnessObserved && fitnessObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
+					? fitnessObserved
+					: input.successByKey.get(modelKey);
 		const blended = blendCapabilityWithLedgerEvidence(
 			baseCapability,
 			observed?.successRate ?? null,

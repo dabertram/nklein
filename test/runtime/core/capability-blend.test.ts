@@ -52,3 +52,69 @@ describe("createCapabilityBlender", () => {
 		expect(emptyBlender().verdictMultiplier("m")).toBe(1);
 	});
 });
+
+describe("createCapabilityBlender — fitness (sweep) evidence tier", () => {
+	it("uses fitness role evidence when the ledger has none (the freshly-swept-model case)", () => {
+		const blender = createCapabilityBlender({
+			successByKey: new Map(),
+			roleSuccessByKey: new Map(),
+			fitnessRoleSuccessByKey: new Map([
+				[roleEvidenceKey("google/gemma-4-31b-qat", "reviewer"), { successRate: 1.0, samples: 6 }],
+			]),
+			verdictRuns: [],
+			selfObservationEvents: [],
+		});
+		expect(blender.blendedCapabilityForKey("google/gemma-4-31b-qat", 50, "reviewer")).toBeGreaterThan(50);
+	});
+
+	it("resolves the fitness row for a CANONICAL router key (normalized lookup, key shapes can't miss)", () => {
+		const blender = createCapabilityBlender({
+			successByKey: new Map(),
+			roleSuccessByKey: new Map(),
+			fitnessRoleSuccessByKey: new Map([
+				[roleEvidenceKey("google/gemma-4-31b-qat", "reviewer"), { successRate: 1.0, samples: 6 }],
+			]),
+			verdictRuns: [],
+			selfObservationEvents: [],
+		});
+		expect(
+			blender.blendedCapabilityForKey("lmstudio:google/gemma-4-31b-qat:http://localhost:1234/v1", 50, "reviewer"),
+		).toBeGreaterThan(50);
+	});
+
+	it("lets real-task ROLE ledger evidence outrank fitness evidence (real tasks beat benchmarks)", () => {
+		const blender = createCapabilityBlender({
+			successByKey: new Map(),
+			roleSuccessByKey: new Map([[roleEvidenceKey("m", "reviewer"), { successRate: 0.0, samples: 10 }]]),
+			fitnessRoleSuccessByKey: new Map([[roleEvidenceKey("m", "reviewer"), { successRate: 1.0, samples: 12 }]]),
+			verdictRuns: [],
+			selfObservationEvents: [],
+		});
+		// The bad real-task evidence must drag the blend DOWN despite perfect sweep fitness.
+		expect(blender.blendedCapabilityForKey("m", 50, "reviewer")).toBeLessThan(50);
+	});
+
+	it("lets fitness outrank the GLOBAL ledger rollup (benchmarks beat role-blind evidence)", () => {
+		const blender = createCapabilityBlender({
+			successByKey: new Map([["m", { successRate: 0.0, samples: 50 }]]), // bad globally
+			roleSuccessByKey: new Map(),
+			fitnessRoleSuccessByKey: new Map([[roleEvidenceKey("m", "reviewer"), { successRate: 1.0, samples: 6 }]]),
+			verdictRuns: [],
+			selfObservationEvents: [],
+		});
+		expect(blender.blendedCapabilityForKey("m", 50, "reviewer")).toBeGreaterThan(
+			blender.blendedCapabilityForKey("m", 50), // role-blind call can't see fitness → global drags it down
+		);
+	});
+
+	it("ignores thin fitness evidence (<3 samples) and stays byte-identical without the input", () => {
+		const withThin = createCapabilityBlender({
+			successByKey: new Map(),
+			roleSuccessByKey: new Map(),
+			fitnessRoleSuccessByKey: new Map([[roleEvidenceKey("m", "reviewer"), { successRate: 1.0, samples: 2 }]]),
+			verdictRuns: [],
+			selfObservationEvents: [],
+		});
+		expect(withThin.blendedCapabilityForKey("m", 50, "reviewer")).toBe(50);
+	});
+});

@@ -6,6 +6,7 @@ import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
+import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
@@ -91,6 +92,7 @@ import {
 	resolveStableRoutingModelId,
 	sharedRuntimeIdModelKeyMap,
 } from "../../state/runtime-id-model-key-map-store";
+import { readFitnessTable } from "../../telemetry/fitness-table-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -661,6 +663,15 @@ export async function handleStartTaskSession(
 			roleSuccessByKey: ledgerRoleSuccessByKey,
 			verdictRuns: runtimeVerdictRuns,
 		} = await buildLedgerEvidence(readAllAgentLedger);
+		// §5.AB live SWEEP consumption (2026-07-17): project the fitness table into role evidence so systematically-swept
+		// models route on their measured role fitness instead of the neutral registry prior (the blender slots it between
+		// role-ledger evidence and the global rollup — real tasks beat benchmarks, benchmarks beat nothing). Best-effort
+		// (unreadable/empty store ⇒ no rows ⇒ byte-identical blend). Kill-switch: NKLEIN_FITNESS_ROUTING=0/false/off.
+		const fitnessRoutingDisabled = /^(0|false|off)$/i.test(process.env.NKLEIN_FITNESS_ROUTING ?? "");
+		const fitnessTableRows = fitnessRoutingDisabled
+			? []
+			: Object.values((await readFitnessTable().catch(() => null))?.rows ?? {});
+		const { fitnessRoleSuccessByKey } = buildFitnessRoutingEvidence(fitnessTableRows);
 		// W2.6b (audit 2026-07-02): runtime-VERDICT penalty — penalizeFitnessByRuntimeVerdict was display-only, so
 		// the strongest unsuitability signal (chronic stalls observed in real runs) never steered selection. Read the
 		// self-observation evidence once per start (best-effort; empty ⇒ UNKNOWN ⇒ multiplier 1 ⇒ unchanged) and scale
@@ -675,6 +686,7 @@ export async function handleStartTaskSession(
 		const { blendedCapabilityForKey } = createCapabilityBlender({
 			successByKey: ledgerSuccessByKey,
 			roleSuccessByKey: ledgerRoleSuccessByKey,
+			fitnessRoleSuccessByKey,
 			verdictRuns: runtimeVerdictRuns,
 			selfObservationEvents,
 		});
