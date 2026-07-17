@@ -1510,7 +1510,7 @@ export async function runDevEgressReceiptsCommand(options: { json?: boolean; ver
 }
 
 /** F12.101 slice — audit the CURRENT air-gap posture per the trust-center's egress inventory. */
-export async function runDevAirGapStatusCommand(options: { json?: boolean } = {}): Promise<void> {
+export async function runDevAirGapStatusCommand(options: { json?: boolean; attest?: boolean } = {}): Promise<void> {
 	const { assessAirGapPosture, isAirGappedMode } = await import("../core/air-gap-posture");
 	const { readFile } = await import("node:fs/promises");
 	const { homedir } = await import("node:os");
@@ -1551,4 +1551,17 @@ export async function runDevAirGapStatusCommand(options: { json?: boolean } = {}
 		);
 	}
 	process.stdout.write(`\n  ${posture.summary}\n`);
+	if (options.attest) {
+		// F12.101 self-attestation: chain the CURRENT effective posture into the tamper-evident egress-receipt log —
+		// a later reader can verify both WHAT the posture was and that the record was not altered since.
+		const { appendEgressReceipt } = await import("../state/egress-receipt-store");
+		const receipt = await appendEgressReceipt({
+			destination: "local:attestation",
+			method: "ATTEST",
+			requestSummary: JSON.stringify({ airGapped: posture.airGapped, classes: posture.classes }),
+			category: "air_gap_attestation",
+			taintLabels: [],
+		});
+		process.stdout.write(`  attestation appended: ${receipt.hash.slice(0, 16)}… (verify via dev egress-receipts)\n`);
+	}
 }

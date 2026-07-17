@@ -925,7 +925,8 @@ export function registerDevCommand(program: Command): void {
 	dev.command("air-gap-status")
 		.description("Audit the current air-gap posture per the trust-center egress inventory (F12.101).")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { json?: boolean }) => {
+		.option("--attest", "Chain the current effective posture into the tamper-evident egress-receipt log.")
+		.action(async (options: { json?: boolean; attest?: boolean }) => {
 			await runDevAirGapStatusCommand(options);
 		});
 

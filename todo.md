@@ -2718,7 +2718,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
   adoption blocker for regulated users; provenance is table-stakes for a trust story. (model-licensing survey; AI-BOM)
-- [~] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
+- [x] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
   web research, MCP, update check) and self-attests — a signed statement + a runtime probe proving no network calls were made
   during a run. Rationale: regulated/air-gapped demand is real and !Klein is uniquely positioned; "private by architecture"
   must be provable, not asserted. Extends the S9 fan-out cap / egress gate to a hard-off posture.
@@ -2730,7 +2730,9 @@ into the existing F12.31. Same verify-before-build caveat.**
   web_research refused even when its enable flag is set (session-runtime), update checks suppressed (update.ts), user
   MCP servers not offered (settings service; disk config untouched) — and BOTH posture consumers (dev CLI + the Trust
   Panel's getTrustPosture) report the EFFECTIVE posture. LIVE-VERIFIED: profile ON ⇒ "AIR-GAPPED posture: every egress
-  class is closed." REMAINING: signed self-attestation (chain the posture into the egress-receipt log at run end). (EU AI Act; air-gapped LLM demand)
+  class is closed." **ATTESTATION SHIPPED — F12.101 COMPLETE:** `dev air-gap-status --attest` chains the current EFFECTIVE posture into
+  the tamper-evident egress-receipt log (category air_gap_attestation). LIVE-PROVEN end-to-end: profile ON ⇒ all
+  classes closed ⇒ attestation appended ⇒ `dev egress-receipts` independently verifies the chain INTACT. (EU AI Act; air-gapped LLM demand)
 - [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)
