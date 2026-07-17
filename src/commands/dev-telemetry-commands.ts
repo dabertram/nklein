@@ -1482,3 +1482,29 @@ export async function runDevCostPerResolveCommand(options: { json?: boolean } = 
 	}
 	process.stdout.write(`\n  ★ = Pareto frontier for its role (not dominated on accuracy vs wall-cost)\n`);
 }
+
+/**
+ * F12.99 — inspect + verify the local hash-chained egress-receipt log (the trust-center's auditable record of every
+ * outbound request). --verify recomputes the whole chain and reports the first break.
+ */
+export async function runDevEgressReceiptsCommand(options: { json?: boolean; verify?: boolean } = {}): Promise<void> {
+	const { readEgressReceipts } = await import("../state/egress-receipt-store");
+	const { verifyEgressReceiptChain } = await import("../core/egress-receipt");
+	const receipts = await readEgressReceipts();
+	const verification = verifyEgressReceiptChain(receipts);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ receipts, verification }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Egress receipts (F12.99) — ${receipts.length} receipt(s)\n\n`);
+	for (const receipt of receipts.slice(-20)) {
+		const when = new Date(receipt.at).toISOString();
+		process.stdout.write(`  ${when}  [${receipt.category}] ${receipt.method} ${receipt.destination.slice(0, 90)}\n`);
+	}
+	if (receipts.length === 0) {
+		process.stdout.write("  (no outbound requests recorded — the log fills when an egress class fires)\n");
+	}
+	process.stdout.write(
+		`\n  chain: ${verification.valid ? "INTACT" : `BROKEN at #${verification.brokenAt}`} — ${verification.reason}\n`,
+	);
+}

@@ -2701,8 +2701,8 @@ into the existing F12.31. Same verify-before-build caveat.**
   truncation/edits break the chain verifiably; tamper-EVIDENCE without key management, per-receipt signatures can
   layer later) + `egress-receipt-store.ts` (append-only `~/.nklein/nklein/egress-receipts.jsonl`, serialized appends,
   torn-tail tolerant) + WIRED at the web_research fetch (best-effort, beside the F4.3 currency capture). 4 tests.
-  REMAINING: receipts at future egress classes as they appear, session taint-labels threaded into the receipt, a
-  `dev egress-receipts --verify` CLI, and the Trust Panel surface. (verifiability-as-trust; SLSA provenance)
+  **CLI SHIPPED:** `dev egress-receipts [--json]` lists the log + verifies the whole chain (live-verified: empty log,
+  chain INTACT). REMAINING: receipts at future egress classes, session taint-labels threaded in, the Trust Panel surface. (verifiability-as-trust; SLSA provenance)
 - [ ] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real

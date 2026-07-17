@@ -48,6 +48,7 @@ import {
 	runDevControllerTraceCommand,
 	runDevCostPerResolveCommand,
 	runDevDistractorSensitivityCommand,
+	runDevEgressReceiptsCommand,
 	runDevEscalationCommand,
 	runDevEvalFreshnessCommand,
 	runDevEvidenceCurrencyCommand,
@@ -918,6 +919,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("egress-receipts")
+		.description("Inspect + verify the hash-chained egress-receipt log (F12.99, the trust-center audit record).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevEgressReceiptsCommand(options);
 		});
 
 	dev.command("cost-per-resolve")
