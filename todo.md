@@ -2600,8 +2600,10 @@ verify-before-build caveat: confirm each against current code before implementin
   2026-07-17:** `frontend-framework-preamble.ts` — `detectFrontendFramework(deps)` (react/vue/angular/svelte + major,
   priority-ordered so a stray devtool doesn't misclassify) + `buildFrameworkPreamble` (TERSE ≤5 lines: component rule,
   installed-version import rule, one version-scoped block — React 19 vs ≤18 APIs differ; respects the F12.79 budget +
-  F12.80 positive phrasing). 8 tests. REMAINING: read the workspace package.json at card start + inject for UI-touching
-  cards (the prompt-assembly seam). (DesignBench; React-19-vs-Vue-3.6 drift)
+  F12.80 positive phrasing). 8 tests. **FULLY WIRED 2026-07-17:** `readWorkspaceFrameworkPreamble` (memoized per cwd, best-effort,
+  kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off) at createTaskSession → `buildNKleinStartPromptParts` new optional param
+  (system-side so the KV prefix stays workspace-stable; omitted/[] byte-identical, test-locked). Backend workspaces get
+  [] ⇒ unchanged prompts. 10 tests across reader+builder. (DesignBench; React-19-vs-Vue-3.6 drift)
 - [ ] **F12.90 — Multi-language dev-test scenario expansion.** Add Go, Rust, Java, and a Vue/Angular-frontend scenario to the
   dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
   F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate

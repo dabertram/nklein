@@ -80,6 +80,7 @@ import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { createFocusChainStore } from "./nklein-focus-chain-store";
 import { extractFocusChainTouchDeltaFromSdkEvent } from "./nklein-focus-chain-touch-delta";
+import { readWorkspaceFrameworkPreamble } from "./nklein-framework-preamble-reader";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import {
 	type NKleinTaskLaunchConfigOverrides,
@@ -1427,11 +1428,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// A work card (not plan-mode, not a home/chat session) gets the Planning/Refinement preamble + the
 		// begin_implementation promotion tool (todo §5.B); home/chat and decompose/plan cards do not.
 		const isRefinableWorkCard = !request.startInPlanMode && !isHomeAgentSessionId(request.taskId);
+		// F12.89: workspace-stable frontend convention preamble (memoized per cwd; [] for backend workspaces or on any
+		// read failure ⇒ byte-identical; kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off).
+		const frameworkPreamble = await readWorkspaceFrameworkPreamble(request.cwd);
 		const startPromptParts = buildNKleinStartPromptParts(
 			request.prompt,
 			request.startInPlanMode,
 			isRefinableWorkCard,
 			request.autoDecompositionDepth ?? null, // F4.38 — advisory depth line (null ⇒ byte-identical)
+			frameworkPreamble,
 		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
