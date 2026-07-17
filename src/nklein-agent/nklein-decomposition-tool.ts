@@ -1,3 +1,4 @@
+import { decideDecomposition } from "../core/anti-decomposition-guard";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
@@ -416,6 +417,25 @@ function createDecomposeProjectTool(
 				complexity: task.complexity,
 				likelyFileCount: task.filesLikelyTouched.length,
 			}));
+			// F12.37 anti-decomposition consult (record-only, same observe-before-enforce stance): a draft set whose
+			// cards share most of their files would FIGHT over the same code as "parallel" work — surface the
+			// coupling verdict as evidence beside the other graph-quality signals; the applied split stands.
+			const antiDecomposition = decideDecomposition(
+				{ taskText: "", multiFile: true },
+				validation.taskGraph.tasks.map((task) => ({ files: task.filesLikelyTouched })),
+			);
+			if (!antiDecomposition.decompose) {
+				await recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `decompose_project coupling warning for plan ${slug}: ${antiDecomposition.reason}`,
+					taskId: sourceTaskId ?? null,
+					metadata: {
+						operation: "decompose_project_coupling",
+						coupling: antiDecomposition.coupling,
+					},
+				});
+			}
 			// F1.1: feed the LIVE knowledge signal into the trigger — did the architect consult knowledge tools
 			// before emitting this decomposition (observation log, written per tool hook during the run)? — plus the
 			// graph-revision count its own task id encodes (`redecompose-` rounds from the escalation ladder).

@@ -2480,9 +2480,12 @@ output and NOT acted on. Captured as F12.12.)
   **GUARD CORE SHIPPED 2026-07-17:** `anti-decomposition-guard.ts` `decideDecomposition` — trivial complexity
   never fans out (one linear worker); a draft card set whose mean pairwise Jaccard file-overlap exceeds 50%
   serializes (the "parallel" cards would fight over the same code); loose sets decompose as planned. Composes
-  classifyTaskComplexity; advisory (an explicit operator decompose always wins). 4 tests. REMAINING (activation):
-  consult at the decompose entry (pre-architect: complexity check; post-draft: coupling check over the proposed
-  cards' filesLikelyTouched before applying the split).
+  classifyTaskComplexity; advisory (an explicit operator decompose always wins). 4 tests. **COUPLING CONSULT LIVE
+  (same day, record-only):** decompose_project now runs decideDecomposition over the validated task graph's
+  filesLikelyTouched scopes beside the other graph-quality scans — a >50%-coupled draft set lands as a
+  `decompose_project_coupling` warning observation; the applied split stands (observe-before-enforce). The
+  pre-architect complexity skip (trivial → one linear worker, no architect call) remains the enforcing half —
+  it belongs at the route/start seam and is a behavior change for David's default call.
 - [~] **F12.38 — Compacted decision-handoff between dependent cards.** When card B depends on A, pass a model-generated
   summary of A's actual DECISIONS / edge-cases / trace (not just the diff + card text) — Cognition's #1 principle + the fact
   that inter-agent misalignment is ~37% of MAST failures; the card-DAG's thin handoff invites exactly this. (cognition; MAST 2503.13657)
