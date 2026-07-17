@@ -2390,9 +2390,10 @@ output and NOT acted on. Captured as F12.12.)
   **SHEET CORE SHIPPED 2026-07-17:** `repo-fact-sheet.ts` `buildRepoFactSheet` — deterministic first-turn facts
   from package.json (name/ESM, the scripts that EXIST from a curated set, entry point, npm-workspaces monorepo
   hint) + top-level layout; malformed/absent manifests say NOTHING (facts only, never guesses; empty renders null).
-  3 tests. REMAINING (activation): read the manifest at sandbox start and ride the start prompt (beside the F12.89
-  framework preamble — same workspace-stable cache position); other manifests (Cargo.toml, go.mod) slot in with
-  F12.84's language detection.
+  3 tests. **WIRE LIVE (same day):** the F12.89 preamble reader now composes BOTH blocks from one manifest read
+  (+ one best-effort readdir for layout) — the fact-sheet rides every task start prompt, workspace-stable and
+  memoized (KV-prefix invariant still green); the shared NKLEIN_FRAMEWORK_PREAMBLE kill-switch covers it. Other
+  manifests (Cargo.toml, go.mod) slot in with F12.84's language detection.
 - [~] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
   card (stops loops on a broken tool/MCP); retry a failed edit with a temperature ramp (deterministic → exploratory) to
   escape local minima. Small additions to the existing F3.30 retry machinery. (smallcode; promptquorum)
