@@ -11,6 +11,113 @@ import type { ModelCapabilityEntry } from "./model-capability-catalog.js";
  * before a generic `gemma-4`). Seeded 2026-06-29 from the §5.AL research sweep + our own model sweeps.
  */
 export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
+	// ── NEW FLEET ADDITIONS 2026-07-17 (David added a handful of models) — STRUCTURAL PRIORS pending a fleet sweep.
+	//    Each is verified:false + basis:"research": the match/kind/size/speed are known from arch+size+lineage, but the
+	//    tool-use/chaining verdict is a lineage prior, NOT our empirical eval yet. `dev`/runtime sweep upgrades these to
+	//    empirical+verified. Placed first (specific, non-overlapping regexes) so they resolve before the generic rows. ──
+	{
+		family: "olmo-3-32b-think",
+		match: /olmo-?3.*32b|olmo-3-32b-think/,
+		toolUse: "UNKNOWN",
+		kind: "reasoning",
+		speed: "slow",
+		sizeGb: 34,
+		note: "AllenAI OLMo-3 32B-Think (fully-open dense reasoning). NEW 2026-07-17, priors PENDING SWEEP: OLMo is a research-open lineage with no established tool-calling training, and a 32B dense reasoner is slow — treat tool-use as UNKNOWN (policy warns, does not block) until the fleet eval scores it. Likely a candidate REASONER/reviewer rather than an agentic driver. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — structural priors from arch(olmo3)+size(32B dense)+lineage; empirical pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "seed-oss-36b",
+		match: /seed-?oss-?36b|bytedance.*seed/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		chaining: "unknown",
+		speed: "slow",
+		sizeGb: 38,
+		note: "ByteDance Seed-OSS 36B (Apache-2.0 dense; the family markets long-context + agentic/tool use). NEW 2026-07-17, priors PENDING SWEEP: lineage claims tool/agentic capability so TOOL_CAPABLE is a hopeful prior, but chaining is UNKNOWN and 36B dense is slow — confirm with the eval before routing it to unattended agentic work. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — structural priors from arch(seed_oss)+size(36B dense)+lineage; empirical pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "deepseek-v4-flash",
+		match: /deepseek-?v4|deepseek.*v4.*flash/,
+		toolUse: "UNKNOWN",
+		kind: "reasoning",
+		speed: "medium",
+		sizeGb: 96,
+		note: "DeepSeek-V4-Flash (MoE, ~96 GB at this quant). NEW 2026-07-17, priors PENDING SWEEP: DeepSeek lineage skews reasoning; 'flash' implies a latency-optimized MoE (medium speed despite the size). The ~96 GB footprint only fits the largest box — a packing/loader constraint. tool-use UNKNOWN until swept. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — structural priors from arch(deepseek_v4 MoE)+size+lineage; empirical pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+		disqualifiers: ["~96 GB resident — fits only the largest box; a loader/packing constraint"],
+	},
+	{
+		family: "rnj-1",
+		match: /essentialai|\brnj-?1\b/,
+		toolUse: "UNKNOWN",
+		kind: "chat",
+		speed: "fast",
+		sizeGb: 9,
+		note: "EssentialAI RNJ-1 (~8.3B, gemma3 arch). NEW 2026-07-17, priors PENDING SWEEP: an obscure lineage with no established tool-calling evidence and a small (8B) size — tool-use UNKNOWN, likely a chat/instruct all-rounder at best. Fast + small (~9 GB). Confirm role fit with the eval. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — structural priors from arch(gemma3)+size(8.3B)+lineage; empirical pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "gemma-4-31b",
+		match: /gemma-?4[-_]?31b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		chaining: "native",
+		synthesis: "unknown",
+		speed: "fast",
+		sizeGb: 19,
+		note: "Google Gemma-4 31B-qat (dense, quantization-aware-trained). NEW 2026-07-17, priors INHERITED from the swept gemma-4-26b sibling (TOOL_CAPABLE, native chaining, fast) — a larger dense Gemma-4 should clear the chaining floor at least as well. Marked verified:false because THIS variant hasn't been swept; the eval confirms whether the extra dense params lift synthesis (the 26b's weak spot). verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — priors inherited from gemma-4-26b (empirical, 2026-07-01); this 31b variant pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "ministral-3-14b-reasoning",
+		match: /ministral-?3|ministral.*14b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		speed: "medium",
+		sizeGb: 15,
+		note: "Mistral Ministral-3 14B-Reasoning (dense). NEW 2026-07-17, priors PENDING SWEEP: the Mistral instruct lineage tool-trains reliably, so TOOL_CAPABLE is a reasonable prior, but this is a REASONING variant (watch the json_schema dead-end trap reasoning models hit — prefer native_tool_call) and reasoning models can over-think. Confirm structured-output path + latency with the eval. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — structural priors from Mistral lineage+size(14B)+reasoning kind; empirical pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "qwable-3.6-27b",
+		match: /qwable-?3\.6|qwable.*27b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		chaining: "native",
+		speed: "medium",
+		sizeGb: 17,
+		note: "qwable-3.6-27b (qwen3.5-based community/David merge, ~17 GB). NEW 2026-07-17, priors INHERITED from the swept qwable-9b sibling (TOOL_CAPABLE, native chaining, reliable decompose+worker) — a 27B qwen3.5 merge should be at least as strong and likely a better reviewer than the 9b (which hit the small-model reviewer ceiling). verified:false until the fleet eval scores this variant. verified:false.",
+		sources: [
+			"catalog add 2026-07-17 — priors inherited from qwable-9b (empirical, 2026-07-11); this 27b variant pending fleet sweep",
+		],
+		basis: "research",
+		verified: false,
+	},
 	// ── Reasoning-only Phi variants: the classic trap — NOT trained for tool use ──────────────────────────
 	{
 		family: "phi-4-mini-reasoning",
