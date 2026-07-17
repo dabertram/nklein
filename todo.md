@@ -2360,9 +2360,11 @@ output and NOT acted on. Captured as F12.12.)
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
   **GUARD CORE SHIPPED 2026-07-17:** `read-before-write-guard.ts` — caller-owned per-session state;
   `assessWriteGrounding` tiers grounded / never_read / stale_read (mtime-compared; unknown mtimes degrade
-  gracefully; new files trivially grounded; a session's own write refreshes grounding). 4 tests. REMAINING
-  (activation): thread the state through the write/edit tool boundary (record reads in read tools' execute,
-  consult at write_files/edit_file before apply — advisory annotation, not a block).
+  gracefully; new files trivially grounded; a session's own write refreshes grounding). 4 tests.
+  **WIRE LIVE 2026-07-17 (record-only):** context-focus afterTool seam tracks per-session READ paths
+  (read_files-shaped inputs; own writes refresh grounding) and records one `write_grounding` self-observation
+  per session+path on a never-read write — the high-yield "editing imagined content" half. The mtime
+  stale_read half needs fs access at the tool boundary (still open, listed with the enforce flip).
 - [ ] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never

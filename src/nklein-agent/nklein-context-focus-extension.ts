@@ -61,6 +61,10 @@ const editHistoryBySessionId = new Map<string, FileEditRecord[]>();
 // afterTool hook has no turn boundary; a 12-call window approximates the 4-turn semantic) + the once-per-session flag.
 const progressRecordsBySessionId = new Map<string, TurnProgressRecord[]>();
 const progressStallFlaggedSessionIds = new Set<string>();
+// F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
+// counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
+const readPathsBySessionId = new Map<string, Set<string>>();
+const ungroundedWriteFlaggedBySessionId = new Map<string, Set<string>>();
 const PROGRESS_RECORD_CAP = 24;
 const PROGRESS_STALL_CALL_WINDOW = 12;
 const editThrashFlaggedBySessionId = new Map<string, Set<string>>();
@@ -320,6 +324,39 @@ export function createKanbanContextFocusExtension(
 				// file's states OSCILLATE (edit → revert → re-edit) record a self-observation once per session+file.
 				// The turn-loop guard can't see this (different tool INPUTS each time); PRM watches reads/hand-offs.
 				const edits = extractFileEditsFromToolInput(context.tool.name, context.input);
+				// F12.19 (record-only): track READ paths; a WRITE to an existing-session-unknown path is the classic
+				// "editing imagined content" hazard — observe once per session+path (mtime staleness needs fs access
+				// the hook doesn't have; the never-read half is the high-yield signal).
+				const knownPaths = readPathsBySessionId.get(sessionId) ?? new Set<string>();
+				if (/^read_files?$|^read_large_file$/i.test(context.tool.name)) {
+					const record =
+						context.input && typeof context.input === "object" ? (context.input as Record<string, unknown>) : {};
+					const rawPaths = Array.isArray(record.paths) ? record.paths : [record.path ?? record.file_path];
+					for (const raw of rawPaths) {
+						if (typeof raw === "string" && raw.trim()) {
+							knownPaths.add(raw.trim());
+						}
+					}
+					readPathsBySessionId.set(sessionId, knownPaths);
+				}
+				if (edits.length > 0) {
+					const flaggedWrites = ungroundedWriteFlaggedBySessionId.get(sessionId) ?? new Set<string>();
+					for (const edit of edits) {
+						if (!knownPaths.has(edit.path) && !flaggedWrites.has(edit.path)) {
+							flaggedWrites.add(edit.path);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Write to ${edit.path} with no prior read this session — edits may target imagined content (or it is a new file).`,
+								taskId: sessionId,
+								metadata: { category: "write_grounding", path: edit.path },
+							});
+						}
+						knownPaths.add(edit.path);
+					}
+					readPathsBySessionId.set(sessionId, knownPaths);
+					ungroundedWriteFlaggedBySessionId.set(sessionId, flaggedWrites);
+				}
 				if (edits.length > 0) {
 					const history = editHistoryBySessionId.get(sessionId) ?? [];
 					history.push(...edits);
@@ -404,6 +441,8 @@ export function forgetSessionFocusState(sessionId: string): void {
 	editThrashFlaggedBySessionId.delete(sessionId);
 	progressRecordsBySessionId.delete(sessionId);
 	progressStallFlaggedSessionIds.delete(sessionId);
+	readPathsBySessionId.delete(sessionId);
+	ungroundedWriteFlaggedBySessionId.delete(sessionId);
 	focusChainBySessionId.delete(sessionId);
 	goalReanchorLastTurnBySessionId.delete(sessionId);
 }
