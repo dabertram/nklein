@@ -2062,9 +2062,17 @@ stays fast + complete.
   - [ ] **F11.2b — `search_ast` (ast-grep) + a 3-tool search router.** Add structural AST search beside lexical `search_code`
     + the graph, and teach routing: strings→ripgrep, code-shape→ast-grep, who-calls/conceptual→graph/repo-map. Structural
     search removes comment/string false positives that waste tiny context. Supersedes the F12.1 note. (zzet.org three-tools; ast-grep.github.io)
-  - [ ] **F11.2c — k-hop ego-graph localization action over codebase-memory.** Seed on task-mentioned symbols, return the
+  - [x] **F11.2c — k-hop ego-graph localization action over codebase-memory.** Seed on task-mentioned symbols, return the
     ranked k-hop neighborhood (callers/callees/imports/implements) as file:line targets. LocAgent/RepoGraph lift small
     models to ~86–93% file localization + up to +32.8% resolve; !Klein already stores the graph — add the retrieval surface. (LocAgent 2503.09089; RepoGraph 2410.14684)
+    **SHIPPED 2026-07-17:** `ego-graph.ts` `buildSymbolEgoGraph` (pure BFS over per-file symbol/identifier/import
+    facts; hop-0 declaration lines, reference/import edges outward to k≤3; LocAgent-style HUB PRUNE — non-seed
+    names fanning past 8 files are dropped and REPORTED in `hubNamesPruned`, added after a live self-probe showed
+    generic locals like `lines` flooding the neighborhood) + `nklein-ego-graph-search.ts` (pure two-phase assembly
+    over `extractAstSourceFacts` with relative-import resolution incl. `.js`→`.ts` swaps) + the `ego_graph`
+    retrieval tool beside ast_search (escalation taught: repo_map orient → ego_graph localize → ast_search exact
+    lines → search_code text). 9 tests + live-proven on the nklein repo itself. Reference targets carry line:null
+    honestly (facts record identifier names, not positions — ast_search is the precision tier).
   - [ ] **F11.2d — Coarse-to-fine hierarchical localizer in decompose.** Narrow file → class/function → edit-span
     (Agentless-style) and pass only those spans to the coder — SOTA-cheap, fits limited context, avoids whole-file dumps
     that trigger lost-in-the-middle. (Agentless 2407.01489)

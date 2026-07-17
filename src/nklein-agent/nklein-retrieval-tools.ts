@@ -1,6 +1,7 @@
 import { searchAstShapes } from "./nklein-ast-search";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCode } from "./nklein-code-search";
+import { searchEgoGraph } from "./nklein-ego-graph-search";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import type { AgentTool } from "./sdk-agent-types";
 
@@ -210,6 +211,56 @@ function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalR
 	};
 }
 
+/** F11.2c: k-hop ego-graph localization — hand the model the ranked NEIGHBORHOOD around the task's symbols. */
+function createEgoGraphTool(workspacePath: string, recordRetrieval?: RetrievalRecorder): AgentTool {
+	return {
+		name: "ego_graph",
+		description:
+			"Localize a task's code neighborhood (TypeScript/JavaScript): seed on the symbol names the task mentions and get the ranked k-hop neighborhood — declaration sites (file:line), the files that use them, and import neighbors — as a small read-target list. Escalation order: repo_map for orientation, ego_graph to LOCALIZE which files matter for a task, ast_search for exact per-file shape matches, search_code for text.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				symbols: {
+					type: "array",
+					items: { type: "string" },
+					description: "1–8 symbol names the task mentions (functions/classes/types — exact identifiers).",
+				},
+				k: { type: "number", description: "Neighborhood radius in hops (1–3). Defaults to 2." },
+				maxTargets: { type: "number", description: "Maximum read targets to return. Defaults to 24." },
+			},
+			required: ["symbols"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			const seeds = Array.isArray(record.symbols)
+				? record.symbols.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+				: [];
+			if (seeds.length === 0) {
+				return { error: "ego_graph requires a non-empty `symbols` array." };
+			}
+			const result = await searchEgoGraph({
+				workspacePath,
+				seeds: seeds.slice(0, 8),
+				k: asBoundedInteger(record.k, 2, 1, 3),
+				maxTargets: asBoundedInteger(record.maxTargets, 24, 1, 60),
+			});
+			recordRetrieval?.({
+				query: `ego:${seeds.slice(0, 8).join(",")}`,
+				hitsConsidered: result.targets.length,
+				citations: [...new Set(result.targets.map((target) => target.path))],
+			});
+			return {
+				...result,
+				instruction:
+					result.targets.length > 0
+						? "These are the task's neighborhood files, closest first (`hop` 0 = declares/uses a seed; `via` says why). read_files the hop-0/1 declaration lines with focused ranges; use ast_search for exact reference lines inside a file. Unmatched seeds may be misspelled, non-TS, or dynamic."
+						: "No neighborhood found — the seeds may be misspelled, non-TS, or dynamic; fall back to search_code.",
+			};
+		},
+	};
+}
+
 export function createNKleinRetrievalTools(options: {
 	workspacePath: string;
 	embeddingProvider?: NKleinCodeEmbeddingProvider;
@@ -220,5 +271,6 @@ export function createNKleinRetrievalTools(options: {
 		createRepoMapTool(options.workspacePath),
 		createCodeSearchTool(options.workspacePath, options.embeddingProvider, options.recordRetrieval),
 		createAstSearchTool(options.workspacePath, options.recordRetrieval),
+		createEgoGraphTool(options.workspacePath, options.recordRetrieval),
 	];
 }
