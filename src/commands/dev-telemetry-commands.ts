@@ -1657,3 +1657,45 @@ export async function runDevGoldenSetCommand(
 	}
 	process.stdout.write(`\n  promote with: dev golden-set --promote <taskId>  (✓ = already in the corpus)\n`);
 }
+
+/** F12.58: per-card token/time effort over the persisted run summaries (`~/.nklein/nklein/task-runs`). */
+export async function runDevCardEffortCommand(
+	options: { json?: boolean; workspace?: string; cap?: number } = {},
+): Promise<void> {
+	const { computeCardEffort, assessEffortBudget } = await import("../core/card-effort");
+	const { readTaskRunSummaries } = await import("../state/task-run-summary-store");
+	const workspacePath = options.workspace ?? process.cwd();
+	const records = await readTaskRunSummaries({ workspacePath, limit: 10_000 });
+	const rollup = computeCardEffort(
+		records.map((record) => ({
+			taskId: record.taskId,
+			startedAt: record.startedAt,
+			endedAt: record.endedAt,
+			promptTokens: record.promptTokens,
+			completionTokens: record.completionTokens,
+			totalTokens: record.totalTokens,
+			modelId: record.modelId,
+		})),
+	);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(rollup, null, 2)}\n`);
+		return;
+	}
+	const minutes = (ms: number) => `${(ms / 60_000).toFixed(1)}m`;
+	process.stdout.write(
+		`Per-card effort (F12.58) — ${rollup.cards.length} card(s), board total ${rollup.boardTotalTokens.toLocaleString()} tokens / ${minutes(rollup.boardWallMs)}${
+			rollup.boardUntrackedRuns > 0
+				? ` (${rollup.boardUntrackedRuns} run(s) without token telemetry — undercounted)`
+				: ""
+		}\n\n`,
+	);
+	for (const card of rollup.cards.slice(0, 25)) {
+		const budget = options.cap ? ` ${assessEffortBudget(card, options.cap).note}` : "";
+		process.stdout.write(
+			`  ${card.taskId.slice(0, 40).padEnd(42)} ${String(card.totalTokens.toLocaleString()).padStart(12)} tok  ${minutes(card.wallMs).padStart(7)}  ${String(card.runs).padStart(2)} run(s)${budget}\n`,
+		);
+	}
+	if (rollup.cards.length === 0) {
+		process.stdout.write("  (no terminal runs recorded for this workspace — start/finish some cards first)\n");
+	}
+}

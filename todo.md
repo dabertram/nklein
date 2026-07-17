@@ -2518,9 +2518,15 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
   board with preset "good first task" templates scoped to what LOCAL models reliably do; broad relatable examples;
   just-in-time tips (not an upfront tutorial); an honest "here's what can go wrong / how to recover." (nngroup new-AI-users)
-- [ ] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
+- [~] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
   invisibly. Show tokens/time per card + a board-level total, with an optional soft cap that pauses or escalates a card
   approaching its budget. (portal26 agent-cost-control; Conductor)
+  **METER SHIPPED 2026-07-17:** `card-effort.ts` `computeCardEffort` (per-card tokens/wall/runs/models over the
+  persisted task-run summaries; untracked runs counted honestly — never silently undercounted) + `assessEffortBudget`
+  (advisory within/approaching/over at 75%/100%; the REACTION stays caller policy) + `dev card-effort [--workspace]
+  [--cap]`. LIVE: 13 cards / 482k tokens on the habit-deep-chain workspace; one card correctly reads over a 200k cap.
+  REMAINING: board-UI meter (tRPC slice + card chip — token data is per-workspace-store, needs the 6-touch slice) and
+  the pause/escalate reaction wire (policy decision: auto-pause is an autonomy change — David's call on default).
 - [ ] **F12.59 — Escalation cards: recommendation + confidence + preserved context (never a blank question).** When blocked/
   uncertain, raise a distinct escalation card stating a RECOMMENDED action + confidence + preserved context, with
   approve/redirect/guide options ("send the recommendation, not the question"). Tunable sensitivity; maps onto the S3

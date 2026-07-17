@@ -45,6 +45,7 @@ import {
 	runDevAirGapStatusCommand,
 	runDevAnswerBudgetsCommand,
 	runDevCapabilityCeilingCommand,
+	runDevCardEffortCommand,
 	runDevContextRecommendationsCommand,
 	runDevControllerTraceCommand,
 	runDevCostPerResolveCommand,
@@ -948,6 +949,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevEgressReceiptsCommand(options);
+		});
+
+	dev.command("card-effort")
+		.description("Per-card token/time effort + board total (F12.58) over the persisted run summaries.")
+		.option("--json", "Print machine-readable JSON.")
+		.option("--workspace <path>", "Workspace path (defaults to cwd).")
+		.option("--cap <tokens>", "Soft token cap per card — annotates within/approaching/over.", Number.parseInt)
+		.action(async (options: { json?: boolean; workspace?: string; cap?: number }) => {
+			await runDevCardEffortCommand(options);
 		});
 
 	dev.command("cost-per-resolve")
