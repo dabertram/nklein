@@ -2372,9 +2372,13 @@ output and NOT acted on. Captured as F12.12.)
   **CORE SHIPPED 2026-07-17:** `instruction-reanchor.ts` — `decideReanchor` (event-driven firing: loop >
   stale-anchor tool-error > 12-turn periodic; quiet otherwise — spammed reminders get ignored) +
   `buildReanchorReminder` (compact tail message: current step + done-means + trigger-specific guidance; absent
-  fields omitted). 4 tests. REMAINING (activation): inject via the F12.56 steer channel at the turn boundary
-  (rides the pending-prompt queue into the recency zone; never touches the F4.40 cache-stable prefix), with
-  turnsSinceAnchor tracked beside the session's turn counters.
+  fields omitted). 4 tests. **AUDIT + DISTRESS WIRE LIVE 2026-07-17:** the periodic + end-of-context halves
+  ALREADY existed (the per-request focus-chain rail re-projects the agent's plan every turn; §5.AD
+  NKLEIN_GOAL_REANCHOR re-injects the ORIGINAL goal every 6 turns near the context end) — verify-before-build.
+  The genuine delta shipped: EVENT-DRIVEN tightening — a session flagged by the F12.15 thrash or F12.22 stall
+  watches re-anchors at a 3-turn distress cadence instead of the calm 6 (re-ground BEFORE nudging). The standalone
+  instruction-reanchor core remains available for a steer-channel variant if the flag-gated §5.AD path proves too
+  quiet in live runs.
 - [~] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
   (§12) bounds LENGTH but not SEMANTIC looping. Track no-progress rounds + repeated-identical tool calls + patch-spirals
   (edit-same-file-no-diff), and on threshold break to a self-reflection + plan-revision step (Magentic-One progress-ledger

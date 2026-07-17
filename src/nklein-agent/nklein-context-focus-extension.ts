@@ -74,6 +74,9 @@ const goalReanchorLastTurnBySessionId = new Map<string, number>();
 
 /** Env-gated (NKLEIN_GOAL_REANCHOR) turn cadence for the opt-in immutable-goal re-anchor; sane default when unset. */
 const GOAL_REANCHOR_EVERY_N_TURNS = 6;
+// F12.21: under DISTRESS (edit-thrash or progress-stall flagged this session) the goal re-anchor tightens — a
+// circling model needs re-grounding sooner than the calm cadence; the flags live in this file's own watch maps.
+const GOAL_REANCHOR_DISTRESS_EVERY_N_TURNS = 3;
 
 export function doesNKleinToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
 	if (context.result.isError === true) {
@@ -195,11 +198,16 @@ export function createKanbanContextFocusExtension(
 				// plan). Pure decision over the current messages; only appends when the cadence gate fires AND a goal exists.
 				if (isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)) {
 					const currentMessages = finalResult?.messages ?? baseMessages;
+					// F12.21 event-driven tightening: a session flagged by the thrash/stall watches re-anchors at the
+					// distress cadence instead of waiting out the calm one (loop research: re-ground BEFORE nudging).
+					const inDistress =
+						progressStallFlaggedSessionIds.has(sessionId) ||
+						(editThrashFlaggedBySessionId.get(sessionId)?.size ?? 0) > 0;
 					const reanchor = decideTaskReanchorForRequest({
 						messages: currentMessages,
 						turnCount: context.snapshot.iteration,
 						lastReanchorTurn: goalReanchorLastTurnBySessionId.get(sessionId) ?? null,
-						everyNTurns: GOAL_REANCHOR_EVERY_N_TURNS,
+						everyNTurns: inDistress ? GOAL_REANCHOR_DISTRESS_EVERY_N_TURNS : GOAL_REANCHOR_EVERY_N_TURNS,
 					});
 					if (reanchor.appended) {
 						goalReanchorLastTurnBySessionId.set(
