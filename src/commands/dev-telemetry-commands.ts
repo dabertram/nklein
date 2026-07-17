@@ -1699,3 +1699,30 @@ export async function runDevCardEffortCommand(
 		process.stdout.write("  (no terminal runs recorded for this workspace — start/finish some cards first)\n");
 	}
 }
+
+/** F12.55: plain-language, artifact-anchored action trail for one card, over the persisted ledger. */
+export async function runDevCardTrailCommand(options: { task: string; json?: boolean }): Promise<void> {
+	const { buildCardActionTrail } = await import("../core/card-action-trail");
+	const events = await readAllAgentLedger();
+	const trail = buildCardActionTrail(events, options.task);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(trail, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Action trail (F12.55) — ${options.task}: ${trail.length} entr(ies)\n\n`);
+	const mark: Record<string, string> = { read_only: " ", reversible: "±", irreversible: "!" };
+	let lastHypothesis: string | null = null;
+	for (const entry of trail) {
+		if (entry.hypothesis && entry.hypothesis !== lastHypothesis) {
+			process.stdout.write(`  ─ ${entry.hypothesis}\n`);
+			lastHypothesis = entry.hypothesis;
+		}
+		const stamp = entry.at ? new Date(entry.at).toISOString().slice(11, 19) : "??:??:??";
+		process.stdout.write(`  ${stamp} ${mark[entry.reversibility] ?? " "} ${entry.text}\n`);
+	}
+	if (trail.length === 0) {
+		process.stdout.write("  (no ledger events for this task id)\n");
+	} else {
+		process.stdout.write("\n  legend: ' '=read-only  ±=reversible in worktree  !=IRREVERSIBLE/outward\n");
+	}
+}

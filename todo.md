@@ -2501,10 +2501,18 @@ output and NOT acted on. Captured as F12.12.)
   before approve" demand on high-risk diffs. 5 tests; 67 review-suite tests green. REMAINING: the human-side
   "state the failure mode" confirm on MERGING high-risk cards (needs risk tier on the card payload — ride
   `card.verification`-style field when wanted) — the model-side demand ships now.
-- [ ] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
+- [~] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
   ("Added token refresh to auth.ts → ran tests, 3 passed"), NOT a raw tool-call dump, with reversibility color-coding +
   before/after diffs; frame agent rationale as a hypothesis anchored to the change (CoT is often post-hoc — never present as
   evidence). (aiuxdesign action-audit-trail; CoT-faithfulness 2601.16720)
+  **TRAIL CORE + CLI SHIPPED 2026-07-17:** `card-action-trail.ts` `buildCardActionTrail` (chronological plain-language
+  entries over the per-task ledger: file-anchored actions, retrievals with kept citations, controller transitions,
+  attempt terminals; quiet read churn collapses to one "explored" line; `focusStep` rendered as "working hypothesis —
+  not evidence" per CoT-faithfulness) + `classifyToolReversibility` (read_only/reversible/IRREVERSIBLE — outward verbs
+  win on unknown names) + `dev card-trail --task`. LIVE: 137-entry readable story on a real dev-test card. REMAINING:
+  the card-detail UI panel (tRPC per-task ledger slice mirroring getTaskFocusChainHistory + a timeline in
+  card-detail-view beside the existing DiffViewerPanel for the before/after anchor) — the projection is done, the
+  panel is presentation. Ledger toolCalls carry no result TEXT ("3 passed") — richer lines need a capture-time field.
 - [~] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)

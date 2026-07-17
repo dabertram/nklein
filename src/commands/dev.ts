@@ -46,6 +46,7 @@ import {
 	runDevAnswerBudgetsCommand,
 	runDevCapabilityCeilingCommand,
 	runDevCardEffortCommand,
+	runDevCardTrailCommand,
 	runDevContextRecommendationsCommand,
 	runDevControllerTraceCommand,
 	runDevCostPerResolveCommand,
@@ -949,6 +950,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevEgressReceiptsCommand(options);
+		});
+
+	dev.command("card-trail")
+		.description("Plain-language, artifact-anchored action trail for one card (F12.55) over the ledger.")
+		.requiredOption("--task <taskId>", "The card/task id to trail.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { task: string; json?: boolean }) => {
+			await runDevCardTrailCommand(options);
 		});
 
 	dev.command("card-effort")
