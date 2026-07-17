@@ -1,5 +1,6 @@
 import { buildCurrencyEvidenceFromSource } from "../core/evidence-currency-capture";
 import { summarizeEvidenceCurrency } from "../core/evidence-currency-status";
+import { parseUntrustedWebContent, renderParsedWebContent } from "../core/structured-ingestion-parse";
 import { withTransientRetry } from "../core/transient-error";
 import { appendCurrencyEvidence } from "../state/currency-evidence-store";
 import { appendEgressReceipt } from "../state/egress-receipt-store";
@@ -129,10 +130,19 @@ export async function runWebResearchFetch(input: {
 		category: "web_research",
 		taintLabels: [],
 	}).catch(() => {});
+	const title = contentType.includes("text/html") ? extractTitle(raw) : null;
+	// F12.10 structured ingestion channel (opt-in, NKLEIN_STRUCTURED_INGESTION=1): parse the untrusted text into the
+	// strict typed shape and return ONLY its rendered form — individually-screened facts/urls, everything else
+	// dropped (injection payloads included). Default off = byte-identical raw path (S4 screen + S2 fence still apply
+	// downstream either way).
+	const structured = /^(1|true|on)$/i.test(process.env.NKLEIN_STRUCTURED_INGESTION ?? "");
+	const deliveredText = structured
+		? renderParsedWebContent(parseUntrustedWebContent({ title, content: text.slice(0, maxChars) }))
+		: text.slice(0, maxChars);
 	return {
 		url: url.toString(),
-		title: contentType.includes("text/html") ? extractTitle(raw) : null,
-		content: text.slice(0, maxChars),
+		title,
+		content: deliveredText,
 		truncated: text.length > maxChars,
 		sourceDomain: url.hostname,
 		currency: summarizeEvidenceCurrency([currencyEvidence], Date.now()).annotation,

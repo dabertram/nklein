@@ -2216,10 +2216,18 @@ output and NOT acted on. Captured as F12.12.)
   existing clarification flow (effectful — the decompose path decides ask-vs-proceed; findings are prompts, never blocks).
 
 **Injection defense (extends Phase 7S):**
-- [ ] **F12.10 — Structured tool-output PARSING channel (DRIFT-style) for the highest-risk ingestions.** Beyond the S4
+- [~] **F12.10 — Structured tool-output PARSING channel (DRIFT-style) for the highest-risk ingestions.** Beyond the S4
   screen + S2 fence, the 2026 SOTA adds a step: prompt a constrained pass to PARSE untrusted tool output into a strict
   typed shape, dropping everything outside it (injection payloads included), before it re-enters orchestration. Pilot this
   for the riskiest ingestion (web-research / MCP issue text): extract only the typed fields the task needs. (arxiv 2601.04795 DRIFT/tool-result-parsing)
+  **DETERMINISTIC CHANNEL SHIPPED 2026-07-17:** `structured-ingestion-parse.ts` — `parseUntrustedWebContent` (strict
+  typed shape {title, facts[], urls[]}; each unit retained ONLY if individually S4-clean + within caps; drops counted,
+  never silent; long units dropped not truncated — truncation can un-flag a payload) + `renderParsedWebContent`
+  (provenance note inline). Wired OPT-IN at web_research behind `NKLEIN_STRUCTURED_INGESTION=1` (default off =
+  byte-identical). Building it caught ANOTHER S4 gap: sentence-split delimiter forgery in role-first order ("USER
+  MESSAGE BEGIN") — rule extended, corpus still green (48 tests across parse+corpus+screen). REMAINING: the
+  model-based constrained-parse variant per DRIFT (a reviewer-tier extraction pass — fleet-gated) and the MCP
+  issue-text ingestion pilot (same core, different seam).
 - [ ] **F12.11 — Evaluate a CaMeL-style dual-context boundary for the planner.** CaMeL separates a TRUSTED planner LLM
   (sees only the user request + a capability/data-flow policy) from UNTRUSTED data handling, so injected bytes can't touch
   control decisions — human approval is the fallback when a data-flow can't be auto-resolved (maps onto the S3 queue). This

@@ -107,7 +107,7 @@ const CONTENT_PATTERNS: readonly ContentPatternRule[] = [
 		code: "role_override",
 		severity: "reject",
 		pattern:
-			/\b(?:end|begin|start)\s+(?:of\s+)?(?:system|user|assistant|developer)\s+(?:message|prompt|instructions?|turn)\b|<\|im_(?:start|end)\|>|\[\/?(?:INST|SYS)\]/,
+			/\b(?:end|begin|start)\s+(?:of\s+)?(?:system|user|assistant|developer)\s+(?:message|prompt|instructions?|turn)\b|\b(?:system|user|assistant|developer)\s+(?:message|prompt|turn)\s+(?:begins?|starts?|ends?)\b|<\|im_(?:start|end)\|>|\[\/?(?:INST|SYS)\]/,
 		message: "Content forges a message/prompt boundary marker to smuggle a fake turn (delimiter forgery).",
 	},
 ];
