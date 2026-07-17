@@ -1165,16 +1165,17 @@ export default function App(): ReactElement {
 												<GitFork size={13} />
 												DAG
 											</button>
-											{needsYouCount > 0 && zoom !== 3 ? (
+											{needsYouCount > 0 ? (
 												// W3.4: the needs-you badge — a JUMP affordance for the zoomed-out views. On the full board
-												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance — showing
-												// both was duplicate attention noise (the anti-cry-wolf rule F12.52 exists to enforce).
+												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance on WIDE
+												// screens (showing both was duplicate attention noise) — but on narrow screens that chip
+												// sits in the header's horizontal-overflow strip, so this pill stays as the visible signal.
 												<button
 													type="button"
 													data-testid="needs-you-badge"
 													title={`${needsYouCount} card${needsYouCount === 1 ? "" : "s"} need${needsYouCount === 1 ? "s" : ""} your input — open the full board`}
 													onClick={() => setZoom(3)}
-													className="inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20"
+													className={`inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20${zoom === 3 ? " sm:hidden" : ""}`}
 												>
 													<span aria-hidden>●</span>
 													{needsYouCount} need{needsYouCount === 1 ? "s" : ""} you
