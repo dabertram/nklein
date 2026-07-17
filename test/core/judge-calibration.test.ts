@@ -88,6 +88,12 @@ describe("aggregateJury (F12.50 PoLL)", () => {
 		expect(split.note).toContain("human review");
 	});
 
+	it("never calls an empty jury unanimous (review-found)", () => {
+		const empty = aggregateJury([]);
+		expect(empty.verdict).toBe(false);
+		expect(empty.note).toContain("no votes");
+	});
+
 	it("caps confidence on a same-family unanimous jury", () => {
 		const sameFamily = aggregateJury([
 			{ judgeId: "j1", family: "qwen", verdict: true },

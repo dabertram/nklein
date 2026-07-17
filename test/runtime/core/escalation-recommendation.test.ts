@@ -16,6 +16,14 @@ describe("recommendEscalationAction (F12.59)", () => {
 		expect(recommendation.confidence).toBe("high");
 	});
 
+	it("keeps the rationale coherent with the recommendation when BOTH flags are set (review-found)", () => {
+		// clarify outranks blocked-action in CONTEXT_PRIORITY, so the lead is clarify — the rationale must match it.
+		const both = recommendEscalationAction({ clarifyPending: true, blockedActionPending: true });
+		expect(both.recommended.kind).toBe("clarify_ambiguity");
+		expect(both.rationale).toContain("clarifying question");
+		expect(both.rationale).not.toContain("blocked action");
+	});
+
 	it("reads environment blockers at medium and no-signal at an honestly-labeled low", () => {
 		expect(recommendEscalationAction({ environmentBlocked: true }).confidence).toBe("medium");
 		const generic = recommendEscalationAction({});

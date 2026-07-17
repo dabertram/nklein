@@ -3667,6 +3667,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 
 	runtimeApi = createRuntimeApi({
 		railControlCoordinator: backgroundEvalRailWiring.coordinator,
+		// F12.53 fix: lets the on-demand Verify handler push the refreshed card.verification to the board —
+		// without it the Commit/PR warn-gate read a permanently-stale value (review-found critical).
+		broadcastRuntimeWorkspaceStateUpdated: deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated,
 		getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
 		getActiveWorkspacePath: deps.workspaceRegistry.getActiveWorkspacePath,
 		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,

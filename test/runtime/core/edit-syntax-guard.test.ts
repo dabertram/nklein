@@ -35,4 +35,17 @@ describe("checkEditSyntax (F12.63)", () => {
 	it("handles python comments (# not //) without false positives", () => {
 		expect(checkEditSyntax("script.py", "# comment with {\ndef f():\n\treturn [1, 2]").ok).toBe(true);
 	});
+
+	// Review-found gaps: unterminated single/double-quoted strings passed silently (mid-file via a no-op
+	// "recovery", and at EOF where only templates were checked).
+	it("rejects an unterminated double-quoted string broken by a raw newline", () => {
+		const verdict = checkEditSyntax("src/x.ts", 'function f() {\n\tconst s = "unterminated\n}');
+		expect(verdict.ok).toBe(false);
+		expect(verdict.issue).toContain("Unterminated string literal");
+	});
+
+	it("rejects an unterminated string at end of file and accepts escaped continuations", () => {
+		expect(checkEditSyntax("src/x.ts", 'const s = "never closed').ok).toBe(false);
+		expect(checkEditSyntax("src/x.ts", 'const s = "line one \\\n line two";').ok).toBe(true);
+	});
 });

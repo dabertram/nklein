@@ -28,6 +28,12 @@ export interface CreateRuntimeApiDependencies {
 	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
 	getLoadedScopedNKleinTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => NKleinTaskSessionService | null;
 	/**
+	 * F12.53 fix (review-found): pushes the refreshed board state to connected clients after a mutation the
+	 * websocket hub doesn't observe itself — without it, an on-demand Verify run persisted `card.verification`
+	 * but the board (and the Commit/PR warn-gate reading it) kept the STALE value until an unrelated refresh.
+	 */
+	broadcastRuntimeWorkspaceStateUpdated?: (workspaceId: string, workspacePath: string) => Promise<void> | void;
+	/**
 	 * Docker-backed read tools for isolated chat scopes. Optional by design: if absent, isolated read-only sessions
 	 * fail closed and receive no workspace filesystem tools rather than falling back to host reads.
 	 */

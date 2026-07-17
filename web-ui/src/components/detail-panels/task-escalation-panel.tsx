@@ -4,6 +4,7 @@ import { buildEscalationSuggestions, recommendEscalationAction } from "@runtime-
 import { History, RefreshCw } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { shortenModelIdForBadge } from "@/components/board-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
@@ -164,7 +165,9 @@ export function TaskEscalationPanel({
 									className="flex min-w-0 items-center gap-2 border-b border-border/60 py-1 last:border-b-0"
 								>
 									<span className="font-mono text-text-tertiary">#{row.rung}</span>
-									<span className="truncate font-mono text-text-secondary">{row.modelId}</span>
+									<span className="truncate font-mono text-text-secondary" title={row.modelId}>
+										{shortenModelIdForBadge(row.modelId)}
+									</span>
 									<span className="truncate text-text-tertiary">{row.approach}</span>
 									<span className={cn("ml-auto shrink-0 font-mono", getOutcomeClassName(row.outcome))}>
 										{row.outcome}

@@ -19,11 +19,14 @@ describe("capToolResult (F12.65)", () => {
 		expect(capped.originalChars).toBe(text.length);
 	});
 
-	it("catches oversized STRUCTURED results by stringifying, and never throws on cyclic ones", () => {
+	it("catches oversized STRUCTURED results by stringifying, and withholds unmeasurable ones", () => {
 		const big = { rows: Array.from({ length: 500 }, (_, index) => `row-${index}-${"y".repeat(50)}`) };
 		expect(capToolResult(big, 1_000).truncated).toBe(true);
+		// Review-found: a cyclic result previously passed through UNBOUNDED — the exact hole the cap closes.
 		const cyclic: Record<string, unknown> = {};
 		cyclic.self = cyclic;
-		expect(capToolResult(cyclic, 10).truncated).toBe(false);
+		const withheld = capToolResult(cyclic, 10);
+		expect(withheld.truncated).toBe(true);
+		expect(String(withheld.value)).toContain("withheld");
 	});
 });

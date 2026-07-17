@@ -1165,8 +1165,10 @@ export default function App(): ReactElement {
 												<GitFork size={13} />
 												DAG
 											</button>
-											{needsYouCount > 0 ? (
-												// W3.4: the needs-you badge — visible at every zoom; click = jump to the full board.
+											{needsYouCount > 0 && zoom !== 3 ? (
+												// W3.4: the needs-you badge — a JUMP affordance for the zoomed-out views. On the full board
+												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance — showing
+												// both was duplicate attention noise (the anti-cry-wolf rule F12.52 exists to enforce).
 												<button
 													type="button"
 													data-testid="needs-you-badge"

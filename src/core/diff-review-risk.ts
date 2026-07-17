@@ -27,8 +27,11 @@ export const REVIEW_FATIGUE_ADDED_LINES = 400;
 
 const HIGH_RISK_PATH_PATTERNS: readonly { category: string; pattern: RegExp }[] = [
 	{
+		// Short/ambiguous tokens are segment-anchored (review-found: bare `auth` matched "authors", `acl` matched
+		// "oracle" — deep-review on ordinary files is exactly the cry-wolf this classifier exists to prevent).
 		category: "auth/security",
-		pattern: /auth|security|crypt|token|password|secret|credential|session|permission|acl|sandbox|egress/i,
+		pattern:
+			/(?:^|[/_.-])auth(?:[/_.-]|$)|authent|authoriz|security|crypt|token|password|secret|credential|session|permission|(?:^|[/_.-])acl(?:[/_.-]|$)|sandbox|egress/i,
 	},
 	{ category: "API contract", pattern: /api-contract|contract|schema|router|openapi|proto\b/i },
 	{ category: "data migration", pattern: /migration|migrate/i },

@@ -29,9 +29,16 @@ function scanBracketBalance(content: string, path: string): EditSyntaxVerdict {
 		const next = content[index + 1] ?? "";
 		if (char === "\n") {
 			line += 1;
-			if (state === "line_comment" || (state === "single" && !python) || (state === "double" && !python)) {
-				// Unterminated quote at EOL in JS-family reads as recovered — templates span lines legitimately.
-				state = state === "line_comment" ? "code" : "code";
+			if (state === "line_comment") {
+				state = "code";
+			} else if ((state === "single" || state === "double") && !python) {
+				// Review-found: a raw newline inside a JS-family single/double-quoted string is ALWAYS a syntax
+				// error (a `\`-continuation was already consumed by the escape branch) — the old code silently
+				// "recovered" to code state and passed broken files. Templates legitimately span lines.
+				return {
+					ok: false,
+					issue: `Unterminated string literal at line ${line - 1} — the edit likely broke the file.`,
+				};
 			}
 			continue;
 		}
@@ -92,6 +99,10 @@ function scanBracketBalance(content: string, path: string): EditSyntaxVerdict {
 	}
 	if (state === "template") {
 		return { ok: false, issue: "Unclosed template literal (`) — the edit likely broke the file." };
+	}
+	// Review-found: EOF inside a single/double-quoted string was silently accepted (only templates were checked).
+	if (state === "single" || state === "double") {
+		return { ok: false, issue: "Unterminated string literal at end of file — the edit likely broke the file." };
 	}
 	return { ok: true, issue: null };
 }

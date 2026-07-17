@@ -136,14 +136,15 @@ export async function runWebResearchFetch(input: {
 	// dropped (injection payloads included). Default off = byte-identical raw path (S4 screen + S2 fence still apply
 	// downstream either way).
 	const structured = /^(1|true|on)$/i.test(process.env.NKLEIN_STRUCTURED_INGESTION ?? "");
-	const deliveredText = structured
-		? renderParsedWebContent(parseUntrustedWebContent({ title, content: text.slice(0, maxChars) }))
-		: text.slice(0, maxChars);
+	const parsed = structured ? parseUntrustedWebContent({ title, content: text.slice(0, maxChars) }) : null;
+	const deliveredText = parsed ? renderParsedWebContent(parsed) : text.slice(0, maxChars);
 	return {
 		url: url.toString(),
 		title,
 		content: deliveredText,
-		truncated: text.length > maxChars,
+		// Review-found: under structured ingestion the RAW-length check alone lied — a page whose units were
+		// dropped by the screen/caps reported truncated:false. The flag now reflects what the caller received.
+		truncated: text.length > maxChars || (parsed !== null && parsed.droppedUnits > 0),
 		sourceDomain: url.hostname,
 		currency: summarizeEvidenceCurrency([currencyEvidence], Date.now()).annotation,
 	};

@@ -159,6 +159,17 @@ export interface JuryVerdict {
 
 /** PoLL jury: majority vote; dissent → human review; same-family jury → correlated-error warning. */
 export function aggregateJury(votes: readonly JuryVote[]): JuryVerdict {
+	if (votes.length === 0) {
+		// An empty jury must never read as "unanimous" — no signal is not confidence.
+		return {
+			verdict: false,
+			votesFor: 0,
+			votesAgainst: 0,
+			disagreement: false,
+			correlatedFamilies: false,
+			note: "no votes — an empty jury carries no signal; treat as needs-human-review.",
+		};
+	}
 	const votesFor = votes.filter((vote) => vote.verdict).length;
 	const votesAgainst = votes.length - votesFor;
 	const disagreement = votesFor > 0 && votesAgainst > 0;

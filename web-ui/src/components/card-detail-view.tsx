@@ -207,9 +207,15 @@ function TaskActivitySurface({
 				<span>Activity</span>
 				<span className="truncate text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
 			</div>
-			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
+			{/* auto-fit ≥150px tiles: wraps to more rows instead of truncating labels into fragments (a fixed
+			    7-column grid squeezed each phase to ~140px and every label became "Pl…"/"Re…" noise). */}
+			<div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-1.5">
 				{steps.map((step) => (
-					<div key={step.label} className="min-w-0 rounded-md border border-border bg-surface-0 px-2 py-1.5">
+					<div
+						key={step.label}
+						title={`${step.label} — ${step.status}${step.detail ? `\n${step.detail}` : ""}`}
+						className="min-w-0 rounded-md border border-border bg-surface-0 px-2 py-1.5"
+					>
 						<div className="flex min-w-0 items-center gap-1.5">
 							<span
 								className={cn("h-2 w-2 shrink-0 rounded-full border", getActivityToneClassName(step.tone))}

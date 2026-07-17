@@ -86,6 +86,13 @@ export function parseUntrustedWebContent(
 		facts.push(unit);
 	}
 
+	// Defense-in-depth (found by review): a payload can SPAN the sentence split so each half screens clean but the
+	// reassembled sequence is the attack again. Re-screen the JOINED retained facts; if the whole is not clean,
+	// deliver NO facts — an over-drop on a hostile page beats reassembling its payload.
+	if (facts.length > 0 && screenUntrustedContent(facts.join("\n")).verdict !== "clean") {
+		dropped += facts.length;
+		facts.length = 0;
+	}
 	return {
 		title,
 		facts,

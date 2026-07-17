@@ -43,8 +43,8 @@ export function arbitrateByExecution(a: CandidateExecutionRun, b: CandidateExecu
 			note: "Execution signal: Candidate B PASSES the acceptance check, Candidate A fails — prefer B unless the reviewer finds B defective in a way the check misses.",
 		};
 	}
-	if (a.passed === false && b.passed === false && a.failureCount !== null && b.failureCount !== null) {
-		if (a.failureCount !== b.failureCount) {
+	if (a.passed === false && b.passed === false) {
+		if (a.failureCount !== null && b.failureCount !== null && a.failureCount !== b.failureCount) {
 			const winner = a.failureCount < b.failureCount ? "a" : "b";
 			return {
 				winner,
@@ -52,6 +52,15 @@ export function arbitrateByExecution(a: CandidateExecutionRun, b: CandidateExecu
 				note: `Execution signal: both candidates fail, but Candidate ${winner.toUpperCase()} fails fewer checks (${Math.min(a.failureCount, b.failureCount)} vs ${Math.max(a.failureCount, b.failureCount)}) — it is the closer-to-green base.`,
 			};
 		}
+		// Review-found: a genuine measured tie fell through to the "a check did not run" label — dishonest.
+		return {
+			winner: null,
+			decisive: false,
+			note:
+				a.failureCount !== null && a.failureCount === b.failureCount
+					? `Execution signal: both candidates fail equally (${a.failureCount} failure(s) each) — judge on the diffs alone.`
+					: "Execution signal: both candidates FAIL the acceptance check — judge which diff is the better base for repair.",
+		};
 	}
 	if (a.passed === true && b.passed === true) {
 		return {

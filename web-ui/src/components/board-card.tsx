@@ -203,7 +203,12 @@ const MODEL_BADGE_NOISE_TOKEN = /-(?:q\d[\w-]*|gguf|mlx|instruct|it|chat|\d{4})$
 
 /** Strip the provider prefix (`openai/gpt-5.5` → `gpt-5.5`) + noise suffixes, then middle-truncate as a last resort. */
 export function shortenModelIdForBadge(modelId: string): string {
-	let shortId = modelId.split("/").pop()?.trim() || modelId.trim();
+	// Canonical fitness keys ("lmstudio:org/model:http://host:port/v1", "lmstudio:model:default") first lose
+	// their provider prefix and endpoint suffix — otherwise the path split below would surface the endpoint's
+	// "v1" (or a bare "default") as the model name.
+	const canonical = modelId.match(/^[a-z][\w-]*:(.+?)(?::(?:default|https?:\/\/.*))?$/i);
+	const base = canonical?.[1] ?? modelId;
+	let shortId = base.split("/").pop()?.trim() || base.trim();
 	while (shortId.length > MODEL_BADGE_MAX_CHARS && MODEL_BADGE_NOISE_TOKEN.test(shortId)) {
 		shortId = shortId.replace(MODEL_BADGE_NOISE_TOKEN, "");
 	}

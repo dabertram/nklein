@@ -50,18 +50,26 @@ function findCodepoint(text: string, codes: ReadonlySet<number>): number {
 	return -1;
 }
 
+// Inter-word separator for multi-word attack phrases: whitespace OR light punctuation. A bare `\s+` was DEFEATED
+// by a single period between trigger words ("END SYSTEM. MESSAGE BEGIN") — found by the F12.10 sentence-split
+// review; punctuation-splicing is free for an attacker, so every multi-word rule tolerates it between words.
+const SEP = String.raw`[\s.,:;!?'"()\-]+`;
+
 const CONTENT_PATTERNS: readonly ContentPatternRule[] = [
 	{
 		code: "ignore_previous_instructions",
 		severity: "reject",
-		pattern:
-			/\b(?:ignore|disregard|forget)\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|your)\s+(?:instructions?|prompts?|context|messages?|rules?)\b/,
+		pattern: new RegExp(
+			String.raw`\b(?:ignore|disregard|forget)${SEP}(?:(?:all|any|the)${SEP})?(?:previous|prior|above|earlier|your)${SEP}(?:instructions?|prompts?|context|messages?|rules?)\b`,
+		),
 		message: "Content tries to override prior instructions ('ignore previous instructions').",
 	},
 	{
 		code: "instruction_override",
 		severity: "reject",
-		pattern: /\boverride\s+(?:your\s+|the\s+|all\s+)?(?:guidelines?|safety|rules?|system\s+prompt|instructions?)\b/,
+		pattern: new RegExp(
+			String.raw`\boverride${SEP}(?:(?:your|the|all)${SEP})?(?:guidelines?|safety|rules?|system${SEP}prompt|instructions?)\b`,
+		),
 		message: "Content tries to override the model's guidelines / safety rules.",
 	},
 	{
@@ -74,15 +82,17 @@ const CONTENT_PATTERNS: readonly ContentPatternRule[] = [
 	{
 		code: "role_override",
 		severity: "reject",
-		pattern:
-			/\byou\s+are\s+(?:now\s+)?(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:assistant|ai|system|model|agent)\b|\b(?:act|pretend)\s+(?:as|to\s+be)\s+(?:the\s+)?(?:assistant|system|dan)\b|\b(?:developer\s+mode|dan\s+mode|jailbreak|do\s+anything\s+now|unrestricted\s+mode)\b/,
+		pattern: new RegExp(
+			String.raw`\byou${SEP}are${SEP}(?:now${SEP})?(?:(?:a|an|the)${SEP})?(?:new${SEP})?(?:assistant|ai|system|model|agent)\b|\b(?:act|pretend)${SEP}(?:as|to${SEP}be)${SEP}(?:the${SEP})?(?:assistant|system|dan)\b|\b(?:developer${SEP}mode|dan${SEP}mode|jailbreak|do${SEP}anything${SEP}now|unrestricted${SEP}mode)\b`,
+		),
 		message: "Content asserts a new role/persona or a jailbreak (role override).",
 	},
 	{
 		code: "instruction_override",
 		severity: "review",
-		pattern:
-			/\b(?:you\s+must\s+(?:now\s+)?|your\s+(?:new\s+)?(?:task|job|goal)\s+is\s+(?:now\s+)?|from\s+now\s+on\s+you\s+(?:must|will|should))\b/,
+		pattern: new RegExp(
+			String.raw`\b(?:you${SEP}must${SEP}(?:now${SEP})?|your${SEP}(?:new${SEP})?(?:task|job|goal)${SEP}is${SEP}(?:now${SEP})?|from${SEP}now${SEP}on${SEP}you${SEP}(?:must|will|should))\b`,
+		),
 		message: "Content issues an authoritative directive to the reader (task hijacking).",
 	},
 	{
@@ -106,8 +116,9 @@ const CONTENT_PATTERNS: readonly ContentPatternRule[] = [
 		// are structural, never in-band text. Also catches chat-template control tokens (<|im_start|> etc.).
 		code: "role_override",
 		severity: "reject",
-		pattern:
-			/\b(?:end|begin|start)\s+(?:of\s+)?(?:system|user|assistant|developer)\s+(?:message|prompt|instructions?|turn)\b|\b(?:system|user|assistant|developer)\s+(?:message|prompt|turn)\s+(?:begins?|starts?|ends?)\b|<\|im_(?:start|end)\|>|\[\/?(?:INST|SYS)\]/,
+		pattern: new RegExp(
+			String.raw`\b(?:end|begin|start)${SEP}(?:of${SEP})?(?:system|user|assistant|developer)${SEP}(?:message|prompt|instructions?|turn)\b|\b(?:system|user|assistant|developer)${SEP}(?:message|prompt|turn)${SEP}(?:begins?|starts?|ends?)\b|<\|im_(?:start|end)\|>|\[\/?(?:INST|SYS)\]`,
+		),
 		message: "Content forges a message/prompt boundary marker to smuggle a fake turn (delimiter forgery).",
 	},
 ];

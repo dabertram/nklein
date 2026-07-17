@@ -13,7 +13,8 @@ import {
 } from "@runtime-operator-board-health";
 import { AlertTriangle, CheckCircle2, CircleDot, Inbox, PauseCircle } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface BoardHealthSummaryProps {
 	board: BoardHealthBoardView | null;
@@ -47,20 +48,79 @@ export function BoardHealthSummary({
 }: BoardHealthSummaryProps) {
 	const [queueOpen, setQueueOpen] = useState(false);
 	const rootRef = useRef<HTMLDivElement | null>(null);
+	const chipRef = useRef<HTMLButtonElement | null>(null);
+	const portalRef = useRef<HTMLDivElement | null>(null);
+	// The popover is PORTALED to <body> with a fixed anchor: the header strip scrolls horizontally
+	// (overflow-x-auto), which would clip an absolutely-positioned child to a sliver.
+	const [queueAnchor, setQueueAnchor] = useState<{ top: number; left: number } | null>(null);
 
-	// Close the queue popover on any outside click (standard dismiss affordance).
+	// Close on outside click; on scroll/resize RE-ANCHOR instead of closing — clicking the chip can itself
+	// scroll the overflow strip (focus scroll-into-view), and closing on that made the popover un-openable.
 	useEffect(() => {
 		if (!queueOpen) {
 			return;
 		}
 		const onPointerDown = (event: PointerEvent) => {
-			if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) {
-				setQueueOpen(false);
+			if (!(event.target instanceof Node)) {
+				return;
 			}
+			if (rootRef.current?.contains(event.target) || portalRef.current?.contains(event.target)) {
+				return;
+			}
+			setQueueOpen(false);
+		};
+		const onMove = () => {
+			const rect = chipRef.current?.getBoundingClientRect();
+			if (!rect || rect.width === 0) {
+				setQueueOpen(false);
+				return;
+			}
+			const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+			setQueueAnchor({
+				top: rect.bottom + 4,
+				left: Math.max(8, viewportWidth > 0 ? Math.min(rect.right - 288, viewportWidth - 296) : rect.right - 288),
+			});
 		};
 		document.addEventListener("pointerdown", onPointerDown);
-		return () => document.removeEventListener("pointerdown", onPointerDown);
+		window.addEventListener("resize", onMove);
+		// Capture phase catches the header strip's own horizontal scroll, not just the window.
+		window.addEventListener("scroll", onMove, true);
+		return () => {
+			document.removeEventListener("pointerdown", onPointerDown);
+			window.removeEventListener("resize", onMove);
+			window.removeEventListener("scroll", onMove, true);
+		};
 	}, [queueOpen]);
+
+	// Anchor is measured AFTER the open-render PAINTS (rAF), never inside the state updater — pre-paint
+	// measurement returned a mid-layout rect in embedded webviews and froze the popover at the clamp floor.
+	useLayoutEffect(() => {
+		if (!queueOpen) {
+			return;
+		}
+		const measure = () => {
+			const rect = chipRef.current?.getBoundingClientRect();
+			// Some embedded webviews report window.innerWidth as 0 while element rects stay real — only
+			// clamp to the viewport when the viewport actually measures.
+			const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+			setQueueAnchor(
+				rect && rect.width > 0
+					? {
+							top: rect.bottom + 4,
+							left: Math.max(
+								8,
+								viewportWidth > 0 ? Math.min(rect.right - 288, viewportWidth - 296) : rect.right - 288,
+							),
+						}
+					: null,
+			);
+		};
+		measure();
+		const frame = requestAnimationFrame(measure);
+		return () => cancelAnimationFrame(frame);
+	}, [queueOpen]);
+
+	const toggleQueue = () => setQueueOpen((open) => !open);
 
 	if (!board) {
 		return null;
@@ -120,43 +180,49 @@ export function BoardHealthSummary({
 			))}
 			{health.inbox.total > 0 ? (
 				<button
+					ref={chipRef}
 					type="button"
 					data-testid="needs-you-chip"
 					className="flex cursor-pointer items-center gap-1 rounded-md border border-status-gold/40 bg-status-gold/10 px-1.5 py-0.5 text-status-gold hover:bg-status-gold/20"
 					title={`${health.inbox.total} card(s) need your input — click for the queue`}
-					onClick={() => setQueueOpen((open) => !open)}
+					onClick={toggleQueue}
 				>
 					<Inbox size={12} />
 					<span className="font-medium tabular-nums">{health.inbox.total}</span>
 					<span>Needs you</span>
 				</button>
 			) : null}
-			{queueOpen && queue.length > 0 ? (
-				<div
-					data-testid="needs-you-queue"
-					className="absolute top-full right-0 z-50 mt-1 w-72 rounded-lg border border-border bg-surface-0 p-1 shadow-lg"
-				>
-					<p className="m-0 px-2 py-1 text-[10px] uppercase tracking-wide text-text-tertiary">
-						What needs you next
-					</p>
-					{queue.map((entry) => (
-						<button
-							key={entry.taskId}
-							type="button"
-							className="flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-1"
-							onClick={() => {
-								setQueueOpen(false);
-								onSelectTask?.(entry.taskId);
-							}}
+			{queueOpen && queue.length > 0 && queueAnchor
+				? createPortal(
+						<div
+							ref={portalRef}
+							data-testid="needs-you-queue"
+							className="fixed z-50 w-72 rounded-lg border border-border bg-surface-0 p-1 shadow-lg"
+							style={{ top: queueAnchor.top, left: queueAnchor.left }}
 						>
-							<span className="w-full truncate text-[12px] text-text-primary">
-								{titleByTaskId?.get(entry.taskId) ?? entry.taskId}
-							</span>
-							<span className="text-[11px] text-status-gold">{entry.action}</span>
-						</button>
-					))}
-				</div>
-			) : null}
+							<p className="m-0 px-2 py-1 text-[10px] uppercase tracking-wide text-text-tertiary">
+								What needs you next
+							</p>
+							{queue.map((entry) => (
+								<button
+									key={entry.taskId}
+									type="button"
+									className="flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-1"
+									onClick={() => {
+										setQueueOpen(false);
+										onSelectTask?.(entry.taskId);
+									}}
+								>
+									<span className="w-full truncate text-[12px] text-text-primary">
+										{titleByTaskId?.get(entry.taskId) ?? entry.taskId}
+									</span>
+									<span className="text-[11px] text-status-gold">{entry.action}</span>
+								</button>
+							))}
+						</div>,
+						document.body,
+					)
+				: null}
 		</div>
 	);
 }

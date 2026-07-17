@@ -19,6 +19,7 @@ export async function handleVerifyTaskAcceptance(
 	input: RuntimeTaskAcceptanceVerifyRequest,
 	deps: {
 		getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
+		broadcastRuntimeWorkspaceStateUpdated?: (workspaceId: string, workspacePath: string) => Promise<void> | void;
 	},
 ): Promise<RuntimeTaskAcceptanceVerifyResponse> {
 	const state = await loadWorkspaceState(workspaceScope.workspacePath);
@@ -37,12 +38,19 @@ export async function handleVerifyTaskAcceptance(
 		taskPrompt: taskRecord.card.prompt,
 		timeoutMs: input.timeoutMs,
 	});
-	// F12.53: persist the snapshot onto the card so the badge + merge-warn read the newest REAL run. Best-effort.
-	void persistCardVerification(
-		workspaceScope.workspacePath,
-		input.taskId,
-		cardVerificationFromAcceptance(acceptance, Date.now()),
-	).catch(() => {});
+	// F12.53: persist the snapshot onto the card so the badge + merge-warn read the newest REAL run. AWAITED, then
+	// broadcast — fire-and-forget left the board (and the Commit/PR warn-gate reading it) permanently stale after
+	// an on-demand Verify, so a known-red artifact could commit without the confirm (review-found critical).
+	try {
+		await persistCardVerification(
+			workspaceScope.workspacePath,
+			input.taskId,
+			cardVerificationFromAcceptance(acceptance, Date.now()),
+		);
+		await deps.broadcastRuntimeWorkspaceStateUpdated?.(workspaceScope.workspaceId, workspaceScope.workspacePath);
+	} catch {
+		// Verification display must never break the check that produced it.
+	}
 	return {
 		ok: acceptance.present === true && acceptance.passed === true,
 		taskId: input.taskId,

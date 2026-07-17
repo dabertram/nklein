@@ -46,6 +46,11 @@ describe("classifyLiveAgentState (F12.51)", () => {
 		expect(verdict.reason).toContain("Heartbeat");
 	});
 
+	it("treats a STALE heartbeat as degraded, never as freshly-beating (review-found)", () => {
+		const verdict = classifyLiveAgentState(signals({ sessionState: "running", heartbeatStatus: "stale" }));
+		expect(verdict.state).toBe("stuck");
+	});
+
 	it("distinguishes blocked-on-dependency from plain idle", () => {
 		expect(classifyLiveAgentState(signals({ sessionState: null, blockedOnDependency: true })).state).toBe(
 			"blocked_on_dependency",

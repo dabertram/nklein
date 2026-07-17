@@ -191,7 +191,10 @@ export function recommendEscalationAction(context: EscalationSuggestionContext =
 	const ordered = buildEscalationSuggestions(context);
 	const recommended = ordered[0] as EscalationSuggestion;
 	const alternatives = ordered.slice(1);
-	if (context.blockedActionPending) {
+	// Review-found: the rationale must describe the RECOMMENDED action. Deriving it from context flags in a
+	// separately-ordered if-chain showed "Clarify the goal" beside a blocked-action rationale when both flags
+	// were set — so every branch is gated on recommended.kind, never on the flags alone.
+	if (recommended.kind === "approve_blocked_action" && context.blockedActionPending) {
 		return {
 			recommended,
 			confidence: "high",
@@ -200,7 +203,7 @@ export function recommendEscalationAction(context: EscalationSuggestionContext =
 			alternatives,
 		};
 	}
-	if (context.clarifyPending) {
+	if (recommended.kind === "clarify_ambiguity" && context.clarifyPending) {
 		return {
 			recommended,
 			confidence: "high",
@@ -208,7 +211,7 @@ export function recommendEscalationAction(context: EscalationSuggestionContext =
 			alternatives,
 		};
 	}
-	if (context.environmentBlocked) {
+	if (recommended.kind === "fix_environment" && context.environmentBlocked) {
 		return {
 			recommended,
 			confidence: "medium",

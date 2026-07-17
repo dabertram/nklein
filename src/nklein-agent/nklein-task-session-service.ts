@@ -114,6 +114,7 @@ import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import { forgetPredictedOutput, getPredictedOutput } from "./nklein-predict-output-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
+import { forgetCompactionRequest } from "./nklein-request-compaction-tool";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
@@ -2318,6 +2319,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.decompositionStallNudger.resetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
 		this.timeoutController.deleteSettings(taskId);
+		// Review-found: a stale round-N prediction/compaction request surviving into round N+1 pollutes the very
+		// divergence measurement F12.96's observe-first rollout depends on — forget them with the other per-task state.
+		forgetPredictedOutput(taskId);
+		forgetCompactionRequest(taskId);
 	}
 
 	async clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
@@ -2335,6 +2340,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.turnLoopGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutController.deleteSettings(taskId);
+		forgetPredictedOutput(taskId);
+		forgetCompactionRequest(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);

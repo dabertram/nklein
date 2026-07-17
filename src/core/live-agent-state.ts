@@ -109,15 +109,23 @@ export function classifyLiveAgentState(signals: LiveAgentStateSignals): LiveAgen
 		return { state: "stuck", reason: `Run ${signals.sessionState} — needs a restart or triage.` };
 	}
 	if (signals.sessionState === "running") {
+		const thresholds = livenessThresholdsForDifficulty(signals.difficultyTier);
 		const liveness = assessRunLiveness(
 			{
 				nowMs: signals.nowMs,
 				lastActivityAtMs: signals.lastActivityAtMs,
-				// The summary's own heartbeat classification is authoritative when present.
-				lastHeartbeatAtMs: signals.heartbeatStatus === "lost" ? 0 : signals.nowMs,
+				// The summary's own heartbeat classification maps to a synthetic age: "lost" → far past the loss
+				// window; "stale" → AT the loss window (review-found: it previously read as freshly-beating, making
+				// a degrading run indistinguishable from a healthy one); "healthy" → just beat.
+				lastHeartbeatAtMs:
+					signals.heartbeatStatus === "lost"
+						? 0
+						: signals.heartbeatStatus === "stale"
+							? signals.nowMs - thresholds.heartbeatLostAfterMs
+							: signals.nowMs,
 				expectsHeartbeat: signals.heartbeatStatus !== null,
 			},
-			livenessThresholdsForDifficulty(signals.difficultyTier),
+			thresholds,
 		);
 		if (liveness === "silent" || liveness === "stalled") {
 			return {

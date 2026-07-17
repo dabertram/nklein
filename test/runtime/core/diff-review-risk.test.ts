@@ -50,4 +50,12 @@ describe("classifyDiffReviewRisk (F12.54)", () => {
 		expect(classifyDiffReviewRisk(diffFor(["db/migrations/0042_add_users.sql"])).tier).toBe("deep_review");
 		expect(classifyDiffReviewRisk(diffFor(["src/core/board-api-contract.ts"])).tier).toBe("deep_review");
 	});
+
+	it("does not cry wolf on authors/oracle paths while still catching real auth/acl files (review-found)", () => {
+		expect(classifyDiffReviewRisk(diffFor(["src/blog/authors.ts"])).tier).toBe("standard");
+		expect(classifyDiffReviewRisk(diffFor(["src/db/oracle-connector.ts"])).tier).toBe("standard");
+		expect(classifyDiffReviewRisk(diffFor(["src/core/auth-session.ts"])).tier).toBe("deep_review");
+		expect(classifyDiffReviewRisk(diffFor(["src/net/acl.ts"])).tier).toBe("deep_review");
+		expect(classifyDiffReviewRisk(diffFor(["src/authentication/login.ts"])).tier).toBe("deep_review");
+	});
 });

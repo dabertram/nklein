@@ -21,9 +21,15 @@ describe("arbitrateByExecution (F12.4)", () => {
 		expect(arbitrateByExecution({ passed: true, failureCount: 0 }, { passed: true, failureCount: 0 }).decisive).toBe(
 			false,
 		);
-		expect(
-			arbitrateByExecution({ passed: false, failureCount: 2 }, { passed: false, failureCount: 2 }).winner,
-		).toBeNull();
+		// Review-found: a measured TIE must say "fail equally", never the "a check did not run" label.
+		const tie = arbitrateByExecution({ passed: false, failureCount: 2 }, { passed: false, failureCount: 2 });
+		expect(tie.winner).toBeNull();
+		expect(tie.note).toContain("fail equally (2 failure(s) each)");
+		const bothFailUnknownCounts = arbitrateByExecution(
+			{ passed: false, failureCount: null },
+			{ passed: false, failureCount: null },
+		);
+		expect(bothFailUnknownCounts.note).toContain("both candidates FAIL");
 		const unknown = arbitrateByExecution({ passed: null, failureCount: null }, { passed: true, failureCount: 0 });
 		expect(unknown.decisive).toBe(false);
 		expect(unknown.note).toContain("inconclusive");

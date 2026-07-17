@@ -30,8 +30,17 @@ export function capToolResult(result: unknown, maxChars: number = DEFAULT_TOOL_O
 						return null;
 					}
 				})();
-	if (text === null || text.length <= maxChars) {
-		return { value: result, truncated: false, originalChars: text?.length ?? 0 };
+	if (text === null) {
+		// Review-found: an unmeasurable result (cyclic/BigInt from an arbitrary MCP server) passed through
+		// UNBOUNDED — the exact hole this cap exists to close. Refuse it with a actionable placeholder instead.
+		return {
+			value: "[tool result withheld: not JSON-serializable (cyclic or BigInt) — return plain data or a string]",
+			truncated: true,
+			originalChars: 0,
+		};
+	}
+	if (text.length <= maxChars) {
+		return { value: result, truncated: false, originalChars: text.length };
 	}
 	const headChars = Math.floor(maxChars * 0.7);
 	const tailChars = maxChars - headChars;

@@ -21,7 +21,9 @@ export interface PrefixVolatilityFinding {
 }
 
 const VOLATILE_PATTERNS: readonly { kind: PrefixVolatilityFinding["kind"]; pattern: RegExp }[] = [
-	{ kind: "timestamp", pattern: /\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?\b|\b\d{9,13}\b/g },
+	// Epoch runs are range-checked (review-found: any 9-13 digit constant — a byte budget, a phone number —
+	// read as a "timestamp leak"). Epoch seconds are 10 digits starting 1-2 (2001→2096); epoch ms = same + 3.
+	{ kind: "timestamp", pattern: /\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?\b|\b[12]\d{9}(?:\d{3})?\b/g },
 	{ kind: "date", pattern: /\b\d{4}-\d{2}-\d{2}\b|\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s+\d{1,2}\b/g },
 	{ kind: "uuid", pattern: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi },
 	{ kind: "hex_id", pattern: /\b[0-9a-f]{16,64}\b/gi },

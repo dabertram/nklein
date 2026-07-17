@@ -23,4 +23,13 @@ describe("auditPromptPrefixVolatility (F12.7)", () => {
 		);
 		expect(findings.map((finding) => finding.kind)).toEqual(expect.arrayContaining(["counter", "uuid", "hex_id"]));
 	});
+
+	it("range-checks epoch runs — a stable large constant is NOT a timestamp leak (review-found)", () => {
+		// 104857600 (a byte budget) and 555123456789 (a phone-like run) are outside the epoch envelope.
+		expect(auditPromptPrefixVolatility("Cap uploads at 104857600 bytes.")).toEqual([]);
+		expect(auditPromptPrefixVolatility("Support line: 555123456789.")).toEqual([]);
+		// A real epoch-seconds and epoch-ms value still flag.
+		expect(auditPromptPrefixVolatility("Built at 1789000000.").map((f) => f.kind)).toContain("timestamp");
+		expect(auditPromptPrefixVolatility("Built at 1789000000123.").map((f) => f.kind)).toContain("timestamp");
+	});
 });

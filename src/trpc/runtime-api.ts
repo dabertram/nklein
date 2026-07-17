@@ -1006,6 +1006,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		verifyTaskAcceptance: async (workspaceScope, input) =>
 			handleVerifyTaskAcceptance(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				broadcastRuntimeWorkspaceStateUpdated: deps.broadcastRuntimeWorkspaceStateUpdated,
 			}),
 		mergeTaskWorktrees: async (workspaceScope, input) => handleMergeTaskWorktrees(workspaceScope, input),
 		saveNKleinProviderSettings: async (_workspaceScope, input) =>
