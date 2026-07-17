@@ -2197,10 +2197,15 @@ output and NOT acted on. Captured as F12.12.)
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
-- [ ] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
+- [~] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"
   cycles with a spec-first flow. Add a lightweight pre-decompose spec linter (contradictions, missing acceptance command,
   unmeasurable success criteria, undefined key terms) that surfaces gaps for clarification. Composes with §5.S clarification cores. (aws kiro requirements analysis)
+  **LINTER CORE SHIPPED 2026-07-17:** `spec-lint.ts` `lintSpecForDecompose` — the four cheap gap classes (missing
+  acceptance check first; naive must/must-not contradiction pairs; vague quality words without a measurable bound
+  nearby; undefined 3+-letter acronyms) each carrying a READY-TO-ASK clarifying question (§5.S one-at-a-time is the
+  caller's). 5 tests. REMAINING (activation): run it at the decompose seam pre-flight and route findings into the
+  existing clarification flow (effectful — the decompose path decides ask-vs-proceed; findings are prompts, never blocks).
 
 **Injection defense (extends Phase 7S):**
 - [ ] **F12.10 — Structured tool-output PARSING channel (DRIFT-style) for the highest-risk ingestions.** Beyond the S4
