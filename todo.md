@@ -1199,12 +1199,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
   planning, worker, reviewer, and retrieval turns; preserve useful artifacts and a clear reason.
-- [ ] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
+- [~] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
   failures, and stop cycling across canonical-equivalent endpoints. **LIVE EVIDENCE 2026-07-17 (2nd sighting — first was
   the 2026-07-11 m4mini crash):** a model-side hard error on the SEED's first predict (ministral engine 500, since fixed
   at the message layer) left the card `awaiting_review reason=error` with NO retry on another model/endpoint — the run
-  stagnated. The failover leg of this item is a REAL robustness gap for unattended drains: on a terminal model error,
-  retry the attempt on the next feasible candidate (the fitness-blended ranking already orders them) before parking.
+  stagnated. **FAILOVER CORE BUILT 2026-07-17:** `model-failover-policy.ts` — `isModelSideError` (engine 5xx / crash /
+  Jinja template rejection / not-loaded / network; REFUSES sandbox/tool/user errors that any model would repeat) +
+  `decideModelFailover({errorMessage, failedModelKey, triedModelKeys, rankedCandidateKeys, maxFailovers=2})` → first
+  UNTRIED candidate in the router's fitness-blended order, capped, park-with-reason otherwise. 8 tests. **ACTIVATION
+  SEAM (documented, not yet wired):** the `error`/`run-failed` arms in nklein-event-adapter.ts (~line 190/215) emit
+  `awaiting_review reason=error`; the service should, at that transition, call decideModelFailover with the task's
+  attempt-ledger model history + the current ranked candidates, and on `failover:true` re-dispatch the card on
+  `nextModelKey` (recording a ledger transition) instead of parking. Suggest default-ON with `NKLEIN_MODEL_FAILOVER=off`
+  kill-switch, mirroring the fitness-routing precedent. Wire needs care: nklein-task-session-service is the
+  timing-sensitive 129-test file — do it as its own focused change.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
 - [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
