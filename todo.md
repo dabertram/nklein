@@ -2635,10 +2635,15 @@ verify-before-build caveat: confirm each against current code before implementin
   prompt a local model to synthesize test inputs that expose their behavioral differences, run all in the sandbox, and vote by
   agreement. Complements F12.94 for the hard tie case. Rationale: +10–15% Best@k in "Scaling Agentic Verifier", sometimes
   beating ground-truth tests; prompt-only + existing sandbox. (Scaling Agentic Verifier 2602.04254)
-- [ ] **F12.96 — Predict-then-execute verification pass.** Before accept, ask the worker to PREDICT outputs/trace for key
+- [~] **F12.96 — Predict-then-execute verification pass.** Before accept, ask the worker to PREDICT outputs/trace for key
   inputs, run for real in the sandbox, and diff; a mismatch blocks acceptance and localizes the bug for a targeted repair.
   Rationale: LLMs routinely "hallucinate" that buggy code is correct during mental tracing — concrete execution catches
-  categorically different bugs; turns the model's own reasoning into a falsifiable signal. Cheap, leverages the sandbox. (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
+  categorically different bugs; turns the model's own reasoning into a falsifiable signal. Cheap, leverages the sandbox.
+  **CORE BUILT 2026-07-17:** `predicted-execution-check.ts` — `comparePredictedExecution` (tolerant normalization:
+  CRLF/trailing-ws/trailing-blanks never fail a correct program; strict on content; localizes the FIRST divergent line
+  with a compact excerpt for the repair prompt) + `assessPredictedExecution` (all-must-match verdict; zero cases =
+  pass-with-note). 5 tests. REMAINING (activation): elicit predictions in the worker prompt for key inputs + run them
+  in the sandbox at the acceptance seam and block/repair on divergence. (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
 - [ ] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
   tests + property checks (F12.93) + an LLM rubric judge, and flag shortcut behaviors (solution lookup, test/harness tampering,
   verbosity-gaming); add a "Dockerless" execution-free evidence pre-screen when full test runs are too costly per candidate.
