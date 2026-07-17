@@ -3849,6 +3849,23 @@ describe("createRuntimeApi startTaskSession", () => {
 			expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello\n");
 			expect(terminalManager.writeInput).not.toHaveBeenCalled();
 
+			// F12.56: a steer-delivery request threads the option through to the service (front of the pending queue).
+			const steerResponse = await api.sendTaskSessionInput(scope, {
+				taskId: "task-1",
+				text: "use the v2 API",
+				appendNewline: true,
+				delivery: "steer",
+			});
+			expect(steerResponse.ok).toBe(true);
+			expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenLastCalledWith(
+				"task-1",
+				"use the v2 API\n",
+				undefined,
+				undefined,
+				undefined,
+				{ delivery: "steer" },
+			);
+
 			const stopResponse = await api.stopTaskSession(scope, { taskId: "task-1" });
 			expect(stopResponse.ok).toBe(true);
 			expect(stopResponse.summary?.paused).toBe(false);

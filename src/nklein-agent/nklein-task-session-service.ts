@@ -2016,6 +2016,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
+		options?: { delivery?: "queue" | "steer" },
 	): Promise<RuntimeTaskSessionSummary | null> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -2145,7 +2146,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								prompt: resolvedPrompt,
 								mode: effectiveMode,
 								images,
-								delivery: queueDelivery ? "queue" : undefined,
+								// F12.56: "steer" jumps the pending-prompt queue — the note lands before the next iteration.
+								delivery: queueDelivery ? (options?.delivery ?? "queue") : undefined,
 								launchConfigOverrides,
 								forceRestart: restoredSandboxWorkspace,
 							});

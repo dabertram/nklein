@@ -221,6 +221,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					taskId,
 					text,
 					appendNewline,
+					...(options?.steer ? { delivery: "steer" as const } : {}),
 				});
 				if (!payload.ok) {
 					const errorMessage = payload.error || "Task session input failed.";

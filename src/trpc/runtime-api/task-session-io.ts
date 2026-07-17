@@ -69,7 +69,19 @@ export async function handleSendTaskSessionInput(
 		const body = parseTaskSessionInputRequest(input);
 		const payloadText = body.appendNewline ? `${body.text}\n` : body.text;
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-		const nkleinSummary = await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
+		// F12.56: only widen the call when steering is requested — the default path stays byte-identical.
+		const nkleinSummary = body.delivery
+			? await nkleinTaskSessionService.sendTaskSessionInput(
+					body.taskId,
+					payloadText,
+					undefined,
+					undefined,
+					undefined,
+					{
+						delivery: body.delivery,
+					},
+				)
+			: await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
 		// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); only NKlein sessions exist.
 		if (!nkleinSummary) {
 			return { ok: false, summary: null, error: "Task session is not running." };

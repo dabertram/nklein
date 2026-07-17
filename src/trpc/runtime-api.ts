@@ -374,7 +374,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									.map((summary) => summary.taskId),
 							),
 						sendInput: async (taskId, text) =>
-							(await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null,
+							// F12.56: chat guidance to a RUNNING card steers — it lands before the next iteration.
+							(await service
+								.sendTaskSessionInput(taskId, `${text}\n`, undefined, undefined, undefined, {
+									delivery: "steer",
+								})
+								.catch(() => null)) !== null,
 					};
 				},
 			}),
@@ -516,7 +521,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					const relayDeps = {
 						deliverLive: async (taskId: string, text: string) =>
 							service
-								? (await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null
+								? // F12.56: live chat guidance steers — front of the pending-prompt queue.
+									(await service
+										.sendTaskSessionInput(taskId, `${text}\n`, undefined, undefined, undefined, {
+											delivery: "steer",
+										})
+										.catch(() => null)) !== null
 								: false,
 						queueMailbox: async (taskId: string, text: string) => {
 							await appendCardMailboxNote({ taskId, text, source: "chat" });

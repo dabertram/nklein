@@ -2505,9 +2505,16 @@ output and NOT acted on. Captured as F12.12.)
   ("Added token refresh to auth.ts → ran tests, 3 passed"), NOT a raw tool-call dump, with reversibility color-coding +
   before/after diffs; frame agent rationale as a hypothesis anchored to the change (CoT is often post-hoc — never present as
   evidence). (aiuxdesign action-audit-trail; CoT-faithfulness 2601.16720)
-- [ ] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
+- [~] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)
+  **STEER DELIVERY SHIPPED 2026-07-17:** the injection channel already existed end-to-end (SDK pending-prompt queue,
+  drained between iterations via consumePendingUserMessage; delivery "queue"/"steer" accepted at session-runtime) —
+  what was missing was plumbing. Now: `delivery: "queue"|"steer"` on the sendTaskSessionInput contract → service
+  option → dispatch; CHAT guidance to a RUNNING card (sendInput + deliverLive relay seams) now uses **steer** — the
+  note lands before the very next model iteration instead of behind earlier queued input; web SendTerminalInputOptions
+  carries `steer`. Default path byte-identical. REMAINING: surfacing the live pending-steer queue on the card (the
+  `pending_prompts` SDK event is read but not forwarded to the summary — mailbox badge covers next-start notes only).
 - [ ] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
   board with preset "good first task" templates scoped to what LOCAL models reliably do; broad relatable examples;
   just-in-time tips (not an upfront tutorial); an honest "here's what can go wrong / how to recover." (nngroup new-AI-users)

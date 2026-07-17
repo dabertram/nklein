@@ -283,6 +283,12 @@ export const runtimeTaskSessionInputRequestSchema = z.object({
 	taskId: z.string(),
 	text: z.string(),
 	appendNewline: z.boolean().optional(),
+	/**
+	 * F12.56 mid-task steering: how to deliver into a RUNNING session. "steer" jumps the pending-prompt queue so the
+	 * note lands before the very next model iteration ("use the v2 API" mid-run); "queue" (default) appends behind
+	 * earlier pending input. Ignored when the session is not running.
+	 */
+	delivery: z.enum(["queue", "steer"]).optional(),
 });
 export type RuntimeTaskSessionInputRequest = z.infer<typeof runtimeTaskSessionInputRequestSchema>;
 
