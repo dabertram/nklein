@@ -1058,6 +1058,12 @@ export async function handleStartTaskSession(
 		});
 		const dialPreferredKey = dialPreference.reordered ? (dialPreference.ranked[0]?.modelKey ?? null) : null;
 		const optimizationPreferredKey = dialPreferredKey ?? warmthPreferredKey ?? baselinePreferredKey;
+		// F3.2 failover leg: stash the blended candidate ranking (best first) so a MODEL-side terminal error can
+		// re-drive this card on the next untried candidate instead of parking (see modelFailoverController).
+		nkleinTaskSessionService.setTaskFailoverCandidates(
+			body.taskId,
+			warmthCandidatesByScore.map((candidate) => candidate.modelKey),
+		);
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,

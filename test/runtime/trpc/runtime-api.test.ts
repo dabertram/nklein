@@ -636,6 +636,8 @@ function createNKleinTaskSessionServiceMock() {
 		startTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary>>(async () =>
 			createSummary({ agentId: "nklein", pid: null }),
 		),
+		// F3.2 failover: the start path stashes the blended candidate ranking before routing.
+		setTaskFailoverCandidates: vi.fn<(...args: unknown[]) => void>(() => {}),
 		onMessage: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
 		onTeamProgress: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
 		stopTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary | null>>(async () => null),

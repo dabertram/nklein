@@ -102,6 +102,7 @@ import {
 	createTaskEntryFromPersistedSession,
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
+import { createModelFailoverController } from "./nklein-model-failover-controller";
 import { buildSharedLocalEndpointId } from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
@@ -337,6 +338,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
 	});
+	/** F3.2 failover leg: on an error-terminal summary, re-drive the card on the next untried ranked model (default-on;
+	 * kill-switch NKLEIN_MODEL_FAILOVER=off). Candidates are stashed at start via {@link setTaskFailoverCandidates}. */
+	private readonly modelFailoverController = createModelFailoverController({
+		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
+			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
+	});
+
+	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */
+	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void {
+		this.modelFailoverController.setCandidates(taskId, rankedModelKeys);
+	}
 	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
 	 * accessors are supplied lazily so field-init order is irrelevant. */
 	private readonly contextOverflowController = createContextOverflowController({
@@ -2746,6 +2758,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.lastRecordedRunStateByTaskId.set(taskId, state);
 		// W1.1b: flag-gated adaptive budget retry on the stall signature (see adaptiveBudgetController).
 		this.adaptiveBudgetController.maybeAdaptiveBudgetRetry(taskId, summary);
+		// F3.2 failover leg (default-on, NKLEIN_MODEL_FAILOVER=off to disable): a MODEL-side terminal error re-drives
+		// the card on the next untried ranked candidate instead of parking (live-found twice — m4mini crash 2026-07-11,
+		// ministral engine-500 2026-07-17). The controller's pure policy refuses task/sandbox/user errors and caps hops.
+		this.modelFailoverController.maybeModelFailover(taskId, summary);
 		// W0.2 (run16: t4 died `interrupted` MID-WRITE and its partial work was lost): a dying terminal still
 		// salvages its sandbox work. error→awaiting_review already captures via the finalize hook (run10 proved
 		// it live); interrupted/failed did NOT — no capture, and the sandbox leaked until pool exhaustion.

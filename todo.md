@@ -1212,7 +1212,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   attempt-ledger model history + the current ranked candidates, and on `failover:true` re-dispatch the card on
   `nextModelKey` (recording a ledger transition) instead of parking. Suggest default-ON with `NKLEIN_MODEL_FAILOVER=off`
   kill-switch, mirroring the fitness-routing precedent. Wire needs care: nklein-task-session-service is the
-  timing-sensitive 129-test file — do it as its own focused change. **WIRE RECIPE (explored 2026-07-17, makes it
+  timing-sensitive 129-test file — do it as its own focused change. **FAILOVER WIRE SHIPPED 2026-07-17 (default-ON, kill-switch `NKLEIN_MODEL_FAILOVER=off`):**
+  `nklein-model-failover-controller.ts` (mirrors the adaptive-budget controller shape) hooked at
+  `captureTerminalRunSummary` next to the adaptive retry; candidates threaded from the start path's blended ranking
+  via `setTaskFailoverCandidates` (interface + impl); re-drive via `sendTaskSessionInput` with a `modelId` override +
+  a self-observation record. 5 controller tests + 8 policy tests; full suite green. REMAINING for F3.2 proper: the
+  ENDPOINT-alternatives leg (same model, different endpoint) + live drain validation of a real failover. Original
+  recipe kept below for the endpoint leg. **WIRE RECIPE (explored 2026-07-17, makes it
   mechanical):** the re-dispatch vehicle EXISTS — `restartTaskSessionFromResolvedConfig` (task-session-service:755)
   accepts `launchConfigOverrides` incl. `modelId` and handles sandbox-repo/restartable/persisted-snapshot cases; the
   context-overflow-controller (nklein-context-overflow-controller.ts:105) already calls `restartTaskSession` the same

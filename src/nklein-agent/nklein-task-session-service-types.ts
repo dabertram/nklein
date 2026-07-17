@@ -114,6 +114,8 @@ export type NKleinModelTurnAdmissionGate = <T>(
 
 export interface NKleinTaskSessionService {
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
+	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
+	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void;
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
 	onTeamProgress(listener: (taskId: string, event: RuntimeNKleinTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
