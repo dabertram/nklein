@@ -269,6 +269,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								workspacePathHash: hashWorkspacePathForLedger(agentPerceivedCwd),
 								query: retrieval.query,
 								hitsConsidered: retrieval.hitsConsidered,
+								// F11.2e: tool-side distractor prunes (ego_graph hub names today) reach the ledger so
+								// the precision telemetry sees kept vs dropped, not just kept.
+								distractorsPruned: retrieval.pruned ?? 0,
 								citations: retrieval.citations,
 							}),
 						).catch(() => {});

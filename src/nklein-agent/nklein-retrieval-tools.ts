@@ -10,6 +10,8 @@ export interface RetrievalRecord {
 	query: string;
 	hitsConsidered: number;
 	citations: readonly string[];
+	/** F11.2e: hits the tool itself PRUNED as distractors (e.g. ego_graph hub names) — feeds `hitsPruned`. */
+	pruned?: number;
 }
 
 /**
@@ -246,9 +248,12 @@ function createEgoGraphTool(workspacePath: string, recordRetrieval?: RetrievalRe
 				maxTargets: asBoundedInteger(record.maxTargets, 24, 1, 60),
 			});
 			recordRetrieval?.({
+				// Considered = kept targets + hub names the tool itself pruned as distractors (the ledger clamps
+				// pruned ≤ considered, so the pruned names must count as considered hits — honest accounting).
 				query: `ego:${seeds.slice(0, 8).join(",")}`,
-				hitsConsidered: result.targets.length,
+				hitsConsidered: result.targets.length + result.hubNamesPruned.length,
 				citations: [...new Set(result.targets.map((target) => target.path))],
+				pruned: result.hubNamesPruned.length,
 			});
 			return {
 				...result,

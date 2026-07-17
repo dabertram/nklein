@@ -2076,11 +2076,17 @@ stays fast + complete.
   - [ ] **F11.2d — Coarse-to-fine hierarchical localizer in decompose.** Narrow file → class/function → edit-span
     (Agentless-style) and pass only those spans to the coder — SOTA-cheap, fits limited context, avoids whole-file dumps
     that trigger lost-in-the-middle. (Agentless 2407.01489)
-  - [ ] **F11.2e — Retrieval rerank/prune precision gate (ties to F4.13).** Insert an LLM-discriminator or a small local
+  - [~] **F11.2e — Retrieval rerank/prune precision gate (ties to F4.13).** Insert an LLM-discriminator or a small local
     SweRank-style reranker (a 137M code embedder + reranker beats big-model agentic search on Lite/LocBench) to drop
     distractor files before the coder; log kept/dropped into the retrieval-usefulness / F4.13 distractor telemetry.
     ContextBench: agents over-retrieve + drop 17–43% of context + distractors suppress parallel-module fixes — precision is
     the #1 lever for ≥32k models. (ContextBench 2602.05892; SweRank 2505.07849; SWE-Pruner 2601.16746)
+    **LOG HALF SHIPPED 2026-07-17:** `RetrievalRecord.pruned` flows tool-side distractor prunes into the ledger's
+    `distractorsPruned` (session-runtime recorder wire); ego_graph reports its hub prune with honest accounting
+    (considered = kept + pruned, respecting the ledger clamp). The precision telemetry now sees kept-vs-dropped,
+    not just kept. REMAINING (fleet-gated): the actual RERANKER (local embedder/discriminator model pass before
+    the coder) — model choice + A/B need the fleet; search_code truncation deliberately NOT counted as pruning
+    (truncation is a budget cap, not a relevance judgment — honest-labeling).
   - [~] **F11.2f — Repo onboarding profile: VERIFIED + MINIMAL + fact-based (not LLM prose).** Extract a STRUCTURED profile —
     exact build/test/lint/format commands (package.json scripts, turbo.json/nx.json, `.github/` workflows), monorepo layout
     + package graph, language/test framework, symbol-graph architecture summary. **Persist as DATA, not prose, and A/B-gate
