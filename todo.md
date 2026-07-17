@@ -2483,9 +2483,15 @@ output and NOT acted on. Captured as F12.12.)
   (disobey-spec, disobey-role, lost-history, premature-termination, incomplete-verification, ignored-input) and surface the
   distribution in the Model-Performance UI — turns the ledger into a diagnostic that says whether to fix specs, coordination,
   or verification (the paper's lesson: orchestration fixes beat bigger models — role specs +9.4%, objective verification +15.6%). (MAST 2503.13657)
-- [ ] **F12.40 — Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
+- [~] **F12.40 — Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
   enforced at the runtime that STOPS (not just alerts) — documented multi-agent runaways: $47k/11-day, 1.67B tokens/5h.
   Essential for unattended local overnight runs. (getunblocked auto-loop-tax; relayplane runaway-costs)
+  **STOP CORE SHIPPED 2026-07-17:** `runaway-budget-stop.ts` `assessRunawayBudget` — per-card token (500k) + turn
+  (120) + board token (2M) HARD ceilings; a trip = STOP-and-park-with-evidence, never silent spending; ≤0 cap
+  disables a ceiling (never stop on no-config); deliberately far above healthy operation so it can stay ENFORCING
+  (the advisory tiers below remain F12.58/§5.AG). 3 tests. REMAINING (activation): consult per-turn at the session
+  seam (card counters exist in run summaries; board total = F12.58's computeCardEffort) → park via the existing
+  park path; cap overrides ride runtime settings (David may tune defaults).
 
 **Evaluation & observability (mostly BUILDABLE-NOW pure cores over the existing ledger):**
 - [~] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
