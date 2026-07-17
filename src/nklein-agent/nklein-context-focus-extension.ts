@@ -7,6 +7,7 @@
 // focus-chain update / session end / dispose.
 
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
+import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { mergeConsecutiveSameRoleSdkMessages, type SdkShapedMessage } from "../core/normalize-system-first";
@@ -52,6 +53,10 @@ export const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
  * context compaction (the chain is otherwise only present as the tool call/result, which compaction can drop).
  */
 const focusChainBySessionId = new Map<string, FocusChain>();
+/** F12.15 edit-thrash watch: bounded per-session write-tool edit history + the files already flagged. */
+const EDIT_THRASH_HISTORY_CAP = 40;
+const editHistoryBySessionId = new Map<string, FileEditRecord[]>();
+const editThrashFlaggedBySessionId = new Map<string, Set<string>>();
 
 /**
  * §5.AD opt-in GOAL re-anchor (gated by NKLEIN_GOAL_REANCHOR): the turn at which the immutable top-level goal was last
@@ -292,6 +297,36 @@ export function createKanbanContextFocusExtension(
 				if (doesNKleinToolInvalidateRepoMap(context)) {
 					cachedRepoMap = null;
 				}
+				// F12.15 edit-thrash watch (record-only): fingerprint each write-tool edit's resulting content; when a
+				// file's states OSCILLATE (edit → revert → re-edit) record a self-observation once per session+file.
+				// The turn-loop guard can't see this (different tool INPUTS each time); PRM watches reads/hand-offs.
+				const edits = extractFileEditsFromToolInput(context.tool.name, context.input);
+				if (edits.length > 0) {
+					const history = editHistoryBySessionId.get(sessionId) ?? [];
+					history.push(...edits);
+					if (history.length > EDIT_THRASH_HISTORY_CAP) {
+						history.splice(0, history.length - EDIT_THRASH_HISTORY_CAP);
+					}
+					editHistoryBySessionId.set(sessionId, history);
+					const assessment = detectEditThrashing(history);
+					if (assessment.thrashing) {
+						const flagged = editThrashFlaggedBySessionId.get(sessionId) ?? new Set<string>();
+						for (const finding of assessment.findings) {
+							if (finding.verdict !== "thrashing" || flagged.has(finding.path)) {
+								continue;
+							}
+							flagged.add(finding.path);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Edit thrashing on ${finding.path}: ${finding.reason}`,
+								taskId: sessionId,
+								metadata: { category: "edit_thrash", path: finding.path, oscillations: finding.oscillations },
+							});
+						}
+						editThrashFlaggedBySessionId.set(sessionId, flagged);
+					}
+				}
 				return undefined;
 			},
 		},
@@ -313,6 +348,8 @@ export function recordSessionFocusChain(sessionId: string, chain: FocusChain): v
 
 /** Runtime hook: forget one session's re-anchor state (focus chain + goal cadence) on session end/reset. */
 export function forgetSessionFocusState(sessionId: string): void {
+	editHistoryBySessionId.delete(sessionId);
+	editThrashFlaggedBySessionId.delete(sessionId);
 	focusChainBySessionId.delete(sessionId);
 	goalReanchorLastTurnBySessionId.delete(sessionId);
 }

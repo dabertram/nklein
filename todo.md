@@ -2231,9 +2231,12 @@ output and NOT acted on. Captured as F12.12.)
   compile classes; multi-agent ping-pong + read-set context_thrash = PRM (process-remediation.ts). The genuinely
   UNCOVERED one — single-file EDIT-CONTENT OSCILLATION — is now `edit-thrash-detector.ts`: `detectEditThrashing`
   fingerprints each edit's resulting content per file (FNV-1a) and flags returns to previously-seen states (≥2
-  oscillations = thrashing; many edits to NEW states = busy, progress is not a fault; one revert tolerated). 5 tests.
-  REMAINING: feed write-tool edits into the detector at the watchdog seam + a TEST-misinterpretation detector (needs
-  a test-output parse — separate slice). (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
+  oscillations = thrashing; many edits to NEW states = busy, progress is not a fault; one revert tolerated). 5 tests + extractor.
+  **WATCH WIRE SHIPPED 2026-07-17 (record-only):** the context-focus extension's afterTool hook now fingerprints every
+  write_file/write_files edit per session (bounded 40) via `extractFileEditsFromToolInput` and records ONE
+  `edit_thrash` self-observation per session+file when oscillation is detected — feeding the same observation stream
+  the runtime-verdict penalty reads. Session state cleaned in forgetSessionFocusState. REMAINING: a
+  TEST-misinterpretation detector (needs a test-output parse — separate slice). (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
 - [ ] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
   pre-execution syntax/diff validator to catch malformed patches before they burn a turn (a "patch does not apply cleanly"
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed

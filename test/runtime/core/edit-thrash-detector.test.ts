@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectEditThrashing } from "../../../src/core/edit-thrash-detector";
+import { detectEditThrashing, extractFileEditsFromToolInput } from "../../../src/core/edit-thrash-detector";
 
 describe("detectEditThrashing", () => {
 	it("flags A→B→A→B oscillation as thrashing", () => {
@@ -58,5 +58,27 @@ describe("detectEditThrashing", () => {
 			{ path: "thrash.ts", content: "B" },
 		]);
 		expect(result.findings[0]?.path).toBe("thrash.ts");
+	});
+});
+
+describe("extractFileEditsFromToolInput", () => {
+	it("extracts single and batch write-tool shapes and ignores other tools", () => {
+		expect(extractFileEditsFromToolInput("write_file", { path: "a.ts", content: "X" })).toEqual([
+			{ path: "a.ts", content: "X" },
+		]);
+		expect(
+			extractFileEditsFromToolInput("write_files", {
+				files: [
+					{ path: "a.ts", content: "X" },
+					{ file_path: "b.ts", content: "Y" },
+					{ path: "", content: "dropped" },
+				],
+			}),
+		).toEqual([
+			{ path: "a.ts", content: "X" },
+			{ path: "b.ts", content: "Y" },
+		]);
+		expect(extractFileEditsFromToolInput("read_files", { path: "a.ts", content: "X" })).toEqual([]);
+		expect(extractFileEditsFromToolInput("write_file", null)).toEqual([]);
 	});
 });

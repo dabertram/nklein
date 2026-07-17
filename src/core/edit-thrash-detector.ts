@@ -99,3 +99,29 @@ export function detectEditThrashing(
 	findings.sort((a, b) => b.oscillations - a.oscillations || b.edits - a.edits || a.path.localeCompare(b.path));
 	return { findings, thrashing: findings.some((finding) => finding.verdict === "thrashing") };
 }
+
+/**
+ * Extract {path, content} edit records from a write-tool call's input. Supports the two !Klein write-tool shapes:
+ * `write_file` ({path|file_path, content}) and `write_files` ({files: [{path, content}, …]}). Non-write tools and
+ * malformed inputs yield [] — callers can feed every afterTool event through unconditionally.
+ */
+export function extractFileEditsFromToolInput(toolName: string, input: unknown): FileEditRecord[] {
+	if (toolName !== "write_file" && toolName !== "write_files") {
+		return [];
+	}
+	const record = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+	const toEdit = (value: unknown): FileEditRecord | null => {
+		if (typeof value !== "object" || value === null) {
+			return null;
+		}
+		const entry = value as Record<string, unknown>;
+		const path =
+			typeof entry.path === "string" ? entry.path : typeof entry.file_path === "string" ? entry.file_path : "";
+		return path.trim() && typeof entry.content === "string" ? { path: path.trim(), content: entry.content } : null;
+	};
+	if (Array.isArray(record.files)) {
+		return record.files.map(toEdit).filter((edit): edit is FileEditRecord => edit !== null);
+	}
+	const single = toEdit(record);
+	return single ? [single] : [];
+}
