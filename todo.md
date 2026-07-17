@@ -2837,10 +2837,16 @@ output and NOT acted on. Captured as F12.12.)
   change"), plus a ledger observation on a red baseline. Cost is the flag's to pay (one extra sandbox acceptance
   run per start), exactly as David scoped. 5 formatter tests. (b)/(c) remain design work as scoped above.
   cost/policy decision. All three are effectful runtime changes; none is a quick mount.
-- [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
+- [>] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
   Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
+  **SCOUTED 2026-07-18: PRECURSOR-BLOCKED — this "extends F11.3", and F11.3's own substrate (F11.3a vendored
+  grading core, F11.3b instance fetcher/workspace builder) is unbuilt.** Build order: F11.3a → F11.3b → the
+  Terminal-Bench track slots in as a second task-source + verifier beside the SWE-bench one (its Docker-env +
+  verification-suite shape maps cleanly onto !Klein's existing sandbox + acceptance-gate machinery). Also
+  DECISION-COUPLED: vendoring benchmark datasets (HuggingFace downloads, disk) is an infra footprint David should
+  green-light with the Phase-11 plan; actual benchmark RUNS are fleet-gated regardless.
 
 **Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
 - [ ] **F12.62 — Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an
