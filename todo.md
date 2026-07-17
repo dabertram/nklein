@@ -2379,10 +2379,15 @@ output and NOT acted on. Captured as F12.12.)
   gains (63% of Opus SWE-bench-Pro resolutions "retrieved not derived"); small local models game readily. Flag a green whose
   cause is editing test files / weakening assertions / hardcoding expected outputs / special-casing the checker — diff the
   agent's test-vs-source changes + require behavior-changing edits. Protects the integrity of the ledger/fitness signal itself. (cursor reward-hacking; Hodoscope 2605.21384)
-- [ ] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
+- [~] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
   unnecessary changes up to 70% (churn 7.33% vs 4.10% human) — over-eagerness is INVISIBLE unless false-positive ACTION is a
   separate metric. Add abstention accuracy (correctly doing nothing on already-fixed/underspecified tasks) + unnecessary-
-  change rate + diff-minimality (net lines, edit-distance, code-consistency-rate); seed a few no-op fixtures. Buildable-now. (arxiv 2605.07769)
+  change rate + diff-minimality (net lines, edit-distance, code-consistency-rate); seed a few no-op fixtures.
+  **MINIMALITY CORE BUILT 2026-07-17:** `diff-minimality.ts` — `assessDiffMinimality({patch, expectedScopeFiles,
+  budgets})` → minimal/acceptable/bloated/empty with the OUT-OF-SCOPE-files over-eagerness signal (touched files not in
+  the card's filesLikelyTouched) + churn counts; `empty` = a valid-abstention verdict the caller confirms against
+  acceptance. 6 tests. REMAINING: wire at the delivery gate / reviewer prompt (patch + filesLikelyTouched are both at
+  that seam) + the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
 - [ ] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
