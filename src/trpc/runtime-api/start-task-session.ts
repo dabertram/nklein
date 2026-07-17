@@ -49,6 +49,10 @@ import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agen
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
 import {
+	renderFewShotExemplarBlock,
+	selectWorkspaceFewShotExemplars,
+} from "../../nklein-agent/nklein-few-shot-exemplars";
+import {
 	llmfitPriorPredictedWallTimeMs,
 	loadOptInLlmfitRoutingPriorResolver,
 } from "../../nklein-agent/nklein-llmfit-routing-prior";
@@ -1340,6 +1344,18 @@ export async function handleStartTaskSession(
 		const handoffPreamble = await loadWorkspaceState(workspaceScope.workspacePath)
 			.then((state) => composeDependencyHandoffPreamble(state.board, body.taskId))
 			.catch(() => "");
+		// F11.2h (OPT-IN via NKLEIN_FEWSHOT_EXEMPLARS; default OFF = byte-identical prompt, zero scan cost): for a
+		// WRITE-scoped card (filesLikelyTouched present), retrieve 1–2 task-similar existing functions as style
+		// exemplars — deterministic identifier-overlap retrieval, no model. Fleet A/B decides the default.
+		const exemplarBlock =
+			isTruthyEnv(process.env.NKLEIN_FEWSHOT_EXEMPLARS) && (body.filesLikelyTouched?.length ?? 0) > 0
+				? await selectWorkspaceFewShotExemplars({
+						workspacePath: workspaceScope.workspacePath,
+						taskText: `${body.taskTitle ?? ""}\n${body.prompt}`,
+						targetPaths: body.filesLikelyTouched ?? [],
+					}).then((exemplars) => renderFewShotExemplarBlock(exemplars))
+				: null;
+		const exemplarPreamble = exemplarBlock ? `${exemplarBlock}\n\n` : "";
 		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
 		// estimate × the routed model's quality-effective context, so the planning prompt steers breakdown granularity to
 		// what the task hardness + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
@@ -1355,9 +1371,9 @@ export async function handleStartTaskSession(
 			cwd: workspaceScope.workspacePath,
 			workspaceRoot: workspaceScope.workspacePath,
 			baseRef: body.baseRef,
-			// F12.38: upstream handoff briefs FIRST, the card's own objective LAST (recency keeps the actual
-			// instruction closest to the model — the F12.21 ordering rule).
-			prompt: `${handoffPreamble}${promptWithMailbox}`,
+			// F12.38/F11.2h: upstream handoff briefs + style exemplars FIRST, the card's own objective LAST
+			// (recency keeps the actual instruction closest to the model — the F12.21 ordering rule).
+			prompt: `${handoffPreamble}${exemplarPreamble}${promptWithMailbox}`,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,

@@ -2089,9 +2089,15 @@ stays fast + complete.
   - [ ] **F11.2g — Run the repo's OWN lint/format/test in the verify gate.** Execute the project's real test + linter +
     formatter on the diff and feed failures back for self-heal — LLMs reliably self-heal against explicit lint rules;
     matching existing tests/style IS "fitting the codebase." (factory.ai linters)
-  - [ ] **F11.2h — In-repo few-shot exemplar injection.** When editing, retrieve 1–2 semantically-similar EXISTING functions
+  - [~] **F11.2h — In-repo few-shot exemplar injection.** When editing, retrieve 1–2 semantically-similar EXISTING functions
     and inject them as style/API exemplars — CEDAR-style retrieval-augmented few-shot beats fine-tuning at ~2 shots; cheapest
     way to make a small model write code that looks native. (CEDAR ICSE23)
+    **SHIPPED 2026-07-17 (OPT-IN):** `nklein-few-shot-exemplars.ts` — deterministic retrieval (no model): named
+    exemplar-sized functions (decls + arrow consts, ≤50 lines) scored by camelCase-aware identifier overlap with
+    the task text; target files excluded; one per file, cap 2, floor 0.12; block labeled "style reference — do
+    not copy logic". Wired in the start handler behind `NKLEIN_FEWSHOT_EXEMPLARS` for write-scoped cards
+    (default OFF = byte-identical prompt + zero scan). 4 tests. REMAINING: fleet A/B before default-on (the
+    F12.41 significance gate is the arbiter); F12.81 extends with ledger-sourced message-format shots.
   - [x] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
     split-then-merge), attach signature+imports+scope, never split a function mid-body (cAST +4.3 Recall@5 / +2.67 Pass@1).
     Denser chunks free the small window. (cAST 2506.15655; Repomix --compress)
