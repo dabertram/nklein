@@ -1948,6 +1948,26 @@ hardware/user action. Promote a research item into an earlier concrete package o
 - [?] **D10.14 — Docker Desktop memory-cap validation.** If the local VM remains below the required workload headroom,
   raise it under user control and rerun the affected multi-model/sandbox challenge; code must still fail clearly when low.
 
+- [~] **F0.NM — Sweep + catalog David's new fleet models (David 2026-07-17: "i added a handful new models .. make sure
+  they are properly sweeped and included in the catalog").** Coverage check found 7/55 downloaded models uncataloged:
+  olmo-3-32b-think, seed-oss-36b, deepseek-v4-flash-dq, rnj-1, gemma-4-31b-qat, ministral-3-14b-reasoning, qwable-3.6-27b.
+  **DONE:** all 7 cataloged (structural priors, committed); live fitness store backed up (`.bak-2026-07-17-presweep`, 502
+  rows); **rnj-1 SWEPT** (mean 0.861 — architect 1.0/worker 1.0/reviewer 0.444, empirically TOOL_CAPABLE; catalog entry
+  upgraded to empirical). Discovered gemma-4-31b + qwable-3.6-27b already have yesterday's sweep rows (9/9 cells each).
+  First sweep attempts hit GPU CONTENTION (David's parallel work — the gemma "hang" + deepseek load-fail were artifacts);
+  David: GPU now free, re-test. **SWEEP COMPLETE 2026-07-17 04:32 (GPU-free gated, all measurements clean):**
+  gemma-4-31b-qat **0.958**/12 (tied-best; reviewer 0.833 @54s = the fastest good reviewer; via json_schema_grammar) ·
+  qwable-3.6-27b **0.958**/12 (tied-best; architect 1.0 @29s) · olmo-3-32b-think **0.950**/10 (reviewer 0.833 but SLOW
+  @174s; 2/3 architect cells unscoreable @229s — reviewer/worker only) · seed-oss-36b **0.944**/9 (ALL architect cells
+  failed — worker/reviewer only) · ministral-3-14b-reasoning **0.903**/12 (architect 1.0 @5.6s — fastest decomposer) ·
+  rnj-1 **0.861**/12 (fast small all-rounder, reviewer 0.444) · deepseek-v4-flash-dq LOAD FAILED with GPU free too —
+  ~96 GB genuinely does not fit m5max at the 32k floor (definitive; needs a smaller quant or a floor exception = David).
+  ALL 7 catalog entries upgraded to final (5 empirical+verified). Fleet-routing implications: gemma-4-31b = new best
+  fast reviewer; ministral = new best fast architect; the 0.833-reviewer trio breaks the fleet's reviewer ceiling.
+  GOTCHAS (memory: new-models-sweep-2026-07-17): `timeout`≠macOS; Node buffers stdout-to-file (empty log mid-run is
+  normal); `lms load` needs /opt/homebrew/bin on PATH in detached shells; GATE sweeps on a trivial-completion probe
+  (GPU contention silently poisons latency + hangs big models).
+
 ### Phase 11 — Onboarding, existing-codebase excellence, and benchmark-driven validation (David 2026-07-17)
 
 **Why this is its own phase.** !Klein can decompose + execute, but the *front door* (getting a project properly specified
