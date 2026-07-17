@@ -2681,8 +2681,12 @@ verify-before-build caveat: confirm each against current code before implementin
   **CORE BUILT 2026-07-17:** `predicted-execution-check.ts` — `comparePredictedExecution` (tolerant normalization:
   CRLF/trailing-ws/trailing-blanks never fail a correct program; strict on content; localizes the FIRST divergent line
   with a compact excerpt for the repair prompt) + `assessPredictedExecution` (all-must-match verdict; zero cases =
-  pass-with-note). 5 tests. REMAINING (activation): elicit predictions in the worker prompt for key inputs + run them
-  in the sandbox at the acceptance seam and block/repair on divergence. (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
+  pass-with-note). 5 tests. **WIRED 2026-07-17 (bf1a23e7, record-only):** `predict_output` agent tool (per-task registry,
+  nklein-predict-output-tool.ts) registered in the session-runtime tool list; the acceptance seam (task-session-service
+  verify wrapper) compares prediction vs the REAL acceptance output and records a `predicted_execution_divergence`
+  self-observation on mismatch. Observe-first: does NOT block acceptance yet — flip to blocking once live divergence
+  rates show the signal is precise (weak models may predict sloppily; blocking on that would thrash).
+  (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
 - [ ] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
   tests + property checks (F12.93) + an LLM rubric judge, and flag shortcut behaviors (solution lookup, test/harness tampering,
   verbosity-gaming); add a "Dockerless" execution-free evidence pre-screen when full test runs are too costly per candidate.
