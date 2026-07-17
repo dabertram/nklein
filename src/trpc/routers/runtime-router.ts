@@ -136,6 +136,7 @@ import {
 	runtimeTaskWorktreeMergeRequestSchema,
 	runtimeTaskWorktreeMergeResponseSchema,
 	runtimeTimeTrackingResponseSchema,
+	runtimeTrustPostureResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
@@ -165,6 +166,9 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeFitnessTableResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getFitnessTable()),
 		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value (global ledger, read-only).
+		getTrustPosture: t.procedure
+			.output(runtimeTrustPostureResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getTrustPosture()),
 		getLedgerAnalytics: t.procedure
 			.output(runtimeLedgerAnalyticsResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getLedgerAnalytics()),

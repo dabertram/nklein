@@ -656,6 +656,50 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value — the same three
 		// projections behind the `dev retrieval-usefulness` / `dev knowledge-outcomes` / `dev opportunistic-value`
 		// CLIs, folded read-only for the operator telemetry UI. Empty-safe: a missing/unreadable ledger yields zeros.
+		// F12.98 Trust & Privacy Panel: the trust-center's LIVE state — per-egress-class posture (F12.101 assessment)
+		// + the hash-chained receipt log's verification. Read-only; renders what the architecture currently enforces.
+		getTrustPosture: async () => {
+			const { assessAirGapPosture } = await import("../core/air-gap-posture");
+			const { verifyEgressReceiptChain } = await import("../core/egress-receipt");
+			const { readEgressReceipts } = await import("../state/egress-receipt-store");
+			const { readFile } = await import("node:fs/promises");
+			const { homedir } = await import("node:os");
+			const { join } = await import("node:path");
+			let configuredMcpServers = 0;
+			try {
+				const raw = await readFile(
+					join(homedir(), ".nklein", "data", "settings", "nklein_mcp_settings.json"),
+					"utf8",
+				);
+				configuredMcpServers = Object.keys(
+					(JSON.parse(raw) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {},
+				).length;
+			} catch {}
+			let providerBaseUrl: string | null = null;
+			try {
+				const raw = await readFile(join(homedir(), ".nklein", "data", "settings", "providers.json"), "utf8");
+				providerBaseUrl =
+					(JSON.parse(raw) as { providers?: Record<string, { settings?: { baseUrl?: string } }> }).providers
+						?.lmstudio?.settings?.baseUrl ?? null;
+			} catch {}
+			const posture = assessAirGapPosture({
+				webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+				autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE),
+				configuredMcpServers,
+				providerBaseUrl,
+			});
+			const receipts = await readEgressReceipts().catch(() => []);
+			const verification = verifyEgressReceiptChain(receipts);
+			return {
+				generatedAt: Date.now(),
+				classes: [...posture.classes],
+				airGapped: posture.airGapped,
+				summary: posture.summary,
+				egressReceiptCount: receipts.length,
+				receiptChainValid: verification.valid,
+				receiptChainReason: verification.reason,
+			};
+		},
 		getLedgerAnalytics: async () => {
 			const events = await readAllAgentLedger().catch(() => []);
 			return {

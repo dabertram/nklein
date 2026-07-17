@@ -169,6 +169,7 @@ import type {
 	RuntimeTaskWorktreeMergeRequest,
 	RuntimeTaskWorktreeMergeResponse,
 	RuntimeTimeTrackingResponse,
+	RuntimeTrustPostureResponse,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceChangesRequest,
 	RuntimeWorkspaceChangesResponse,
@@ -231,6 +232,7 @@ export interface RuntimeTrpcContext {
 		getModelBehaviorProfiles: () => Promise<RuntimeModelBehaviorProfilesResponse>;
 		/** Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value, read-only telemetry. */
 		getLedgerAnalytics: () => Promise<RuntimeLedgerAnalyticsResponse>;
+		getTrustPosture: () => Promise<RuntimeTrustPostureResponse>;
 		/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes, read-only telemetry. */
 		getMemoryAudit: () => Promise<RuntimeMemoryAuditResponse>;
 		/** F1.35b: the background-eval rail controls/status snapshot (read-only). */

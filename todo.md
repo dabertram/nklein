@@ -2689,10 +2689,15 @@ POLICY." Context: 84% use AI but only ~3% highly trust it and ~81% are privacy-c
 default and AI-assisted repos leak secrets ~40% more; EU AI Act enforceable 2026-08-02 (€35M fines). MCP-vetting task folded
 into the existing F12.31. Same verify-before-build caveat.**
 
-- [ ] **F12.98 — Trust & Privacy Panel (UI).** One screen that makes the local-only guarantee legible: what data stays on the
+- [~] **F12.98 — Trust & Privacy Panel (UI).** One screen that makes the local-only guarantee legible: what data stays on the
   machine, what (if anything) leaves and to where, telemetry status (off by default), and the active egress-provenance gate
   (S3) state. Rationale: trust is earned by VERIFIABILITY, not claims; "zero-retention ≠ not-training ≠ no-telemetry" — surface
-  the distinction the market conflates. Reads existing S3/audit state; no new capability. (Anthropic trust; Willison lethal-trifecta)
+  the distinction the market conflates. Reads existing S3/audit state; no new capability. **BACKEND SLICE SHIPPED
+  2026-07-17 (tRPC touch points 1–4 of the 6-point pattern):** `runtimeTrustPostureResponseSchema` (contract) →
+  app-router interface → `getTrustPosture` impl (F12.101 posture assessment + receipt-chain verification, read-only)
+  → runtime-router `.output` procedure. tsc clean. REMAINING (5–6): web-ui query + the Settings panel render
+  (per-class posture rows, receipt-chain status, links to docs/trust-center.md) + browser verification — one
+  UI unit. (Anthropic trust; Willison lethal-trifecta)
 - [~] **F12.99 — Signed, user-verifiable egress receipts.** Every outbound request (model pull, web_research fetch, MCP call)
   emits a signed receipt — timestamp, destination, payload hash, provenance/taint labels — into an append-only local log the
   user can inspect and verify. Rationale: turns "we don't exfiltrate" from a promise into an auditable record; composes with

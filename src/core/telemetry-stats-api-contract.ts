@@ -466,3 +466,24 @@ export const runtimeModelTuningResponseSchema = z.object({
 	models: z.array(runtimeModelTuningRowSchema),
 });
 export type RuntimeModelTuningResponse = z.infer<typeof runtimeModelTuningResponseSchema>;
+
+/**
+ * F12.98 Trust & Privacy Panel — the trust-center's live state for the operator UI: per-egress-class posture (the
+ * F12.101 assessment) + the hash-chained receipt log's count/verification. Read-only; the UI renders what the
+ * architecture currently enforces, never a marketing claim.
+ */
+export const runtimeTrustPostureClassSchema = z.object({
+	egressClass: z.string(),
+	open: z.boolean(),
+	detail: z.string(),
+});
+export const runtimeTrustPostureResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	classes: z.array(runtimeTrustPostureClassSchema),
+	airGapped: z.boolean(),
+	summary: z.string(),
+	egressReceiptCount: z.number().int().nonnegative(),
+	receiptChainValid: z.boolean(),
+	receiptChainReason: z.string(),
+});
+export type RuntimeTrustPostureResponse = z.infer<typeof runtimeTrustPostureResponseSchema>;
