@@ -2073,9 +2073,16 @@ stays fast + complete.
     retrieval tool beside ast_search (escalation taught: repo_map orient → ego_graph localize → ast_search exact
     lines → search_code text). 9 tests + live-proven on the nklein repo itself. Reference targets carry line:null
     honestly (facts record identifier names, not positions — ast_search is the precision tier).
-  - [ ] **F11.2d — Coarse-to-fine hierarchical localizer in decompose.** Narrow file → class/function → edit-span
+  - [~] **F11.2d — Coarse-to-fine hierarchical localizer in decompose.** Narrow file → class/function → edit-span
     (Agentless-style) and pass only those spans to the coder — SOTA-cheap, fits limited context, avoids whole-file dumps
     that trigger lost-in-the-middle. (Agentless 2407.01489)
+    **AUDIT 2026-07-17: the coarse-to-fine LADDER now exists as shipped retrieval surface** — repo_map (repo→file
+    orientation) → ego_graph (F11.2c: symbol→declaration-line neighborhood) → ast_search (exact per-file spans) →
+    focused read_files, with the escalation taught in every tool description; the decompose flow already narrows
+    file-level via filesLikelyTouched + write-scope. REMAINING (fleet-gated by design): AUTO-attaching symbol
+    spans to generated leaf cards at decompose time — whether small architects/coders benefit from pushed spans
+    vs pulling via ego_graph is exactly the retrieval A/B the fleet must answer (pushed spans cost prompt budget
+    on every card; the pull path is free until used). No further no-model code is honest here.
   - [~] **F11.2e — Retrieval rerank/prune precision gate (ties to F4.13).** Insert an LLM-discriminator or a small local
     SweRank-style reranker (a 137M code embedder + reranker beats big-model agentic search on Lite/LocBench) to drop
     distractor files before the coder; log kept/dropped into the retrieval-usefulness / F4.13 distractor telemetry.
