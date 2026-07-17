@@ -60,6 +60,7 @@ import {
 	runDevOpportunisticValueCommand,
 	runDevOutwardQueueCommand,
 	runDevPlaceholderScanCommand,
+	runDevPromptLintCommand,
 	runDevQualityBudgetCommand,
 	runDevRailEvidenceCommand,
 	runDevReasoningBenefitCommand,
@@ -915,6 +916,25 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("prompt-lint")
+		.description(
+			"Lint a rules/prompt file (F12.79/F12.80) — instruction budget vs a model-size cap + bare prohibitions.",
+		)
+		.requiredOption("--file <path>", "The rules/prompt file to lint (e.g. AGENTS.md).")
+		.option("--model-size <b>", "Target model size in billions, to scale the instruction cap.", Number.parseFloat)
+		.option("--cap <n>", "Explicit instruction cap (overrides --model-size).", Number.parseInt)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { file: string; modelSize?: number; cap?: number; json?: boolean }) => {
+			await runDevPromptLintCommand({
+				file: options.file,
+				...(typeof options.modelSize === "number" && !Number.isNaN(options.modelSize)
+					? { modelSizeB: options.modelSize }
+					: {}),
+				...(typeof options.cap === "number" && !Number.isNaN(options.cap) ? { cap: options.cap } : {}),
+				...(options.json ? { json: true } : {}),
+			});
 		});
 
 	dev.command("memory-audit")

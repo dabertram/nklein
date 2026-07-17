@@ -2467,8 +2467,11 @@ verify-before-build caveat: confirm each against current code before implementin
   either flip to a positive assertive form ("always use the shared apiClient") or REQUIRE a paired concrete alternative;
   prefer "must" over "should". **CORE BUILT 2026-07-17:** `lintProhibitions` (in `prompt-fragment-lint.ts`) flags each
   negative instruction that LACKS a nearby "instead / use X / rather than" alternative as bare (the pink-elephant risk),
-  leaving paired prohibitions uncounted; `lintPromptFragment` runs both checks + a `hasWarnings` roll-up. REMAINING: wire into
-  the rules-authoring / prompt-assembly lint pass. (gadlet negative-prompting; 16x pink-elephant)
+  leaving paired prohibitions uncounted; `lintPromptFragment` runs both checks + a `hasWarnings` roll-up. **CLI SHIPPED
+  2026-07-17:** `dev prompt-lint --file <path> [--model-size <b> | --cap <n>] [--json]` (runDevPromptLintCommand) — reads a
+  rules/prompt file, runs both linters, prints budget + bare prohibitions. LIVE-VERIFIED on !Klein's own AGENTS.md (surfaced
+  a real bare prohibition: "don't look for guidance in scattered docs"). REMAINING: optionally wire into the F4.40
+  prompt-assembly path as an automatic pre-flight. (gadlet negative-prompting; 16x pink-elephant)
 - [ ] **F12.81 — Ledger-sourced dynamic few-shot injection (message-format).** Extends F11.2h (in-repo exemplars) with a
   DIFFERENT signal: retrieve the 2–3 most semantically-similar SUCCESSFUL PAST ATTEMPTS from the agent ledger and inject them
   as real ChatML message turns (not string-concatenated), selected per-card. Rationale: biggest measured lever for small-model

@@ -63,6 +63,7 @@ import { summarizeOutwardActionQueue } from "../core/outward-action-queue";
 import { scanForPlaceholders } from "../core/placeholder-scan";
 import { detectProcessRemediation, peakRemediationLevel } from "../core/process-remediation";
 import { buildProcessTrajectoryFromLedger } from "../core/process-remediation-ledger";
+import { lintPromptFragment } from "../core/prompt-fragment-lint";
 import { assessQualityBudget } from "../core/quality-budget";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import {
@@ -1356,4 +1357,48 @@ export async function runDevRostersCommand(options: { json?: boolean } = {}): Pr
 	for (const roster of rosters) {
 		process.stdout.write(`${formatSwarmRosterReport(roster, budgets)}\n\n`);
 	}
+}
+
+/**
+ * F12.79/F12.80 — lint a rules / prompt file for instruction bloat and bare prohibitions. Reads the file, runs the pure
+ * `lintPromptFragment` heuristics, and prints the instruction-budget verdict + any bare "don't/never/avoid" prohibitions.
+ * Useful for keeping AGENTS.md / CLAUDE.md / assembled agent prompts within a small model's instruction-following budget.
+ */
+export async function runDevPromptLintCommand(options: {
+	file: string;
+	modelSizeB?: number;
+	cap?: number;
+	json?: boolean;
+}): Promise<void> {
+	const { readFile } = await import("node:fs/promises");
+	const text = await readFile(options.file, "utf8").catch((err: unknown) => {
+		process.stdout.write(`Could not read ${options.file}: ${err instanceof Error ? err.message : String(err)}\n`);
+		return null;
+	});
+	if (text === null) {
+		return;
+	}
+	const lintOptions = {
+		...(typeof options.modelSizeB === "number" ? { modelSizeB: options.modelSizeB } : {}),
+		...(typeof options.cap === "number" ? { cap: options.cap } : {}),
+	};
+	const lint = lintPromptFragment(text, lintOptions);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ file: options.file, ...lint }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Prompt-fragment lint (F12.79/F12.80) — ${options.file}\n\n`);
+	process.stdout.write(`  Instruction budget: ${lint.budget.advice}\n`);
+	process.stdout.write(`  Prohibitions: ${lint.prohibitions.advice}\n`);
+	const bare = lint.prohibitions.findings.filter((f) => !f.hasAlternative);
+	if (bare.length > 0) {
+		process.stdout.write(`\n  Bare prohibitions (rephrase positively or pair with a concrete alternative):\n`);
+		for (const finding of bare.slice(0, 20)) {
+			process.stdout.write(`    • ${finding.text.slice(0, 96)}\n`);
+		}
+		if (bare.length > 20) {
+			process.stdout.write(`    … and ${bare.length - 20} more\n`);
+		}
+	}
+	process.stdout.write(`\n  ${lint.hasWarnings ? "⚠ warnings present" : "✓ clean"}\n`);
 }
