@@ -2161,6 +2161,14 @@ output and NOT acted on. Captured as F12.12.)
   in that escalation order, NOT one modality. !Klein has lexical `search_code` + `repo_map`; the structural AST-query tier
   (find *by shape*: "all callers of X", "all classes implementing Y") is missing. Add an `ast_search` retrieval tool +
   teach the agent the ripgrep→ast-grep→repo-map escalation. (ceaksan.com/code-search-for-ai-agents; zzet.org grep-replacement)
+  **DECIDED 2026-07-17 (autonomous, reversible): DEFER the `@ast-grep/napi` dependency.** It is a NATIVE module —
+  it must ship inside the Docker sandbox images (rebuild + size) and touches the desktop packaging/signing surface
+  (F5.7), so it is a packaging decision, not a drop-in. Two cheaper paths exist when this activates: (a) the
+  TypeScript-family shape queries can ride the ALREADY-vendored `typescript` AST (nklein-repo-map-ast.ts extracts
+  facts today — a `find callers of X` walk is an extension, no new dep, covers this repo's dominant languages);
+  (b) the ast-grep CLI could be baked into the sandbox image instead of a host napi module (aligns with the §5.AR
+  in-sandbox pattern). Recommend (a) first; David can override to full ast-grep if multi-language shape-search
+  becomes real demand.
 - [x] **F12.2 — De-emphasize embedding retrieval for short keyword queries.** CoREB (May 2026) found short keyword queries —
   the format most agent searches actually use — collapse nearly every semantic embedding model to ~0 nDCG@10. Audit where
   !Klein leans on code embeddings (codebase-memory / code-embeddings) vs lexical+structural for keyword-shaped queries, and
