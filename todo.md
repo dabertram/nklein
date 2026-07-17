@@ -2523,9 +2523,15 @@ output and NOT acted on. Captured as F12.12.)
   note lands before the very next model iteration instead of behind earlier queued input; web SendTerminalInputOptions
   carries `steer`. Default path byte-identical. REMAINING: surfacing the live pending-steer queue on the card (the
   `pending_prompts` SDK event is read but not forwarded to the summary — mailbox badge covers next-start notes only).
-- [ ] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
+- [x] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
   board with preset "good first task" templates scoped to what LOCAL models reliably do; broad relatable examples;
   just-in-time tips (not an upfront tutorial); an honest "here's what can go wrong / how to recover." (nngroup new-AI-users)
+  **SHIPPED 2026-07-17:** the empty-board banner now carries three one-click "good first task" chips (bug-fix /
+  small-feature / test-coverage — the existing TASK_PROMPT_TEMPLATES, exported and reused; click → the create dialog
+  opens PREFILLED via the widened handleOpenCreateTask prefill param) + an honest expectations line (small local
+  models misread vague tasks / stall; tight scope + acceptance check is the fix; every change stays in a reviewable
+  worktree). Just-in-time by placement: it renders only on an empty board, never as a tutorial. The dialog's own
+  template menu (with tooltips) remains the deeper set.
 - [~] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
   invisibly. Show tokens/time per card + a board-level total, with an optional soft cap that pauses or escalates a card
   approaching its budget. (portal26 agent-cost-control; Conductor)

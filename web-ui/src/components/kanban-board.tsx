@@ -29,6 +29,7 @@ import { DependencyOverlay } from "@/components/dependencies/dependency-overlay"
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { FleetStrip } from "@/components/fleet-strip";
 import { composeFleetRows, toEndpointLabel } from "@/components/fleet-strip-model";
+import { TASK_PROMPT_TEMPLATES } from "@/components/task-prompt-template-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
@@ -185,7 +186,8 @@ export function KanbanBoard({
 	data: BoardData;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
 	onCardSelect: (taskId: string) => void;
-	onCreateTask: () => void;
+	/** F12.57: an optional string prefills the create dialog (the empty board's good-first-task templates use it). */
+	onCreateTask: (prefillPrompt?: string) => void;
 	onStartTask?: (taskId: string) => void;
 	onDecomposeTask?: (taskId: string) => void;
 	onReplayTask?: (taskId: string) => void;
@@ -1233,9 +1235,34 @@ export function KanbanBoard({
 			) : null}
 			{currentProjectId && data.columns.every((column) => column.id === "trash" || column.cards.length === 0) ? (
 				<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-1 px-4 py-3 text-sm">
-					<div className="flex min-w-0 items-center gap-2 text-text-secondary">
-						<Sparkles size={16} className="shrink-0 text-accent" />
-						<span>This board is empty — create your first task to start the local swarm on it.</span>
+					<div className="flex min-w-0 flex-col gap-1.5">
+						<div className="flex min-w-0 items-center gap-2 text-text-secondary">
+							<Sparkles size={16} className="shrink-0 text-accent" />
+							<span>This board is empty — create your first task to start the local swarm on it.</span>
+						</div>
+						{/* F12.57: good-first-task templates scoped to what LOCAL models reliably do, one click → prefilled
+						    create dialog — plus an honest expectations line (what can go wrong / how to recover). */}
+						<div className="flex flex-wrap items-center gap-1.5 pl-6">
+							<span className="text-[11px] text-text-tertiary">Good first tasks:</span>
+							{TASK_PROMPT_TEMPLATES.slice(0, 3).map((template) => (
+								<button
+									key={template.id}
+									type="button"
+									data-testid={`good-first-task-${template.id}`}
+									className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border-bright bg-surface-0 px-1.5 py-0.5 text-[11px] text-text-secondary hover:border-accent/50 hover:text-text-primary"
+									title="Opens the create dialog prefilled — small, well-scoped tasks are what local models finish reliably."
+									onClick={() => onCreateTask?.(template.prompt)}
+								>
+									{template.icon}
+									<span>{template.label}</span>
+								</button>
+							))}
+						</div>
+						<p className="m-0 pl-6 text-[11px] text-text-tertiary">
+							Honest expectations: small local models sometimes misread a vague task or stall — a tight scope + a
+							clear acceptance check is the fix, and every change stays in an isolated worktree you can review or
+							discard before anything merges.
+						</p>
 					</div>
 					<div className="flex items-center gap-3">
 						{runtimeConfig?.agentSandboxStatus?.state === "blocked" ? (
@@ -1250,7 +1277,7 @@ export function KanbanBoard({
 								Isolation unavailable
 							</span>
 						) : null}
-						<Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={onCreateTask}>
+						<Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => onCreateTask()}>
 							Create task
 						</Button>
 					</div>

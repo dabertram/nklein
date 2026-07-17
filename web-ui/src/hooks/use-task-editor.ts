@@ -211,11 +211,15 @@ export function useTaskEditor({
 		}
 	}, [board, editingTaskId]);
 
-	const handleOpenCreateTask = useCallback(() => {
+	// F12.57: an optional string prefills the create dialog (good-first-task templates on the empty board). The
+	// typeof guard keeps direct onClick={handleOpenCreateTask} usage safe (a click event is not a prompt).
+	const handleOpenCreateTask = useCallback((prefillPrompt?: unknown) => {
 		setEditingTaskId(null);
 		setEditTaskPrompt("");
 		setEditTaskImages([]);
-
+		if (typeof prefillPrompt === "string") {
+			setNewTaskPrompt(prefillPrompt);
+		}
 		setNewTaskAgentId(undefined);
 		setNewTaskNKleinSettings(undefined);
 		setIsInlineTaskCreateOpen(true);

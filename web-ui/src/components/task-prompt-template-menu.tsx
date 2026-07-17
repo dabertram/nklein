@@ -4,14 +4,14 @@ import type { ReactElement } from "react";
 
 import { Button } from "@/components/ui/button";
 
-interface TaskPromptTemplate {
+export interface TaskPromptTemplate {
 	id: string;
 	label: string;
 	icon: ReactElement;
 	prompt: string;
 }
 
-const TASK_PROMPT_TEMPLATES: readonly TaskPromptTemplate[] = [
+export const TASK_PROMPT_TEMPLATES: readonly TaskPromptTemplate[] = [
 	{
 		id: "bug-fix",
 		label: "Bug fix",
