@@ -15,6 +15,8 @@ import {
 const DEFAULT_STREAM_STALENESS_MS = 600_000;
 
 export type { OperatorBoardSummary, OperatorSignalOverrides } from "./operator-task-state";
+// F12.52: the prioritized "Needs you" queue over the inbox (the web header popover + any notifier read this).
+export { buildNeedsYouQueue, type NeedsYouQueueEntry } from "./operator-task-state";
 
 /**
  * The minimal board shape the rollup reads — columns of cards with an id and (optionally) the card's start-blocked

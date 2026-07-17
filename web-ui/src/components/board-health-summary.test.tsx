@@ -82,6 +82,6 @@ describe("BoardHealthSummary", () => {
 			/>,
 		);
 		expect(container.querySelector('[title="1 risky"]')).not.toBeNull();
-		expect(container.querySelector('[title="1 card(s) need your input"]')).not.toBeNull();
+		expect(container.querySelector('[data-testid="needs-you-chip"]')).not.toBeNull();
 	});
 });

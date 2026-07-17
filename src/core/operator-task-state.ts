@@ -243,3 +243,41 @@ export function mapSessionSummaryToOperatorSignals(
 		escalatedToOperator: overrides.escalatedToOperator ?? false,
 	};
 }
+
+/** One entry in the F12.52 "Needs you" queue: a task + the ONE most-urgent action it needs from the operator. */
+export interface NeedsYouQueueEntry {
+	taskId: string;
+	/** Short operator-facing action label ("Approve host action", "Answer question", …). */
+	action: string;
+	/** 0 = most urgent. Stable across renders — sorts the queue. */
+	priority: number;
+}
+
+/**
+ * F12.52: flatten the grouped inbox into ONE prioritized queue — "what needs me NEXT". Ordering is by
+ * decision urgency (safety acks before protected writes before held deliveries before questions before
+ * escalations before setup blocks); a task appearing in several groups keeps only its MOST urgent entry, so the
+ * queue length equals the inbox's distinct-task total. This is the tier that may interrupt (toast); everything
+ * else stays ambient — milestone pings train operators to ignore alerts.
+ */
+export function buildNeedsYouQueue(inbox: OperatorInbox): NeedsYouQueueEntry[] {
+	const groups: { taskIds: readonly string[]; action: string }[] = [
+		{ taskIds: inbox.unsafeActionAcks, action: "Approve or deny a host action" },
+		{ taskIds: inbox.protectedWrites, action: "Allow or deny a protected write" },
+		{ taskIds: inbox.heldDeliveries, action: "Approve a held delivery" },
+		{ taskIds: inbox.clarifyingQuestions, action: "Answer a clarifying question" },
+		{ taskIds: inbox.escalatedToOperator, action: "Decide an escalated/parked card" },
+		{ taskIds: inbox.blockedOnSetup, action: "Unblock setup" },
+	];
+	const queue: NeedsYouQueueEntry[] = [];
+	const seen = new Set<string>();
+	groups.forEach((group, priority) => {
+		for (const taskId of group.taskIds) {
+			if (!seen.has(taskId)) {
+				seen.add(taskId);
+				queue.push({ taskId, action: group.action, priority });
+			}
+		}
+	});
+	return queue;
+}

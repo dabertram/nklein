@@ -1285,7 +1285,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `NKLEIN_ENFORCED_REASONING` flag (default off = byte-identical; on = the A/B second pass). Recording the A/B for ALL
   families is valid — the data shows reasoning helping prose / possibly hurting structured, which is what F3.16 learns
   (no family-gating needed; my earlier "structured mismatch blocks it" was OVERSTATED). COMPLETE as a flag-gated feature
-  — enable on the fleet and `dev reasoning-benefit` fills with real data.**
+  — enable on the fleet and `dev reasoning-benefit` fills with real data.** **LIVE-VALIDATED 2026-07-17:** ran the full
+  A/B on qwable-3.6-27b (isolated rig, NKLEIN_ENFORCED_REASONING=1) — 12 real observations landed; the CLI renders
+  per-role×difficulty with honest `insufficient_evidence` at n=1. Direction at n=1: reviewer ±0%, worker easy/medium
+  −100% (enforced reasoning may HURT this coder on structured work — matches the research prior; needs n>1 to conclude).
+  Pipeline end-to-end proven; remaining = repeated fleet runs for statistical n.
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
@@ -1433,6 +1437,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   evaluateConnectedModels seam behind the `NKLEIN_EVAL_DISTRACTOR_PROBE` flag (default off = byte-identical; on = the
   A/B second pass, doubles eval cost). COMPLETE as a flag-gated feature — enable on the fleet and `dev
   distractor-sensitivity` fills with real data. Only real DATA is fleet-gated; the wrapper + wiring are mock/type-verified.**
+  **LIVE-VALIDATED 2026-07-17:** ran the noise A/B on qwable-3.6-27b (isolated rig, NKLEIN_EVAL_DISTRACTOR_PROBE=1) —
+  8 real observations; sensitivity 0.00 (robust) across all role×difficulty cells at n=1 (qwable ignored the injected
+  distractors everywhere). Pipeline end-to-end proven; per-model sensitivity table needs more models + repeats.
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
@@ -2465,10 +2472,15 @@ output and NOT acted on. Captured as F12.12.)
   board-column into a distinct color-coded chip on board-card (in-flight lanes only; paused chip precedence; tooltip
   carries the WHY). 8 core tests + 3 UI tests; web build green. Difficulty tier currently null at the call site (card
   model carries no tier) — the scaling helper activates when a difficulty estimate reaches the card payload.
-- [ ] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
+- [~] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
   the real bottleneck is "what needs me NEXT." A cross-board prioritized queue of only the cards needing a decision now
   (approval/escalation/conflict); reserve interrupting toasts for that tier, keep progress ambient, batch completions.
   Milestone pings (25/50/75%) train users to ignore alerts — avoid. (aiuxdesign; builtin ai-brain-fry)
+  **QUEUE SHIPPED 2026-07-17:** `buildNeedsYouQueue` (operator-task-state.ts) flattens the §5.AG inbox into ONE
+  urgency-ordered queue (safety acks > protected writes > held deliveries > questions > escalations > setup; one entry
+  per task at its most urgent action); the board-header inbox chip is now a "Needs you" button opening the prioritized
+  queue popover — click an entry to jump to its card. REMAINING: the layered NOTIFICATION policy (interrupting toasts
+  restricted to this tier, completions batched) — needs an audit of existing notify call sites (separate slice).
 - [ ] **F12.53 — Verification-status badges that GATE merge (trust the artifact).** Only ~33% of devs trust AI output; agents
   "lie" about completion. Surface tests/build/lint/typecheck pass–fail as first-class card badges + block/warn on "merge"
   while any are red/unrun — trust attaches to the verified artifact, not the self-report. !Klein already runs these. (futurumgroup independent-review-layer)

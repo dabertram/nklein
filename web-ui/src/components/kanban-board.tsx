@@ -1146,6 +1146,8 @@ export function KanbanBoard({
 						board={data}
 						taskSessions={taskSessions}
 						resolveOverrides={resolveBoardHealthOverrides}
+						titleByTaskId={cardTitleByTaskId}
+						onSelectTask={onCardSelect}
 					/>
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
