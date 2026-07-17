@@ -2724,15 +2724,21 @@ output and NOT acted on. Captured as F12.12.)
   board-column into a distinct color-coded chip on board-card (in-flight lanes only; paused chip precedence; tooltip
   carries the WHY). 8 core tests + 3 UI tests; web build green. Difficulty tier currently null at the call site (card
   model carries no tier) — the scaling helper activates when a difficulty estimate reaches the card payload.
-- [~] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
+- [x] **F12.52 — "Needs you" attention lane + layered notifications (anti cry-wolf).** Humans cap at ~3–5 supervised agents;
   the real bottleneck is "what needs me NEXT." A cross-board prioritized queue of only the cards needing a decision now
   (approval/escalation/conflict); reserve interrupting toasts for that tier, keep progress ambient, batch completions.
   Milestone pings (25/50/75%) train users to ignore alerts — avoid. (aiuxdesign; builtin ai-brain-fry)
   **QUEUE SHIPPED 2026-07-17:** `buildNeedsYouQueue` (operator-task-state.ts) flattens the §5.AG inbox into ONE
   urgency-ordered queue (safety acks > protected writes > held deliveries > questions > escalations > setup; one entry
   per task at its most urgent action); the board-header inbox chip is now a "Needs you" button opening the prioritized
-  queue popover — click an entry to jump to its card. REMAINING: the layered NOTIFICATION policy (interrupting toasts
-  restricted to this tier, completions batched) — needs an audit of existing notify call sites (separate slice).
+  queue popover — click an entry to jump to its card.
+  **NOTIFICATION-POLICY AUDIT COMPLETE 2026-07-18 (F12.52 DONE):** full toast call-site census (all `showAppToast`
+  callers) found ZERO agent-lifecycle interrupt toasts — every existing toast is direct user-action feedback or an
+  error, progress/completions are already ambient (lane moves, live-agent chips, Merged counter), and the
+  needs-you tier is a pull surface (chip+popover). The codebase already satisfies the layered policy; the slice's
+  deliverable became CODIFICATION: the 3-tier policy now lives as the contract docblock on `app-toaster.ts` (the
+  single toast choke point), so future call sites inherit it. No batching machinery needed — there is nothing to
+  batch, and adding completion pings would create the cry-wolf problem this item exists to prevent.
 - [x] **F12.53 — Verification-status badges that GATE merge (trust the artifact).** Only ~33% of devs trust AI output; agents
   "lie" about completion. Surface tests/build/lint/typecheck pass–fail as first-class card badges + block/warn on "merge"
   while any are red/unrun — trust attaches to the verified artifact, not the self-report. !Klein already runs these. (futurumgroup independent-review-layer)

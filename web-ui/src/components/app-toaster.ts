@@ -1,5 +1,20 @@
 import { toast } from "sonner";
 
+/**
+ * F12.52 layered-notification POLICY (anti cry-wolf) — this module is the single toast choke point; every call
+ * site must fit one of these tiers, in this order of interruption budget:
+ *
+ *  1. Errors/warnings from the USER'S OWN action (a save failed, an import broke) — always toast; the user is
+ *     mid-action and waiting on the outcome.
+ *  2. Cards that NEED A DECISION (approvals, escalations, conflicts) — the "Needs you" queue chip/popover is the
+ *     canonical surface (a pull, always visible); toast ONLY when something genuinely cannot wait.
+ *  3. Agent PROGRESS and COMPLETIONS — NEVER toast. They stay ambient: cards move lanes, live-agent chips update,
+ *     the Merged counter ticks. Milestone pings (25/50/75%) train users to ignore alerts — do not add them.
+ *
+ * Audited 2026-07-18: every existing call site is tier 1 (user-action feedback/errors); the codebase carries no
+ * lifecycle interrupt toasts. Keep it that way — add a tier-3 toast and the tier-1/2 ones stop being heard.
+ */
+
 interface AppToastProps {
 	intent?: "danger" | "warning" | "success" | "primary" | "none";
 	icon?: string;
