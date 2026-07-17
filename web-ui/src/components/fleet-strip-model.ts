@@ -350,3 +350,15 @@ export function summarizeIdleFleetRows(rows: readonly FleetRow[]): string {
 		.join(" · ");
 	return `${head} · ${parts.join(" · ")}`;
 }
+
+/**
+ * Display name for a fleet row: the canonical id minus the DISPLAY-REDUNDANT affixes. Within a fleet group both
+ * the provider prefix ("lmstudio:") and the endpoint suffix (":http://…/v1", ":default") are constant — the group
+ * header already names the endpoint — so they spend the name column's width without distinguishing anything
+ * (live-found 2026-07-17: four deepseek variants truncated identically). The full served id stays available to
+ * the row's tooltip. Only a KNOWN single-segment provider prefix is stripped; bare ids pass through unchanged.
+ */
+export function displayFleetModelName(servedId: string): string {
+	const canonical = servedId.replace(/:(?:default|https?:\/\/\S*)$/i, "");
+	return canonical.replace(/^[a-z0-9_-]+:(?=\S)/i, "");
+}

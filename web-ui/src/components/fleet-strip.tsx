@@ -8,7 +8,12 @@
 import { useState } from "react";
 
 import type { FleetGroup, FleetLineage, FleetRole, FleetRow } from "@/components/fleet-strip-model";
-import { compactFleetActivityText, isActiveFleetRow, summarizeIdleFleetRows } from "@/components/fleet-strip-model";
+import {
+	compactFleetActivityText,
+	displayFleetModelName,
+	isActiveFleetRow,
+	summarizeIdleFleetRows,
+} from "@/components/fleet-strip-model";
 import { cn } from "@/components/ui/cn";
 
 const ROLE_TAG_LABEL: Record<Exclude<FleetRole, null>, string> = {
@@ -70,11 +75,15 @@ function LivenessDot({ row }: { row: FleetRow }): React.ReactElement {
 function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 	const roleTag = row.role;
 	return (
-		<div className="grid grid-cols-[150px_1fr_auto_auto] items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-surface-2">
+		// Name column widens with the viewport (fixed per breakpoint so rows stay column-aligned — each row is its own
+		// grid). 150px truncated every deepseek variant to the same "lmstudio:deepseek/d…" (live-found 2026-07-17,
+		// four indistinguishable rows) while the 1fr activity column sat empty on an idle fleet; never truncate what
+		// the width can show (density rule).
+		<div className="grid grid-cols-[150px_1fr_auto_auto] items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-surface-2 md:grid-cols-[300px_1fr_auto_auto] xl:grid-cols-[400px_1fr_auto_auto]">
 			<span className="flex min-w-0 items-center gap-1.5 font-medium text-text-primary">
 				<LivenessDot row={row} />
 				<span className="truncate" title={row.servedId}>
-					{row.servedId}
+					{displayFleetModelName(row.servedId)}
 				</span>
 				{roleTag ? (
 					<span className={cn("rounded border px-1 text-[9px] uppercase tracking-wide", ROLE_TAG_CLASS[roleTag])}>

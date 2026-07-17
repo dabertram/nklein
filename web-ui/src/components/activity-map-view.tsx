@@ -5,7 +5,7 @@
 
 import { type ReactElement, useEffect, useRef, useState } from "react";
 
-import type { ActivityBubbleState, ActivityMap } from "@/components/activity-map-model";
+import { type ActivityBubbleState, type ActivityMap, resolveBubbleLabelLayout } from "@/components/activity-map-model";
 
 const STATE_STYLE: Record<ActivityBubbleState, { fill: string; stroke: string }> = {
 	running: { fill: "color-mix(in srgb, var(--color-accent) 20%, transparent)", stroke: "var(--color-accent)" },
@@ -129,6 +129,32 @@ export function ActivityMapView({
 		});
 		return { cluster, cx, cy, haloRadius };
 	});
+
+	// Ring parity staggers labels WITHIN a ring, but cross-ring neighbors can still agree on a side and overprint
+	// (live-found 2026-07-17: "Expand tests fo…" ran into "Document model an…"). Resolve all labels globally:
+	// flip the colliding label to the bubble's other side, hide it when neither side fits (hover-title remains).
+	const labelLayout = resolveBubbleLabelLayout(
+		clusterGeometry.flatMap(({ cluster }) =>
+			cluster.bubbles.flatMap((bubble) => {
+				const position = positions.get(bubble.id);
+				if (!position || !bubble.showLabel) {
+					return [];
+				}
+				const caption = bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title;
+				return [
+					{
+						id: bubble.id,
+						x: position.x,
+						y: position.y,
+						radius: bubble.radius,
+						caption,
+						preferAbove: position.labelAbove,
+					},
+				];
+			}),
+		),
+		width,
+	);
 
 	return (
 		<div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden" data-testid="activity-map">
@@ -308,7 +334,7 @@ export function ActivityMapView({
 										opacity={0.85}
 									/>
 								) : null}
-								{bubble.showLabel ? (
+								{bubble.showLabel && !labelLayout.get(bubble.id)?.hidden ? (
 									(() => {
 										const caption = bubble.title.length > 26 ? `${bubble.title.slice(0, 24)}…` : bubble.title;
 										// Center-anchored on the bubble, but clamped on-canvas: a bubble near the edge
@@ -316,14 +342,11 @@ export function ActivityMapView({
 										// "d scenario…", live-found 2026-07-10). ~5.1px/char at 10px.
 										const halfWidth = (caption.length * 5.1) / 2;
 										const captionX = Math.min(Math.max(position.x, halfWidth + 4), width - halfWidth - 4);
+										const above = labelLayout.get(bubble.id)?.above ?? position.labelAbove;
 										return (
 											<text
 												x={captionX}
-												y={
-													position.labelAbove
-														? position.y - bubble.radius - 6
-														: position.y + bubble.radius + 13
-												}
+												y={above ? position.y - bubble.radius - 6 : position.y + bubble.radius + 13}
 												textAnchor="middle"
 												className="fill-text-secondary text-[10px]"
 											>

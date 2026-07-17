@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	compactFleetActivityText,
 	composeFleetRows,
+	displayFleetModelName,
 	type FleetGroup,
 	resolveFleetLineage,
 	summarizeIdleFleetRows,
@@ -400,5 +401,29 @@ describe("duplicate registry variants", () => {
 		const rows = groups.flatMap((group) => group.rows);
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.modelId).toBe("lmstudio:sim/qwen-fast-coder");
+	});
+});
+
+describe("displayFleetModelName", () => {
+	it("strips the provider prefix and endpoint suffix (both constant within a group)", () => {
+		expect(displayFleetModelName("lmstudio:deepseek-v4-flash:http://localhost:1234/v1")).toBe("deepseek-v4-flash");
+		expect(displayFleetModelName("lmstudio:mistralai/ministral-3-14b-reasoning")).toBe(
+			"mistralai/ministral-3-14b-reasoning",
+		);
+		expect(displayFleetModelName("lmstudio:qwen/qwen3-8b:default")).toBe("qwen/qwen3-8b");
+	});
+
+	it("keeps the distinguishing middle intact (the m4 context variants stay distinct)", () => {
+		expect(displayFleetModelName("lmstudio:deepseek/deepseek-r1-0528-qwen3-8b-m4-32kctx:http://x/v1")).toBe(
+			"deepseek/deepseek-r1-0528-qwen3-8b-m4-32kctx",
+		);
+		expect(displayFleetModelName("lmstudio:deepseek/deepseek-r1-0528-qwen3-8b-m4-40kctx:http://x/v1")).toBe(
+			"deepseek/deepseek-r1-0528-qwen3-8b-m4-40kctx",
+		);
+	});
+
+	it("passes bare ids through unchanged", () => {
+		expect(displayFleetModelName("qwable-3.6-27b")).toBe("qwable-3.6-27b");
+		expect(displayFleetModelName("deepseek/deepseek-r1")).toBe("deepseek/deepseek-r1");
 	});
 });

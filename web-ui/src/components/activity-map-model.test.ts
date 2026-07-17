@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeActivityMap, UNPLANNED_CLUSTER_ID } from "@/components/activity-map-model";
+import { composeActivityMap, resolveBubbleLabelLayout, UNPLANNED_CLUSTER_ID } from "@/components/activity-map-model";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import type { BoardCard, BoardColumn } from "@/types";
 
@@ -155,5 +155,68 @@ describe("label density", () => {
 		const bubbles = map.clusters.flatMap((cluster) => cluster.bubbles);
 		expect(bubbles.length).toBe(30);
 		expect(bubbles.every((bubble) => bubble.showLabel)).toBe(true);
+	});
+});
+
+describe("resolveBubbleLabelLayout", () => {
+	const bubble = (id: string, x: number, y: number, caption: string, preferAbove = false) => ({
+		id,
+		x,
+		y,
+		radius: 14,
+		caption,
+		preferAbove,
+	});
+
+	it("keeps non-colliding labels on their preferred side", () => {
+		const layout = resolveBubbleLabelLayout(
+			[bubble("a", 100, 100, "Alpha"), bubble("b", 400, 100, "Beta", true)],
+			800,
+		);
+		expect(layout.get("a")).toEqual({ above: false, hidden: false });
+		expect(layout.get("b")).toEqual({ above: true, hidden: false });
+	});
+
+	it("flips the second label to the other side when both prefer the same line (the overprint case)", () => {
+		// Same y, close x, both prefer below → their below-rects overlap → b flips above.
+		const layout = resolveBubbleLabelLayout(
+			[bubble("a", 100, 100, "Expand tests for allocation"), bubble("b", 150, 100, "Document model analysis")],
+			800,
+		);
+		expect(layout.get("a")).toEqual({ above: false, hidden: false });
+		expect(layout.get("b")).toEqual({ above: true, hidden: false });
+	});
+
+	it("hides a label when both sides would overprint already-placed labels", () => {
+		// Both blockers sit ABOVE c (placed first in reading order) and their below-labels occupy exactly the two
+		// lines c could use: blocker1's rect (y≈98–110) covers c's above line, blocker2's (y≈141–153) c's below line.
+		const layout = resolveBubbleLabelLayout(
+			[
+				bubble("blocker1", 100, 76, "First long caption text"),
+				bubble("blocker2", 120, 124, "Second long caption text"),
+				bubble("c", 110, 128, "Sandwiched caption text"),
+			],
+			800,
+		);
+		expect(layout.get("blocker1")?.hidden).toBe(false);
+		expect(layout.get("blocker2")?.hidden).toBe(false);
+		expect(layout.get("c")?.hidden).toBe(true);
+	});
+
+	it("is deterministic regardless of input order (reading-order placement)", () => {
+		const set = [bubble("a", 100, 100, "Caption one"), bubble("b", 140, 100, "Caption two")];
+		const forward = resolveBubbleLabelLayout(set, 800);
+		const reversed = resolveBubbleLabelLayout([...set].reverse(), 800);
+		expect(forward.get("a")).toEqual(reversed.get("a"));
+		expect(forward.get("b")).toEqual(reversed.get("b"));
+	});
+
+	it("accounts for edge clamping when computing collision rects", () => {
+		// Two bubbles hugging the left edge: their clamped label rects overlap even though raw x differs.
+		const layout = resolveBubbleLabelLayout(
+			[bubble("a", 2, 100, "Edge hugging caption"), bubble("b", 30, 100, "Another edge caption")],
+			800,
+		);
+		expect(layout.get("b")?.above).toBe(true); // flipped, not overprinted
 	});
 });

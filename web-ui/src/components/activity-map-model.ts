@@ -209,3 +209,80 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 	}
 	return { clusters, edges, totalCards, runningCount };
 }
+
+// --- bubble-label collision layout (pure; rendered by activity-map-view) -----------------------------------------------
+
+/** One label the view wants to draw: bubble center, radius, caption, and the ring-parity preferred side. */
+export interface BubbleLabelCandidate {
+	readonly id: string;
+	readonly x: number;
+	readonly y: number;
+	readonly radius: number;
+	readonly caption: string;
+	readonly preferAbove: boolean;
+}
+
+export interface BubbleLabelPlacement {
+	readonly above: boolean;
+	/** True when no side fits without overprinting an already-placed label — the view falls back to hover-title. */
+	readonly hidden: boolean;
+}
+
+/** Keep in sync with the view's caption font (10px): approximate glyph advance + label line height. */
+const LABEL_CHAR_PX = 5.1;
+const LABEL_LINE_PX = 12;
+
+interface LabelRect {
+	x1: number;
+	y1: number;
+	x2: number;
+	y2: number;
+}
+
+/**
+ * Resolve bubble-label placement with a GLOBAL greedy collision pass. Ring-parity staggering alone still let two
+ * labels from different rings land on one line and overprint ("Expand tests fo…" ran into "Document model an…",
+ * live-found 2026-07-17) — parity only alternates within a ring, so cross-ring neighbors can agree on a side.
+ *
+ * Deterministic: candidates are placed in reading order (y, then x, then id). Each label first tries its preferred
+ * side; on overlap it flips to the bubble's other side; if both sides overprint an already-placed label it is
+ * hidden (the bubble keeps its hover <title>). Uses the same char-width + edge-clamp math as the renderer so the
+ * tested rects match what is actually drawn.
+ */
+export function resolveBubbleLabelLayout(
+	candidates: readonly BubbleLabelCandidate[],
+	canvasWidth: number,
+): Map<string, BubbleLabelPlacement> {
+	const placedRects: LabelRect[] = [];
+	const layout = new Map<string, BubbleLabelPlacement>();
+
+	const rectFor = (candidate: BubbleLabelCandidate, above: boolean): LabelRect => {
+		const halfWidth = (candidate.caption.length * LABEL_CHAR_PX) / 2;
+		const clampedX = Math.min(Math.max(candidate.x, halfWidth + 4), canvasWidth - halfWidth - 4);
+		const baseline = above ? candidate.y - candidate.radius - 6 : candidate.y + candidate.radius + 13;
+		return { x1: clampedX - halfWidth, y1: baseline - LABEL_LINE_PX + 2, x2: clampedX + halfWidth, y2: baseline + 2 };
+	};
+	const collides = (rect: LabelRect): boolean =>
+		placedRects.some(
+			(other) =>
+				rect.x1 < other.x2 + 6 && other.x1 < rect.x2 + 6 && rect.y1 < other.y2 + 2 && other.y1 < rect.y2 + 2,
+		);
+
+	const ordered = [...candidates].sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+	for (const candidate of ordered) {
+		const preferred = rectFor(candidate, candidate.preferAbove);
+		if (!collides(preferred)) {
+			placedRects.push(preferred);
+			layout.set(candidate.id, { above: candidate.preferAbove, hidden: false });
+			continue;
+		}
+		const flipped = rectFor(candidate, !candidate.preferAbove);
+		if (!collides(flipped)) {
+			placedRects.push(flipped);
+			layout.set(candidate.id, { above: !candidate.preferAbove, hidden: false });
+			continue;
+		}
+		layout.set(candidate.id, { above: candidate.preferAbove, hidden: true });
+	}
+	return layout;
+}
