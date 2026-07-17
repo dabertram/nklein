@@ -166,9 +166,9 @@ function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalR
 			properties: {
 				kind: {
 					type: "string",
-					enum: ["callers", "definitions", "implementations"],
+					enum: ["callers", "definitions", "implementations", "references"],
 					description:
-						"The shape to find: callers of, definitions of, or classes implementing/extending the symbol.",
+						"The shape to find: callers of, definitions of, classes implementing/extending, or ALL references to the symbol (usages excluding its own definition).",
 				},
 				symbol: { type: "string", description: "The exact identifier to match (case-sensitive)." },
 				maxResults: { type: "number", description: "Maximum matches to return. Defaults to 30." },
@@ -179,7 +179,10 @@ function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalR
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 			const kind =
-				record.kind === "callers" || record.kind === "definitions" || record.kind === "implementations"
+				record.kind === "callers" ||
+				record.kind === "definitions" ||
+				record.kind === "implementations" ||
+				record.kind === "references"
 					? record.kind
 					: "definitions";
 			const symbol = typeof record.symbol === "string" ? record.symbol.trim() : "";

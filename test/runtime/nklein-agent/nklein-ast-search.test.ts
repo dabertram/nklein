@@ -33,4 +33,11 @@ describe("findAstShapeMatches (F12.1a)", () => {
 	it("returns nothing for non-TS files — the lexical tier owns those", () => {
 		expect(findAstShapeMatches("notes.md", "target(1)", { kind: "callers", symbol: "target" })).toEqual([]);
 	});
+
+	it("finds ALL references (usages) while excluding the definition's own name token", () => {
+		const references = findAstShapeMatches("src/x.ts", SAMPLE, { kind: "references", symbol: "target" });
+		// callerOne + callerTwo (two usages: call + property access base is not target) — never line 1's definition.
+		expect(references.length).toBeGreaterThanOrEqual(2);
+		expect(references.every((match) => match.line !== 1)).toBe(true);
+	});
 });

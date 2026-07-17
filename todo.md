@@ -2172,7 +2172,9 @@ output and NOT acted on. Captured as F12.12.)
   compiler API: callers incl. method-style, definitions across all declaration forms, implementations/extends via
   heritage clauses; enclosing-declaration named per match) + `searchAstShapes` workspace scan + the `ast_search`
   retrieval tool registered beside search_code/repo_map (schema teaches the lexical→structural→semantic escalation;
-  §5.AC retrieval telemetry recorded; non-TS files honestly return nothing — the lexical tier owns those). 8 tests.
+  §5.AC retrieval telemetry recorded; non-TS files honestly return nothing — the lexical tier owns those). Plus a
+  `references` kind (Serena-style find_referencing_symbols, TS slice: all usages excluding the definition's own name
+  token) — this also chips the F12.64 LSP-tools item. 9 tests.
   REMAINING: multi-language shape search = the deferred ast-grep decision above.
 - [x] **F12.2 — De-emphasize embedding retrieval for short keyword queries.** CoREB (May 2026) found short keyword queries —
   the format most agent searches actually use — collapse nearly every semantic embedding model to ~0 nDCG@10. Audit where

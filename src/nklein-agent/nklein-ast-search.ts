@@ -12,7 +12,7 @@ import { listSourceFiles } from "./source-file-scan";
  * tier still covers them). `findAstShapeMatches` is pure over file contents; the I/O wrapper scans the workspace.
  */
 
-export type AstShapeQueryKind = "callers" | "definitions" | "implementations";
+export type AstShapeQueryKind = "callers" | "definitions" | "implementations" | "references";
 
 export interface AstShapeQuery {
 	readonly kind: AstShapeQueryKind;
@@ -93,6 +93,23 @@ export function findAstShapeMatches(path: string, content: string, query: AstSha
 						? node.name.text
 						: null;
 			if (declarationName === query.symbol) {
+				push(node);
+			}
+		} else if (query.kind === "references" && ts.isIdentifier(node) && node.text === query.symbol) {
+			// Serena-style find_referencing_symbols (TS slice): every identifier USAGE — excluding the declaration's
+			// own name token, so "who touches X" doesn't echo X's definition back.
+			const parent = node.parent;
+			const isDeclarationName =
+				parent &&
+				(ts.isFunctionDeclaration(parent) ||
+					ts.isClassDeclaration(parent) ||
+					ts.isInterfaceDeclaration(parent) ||
+					ts.isTypeAliasDeclaration(parent) ||
+					ts.isEnumDeclaration(parent) ||
+					ts.isMethodDeclaration(parent) ||
+					ts.isVariableDeclaration(parent)) &&
+				parent.name === node;
+			if (!isDeclarationName) {
 				push(node);
 			}
 		} else if (query.kind === "implementations" && ts.isClassDeclaration(node)) {
