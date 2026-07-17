@@ -2369,10 +2369,15 @@ output and NOT acted on. Captured as F12.12.)
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
   Near-free positioning win; composes with the F4.40 cache-stable-prefix assembler. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
-- [ ] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
+- [~] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
   (§12) bounds LENGTH but not SEMANTIC looping. Track no-progress rounds + repeated-identical tool calls + patch-spirals
   (edit-same-file-no-diff), and on threshold break to a self-reflection + plan-revision step (Magentic-One progress-ledger
   pattern). Subsumes/sharpens F12.15's thrashing detector. (Magentic-One 2411.04468; smallcode early-stop)
+  **DETECTOR CORE SHIPPED 2026-07-17:** `progress-stall-detector.ts` `assessProgressStall` — per-turn progress
+  fingerprint (sorted written-files + claimed focus step + verification bit; read variety deliberately collapses);
+  4 identical no-write turns = stalled→force-replan; stable fingerprint WITH writes = steady work (never alarms);
+  thin evidence = no verdict. 3 tests. Complements edit-thrash (F12.15 oscillation). REMAINING (activation): feed
+  per-turn records from the session afterTool/turn seam and route `stalled` into the existing replan/nudge path.
 - [ ] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)
