@@ -1288,8 +1288,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   — enable on the fleet and `dev reasoning-benefit` fills with real data.** **LIVE-VALIDATED 2026-07-17:** ran the full
   A/B on qwable-3.6-27b (isolated rig, NKLEIN_ENFORCED_REASONING=1) — 12 real observations landed; the CLI renders
   per-role×difficulty with honest `insufficient_evidence` at n=1. Direction at n=1: reviewer ±0%, worker easy/medium
-  −100% (enforced reasoning may HURT this coder on structured work — matches the research prior; needs n>1 to conclude).
-  Pipeline end-to-end proven; remaining = repeated fleet runs for statistical n.
+  −100% (needs n>1 to conclude). **CONCLUDED 2026-07-17 (statistical run):** 3 rounds × 3 models (gemma-4-31b,
+  qwable-3.6-27b, ministral-3-14b-reasoning) = 180 observations, n=3-6/side per cell. The learner reads **skip**
+  (don't enforce) for EVERY cell with sufficient evidence: worker easy/medium −50% REPLICATED across all three
+  models; architect/reviewer ±0% everywhere. Enforced reasoning does not help — and actively hurts coders — on this
+  fleet; `shouldEnforceReasoning` now answers from real data. Observations MERGED into the live store (backed up).
 - [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
@@ -1438,8 +1441,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   A/B second pass, doubles eval cost). COMPLETE as a flag-gated feature — enable on the fleet and `dev
   distractor-sensitivity` fills with real data. Only real DATA is fleet-gated; the wrapper + wiring are mock/type-verified.**
   **LIVE-VALIDATED 2026-07-17:** ran the noise A/B on qwable-3.6-27b (isolated rig, NKLEIN_EVAL_DISTRACTOR_PROBE=1) —
-  8 real observations; sensitivity 0.00 (robust) across all role×difficulty cells at n=1 (qwable ignored the injected
-  distractors everywhere). Pipeline end-to-end proven; per-model sensitivity table needs more models + repeats.
+  8 real observations; sensitivity 0.00 (robust) across all cells at n=1. **TABLE POPULATED 2026-07-17 (statistical
+  run):** 90 observations across gemma-4-31b + qwable + ministral-3-14b. Robust (0.00) everywhere EXCEPT the first
+  real prune-hard row: **ministral-3-14b-reasoning::reviewer::medium sensitivity 1.00** — the reasoning-family 14B
+  is fully distractor-sensitive reviewing medium tasks; `pruneEvidenceForModel` now has a live target. Observations
+  MERGED into the live store (backed up).
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
