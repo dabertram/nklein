@@ -2444,10 +2444,16 @@ output and NOT acted on. Captured as F12.12.)
   pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
   cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample
   count / debate rounds an explicit function of card difficulty + routing uncertainty. (DOWN 2504.05047; Anthropic effort-scaling)
-- [ ] **F12.36 — Deterministic-verification-FIRST acceptance gate.** Run lint/typecheck/build/existing-tests BEFORE the LLM
+- [~] **F12.36 — Deterministic-verification-FIRST acceptance gate.** Run lint/typecheck/build/existing-tests BEFORE the LLM
   reviewer and feed the concrete failures into its context (DeepSource static-first = 84.5% F1 vs CodeRabbit ~36%; false
   positives are the dominant AI-reviewer failure). Optionally add a "refute-or-promote" refuter stage-gate: a flagged defect
   must survive refutation. Grounds the generation-verification gap in execution. (deepsource; refute-or-promote 2604.19049)
+  **GATE CORE SHIPPED 2026-07-17:** `verification-first-gate.ts` `decideVerificationFirst` — any red deterministic
+  check short-circuits the LLM review into a deterministic request_changes carrying EVERY failure (one repair round,
+  zero reviewer tokens); all-green proceeds with the green count as reviewer context; could-not-run = no-signal,
+  never red. Plugs the existing `preReviewVerdict` seam (test-driven mode's pattern). 3 tests. REMAINING (activation):
+  in the review runner, run acceptance (already fresh at the seam) + tsc/lint when the repo profile knows the
+  commands, feed decideVerificationFirst, pass a bounce as preReviewVerdict — flag-gated like NKLEIN_TEST_DRIVEN_MODE.
 - [ ] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
   on reasoning (Data-Processing-Inequality result); Anthropic flags heavy-interdependency work ("most coding") as a poor
   fan-out fit. Add a heuristic that SKIPS decomposition + runs one linear worker when a task is below a complexity threshold
