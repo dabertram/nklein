@@ -2558,6 +2558,15 @@ output and NOT acted on. Captured as F12.12.)
   (so any new failure is attributable to the agent, not pre-existing), have the worker commit in logical units (schema →
   service → route → tests) for reviewability + selective rollback, and auto-bootstrap worktree essentials (`.env`, deps) so a
   new session isn't born broken. (augmentcode worktrees; buildmvpfast git-workflow-agents)
+  **SCOPED 2026-07-17 (exploration done, build deferred as a design pass):** (a) pre-start baseline = reuse the
+  existing `verifyTaskAcceptanceInSandbox({useBaseTree: true})` path (already built for the #39 delivery waiver) at
+  card START behind a default-off flag (it adds a full acceptance run per start — cost decision) and stamp the result
+  into `card.verification`-style state; (b) logical-unit commits: workers do NOT git-commit today at all — the runtime
+  captures diffs and delivery commits are runtime-driven (grep-confirmed: zero commit guidance in prompt builders,
+  no worker git flow) — so this is a WORKFLOW redesign (give workers a commit step + teach capture to preserve the
+  commit series), not a prompt line; (c) worktree bootstrap: no dep-install/.env copy exists at sandbox creation
+  (grep-confirmed) — needs a per-repo bootstrap recipe (package-manager detect + allowlist) which is its own
+  cost/policy decision. All three are effectful runtime changes; none is a quick mount.
 - [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
