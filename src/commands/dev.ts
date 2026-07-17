@@ -42,6 +42,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import {
 	runDevAdviceCommand,
+	runDevAirGapStatusCommand,
 	runDevAnswerBudgetsCommand,
 	runDevCapabilityCeilingCommand,
 	runDevContextRecommendationsCommand,
@@ -919,6 +920,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--root <path>", "basic-memory root (defaults to ~/basic-memory).")
 		.action(async (options: { json?: boolean; root?: string }) => {
 			await runDevMemoryLifecycleCommand(options);
+		});
+
+	dev.command("air-gap-status")
+		.description("Audit the current air-gap posture per the trust-center egress inventory (F12.101).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevAirGapStatusCommand(options);
 		});
 
 	dev.command("egress-receipts")

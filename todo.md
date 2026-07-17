@@ -2707,10 +2707,15 @@ into the existing F12.31. Same verify-before-build caveat.**
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
   adoption blocker for regulated users; provenance is table-stakes for a trust story. (model-licensing survey; AI-BOM)
-- [ ] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
+- [~] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
   web research, MCP, update check) and self-attests — a signed statement + a runtime probe proving no network calls were made
   during a run. Rationale: regulated/air-gapped demand is real and !Klein is uniquely positioned; "private by architecture"
-  must be provable, not asserted. Extends the S9 fan-out cap / egress gate to a hard-off posture. (EU AI Act; air-gapped LLM demand)
+  must be provable, not asserted. Extends the S9 fan-out cap / egress gate to a hard-off posture.
+  **AUDIT SLICE SHIPPED 2026-07-17:** `air-gap-posture.ts` (pure per-egress-class OPEN/closed assessment over the
+  trust-center inventory: web_research flag, auto-update env, configured MCP servers, provider base-URL locality —
+  a NON-local inference endpoint is flagged loudly) + `dev air-gap-status [--json]`. LIVE on this machine: 3 classes
+  closed, auto_update open ⇒ "NOT air-gapped: 1 class open" — one env var from a closed posture. 3 tests. REMAINING:
+  the one-switch hard-off PROFILE (enforce, not just audit) + signed self-attestation. (EU AI Act; air-gapped LLM demand)
 - [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)

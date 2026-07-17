@@ -1508,3 +1508,44 @@ export async function runDevEgressReceiptsCommand(options: { json?: boolean; ver
 		`\n  chain: ${verification.valid ? "INTACT" : `BROKEN at #${verification.brokenAt}`} — ${verification.reason}\n`,
 	);
 }
+
+/** F12.101 slice — audit the CURRENT air-gap posture per the trust-center's egress inventory. */
+export async function runDevAirGapStatusCommand(options: { json?: boolean } = {}): Promise<void> {
+	const { assessAirGapPosture } = await import("../core/air-gap-posture");
+	const { readFile } = await import("node:fs/promises");
+	const { homedir } = await import("node:os");
+	const { join } = await import("node:path");
+	let configuredMcpServers = 0;
+	try {
+		const raw = await readFile(join(homedir(), ".nklein", "data", "settings", "nklein_mcp_settings.json"), "utf8");
+		const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> };
+		configuredMcpServers = Object.keys(parsed.mcpServers ?? {}).length;
+	} catch {
+		configuredMcpServers = 0;
+	}
+	let providerBaseUrl: string | null = null;
+	try {
+		const raw = await readFile(join(homedir(), ".nklein", "data", "settings", "providers.json"), "utf8");
+		const parsed = JSON.parse(raw) as { providers?: Record<string, { settings?: { baseUrl?: string } }> };
+		providerBaseUrl = parsed.providers?.lmstudio?.settings?.baseUrl ?? null;
+	} catch {
+		providerBaseUrl = null;
+	}
+	const posture = assessAirGapPosture({
+		webResearchEnabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+		autoUpdateEnabled: !(process.env.NKLEIN_NO_AUTO_UPDATE || process.env.KANBAN_NO_AUTO_UPDATE),
+		configuredMcpServers,
+		providerBaseUrl,
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(posture, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Air-gap posture (F12.101) — trust-center egress inventory audit\n\n`);
+	for (const status of posture.classes) {
+		process.stdout.write(
+			`  [${status.open ? "OPEN  " : "closed"}] ${status.egressClass.padEnd(16)} ${status.detail}\n`,
+		);
+	}
+	process.stdout.write(`\n  ${posture.summary}\n`);
+}
