@@ -9,6 +9,7 @@
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
+import { mergeConsecutiveSameRoleSdkMessages, type SdkShapedMessage } from "../core/normalize-system-first";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
@@ -212,6 +213,16 @@ export function createKanbanContextFocusExtension(
 					}
 				}
 				lastOfferedToolNames = (finalResult?.tools ?? context.request.tools).map((tool) => tool.name);
+				// §5.AA recover-in-!Klein (live-found 2026-07-17): the hooks above may leave ADJACENT same-role user
+				// messages (the context-focus brief lands as its own user turn ahead of the task's user turn), and
+				// Mistral-family Jinja templates hard-500 the whole request ("conversation roles must alternate…",
+				// ministral-3 engine 500). Normalize at the hook's EXIT so every insertion above — and any pre-existing
+				// adjacency — merges in one model-agnostic place. No-op (same array back) for already-alternating turns.
+				const outgoing = finalResult?.messages ?? context.request.messages;
+				const normalized = mergeConsecutiveSameRoleSdkMessages(outgoing);
+				if (normalized !== outgoing) {
+					finalResult = { ...(finalResult ?? {}), messages: normalized };
+				}
 				return finalResult;
 			},
 			async afterModel(context) {

@@ -1,6 +1,6 @@
 import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
-import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
+import { mergeConsecutiveSameRoleMessages, mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { reasoningAndAnswerText, splitReasoningChannel } from "../core/reasoning-channel-split";
 import { isRetryableModelCallError, RetryableModelCallAbortError, withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
@@ -190,10 +190,13 @@ export class LocalLlmClient {
 			model: this.config.modelId,
 			// Consolidate all system content into ONE leading system message (§5.AA recover-in-!Klein): some models ship a
 			// strict Jinja template that 400s when a system message isn't first (live-found: qwopus3.5-9b-coder-mtp's
-			// `raise_exception('System message must be at the beginning')`). No-op for the already-system-first common case.
+			// `raise_exception('System message must be at the beginning')`). Then merge CONSECUTIVE same-role user/
+			// assistant turns: Mistral-family templates hard-500 on non-alternating roles (live-found 2026-07-17:
+			// ministral-3 engine 500 "conversation roles must alternate" when a nudge landed on an already-user tail).
+			// Both are no-ops for the common well-formed case.
 			// F2.7b: a message carrying multimodal `parts` sends them AS the OpenAI-compatible array `content`; the
 			// plain-string path is byte-identical (no `parts` ⇒ the original {role, content} object flows through).
-			messages: mergeSystemMessagesFirst(request.messages).map((message) =>
+			messages: mergeConsecutiveSameRoleMessages(mergeSystemMessagesFirst(request.messages)).map((message) =>
 				message.parts
 					? { role: message.role, content: message.parts }
 					: { role: message.role, content: message.content },

@@ -324,6 +324,22 @@ function prependFocusBriefToFirstUserMessage(messages: NKleinSdkPersistedMessage
 	const contentWithoutExistingBrief = message.content
 		.map((block) => (block.type === "text" ? { ...block, text: stripFocusBrief(block.text) } : block))
 		.filter((block) => block.type !== "text" || block.text.trim().length > 0);
+	// When every remaining block is TEXT, emit ONE STRING instead of a parts array: the downstream prompt conversion
+	// splits a multi-part user message into SEPARATE wire messages, and [system, user(brief), user(task)] hard-500s
+	// on strict-alternation templates (live-found 2026-07-17: ministral-3 "conversation roles must alternate…" via
+	// LM Studio engine 500, wire-captured). String content is the most compatible form; messages carrying non-text
+	// blocks (images) keep the parts array unchanged.
+	if (contentWithoutExistingBrief.every((block) => block.type === "text")) {
+		const joinedText = contentWithoutExistingBrief
+			.map((block) => (block.type === "text" ? block.text : ""))
+			.filter((text) => text.trim().length > 0)
+			.join("\n\n");
+		messages[firstUserIndex] = {
+			...message,
+			content: joinedText.length > 0 ? `${focusBrief}\n\n${joinedText}` : focusBrief,
+		};
+		return true;
+	}
 	messages[firstUserIndex] = {
 		...message,
 		content: [{ type: "text", text: focusBrief }, ...contentWithoutExistingBrief],

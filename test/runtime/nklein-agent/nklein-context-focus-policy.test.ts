@@ -389,3 +389,34 @@ describe("compactKanbanFocusedMessages", () => {
 		expect(compactedText).toContain("Do not retry this path unless a directory listing confirms it exists");
 	});
 });
+
+describe("focus brief content shape (strict-alternation templates)", () => {
+	it("emits ONE STRING when the first user message's blocks are all text — a parts array would be split into separate wire messages and 500 Mistral-family templates (live-found 2026-07-17)", () => {
+		const messages: NKleinSdkPersistedMessage[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Create the breakdown from specification.md" }],
+			},
+			...createReadFilesMessages({
+				toolUseId: "read-1",
+				path: "/habit-score.ts",
+				startLine: 1,
+				endLine: 10,
+				content: "export const x = 1;\n",
+			}),
+			...createReadFilesMessages({
+				toolUseId: "read-2",
+				path: "/habit-score.ts",
+				startLine: 1,
+				endLine: 10,
+				content: "export const x = 1;\n",
+			}),
+		];
+		const compacted = compactKanbanMessagesForContextTarget(messages, 60_000);
+		expect(compacted).not.toBeNull();
+		const firstUser = compacted?.find((message) => message.role === "user");
+		expect(typeof firstUser?.content).toBe("string");
+		expect(firstUser?.content).toContain("[!Klein context focus brief]");
+		expect(firstUser?.content).toContain("Create the breakdown from specification.md");
+	});
+});
