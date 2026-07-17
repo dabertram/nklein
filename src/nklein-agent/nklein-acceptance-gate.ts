@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
+import { isTruthyEnv } from "../core/env-flag";
+import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
@@ -221,6 +223,59 @@ export async function runNKleinAcceptanceGate(
 			},
 			createdAt: finishedAt,
 		});
+	}
+	// F11.2g (OPT-IN via NKLEIN_REPO_VERIFY; default OFF = byte-identical): a GREEN acceptance also runs the
+	// repo's OWN non-mutating verify scripts (lint/typecheck, derived from package.json, capped at 2) on the same
+	// delivered tree — matching the project's real rules IS fitting the codebase, and models self-heal reliably
+	// against explicit lint output. A red repo check FAILS the gate with the output appended, so the standard
+	// bounce machinery feeds it back. Reads package.json through the same runCommand, so it works identically in
+	// the sandbox and host paths; every degraded read/parse simply yields no extra checks.
+	if (passed && isTruthyEnv(process.env.NKLEIN_REPO_VERIFY)) {
+		const packageRead = await runCommand({ command: "cat package.json", cwd: options.workspacePath, timeoutMs });
+		const derivation = deriveRepoVerifyCommands({
+			packageJsonContent: packageRead.exitCode === 0 ? (packageRead.stdout ?? null) : null,
+			acceptanceCommand: command,
+		});
+		let repoOutput = "";
+		for (const check of derivation.commands) {
+			const checkRun = await runCommand({ command: check.command, cwd: options.workspacePath, timeoutMs });
+			const checkOutput = joinOutput(checkRun.stdout, checkRun.stderr);
+			repoOutput += `\n\n[repo verify: ${check.command}] exit ${checkRun.exitCode ?? "?"}\n${checkOutput.slice(0, 4_000)}`;
+			if (checkRun.exitCode !== 0) {
+				const repoFinishedAt = now();
+				(options.recordObservation ?? recordSelfObservation)({
+					signal: "verification_failed",
+					severity: "error",
+					message: `Repo verify check failed after a green acceptance: ${check.command}`,
+					taskId: options.taskId,
+					workspacePath: options.workspacePath,
+					metadata: { command: check.command, exitCode: checkRun.exitCode, category: "repo_verify" },
+					createdAt: repoFinishedAt,
+				});
+				return {
+					present: true,
+					command,
+					passed: false,
+					exitCode: checkRun.exitCode,
+					output: `${output}${repoOutput}`,
+					durationMs: Math.max(0, repoFinishedAt - startedAt),
+					failureCategory: "lint_error",
+					failureHint: `The acceptance command passed, but the repo's own \`${check.command}\` failed on the delivered tree — fix the reported issues; matching the project's lint/type rules is part of done.`,
+				};
+			}
+		}
+		if (repoOutput) {
+			return {
+				present: true,
+				command,
+				passed: true,
+				exitCode: execution.exitCode,
+				output: `${output}${repoOutput}`,
+				durationMs: Math.max(0, now() - startedAt),
+				failureCategory: null,
+				failureHint: null,
+			};
+		}
 	}
 	const classification = passed ? null : classifyAcceptanceFailure({ exitCode: execution.exitCode, output });
 	return {

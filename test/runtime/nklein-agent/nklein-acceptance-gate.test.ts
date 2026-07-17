@@ -390,4 +390,67 @@ describe("nklein acceptance gate", () => {
 		).rejects.toThrow("A task id is required to run the acceptance gate in the agent sandbox.");
 		expect(sandboxManager.assertAvailable).not.toHaveBeenCalled();
 	});
+
+	it("F11.2g (NKLEIN_REPO_VERIFY): a green acceptance runs the repo's own lint; a red lint fails the gate with output fed back", async () => {
+		process.env.NKLEIN_REPO_VERIFY = "1";
+		try {
+			const commandsRun: string[] = [];
+			const runCommand = vi.fn(async (execution: { command: string }) => {
+				commandsRun.push(execution.command);
+				if (execution.command === "cat package.json") {
+					return { exitCode: 0, stdout: JSON.stringify({ scripts: { lint: "biome check ." } }) };
+				}
+				if (execution.command === "npm run lint") {
+					return { exitCode: 1, stdout: "", stderr: "src/x.ts:1 lint/style/noVar" };
+				}
+				return { exitCode: 0, stdout: "tests pass", stderr: "" };
+			});
+			const result = await runNKleinAcceptanceGate({
+				taskId: "task-lint",
+				workspacePath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				runCommand,
+				recordObservation: vi.fn(),
+			});
+			expect(commandsRun).toEqual(["npm test", "cat package.json", "npm run lint"]);
+			expect(result.passed).toBe(false);
+			expect(result.failureCategory).toBe("lint_error");
+			expect(result.output).toContain("[repo verify: npm run lint] exit 1");
+			expect(result.output).toContain("noVar");
+			expect(result.failureHint).toContain("npm run lint");
+
+			// Green repo checks keep the gate green with the extra evidence appended.
+			const greenRun = vi.fn(async (execution: { command: string }) => {
+				if (execution.command === "cat package.json") {
+					return { exitCode: 0, stdout: JSON.stringify({ scripts: { lint: "biome check ." } }) };
+				}
+				return { exitCode: 0, stdout: "ok", stderr: "" };
+			});
+			const green = await runNKleinAcceptanceGate({
+				taskId: "task-lint-green",
+				workspacePath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				runCommand: greenRun,
+				recordObservation: vi.fn(),
+			});
+			expect(green.passed).toBe(true);
+			expect(green.output).toContain("[repo verify: npm run lint] exit 0");
+		} finally {
+			delete process.env.NKLEIN_REPO_VERIFY;
+		}
+	});
+
+	it("F11.2g stays byte-identical with the flag off (no package.json read at all)", async () => {
+		const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
+		const result = await runNKleinAcceptanceGate({
+			taskId: "task-off",
+			workspacePath: "/repo",
+			taskPrompt: "Acceptance check: npm test",
+			runCommand,
+			recordObservation: vi.fn(),
+		});
+		expect(result.passed).toBe(true);
+		expect(runCommand).toHaveBeenCalledTimes(1);
+		expect(result.output).not.toContain("repo verify");
+	});
 });
