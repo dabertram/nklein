@@ -858,6 +858,27 @@ export function ModelPerformanceStatsDialog({
 								))
 							)}
 						</div>
+						<div
+							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+							data-testid="mast-modes-summary"
+						>
+							<div className="font-semibold text-text-primary">Failure modes (F12.39, MAST)</div>
+							{(ledgerAnalytics.mastModes ?? []).length === 0 ? (
+								<div className="text-text-tertiary">no failed attempts tagged yet</div>
+							) : (
+								(ledgerAnalytics.mastModes ?? []).slice(0, 6).map((row) => (
+									<div key={row.modelId} className="mt-1">
+										<div>
+											{shortModelId(row.modelId)}: {row.failedAttempts} failed —{" "}
+											{Object.entries(row.byMode)
+												.map(([mode, count]) => `${mode.replaceAll("_", " ")} ${count}`)
+												.join(" · ")}
+										</div>
+										{row.remedyHint ? <div className="text-text-tertiary">→ {row.remedyHint}</div> : null}
+									</div>
+								))
+							)}
+						</div>
 					</div>
 				)}
 				{memoryAudit?.available && (

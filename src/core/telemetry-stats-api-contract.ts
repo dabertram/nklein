@@ -339,12 +339,26 @@ export const runtimeOpportunisticValueRowSchema = z.object({
 	realizedRate: z.number(),
 });
 
+/** F12.39 — per-model MAST failure-mode distribution row (evidence-honest tags over FAILED ledger attempts). */
+export const runtimeMastModeRowSchema = z.object({
+	modelId: z.string(),
+	failedAttempts: z.number().int().nonnegative(),
+	/** mode → count; only witnessed/infra/unclassified buckets the classifier actually assigns. */
+	byMode: z.record(z.string(), z.number().int().nonnegative()),
+	dominantMode: z.string().nullable(),
+	/** The MAST paper's remedy for the dominant witnessed mode; null when nothing cognitive was witnessed. */
+	remedyHint: z.string().nullable(),
+});
+export type RuntimeMastModeRow = z.infer<typeof runtimeMastModeRowSchema>;
+
 export const runtimeLedgerAnalyticsResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	retrieval: runtimeRetrievalUsefulnessViewSchema,
 	knowledgeByModel: z.array(runtimeKnowledgeOutcomeRowSchema),
 	knowledgeDebt: runtimeKnowledgeDebtOutcomeSchema,
 	opportunistic: z.array(runtimeOpportunisticValueRowSchema),
+	/** F12.39: MAST failure-mode distribution per model — says whether to fix specs, coordination, or verification. */
+	mastModes: z.array(runtimeMastModeRowSchema),
 });
 export type RuntimeLedgerAnalyticsResponse = z.infer<typeof runtimeLedgerAnalyticsResponseSchema>;
 

@@ -70,6 +70,7 @@ import { parseLmsLsCatalog } from "../core/lms-model-catalog";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { mastRemedyHint, rollupMastDistribution } from "../core/mast-failure-modes";
 import { auditMemoryFreshness } from "../core/memory-freshness-audit";
 import { buildMemoryLayers } from "../core/memory-layers";
 import { stripAddressingHandle } from "../core/message-target-resolver";
@@ -722,6 +723,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				knowledgeByModel: summarizeKnowledgeOutcomeByModel(events),
 				knowledgeDebt: summarizeKnowledgeDebtOutcomes(events),
 				opportunistic: summarizeOpportunisticValue(events),
+				// F12.39: same events, zero extra reads — the failure-mode diagnostic rides the analytics payload.
+				mastModes: rollupMastDistribution(selectAttempts(events)).map((row) => ({
+					modelId: row.modelId,
+					failedAttempts: row.failedAttempts,
+					byMode: Object.fromEntries(Object.entries(row.byMode).filter(([, count]) => count > 0)),
+					dominantMode: row.dominantMode,
+					remedyHint: row.dominantMode ? mastRemedyHint(row.dominantMode) : null,
+				})),
 			};
 		},
 		// F5.2 memory-corpus health: the freshness audit (behind `dev memory-audit`) over the on-disk basic-memory
