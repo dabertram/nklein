@@ -136,6 +136,29 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect(firstArg<{ review: RuntimeCardReview }>(noSpec.onDeliver).review.preferredCandidate).toBeUndefined();
 	});
 
+	it("F12.4: fetches the execution note only when the A/B seed arms, and threads it into the seed", async () => {
+		const note =
+			"Execution signal: BOTH candidates pass the acceptance check — judge on quality, scope fit, and maintainability.";
+		const armed = makeDeps({ speculativeDiff: "diff --git a/alt b/alt\n+alt" });
+		const probe = vi.fn(async () => note);
+		await runNKleinSecondOpinionReview({
+			...base,
+			deps: { ...armed, getExecutionArbitrationNote: probe },
+		});
+		expect(probe).toHaveBeenCalledExactlyOnceWith("task-1");
+		expect(firstArg<{ seedPrompt: string }>(armed.runReviewSession).seedPrompt).toContain(note);
+
+		// No speculative candidate ⇒ the effectful double-acceptance probe is never paid.
+		const single = makeDeps({});
+		const idleProbe = vi.fn(async () => note);
+		await runNKleinSecondOpinionReview({
+			...base,
+			deps: { ...single, getExecutionArbitrationNote: idleProbe },
+		});
+		expect(idleProbe).not.toHaveBeenCalled();
+		expect(firstArg<{ seedPrompt: string }>(single.runReviewSession).seedPrompt).not.toContain("Execution signal");
+	});
+
 	it("delivers on approve, persisting an approved review with sign-off", async () => {
 		const deps = makeDeps({
 			submission: { verdict: "approve", summary: "Solid", feedback: null, insight: "Clean tests" },

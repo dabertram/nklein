@@ -98,6 +98,13 @@ export interface RunNKleinSecondOpinionReviewInput {
 		getTaskDiff(taskId: string): Promise<string | null>;
 		/** §5.AW: the speculative mirror's diff for the same card, when a `::spec` result branch exists. */
 		getSpeculativeDiff?(taskId: string): Promise<string | null>;
+		/**
+		 * F12.4: execution-based A/B signal — run the card's acceptance check against BOTH candidates and fold the
+		 * runs into the prompt-ready arbitration note (null when unavailable). Called only when the A/B seed is
+		 * actually arming (non-empty primary + speculative diffs), so the doubled acceptance cost lands exactly on
+		 * a real A/B round.
+		 */
+		getExecutionArbitrationNote?(taskId: string): Promise<string | null>;
 		/** The worker's reasoning + the card's board/plan context, so the reviewer judges approach + fit, not just files. */
 		getReviewContext?(taskId: string): Promise<ReviewContext>;
 		/** Start a reviewer-role session with the seed prompt + `submit_review` tool; resolve to its verdict. */
@@ -202,6 +209,11 @@ export async function runNKleinSecondOpinionReview(
 	// §5.AW: a captured speculative candidate arms the A/B arbitration seed. Only a non-empty PRIMARY diff
 	// qualifies — a no-op primary keeps the ordinary no-changes review flow (the spec is discarded with it).
 	const speculativeDiff = diff ? ((await input.deps.getSpeculativeDiff?.(input.taskId))?.trim() ?? "") : "";
+	// F12.4: an arming A/B seed also fetches the execution note (acceptance run on both candidates) — effectful,
+	// so only on a real A/B round; an absent dep or empty note degrades to the judgment-only seed.
+	const executionNote = speculativeDiff
+		? ((await input.deps.getExecutionArbitrationNote?.(input.taskId))?.trim() ?? "")
+		: "";
 	// F12.54: classify the diff's review risk and route the reviewer's attention (deep-review demand on high-risk
 	// surface, fast-track on docs/tests, fatigue warning on oversized) — a prompt directive, never a gate.
 	const diffRisk = diff ? classifyDiffReviewRisk(diff) : null;
@@ -211,6 +223,7 @@ export async function runNKleinSecondOpinionReview(
 		diff,
 		riskDirective: diffRisk?.directive ?? null,
 		speculativeDiff: speculativeDiff || null,
+		executionNote: executionNote || null,
 		workerReasoning: reviewContext?.workerReasoning ?? null,
 		boardContext: reviewContext?.boardContext ?? null,
 		acceptanceSummary: input.acceptanceSummary ?? null,

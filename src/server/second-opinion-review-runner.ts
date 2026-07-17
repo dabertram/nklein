@@ -12,6 +12,7 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
+import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
 import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -487,6 +488,38 @@ export async function runSecondOpinionReviewForTask(
 					baseRef: card.baseRef,
 					...(input.speculativeResultCommit ? { resultCommit: input.speculativeResultCommit } : {}),
 				}).catch(() => null),
+			// F12.4: execution-based A/B arbitration — the core calls this only when the A/B seed actually arms.
+			// Re-run the SAME acceptance check against the speculative ::spec candidate (the verifier accepts the
+			// result-branch override) and fold both runs into the prompt-ready note. No acceptance command for the
+			// card ⇒ null (nothing to execute on either candidate).
+			getExecutionArbitrationNote: async () => {
+				if (acceptance?.present !== true) {
+					return null;
+				}
+				stampPhase("spec-acceptance-verify start");
+				const specAcceptance = await (async () => {
+					try {
+						return (
+							(await input.service.verifyTaskAcceptanceInSandbox?.({
+								taskId: input.taskId,
+								projectRepoPath: input.workspacePath,
+								baseRef: card.baseRef,
+								taskPrompt: card.prompt,
+								resultBranchTaskId: `${input.taskId}::spec`,
+								...(input.speculativeResultCommit ? { resultCommit: input.speculativeResultCommit } : {}),
+							})) ?? null
+						);
+					} catch {
+						return null;
+					}
+				})();
+				stampPhase("spec-acceptance-verify done");
+				const asRun = (result: RuntimeTaskAcceptanceResult | null): CandidateExecutionRun => ({
+					passed: result?.present === true ? result.passed : null,
+					failureCount: null,
+				});
+				return arbitrateByExecution(asRun(acceptance), asRun(specAcceptance)).note;
+			},
 			getReviewContext: async () => ({
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),

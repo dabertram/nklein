@@ -87,6 +87,46 @@ describe("buildReviewSeedPrompt", () => {
 		expect(prompt).not.toContain("Candidate B");
 	});
 
+	it("F12.4: renders the execution note in an A/B seed and ignores it for a single candidate", () => {
+		const note =
+			"Execution signal: Candidate A PASSES the acceptance check, Candidate B fails — prefer A unless the reviewer finds A defective in a way the check misses.";
+		const armed = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			speculativeDiff: "diff --git a/login-alt.ts b/login-alt.ts",
+			executionNote: note,
+			round: 1,
+		});
+		expect(armed).toContain(note);
+		// Meaningless outside arbitration: a stray note on a single-diff seed renders nothing.
+		const single = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			executionNote: note,
+			round: 1,
+		});
+		expect(single).not.toContain("Execution signal");
+		// Empty/whitespace note on an armed seed ⇒ byte-identical to no note at all.
+		const blank = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			speculativeDiff: "diff --git a/login-alt.ts b/login-alt.ts",
+			executionNote: "   ",
+			round: 1,
+		});
+		const none = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			speculativeDiff: "diff --git a/login-alt.ts b/login-alt.ts",
+			round: 1,
+		});
+		expect(blank).toBe(none);
+	});
+
 	it("§5.AW: both A/B candidates share the single-diff budget (each clamped to half)", () => {
 		const bigA = `A${"a".repeat(30_000)}`;
 		const bigB = `B${"b".repeat(30_000)}`;

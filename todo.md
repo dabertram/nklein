@@ -2219,10 +2219,11 @@ output and NOT acted on. Captured as F12.12.)
   **DECISION CORE SHIPPED 2026-07-17:** `execution-arbitration.ts` `arbitrateByExecution` — pass/fail split names the
   winner decisively; both-fail with known counts prefers closer-to-green; both-pass/tie/unknown defers to the reviewer
   with an honest prompt-ready note either way (the seed can always carry the execution signal). 3 tests.
-  REMAINING (activation): at the §5.AW A/B seam, run `verifyTaskAcceptanceInSandbox` against BOTH the primary and the
-  speculative result branch (the wrapper already accepts resultBranchTaskId/resultCommit), feed the two runs through
-  arbitrateByExecution, and inject the note into the arbitration seed — effectful (doubles the acceptance cost per
-  A/B review, only when a speculative candidate exists).
+  **WIRE LIVE 2026-07-17:** `getExecutionArbitrationNote` dep at the §5.AW seam — the review core calls it only
+  when the A/B seed actually arms (non-empty primary + spec diffs); the runner re-runs the card's acceptance
+  check against the `::spec` result branch (verifier's resultBranchTaskId override), folds both runs through
+  `arbitrateByExecution`, and the note renders in the A/B seed (self-labeled, evidence-not-verdict). No
+  acceptance command ⇒ null ⇒ byte-identical seed; the doubled cost lands exactly on real A/B rounds.
 - [x] **F12.5 — Rubric-guided verification as a review lens.** "Agentic rubrics as contextual verifiers" give consistent
   test-time-scaling gains + interpretable NL feedback; 88% of SWE-bench trajectories self-verify but 35.7% still fail
   (single-trajectory verification is insufficient — needs multi-dimensional). Add a rubric-verifier review lens that

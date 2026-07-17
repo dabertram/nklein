@@ -100,6 +100,12 @@ export interface ReviewSeedPromptInput {
 	 * (primary) / Candidate B (speculative) and instructs the reviewer to name `preferred` in `submit_review`.
 	 */
 	speculativeDiff?: string | null;
+	/**
+	 * F12.4 execution-based arbitration: the prompt-ready note from `arbitrateByExecution` — the acceptance check
+	 * run against BOTH candidates, folded into one sentence. Rendered only in the A/B seed (it is meaningless for
+	 * a single candidate); absent or empty ⇒ byte-identical prompt.
+	 */
+	executionNote?: string | null;
 	/** The worker's own final summary of what it did and why — so the reviewer judges the reasoning, not just the diff. */
 	workerReasoning?: string | null;
 	/** The card's place in the wider board/plan, so the reviewer can judge fit, scope, and coherence. */
@@ -247,6 +253,11 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 				`worker diff (Candidate B) for "${input.taskTitle}"`,
 			),
 		);
+		// F12.4: the execution signal (self-labeled "Execution signal: …", so it renders bare). Decisive or tie,
+		// the reviewer is told what actually RAN — judgment stays theirs; the note is evidence, not a verdict.
+		if (input.executionNote?.trim()) {
+			lines.push("", input.executionNote.trim());
+		}
 	} else if (hasDiff) {
 		lines.push(
 			"",
