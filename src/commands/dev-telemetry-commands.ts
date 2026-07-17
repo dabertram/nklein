@@ -1571,10 +1571,12 @@ export async function runDevAirGapStatusCommand(options: { json?: boolean; attes
  * into the repo-versioned corpus (`test/fixtures/golden-set.json`). Curation stays human: nothing lands in the
  * corpus without an explicit --promote.
  */
-export async function runDevGoldenSetCommand(options: { json?: boolean; promote?: string } = {}): Promise<void> {
+export async function runDevGoldenSetCommand(
+	options: { json?: boolean; promote?: string; drift?: boolean; windowDays?: number } = {},
+): Promise<void> {
 	const { mineGoldenSetCandidates } = await import("../core/golden-set-miner");
-	const { readFile, writeFile } = await import("node:fs/promises");
-	const { join } = await import("node:path");
+	const { mkdir, readFile, writeFile } = await import("node:fs/promises");
+	const { dirname, join } = await import("node:path");
 	const corpusPath = join(process.cwd(), "test", "fixtures", "golden-set.json");
 	const events = await readAllAgentLedger();
 	const candidates = mineGoldenSetCandidates(events);
@@ -1585,6 +1587,37 @@ export async function runDevGoldenSetCommand(options: { json?: boolean; promote?
 	try {
 		corpus = JSON.parse(await readFile(corpusPath, "utf8"));
 	} catch {}
+	if (options.drift) {
+		const { assessGoldenSetDrift } = await import("../core/golden-set-drift");
+		const windowDays = options.windowDays && options.windowDays > 0 ? options.windowDays : 14;
+		const report = assessGoldenSetDrift(
+			events,
+			corpus.cases.map((entry) => entry.taskId),
+			{ now: Date.now(), windowMs: windowDays * 24 * 60 * 60 * 1000 },
+		);
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+			return;
+		}
+		process.stdout.write(
+			`Golden-set drift watch (F12.49) — ${report.liveAttempts} live attempt(s) in ${windowDays}d vs ${report.corpusAttempts} corpus attempt(s)\n\n`,
+		);
+		for (const dimension of report.dimensions) {
+			const flag = dimension.drifted ? "⚠" : "✓";
+			process.stdout.write(
+				`  ${flag} ${dimension.dimension.padEnd(11)} coverage ${(dimension.coverage * 100).toFixed(0).padStart(3)}%${
+					dimension.uncovered.length > 0
+						? ` — uncovered: ${dimension.uncovered
+								.slice(0, 4)
+								.map((entry) => `${entry.category} (${Math.round(entry.liveShare * 100)}%)`)
+								.join(", ")}`
+						: ""
+				}\n`,
+			);
+		}
+		process.stdout.write(`\n  ${report.summary}\n`);
+		return;
+	}
 	if (options.promote) {
 		const candidate = candidates.find((entry) => entry.taskId === options.promote);
 		if (!candidate) {
@@ -1601,6 +1634,7 @@ export async function runDevGoldenSetCommand(options: { json?: boolean; promote?
 			reason: candidate.reason,
 			promotedAt: Date.now(),
 		});
+		await mkdir(dirname(corpusPath), { recursive: true });
 		await writeFile(corpusPath, `${JSON.stringify(corpus, null, "\t")}\n`, "utf8");
 		process.stdout.write(
 			`Promoted ${candidate.taskId} (${candidate.kind}) — corpus now ${corpus.cases.length} case(s) at ${corpusPath}.\n`,

@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"cases": [
+		{
+			"taskId": "habit-insights-mid-cli-output",
+			"kind": "failure",
+			"reason": "terminal outcome aborted — a real regression case.",
+			"promotedAt": 1784274832837
+		},
+		{
+			"taskId": "habit-insights-mid-unit-tests",
+			"kind": "failure",
+			"reason": "terminal outcome other_failure — a real regression case.",
+			"promotedAt": 1784274838343
+		},
+		{
+			"taskId": "habit-insights-mid-trend-classifier",
+			"kind": "failure",
+			"reason": "terminal outcome other_failure — a real regression case.",
+			"promotedAt": 1784274845301
+		}
+	]
+}

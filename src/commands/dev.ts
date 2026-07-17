@@ -929,7 +929,9 @@ export function registerDevCommand(program: Command): void {
 		)
 		.option("--json", "Print machine-readable JSON.")
 		.option("--promote <taskId>", "Promote a reviewed candidate into test/fixtures/golden-set.json.")
-		.action(async (options: { json?: boolean; promote?: string }) => {
+		.option("--drift", "Compare the recent live attempt distribution against the corpus (the drift watch).")
+		.option("--window-days <n>", "Live window for --drift in days (default 14).", Number.parseInt)
+		.action(async (options: { json?: boolean; promote?: string; drift?: boolean; windowDays?: number }) => {
 			await runDevGoldenSetCommand(options);
 		});
 
