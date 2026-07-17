@@ -1,6 +1,6 @@
 import { buildStucknessSignalsFromReport, classifyAgentStuckness } from "@runtime-agent-stuckness";
 import { describeEscalationResumeAction } from "@runtime-escalation-resume-action";
-import { buildEscalationSuggestions } from "@runtime-escalation-suggestions";
+import { buildEscalationSuggestions, recommendEscalationAction } from "@runtime-escalation-suggestions";
 import { History, RefreshCw } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -121,6 +121,8 @@ export function TaskEscalationPanel({
 		return {
 			stuckness,
 			suggestions: stuckness === "hard_stuck" ? buildEscalationSuggestions(suggestionContext) : [],
+			// F12.59: lead with ONE recommended action + confidence — never a blank question.
+			recommendation: stuckness === "hard_stuck" ? recommendEscalationAction(suggestionContext) : null,
 		};
 	}, [report, blockedKind]);
 
@@ -189,6 +191,23 @@ export function TaskEscalationPanel({
 							</div>
 							{verdict.suggestions.length > 0 ? (
 								<div className="mt-1">
+									{verdict.recommendation ? (
+										<div
+											data-testid="escalation-recommendation"
+											className="mb-1 rounded-md border border-status-gold/40 bg-status-gold/10 px-2 py-1.5"
+											title={verdict.recommendation.rationale}
+										>
+											<span className="font-medium text-status-gold">
+												Recommended: {verdict.recommendation.recommended.title}
+											</span>
+											<span className="ml-1 rounded bg-status-gold/20 px-1 text-[10px] uppercase tracking-wide text-status-gold">
+												{verdict.recommendation.confidence} confidence
+											</span>
+											<div className="mt-0.5 text-[11px] text-text-secondary">
+												{verdict.recommendation.rationale}
+											</div>
+										</div>
+									) : null}
 									<div className="text-text-secondary">
 										Automatic recovery exhausted — escalate to the user. Options to get through the wall:
 									</div>

@@ -2535,10 +2535,16 @@ output and NOT acted on. Captured as F12.12.)
   [--cap]`. LIVE: 13 cards / 482k tokens on the habit-deep-chain workspace; one card correctly reads over a 200k cap.
   REMAINING: board-UI meter (tRPC slice + card chip — token data is per-workspace-store, needs the 6-touch slice) and
   the pause/escalate reaction wire (policy decision: auto-pause is an autonomy change — David's call on default).
-- [ ] **F12.59 — Escalation cards: recommendation + confidence + preserved context (never a blank question).** When blocked/
+- [x] **F12.59 — Escalation cards: recommendation + confidence + preserved context (never a blank question).** When blocked/
   uncertain, raise a distinct escalation card stating a RECOMMENDED action + confidence + preserved context, with
   approve/redirect/guide options ("send the recommendation, not the question"). Tunable sensitivity; maps onto the S3
   outward-action queue. (aiuxdesign escalation-pathways)
+  **SHIPPED 2026-07-17:** `recommendEscalationAction` (escalation-suggestions.ts) collapses the ordered suggestion set
+  into ONE recommended action + confidence derived from signal SPECIFICITY (pending blocked-action/clarify = high —
+  the unblock is provable; env blocker = medium; no signal = low, honestly labeled "not a diagnosis"); rendered as the
+  gold recommendation header in the escalation panel above the full option list (alternatives always survive). The
+  rest of the item already existed: preserved context = the "what was tried" attempt chain; approve/redirect/guide =
+  the F2.18b/c direct_redrive + input_then_redrive resume actions; sensitivity = the hard-stuck-only gate.
 
 **Git workflow & benchmark diversity:**
 - [ ] **F12.60 — Atomic-commit-per-logical-unit + clean-baseline attribution + worktree bootstrap.** !Klein isolates cards in

@@ -166,3 +166,61 @@ export function buildEscalationSuggestionContext(signals: OperatorTaskSignals): 
 		environmentBlocked: signals.blockedKind === "agent_sandbox_unavailable",
 	};
 }
+
+/** F12.59: confidence that the recommended action is the actual unblock — derived from signal SPECIFICITY. */
+export type EscalationConfidence = "high" | "medium" | "low";
+
+export interface EscalationRecommendation {
+	/** The ONE action to lead with — "send the recommendation, not the question". */
+	recommended: EscalationSuggestion;
+	confidence: EscalationConfidence;
+	/** Why this action leads (names the signal; honest when the lead is a generic fallback). */
+	rationale: string;
+	/** The remaining options, still shown — the user may know a fix we can't detect. */
+	alternatives: EscalationSuggestion[];
+}
+
+/**
+ * F12.59 "never a blank question": collapse the ordered suggestion set into ONE recommended action + a confidence.
+ * Confidence is signal specificity, never model self-report: a KNOWN pending decision (blocked action / clarify)
+ * = high — we can see exactly what the agent waits on; an environment blocker = medium (the class is known, the
+ * exact fix varies); no specific signal = low (the lead is the conventionally-likeliest unblock, honestly labeled
+ * a guess).
+ */
+export function recommendEscalationAction(context: EscalationSuggestionContext = {}): EscalationRecommendation {
+	const ordered = buildEscalationSuggestions(context);
+	const recommended = ordered[0] as EscalationSuggestion;
+	const alternatives = ordered.slice(1);
+	if (context.blockedActionPending) {
+		return {
+			recommended,
+			confidence: "high",
+			rationale:
+				"The agent is provably waiting on a denied/blocked action — approving or rejecting it IS the unblock.",
+			alternatives,
+		};
+	}
+	if (context.clarifyPending) {
+		return {
+			recommended,
+			confidence: "high",
+			rationale: "A clarifying question is already pending — answering it IS the unblock.",
+			alternatives,
+		};
+	}
+	if (context.environmentBlocked) {
+		return {
+			recommended,
+			confidence: "medium",
+			rationale: "A sandbox/setup blocker was detected — the blocker class is known, the exact fix varies.",
+			alternatives,
+		};
+	}
+	return {
+		recommended,
+		confidence: "low",
+		rationale:
+			"No specific blocker signal was detected — this lead is the statistically-likeliest unblock, not a diagnosis. The alternatives are equally worth a look.",
+		alternatives,
+	};
+}
