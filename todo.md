@@ -2555,6 +2555,43 @@ verify-before-build caveat: confirm each against current code before implementin
   Rationale: reward hacking is STRUCTURAL — 28.57% of PASSING SWE solutions used shortcuts; a behavior monitor cut that to
   0.56% and lifted clean resolution 40.2%→60.5%; no single verifier is safe. (Verification Horizon 2606.26300; Dockerless verifier 2606.28436)
 
+**Research batch 2b (2026-07-17) — local-first TRUST & PRIVACY brief (~40 lookups). !Klein's local-only architecture is a
+market differentiator only if it is VERIFIABLE. Framing: "local AI is private by ARCHITECTURE; cloud AI is private by
+POLICY." Context: 84% use AI but only ~3% highly trust it and ~81% are privacy-concerned; Copilot now trains on prompts by
+default and AI-assisted repos leak secrets ~40% more; EU AI Act enforceable 2026-08-02 (€35M fines). MCP-vetting task folded
+into the existing F12.31. Same verify-before-build caveat.**
+
+- [ ] **F12.98 — Trust & Privacy Panel (UI).** One screen that makes the local-only guarantee legible: what data stays on the
+  machine, what (if anything) leaves and to where, telemetry status (off by default), and the active egress-provenance gate
+  (S3) state. Rationale: trust is earned by VERIFIABILITY, not claims; "zero-retention ≠ not-training ≠ no-telemetry" — surface
+  the distinction the market conflates. Reads existing S3/audit state; no new capability. (Anthropic trust; Willison lethal-trifecta)
+- [ ] **F12.99 — Signed, user-verifiable egress receipts.** Every outbound request (model pull, web_research fetch, MCP call)
+  emits a signed receipt — timestamp, destination, payload hash, provenance/taint labels — into an append-only local log the
+  user can inspect and verify. Rationale: turns "we don't exfiltrate" from a promise into an auditable record; composes with
+  the S3 egress-provenance gate + F4.3 evidence capture. (verifiability-as-trust; SLSA provenance)
+- [ ] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
+  traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
+  deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
+  adoption blocker for regulated users; provenance is table-stakes for a trust story. (model-licensing survey; AI-BOM)
+- [ ] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
+  web research, MCP, update check) and self-attests — a signed statement + a runtime probe proving no network calls were made
+  during a run. Rationale: regulated/air-gapped demand is real and !Klein is uniquely positioned; "private by architecture"
+  must be provable, not asserted. Extends the S9 fan-out cap / egress gate to a hard-off posture. (EU AI Act; air-gapped LLM demand)
+- [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
+  SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
+  chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)
+- [ ] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
+  diagram, retention (none-by-default), egress inventory, model licenses, and the EU-AI-Act / GDPR posture. Rationale: enterprise
+  adoption needs a defensible written posture; the architecture already supports the strongest claims — document them. (EU AI Act 2026-08-02)
+- [ ] **F12.104 — Local-retrieval privacy guarantee.** Make it a stated, tested invariant that the retrieval index + embeddings
+  (codebase-memory graph, search) NEVER leave the machine, and surface it in the Trust Panel. Rationale: "your code embeddings
+  never leave" is a concrete selling point vs cloud RAG; lock it with a test that fails if an embedding path gains an egress
+  edge. Composes with the retrieval-telemetry seam. (local RAG privacy)
+- [ ] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
+  from the fitness prior / F3.35), ADVISE honestly — "this exceeds the local fleet; a larger local model or a cloud model would
+  resolve it" — rather than silently delivering a weak result. Rationale: honesty is the trust play; pairs the local-first
+  stance with a non-dark-pattern escape hatch (the user chooses, informed). Extends F3.35 capability-ceiling surfacing. (honest-hybrid advisory)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
