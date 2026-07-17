@@ -2708,9 +2708,14 @@ into the existing F12.31. Same verify-before-build caveat.**
 - [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)
-- [ ] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
+- [~] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
   diagram, retention (none-by-default), egress inventory, model licenses, and the EU-AI-Act / GDPR posture. Rationale: enterprise
-  adoption needs a defensible written posture; the architecture already supports the strongest claims — document them. (EU AI Act 2026-08-02)
+  adoption needs a defensible written posture; the architecture already supports the strongest claims — document them.
+  **SHIPPED 2026-07-17:** `docs/trust-center.md` — data-flow table, code-verifiable enforcement points (local-only
+  assertions, the F12.104 CI invariant, sandbox containment, Phase-7S taint/egress gates, delivery scans), an
+  EXHAUSTIVE egress inventory by class, retention (= filesystem), GDPR/EU-AI-Act posture, and an honest
+  planned-vs-current split (F12.98/99/100/101/102 marked planned). REMAINING: keep in sync as egress classes change;
+  fold into the Trust Panel when F12.98 lands. (EU AI Act 2026-08-02)
 - [~] **F12.104 — Local-retrieval privacy guarantee.** Make it a stated, tested invariant that the retrieval index + embeddings
   (codebase-memory graph, search) NEVER leave the machine, and surface it in the Trust Panel. Rationale: "your code embeddings
   never leave" is a concrete selling point vs cloud RAG; lock it with a test that fails if an embedding path gains an egress
