@@ -2387,9 +2387,15 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)
-- [ ] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
+- [~] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
   card (stops loops on a broken tool/MCP); retry a failed edit with a temperature ramp (deterministic → exploratory) to
   escape local minima. Small additions to the existing F3.30 retry machinery. (smallcode; promptquorum)
+  **DECAY CORE SHIPPED 2026-07-17:** `tool-trust-decay.ts` — consecutive per-tool failures: demote@3 (schema-tail
+  + copy-the-shapes-EXACTLY hint), drop@5 (disabled for the session, alternative named — never strand the model
+  tool-less); ANY success resets (decay measures the current struggle, not history); tools tracked independently.
+  3 tests. REMAINING (activation): per-session state at the tool-broker/afterTool seam (outcome feed exists in the
+  ledger toolCall records) + demotion reflected in the offered tool ordering; the retry-temperature ramp half
+  composes with F3.30's controller.
 - [ ] **F12.25 — Lint-on-edit reject + windowed file viewer (ACI micro-ergonomics).** Reject a syntactically-broken edit at
   the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
   search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)
