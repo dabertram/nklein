@@ -2155,6 +2155,9 @@ stays fast + complete.
   ⚠ OPERATIONAL GOTCHA (live-found): the sim runtime's per-host CAPACITY view consults the REAL LM Studio gateway —
   with real models loaded+busy (a parallel fleet eval) every sim turn queues on "host at its concurrent-session cap"
   and the drain times out undrained. Run the sweep with the gateway IDLE (or sequence it after fleet work).
+  **INVARIANT VALIDATED 2026-07-17: ALL 40 DRAINS PASS (scenarios 01-20, perfect+flaky) on the idle gateway** —
+  including 01-perfect, confirming the earlier failure was the busy-gateway interaction, not a regression. The (c)
+  completeness check is now a proven, repeatable runner.
 
 ### Phase 12 — research-derived capability improvements (David's deep-research mandate, 2026-07-17)
 
