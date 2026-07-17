@@ -36,14 +36,16 @@ export async function readWorkspaceFrameworkPreamble(
 		};
 		const detection = detectFrontendFramework({ ...(parsed.devDependencies ?? {}), ...(parsed.dependencies ?? {}) });
 		// F12.23: the fact-sheet reuses the same manifest read; top-level dirs are one readdir (best-effort).
-		const topLevelDirs = await readdir(cwd, { withFileTypes: true })
-			.then((entries) =>
-				entries
-					.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
-					.map((entry) => entry.name),
-			)
-			.catch(() => [] as string[]);
-		const factSheet = buildRepoFactSheet({ packageJsonText: raw, topLevelDirs });
+		const rootEntries = await readdir(cwd, { withFileTypes: true }).catch(() => []);
+		const topLevelDirs = rootEntries
+			.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
+			.map((entry) => entry.name);
+		// F11.2f: monorepo-tool manifests from the SAME readdir — zero extra I/O.
+		const MONOREPO_TOOL_FILES = new Set(["turbo.json", "nx.json", "pnpm-workspace.yaml", "lerna.json"]);
+		const monorepoToolFiles = rootEntries
+			.filter((entry) => entry.isFile() && MONOREPO_TOOL_FILES.has(entry.name))
+			.map((entry) => entry.name);
+		const factSheet = buildRepoFactSheet({ packageJsonText: raw, topLevelDirs, monorepoToolFiles });
 		preamble = [...buildFrameworkPreamble(detection), ...(factSheet.rendered ? [factSheet.rendered] : [])];
 	} catch {
 		preamble = [];

@@ -31,4 +31,29 @@ describe("buildRepoFactSheet (F12.23)", () => {
 		expect(buildRepoFactSheet({ packageJsonText: "{not json", topLevelDirs: [] }).rendered).toBeNull();
 		expect(buildRepoFactSheet({ packageJsonText: null, topLevelDirs: [] }).rendered).toBeNull();
 	});
+
+	it("F11.2f: names the stack from proven dependencies and the monorepo tooling from root manifests", () => {
+		const sheet = buildRepoFactSheet({
+			packageJsonText: JSON.stringify({
+				name: "mono",
+				scripts: { test: "vitest" },
+				devDependencies: { typescript: "^5", vitest: "^4", "@biomejs/biome": "^2" },
+				dependencies: { react: "^19" },
+			}),
+			topLevelDirs: ["apps", "packages"],
+			monorepoToolFiles: ["turbo.json", "pnpm-workspace.yaml"],
+		});
+		const rendered = sheet.rendered ?? "";
+		expect(rendered).toContain(
+			"Stack (from dependencies): TypeScript · tests: vitest · UI: react · lint/format: biome",
+		);
+		expect(rendered).toContain("Monorepo tooling: pnpm-workspace.yaml, turbo.json");
+		expect(rendered).toContain("ONE package");
+		// No proven markers ⇒ no stack line (facts only, never guesses).
+		const bare = buildRepoFactSheet({
+			packageJsonText: JSON.stringify({ name: "tiny", dependencies: { leftpad: "1" } }),
+			topLevelDirs: [],
+		});
+		expect(bare.rendered ?? "").not.toContain("Stack (from dependencies)");
+	});
 });

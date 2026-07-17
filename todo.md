@@ -2081,11 +2081,19 @@ stays fast + complete.
     distractor files before the coder; log kept/dropped into the retrieval-usefulness / F4.13 distractor telemetry.
     ContextBench: agents over-retrieve + drop 17–43% of context + distractors suppress parallel-module fixes — precision is
     the #1 lever for ≥32k models. (ContextBench 2602.05892; SweRank 2505.07849; SWE-Pruner 2601.16746)
-  - [ ] **F11.2f — Repo onboarding profile: VERIFIED + MINIMAL + fact-based (not LLM prose).** Extract a STRUCTURED profile —
+  - [~] **F11.2f — Repo onboarding profile: VERIFIED + MINIMAL + fact-based (not LLM prose).** Extract a STRUCTURED profile —
     exact build/test/lint/format commands (package.json scripts, turbo.json/nx.json, `.github/` workflows), monorepo layout
     + package graph, language/test framework, symbol-graph architecture summary. **Persist as DATA, not prose, and A/B-gate
     before adoption:** a controlled study found LLM-generated AGENTS.md-style overviews DROPPED success 0.5–2% + raised cost
     20–23%, while concrete command/tool instructions were followed 1.6–2.5×. (Evaluating-AGENTS.md 2602.11988; OpenHands repo.md; Discovery Agent)
+    **AUDITED 2026-07-17: substantially covered by F12.23's `buildRepoFactSheet`** (fact-only lines from the real
+    manifest: name/ESM, commands-that-exist, entry point, npm-workspaces note, layout; live at the start-prompt
+    preamble with a kill-switch — exactly the "concrete commands, no prose" contract). **DELTA SHIPPED same day:**
+    stack facts from PROVEN dependencies (TypeScript/vitest/jest/playwright/react/vue/svelte/next/vite/biome/eslint)
+    + monorepo-tool detection (turbo.json/nx.json/pnpm-workspace.yaml/lerna.json from the same readdir, zero extra
+    I/O) with a scope-to-one-package hint. REMAINING: `.github/workflows` command extraction (YAML parse — only if
+    live data shows models still guessing CI commands) + the symbol-graph architecture summary (repo_map already
+    serves this at retrieval time); adoption A/B rides the existing preamble kill-switch.
   - [~] **F11.2g — Run the repo's OWN lint/format/test in the verify gate.** Execute the project's real test + linter +
     formatter on the diff and feed failures back for self-heal — LLMs reliably self-heal against explicit lint rules;
     matching existing tests/style IS "fitting the codebase." (factory.ai linters)
