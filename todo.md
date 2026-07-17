@@ -2108,10 +2108,18 @@ stays fast + complete.
     files) and heads each chunk with `// path — in <enclosing>` so the embedding carries scope.
     CODE_INDEX_SCHEMA_VERSION → 2 (chunk texts changed; hash-keyed cache made old vectors unreachable anyway).
     6 chunker tests + the existing 27 index/search tests green. Embedding-recall A/B = fleet-gated.
-  - [ ] **F11.2j — Dedicated read-only "explorer" subagent returning citations.** An explorer role (Read/Glob/Grep + the
+  - [~] **F11.2j — Dedicated read-only "explorer" subagent returning citations.** An explorer role (Read/Glob/Grep + the
     search tools) that gathers context and returns only file:line citations + a one-line rationale to the coder. FastContext:
     a 4B-RL explorer cuts main-agent tokens ~60% and BEATS a 30B-SFT explorer — directly validates !Klein's fleet+subagent
     design (reading/searching is ~56% of tool turns). (FastContext 2606.14066)
+    **SHIPPED 2026-07-17 (OPT-IN):** worker-side `explore` tool + explorer-side `submit_citations` contract
+    (`nklein-explorer-tool.ts`) + `nklein-explorer-runner.ts` — a bounded `::explore` secondary session (the
+    plan-critique harness pattern: bracketed workspace, nudges, always-teardown, per-run budget 6) on the worker's
+    OWN model with a FRESH context window (the FastContext win is the offloaded window). Read-only by brief;
+    findings render citation-first; every degraded path tells the worker to fall back to its own retrieval.
+    Gated `NKLEIN_EXPLORER_SUBAGENT` (default OFF = tool absent, byte-identical sessions). 4 contract tests.
+    REMAINING (fleet-gated): live validation + the token-saving A/B; later: route the explorer to a SMALLER
+    loaded model (the 4B-explorer half of FastContext).
   - [ ] **F11.2k — Monorepo-aware context scoping.** Detect turbo/nx/pnpm-workspaces, scope the task to its package, load the
     NEAREST AGENTS.md/CLAUDE.md, and use a TS dependency graph (madge/dependency-cruiser/ts-morph) for "who imports this?"
     impact + optional cross-layer-import lint. !Klein is TS so the tooling is native. (agentbrisk monorepo; dependency-cruiser)

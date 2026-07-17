@@ -9,6 +9,7 @@ import type { RuntimeNKleinReasoningEffort, RuntimeTaskImage, RuntimeTaskSession
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
+import type { NKleinExplorerCitationsSubmittedHandler, NKleinExplorerQueryHandler } from "./nklein-explorer-tool";
 import type { NKleinFocusChainSubmittedHandler } from "./nklein-focus-chain-tool";
 import type { NKleinMcpRuntimeService } from "./nklein-mcp-runtime-service";
 import type { NKleinMergeResolutionSubmittedHandler } from "./nklein-merge-resolution-tool";
@@ -136,6 +137,10 @@ export interface StartNKleinSessionRuntimeRequest {
 	onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
 	/** When provided, this is a §5.AK `::merge` turn: the `submit_merge_resolution` tool is attached and its verdict is reported here. */
 	onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
+	/** When provided, this is an F11.2j `::explore` turn: the `submit_citations` tool is attached and findings are reported here. */
+	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
+	/** F11.2j: when provided, the worker-side `explore` tool is attached — one bounded read-only subagent query per call. */
+	runExplorerQuery?: NKleinExplorerQueryHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */
 	onFocusChainUpdated?: NKleinFocusChainSubmittedHandler;
 	onTeamEvent?: (event: NKleinSdkTeamEvent, teamName: string | null) => void;

@@ -78,6 +78,7 @@ import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./n
 import { createContextOverflowController } from "./nklein-context-overflow-controller";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
+import { createExplorerRunner } from "./nklein-explorer-runner";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { createFocusChainStore } from "./nklein-focus-chain-store";
 import { extractFocusChainTouchDeltaFromSdkEvent } from "./nklein-focus-chain-touch-delta";
@@ -333,6 +334,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 		runBudget: 2,
+	});
+	/** F11.2j auxiliary secondary-session runner: the bounded read-only `::explore` subagent (per-run query budget). */
+	private readonly explorerRunner = createExplorerRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		getPauseController: () => this.pauseController,
+		getHarness: () => this.secondarySessionHarness,
+		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
+		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+		runBudget: 6,
 	});
 	/** W2.3a/W1.1b: learned quality-effective budgets (read by the ContextBudgetController) + the stall-signature
 	 * adaptive retry (re-sends the card on a raised per-turn budget). Owns its three state maps/flags. */
@@ -1221,6 +1235,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onReviewSubmitted: input.onReviewSubmitted,
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
+				onExplorerCitationsSubmitted: input.onExplorerCitationsSubmitted,
+				// F11.2j (OPT-IN via NKLEIN_EXPLORER_SUBAGENT; default OFF = tool absent, byte-identical sessions):
+				// the worker-side `explore` delegation — one bounded read-only subagent query per call.
+				runExplorerQuery: isTruthyEnv(process.env.NKLEIN_EXPLORER_SUBAGENT)
+					? this.explorerRunner.buildExploreHandler(input.taskId, hostWorkspaceRoot)
+					: undefined,
 				onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(input.taskId, chain),
 				onTeamEvent: (event, teamName) => {
 					this.teamProgressEmitter.emit(input.taskId, event, teamName);
@@ -1788,6 +1808,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							onDecompositionApplied: this.onDecompositionApplied,
 							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 							requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(request.taskId, request.cwd),
+							runExplorerQuery: isTruthyEnv(process.env.NKLEIN_EXPLORER_SUBAGENT)
+								? this.explorerRunner.buildExploreHandler(request.taskId, request.cwd)
+								: undefined,
 							onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 							onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
 							onTeamEvent: (event, teamName) => {

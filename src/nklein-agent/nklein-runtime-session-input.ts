@@ -2,6 +2,7 @@ import type { RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contr
 import type { createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import type { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import type { NKleinExplorerCitationsSubmittedHandler } from "./nklein-explorer-tool";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinMergeResolutionSubmittedHandler } from "./nklein-merge-resolution-tool";
 import type { NKleinPlanCritiqueSubmittedHandler } from "./nklein-plan-critique-tool";
@@ -31,6 +32,7 @@ export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;
 	onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
 	onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
+	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
 	toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
 	extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
 }

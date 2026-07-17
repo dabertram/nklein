@@ -34,6 +34,7 @@ import { compactKanbanFocusedMessages } from "./nklein-context-focus-policy";
 import { createNKleinDecompositionTools } from "./nklein-decomposition-tool";
 import { createEditFileTool } from "./nklein-edit-file-tool";
 import { extractNKleinSessionId } from "./nklein-event-adapter";
+import { createNKleinExplorerCitationsTool, createNKleinExploreTool } from "./nklein-explorer-tool";
 import { createFileDiscoveryTools } from "./nklein-file-discovery-tools";
 import { createNKleinFocusChainTool } from "./nklein-focus-chain-tool";
 import {
@@ -356,6 +357,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(request.onMergeResolutionSubmitted
 				? [createNKleinMergeResolutionTool({ onSubmitted: request.onMergeResolutionSubmitted })]
 				: []),
+			// F11.2j `::explore` turns get the structured `submit_citations` findings tool — same gating pattern.
+			...(request.onExplorerCitationsSubmitted
+				? [createNKleinExplorerCitationsTool({ onSubmitted: request.onExplorerCitationsSubmitted })]
+				: []),
+			// F11.2j worker sessions get the `explore` delegation tool when the service wired a query handler.
+			...(request.runExplorerQuery ? [createNKleinExploreTool(request.runExplorerQuery)] : []),
 			// Focus-chain checklist tool (todo §5.N): attached whenever the runtime wires a persistence handler.
 			...(request.onFocusChainUpdated
 				? [
