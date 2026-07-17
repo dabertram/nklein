@@ -2353,9 +2353,14 @@ output and NOT acted on. Captured as F12.12.)
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
   wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
-- [ ] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
+- [~] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
+  **GUARD CORE SHIPPED 2026-07-17:** `read-before-write-guard.ts` — caller-owned per-session state;
+  `assessWriteGrounding` tiers grounded / never_read / stale_read (mtime-compared; unknown mtimes degrade
+  gracefully; new files trivially grounded; a session's own write refreshes grounding). 4 tests. REMAINING
+  (activation): thread the state through the write/edit tool boundary (record reads in read tools' execute,
+  consult at write_files/edit_file before apply — advisory annotation, not a block).
 - [ ] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never
