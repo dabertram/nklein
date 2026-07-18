@@ -45,7 +45,7 @@ import {
 } from "../core/delivery-evidence";
 import { assessDeliveryQuality } from "../core/delivery-quality-gate";
 import { assessDiffMinimality } from "../core/diff-minimality";
-import { createDispatchReservationLedger } from "../core/dispatch-reservations";
+import { createDispatchReservationLedger, reservationAwarePools } from "../core/dispatch-reservations";
 import { createAdmissionWakeCoordinator } from "../core/durable-admission";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
@@ -3442,7 +3442,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const realWorkWaiting =
 								taskStartQueue.size(scope.workspaceId) > 0 ||
 								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
-							const hasRealQueuedWork = realWorkWaiting || runningWorkerSessions.length > 0;
+							// F1.36b (F1.19b tie-in): idle work also yields when the workspace's dispatch pool is
+							// SATURATED per the live admission view (reservation holds folded in) — cross-workspace
+							// real work contends for the same endpoint even when this workspace's own queue is empty.
+							// No configured cap ⇒ null ⇒ no veto (fail-open, unchanged). The full durable-jobs
+							// representation of idle actions stays open (fleet+C3); this closes the never-displace half.
+							const idleAdmissionState = getDurableAdmissionState(scope.workspaceId);
+							const idlePoolSaturated = (
+								idleAdmissionState ? reservationAwarePools(idleAdmissionState.pools, dispatchReservations) : []
+							).some((pool) => pool.capacity - pool.inUse <= 0);
+							const hasRealQueuedWork = realWorkWaiting || runningWorkerSessions.length > 0 || idlePoolSaturated;
 							const boardState = await loadWorkspaceState(scope.workspacePath);
 							const dispatched = idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 							const reviewCandidateTaskIds = findReviewCandidateTaskIds(boardState.board, dispatched);

@@ -995,7 +995,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   = fully unit-testable; then a tRPC read slice (getTimeTracking) + display (per-card in the card detail; per-project in
   the project header or Model Performance dialog). Mostly headless-verifiable (compute over fixture ledgers) + browser-
   verify the render. GOTCHA to decide: attempts with null startedAt/completedAt (legacy) skip the LLM/active term.
-- [ ] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
+- [~] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
   §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
   now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
   concurrency cap 1 + trailing-hour dispatch budget 6, applied before the ranker every tick) and RECORDS REALIZED
@@ -1006,6 +1006,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (admission via F1.19 `planDurableAdmission` + F1.24 reservations so they never displace or double-book real
   work) instead of the side-channel interval; feed `summarizeOpportunisticValue` into the ranker's priorities
   once enough outcomes accumulate.
+  **NEVER-DISPLACE HALF CLOSED 2026-07-18:** the idle sweep now consults the SAME live admission view F1.19b
+  wired (reservation holds folded via `reservationAwarePools`) and yields when the workspace's dispatch pool is
+  saturated — cross-workspace endpoint contention vetoes idle work even when this workspace's own queue is
+  empty (no configured cap ⇒ no veto, fail-open/unchanged). REMAINING (unchanged flags): the durable-JOBS
+  representation of idle actions (needs a non-card dispatch kind in the wiring) and the evidence-driven ranker
+  feed (data-gated on accumulated realized-value outcomes).
 - [ ] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
   `src/core/n-eyes-review-schedule.ts` completes the F1.37 brain over the shipped lens/panel/verdict cores:
   `planNEyesSchedule` (round-shifted rotation — every eye a DISTINCT (judge, lens) pair, lenses advance first in
