@@ -3,6 +3,7 @@ import type { PlanGapKind } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import type { TaskWorktreeAutoMergeColumn } from "../workspace/task-worktree-auto-merge";
 import { parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
+import { planBulkSeed, resolveBulkInputs } from "./task/task-bulk-seed.js";
 import { printJson, toErrorMessage } from "./task/task-command-output.js";
 import {
 	parseAgentId,
@@ -163,6 +164,52 @@ function registerTaskCrudCommands(task: Command): void {
 							}),
 						}),
 				);
+			},
+		);
+
+	task
+		.command("seed-bulk")
+		.description("Create N backlog cards from one template × an input list (F12.109 batch fan-out).")
+		.requiredOption("--template <text>", "Prompt template; {input}, {i}, {slug} substitute per input.")
+		.option("--title-template <text>", "Title template (same tokens). Defaults to {input}.")
+		.option("--inputs <list>", "Inline inputs, comma or newline separated.")
+		.option("--inputs-file <path>", "File with one input per line (# comments skipped).")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.option("--base-ref <branch>", "Task base branch/ref.")
+		.option("--dry-run", "Print the expanded plan without creating cards.")
+		.action(
+			async (options: {
+				template: string;
+				titleTemplate?: string;
+				inputs?: string;
+				inputsFile?: string;
+				projectPath?: string;
+				baseRef?: string;
+				dryRun?: boolean;
+			}) => {
+				await runTaskCommand(async () => {
+					const inputs = await resolveBulkInputs(options);
+					const plan = planBulkSeed({
+						promptTemplate: options.template,
+						...(options.titleTemplate ? { titleTemplate: options.titleTemplate } : {}),
+						inputs,
+					});
+					if (options.dryRun) {
+						return { dryRun: true, cards: plan };
+					}
+					const created: Array<{ title: string }> = [];
+					for (const entry of plan) {
+						await createTask({
+							cwd: process.cwd(),
+							title: entry.title,
+							prompt: entry.prompt,
+							projectPath: options.projectPath,
+							baseRef: options.baseRef,
+						});
+						created.push({ title: entry.title });
+					}
+					return { created: created.length, cards: created };
+				});
 			},
 		);
 
