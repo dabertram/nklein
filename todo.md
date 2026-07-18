@@ -2671,10 +2671,16 @@ output and NOT acted on. Captured as F12.12.)
   (read_files-shaped inputs; own writes refresh grounding) and records one `write_grounding` self-observation
   per session+path on a never-read write — the high-yield "editing imagined content" half. The mtime
   stale_read half needs fs access at the tool boundary (still open, listed with the enforce flip).
-- [ ] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
+- [~] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never
   hard-fail the card. The wins are in the APPLICATION layer, not the diff format. (aider unified-diffs + 9-pass; Diff-XYZ 2510.12487; Morph/Relace fast-apply)
+  **AUDIT 2026-07-18: LARGELY COVERED BY F12.63/F12.16** — the escalation ladder exists (nklein-fuzzy-edit.ts:
+  exact → elided-middle → Levenshtein similarityRatio, aider-style) + the post-apply syntax guard rejects
+  breakage + F12.16's MALFORMED_PATCH typed error tells the controller to re-read/re-anchor (retryable, never a
+  hard card fail). GENUINE REMAINDER: (a) the "merge this intent-level edit into the current file" RE-PROMPT rung
+  (a bounded secondary-session ask when the ladder exhausts — buildable, composes with the F12.62 editor phase),
+  (b) the optional local fast-apply model (Morph/Relace class — fleet/David-gated model acquisition).
 - [~] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
