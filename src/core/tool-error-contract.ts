@@ -227,6 +227,22 @@ export function toolErrorFromThrown(thrown: unknown, options?: { toolName?: stri
 	const n = name.toLowerCase();
 	const where = options?.toolName ? ` (${options.toolName})` : "";
 
+	// F12.16: an edit/patch that did not apply (anchor text not found, fuzzy ladder exhausted) or was rejected by
+	// the post-apply syntax guard classifies as a TYPED malformed patch — the controller repairs the one edit
+	// (re-read the window, re-anchor old_str) instead of treating it as an opaque failure. Checked before the
+	// generic malformed-output branch so edit failures don't mis-classify as JSON problems.
+	if (
+		/edit|write|patch/.test((options?.toolName ?? "").toLowerCase()) &&
+		/not found in|did not apply|does not appear|no match for|would break|syntactically broken|unbalanced|left the file broken/.test(
+			m,
+		)
+	) {
+		return {
+			code: "MALFORMED_PATCH",
+			retryable: true,
+			hint: `The edit${where} did not apply cleanly (anchor text not found or the result would be syntactically broken). Re-read the exact lines you are changing and re-emit the edit with a precise, currently-present anchor.`,
+		};
+	}
 	if (n === "aborterror" || /\baborted\b|\bcancell?ed\b/.test(m)) {
 		return { code: "ABORTED", retryable: false, hint: `The tool call${where} was aborted; do not retry it.` };
 	}

@@ -2570,13 +2570,17 @@ output and NOT acted on. Captured as F12.12.)
   `edit_thrash` self-observation per session+file when oscillation is detected — feeding the same observation stream
   the runtime-verdict penalty reads. Session state cleaned in forgetSessionFocusState. REMAINING: a
   TEST-misinterpretation detector (needs a test-output parse — separate slice). (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
-- [~] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
+- [x] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
   pre-execution syntax/diff validator to catch malformed patches before they burn a turn (a "patch does not apply cleanly"
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed
   `MALFORMED_PATCH` (via F3.T2) for immediate repair rather than a failed apply. (harnesses.sh mini-swe-agent lessons)
 
 **Small-model reliability deltas (second research pass — techniques weak local models specifically need):**
   **AUDIT 2026-07-18: PARTIAL (functionally covered)** — a non-applying edit throws immediately with actionable prose (nklein-fuzzy-edit fallback ladder — no turn burned on a failed apply), and the F12.63 guard rejects syntax breakage post-apply. MISSING: only the TYPED `MALFORMED_PATCH` classification through the F3.T2 taxonomy (today's failures are descriptive strings, not typed kinds).
+  **TYPED CLASSIFICATION SHIPPED (same day):** `toolErrorFromThrown` now classifies edit/write/patch-tool apply
+  failures and syntax-guard rejections as `MALFORMED_PATCH` (retryable, re-anchor hint) ahead of the generic
+  branches — flowing through the existing F3.T2 boundary at the sandbox tool-result seam. Item complete.
+  (Gotcha: `\bedit\b` cannot match `edit_file` — underscore is a word character.)
 - [x] **F12.17 — Forgiving multi-format tool-call parser with auto-repair + `reasoning_content` fallback.** Small local
   models emit malformed-but-recoverable calls (wrong param names/types, XML/YAML/Hermes/plain-text instead of JSON, or the
   call buried in `reasoning_content`). **ALREADY DONE (§5.O) — `nklein-narrated-tool-call.ts` (`recoverNarratedToolCalls`).**

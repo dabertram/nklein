@@ -223,3 +223,20 @@ describe("toolErrorFromThrown (F3.T2 — non-Zod tool failures)", () => {
 		expect(() => toolErrorFromThrown(null)).not.toThrow();
 	});
 });
+describe("MALFORMED_PATCH classification (F12.16)", () => {
+	it("types an edit-apply failure on edit-ish tools and stays generic elsewhere", () => {
+		const applyFail = toolErrorFromThrown(new Error("The provided old text was not found in src/a.ts."), {
+			toolName: "edit_file",
+		});
+		expect(applyFail.code).toBe("MALFORMED_PATCH");
+		expect(applyFail.retryable).toBe(true);
+		const syntaxReject = toolErrorFromThrown(
+			new Error("Blocked edit_file: the edit left the file broken (unbalanced brackets)."),
+			{ toolName: "edit_file" },
+		);
+		expect(syntaxReject.code).toBe("MALFORMED_PATCH");
+		// The same message WITHOUT an edit-ish tool stays out of the patch class.
+		const other = toolErrorFromThrown(new Error("value not found in registry"), { toolName: "read_files" });
+		expect(other.code).not.toBe("MALFORMED_PATCH");
+	});
+});
