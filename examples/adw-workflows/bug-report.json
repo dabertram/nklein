@@ -1,0 +1,35 @@
+{
+  "description": "Bug report → repro test card → fix card → deterministic verify. Run: nklein workflow run bug-report --input \"<bug description>\"",
+  "steps": [
+    {
+      "id": "snapshot",
+      "kind": "deterministic",
+      "title": "Capture the starting state as evidence",
+      "command": "git log --oneline -5 && git status --short"
+    },
+    {
+      "id": "repro-test",
+      "kind": "agent",
+      "title": "Write a failing repro test",
+      "card": {
+        "title": "Repro test: {input}",
+        "prompt": "Write a FAILING automated test that reproduces this bug: {input}. Do not fix the bug — the test must fail against current code and clearly name the expected behavior."
+      }
+    },
+    {
+      "id": "fix",
+      "kind": "agent",
+      "title": "Fix the bug against the repro test",
+      "card": {
+        "title": "Fix: {input}",
+        "prompt": "Fix this bug: {input}. A repro test was just added by a previous card — make it pass without weakening it, keeping the change minimal."
+      }
+    },
+    {
+      "id": "verify",
+      "kind": "deterministic",
+      "title": "Full test suite must be green",
+      "command": "npm test"
+    }
+  ]
+}

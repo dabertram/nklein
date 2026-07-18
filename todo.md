@@ -3180,7 +3180,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   audit records verified on disk.
   `autoStart:false` templates are REFUSED (boards are autonomous; honest error over silent start). REMAINING:
   cron + log/file-watch trigger sources.
-- [ ] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
+- [~] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
   !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
   reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
   "templating over coding", "build systems that build systems"). Add `.nklein/workflows/<name>.md|json`: an ordered list of
@@ -3190,6 +3190,15 @@ into the existing F12.31. Same verify-before-build caveat.**
   packages) and from decompose (model-planned): an ADW is HUMAN-authored process structure the factory executes repeatedly.
   Start with two recipes proving the shape: "bug-report → repro test → fix card → verify" and "dependency-bump → build →
   test → review card". (IndyDevDan ADW; PITER-style problem→solution pipelines)
+  **CORE + CLI SHIPPED 2026-07-18:** `adw-workflow.ts` pure core (definition schema with per-step verify gates,
+  {input}/{workflow}/{timestamp}/{steps.<id>.outputTail} substitution with unknown tokens kept visible,
+  halt-on-first-fail orchestrator over INJECTED executors, skipped-not-dropped remainder, verdict fold) +
+  `nklein workflow run <name> --input … [--json]` / `workflow list` (deterministic steps host-side via sh -c
+  with full output to `.nklein/nklein/adw-runs/<name>-<ts>/<step>.log` evidence; agent steps seed a card via the
+  normal createTask path and poll to a terminal lane; exit 1 on FAIL). Both recipes shipped as
+  `examples/adw-workflows/{bug-report,dependency-bump}.json`. 9 tests. LIVE-verified on the rig workspace:
+  list + pass/fail/skip + evidence-tail chaining across steps + exit codes. REMAINING: UI runner surface +
+  a live agent-step run (unit-proven; long weak-model runs made rig validation impractical this session).
 - [x] **F12.108 — Zero-touch KPIs: measure how autonomous the factory actually is.** The video's measurement thread (KPIs +
   the "codebase runs itself" North Star) has no !Klein counterpart: we measure cost/quality (F12.48/F12.42) but not
   AUTONOMY. Ledger projections: zero-touch rate (% of completed cards with ZERO human interventions — no manual redrive, no

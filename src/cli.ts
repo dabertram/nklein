@@ -10,6 +10,7 @@ import { createShutdownIndicator } from "./cli-shutdown-indicator";
 import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
+import { registerWorkflowCommand } from "./commands/workflow";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
 import { loadDotEnv } from "./config/load-dotenv";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
@@ -618,6 +619,7 @@ function createProgram(invocationArgs: string[]): Command {
 	program.addOption(new Option("--agent <id>", "Deprecated compatibility flag. Ignored.").hideHelp());
 
 	registerTaskCommand(program);
+	registerWorkflowCommand(program);
 	registerDevCommand(program);
 	registerChatCommand(program);
 

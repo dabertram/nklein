@@ -1,0 +1,30 @@
+{
+  "description": "Dependency bump → build → test → human-shaped review card. Run: nklein workflow run dependency-bump --input \"<package>@<version>\"",
+  "steps": [
+    {
+      "id": "bump",
+      "kind": "deterministic",
+      "title": "Apply the bump",
+      "command": "npm install {input}"
+    },
+    {
+      "id": "build",
+      "kind": "deterministic",
+      "command": "npm run build"
+    },
+    {
+      "id": "test",
+      "kind": "deterministic",
+      "command": "npm test"
+    },
+    {
+      "id": "review",
+      "kind": "agent",
+      "title": "Review the bump's blast radius",
+      "card": {
+        "title": "Review dependency bump {input}",
+        "prompt": "The dependency bump {input} just built and tested green. Review the changelog/lockfile diff for breaking-change risk our tests would not catch (API deprecations, behavior flags, transitive pins) and write a short risk note in the task summary. Evidence from the test run:\n{steps.test.outputTail}"
+      }
+    }
+  ]
+}
