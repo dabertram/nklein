@@ -962,6 +962,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet): drive one real testless card and one test-backed card through a live swarm (bounce → re-work
   → park vs. clean review), then decide whether to flip the global default ON; optionally expose the override in
   the Settings project section (rides F1.29b).
+  **AUDIT 2026-07-18:** the drive ran DETERMINISTICALLY — the aimock test-driven drain (2026-07-17 five-drain
+  batch; all-40 invariant 897b975c) exercises the full bounce → re-work → clean-review contract through the real
+  runner machinery with scripted models, which is the same evidence a weak-model live swarm would give minus
+  model noise. What remains is exactly the DEFAULT-FLIP decision — a product-default change that belongs in
+  David's decision batch (same class as the F12.58 soft-cap default), plus the optional Settings exposure
+  (rides F1.29b). Nothing left to build solo.
 - [x] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13; UI SHIPPED + browser-verified 2026-07-15, `7aa47224`).**
   `src/core/background-eval-controls.ts` is the whole F1.35 brain: `applyRailControlCommand` (enable/disable/
   pause/resume reducer emitting the exact start/stop action for the F1.31 service — idempotent, pause holds
@@ -1354,10 +1360,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   flips the kind to `cross_model_carry` driving the peer completion (loop dep `completeStronger` — a probe
   caught the wrong-dep-name silent degrade a spread had hidden). Inside the opt-in NKLEIN_ENFORCED_REASONING
   flag; +2 tests. Remaining: evidence-capsule framing on the non-chat bounce paths.
-- [ ] **F3.14 — Complete persona-varied self-bounce.** Use distinct system lenses only when no suitable second model is
+- [x] **F3.14 — Complete persona-varied self-bounce.** Use distinct system lenses only when no suitable second model is
   available; measure whether it improves the result.
-- [ ] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
+  **AUDIT 2026-07-18: DONE** — both halves exist with fleet evidence. The "only when no second model" rule IS
+  the gate's kind selection (`selectKind` in enforced-reasoning-gate.ts: a stronger loaded peer ⇒ carry, else
+  consistency/bounce; persona lenses via self-bounce-personas.ts drive `self_bounce_varied` in the loop, and the
+  chat surface deliberately remaps consistency→varied-bounce for free-form output). The MEASUREMENT ran as the
+  F3.16 fleet A/B (2026-07-17, 180 obs across 3 sweep winners): enforced loops = SKIP at worker easy/medium
+  (−50%), merged into the live benefit stores that now data-gate the loops. Measured, concluded, applied.
+- [~] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
   feed agreement/cost into reliability and routing.
+  **AUDIT 2026-07-18: PARTIAL** — sampling + majority are complete in `runEnforcedReasoningLoop` (self_consistency
+  kind: N bounded samples, majority vote; live-found free-form degeneracy documented — the chat surface remaps to
+  varied-bounce, so consistency runs on determinate-output surfaces/eval only), and the COST/benefit measurement
+  ran via the F3.16 A/B substrate (skip-everywhere conclusion merged into live stores). MISSING: the
+  agreement-rate feed into reliability/ROUTING (agreement is computed in-loop but not persisted per model into
+  the fitness/behavior stores the router reads).
 - [~] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
   only when evidence says they help. **PURE CORE + A/B SUBSTRATE SHIPPED (`7607b9da`): `enforced-reasoning-benefit.ts`
   (`learnReasoningBenefit`/`shouldEnforceReasoning`) + `reasoning-observation-store.ts` + an OPT-IN A/B pass in
