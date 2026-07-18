@@ -1366,6 +1366,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
   ledger, explore safely, and converge without locking onto a one-off win.
   **AUDIT 2026-07-18: OPEN (core exists unwired)** — strategy-effectiveness-ledger.ts (Beta-posterior per model×failure×strategy + orderLadderByEffectiveness) has ZERO consumers and no tests; live ladder still static RELEVANT_STRATEGIES_BY_OUTCOME.
+  **WIRE SCOPING 2026-07-18:** premature to wire — the ladder itself has only a SINGLE-RUNG live consumer
+  (shouldAttemptAdaptiveBudgetRetry fires the raise_token_budget rung on aborted with triedStrategies=[]; no live
+  path walks multiple rungs), so effectiveness-ordering has nothing to reorder yet. Correct order: give the §5.AA
+  multi-rung loop a live consumer first (F3.10/runAdaptiveAttemptLoop), then record outcomes at its rung
+  resolutions, then consult orderLadderByEffectiveness. Not a cheap standalone wire.
 - [~] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
   context, tool subset, budget, evidence gates, and bounded transitions.
   **AUDIT 2026-07-18: PARTIAL** — outer-controller-fsm.ts advanceController complete + read-only trace projection on dev telemetry. MISSING: the effectful driver (no live consumer drives phases/tool subsets/budgets/evidence gates).
