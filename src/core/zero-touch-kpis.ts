@@ -47,7 +47,9 @@ const CAPTURE_GAPS = [
 	"operator merges (mergeTaskWorktrees) are not distinguishable from auto-delivery merges",
 ] as const;
 
-const DELIVERY_PREFIX = "delivery_";
+/** The ACTUAL delivery transitions — holds (delivery_boundary_hold, delivery_taint_gate_hold) and scans are
+ * gate outcomes that share the prefix but are NOT deliveries. */
+const DELIVERED_TRANSITIONS = new Set(["delivery_merge", "delivery_commit", "delivery_open_pr"]);
 
 function isDevTestTaskId(taskId: string): boolean {
 	return /^dev(test)?-/.test(taskId);
@@ -86,7 +88,7 @@ export function computeZeroTouchKpis(events: readonly AgentLedgerEvent[]): ZeroT
 		const state = stateFor(event.taskId);
 		const to = event.to;
 		const reason = event.reason ?? "";
-		if (to.startsWith(DELIVERY_PREFIX) && to !== "delivery_quality_scan") {
+		if (DELIVERED_TRANSITIONS.has(to)) {
 			state.delivered = true;
 			state.deliveredAt = Math.max(state.deliveredAt, event.recordedAt);
 		}

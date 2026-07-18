@@ -2013,11 +2013,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								}
 							})();
 						}
-						// F1.21 (record-only until the F1.22 parity lock): the delivery ACTION runs through the SAME
-						// manifest broker gate as chat/swarm tools — a run whose session ingested untrusted content
-						// (web/MCP taint, recorded on its terminal attempt) may not steer git delivery without a
-						// trusted plan. Today a would-deny is OBSERVED (self-observation + ledger transition), never
-						// enforced, so behavior is unchanged while the evidence accumulates.
+						// F1.21b (ENFORCING since 2026-07-18): the delivery ACTION runs through the SAME manifest
+						// broker gate as chat/swarm tools — a run whose session ingested untrusted content (web/MCP
+						// taint, recorded on its terminal attempt) may not steer git delivery without a trusted plan.
+						// Flip preconditions met: the F1.22 parity lock delivered 2026-07-13, and the accumulated
+						// live evidence shows ZERO would-deny records (the flip is behaviorally inert on observed
+						// history while arming the hold). A positive deny now HOLDS the card in Review for the
+						// operator, exactly like the M4 gate below; gate-EVALUATION failures still fail open.
 						try {
 							const deliveryLedgerEvents = await readAgentLedger({
 								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
@@ -2038,7 +2040,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								recordSelfObservation({
 									signal: "custom",
 									severity: "warning",
-									message: `Delivery taint gate (record-only) would deny ${taskId}: ${deliveryGate.reason ?? "tainted influence on git_delivery"}`,
+									message: `Delivery taint gate held ${taskId} in Review: ${deliveryGate.reason ?? "tainted influence on git_delivery"}`,
 									taskId,
 									workspacePath: scope.workspacePath,
 									metadata: {
@@ -2052,11 +2054,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										taskId,
 										workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
 										from: "review",
-										to: "delivery_taint_gate_would_deny",
+										to: "delivery_taint_gate_hold",
 										reason: deliveryGate.reason,
-										controllerDecision: "record_only",
+										controllerDecision: "taint_gate",
 									}),
 								).catch(() => {});
+								deps.warn(
+									`Delivery held for ${taskId} (taint gate): ${deliveryGate.reason ?? "tainted influence on git_delivery"}. Review and merge manually.`,
+								);
+								await service.stopTaskSession(taskId).catch(() => null);
+								return;
 							}
 						} catch {
 							// Observational only — never block delivery on a gate-evaluation failure.

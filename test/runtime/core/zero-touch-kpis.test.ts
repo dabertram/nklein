@@ -52,6 +52,16 @@ describe("computeZeroTouchKpis (F12.108)", () => {
 		expect(kpis.captureGaps.length).toBeGreaterThan(0);
 	});
 
+	it("gate HOLDS sharing the delivery_ prefix are not deliveries (taint/boundary holds)", () => {
+		const events = [
+			transition("card-h", "running", "start_requested"),
+			transition("card-h", "delivery_taint_gate_hold", null),
+			transition("card-h", "delivery_boundary_hold", null),
+		];
+		const production = computeZeroTouchKpis(events).buckets.find((bucket) => bucket.bucket === "production");
+		expect(production?.tasksDelivered).toBe(0);
+	});
+
 	it("reports restarts separately and never counts them as touches; quality_scan is not a delivery", () => {
 		const events = [
 			transition("card-r", "running", "start_requested"),

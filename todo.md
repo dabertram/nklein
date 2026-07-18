@@ -760,7 +760,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   counters, blind-safe release, `reservationAwarePools` folds holds into the admission pool view): instantiate at
   the dispatch path with capacities from `lms ps`/config, reserve before start, release at every terminal seam.
 
-- [ ] **F1.21b — Flip the delivery taint gate from record-only to enforcing (routes SHIPPED 2026-07-13).** All four
+- [x] **F1.21b — Flip the delivery taint gate from record-only to enforcing (routes SHIPPED 2026-07-13).** All four
   action families now run through the manifest broker: chat (decideManifestChatAccess + broker, pre-existing),
   NKlein swarm tools (wrapSwarmAgentTools, pre-existing), sandbox MCP tools (NEW — MCP-bundle names resolve a
   conservative manifest: untrusted_content source, egress-read tier, closing the broker's fail-open hole), and
@@ -769,6 +769,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   with `backedByTrustedPlan` = plan-born card). The delivery gate is RECORD-ONLY (self-observation + ledger
   transition `delivery_taint_gate_would_deny`); flip to enforcing (hold delivery like the boundary gate) after the
   F1.22 parity lock + a look at the accumulated would-deny evidence.
+  **FLIPPED TO ENFORCING 2026-07-18** — both preconditions verified: F1.22 parity lock delivered 2026-07-13
+  (done.md), and the accumulated live evidence shows ZERO would-deny records across David's ledger + telemetry
+  (the flip is behaviorally inert on observed history while arming the hold; taint RECORDING is proven live —
+  58 attempts carry labels). A positive deny now holds the card in Review exactly like the M4 gate
+  (`delivery_taint_gate_hold`, controllerDecision `taint_gate`, warn + stopTaskSession); gate-evaluation
+  failures still fail open. ALSO fixed in passing: the F12.108 zero-touch fold counted any `delivery_*`
+  transition as delivered — holds (boundary/taint) now excluded via an explicit delivered allowlist
+  (delivery_merge/commit/open_pr) + regression test.
 - [x] **F1.26b — Orchestrate the baseline-fixture replay run for a dogfood card — COMPLETE 2026-07-14 (`c82f55b4`).**
   The comparison + retention machinery is complete: `evaluateSelfImprovementReplay` (the §5.AF
   determinism comparator over captured-vs-replayed ledgers, divergence localized),
