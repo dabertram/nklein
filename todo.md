@@ -1749,8 +1749,14 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   **AUDIT 2026-07-18: DONE (code-complete)** — resolveAutoDecompositionDepth + difficultyTierFromScore wired at start-task-session (difficulty × routed-model qualityEffectiveContextTokens, visible reason, deterministic null fallback) → service → planning prompt builder; tested. Only a live decompose observation remains (fleet op).
 - [~] **F4.39 — Complete prompt intent modes.** Apply minimize/balance/max-task-info consistently and prove they affect **CORE DONE 2026-07-15 (`5f76b592`):** prompt-intent-mode.ts selectPromptComponentsForIntent (minimize/balance/max by tier, never drops invariants, 4 tests). Prompt-builder adoption = remaining wire. **ASSEMBLER ADOPTION SHIPPED 2026-07-16:** the cache-stable-prefix assembler (prompt-fragment-assembly.ts) is now the intent-mode seam — `PromptFragment` gained optional `tier` + `invariant`, and `selectPromptFragmentsForIntent`/`assemblePromptFragmentsForIntent` filter fragments by mode before assembly. **Byte-identical-safe by construction:** an omitted `tier` defaults to `essential` (kept in every mode), so an un-tagged fragment set is identical in ALL modes and `max_task_info` equals direct assembly — tiering is OPT-IN per fragment, adoption is incremental. 6 tests (minimize/balance/max selection + un-tagged byte-identical + minimize-drops-bytes). REMAINING: tag the live session-prompt fragments (nklein-session-system-prompt.ts / buildSessionSkillFragments) with tiers + thread a `PromptIntentMode` from config/task budget into the session assembly seam (effectful — changes which fragments ship once a non-default mode is selected; do it fragment-by-fragment with a byte-identical default).
   component selection without bypassing invariants.
-- [ ] **F4.40 — Finish byte-stable cache-aware layout.** Stabilize ordering/serialization across all prompt builders,
+- [~] **F4.40 — Finish byte-stable cache-aware layout.** Stabilize ordering/serialization across all prompt builders,
   isolate volatile suffixes, and regression-test prefix identity.
+  **PREFIX-IDENTITY REGRESSION NET SHIPPED 2026-07-18** (nklein-session-system-prompt.test.ts): session-env proven
+  a TRUE suffix (with-env starts with without-env byte-for-byte), two sessions differing only in env share every
+  prefix byte, a daily temporal change preserves the static+config head, and task-tier extras never reorder ahead
+  of the daily block — 4 tests locking the §5.AQ(e) layout. REMAINING: the same net over the OTHER prompt
+  builders (decompose seed, review seed, chat prompt) + a serialization-stability sweep of any builder still
+  concatenating ad-hoc.
 - [ ] **F4.45 — Use stateful LM Studio responses where verified.** Adopt `previous_response_id`/native sessions behind a
   capability gate, with stateless fallback and replay-safe transcript ownership.
 - [ ] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned

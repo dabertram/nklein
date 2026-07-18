@@ -123,3 +123,49 @@ describe("buildSessionSystemPrompt — absent ≡ null ≡ empty (the dedup byte
 		expect(primaryShapeExtrasNulled).toBe(restartShape);
 	});
 });
+describe("F4.40 prefix identity — volatile inputs never move a prefix byte", () => {
+	const base = {
+		basePrompt: "STATIC SHELL",
+		baseIsStaticShell: true,
+		efficiencyRules: "be lean",
+		temporalBlock: "today is D1",
+	};
+
+	it("session-env is a TRUE suffix: with-env text starts with the without-env text, byte for byte", () => {
+		const without = buildSessionSystemPrompt({ ...base });
+		const withEnv = buildSessionSystemPrompt({ ...base, sessionEnv: "<session>cwd=/a date=D1</session>" });
+		expect(withEnv.text.startsWith(without.text)).toBe(true);
+	});
+
+	it("two sessions differing ONLY in their env trailer share every byte before it", () => {
+		const shared = buildSessionSystemPrompt({ ...base }).text;
+		const a = buildSessionSystemPrompt({ ...base, sessionEnv: "<session>cwd=/a</session>" }).text;
+		const b = buildSessionSystemPrompt({ ...base, sessionEnv: "<session>cwd=/b</session>" }).text;
+		expect(a.slice(0, shared.length)).toBe(shared);
+		expect(b.slice(0, shared.length)).toBe(shared);
+		expect(a).not.toBe(b);
+	});
+
+	it("a daily temporal change preserves the static+config prefix (cache-warm head)", () => {
+		const headOnly = buildSessionSystemPrompt({ ...base, temporalBlock: "" }).text;
+		const day1 = buildSessionSystemPrompt({ ...base, temporalBlock: "today is D1" }).text;
+		const day2 = buildSessionSystemPrompt({ ...base, temporalBlock: "today is D2" }).text;
+		expect(day1.startsWith(headOnly)).toBe(true);
+		expect(day2.startsWith(headOnly)).toBe(true);
+		expect(day1).not.toBe(day2);
+	});
+
+	it("task-tier extras (retry note, planning) never reorder ahead of the daily block", () => {
+		const plain = buildSessionSystemPrompt({ ...base });
+		const withTask = buildSessionSystemPrompt({ ...base, attemptRetryNote: "avoid X", planningPrompt: "plan first" });
+		const dailyIndex = (keys: readonly string[]) => keys.indexOf("date");
+		for (const assembled of [plain, withTask]) {
+			for (const taskKey of ["attempt-retry", "planning"]) {
+				const at = assembled.orderedKeys.indexOf(taskKey);
+				if (at !== -1) {
+					expect(at).toBeGreaterThan(dailyIndex(assembled.orderedKeys));
+				}
+			}
+		}
+	});
+});
