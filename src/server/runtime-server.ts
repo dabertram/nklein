@@ -226,6 +226,7 @@ import {
 } from "./task-trouble-monitor";
 import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
 import { applyTriggerCardToBoard, handleTriggerIntake, loadTriggerTemplateFile } from "./trigger-intake-handler";
+import { startExternalTriggerScheduler } from "./trigger-scheduler";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
@@ -3802,6 +3803,66 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const tlsConfig = getKanbanRuntimeTls();
 	// HSTS on the served app + auth responses exactly when TLS is on (§5.Y #7).
 	const tlsHardeningHeaders = buildTlsHardeningHeaders(tlsConfig !== null);
+	// F12.106: one intake-deps object shared by the webhook route and the cron/file-watch scheduler, so every
+	// trigger source rides the identical validation, damping, seeding, and audit trail.
+	const triggerIntakeDeps = {
+		listWorkspaces: async () =>
+			(await listWorkspaceIndexEntries()).map((entry) => ({
+				workspaceId: entry.workspaceId,
+				repoPath: entry.repoPath,
+			})),
+		readTemplateFile: loadTriggerTemplateFile,
+		seedCard: async ({
+			entry,
+			template,
+			card,
+		}: Parameters<Parameters<typeof handleTriggerIntake>[1]["seedCard"]>[0]) => {
+			await mutateWorkspaceState(entry.repoPath, (latestState) => {
+				const applied = applyTriggerCardToBoard({
+					board: latestState.board,
+					template,
+					card,
+					randomUuid: () => randomUUID(),
+					now: Date.now(),
+				});
+				return { board: applied.board, value: applied.task.id };
+			});
+		},
+		audit: async ({
+			entry,
+			triggerName,
+			taskId,
+			payloadBytes,
+		}: Parameters<Parameters<typeof handleTriggerIntake>[1]["audit"]>[0]) => {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `External trigger "${triggerName}" seeded card ${taskId} (${payloadBytes} payload bytes).`,
+				taskId,
+				workspacePath: entry.repoPath,
+				metadata: { category: "trigger_intake", triggerName },
+			});
+			await appendAgentLedgerEvent(
+				buildTransitionEvent({
+					workflowId: taskId,
+					taskId,
+					workspacePathHash: hashWorkspacePathForLedger(entry.repoPath),
+					from: "external",
+					to: "trigger_seeded",
+					reason: `trigger:${triggerName}`,
+					controllerDecision: "external_trigger_intake",
+				}),
+			).catch(() => {});
+			// Arm the board machinery for a possibly-headless workspace so the seeded card is swept.
+			await getScopedNKleinTaskSessionService({
+				workspaceId: entry.workspaceId,
+				workspacePath: entry.repoPath,
+			}).catch(() => undefined);
+		},
+		now: () => Date.now(),
+		randomUuid: () => randomUUID(),
+	};
+
 	const requestHandler = async (req: IncomingMessage, res: ServerResponse) => {
 		try {
 			if (handleHttpRequest(req, res).end) {
@@ -3951,54 +4012,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						bodyText: triggerBody,
 						workspaceIdParam: requestUrl.searchParams.get("workspaceId"),
 					},
-					{
-						listWorkspaces: async () =>
-							(await listWorkspaceIndexEntries()).map((entry) => ({
-								workspaceId: entry.workspaceId,
-								repoPath: entry.repoPath,
-							})),
-						readTemplateFile: loadTriggerTemplateFile,
-						seedCard: async ({ entry, template, card }) => {
-							await mutateWorkspaceState(entry.repoPath, (latestState) => {
-								const applied = applyTriggerCardToBoard({
-									board: latestState.board,
-									template,
-									card,
-									randomUuid: () => randomUUID(),
-									now: Date.now(),
-								});
-								return { board: applied.board, value: applied.task.id };
-							});
-						},
-						audit: async ({ entry, triggerName, taskId, payloadBytes }) => {
-							recordSelfObservation({
-								signal: "custom",
-								severity: "info",
-								message: `External trigger "${triggerName}" seeded card ${taskId} (${payloadBytes} payload bytes).`,
-								taskId,
-								workspacePath: entry.repoPath,
-								metadata: { category: "trigger_intake", triggerName },
-							});
-							await appendAgentLedgerEvent(
-								buildTransitionEvent({
-									workflowId: taskId,
-									taskId,
-									workspacePathHash: hashWorkspacePathForLedger(entry.repoPath),
-									from: "external",
-									to: "trigger_seeded",
-									reason: `trigger:${triggerName}`,
-									controllerDecision: "external_trigger_intake",
-								}),
-							).catch(() => {});
-							// Arm the board machinery for a possibly-headless workspace so the seeded card is swept.
-							await getScopedNKleinTaskSessionService({
-								workspaceId: entry.workspaceId,
-								workspacePath: entry.repoPath,
-							}).catch(() => undefined);
-						},
-						now: () => Date.now(),
-						randomUuid: () => randomUUID(),
-					},
+					triggerIntakeDeps,
 				);
 				res.writeHead(triggerResult.status, triggerHeaders);
 				res.end(JSON.stringify(triggerResult.body));
@@ -4218,12 +4232,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 	})();
 
+	// F12.106 cron + file-watch trigger sources: same intake path (validation, damping, audit) as the webhook.
+	const externalTriggerScheduler = startExternalTriggerScheduler({
+		listWorkspaces: triggerIntakeDeps.listWorkspaces,
+		intakeDeps: triggerIntakeDeps,
+		log: (line) => deps.warn(line),
+		now: () => Date.now(),
+	});
+	void externalTriggerScheduler.reconcileNow().catch(() => undefined);
+
 	return {
 		url,
 		close: async () => {
 			// F1.31b: stop the background-eval service first — it force-stops + cleans every held eval workspace before the
 			// task-session services below are torn down (best-effort; never blocks shutdown on a stuck sandbox).
 			await backgroundEvalRailWiring?.stop().catch(() => undefined);
+			externalTriggerScheduler.dispose();
 			for (const drainTimer of queuedStartDrainTimersByWorkspaceId.values()) {
 				clearTimeout(drainTimer.timer);
 			}

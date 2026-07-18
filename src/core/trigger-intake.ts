@@ -37,6 +37,21 @@ export const triggerCardTemplateSchema = z.object({
 	startInPlanMode: z.boolean().default(false),
 	agentId: z.literal("nklein").optional(),
 	/**
+	 * Optional AUTONOMOUS fire schedule (5-field cron, LOCAL time) — the F12.106 cron source. Validated at load
+	 * time by the scheduler; the HTTP intake ignores it.
+	 */
+	cron: z.string().min(1).optional(),
+	/**
+	 * Optional file/log watch source: fires when `path` (workspace-relative) changes, debounced. The watcher's
+	 * fire payload is {source:"watch", path, event} so templates can substitute {payload.path}.
+	 */
+	watch: z
+		.object({
+			path: z.string().min(1),
+			debounceMs: z.number().int().positive().max(600_000).default(5_000),
+		})
+		.optional(),
+	/**
 	 * Reserved. !Klein boards are autonomous — the ready-sweep starts every startable card — so a non-starting
 	 * trigger card is not expressible yet; templates declaring `autoStart: false` are refused at load time
 	 * rather than silently behaving like `true`.
