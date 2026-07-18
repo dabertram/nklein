@@ -1,6 +1,7 @@
 import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { mergeConsecutiveSameRoleMessages, mergeSystemMessagesFirst } from "../core/normalize-system-first";
+import { normalizeOpenAiCompatBaseUrl } from "../core/openai-compat-base-url";
 import { reasoningAndAnswerText, splitReasoningChannel } from "../core/reasoning-channel-split";
 import { isRetryableModelCallError, RetryableModelCallAbortError, withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
@@ -141,11 +142,8 @@ function resolveChatRequestTimeoutMs(): number {
 }
 const DEFAULT_TIMEOUT_MS = resolveChatRequestTimeoutMs();
 
-function normalizeBaseUrl(baseUrl: string): string {
-	const trimmed = baseUrl.trim().replace(/\/+$/u, "");
-	// Accept both ".../v1" and bare host; the OpenAI route is "/chat/completions" under the v1 base.
-	return /\/v\d+$/u.test(trimmed) ? trimmed : `${trimmed}/v1`;
-}
+// Accept both ".../v1" and bare host; the OpenAI route is "/chat/completions" under the v1 base.
+const normalizeBaseUrl = normalizeOpenAiCompatBaseUrl;
 
 export class LocalLlmRequestError extends Error {
 	readonly status: number | null;

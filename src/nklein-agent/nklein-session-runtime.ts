@@ -1,4 +1,5 @@
 import { filterToolsByPolicyEnabled } from "../core/judge-tool-policy";
+import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
 import {
 	clearAllSessionFocusState,
@@ -420,7 +421,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			providerId: request.providerId,
 			modelId: request.modelId,
 			...(request.apiKey?.trim() ? { apiKey: request.apiKey.trim() } : {}),
-			...(request.baseUrl?.trim() ? { baseUrl: request.baseUrl.trim() } : {}),
+			// A bare-host base makes the SDK POST /chat/completions at the server root — LM Studio 200s it EMPTY
+			// (live 2026-07-18: every session "completed" instantly with no output). Normalize to the /v1 API root.
+			...(request.baseUrl?.trim() ? { baseUrl: normalizeProviderBaseUrl(request.providerId, request.baseUrl) } : {}),
 			...(request.reasoningEffort === null
 				? { reasoningEffort: "none" as NonNullable<NKleinSdkStartSessionInput["config"]["reasoningEffort"]> }
 				: request.reasoningEffort
@@ -433,7 +436,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			providerId: request.providerId,
 			modelId: request.modelId,
 			apiKey: request.apiKey?.trim() || undefined,
-			baseUrl: request.baseUrl?.trim() || undefined,
+			baseUrl: request.baseUrl?.trim() ? normalizeProviderBaseUrl(request.providerId, request.baseUrl) : undefined,
 			reasoningEffort:
 				request.reasoningEffort === null
 					? ("none" as NKleinSdkStartSessionInput["config"]["reasoningEffort"])
