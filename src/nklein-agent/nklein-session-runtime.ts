@@ -1,3 +1,4 @@
+import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
 import {
 	clearAllSessionFocusState,
 	createKanbanContextFocusExtension,
@@ -336,6 +337,15 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					useHostWorkspaceTools &&
 					process.env.KANBAN_ENABLE_WEB_RESEARCH === "1" &&
 					!isAirGappedMode(),
+				// F4.2: the freshness gate's advisory (topic volatility vs local-knowledge age) rides the tool
+				// description so retrieval is staleness-REASONED, not just egress-gated. Local knowledge age is
+				// unknown at assembly ⇒ the gate leans on volatility alone (fast-moving topics push online).
+				freshnessAdvisory: decideResearchFreshnessGate({
+					taskText: request.prompt ?? "",
+					knowledgeAt: null,
+					now: new Date(),
+					egressAvailable: true,
+				}).reason,
 			}),
 			// Planning/Refinement → In Progress promotion (todo §5.B). Trusted control-plane board mutation, so it
 			// resolves against the host workspace root like the decomposition tools. Attached only when the service

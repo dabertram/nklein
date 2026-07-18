@@ -38,6 +38,8 @@ export interface CreateWebResearchToolOptions {
 	fetch?: typeof globalThis.fetch;
 	timeoutMs?: number;
 	maxChars?: number;
+	/** F4.2: one advisory sentence from the research-freshness gate, appended to the tool description. */
+	freshnessAdvisory?: string;
 }
 
 function normalizeAllowedDomain(domain: string): string {
@@ -155,11 +157,17 @@ export function createWebResearchTool(options: CreateWebResearchToolOptions = {}
 		return [];
 	}
 	const allowedDomains = (options.allowedDomains ?? DEFAULT_ALLOWED_DOMAINS).map(normalizeAllowedDomain);
+	// F4.2: the freshness gate's advisory rides the tool DESCRIPTION — the model sees WHY online retrieval is
+	// (or isn't) worth it for this task's topic volatility, at zero prompt-budget cost beyond the tool card.
+	const freshnessSuffix = options.freshnessAdvisory?.trim()
+		? ` Freshness gate: ${options.freshnessAdvisory.trim()}`
+		: "";
 	return [
 		{
 			name: "web_research",
 			description:
-				"Fetch a current HTTPS source from !Klein's allow-list for grounding docs, changelogs, model leaderboards, or MCP registry research. Use sparingly and cite the URL in your answer.",
+				"Fetch a current HTTPS source from !Klein's allow-list for grounding docs, changelogs, model leaderboards, or MCP registry research. Use sparingly and cite the URL in your answer." +
+				freshnessSuffix,
 			inputSchema: {
 				type: "object",
 				properties: {

@@ -82,3 +82,14 @@ describe("nklein web research tool", () => {
 		});
 	});
 });
+describe("freshness advisory (F4.2)", () => {
+	it("appends the gate's reason to the tool description; absent advisory leaves it unchanged", () => {
+		const [plain] = createWebResearchTool({ enabled: true });
+		const [advised] = createWebResearchTool({
+			enabled: true,
+			freshnessAdvisory: "Local knowledge is stale for this fast-moving topic — refreshing online first.",
+		});
+		expect(plain?.description).not.toContain("Freshness gate:");
+		expect(advised?.description).toContain("Freshness gate: Local knowledge is stale");
+	});
+});

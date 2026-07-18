@@ -1519,6 +1519,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [~] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
   **AUDIT 2026-07-18: PARTIAL** — decideResearchFreshnessGate core exists + tested. MISSING: zero production consumers — not wired into decomposition/research, so online retrieval is not actually staleness/egress-gated and skips are unexplained.
+  **ADVISORY WIRE LIVE (same day):** the gate's decision line now rides the `web_research` tool DESCRIPTION at
+  session assembly (staleness-REASONED retrieval at zero prompt-budget cost: fast-moving topics read "verify
+  online first", evergreen ones "no online refresh needed"; egress-off remains the existing hard gate + air-gap
+  close). Local-knowledge age is unknown at assembly so the gate leans on topic volatility — the per-note
+  knowledgeAt feed and the F4.4 decomposition proof remain.
 - [x] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
   leaking raw untrusted instructions. **PURE CORE + PRODUCER SUBSTRATE SHIPPED (`39e03c72`):
   `evidence-currency-status.ts` (`summarizeEvidenceCurrency`, sanitized) + `evidence-currency-capture.ts` — the
