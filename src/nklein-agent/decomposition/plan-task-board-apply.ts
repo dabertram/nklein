@@ -125,6 +125,27 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		sharedContext: input.sharedContext,
 	});
 
+	// Duplicate-decomposition guard (live-found 2026-07-18): one seed card applied TWO differently-slugged
+	// decompositions — a retry re-ran the whole plan under a fresh slug and materialized parallel duplicate
+	// chains competing for the same spec. A source card that already generated cards under ANOTHER slug must
+	// amend that plan (same slug = the existing idempotent re-apply) or go through an explicit redecompose card
+	// (its own source id) — never silently fork a second plan.
+	if (input.sourceTaskId) {
+		const existingSlug = board.columns
+			.filter((column) => column.id !== "trash")
+			.flatMap((column) => column.cards)
+			.find(
+				(card) =>
+					card.generatedFromPlan?.sourceTaskId === input.sourceTaskId &&
+					card.generatedFromPlan?.planSlug !== taskGraph.slug,
+			)?.generatedFromPlan?.planSlug;
+		if (existingSlug) {
+			throw new Error(
+				`This card already decomposed as plan "${existingSlug}" — resubmit under that slug to amend the existing plan instead of forking a second one ("${taskGraph.slug}").`,
+			);
+		}
+	}
+
 	// §5.AU: materialize the decomposition's STREAM (epic) once, idempotently, and stamp every generated card with its
 	// streamId below. Title from the source card when known, else the humanized slug. Additive: older boards had no
 	// `streams`, so this seeds it; a re-apply finds the existing stream and does not duplicate it.

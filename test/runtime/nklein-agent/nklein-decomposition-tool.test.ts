@@ -495,6 +495,64 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		});
 	});
 
+	it("rejects a second decomposition under a different slug from the same source card", () => {
+		// Live-found (rig seed 2026-07-18): a retried architect re-ran the whole plan under a fresh slug and the
+		// board materialized TWO parallel chains (~18 duplicate cards) from one seed card.
+		const first = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "planning-card",
+			now: 100,
+		});
+
+		const renamed = { ...createTaskGraph(), slug: "habits-pipeline" };
+		expect(() =>
+			applyNKleinPlanTaskGraphToBoard({
+				board: first.board,
+				taskGraph: renamed,
+				baseRef: "main",
+				randomUuid: () => "unused",
+				sourceTaskId: "planning-card",
+				now: 200,
+			}),
+		).toThrow(/already decomposed as plan "habit-tracker"/);
+
+		// A different source card (e.g. an explicit redecompose card) still applies its own plan.
+		const fromOtherSource = applyNKleinPlanTaskGraphToBoard({
+			board: first.board,
+			taskGraph: renamed,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "redecompose-card",
+			now: 300,
+		});
+		expect(fromOtherSource.createdTasks.length).toBeGreaterThan(0);
+
+		// Trashing the prior chain is the sanctioned recovery path: once every generated card is in Trash,
+		// the same source may decompose again under a new slug.
+		const trashed = structuredClone(first.board);
+		const trashColumn = trashed.columns.find((column) => column.id === "trash");
+		for (const column of trashed.columns) {
+			if (column.id === "trash") {
+				continue;
+			}
+			const generated = column.cards.filter((card) => card.generatedFromPlan?.planSlug === "habit-tracker");
+			column.cards = column.cards.filter((card) => card.generatedFromPlan?.planSlug !== "habit-tracker");
+			trashColumn?.cards.push(...generated);
+		}
+		const afterTrash = applyNKleinPlanTaskGraphToBoard({
+			board: trashed,
+			taskGraph: renamed,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "planning-card",
+			now: 400,
+		});
+		expect(afterTrash.createdTasks.length).toBeGreaterThan(0);
+	});
+
 	it("moves an applied decomposition source card out of Planning", () => {
 		const board = createBoard();
 		board.columns[1]?.cards.push({
