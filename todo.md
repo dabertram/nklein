@@ -1441,9 +1441,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (don't enforce) for EVERY cell with sufficient evidence: worker easy/medium −50% REPLICATED across all three
   models; architect/reviewer ±0% everywhere. Enforced reasoning does not help — and actively hurts coders — on this
   fleet; `shouldEnforceReasoning` now answers from real data. Observations MERGED into the live store (backed up).
-- [ ] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
+- [~] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
+  **AUDIT 2026-07-18: MECHANISM EXISTS OPT-IN** — two-phase-tool-pick.ts (buildPhaseOneToolMenu / interpretPhaseOnePick /
+  narrowToolsToPick / selectRevealedToolSchema) + the beforeModel wire in two-phase-before-model.ts, gated on
+  NKLEIN_TWO_PHASE_TOOL_PICK and restricted to WORK-card sessions (deliberate — phase-1 overhead hurt decompose,
+  run44). Related static instances shipped 2026-07-18: verdict-session tool narrowing + the offer-layer policy
+  filter (23→13 schemas measured on the wire). REMAINING: the fleet A/B proving weak-model chaining improves
+  (flag on vs off) + the per-turn dynamic gating of F12.18. Genuine remainder is VALIDATION, not build.
 - [~] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
   example/result handle across tool boundaries so the controller can repair one failure without dumping bulk context.
   **NON-ZOD NORMALIZER SHIPPED 2026-07-17:** tool-error-contract.ts `toolErrorFromThrown(thrown, {toolName})` completes
