@@ -18,6 +18,7 @@ import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard, ReviewSubmissionInput } from "../core/review-orchestration";
+import { fingerprintReviewArtifact } from "../core/review-orchestration";
 import { planReviewPanel } from "../core/review-panel-plan";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -26,6 +27,10 @@ import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-con
 import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
 import { decideVerificationFirst } from "../core/verification-first-gate";
 import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
+import {
+	getReusableAcceptanceEvidence,
+	storeAcceptanceEvidence,
+} from "../nklein-agent/nklein-acceptance-evidence-registry";
 import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
 import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
@@ -367,23 +372,48 @@ export async function runSecondOpinionReviewForTask(
 	// Fire only via the injected `warn`, so they're diagnostic noise-free unless a caller wants them.
 	const stampPhase = (phase: string): void => input.warn?.(`[review-phase] ${input.taskId}: ${phase}`);
 	stampPhase("acceptance-verify start");
-	const acceptance = config.secondOpinionReviewEnabled
-		? await (async () => {
-				try {
-					return (
-						(await input.service.verifyTaskAcceptanceInSandbox?.({
-							taskId: input.taskId,
-							projectRepoPath: input.workspacePath,
-							baseRef: card.baseRef,
-							taskPrompt: card.prompt,
-						})) ?? null
-					);
-				} catch {
-					return null;
-				}
-			})()
+	// Same diff basis the review core fingerprints (getTaskDiff below) — a cheap git call vs a sandbox run.
+	const evidenceFingerprint = config.secondOpinionReviewEnabled
+		? await getDiff({
+				repoPath: input.workspacePath,
+				taskId: input.taskId,
+				baseRef: card.baseRef,
+				...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
+			})
+				.then((diff) => fingerprintReviewArtifact(diff || "(no file changes)"))
+				.catch(() => null)
 		: null;
-	stampPhase("acceptance-verify done");
+	// Live-found (rig 2026-07-18): verdict-less review retries re-ran the full sandbox acceptance on
+	// byte-identical work — reuse the prior run's evidence until the work fingerprint changes.
+	const reusedAcceptance = evidenceFingerprint
+		? getReusableAcceptanceEvidence(input.taskId, evidenceFingerprint)
+		: null;
+	const acceptance = reusedAcceptance
+		? reusedAcceptance
+		: config.secondOpinionReviewEnabled
+			? await (async () => {
+					try {
+						return (
+							(await input.service.verifyTaskAcceptanceInSandbox?.({
+								taskId: input.taskId,
+								projectRepoPath: input.workspacePath,
+								baseRef: card.baseRef,
+								taskPrompt: card.prompt,
+							})) ?? null
+						);
+					} catch {
+						return null;
+					}
+				})()
+			: null;
+	if (reusedAcceptance) {
+		input.warn?.(
+			`Acceptance evidence reused for ${input.taskId}: work fingerprint unchanged since the last run — skipping the sandbox re-run.`,
+		);
+	} else if (evidenceFingerprint && acceptance) {
+		storeAcceptanceEvidence(input.taskId, evidenceFingerprint, acceptance);
+	}
+	stampPhase(reusedAcceptance ? "acceptance-verify reused (work unchanged)" : "acceptance-verify done");
 
 	// W4.2 layer 3: probe once per review run for a lineage-diverse escalation worker (null ⇒ park as before).
 	const escalationCandidate = config.secondOpinionReviewEnabled

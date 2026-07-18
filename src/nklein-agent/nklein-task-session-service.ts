@@ -63,6 +63,7 @@ import {
 	isChatOnlyDecompositionActivity,
 	isDecompositionProgressTool,
 } from "./decomposition-stall-nudger";
+import { forgetAcceptanceEvidence } from "./nklein-acceptance-evidence-registry.js";
 import { createAcceptanceVerifier } from "./nklein-acceptance-verifier";
 import { createAdaptiveBudgetController } from "./nklein-adaptive-budget-controller";
 import {
@@ -2398,6 +2399,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		forgetPredictedOutput(taskId);
 		forgetLiveTaskUsage(taskId);
 		forgetBaselineProbe(taskId);
+		forgetAcceptanceEvidence(taskId);
 		forgetCompactionRequest(taskId);
 	}
 
@@ -2419,6 +2421,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		forgetPredictedOutput(taskId);
 		forgetLiveTaskUsage(taskId);
 		forgetBaselineProbe(taskId);
+		forgetAcceptanceEvidence(taskId);
 		forgetCompactionRequest(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);

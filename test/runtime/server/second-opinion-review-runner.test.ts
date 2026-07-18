@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeBoardData, RuntimeCardReview } from "../../../src/core/api-contract";
 import { fingerprintReviewArtifact, type ReviewSubmissionInput } from "../../../src/core/review-orchestration";
+import { forgetAcceptanceEvidence } from "../../../src/nklein-agent/nklein-acceptance-evidence-registry";
 import {
 	applyCardReviewToBoard,
 	buildReviewBoardContext,
@@ -487,6 +488,58 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(
 			expect.objectContaining({ reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } }),
 		);
+	});
+
+	it("reuses acceptance evidence across review cycles while the work fingerprint is unchanged", async () => {
+		// Live-found (rig 2026-07-18): verdict-less retries re-ran the FULL sandbox acceptance on byte-identical
+		// work every cycle. Same diff => the second cycle reuses the stored run; a changed diff re-verifies.
+		forgetAcceptanceEvidence("task-1");
+		const verify = vi.fn(async () => ({
+			present: true,
+			command: "npm test",
+			passed: false,
+			exitCode: 1,
+			output: "1 failing",
+			durationMs: 10,
+			failureCategory: null,
+			failureHint: null,
+		}));
+		const bounce = { verdict: "request_changes" as const, summary: "Almost", feedback: "Add a guard", insight: null };
+		const runOnce = async (deps: ReturnType<typeof makeDeps>) =>
+			runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: {
+					runSecondOpinionReviewSession: deps.runSecondOpinionReviewSession,
+					sendTaskSessionInput: deps.sendTaskSessionInput,
+					getSummary: () => null,
+					cancelTaskTurn: deps.cancelTaskTurn,
+					verifyTaskAcceptanceInSandbox: verify,
+				} as unknown as never,
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				// No speculative ::spec candidate — its diff would arm A/B arbitration and its own spec acceptance run.
+				getTaskResultBranchDiff: (async (args: { taskId: string }) =>
+					args.taskId.endsWith("::spec")
+						? null
+						: (deps.getTaskResultBranchDiff as unknown as () => Promise<string | null>)()) as unknown as never,
+			});
+
+		const first = await runOnce(makeDeps({ submission: bounce }));
+		expect(first).toEqual({ type: "bounced", round: 1 });
+		expect(verify).toHaveBeenCalledTimes(1);
+
+		// Cycle 2, identical diff: evidence reused, no sandbox re-run.
+		const second = await runOnce(makeDeps({ submission: bounce }));
+		expect(second).toEqual({ type: "bounced", round: 1 });
+		expect(verify).toHaveBeenCalledTimes(1);
+
+		// Cycle 3, the worker actually changed the tree: acceptance re-verifies.
+		const third = await runOnce(makeDeps({ submission: bounce, diff: "diff --git a/login.ts b/login.ts\n+fixed" }));
+		expect(third).toEqual({ type: "bounced", round: 1 });
+		expect(verify).toHaveBeenCalledTimes(2);
+		forgetAcceptanceEvidence("task-1");
 	});
 
 	it("bounces on request_changes: persists, moves to In Progress, re-drives the worker", async () => {
