@@ -1122,6 +1122,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
   the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
   package's e2e run.
+- [ ] **F2.7c — Chat model PIN (selection, not just discovery).** Live-found validating F2.7b on the fleet: the chat
+  resolves its model by DISCOVERY only (`resolveLocalChatModelDeps` → first loaded non-embedding model) — with several
+  models resident there is NO way to select which one a chat session uses (the vision positive-path probe could not
+  target glm-4.6v-flash without unloading every other model). Add a per-session (or settings-level) chat model pin:
+  plumb `modelId` from the chat session/settings into `resolveLocalChatModelDeps` (the pin parameter already exists
+  there and asserts loaded-ness), expose it in the chat UI's model indicator, and prefer a VISION-capable model
+  automatically when image attachments are present and the pinned/discovered model lacks `vision`.
 - [x] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** [E2E WIRING RE-VERIFIED 2026-07-15:
   composer image picker (draftImages + TaskImageStrip + vision warning) → panel onSendMessage(images) →
   sendTaskChatMessage → runtime.sendTaskChatMessage → task-session service threads images → SDK turn
