@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyJudgeSessionPromptDiet,
 	complexityNeedLevel,
+	JUDGE_MINIMAL_BASE_PROMPT,
+	JUDGE_SESSION_KINDS,
 	resolveSysPromptComponents,
 	SYSPROMPT_LEVEL_COMPONENTS,
 	SYSPROMPT_LEVELS,
@@ -160,5 +163,32 @@ describe("selectSysPromptLevel — intent-mode bias", () => {
 				}
 			}
 		}
+	});
+});
+describe("judge-session prompt diet (F4.37 first consumer)", () => {
+	it("swaps the worker shell for the static minimal judge base and drops worker-only sections", () => {
+		const dieted = applyJudgeSessionPromptDiet({
+			basePrompt: "x".repeat(20_000),
+			baseIsStaticShell: false,
+			efficiencyRules: "lean rules",
+			planningPrompt: "plan",
+			attemptRetryNote: "retry",
+			skillFragments: [{ id: "s1" }],
+		});
+		expect(dieted.basePrompt).toBe(JUDGE_MINIMAL_BASE_PROMPT);
+		expect(dieted.basePrompt.length).toBeLessThan(1_000);
+		expect(dieted.baseIsStaticShell).toBe(true);
+		expect(dieted.efficiencyRules).toBe("");
+		expect(dieted.planningPrompt).toBeNull();
+		expect(dieted.attemptRetryNote).toBeNull();
+		expect(dieted.skillFragments).toEqual([]);
+		expect(JUDGE_MINIMAL_BASE_PROMPT).toContain("submit");
+	});
+
+	it("names the judge kinds", () => {
+		expect(JUDGE_SESSION_KINDS.has("review")).toBe(true);
+		expect(JUDGE_SESSION_KINDS.has("plan-critique")).toBe(true);
+		expect(JUDGE_SESSION_KINDS.has("merge")).toBe(true);
+		expect(JUDGE_SESSION_KINDS.has("worker")).toBe(false);
 	});
 });

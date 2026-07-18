@@ -198,3 +198,51 @@ export function selectSysPromptLevel(input: SelectSysPromptLevelInput): SysPromp
 			return stepDown(base);
 	}
 }
+
+// ─── F4.37 first live consumer (evidence 2026-07-18): the judge-session prompt diet ────────────────────────────
+//
+// Controlled A/B on the fleet: with the full ~19.8KB worker system prompt, gemma-4-31b produced finish=length,
+// EMPTY content, and no `submit_review` call on a trivial review — the exact live "no submission" failure that
+// parked every review chain; with a lean system prompt the same model submitted a clean verdict immediately.
+// Judgment sessions (review / plan-critique / merge) judge presented materials — they do not need the worker's
+// operating manual, and carrying it actively breaks small/medium reviewers.
+
+/** Session kinds that judge presented work rather than produce it. */
+export const JUDGE_SESSION_KINDS = new Set(["review", "plan-critique", "merge"]);
+
+/**
+ * The minimal judge base prompt: identity + tool posture + the submission contract. The seed (user message)
+ * carries every task-specific detail. Static text ⇒ a cache-stable shell across judge sessions.
+ */
+export const JUDGE_MINIMAL_BASE_PROMPT = [
+	"You are !Klein's independent JUDGE for exactly one piece of presented work (a review, plan critique, or merge decision).",
+	"Judge ONLY what is presented plus anything you verify yourself with the available read/inspection tools — use them when the presented materials are not enough.",
+	"Be concrete and evidence-based; cite files/lines for findings.",
+	"You MUST conclude by calling the required submission tool named in the task (e.g. submit_review) with your verdict — prose without the tool call is a failed session.",
+].join(" ");
+
+export interface JudgePromptDietInput {
+	basePrompt: string;
+	baseIsStaticShell: boolean;
+	efficiencyRules: string;
+	planningPrompt: string | null;
+	attemptRetryNote: string | null;
+	skillFragments: readonly unknown[];
+}
+
+/**
+ * Apply the judge-session prompt diet: swap the worker shell for the minimal judge base and drop worker-only
+ * sections (efficiency rules, planning, retry notes, skill fragments). Pure; the caller applies it only for
+ * {@link JUDGE_SESSION_KINDS} (and may expose an env opt-out).
+ */
+export function applyJudgeSessionPromptDiet<T extends JudgePromptDietInput>(input: T): T {
+	return {
+		...input,
+		basePrompt: JUDGE_MINIMAL_BASE_PROMPT,
+		baseIsStaticShell: true,
+		efficiencyRules: "",
+		planningPrompt: null,
+		attemptRetryNote: null,
+		skillFragments: [],
+	};
+}

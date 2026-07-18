@@ -6,6 +6,7 @@ import {
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
+import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
 
 import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 
@@ -934,26 +935,42 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		attemptRetryNote?: string | null;
 		skillFragments?: readonly PromptFragment[];
 	}): AssembleSessionSystemPromptInput {
+		const sessionKind = derivePromptSessionKind(args.taskId, {
+			isExplicitDecomposition: this.explicitDecompositionTaskIds.has(args.taskId),
+		});
+		// F4.37 first consumer (evidence-backed 2026-07-18): judgment sessions get the MINIMAL judge shell — the
+		// full ~19.8KB worker prompt made small/medium reviewers exhaust their budget and return NO submission
+		// (finish=length, empty content) on every review; lean shell ⇒ clean submit_review. Opt out with
+		// NKLEIN_JUDGE_PROMPT_DIET=0.
+		const dieted =
+			JUDGE_SESSION_KINDS.has(sessionKind) && isEnabledByDefaultEnv(process.env.NKLEIN_JUDGE_PROMPT_DIET)
+				? applyJudgeSessionPromptDiet({
+						basePrompt: args.basePrompt,
+						baseIsStaticShell: args.baseIsStaticShell,
+						efficiencyRules: args.efficiencyRules,
+						planningPrompt: args.planningPrompt ?? null,
+						attemptRetryNote: args.attemptRetryNote ?? null,
+						skillFragments: args.skillFragments ?? [],
+					})
+				: null;
 		return {
 			taskId: args.taskId,
 			modelId: args.modelId,
-			sessionKind: derivePromptSessionKind(args.taskId, {
-				isExplicitDecomposition: this.explicitDecompositionTaskIds.has(args.taskId),
-			}),
+			sessionKind,
 			workspacePath: args.workspacePath,
-			basePrompt: args.basePrompt,
-			baseIsStaticShell: args.baseIsStaticShell,
+			basePrompt: dieted?.basePrompt ?? args.basePrompt,
+			baseIsStaticShell: dieted?.baseIsStaticShell ?? args.baseIsStaticShell,
 			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(args.taskId),
 			sessionEnv: args.sessionEnv,
-			planningPrompt: args.planningPrompt ?? null,
-			attemptRetryNote: args.attemptRetryNote ?? null,
-			efficiencyRules: args.efficiencyRules,
+			planningPrompt: dieted ? dieted.planningPrompt : (args.planningPrompt ?? null),
+			attemptRetryNote: dieted ? dieted.attemptRetryNote : (args.attemptRetryNote ?? null),
+			efficiencyRules: dieted?.efficiencyRules ?? args.efficiencyRules,
 			temporalBlock: decideTemporalContextInjection({
 				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 				text: args.prompt,
 				now: new Date(),
 			}).block,
-			skillFragments: args.skillFragments ?? [],
+			skillFragments: (dieted ? dieted.skillFragments : (args.skillFragments ?? [])) as readonly PromptFragment[],
 		};
 	}
 
