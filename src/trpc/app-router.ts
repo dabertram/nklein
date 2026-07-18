@@ -1,8 +1,16 @@
 // Defines the typed TRPC boundary between the browser and the local runtime.
 // Keep request and response contracts plus workspace-scoped procedures here,
 // and delegate domain behavior to runtime-api.ts and lower-level services.
+
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
+import type {
+	RuntimeAdwListWorkflowsResponse,
+	RuntimeAdwRunRequest,
+	RuntimeAdwRunStartResponse,
+	RuntimeAdwRunStatusRequest,
+	RuntimeAdwRunStatusResponse,
+} from "../core/adw-run-api-contract";
 import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/agent-attempt-ledger.js";
 import type {
 	RuntimeAnswerPlanQuestionRequest,
@@ -332,6 +340,18 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskActionTrailRequest,
 		) => Promise<RuntimeTaskActionTrailResponse>;
+		/** F12.107: list the workspace's ADW definitions (.nklein/workflows). */
+		listAdwWorkflows: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeAdwListWorkflowsResponse>;
+		/** F12.107: start an ADW run (deterministic steps host-side; agent steps as swept board cards). */
+		startAdwRun: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeAdwRunRequest,
+		) => Promise<RuntimeAdwRunStartResponse>;
+		/** F12.107: poll a live/finished run's per-step status. */
+		getAdwRunStatus: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeAdwRunStatusRequest,
+		) => Promise<RuntimeAdwRunStatusResponse>;
 		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,

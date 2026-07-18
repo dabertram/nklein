@@ -135,6 +135,7 @@ import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/s
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
 import { resolveKleinSourceRepoPath } from "./projects-api-helpers";
+import { handleGetAdwRunStatus, handleListAdwWorkflows, handleStartAdwRun } from "./runtime-api/adw-runs";
 import { handleAnswerPlanQuestion, handleListPlanQuestions } from "./runtime-api/answer-plan-question.js";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
@@ -1005,6 +1006,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		listNKleinPlanQuestions: async (workspaceScope, input) => handleListPlanQuestions(workspaceScope, input),
 		getTaskFocusChainHistory: async (workspaceScope, input) => handleGetFocusChainHistory(workspaceScope, input),
 		getTaskActionTrail: async (workspaceScope, input) => handleGetTaskActionTrail(workspaceScope, input),
+		// F12.107: the ADW runner surface — list definitions, start a run, poll status.
+		listAdwWorkflows: async (workspaceScope) => handleListAdwWorkflows(workspaceScope),
+		startAdwRun: async (workspaceScope, input) =>
+			handleStartAdwRun(workspaceScope, input, {
+				warmWorkspace: async (scope) => {
+					await deps.getScopedNKleinTaskSessionService(scope);
+				},
+			}),
+		getAdwRunStatus: async (workspaceScope, input) => handleGetAdwRunStatus(workspaceScope, input),
 		answerNKleinPlanQuestion: async (workspaceScope, input) =>
 			handleAnswerPlanQuestion(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,

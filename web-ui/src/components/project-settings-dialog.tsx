@@ -1,6 +1,7 @@
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { Database, FolderCog, Power, ShieldCheck } from "lucide-react";
 import { type ReactElement, useEffect, useState } from "react";
+import { AdwWorkflowsPanel } from "@/components/adw-workflows-panel";
 import {
 	buildCodeEmbeddingSettings,
 	CODE_EMBEDDING_PROVIDER_OPTIONS,
@@ -328,6 +329,7 @@ export function ProjectSettingsDialog({
 								</div>
 							</div>
 						</div>
+						<AdwWorkflowsPanel workspaceId={workspaceId} />
 						<div>
 							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
 								<FolderCog size={14} />

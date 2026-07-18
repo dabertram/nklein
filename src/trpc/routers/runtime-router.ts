@@ -2,6 +2,13 @@
 // app-router.ts. Built from the shared `t` + `workspaceProcedure` (passed in; typed via type-only imports — no
 // runtime cycle), so the router type composes identically.
 
+import {
+	runtimeAdwListWorkflowsResponseSchema,
+	runtimeAdwRunRequestSchema,
+	runtimeAdwRunStartResponseSchema,
+	runtimeAdwRunStatusRequestSchema,
+	runtimeAdwRunStatusResponseSchema,
+} from "../../core/adw-run-api-contract";
 import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from "../../core/agent-attempt-ledger.js";
 import {
 	runtimeAnswerPlanQuestionRequestSchema,
@@ -324,6 +331,21 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskActionTrailResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskActionTrail(ctx.workspaceScope, input);
+			}),
+		listAdwWorkflows: workspaceProcedure.output(runtimeAdwListWorkflowsResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.listAdwWorkflows(ctx.workspaceScope);
+		}),
+		startAdwRun: workspaceProcedure
+			.input(runtimeAdwRunRequestSchema)
+			.output(runtimeAdwRunStartResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.startAdwRun(ctx.workspaceScope, input);
+			}),
+		getAdwRunStatus: workspaceProcedure
+			.input(runtimeAdwRunStatusRequestSchema)
+			.output(runtimeAdwRunStatusResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getAdwRunStatus(ctx.workspaceScope, input);
 			}),
 		listNKleinPlanQuestions: workspaceProcedure
 			.input(runtimeListPlanQuestionsRequestSchema)

@@ -3298,7 +3298,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   (validation+damping+audit) with {source:"cron"|"watch"} payloads. Armed at server boot, disposed on close.
   +5 tests. All three todo'd sources (webhook, cron, file-watch) live — item complete. Watch source ALSO
   live-proven on the rig: log append → debounced fire → seeded card (log + board verified).
-- [~] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
+- [x] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
   !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
   reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
   "templating over coding", "build systems that build systems"). Add `.nklein/workflows/<name>.md|json`: an ordered list of
@@ -3315,8 +3315,16 @@ into the existing F12.31. Same verify-before-build caveat.**
   with full output to `.nklein/nklein/adw-runs/<name>-<ts>/<step>.log` evidence; agent steps seed a card via the
   normal createTask path and poll to a terminal lane; exit 1 on FAIL). Both recipes shipped as
   `examples/adw-workflows/{bug-report,dependency-bump}.json`. 9 tests. LIVE-verified on the rig workspace:
-  list + pass/fail/skip + evidence-tail chaining across steps + exit codes. REMAINING: UI runner surface +
-  a live agent-step run (unit-proven; long weak-model runs made rig validation impractical this session).
+  list + pass/fail/skip + evidence-tail chaining across steps + exit codes.
+  **UI RUNNER SHIPPED + BROWSER-VERIFIED 2026-07-18:** `Workflows (ADW)` section in Project Settings —
+  list definitions (invalid files shown with their parse error, Run disabled), shared input field, Run per
+  workflow, live per-step status polled at 3s (pending/running/ok/fail/skipped icons, agent-step card ids,
+  verdict + error). Server half = adw-run-service (bounded in-process run registry; deterministic steps host-side
+  with the same evidence dirs as the CLI; agent steps seeded via the NORMAL card path + warmed watchdog sweep,
+  polled to a terminal lane) behind a listAdwWorkflows/startAdwRun/getAdwRunStatus tRPC slice (full 4-layer).
+  E2E browser proof on the rig runtime: opened Project Settings → three real workflows listed → Run smoke →
+  live status reached PASS (greet/chain both exit 0). +2 panel tests. Item complete; the only depth remaining is
+  a LIVE agent-step run (unit-proven on both runners; agent cards ride the standard board machinery).
 - [x] **F12.108 — Zero-touch KPIs: measure how autonomous the factory actually is.** The video's measurement thread (KPIs +
   the "codebase runs itself" North Star) has no !Klein counterpart: we measure cost/quality (F12.48/F12.42) but not
   AUTONOMY. Ledger projections: zero-touch rate (% of completed cards with ZERO human interventions — no manual redrive, no
