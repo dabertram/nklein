@@ -1376,6 +1376,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   ran via the F3.16 A/B substrate (skip-everywhere conclusion merged into live stores). MISSING: the
   agreement-rate feed into reliability/ROUTING (agreement is computed in-loop but not persisted per model into
   the fitness/behavior stores the router reads).
+  **AGREEMENT FEED LIVE 2026-07-18, 25c0df1cd (record-only):** the loop result exposes `consistencyAgreement`;
+  the behavior profile gained `consistencySamples`/`consistencyAgreementEwma` (`recordConsistencyAgreement`,
+  α=0.3, clamped, seed-on-first); `persistConsistencyAgreement` appends agreement entries to the SAME
+  date-stamped behavior stream (schema's `outcome` now optional — old lines fold unchanged; all four fold paths
+  incl. the F1.15d combined + stable-id variants handle both kinds); the chat adapter records whenever a
+  consistency vote actually runs (chat's free-form remap means today's producers are non-chat surfaces — the
+  feed is armed). Routing consult of the EWMA stays observe-first. +2 tests.
 - [~] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
   only when evidence says they help. **PURE CORE + A/B SUBSTRATE SHIPPED (`7607b9da`): `enforced-reasoning-benefit.ts`
   (`learnReasoningBenefit`/`shouldEnforceReasoning`) + `reasoning-observation-store.ts` + an OPT-IN A/B pass in
