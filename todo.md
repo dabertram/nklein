@@ -3158,6 +3158,42 @@ into the existing F12.31. Same verify-before-build caveat.**
   resolve it" — rather than silently delivering a weak result. Rationale: honesty is the trust play; pairs the local-first
   stance with a non-dark-pattern escape hatch (the user chooses, informed). Extends F3.35 capability-ceiling surfacing. (honest-hybrid advisory)
 
+**ADW / software-factory deltas (IndyDevDan "Forget Loop Engineering — Agentic Engineering is about THIS", youtu.be/VQy50fuxI34, David 2026-07-18). Gap analysis: !Klein already IS the kanban-queue factory with review agents, closed-loop verification, fleet orchestration + observability, context engineering, and out-of-loop autonomy — the genuinely uncovered concepts are the FOUR below:**
+
+- [ ] **F12.106 — External-trigger intake: events create cards (the "Production Goes Down" incident ADW).** Every card
+  today is human-seeded; the video's climax is a workflow ENTERED by an event (an alarm fires → the factory responds
+  autonomously). Add trigger sources that seed cards from templates: a local webhook endpoint (`POST /api/triggers/<name>`),
+  a cron schedule, and a log/file-watch — each mapped to a card TEMPLATE (prompt + filesLikelyTouched + priority + auto-start
+  flag) defined in-repo. The flagship recipe: an incident template ("production down: gather evidence from <logs>, diagnose,
+  propose a fix card") that lands at the FRONT of the needs-you/ready queue with auto-start. Local-only invariant: triggers
+  BIND to loopback by default; no outbound calls. Seams: the card-mailbox + startTaskSession machinery already cover
+  seeding/starting; the new surface is the trigger registry + template store + an auditable trigger→card ledger event.
+  (IndyDevDan ADW factory intake; incident-response workflow)
+- [ ] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
+  !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
+  reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
+  "templating over coding", "build systems that build systems"). Add `.nklein/workflows/<name>.md|json`: an ordered list of
+  steps, each either DETERMINISTIC (a shell/acceptance command run host-side with output captured as evidence) or AGENT (a
+  card template seeded + awaited), with per-step verify gates and a final verdict — runnable from the UI/CLI over an input
+  (`nklein workflow run <name> --input …`), versioned in-repo like skills. Distinct from §5.AE skills (single-prompt
+  packages) and from decompose (model-planned): an ADW is HUMAN-authored process structure the factory executes repeatedly.
+  Start with two recipes proving the shape: "bug-report → repro test → fix card → verify" and "dependency-bump → build →
+  test → review card". (IndyDevDan ADW; PITER-style problem→solution pipelines)
+- [ ] **F12.108 — Zero-touch KPIs: measure how autonomous the factory actually is.** The video's measurement thread (KPIs +
+  the "codebase runs itself" North Star) has no !Klein counterpart: we measure cost/quality (F12.48/F12.42) but not
+  AUTONOMY. Ledger projections: zero-touch rate (% of completed cards with ZERO human interventions — no manual redrive, no
+  park-resolution, no steer note, no operator merge), interventions-per-card by kind, autonomous streak (longest run of
+  consecutive zero-touch completions), and time-to-human when intervention WAS needed. Surface via `dev autonomy` + a
+  Model-Performance dialog row; the needs-you/park/steer/merge events already ride the ledger+stores, so this is a pure
+  projection. Honest-labeling: a card completed under NKLEIN_* validation flags or dev-test scaffolds must be counted in a
+  separate bucket, never inflating the production rate. (IndyDevDan agentic KPIs / ZTE ladder)
+- [ ] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
+  scale chapter runs the SAME workflow over many inputs in parallel; !Klein can only seed cards one at a time (or via
+  model-planned decompose). Add a bulk-seed surface: a card template + a list (paths, issue lines, CSV rows) → N cards
+  created with per-input substitution, dependency-free, admitted through the normal concurrency/endpoint gates. CLI first
+  (`nklein task seed-bulk --template … --inputs …`), board multi-select later. Pairs with F12.106 templates and gives the
+  F12.107 ADWs their batch mode. (IndyDevDan scale-compute)
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
