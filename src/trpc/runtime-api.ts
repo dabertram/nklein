@@ -83,6 +83,7 @@ import { buildModelTuningRecommendations } from "../core/model-tuning-recommenda
 import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
+import { assemblePromptFragments } from "../core/prompt-fragment-assembly";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
@@ -118,6 +119,7 @@ import {
 	type NKleinPlanArtifactSummary,
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
+import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
 import { openInBrowser } from "../server/browser";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
@@ -334,6 +336,30 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// §5.M: split the lean chat window on ACTUAL (bounded BPE) token counts, not the crude length/4 placeholder —
 			// so the short-term memory boundary + overflow summarization trigger at the real budget the model sees.
 			estimateTokens: countKanbanTextTokens,
+			// F4.17: the chat path composes the SAME active-skill fragments as board sessions — one resolver
+			// (buildSessionSkillFragments), volatility-ordered assembly, "chat" role bundle. Fail-soft + cheap when no
+			// skills resolve (empty ⇒ null ⇒ no system block, byte-identical).
+			buildSkillFragmentsNote: async ({ userMessage, modelId }) => {
+				const workspacePath = deps.getActiveWorkspacePath();
+				if (!workspacePath) {
+					return null;
+				}
+				try {
+					const fragments = await buildSessionSkillFragments({
+						role: "chat",
+						taskText: userMessage,
+						workspacePath,
+						modelId: modelId ?? null,
+						sandboxMcpEnabled: false,
+					});
+					if (fragments.length === 0) {
+						return null;
+					}
+					return assemblePromptFragments(fragments).text;
+				} catch {
+					return null;
+				}
+			},
 			// Use the configured LOCAL provider endpoint (LM Studio / Ollama) when one is selected, so the chat hits the
 			// same model server the user set — not a hardcoded default port. A cloud selection resolves to null and the
 			// chat falls back to its own default local endpoint (the chat is local-only).

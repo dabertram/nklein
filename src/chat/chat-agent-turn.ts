@@ -40,6 +40,9 @@ export interface ChatAgentTurnDeps {
 	readMemories: (sessionId: string) => Promise<ChatMemory[]>;
 	/** Load the session's focus chain (todo §5.M G4) so it's re-anchored into the turn; omit for no focus chain. */
 	readFocusChain?: (sessionId: string) => Promise<FocusChain | null>;
+	/** F4.17: resolve the session's active-skill prompt fragments (same resolver as board sessions) into ONE rendered
+	 *  system block for this turn; null/absent ⇒ no block (byte-identical). Must be fail-soft (never throw the turn). */
+	buildSkillFragmentsNote?: (input: { userMessage: string }) => Promise<string | null>;
 	appendMessage: (
 		sessionId: string,
 		input: { role: ChatMessage["role"]; content: string; meta?: ChatMessage["meta"] },
@@ -171,6 +174,10 @@ export async function runChatAgentTurn(
 		(deps.focusChainNudgeEnabled ?? isTruthyEnv(process.env.NKLEIN_FOCUS_CHAIN_NUDGE)) && !focusChain
 			? decideFocusChainNudge({ hasFocusChain: false, toolsOffered: deps.offeredToolNames?.length ?? 0 })
 			: { nudge: false, reason: "" };
+	// F4.17: the chat path composes the SAME skill fragments as board sessions (one resolver) — fail-soft.
+	const skillFragmentsNote = deps.buildSkillFragmentsNote
+		? await deps.buildSkillFragmentsNote({ userMessage: input.userMessage }).catch(() => null)
+		: null;
 	// §5.AU: the resolved message-target note (when the message addresses a card/stream/answer) leads the turn,
 	// before the focus chain — the addressing decision frames everything else. Goal-targeted turns add nothing.
 	const messages: ChatPromptMessage[] = [
@@ -179,6 +186,7 @@ export async function runChatAgentTurn(
 		...(input.kleinSelfCorpusNote ? [{ role: "system" as const, content: input.kleinSelfCorpusNote }] : []),
 		...(input.unifiedMemoryNote ? [{ role: "system" as const, content: input.unifiedMemoryNote }] : []),
 		...(input.targetNote ? [{ role: "system" as const, content: input.targetNote }] : []),
+		...(skillFragmentsNote ? [{ role: "system" as const, content: skillFragmentsNote }] : []),
 		...(focusChain
 			? [
 					{

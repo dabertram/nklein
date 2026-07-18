@@ -110,6 +110,9 @@ export interface ChatServiceOptions {
 		startedAt: number;
 		endedAt: number;
 	}) => void;
+	/** F4.17: resolve the session's active-skill prompt fragments (SAME resolver as board sessions) into one rendered
+	 *  system block for a tool-using chat turn. Fail-soft; omit ⇒ no skill block (byte-identical). */
+	buildSkillFragmentsNote?: (input: { userMessage: string; modelId: string | null }) => Promise<string | null>;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
 	/** §5.AU: the card/stream index of the session's board, for message-target resolution (the addressing ladder).
@@ -726,6 +729,16 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								...withToolTranscript(agentToolDeps, session.id, onToolEvent),
 								pollSteeringMessages: activeTurn.poll,
 								closeSteering: activeTurn.close,
+								// F4.17: chat composes the same skill fragments as board sessions (one resolver, fail-soft).
+								...(options.buildSkillFragmentsNote
+									? {
+											buildSkillFragmentsNote: ({ userMessage }: { userMessage: string }) =>
+												options.buildSkillFragmentsNote?.({
+													userMessage,
+													modelId: modelDeps.modelId ?? null,
+												}) ?? Promise.resolve(null),
+										}
+									: {}),
 								// §5.AD opt-in enforced-reasoning bounce over the final draft (flag-gated inside; fail-soft).
 								enforceReasoning: ({ task, draft }) =>
 									maybeEnforceReasoning({
