@@ -808,7 +808,14 @@ export class AgentSandboxManager {
 		if (this.basicMemoryEnabled && !this.basicMemoryPlanByKey.has(projectKey)) {
 			this.basicMemoryPlanByKey.set(
 				projectKey,
-				planBasicMemoryScoping({ runtimeHome: join(homedir(), ".nklein"), workspaceHash: projectKey, scopes: [] }),
+				planBasicMemoryScoping({
+					runtimeHome: join(homedir(), ".nklein"),
+					workspaceHash: projectKey,
+					// F4.31 (audit 2026-07-18): the GLOBAL cross-repo store was planned but never activated
+					// (scopes: []) — enable it alongside the pinned per-project default; the shared mount is
+					// identical across projects and the runtime dedups it by destination.
+					scopes: ["global"],
+				}),
 			);
 		}
 		return mount;

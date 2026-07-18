@@ -1635,9 +1635,12 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 - [~] **F4.30 — Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
   a reasoner, opted-out project, unavailable binary, and failed server must be withheld/fail soft as designed.
   **AUDIT 2026-07-18: PARTIAL** — fit/withhold/fail-soft logic complete + unit-tested (selectSandboxMcpServersForModel + decideMcpServerModelFitById + memory-fit gate, wired at the tool-bundle seam; reasoner-withheld/uncatalogued-failsafe/opt-out proven). MISSING: the LIVE in-sandbox proof (a fitting model actually using codebase-memory/sequential-thinking + the four withhold cases demonstrated live).
-- [~] **F4.31 — Finish Basic Memory container integration.** Inject per-project/global RW mounts, seed hardened offline
+- [x] **F4.31 — Finish Basic Memory container integration.** Inject per-project/global RW mounts, seed hardened offline
   config, isolate permissions, and preserve user-owned Markdown across container/session restarts.
   **AUDIT 2026-07-18: PARTIAL** — per-project container wiring complete (RW mounts via planBasicMemorySandboxWiring, config seed, offline hardening, workspace-hash isolation, host-persisted markdown; tested). MISSING: the GLOBAL-scope RW mount is defined but never activated — the only planBasicMemoryScoping call passes scopes: [].
+  **GLOBAL SCOPE ACTIVATED (same day):** registerProject now plans `scopes: ["global"]` — the shared cross-repo
+  store mounts RW beside the pinned per-project default (identical path across projects; runtime dedups by
+  destination). Item complete.
 - [ ] **F4.32 — Finish Basic Memory audit and production proof.** Dispatch strongest-non-author idle audits, reconcile
   contradictions against code graph/ledger, test write→restart→recall, and optionally preseed offline semantic search.
 
