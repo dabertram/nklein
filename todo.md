@@ -2360,8 +2360,14 @@ stays fast + complete.
     exemplar-sized functions (decls + arrow consts, ≤50 lines) scored by camelCase-aware identifier overlap with
     the task text; target files excluded; one per file, cap 2, floor 0.12; block labeled "style reference — do
     not copy logic". Wired in the start handler behind `NKLEIN_FEWSHOT_EXEMPLARS` for write-scoped cards
-    (default OFF = byte-identical prompt + zero scan). 4 tests. REMAINING: fleet A/B before default-on (the
-    F12.41 significance gate is the arbiter); F12.81 extends with ledger-sourced message-format shots.
+    (default OFF = byte-identical prompt + zero scan). 4 tests.
+    **FLEET A/B RUN 2026-07-19 (n=3 vs n=3, fresh isolated HOME, gemma-4-31b workers, prod-down doc-write
+    fixture):** completion rate IDENTICAL (2/3 each arm; one >20-min gemma long-tail timeout each), all completed
+    runs captured patches (mechanism safe), wall times OFF 853s/317s vs ON 156s/684s — direction mildly favors
+    exemplars but within-arm variance (156–853s) dwarfs the arm difference: NO measurable benefit at this n on
+    this task shape (a doc-write card is a weak fit for code exemplars, flagged up front). VERDICT: flag stays
+    OPT-IN; a decisive test needs a code-EDIT fixture + more runs through the F12.41 significance gate.
+    F12.81 extends with ledger-sourced message-format shots.
   - [x] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
     split-then-merge), attach signature+imports+scope, never split a function mid-body (cAST +4.3 Recall@5 / +2.67 Pass@1).
     Denser chunks free the small window. (cAST 2506.15655; Repomix --compress)
