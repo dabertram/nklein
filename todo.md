@@ -1691,6 +1691,20 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 - [~] **F4.37 — Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
   chat/swarm/review, and expose global/project controls.
   **AUDIT 2026-07-18: PARTIAL** — five additive levels + AUTO selector + intent bias exist and are tested (sysprompt-level.ts). MISSING: assembly into chat/swarm/review (resolveSysPromptComponents + request-economy-plan have ZERO consumers; only the binary lean/full toggle is live) and the global/project control exposure.
+  **FIRST REAL CONSUMER LIVE 2026-07-18 — the judge-session diet (44c600114 + d322aa8ed + b452fd02a), root-caused
+  on the wire:** ALL fleet reviewers ended EVERY review with "no submission". Tee-proxy forensics found THREE
+  stacked causes, each proven by a controlled A/B on the captured live request: (1) the ~19.8KB worker system
+  prompt on judgment sessions → small models burn the whole completion budget and return finish=length/empty
+  (huge-prompt A/B: no tool call; tiny-prompt: clean submit_review) — FIXED: review/plan-critique/merge sessions
+  get JUDGE_MINIMAL_BASE_PROMPT via applyJudgeSessionPromptDiet in buildSessionSystemPromptInput (default-on,
+  NKLEIN_JUDGE_PROMPT_DIET=0 opts out); (2) POST-diet the judges STILL carried the full worker TOOLS block —
+  32,200 serialized chars (~8k tok, decompose_project alone 8KB) burying submit_review among 25 schemas — FIXED:
+  restrictToolPoliciesForVerdictSession (review+plan-critique only; merge keeps editing tools); (3) the vendored
+  SDK only policy-filters extension-registered tools — config-declared (!Klein extraTools) merged UNFILTERED, so
+  enabled:false never removed a schema (this also silently weakened the §5.B planning restriction since it
+  shipped) — FIXED: filterToolsByPolicyEnabled at the offer layer in nklein-session-runtime. Judge requests on
+  the wire: sys 19,792→627 chars; tools 23→13 (~12.9KB). The remaining F4.37 scope (5-level assembly into
+  chat/swarm + global/project controls) is unchanged.
 - [x] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and **CORE DONE 2026-07-15:** auto-decomposition-depth.ts resolveAutoDecompositionDepth (difficulty×effective-context → depth + reason, 4 tests). **PROMPT SEAM SHIPPED 2026-07-16:** `buildNKleinStartPromptParts`/`buildNKleinPlanningSystemPrompt` take an optional `AutoDecompositionDepthDecision` and emit `formatAutoDecompositionDepthGuidance` as one advisory line in the decompose prompt (depth 0 = shallow, ≥1 = N nested levels); omitted ⇒ byte-identical (default off). 10 tests. **ACTIVATED 2026-07-16:** `start-task-session.ts` now computes the decision for explicit decompose-in-plan tasks
   from `difficultyTierFromScore(taskDifficulty)` × the routed model's `nkleinLaunchConfig.contextWindow` (effective),
   threads it through `StartNKleinTaskSessionRequest.autoDecompositionDepth` → `buildNKleinStartPromptParts` → the prompt
