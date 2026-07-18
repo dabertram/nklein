@@ -1251,6 +1251,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
+  **AUDIT 2026-07-18: OPEN** — the drill UI exists (board-dag-view + stream-overview-panel, keyboard-accessible); the item's residue IS the missing Playwright stream→DAG→card→thread→back focus/BACK spec.
 - [~] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
   **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `8f67745f`):** `src/core/reasoning-capture.ts`
@@ -1310,6 +1311,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `launchConfigOverrides:{modelId: nextModelKey}` + the persisted original prompt, and record a ledger `transition`
   (kind failover) for observability; (5) verify with the isolated-drain rig (memory: ministral-alternation-debugging
   has the rig recipe incl. the dev:full stale-server + /Users-path gotchas).
+  **AUDIT 2026-07-18: PARTIAL** — model-side failover done + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON). MISSING: the endpoint-alternatives leg (same model, different endpoint) on the swarm paths.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
 - [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
@@ -1323,6 +1325,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Byte-identical when the hook is omitted; unit-tested (looping text fires + records, clean text doesn't). **Remaining:**
   the "interrupt safely" half (sample the in-flight stream + abort a runaway into the §5.AA retry ladder) is deferred like
   the PRM gate — activate only once telemetry confirms the detector's live false-positive rate is acceptably low.
+  **AUDIT 2026-07-18: PARTIAL** — record-only detection wired (detectRunawayGeneration → onRunawayDetected → self-observation). MISSING: the interrupt-safely half (in-flight sampling/abort into the §5.AA ladder — rides the unbuilt F3.9 vendored model-call seam).
 - [ ] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
 - [~] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
@@ -1594,8 +1597,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   proactive force-call, sampler, and budget preferences at chat and swarm call seams.
 - [~] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). Dynamics-level config resolution wire remaining.
   and make the default fully dynamic without hidden env-only behavior.
-- [ ] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
+- [~] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
+  **AUDIT 2026-07-18: PARTIAL** — board/swarm composes through one resolver (resolveActiveSkills + buildSessionSkillFragments + volatility-ordered assemblePromptFragments at session-system-prompt). MISSING: the CHAT path has zero skill-fragment composition, and jit-fragment-budget overflow capping has no consumers.
 - [x] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
   provenance/effect, and avoid retrying equivalent fragments.
 - [~] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash, **RECORD+STORE DONE 2026-07-15:** procedural-skill-record.ts (ProceduralSkill model + pure ops) + procedural-skill-store.ts (snapshot-json CRUD + supersession + getCurrent, 4 tests). **RETRIEVAL-MATCHING CORE DONE 2026-07-16:** procedural-skill-retrieval.ts `matchProceduralSkills` (active+not-superseded only, tag-overlap ranked then helped-rate, minOverlap/limit) + `isRetrievableProceduralSkill`, 7 tests. **CONSUMER WIRE SHIPPED 2026-07-16:** `buildSessionSkillFragments` now surfaces matched ACTIVE procedures as prompt fragments behind `NKLEIN_PROCEDURAL_SKILLS` (default OFF = byte-identical) + empty-safe, via `deriveProceduralContextTags(role, taskText)` → `matchProceduralSkills` (injectable store loader for tests). 16 tests. **DISTILLATION PRODUCER SHIPPED 2026-07-16:** the bank is no longer write-empty. `procedural-skill-distillation.ts` (pure): `extractCompletedSteps` pulls a focus chain's `[x]` done steps; `distillProceduralSkill` turns a SUCCESSFUL task's completed steps into a ProceduralSkill — body = ordered steps, tags via `deriveProceduralContextTags(role, title+objective)`, stable id per (task, content) so re-distilling is idempotent, and it starts as `candidate` (NEVER active) so populating the bank can't push an unvalidated procedure into a live prompt. Conservative: distills only success + ≥2 done steps. 8 tests. `procedural-skill-producer.ts` `maybeDistillAndStoreProcedure` is the effectful bridge — gated on the SAME `NKLEIN_PROCEDURAL_SKILLS` flag as the consumer, distill→`upsertProceduralSkill`, best-effort. 4 tests. **PRODUCER CALL-SITE WIRED 2026-07-16:** `maybeDistillAndStoreProcedure` is now called in the terminal-attempt async
@@ -1613,10 +1617,13 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
 #### 4D. Safe community Agent Skills ingestion *(legacy §5.AP)*
 
+  **AUDIT 2026-07-18 re-confirmed:** loop closed through the terminal-attempt distiller; the ONE missing half stands — applyProceduralSkillLifecycle has zero effectful callers (candidate→active promotion on helped/hurt is unwired).
 - [ ] **F4.20 — Complete effectful SKILL.md loading.** Read a real skill plus bundle inside containment, feed the existing
   parser/manifest cores, and map it into the dynamic-skill shape without executing files.
+  **AUDIT 2026-07-18: OPEN** — parser + manifest/reconcile cores exist but consumed only by type; no effectful SKILL.md disk loader runs a real skill+bundle inside containment.
 - [ ] **F4.21 — Implement gated discovery.** Search trusted origins by default; require an explicit untrusted-discovery
   opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
+  **AUDIT 2026-07-18: OPEN** — only the trust classifier exists (classifySkillSourceTrust); no discovery/search mechanism, no trusted-origin search, no untrusted opt-in.
 - [ ] **F4.22 — Build the user-controlled import flow.** Browse/select, show full source/bundle/findings/trust/provenance,
   compute SHA-256 over the canonical preimage, persist TOFU pins, and force re-review on change.
   **AUDIT 2026-07-18: OPEN** — only the decideSkillImport core exists; no browse/select UI, no TOFU pin store, no production consumer, canonical-preimage hashing left to the caller.
@@ -1730,15 +1737,18 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
   models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity
   over the same setup-plan model.
-- [ ] **F5.4 — Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
+- [~] **F5.4 — Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
   provide accessible text fallback.
 
 #### 5B. Desktop updates, migrations, and packaged behavior *(legacy §10 desktop)*
 
-- [ ] **F5.5 — Complete the packaged desktop updater.** Fetch the selected channel manifest, download+verify asset,
+  **AUDIT 2026-07-18: PARTIAL (content-only)** — mechanism complete + tested + mounted (onboarding-media-source: CSP-self-only, data:/blob:/external rejected, guaranteed text fallback; StartupOnboardingDialog in App). MISSING: only the optional first-party media assets themselves (public/assets/onboarding holds .gitkeep) — a content decision, not engineering.
+- [~] **F5.5 — Complete the packaged desktop updater.** Fetch the selected channel manifest, download+verify asset,
   hand off to the platform installer, expose tray/UI progress/errors/retry, and never install an untrusted asset.
-- [ ] **F5.6 — Build runtime/project migrations with backup and rollback.** Version every migration, create verifiable
+  **AUDIT 2026-07-18: PARTIAL** — every pure updater core exists + tested in packages/desktop (feed parse, channel/trust selection, sha256 download verify, installer handoff, tray show-update). MISSING: the effectful client loop — main.ts never invokes check→download→verify→handoff; no live tray/progress/retry surface.
+- [~] **F5.6 — Build runtime/project migrations with backup and rollback.** Version every migration, create verifiable
   backups, record results, resume/rollback safely after interruption, and make update acceptance depend on it.
+  **AUDIT 2026-07-18: PARTIAL** — versioned backup + rollback cores exist (project-migration-backup.ts). MISSING: no effectful migration runner consumes them; no record/resume-after-interruption; no update-acceptance gating.
 - [ ] **F5.7 — Integrate signed release assets and update policy.** macOS signing/notarization, Windows signing, Linux
   checksum/signing decision, channel manifests, integrity tests, and reproducible electron-builder configuration.
 
@@ -2546,12 +2556,13 @@ output and NOT acted on. Captured as F12.12.)
   `edit_thrash` self-observation per session+file when oscillation is detected — feeding the same observation stream
   the runtime-verdict penalty reads. Session state cleaned in forgetSessionFocusState. REMAINING: a
   TEST-misinterpretation detector (needs a test-output parse — separate slice). (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
-- [ ] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
+- [~] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
   pre-execution syntax/diff validator to catch malformed patches before they burn a turn (a "patch does not apply cleanly"
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed
   `MALFORMED_PATCH` (via F3.T2) for immediate repair rather than a failed apply. (harnesses.sh mini-swe-agent lessons)
 
 **Small-model reliability deltas (second research pass — techniques weak local models specifically need):**
+  **AUDIT 2026-07-18: PARTIAL (functionally covered)** — a non-applying edit throws immediately with actionable prose (nklein-fuzzy-edit fallback ladder — no turn burned on a failed apply), and the F12.63 guard rejects syntax breakage post-apply. MISSING: only the TYPED `MALFORMED_PATCH` classification through the F3.T2 taxonomy (today's failures are descriptive strings, not typed kinds).
 - [x] **F12.17 — Forgiving multi-format tool-call parser with auto-repair + `reasoning_content` fallback.** Small local
   models emit malformed-but-recoverable calls (wrong param names/types, XML/YAML/Hermes/plain-text instead of JSON, or the
   call buried in `reasoning_content`). **ALREADY DONE (§5.O) — `nklein-narrated-tool-call.ts` (`recoverNarratedToolCalls`).**
@@ -2628,9 +2639,10 @@ output and NOT acted on. Captured as F12.12.)
   3 tests. REMAINING (activation): per-session state at the tool-broker/afterTool seam (outcome feed exists in the
   ledger toolCall records) + demotion reflected in the offered tool ordering; the retry-temperature ramp half
   composes with F3.30's controller.
-- [ ] **F12.25 — Lint-on-edit reject + windowed file viewer (ACI micro-ergonomics).** Reject a syntactically-broken edit at
+- [x] **F12.25 — Lint-on-edit reject + windowed file viewer (ACI micro-ergonomics).** Reject a syntactically-broken edit at
   the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
   search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)
+  **AUDIT 2026-07-18: DONE (covered)** — the lint-on-edit reject IS the shipped F12.63 post-apply syntax guard at the edit tool boundary (broken-after-but-ok-before edits fail NOW with the model in context; conservative string/comment-aware balance scan, JSON real-parse); the windowed viewer exists as read_files start_line/end_line ranges + the fuzzy-edit window semantics.
 - [ ] **F12.26 — Capability-gated CodeAct (executable code actions) for 30B+ routes.** Composable code-actions (control flow
   over multiple tool calls in one turn) give ~+20% success / ~30% fewer steps for CAPABLE models, but impose a "structure
   tax" that HURTS <7B models. Offer it opt-in ONLY for cards routed to 30B+ local models — a natural fit for capability-
