@@ -337,6 +337,13 @@ export async function runSecondOpinionReviewForTask(
 				judgeModelKey: candidate.modelId,
 				reviewer: { providerId: reviewerProviderId, modelId: candidate.modelKey },
 			}));
+			// Live-debug visibility (2026-07-18): the panel silently fell to the single-reviewer path on the rig —
+			// say WHAT assembled so an empty/thin panel is diagnosable from the log instead of archaeology.
+			input.warn?.(
+				`Review panel assembly for ${input.taskId}: ${panelJudges.length} judge(s) from ${descriptors.length} loaded descriptor(s) [${panelJudges.map((judge) => judge.judgeModelKey).join(", ") || "none"}]; nEyes=${isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW)}.`,
+			);
+		} else {
+			input.warn?.(`Review panel assembly for ${input.taskId}: skipped (no descriptor fetch available).`);
 		}
 	}
 
