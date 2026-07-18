@@ -1769,8 +1769,13 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   concatenating ad-hoc.
 - [ ] **F4.45 — Use stateful LM Studio responses where verified.** Adopt `previous_response_id`/native sessions behind a
   capability gate, with stateless fallback and replay-safe transcript ownership.
-- [ ] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned
+- [~] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned
   facts/evidence, and verify provenance/citation continuity.
+  **AUDIT 2026-07-18: WIRE IS LIVE** — buildNKleinContextCompactionConfig (enabled:true, basic strategy,
+  window-derived reserve/preserve-recent budgets) + compactKanbanFocusedMessages as the compact callback run on
+  EVERY session start (nklein-session-runtime), plus the request_compaction tool exists. REMAINDER: the
+  pinned-facts/evidence RETENTION contract (nothing marks facts as compaction-pinned) and provenance/citation
+  continuity verification across a compaction (no test proves a cited file:line survives the summarize).
 - [ ] **F4.47 — Pass task-needed/max context into model loading.** Make the existing load-context planner a production
   consumer and prove the loaded context matches the computed safe value.
 - [ ] **F4.48 — Wire fast-memory-fit checks.** Combine weights, KV geometry, host fast memory, and reserve policy to cap
