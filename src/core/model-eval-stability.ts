@@ -91,12 +91,56 @@ export const DEFAULT_EVAL_STABILITY_POLICY: EvalStabilityPolicy = {
 };
 
 /** One cell's stability judgment — its verdict, the confidence behind it, the spread that drove it, and owed runs. */
+/**
+ * F12.43 — the pass^k reliability view of a cell: pass@1 is blind to consistency (70% pass@1 ⇒ pass^3 ≈ 34%),
+ * so the sweep reports the probability ALL k independent runs pass, both as the plug-in estimate and from the
+ * Wilson lower bound (the honest small-n floor). Cross-run variance is the sibling `qualitySpread`; the
+ * Meltdown-Onset entropy signal for long tasks needs logprob capture and stays a named remainder.
+ */
+export interface PassPowerK {
+	k: number;
+	/** (successes/runs)^k — the plug-in estimate. */
+	estimate: number;
+	/** Wilson 95% interval on the per-run pass rate. */
+	wilsonLower: number;
+	wilsonUpper: number;
+	/** wilsonLower^k — the conservative all-k-pass floor routing should trust at small n. */
+	lowerBoundPowerK: number;
+}
+
+/** Wilson score interval (95%) + pass^k for s successes over n runs. Pure; n ≤ 0 ⇒ zeros. */
+export function computePassPowerK(successes: number, runs: number, k = 3): PassPowerK {
+	const n = Math.max(0, Math.trunc(runs));
+	const s = Math.max(0, Math.min(n, Math.trunc(successes)));
+	const kk = Math.max(1, Math.trunc(k));
+	if (n === 0) {
+		return { k: kk, estimate: 0, wilsonLower: 0, wilsonUpper: 0, lowerBoundPowerK: 0 };
+	}
+	const z = 1.959964; // 95%
+	const phat = s / n;
+	const z2 = z * z;
+	const denominator = 1 + z2 / n;
+	const center = phat + z2 / (2 * n);
+	const spread = z * Math.sqrt((phat * (1 - phat)) / n + z2 / (4 * n * n));
+	const wilsonLower = Math.max(0, (center - spread) / denominator);
+	const wilsonUpper = Math.min(1, (center + spread) / denominator);
+	return {
+		k: kk,
+		estimate: phat ** kk,
+		wilsonLower,
+		wilsonUpper,
+		lowerBoundPowerK: wilsonLower ** kk,
+	};
+}
+
 export interface EvalCellStability {
 	modelId: string;
 	role: string;
 	difficulty: EvalDifficultyTier;
 	runs: number;
 	passRate: number;
+	/** F12.43: the cell's pass^k reliability (k=3 default) — present whenever the cell has ≥1 run. */
+	passPowerK?: PassPowerK;
 	/** max − min graded quality across the cell's runs, in [0, 1]; 0 for a single run (no spread). */
 	qualitySpread: number;
 	verdict: EvalStabilityVerdict;
@@ -125,6 +169,8 @@ export interface ModelRoleStability {
 	totalRunsOwed: number;
 	/** Mean cell `confidence` across the (model, role) in [0, 1]. */
 	meanConfidence: number;
+	/** F12.43: the WORST cell's conservative all-k-pass floor (wilsonLower^k) — the weakest-link reliability. */
+	minLowerBoundPassPowerK: number | null;
 }
 
 function clamp01(value: number): number {
@@ -188,6 +234,8 @@ export function judgeCellStability(
 		runs: cell.runs,
 		passRate: cell.passRate,
 		qualitySpread: spread,
+		// F12.43: successes reconstructed from the folded rate (the summary does not carry the raw count).
+		...(cell.runs > 0 ? { passPowerK: computePassPowerK(Math.round(cell.passRate * cell.runs), cell.runs) } : {}),
 	};
 	const owedTo = (target: number): number => Math.max(0, target - cell.runs);
 
@@ -312,6 +360,7 @@ export function summarizeModelRoleStability(
 		thinCells: number;
 		totalRunsOwed: number;
 		confidenceSum: number;
+		minLowerBoundPassPowerK: number | null;
 	}
 	const byModelRole = new Map<string, Acc>();
 	for (const cell of perCell) {
@@ -325,6 +374,7 @@ export function summarizeModelRoleStability(
 			thinCells: 0,
 			totalRunsOwed: 0,
 			confidenceSum: 0,
+			minLowerBoundPassPowerK: null,
 		};
 		acc.cells += 1;
 		if (cell.verdict === "settled_pass" || cell.verdict === "settled_fail") {
@@ -336,6 +386,12 @@ export function summarizeModelRoleStability(
 		}
 		acc.totalRunsOwed += cell.runsOwed;
 		acc.confidenceSum += cell.confidence;
+		if (cell.passPowerK) {
+			acc.minLowerBoundPassPowerK =
+				acc.minLowerBoundPassPowerK === null
+					? cell.passPowerK.lowerBoundPowerK
+					: Math.min(acc.minLowerBoundPassPowerK, cell.passPowerK.lowerBoundPowerK);
+		}
 		byModelRole.set(key, acc);
 	}
 
@@ -351,6 +407,7 @@ export function summarizeModelRoleStability(
 				settledFraction: acc.cells > 0 ? acc.settledCells / acc.cells : 0,
 				totalRunsOwed: acc.totalRunsOwed,
 				meanConfidence: acc.cells > 0 ? acc.confidenceSum / acc.cells : 0,
+				minLowerBoundPassPowerK: acc.minLowerBoundPassPowerK,
 			}),
 		)
 		.sort(

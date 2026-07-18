@@ -2753,9 +2753,16 @@ output and NOT acted on. Captured as F12.12.)
   (per-model rollup) + `dev trajectory-quality [--json]` CLI. 8 projection tests. LIVE on the real 215-attempt ledger:
   overall lucky-win 30%; surfaced qwen3-8b at 100% lucky-win (all wins brittle) vs devstral-small / qwopus3.6-27b-v2 at 0%
   (disciplined) — a real signal pass/fail hides. REMAINING: optional Model-Performance dialog tRPC slice. (AgentLens 2605.12925; Beyond-Resolution-Rates 2604.02547)
-- [ ] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
+- [~] **F12.43 — pass^k reliability in the fitness sweep.** Local small models are high-variance; pass@1 is blind to
   consistency (70% pass@1 → pass^3≈34%). Run k repeated trials per model×role×bucket; report pass^k + Wilson CI + cross-run
   variance + a Meltdown-Onset entropy signal for long tasks. Complements model-role-stability with a reliability axis. (philschmid pass-power-k; arxiv 2602.16666)
+  **SHIPPED 2026-07-18 (three of four axes):** `computePassPowerK` (Wilson 95% CI + plug-in pass^k + the
+  conservative wilsonLower^k floor; k=3 default) rides `judgeCellStability` onto EVERY measured cell
+  (`EvalCellStability.passPowerK`) from the sweep's existing k-repeat runs, and the (model,role) rollup carries
+  the weakest-link `minLowerBoundPassPowerK` surfaced in `dev model-role-stability` (`pass^3⪆NN%`). Cross-run
+  variance = the sibling qualitySpread (pre-existing). +3 tests. REMAINING (named): the Meltdown-Onset entropy
+  signal needs per-token logprob capture from the endpoint — a fleet/capture follow-up, not derivable from
+  recorded pass/fail runs.
 - [~] **F12.44 — Spurious-pass / reward-hacking detector in the delivery gate.** Reward hacking now dominates benchmark
   gains (63% of Opus SWE-bench-Pro resolutions "retrieved not derived"); small local models game readily. Flag a green whose
   cause is editing test files / weakening assertions / hardcoding expected outputs / special-casing the checker — diff the

@@ -902,7 +902,9 @@ export async function runDevModelRoleStabilityCommand(options: { json?: boolean 
 			`  ${row.modelId.slice(0, 38).padEnd(38)} ${row.role.padEnd(10)} ` +
 				`${String(Math.round(row.settledFraction * 100)).padStart(3)}% settled  ` +
 				`[settled ${row.settledCells} · flaky ${row.flakyCells} · thin ${row.thinCells} of ${row.cells} cell(s)] ` +
-				`conf ${row.meanConfidence.toFixed(2)}${row.totalRunsOwed > 0 ? ` · ${row.totalRunsOwed} re-eval(s) owed` : ""}\n`,
+				`conf ${row.meanConfidence.toFixed(2)}` +
+				`${row.minLowerBoundPassPowerK !== null ? ` · pass^3⪆${Math.round(row.minLowerBoundPassPowerK * 100)}%` : ""}` +
+				`${row.totalRunsOwed > 0 ? ` · ${row.totalRunsOwed} re-eval(s) owed` : ""}\n`,
 		);
 	}
 }

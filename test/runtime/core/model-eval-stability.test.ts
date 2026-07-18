@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AggregateModelEvalPolicy, ModelEvalRun } from "../../../src/core/model-eval-aggregation";
 import { summarizeModelEvalCells } from "../../../src/core/model-eval-aggregation";
 import {
+	computePassPowerK,
 	DEFAULT_EVAL_STABILITY_POLICY,
 	type EvalStabilityPolicy,
 	judgeCellStability,
@@ -271,5 +272,38 @@ describe("scoreModelEvalStability — determinism + empty", () => {
 			})),
 		];
 		expect(scoreModelEvalStability(input)).toEqual(scoreModelEvalStability(input));
+	});
+});
+describe("computePassPowerK (F12.43)", () => {
+	it("reports the plug-in pass^k and the Wilson-floor pass^k", () => {
+		// 7/10 pass: pass@1 hides that all-3-pass is a coin flip.
+		const r = computePassPowerK(7, 10, 3);
+		expect(r.estimate).toBeCloseTo(0.343, 3);
+		expect(r.wilsonLower).toBeGreaterThan(0.35);
+		expect(r.wilsonLower).toBeLessThan(0.5);
+		expect(r.lowerBoundPowerK).toBeCloseTo(r.wilsonLower ** 3, 6);
+		expect(r.wilsonUpper).toBeGreaterThan(0.85);
+	});
+
+	it("handles the edges: zero runs, perfect, and total failure", () => {
+		expect(computePassPowerK(0, 0)).toMatchObject({ estimate: 0, wilsonLower: 0, lowerBoundPowerK: 0 });
+		const perfect = computePassPowerK(5, 5, 3);
+		expect(perfect.estimate).toBe(1);
+		expect(perfect.wilsonLower).toBeLessThan(1); // small-n honesty: 5/5 is not certainty
+		const zero = computePassPowerK(0, 5, 3);
+		expect(zero.estimate).toBe(0);
+		expect(zero.wilsonUpper).toBeGreaterThan(0);
+	});
+
+	it("rides judgeCellStability onto every measured cell and the rollup's weakest link", () => {
+		const cells = summarizeModelRoleStability([
+			...runs(2, { modelId: "m1", role: "worker", difficulty: "easy" }),
+			...runs(1, { modelId: "m1", role: "worker", difficulty: "easy", passed: false, qualityScore: 0.2 }),
+			...runs(3, { modelId: "m1", role: "worker", difficulty: "medium" }),
+		]);
+		const row = cells.find((candidate) => candidate.modelId === "m1");
+		expect(row?.minLowerBoundPassPowerK).not.toBeNull();
+		// The weakest link is the 2/3 easy cell, whose Wilson floor is far below the 3/3 medium cell's.
+		expect(row?.minLowerBoundPassPowerK ?? 1).toBeLessThan(0.2);
 	});
 });
