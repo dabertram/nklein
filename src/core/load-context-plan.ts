@@ -45,3 +45,51 @@ export function planLoadContextLength(input: LoadContextPlanInput): number {
 	const atLeastFloor = Math.max(input.minContextFloor, fitted);
 	return Math.min(atLeastFloor, input.maxContextLength);
 }
+
+// ---------------------------------------------------------------------------
+// F12.68 — slot-aware sizing: engine context is a SHARED budget across slots
+// ---------------------------------------------------------------------------
+
+export interface SharedSlotLoadContextPlanInput extends LoadContextPlanInput {
+	/**
+	 * How many sessions may run CONCURRENTLY on this loaded instance (the enforced per-model/host concurrency cap).
+	 * llama.cpp `--ctx-size` — and therefore LM Studio's context length when the engine serves `-np N` parallel
+	 * slots — is a SHARED budget: each slot silently gets `ctx / N`. Sizing for one session while serving N starves
+	 * every session to `ctx/N` (< the ≥32k floor), which is exactly the latent bug this planner closes.
+	 */
+	concurrentSlots: number;
+}
+
+export interface SharedSlotLoadContextPlan {
+	/** The context-length to LOAD at: the per-session plan × slots, capped at the model max. */
+	contextLength: number;
+	/** What each slot actually gets under the shared budget (`contextLength / slots`, floored). */
+	perSlotContextLength: number;
+	/**
+	 * True when the model max forced the shared budget below `minContextFloor × slots` — i.e. running `concurrentSlots`
+	 * sessions on this instance WOULD starve each below the floor. The caller must either lower the concurrency cap for
+	 * this model or accept under-floor sessions knowingly (prime directive #3 says: don't).
+	 */
+	perSlotUnderFloor: boolean;
+	/** Largest slot count the model max can serve with every slot at ≥ the floor (0 when even one slot can't). */
+	maxSlotsAtFloor: number;
+}
+
+/**
+ * Plan the LOAD context-length for an instance that serves `concurrentSlots` parallel sessions from ONE shared engine
+ * context budget (llama.cpp `-np` semantics). Each session's need is planned by {@link planLoadContextLength} (task
+ * fit, ≥floor, ≤max), then multiplied by the slot count and re-capped at the model max. `perSlotUnderFloor` flags the
+ * mis-fit case the F12.68 audit exists for; `maxSlotsAtFloor` tells the caller the safe cap to fall back to.
+ */
+export function planSharedSlotLoadContextLength(input: SharedSlotLoadContextPlanInput): SharedSlotLoadContextPlan {
+	const slots = Math.max(1, Math.floor(input.concurrentSlots));
+	const perSession = planLoadContextLength(input);
+	const contextLength = Math.min(perSession * slots, input.maxContextLength);
+	const perSlotContextLength = Math.floor(contextLength / slots);
+	return {
+		contextLength,
+		perSlotContextLength,
+		perSlotUnderFloor: perSlotContextLength < input.minContextFloor,
+		maxSlotsAtFloor: Math.floor(input.maxContextLength / Math.max(1, input.minContextFloor)),
+	};
+}

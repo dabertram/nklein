@@ -18,7 +18,7 @@ import {
 	type ResidentModel,
 } from "./lms-model-control";
 import type { LmStudioRestModelClient } from "./lmstudio-rest-model-client";
-import { planLoadContextLength } from "./load-context-plan";
+import { planSharedSlotLoadContextLength } from "./load-context-plan";
 import {
 	assessModelSuitability,
 	DEFAULT_MODEL_SUITABILITY_POLICY,
@@ -68,6 +68,12 @@ export interface LoadExclusiveInput {
 	 * Inert when omitted: existing callers keep the fixed-context behavior unchanged.
 	 */
 	taskNeededTokens?: number;
+	/**
+	 * F12.68 — sessions that will run CONCURRENTLY on this instance. The engine's context is a SHARED budget across
+	 * parallel slots (llama.cpp `--ctx-size` / `-np` semantics), so the right-sized load context is multiplied by this
+	 * so each slot still gets its full per-session window. Default 1 (no change to single-session behavior).
+	 */
+	concurrentSlots?: number;
 	/** Candidate on-disk size in bytes (from `lms ls`); a conservative default is used when omitted. */
 	candidateSizeBytes?: number;
 	/** Identifiers to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
@@ -205,14 +211,18 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 
 		// §5.AQ-G context right-sizing: opt-in (taskNeededTokens + maxContextLength) → fit the task within [floor, max];
 		// otherwise the existing fixed-context behavior. Inert by default (no existing caller passes taskNeededTokens).
-		const loadContextLength =
+		// F12.68: the engine context is a SHARED budget across parallel slots — multiply the per-session plan by the
+		// concurrency this instance will serve, and surface the mis-fit when the model max can't cover slots × floor.
+		const slotPlan =
 			input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
-				? planLoadContextLength({
+				? planSharedSlotLoadContextLength({
 						taskNeededTokens: input.taskNeededTokens,
 						maxContextLength: input.maxContextLength,
 						minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+						concurrentSlots: input.concurrentSlots ?? 1,
 					})
-				: (input.contextLength ?? DEFAULT_CONTEXT_LENGTH);
+				: null;
+		const loadContextLength = slotPlan?.contextLength ?? input.contextLength ?? DEFAULT_CONTEXT_LENGTH;
 		const argv = buildLmsLoadArgs(input.modelId, {
 			contextLength: loadContextLength,
 			maxContextLength: input.maxContextLength,
@@ -220,8 +230,13 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		});
 		const { stdout, exitCode } = await run(argv);
 		// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
+		const slotCaveat =
+			slotPlan !== null && slotPlan.perSlotUnderFloor
+				? ` [context ${loadContextLength} shared across ${input.concurrentSlots} slot(s) = ${slotPlan.perSlotContextLength}/slot < the ${MIN_CONTEXT_WINDOW_TOKENS} floor — lower this model's concurrency cap to ≤${slotPlan.maxSlotsAtFloor}]`
+				: "";
 		const caveat =
-			suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`;
+			(suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`) +
+			slotCaveat;
 		return {
 			loaded: exitCode === 0,
 			modelId: input.modelId,
