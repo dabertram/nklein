@@ -1197,8 +1197,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
-- [ ] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
+- [~] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
   planning, worker, reviewer, and retrieval turns; preserve useful artifacts and a clear reason.
+  **AUDIT 2026-07-18: PARTIAL** — detectResponseLoop salvage wired on CHAT only (chat-local-llm-adapter salvagedText) + coarse trouble signal. MISSING: per-turn salvage/park on planning/worker/reviewer/retrieval paths.
 - [~] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
   failures, and stop cycling across canonical-equivalent endpoints. **LIVE EVIDENCE 2026-07-17 (2nd sighting — first was
   the 2026-07-11 m4mini crash):** a model-side hard error on the SEED's first predict (ministral engine 500, since fixed
@@ -1266,16 +1267,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
   live profiles + that selection improves outcomes.
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
+  **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
 - [ ] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
 - [>] **F3.10 — Adopt the retry-policy engine on swarm paths** *(after F3.9).* Map finish/truncation/stall signals,
   apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool work.
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
   ledger, explore safely, and converge without locking onto a one-off win.
-- [ ] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
+  **AUDIT 2026-07-18: OPEN (core exists unwired)** — strategy-effectiveness-ledger.ts (Beta-posterior per model×failure×strategy + orderLadderByEffectiveness) has ZERO consumers and no tests; live ladder still static RELEVANT_STRATEGIES_BY_OUTCOME.
+- [~] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
   context, tool subset, budget, evidence gates, and bounded transitions.
-- [ ] **F3.13 — Complete cross-model bounce.** Select a stronger/different loaded reviewer, pass a minimal evidence
+  **AUDIT 2026-07-18: PARTIAL** — outer-controller-fsm.ts advanceController complete + read-only trace projection on dev telemetry. MISSING: the effectful driver (no live consumer drives phases/tool subsets/budgets/evidence gates).
+- [~] **F3.13 — Complete cross-model bounce.** Select a stronger/different loaded reviewer, pass a minimal evidence
   capsule, repair the draft, and avoid recursive review loops.
+  **AUDIT 2026-07-18: PARTIAL** — cross-model-bounce core + enforced-reasoning-loop cross_model_carry run in the EVAL harness. MISSING: live stronger-reviewer resolution on the chat path (chat-enforced-reasoning explicitly degrades carry to keep-draft).
 - [ ] **F3.14 — Complete persona-varied self-bounce.** Use distinct system lenses only when no suitable second model is
   available; measure whether it improves the result.
 - [ ] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
@@ -1337,30 +1342,41 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `evaluateRunningTaskTrouble(powerMode)` derives thresholds from it; the runtime-server watchdog detects pmset power
   mode once/tick and passes it. 15 tests. (End-to-end false-kill is time-based; logic unit-proven: a 5-tok/s hard-task
   run quiet 25m in low power is NOT flagged silent.)**
-- [ ] **F3.20 — Discover/configure linked-machine pools.** Canonicalize endpoints, machine identity, roster, memory,
+- [~] **F3.20 — Discover/configure linked-machine pools.** Canonicalize endpoints, machine identity, roster, memory,
   power mode, and safe concurrency without hammering discovery APIs.
-- [ ] **F3.21 — Enforce per-pool capacity.** Account for models and shared resources per machine, serialize where needed,
+  **AUDIT 2026-07-18: PARTIAL** — discovery/canonicalization/live routing feed all exist (model-pool.ts, model-pool-key.ts, lms-ps-json machineId + groupModelsByMachine + discovery throttle). MISSING: per-pool power mode on the pool record; a configure/editable roster surface (couples with F3.23).
+- [~] **F3.21 — Enforce per-pool capacity.** Account for models and shared resources per machine, serialize where needed,
   and release capacity reliably on crashes/unloads.
-- [ ] **F3.22 — Make routing pool-aware.** Prefer a free smallest-sufficient machine/model, preserve warm rails when
+  **AUDIT 2026-07-18: PARTIAL** — capacity ACCOUNTING wired (computePoolFreeSlots + derivePoolCaps → poolFreeSlots in routing). MISSING: evaluateMachineConcurrencyGate (machine-concurrency-gate.ts) has NO caller; no explicit capacity release/reclaim on crash/unload (only implicit re-derive per route).
+- [x] **F3.22 — Make routing pool-aware.** Prefer a free smallest-sufficient machine/model, preserve warm rails when
   beneficial, and avoid spill/thrash.
-- [ ] **F3.23 — Add machine-pool settings.** Show endpoint, models, power/resource state, caps, override provenance, and
+  **AUDIT 2026-07-18: DONE** — `selectSwarmRouteForTask` (model-swarm-route.ts pool→model layers) wired at start-task-session.ts; smallest-sufficient FREE pool (model-pool-routing makePoolComparator), §5.AQ warm-rail preference, poolFreeSlots avoids spill; model-swarm-route + model-pool-routing tests.
+- [~] **F3.23 — Add machine-pool settings.** Show endpoint, models, power/resource state, caps, override provenance, and
   a safe editable roster/preset.
-- [ ] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
+  **AUDIT 2026-07-18: PARTIAL (leaning open)** — only per-provider/host/endpoint/model caps editable (concurrency-editor in runtime-settings). MISSING: machine-pool view (endpoint + resident models + power/resource state + override provenance + editable roster).
+- [~] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
-- [ ] **F3.25 — Complete the model-evaluation runtime.** Run the role×difficulty matrix repeatedly, capture quality,
+  **AUDIT 2026-07-18: PARTIAL** — multi-pool routing unit-proven (model-swarm-route/model-pool-routing tests); 2026-07-15 live fan-out was validated but NOT captured as a committed artifact. MISSING: a committed proof of a wide DAG on ≥2 pools surviving one endpoint loss and merging results.
+- [x] **F3.25 — Complete the model-evaluation runtime.** Run the role×difficulty matrix repeatedly, capture quality,
   TTFT/tok-s/retries/cost, and persist a versioned fitness observation per cell.
-- [ ] **F3.26 — Add freshness/decay and re-evaluation priority.** Re-run stale/uncertain/high-impact cells first and
+  **AUDIT 2026-07-18: DONE** — model-eval-runner.ts runs the role×difficulty corpus with stability re-runs (model-eval-stability), scores quality + latency, persists per-cell fitness (recordTaskFitnessOutcome keyed model+role+difficulty, fingerprinted id+context+quant); end-to-end via evaluateConnectedModels tRPC → Model-Performance dialog button. (retries hardcoded 0 / cost n-a — fine local-only.)
+- [~] **F3.26 — Add freshness/decay and re-evaluation priority.** Re-run stale/uncertain/high-impact cells first and
   distinguish model, quant, engine, prompt, and runtime versions.
-- [ ] **F3.27 — Finish task-difficulty estimation.** Use objective scope, expected files/dependencies, domain novelty,
+  **AUDIT 2026-07-18: PARTIAL** — freshness bands + fingerprint-drift decay (model-fitness-freshness.ts) + stale-first re-eval ranking (background-eval-selection/admission, consumed by the durable lease runner). MISSING: fingerprint distinguishes only id+context+quant — engine/prompt/runtime versions not covered (quant often unpopulated).
+- [~] **F3.27 — Finish task-difficulty estimation.** Use objective scope, expected files/dependencies, domain novelty,
   constraints, and observed trouble; calibrate against delivered results.
-- [ ] **F3.28 — Complete automatic role assignment and balancing.** Choose defaults from fitness, permit explicit pins,
+  **AUDIT 2026-07-18: PARTIAL** — estimateTaskDifficulty + deriveTaskDifficultyTier wired into routing, fitness recording, enforced reasoning; inputs = scope text, file count, acceptance shape, bounce trouble, authored prior, reasons[]. MISSING: expected-dependency + domain-novelty inputs; calibration feedback from delivered results.
+- [~] **F3.28 — Complete automatic role assignment and balancing.** Choose defaults from fitness, permit explicit pins,
   explain every selection, and balance parallel work without downgrading critical roles.
-- [ ] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
+  **AUDIT 2026-07-18: PARTIAL** — resolveSwarmRoleModel wired at both start + review seams (pins-first, decision-role diversity, rationale lines); free-first fan-out balancing. MISSING: an explicit do-not-downgrade-critical-roles guard during parallel balancing.
+- [~] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
   the best partial artifact, then park with a complete evidence report.
+  **AUDIT 2026-07-18: PARTIAL** — assessStubbornFailure core complete; only consumer is dev CLI (read-only). MISSING: wiring into the live redrive ladder (park with preserved best-partial + evidence report).
 - [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live).
   by cost, deadline, and diminishing returns.
-- [ ] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
+- [x] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
+  **AUDIT 2026-07-18: DONE** — fitness + confidence band + freshness/age + working Re-evaluate action (Model-Performance dialog) and role policy + pins + resource preference + concurrency caps (Runtime Settings dialog). Caveat: split across the two dialogs rather than one panel — acceptable surface.
 - [ ] **F3.32 — Integrate llmfit into live load/routing decisions.** Consume fit/speed priors, reconcile IDs with the
   catalog, expose an egress-gated update check/action, and never autonomously download a model.
 - [ ] **F3.33 — Make routing confidence- and resource-aware.** Combine quality confidence, queue time, RAM/VRAM, load
