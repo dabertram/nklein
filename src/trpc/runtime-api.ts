@@ -107,7 +107,7 @@ import { NKLEIN_DEV_TEST_PROJECT_MARKER_PATH } from "../nklein-agent/nklein-dev-
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
-import { resolveLlmfitModelCapabilityIds } from "../nklein-agent/nklein-llmfit-routing-prior";
+import { resolveModelCapabilityIdsWithCatalog } from "../nklein-agent/nklein-llmfit-routing-prior";
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
@@ -393,7 +393,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				deps.getActiveRuntimeConfig?.()?.effectiveModelSuitabilityPolicy ?? null,
 			// F2.7b: the selected model's llmfit capability ids (the vision gate for image attachments), from the cached
 			// catalog — fail-closed to [] on an unknown model / catalog miss so images are never sent to a non-vision model.
-			resolveModelCapabilityIds: (modelId) => resolveLlmfitModelCapabilityIds(modelId),
+			// F2.7b: llmfit tags ∪ the LM Studio catalog's declared capabilities (vision/tool_use) — llmfit alone
+			// had zero coverage for the local vision models, making the image gate's positive path unreachable.
+			resolveModelCapabilityIds: (modelId) => resolveModelCapabilityIdsWithCatalog(modelId),
 			// F2.7b hardening: the active chat provider id → its image-format quirks. The chat path runs on the local
 			// default provider (`lmstudio`), which rejects WebP, so this refuses it up front with actionable guidance.
 			resolveChatProviderId: () => DEFAULT_LOCAL_CHAT_PROVIDER_ID,

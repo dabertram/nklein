@@ -28,6 +28,8 @@ export interface LoadedModelDescriptor {
 	isEmbedding: boolean;
 	/** LM Studio's `capabilities.trained_for_tool_use`, when reported (undefined ⇒ the card didn't say). */
 	toolUse?: boolean;
+	/** F2.7b: LM Studio's `capabilities.vision`, when reported — the chat image gate's catalog-side signal. */
+	vision?: boolean;
 	/** `true` when the card declares a `reasoning` capability (a reasoner); undefined when not declared. */
 	reasoning?: boolean;
 	/** The architecture family string (e.g. `qwen3_5`, `phi3`, `mistral3`) — a coarse lineage hint. */
@@ -39,6 +41,7 @@ export interface LoadedModelDescriptor {
 interface RawV1Capabilities {
 	trained_for_tool_use?: unknown;
 	reasoning?: unknown;
+	vision?: unknown;
 }
 interface RawV1Instance {
 	id?: unknown;
@@ -86,6 +89,7 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 			if (model.state === "loaded" && runtimeId) {
 				const caps = (model.capabilities ?? undefined) as RawV1Capabilities | undefined;
 				const toolUse = typeof caps?.trained_for_tool_use === "boolean" ? caps.trained_for_tool_use : undefined;
+				const vision = typeof caps?.vision === "boolean" ? caps.vision : undefined;
 				const reasoning = caps && caps.reasoning != null ? true : undefined;
 				const architecture = asString(model.architecture);
 				const maxContextLength =
@@ -97,6 +101,7 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 					modelKey: asString(model.key) ?? runtimeId,
 					isEmbedding: model.type === "embedding",
 					...(toolUse !== undefined ? { toolUse } : {}),
+					...(vision !== undefined ? { vision } : {}),
 					...(reasoning !== undefined ? { reasoning } : {}),
 					...(architecture !== undefined ? { architecture } : {}),
 					...(maxContextLength !== undefined ? { maxContextLength } : {}),
@@ -108,6 +113,7 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 		const isEmbedding = model.type === "embedding";
 		const caps = (model.capabilities ?? undefined) as RawV1Capabilities | undefined;
 		const toolUse = typeof caps?.trained_for_tool_use === "boolean" ? caps.trained_for_tool_use : undefined;
+		const vision = typeof caps?.vision === "boolean" ? caps.vision : undefined;
 		const reasoning = caps && caps.reasoning != null ? true : undefined;
 		const architecture = asString(model.architecture);
 		const maxContextLength =
@@ -124,6 +130,7 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 				modelKey: modelKey ?? runtimeId,
 				isEmbedding,
 				...(toolUse !== undefined ? { toolUse } : {}),
+				...(vision !== undefined ? { vision } : {}),
 				...(reasoning !== undefined ? { reasoning } : {}),
 				...(architecture !== undefined ? { architecture } : {}),
 				...(maxContextLength !== undefined ? { maxContextLength } : {}),

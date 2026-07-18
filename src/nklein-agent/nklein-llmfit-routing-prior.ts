@@ -3,6 +3,8 @@ import { type LlmfitModel, llmfitRecommend } from "../core/llmfit-adapter";
 import { findLlmfitMatch } from "../core/llmfit-capability-prior";
 import { type LlmfitRoutingPrior, llmfitRoutingPrior } from "../core/llmfit-fitness-bridge";
 import { createLlmfitRunner } from "../core/llmfit-runner";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 
 export type LlmfitRoutingPriorResolver = (realName: string) => LlmfitRoutingPrior | null;
 export type LlmfitCapabilityPriorResolver = (realName: string) => number | null;
@@ -49,6 +51,34 @@ export function createLlmfitCapabilityPriorResolver(
 export async function resolveLlmfitModelCapabilityIds(modelId: string): Promise<readonly string[]> {
 	const models = await loadCachedLlmfitModels().catch(() => [] as LlmfitModel[]);
 	return findLlmfitMatch(modelId, models)?.capabilityIds ?? [];
+}
+
+/**
+ * F2.7b (live-found 2026-07-18): llmfit's catalog had ZERO tags for the locally-available vision models
+ * (glm-4.6v family), making the chat image gate's positive path unreachable — while LM Studio's own
+ * `/api/v1/models` declares `capabilities.vision` natively. UNION the two sources: llmfit tags ∪ the loaded
+ * catalog's declared vision/tool_use for the model. Still fail-closed: absent/false everywhere ⇒ no `vision`.
+ */
+export async function resolveModelCapabilityIdsWithCatalog(
+	modelId: string,
+	options: { baseUrl?: string } = {},
+): Promise<readonly string[]> {
+	const ids = new Set(await resolveLlmfitModelCapabilityIds(modelId));
+	try {
+		const descriptors = await fetchLoadedModelDescriptors(options.baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL);
+		const match = descriptors.find(
+			(descriptor) => descriptor.runtimeId === modelId || descriptor.modelKey === modelId,
+		);
+		if (match?.vision) {
+			ids.add("vision");
+		}
+		if (match?.toolUse) {
+			ids.add("tool_use");
+		}
+	} catch {
+		// Catalog unreachable — the llmfit tags (possibly empty) stand; the gate stays fail-closed.
+	}
+	return [...ids];
 }
 
 /**

@@ -217,3 +217,25 @@ describe("fetchLoadedModelDescriptors", () => {
 		expect(calls).toEqual(["http://x/api/v1/models", "http://x/api/v0/models"]);
 	});
 });
+describe("vision capability (F2.7b)", () => {
+	it("parses capabilities.vision on loaded instances", () => {
+		const descriptors = parseLoadedModelDescriptors({
+			models: [
+				{
+					key: "zai-org/glm-4.6v-flash",
+					type: "llm",
+					capabilities: { vision: true, trained_for_tool_use: true },
+					loaded_instances: [{ id: "zai-org/glm-4.6v-flash" }],
+				},
+				{
+					key: "text-only",
+					type: "llm",
+					capabilities: { trained_for_tool_use: true },
+					loaded_instances: [{ id: "text-only" }],
+				},
+			],
+		});
+		expect(descriptors.find((d) => d.modelKey === "zai-org/glm-4.6v-flash")?.vision).toBe(true);
+		expect(descriptors.find((d) => d.modelKey === "text-only")?.vision).toBeUndefined();
+	});
+});
