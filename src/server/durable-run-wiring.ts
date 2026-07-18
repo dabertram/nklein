@@ -24,6 +24,8 @@
  */
 
 import type { AgentLedgerEvent, AgentSchedulerEvent } from "../core/agent-attempt-ledger";
+import { type DispatchReservationLedger, reservationAwarePools } from "../core/dispatch-reservations";
+import { type AdmissionPoolState, planDurableAdmission } from "../core/durable-admission";
 import type { DurableRunLeaseIdentity } from "../core/durable-lease-idempotency";
 import { type DurableRunConfig, DurableRunController, type DurableRunPorts } from "../core/durable-run-controller";
 import { createLedgerDurableRunPorts } from "../core/durable-run-ports";
@@ -94,6 +96,22 @@ export interface DurableRunWiringDeps {
 	now?: () => number;
 	mintWorkerId?: () => string;
 	config?: Partial<DurableRunConfig>;
+	/**
+	 * F1.19b saturation-aware admission: a SYNC live pool view (occupancy + caps) and the endpoint/pool a task
+	 * would start on. `null` (or absent) ⇒ the controller's depth-priority default — fail-open, byte-identical.
+	 */
+	getAdmissionState?: (workspaceId: string) => {
+		pools: AdmissionPoolState[];
+		poolKeyForTask: (taskId: string) => string | null;
+	} | null;
+	/**
+	 * F1.24 dispatch reservations: a hold is taken at dispatch and released on the task's FIRST observed summary
+	 * (the live occupancy view owns it from there) — closing the dispatch→session-appears window the admission
+	 * planner cannot otherwise see. With no declared capacities the ledger never blocks (pure bookkeeping folded
+	 * into the admission view via `reservationAwarePools`); a shortfall never vetoes a granted lease (fail-open —
+	 * the runtime's own endpoint gates still apply downstream).
+	 */
+	reservations?: DispatchReservationLedger;
 }
 
 /** Conservative defaults (align with the §5.T long-wall-time posture: slow local workers are alive, not dead). */
@@ -165,13 +183,55 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			workflowId: deps.workflowIdFor(workspaceId),
 			workspacePathHash: deps.hashWorkspacePath(workspacePath),
 		};
-		return createLedgerDurableRunPorts({
+		const ports = createLedgerDurableRunPorts({
 			envelope,
 			appendEvent: deps.appendEvent,
-			enqueueStart: (dispatch) => deps.startCard(workspaceId, dispatch.jobId),
+			enqueueStart: (dispatch) => {
+				// F1.24: take the dispatch hold BEFORE the start; released on the task's first observed summary.
+				if (deps.reservations) {
+					const poolKey = deps.getAdmissionState?.(workspaceId)?.poolKeyForTask(dispatch.jobId) ?? null;
+					if (poolKey) {
+						deps.reservations.tryReserve(dispatch.jobId, [{ kind: "endpoint_slot", key: poolKey, amount: 1 }]);
+					}
+				}
+				deps.startCard(workspaceId, dispatch.jobId);
+			},
 			now: deps.now,
 			mintWorkerId: deps.mintWorkerId,
 		});
+		if (deps.getAdmissionState) {
+			// Track when each job ENTERED its current ready spell — the fairness/starvation age basis.
+			const readySinceByJobId = new Map<string, number>();
+			ports.planAdmission = (jobs, now) => {
+				const state = deps.getAdmissionState?.(workspaceId);
+				if (!state) {
+					return {};
+				}
+				const ready = jobs.filter((job) => job.state === "ready");
+				for (const job of ready) {
+					if (!readySinceByJobId.has(job.jobId)) {
+						readySinceByJobId.set(job.jobId, now);
+					}
+				}
+				for (const jobId of [...readySinceByJobId.keys()]) {
+					if (!ready.some((job) => job.jobId === jobId)) {
+						readySinceByJobId.delete(jobId);
+					}
+				}
+				const pools = deps.reservations ? reservationAwarePools(state.pools, deps.reservations) : state.pools;
+				const plan = planDurableAdmission({
+					candidates: ready.map((job) => ({
+						jobId: job.jobId,
+						poolKey: state.poolKeyForTask(job.jobId),
+						readySinceMs: readySinceByJobId.get(job.jobId) ?? now,
+					})),
+					pools,
+					now,
+				});
+				return { readyOrder: plan.readyOrder, excludedJobIds: plan.excludedJobIds };
+			};
+		}
+		return ports;
 	}
 
 	function disposeIfComplete(workspaceId: string): void {
@@ -257,12 +317,15 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			if (!deps.enabled) {
 				return;
 			}
+			// F1.24: the session now shows in live occupancy — the dispatch hold has done its job.
+			deps.reservations?.release(taskId);
 			await runSerial(workspaceId, () => registry.reactToTaskSummary(workspaceId, taskId, state, error));
 		},
 		async observeDelivered(workspaceId, taskId) {
 			if (!deps.enabled) {
 				return;
 			}
+			deps.reservations?.release(taskId);
 			await runSerial(workspaceId, () => registry.reportDelivered(workspaceId, taskId));
 		},
 

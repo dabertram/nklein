@@ -104,8 +104,32 @@ export function planDurableAdmission(input: DurableAdmissionInput): DurableAdmis
 		}
 	}
 
+	// RATION against free slots (F1.19b live wiring): admissibility above only screened pools that were ALREADY
+	// full; here each admitted candidate consumes one of its pool's free slots, and candidates beyond a pool's
+	// free count are EXCLUDED this wake (they admit on a later wake once capacity truly frees). Without this, one
+	// tick could lease a whole pool's queue into a single free slot — the exact dispatch-into-saturation the
+	// admission layer exists to prevent. Starving candidates lead, so they consume slots first.
+	const readyOrder: string[] = [];
+	for (const candidate of [...starvingAdmissible, ...interleaved]) {
+		if (candidate.poolKey === null) {
+			readyOrder.push(candidate.jobId);
+			continue;
+		}
+		const free = freeByPool.get(candidate.poolKey);
+		if (free === undefined) {
+			readyOrder.push(candidate.jobId);
+			continue;
+		}
+		if (free <= 0) {
+			excludedJobIds.push(candidate.jobId);
+			continue;
+		}
+		freeByPool.set(candidate.poolKey, free - 1);
+		readyOrder.push(candidate.jobId);
+	}
+
 	return {
-		readyOrder: [...starvingAdmissible, ...interleaved].map((candidate) => candidate.jobId),
+		readyOrder,
 		excludedJobIds,
 		starvingJobIds,
 	};

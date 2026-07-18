@@ -730,7 +730,23 @@ These are known defects or incomplete migrations. Clear them before widening cap
   restart, assert resumed leases + no duplicate starts + held reviews stay held) before removing the
   NKLEIN_DURABLE_SCHEDULER opt-in. Fleet-adjacent; run with the real-model rail.
 
-- [ ] **F1.19b — Wire live pool occupancy into the admission planner (core SHIPPED 2026-07-13).** The
+- [x] **F1.19b — Wire live pool occupancy into the admission planner (core SHIPPED 2026-07-13).**
+  **WIRED LIVE 2026-07-18:** `planAdmission` port implemented in durable-run-wiring over `planDurableAdmission`
+  with a SYNC live view from runtime-server — one pool per workspace dispatch endpoint (poolKey = endpoint; the
+  per-endpoint granularity matches how caps are configured), `inUse` aggregated across EVERY tracked workspace's
+  running/queued summaries (cross-workspace contention is the real saturation; live summaries beat `lms ps` as
+  the occupancy signal), capacity from the workspace runtime-config perEndpoint caps (refreshed at service
+  creation; NO cap ⇒ null ⇒ depth-priority default, fail-open + byte-identical). Planner now RATIONS admissions
+  against free slots per wake (the shipped core only screened already-full pools — one tick could lease a whole
+  queue into one slot; core tests updated with rationale). F1.24 reservations instantiated + wired: hold taken at
+  dispatch, released on the task's FIRST observed summary (closing the dispatch→session-appears window),
+  `reservationAwarePools` folds holds into the admission view; capacities deliberately undeclared (blocking would
+  double-gate what admission rationing + the runtime endpoint gate already enforce — the fold is the value).
+  `capacityFreed` wake wired at BOTH seams (session-terminal summaries + idle-TTL unload) through
+  `createAdmissionWakeCoordinator` → debounced tickAll; the 15s interval stays as the designed fallback
+  heartbeat. +3 wiring tests (saturate→exclude→freed-admits, reservation fold/release, null fail-open); smoke
+  drain green on DEFAULT-ON durable with the wiring live (fail-open path). Active-path live validation on a
+  capped fleet rig = fleet-adjacent follow-up. The
   saturation-aware admission layer exists: `planDurableAdmission` (saturated pools exclude their candidates this
   wake; fairness round-robins across pools longest-waiting-first; a starvation bound jumps a long-waiting
   candidate to the front), the controller's optional `planAdmission` port (admission order wins over depth

@@ -97,6 +97,56 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
 	});
 
+	it("F1.19b admission: a saturated pool excludes its candidates this tick; capacity freeing admits them", async () => {
+		let inUse = 2;
+		const { wiring, dispatches } = harness({
+			config: { maxConcurrentLeases: 4 },
+			getAdmissionState: () => ({
+				pools: [{ poolKey: "http://ep", capacity: 2, inUse }],
+				poolKeyForTask: () => "http://ep",
+			}),
+		});
+		// Two dep-free cards on a pool that is already full: the admission plan excludes both — nothing leases.
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "c"] }));
+		expect(dispatches).toHaveLength(0);
+		// Capacity frees; the next tick admits them.
+		inUse = 0;
+		await wiring.tickAll(() => []);
+		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
+	});
+
+	it("F1.24 reservations: dispatch holds fold into the admission view and release on the first summary", async () => {
+		const { createDispatchReservationLedger } = await import("../../../src/core/dispatch-reservations");
+		const reservations = createDispatchReservationLedger();
+		const { wiring, dispatches } = harness({
+			config: { maxConcurrentLeases: 4 },
+			reservations,
+			getAdmissionState: () => ({
+				// Live occupancy sees nothing yet — only the reservation ledger knows about in-flight dispatches.
+				pools: [{ poolKey: "http://ep", capacity: 1, inUse: 0 }],
+				poolKeyForTask: () => "http://ep",
+			}),
+		});
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "c"] }));
+		// Capacity 1: the first dispatch takes the hold; the second candidate is excluded by the folded view.
+		expect(dispatches.map((d) => d.taskId)).toEqual(["a"]);
+		expect(reservations.reserved("endpoint_slot", "http://ep")).toBe(1);
+		// The session appears (first summary) — the hold releases; the freed slot admits the second card.
+		await wiring.observeSummary("ws1", "a", "running", null);
+		expect(reservations.reserved("endpoint_slot", "http://ep")).toBe(0);
+		await wiring.tickAll(() => ["a"]);
+		expect(dispatches.map((d) => d.taskId)).toEqual(["a", "c"]);
+	});
+
+	it("F1.19b admission: a null admission state falls open to the depth-priority default (everything leases)", async () => {
+		const { wiring, dispatches } = harness({
+			config: { maxConcurrentLeases: 4 },
+			getAdmissionState: () => null,
+		});
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "c"] }));
+		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "c"]);
+	});
+
 	it("F1.18b restart-mid-run: a FRESH wiring resumes the persisted run — re-leases the orphaned cards once, keeps the dependent held", async () => {
 		const b = board({ backlog: ["a", "b", "c"] }, [{ fromTaskId: "b", toTaskId: "a" }]);
 		// Process 1: lease + dispatch the dependency-free cards (a, c) and PERSIST the lease events to its ledger.

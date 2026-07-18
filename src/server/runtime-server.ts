@@ -45,6 +45,8 @@ import {
 } from "../core/delivery-evidence";
 import { assessDeliveryQuality } from "../core/delivery-quality-gate";
 import { assessDiffMinimality } from "../core/diff-minimality";
+import { createDispatchReservationLedger } from "../core/dispatch-reservations";
+import { createAdmissionWakeCoordinator } from "../core/durable-admission";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
@@ -1287,6 +1289,61 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// validation's one real find (late delivery vs dependency_failed cancels) is fixed + replay-tested (the
 	// resurrection rule — live-healed all 22 cancellations in the re-run). Opt-out: NKLEIN_DURABLE_SCHEDULER=0.
 	const durableSchedulerEnabled = isEnabledByDefaultEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
+	// F1.19b: the SYNC live-occupancy view the durable admission planner consults each tick. One pool per
+	// workspace dispatch endpoint: `inUse` aggregates running/queued sessions across EVERY tracked workspace on
+	// that endpoint (cross-workspace contention is the real saturation); the endpoint is the last one the
+	// workspace's sessions reported (default local gateway before the first start); per-endpoint caps refresh
+	// async from each workspace's runtime config at service creation. An endpoint with NO configured cap returns
+	// null ⇒ the controller's depth-priority default (fail-open, decisions byte-identical).
+	const admissionEndpointByWorkspaceId = new Map<string, string>();
+	const admissionEndpointCaps = new Map<string, number>();
+	const refreshAdmissionEndpointCaps = async (workspacePath: string): Promise<void> => {
+		try {
+			const runtimeConfig = await loadRuntimeConfig(workspacePath);
+			for (const [endpoint, cap] of Object.entries({
+				...(runtimeConfig.concurrencyDefaults?.perEndpoint ?? {}),
+				...(runtimeConfig.concurrencyOverride?.perEndpoint ?? {}),
+			})) {
+				if (typeof cap === "number" && Number.isFinite(cap) && cap > 0) {
+					admissionEndpointCaps.set(endpoint, Math.trunc(cap));
+				}
+			}
+		} catch {
+			// Caps stay as previously known — the admission view fails open without them.
+		}
+	};
+	const getDurableAdmissionState = (workspaceId: string) => {
+		const endpoint = admissionEndpointByWorkspaceId.get(workspaceId) ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+		const capacity = admissionEndpointCaps.get(endpoint);
+		if (capacity === undefined) {
+			return null;
+		}
+		let inUse = 0;
+		for (const service of nkleinTaskSessionServiceByWorkspaceId.values()) {
+			for (const summary of service.listSummaries()) {
+				if (
+					(summary.state === "running" || summary.state === "queued") &&
+					(summary.endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL) === endpoint
+				) {
+					inUse += 1;
+				}
+			}
+		}
+		return {
+			pools: [{ poolKey: endpoint, capacity, inUse }],
+			poolKeyForTask: () => endpoint,
+		};
+	};
+	// F1.24: dispatch holds folded into the admission view. Constructed with NO declared capacities — pure
+	// occupancy bookkeeping (never blocks); declared blocking capacities are a config follow-up.
+	const dispatchReservations = createDispatchReservationLedger();
+	// F1.19b event-driven wake: capacity-freed events (session terminal, model unload) request ONE debounced
+	// tick across the active runs instead of waiting for the 15s fallback interval to notice.
+	const admissionWake = createAdmissionWakeCoordinator({
+		requestTick: () => {
+			void durableRunWiring?.tickAll(liveTaskIdsForWorkspace);
+		},
+	});
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,
 		appendEvent: (event) => appendAgentLedgerEvent(event),
@@ -1306,6 +1363,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		},
 		hashWorkspacePath: hashWorkspacePathForLedger,
 		workflowIdFor: (workspaceId) => `durable-run:${workspaceId}`,
+		getAdmissionState: getDurableAdmissionState,
+		reservations: dispatchReservations,
 	});
 	// Build/resume the workspace's durable run from its current board (idempotent; no-op when disabled or already running).
 	const ensureDurableRunForScope = async (
@@ -2679,6 +2738,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// Gated on the flag so the default path adds NO residual entry to the map (review finding #2).
 			if (durableSchedulerEnabled) {
 				scopeByWorkspaceId.set(scope.workspaceId, scope);
+				// F1.19b: learn this workspace's per-endpoint caps for the admission view (async, fail-open).
+				void refreshAdmissionEndpointCaps(scope.workspacePath);
 				// resumeOnly: at service creation the board is only the decompose seed — only RESUME a run that a prior
 				// process left in flight (a persisted ledger); the FRESH run is built at decompose-apply (full DAG known).
 				await ensureDurableRunForScope(scope, { resumeOnly: true });
@@ -2729,6 +2790,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					summary.state,
 					summary.warningMessage ?? null,
 				);
+				// F1.19b: remember the workspace's dispatch endpoint (the admission pool key), and treat any
+				// session leaving the active states as freed capacity — the debounced wake ticks the runs now
+				// instead of the 15s fallback interval noticing later.
+				if (durableSchedulerEnabled) {
+					if (summary.endpoint) {
+						admissionEndpointByWorkspaceId.set(scope.workspaceId, summary.endpoint);
+					}
+					if (summary.state !== "running" && summary.state !== "queued") {
+						admissionWake.capacityFreed(summary.endpoint ?? undefined);
+					}
+				}
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
@@ -2990,6 +3062,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										});
 										if (unloaded.ok) {
 											autoLoadedModels.forget(victim);
+											// F1.19b: an unload frees pool capacity — wake the durable runs.
+											if (durableSchedulerEnabled) {
+												admissionWake.capacityFreed();
+											}
 											deps.warn(
 												`Idle-TTL eviction: unloaded auto-loaded model ${victim} (${plan.reasons[victim]}).`,
 											);
@@ -4271,6 +4347,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// task-session services below are torn down (best-effort; never blocks shutdown on a stuck sandbox).
 			await backgroundEvalRailWiring?.stop().catch(() => undefined);
 			externalTriggerScheduler.dispose();
+			admissionWake.dispose();
 			for (const drainTimer of queuedStartDrainTimersByWorkspaceId.values()) {
 				clearTimeout(drainTimer.timer);
 			}

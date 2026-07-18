@@ -36,9 +36,12 @@ describe("planDurableAdmission", () => {
 				candidate("u1", null, 100), // unpooled → always admissible
 			],
 		});
-		expect(plan.excludedJobIds).toEqual(["b1"]);
+		// F1.19b rationing (live wiring 2026-07-18): b1's pool was ALREADY full; a1 loses to a2 for m5max's ONE
+		// free slot (longest-waiting first) and is excluded THIS wake — admitting both would dispatch into
+		// saturation, the exact churn the admission layer exists to prevent.
+		expect(plan.excludedJobIds).toEqual(["b1", "a1"]);
 		// Round-robin across pools (first-appearance order m5max, legion, unpooled), longest-waiting first within.
-		expect(plan.readyOrder).toEqual(["a2", "c1", "u1", "a1"]);
+		expect(plan.readyOrder).toEqual(["a2", "c1", "u1"]);
 		expect(plan.starvingJobIds).toEqual([]);
 	});
 
@@ -57,7 +60,8 @@ describe("planDurableAdmission", () => {
 			],
 		});
 		expect(plan.readyOrder[0]).toBe("starved");
-		expect(plan.excludedJobIds).toEqual(["starved-saturated"]);
+		// Rationing: the starving candidate consumes p1's ONE free slot first; `fresh` waits for the next wake.
+		expect(plan.excludedJobIds).toEqual(["starved-saturated", "fresh"]);
 		expect(plan.starvingJobIds.sort()).toEqual(["starved", "starved-saturated"]);
 	});
 
