@@ -3185,7 +3185,8 @@ into the existing F12.31. Same verify-before-build caveat.**
   `trigger-scheduler.ts` 60s reconcile rescans templates, fires due cron minutes once each, arms/re-arms/drops
   fs.watch handles by config fingerprint, and routes EVERY fire through the same handleTriggerIntake
   (validation+damping+audit) with {source:"cron"|"watch"} payloads. Armed at server boot, disposed on close.
-  +5 tests. All three todo'd sources (webhook, cron, file-watch) live — item complete.
+  +5 tests. All three todo'd sources (webhook, cron, file-watch) live — item complete. Watch source ALSO
+  live-proven on the rig: log append → debounced fire → seeded card (log + board verified).
 - [~] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
   !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
   reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
