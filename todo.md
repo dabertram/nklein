@@ -3175,6 +3175,9 @@ into the existing F12.31. Same verify-before-build caveat.**
   auto-starts it (scoped service warmed per fire so headless boards wake), per-(workspace,trigger) 30s
   alarm-storm damping (released on seed failure), 404/409+?workspaceId disambiguation, audit = self-observation
   + `external→trigger_seeded` ledger transition. Pure core `trigger-intake.ts` + injectable handler; 10 tests.
+  LIVE-PROVEN on the validation rig end-to-end: curl fire → 201 → card front-of-ready → watchdog sweep
+  auto-started it (queued behind the busy endpoint, then ran) → card reached Review; 429 damping + 404 + both
+  audit records verified on disk.
   `autoStart:false` templates are REFUSED (boards are autonomous; honest error over silent start). REMAINING:
   cron + log/file-watch trigger sources.
 - [ ] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
