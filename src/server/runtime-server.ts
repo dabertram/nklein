@@ -95,6 +95,7 @@ import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../cor
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
+import { assessStubbornFailure, escalationAttemptsFromLedgerEvents } from "../core/stubborn-failure-escalation";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import {
 	isDerivedTaskSessionId,
@@ -1215,6 +1216,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										value: null,
 									}));
 									redriveNote = ` (Layer-1 escalation: hard-stuck on its model — switched to untried loaded model ${action.modelId})`;
+								}
+								// F3.29 record-only consult (the enforcing park is a data-gated follow-up): when the
+								// ledger says this card exhausted its model+approach diversity, record the verdict +
+								// evidence while the one-shot redrive proceeds unchanged — the flip wants a live
+								// exhausted-rate + false-positive read first.
+								const stubborn = assessStubbornFailure(
+									escalationAttemptsFromLedgerEvents(events, terminalTaskId),
+								);
+								if (stubborn.status === "exhausted") {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "warning",
+										message: `Stubborn-failure exhaustion for ${terminalTaskId} (redrive proceeding, record-only): ${stubborn.evidenceReport.slice(0, 280)}`,
+										taskId: terminalTaskId,
+										workspacePath: scope.workspacePath,
+										metadata: { category: "stubborn_failure_exhausted" },
+									});
 								}
 								if (action.kind !== "continue") {
 									void appendAgentLedgerEvent(

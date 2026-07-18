@@ -85,7 +85,11 @@ import {
 	combineSuitabilityVerdicts,
 	type RuntimeRunOutcome,
 } from "../core/runtime-model-verdict";
-import { assessStubbornFailure, type EscalationAttempt } from "../core/stubborn-failure-escalation";
+import {
+	assessStubbornFailure,
+	type EscalationAttempt,
+	escalationAttemptsFromLedgerEvents,
+} from "../core/stubborn-failure-escalation";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
 import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
@@ -1114,19 +1118,7 @@ export async function runDevRoutingPreviewCommand(options: { role: string; json?
 /** F3.29 — assess a task's stubborn-failure state from its real ledger attempts (exhausted? best partial? park report?). */
 export async function runDevStubbornFailureCommand(options: { taskId: string; json?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
-	const attempts: EscalationAttempt[] = events
-		.filter(
-			(e): e is Extract<AgentLedgerEvent, { kind: "attempt" }> =>
-				e.kind === "attempt" && e.taskId === options.taskId,
-		)
-		.map((a) => ({
-			attemptId: a.attemptId,
-			modelId: a.modelId,
-			approach: a.promptStrategy ?? "default",
-			outcome: a.outcome === "success" ? "success" : "failure",
-			qualityScore: a.qualityScore,
-			artifactRef: a.artifacts?.resultBranch ?? null,
-		}));
+	const attempts: EscalationAttempt[] = escalationAttemptsFromLedgerEvents(events, options.taskId);
 	const verdict = assessStubbornFailure(attempts);
 	if (options.json) {
 		process.stdout.write(

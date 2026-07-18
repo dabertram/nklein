@@ -1382,6 +1382,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [~] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
   the best partial artifact, then park with a complete evidence report.
   **AUDIT 2026-07-18: PARTIAL** — assessStubbornFailure core complete; only consumer is dev CLI (read-only). MISSING: wiring into the live redrive ladder (park with preserved best-partial + evidence report).
+  **RECORD-ONLY CONSULT LIVE (same day):** the terminal-redrive sweep now assesses exhaustion from the same
+  ledger read it already does and records a `stubborn_failure_exhausted` observation (verdict + evidence tail)
+  while the one-shot redrive proceeds unchanged — the enforcing park flips on live exhausted-rate data.
+  Events→attempts mapping extracted to `escalationAttemptsFromLedgerEvents` (shared with the dev CLI).
 - [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live).
   by cost, deadline, and diminishing returns.
 - [x] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,

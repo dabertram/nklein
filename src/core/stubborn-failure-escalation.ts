@@ -1,3 +1,4 @@
+import type { AgentLedgerEvent } from "./agent-attempt-ledger";
 /**
  * F3.29 — automatic stubborn-failure escalation (pure). When a card keeps failing, the orchestrator tries bounded
  * ALTERNATIVES (different models, different approaches/rungs). This core answers the terminal question: have the
@@ -87,6 +88,23 @@ function buildEvidenceReport(input: {
 	}
 	lines.push("Parking for human attention — bounded model/approach alternatives are exhausted.");
 	return lines.join("\n");
+}
+
+/** Build the assessment input from a task's real ledger attempts (shared by the dev CLI and the live consult). */
+export function escalationAttemptsFromLedgerEvents(
+	events: readonly AgentLedgerEvent[],
+	taskId: string,
+): EscalationAttempt[] {
+	return events
+		.filter((e): e is Extract<AgentLedgerEvent, { kind: "attempt" }> => e.kind === "attempt" && e.taskId === taskId)
+		.map((a) => ({
+			attemptId: a.attemptId,
+			modelId: a.modelId,
+			approach: a.promptStrategy ?? "default",
+			outcome: a.outcome === "success" ? ("success" as const) : ("failure" as const),
+			qualityScore: a.qualityScore,
+			artifactRef: a.artifacts?.resultBranch ?? null,
+		}));
 }
 
 export function assessStubbornFailure(
