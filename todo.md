@@ -1048,6 +1048,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   never silently dropped), surviving findings appended to the effective submission's feedback. Falls through to
   the plain panel when no eye verdicts. NKLEIN_N_EYES_MAX clamps eyes [2,6], default 4. 7 tests. REMAINING:
   fleet live-validation (long multi-judge runs; ride a capped rig session).
+  **LIVE-FIRED 2026-07-18 (rig12):** the full N-eyes schedule ran on a real review — four eyes with DISTINCT
+  honored (judge, lens) pins (eye-1/ministral → eye-2/gemma → eye-3/qwable → eye-4/ministral, the round-shifted
+  rotation exactly as designed), sequential execution, then the fall-through chain (plain 3-judge panel → single
+  reviewer) in order. Judge/eye sessions are now phase-stamped. Blocker OBSERVED (separate issue): every review
+  session on this rig returns no submission — two root causes already fixed en route (catalog-declared reasoning
+  models missed the §5.AN budget floor → glm burned its budget thinking and returned empty, b88e8b7be; judge
+  pins visible via stamps), remainder under investigation (all-model no-submission on this workspace).
 
 ### Phase 2 — feature completion: chat, board, safety, and operator workflow
 
