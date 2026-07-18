@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	filterToolsByPolicyEnabled,
 	restrictToolPoliciesForVerdictSession,
 	VERDICT_ONLY_SESSION_KINDS,
 	VERDICT_SESSION_DISABLED_TOOLS,
@@ -43,5 +44,36 @@ describe("verdict-session tool narrowing (F4.37 second half)", () => {
 		for (const kept of ["submit_review", "read_files", "search_code", "run_commands", "repo_map", "list_files"]) {
 			expect(disabled).not.toContain(kept);
 		}
+	});
+});
+describe("filterToolsByPolicyEnabled (offer-layer schema filter)", () => {
+	const tools = [{ name: "read_files" }, { name: "decompose_project" }, { name: "submit_review" }];
+
+	it("drops tools whose policy is enabled:false and keeps the rest", () => {
+		const policies = {
+			decompose_project: { enabled: false, autoApprove: false },
+			read_files: { enabled: true },
+		};
+		expect(filterToolsByPolicyEnabled(tools, policies).map((t) => t.name)).toEqual(["read_files", "submit_review"]);
+	});
+
+	it("treats an absent policy map or absent entry as enabled (SDK parity)", () => {
+		expect(filterToolsByPolicyEnabled(tools, undefined)).toHaveLength(3);
+		expect(filterToolsByPolicyEnabled(tools, {})).toHaveLength(3);
+	});
+
+	it("honors a '*' wildcard with per-tool override, like the SDK", () => {
+		const policies = { "*": { enabled: false }, submit_review: { enabled: true } };
+		expect(filterToolsByPolicyEnabled(tools, policies).map((t) => t.name)).toEqual(["submit_review"]);
+	});
+
+	it("composed with the verdict restriction, strips every disabled schema from the offer", () => {
+		const base = { read_files: { enabled: true, autoApprove: false } };
+		const restricted = restrictToolPoliciesForVerdictSession(base);
+		const offered = filterToolsByPolicyEnabled(
+			[{ name: "read_files" }, { name: "decompose_project" }, { name: "edit_file" }, { name: "submit_review" }],
+			restricted,
+		);
+		expect(offered.map((t) => t.name)).toEqual(["read_files", "submit_review"]);
 	});
 });

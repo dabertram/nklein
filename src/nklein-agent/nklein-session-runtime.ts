@@ -1,3 +1,4 @@
+import { filterToolsByPolicyEnabled } from "../core/judge-tool-policy";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
 import {
 	clearAllSessionFocusState,
@@ -398,7 +399,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			outwardFanoutCap === null ? {} : { maxTotal: outwardFanoutCap },
 		);
 		this.swarmBrokerStateByTaskId.set(request.taskId, swarmToolBrokerState);
-		const extraTools = wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames });
+		// Offer-layer policy filter: the SDK only policy-filters extension-registered tools — config-declared tools
+		// merge unfiltered — so a disabled tool's schema still reached the model (28KB judge block, live 2026-07-18).
+		const extraTools = filterToolsByPolicyEnabled(
+			wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames }),
+			request.toolPolicies,
+		);
 		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });
 
 		const sessionHost = await this.ensureSessionHost();

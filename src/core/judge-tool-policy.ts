@@ -62,3 +62,22 @@ export function restrictToolPoliciesForVerdictSession<TValue extends ToolPolicyV
 	}
 	return restricted;
 }
+
+/**
+ * Filter a TOOL LIST by a policy map at the OFFER layer. The vendored SDK's policy filter applies only to
+ * extension-REGISTERED tools; config-declared tools (!Klein's extraTools) merge UNFILTERED into the model request,
+ * so `enabled:false` gated execution but the schema still reached the model — measured live 2026-07-18: judge
+ * sessions kept the full 23-tool 28KB block after the policy restriction. Applying the same `enabled !== false`
+ * semantics here (absent policy = enabled; a "*" wildcard policy is honored like the SDK) makes a disabled tool
+ * actually DISAPPEAR from the offer for both the §5.B planning restriction and the verdict-session narrowing.
+ */
+export function filterToolsByPolicyEnabled<TTool extends { name: string }>(
+	tools: readonly TTool[],
+	policies: Readonly<Record<string, { enabled?: boolean }>> | undefined,
+): TTool[] {
+	if (!policies) {
+		return [...tools];
+	}
+	const globalPolicy = policies["*"] ?? {};
+	return tools.filter((tool) => ({ ...globalPolicy, ...(policies[tool.name] ?? {}) }).enabled !== false);
+}
