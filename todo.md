@@ -1028,7 +1028,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   empty (no configured cap ⇒ no veto, fail-open/unchanged). REMAINING (unchanged flags): the durable-JOBS
   representation of idle actions (needs a non-card dispatch kind in the wiring) and the evidence-driven ranker
   feed (data-gated on accumulated realized-value outcomes).
-- [~] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
+- [x] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
   `src/core/n-eyes-review-schedule.ts` completes the F1.37 brain over the shipped lens/panel/verdict cores:
   `planNEyesSchedule` (round-shifted rotation — every eye a DISTINCT (judge, lens) pair, lenses advance first in
   failure-mass order, judges rotate for family diversity), `dedupeEyeFindings` (case/punctuation-insensitive
@@ -1046,8 +1046,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stop, confer round over the SAME review-session machinery (CONFER: n confirm|dispute lines parsed from
   feedback; silence is neither vote), `resolveConferredFindings` (out-vote drops, disputes surface, veto-class
   never silently dropped), surviving findings appended to the effective submission's feedback. Falls through to
-  the plain panel when no eye verdicts. NKLEIN_N_EYES_MAX clamps eyes [2,6], default 4. 7 tests. REMAINING:
-  fleet live-validation (long multi-judge runs; ride a capped rig session).
+  the plain panel when no eye verdicts. NKLEIN_N_EYES_MAX clamps eyes [2,6], default 4. 7 tests.
+  **FLEET LIVE-VALIDATION COMPLETE 2026-07-18 (rig17, twice — reproducible):** full end-to-end N-eyes reviews on
+  two real trigger cards: 3 eyes ran (ministral/gemma/qwable), the marginal-value stop fired at 3/4, 4 findings
+  survived confer, the single-judge high-correctness VETO blocked against a 0/3 passing majority (fail-closed
+  tie-break proven), the core session submitted `request_changes`, and both cards BOUNCED with the surviving
+  findings as feedback. (Unblocked by the same-day review-pipeline fix chain: judge prompt diet 44c600114 +
+  verdict tool narrowing d322aa8ed + offer-layer filter b452fd02a + baseUrl normalization bfaa6c6bd +
+  duplicate-dispatch guard 676fdafd3 + deciding-seat ranking c7ba67adb.) F1.37b fully DONE.
   **LIVE-FIRED 2026-07-18 (rig12):** the full N-eyes schedule ran on a real review — four eyes with DISTINCT
   honored (judge, lens) pins (eye-1/ministral → eye-2/gemma → eye-3/qwable → eye-4/ministral, the round-shifted
   rotation exactly as designed), sequential execution, then the fall-through chain (plain 3-judge panel → single
