@@ -152,6 +152,10 @@ function buildNextReview(input: {
 	};
 }
 
+/** Park after this many CONSECUTIVE reviewer sessions that end without any submit_review call on unchanged work. */
+const NO_VERDICT_PARK_STREAK = 3;
+const noVerdictStreakByTaskId = new Map<string, { fingerprint: string; count: number }>();
+
 export async function runNKleinSecondOpinionReview(
 	input: RunNKleinSecondOpinionReviewInput,
 ): Promise<NKleinSecondOpinionReviewOutcome> {
@@ -238,8 +242,39 @@ export async function runNKleinSecondOpinionReview(
 		input.preReviewVerdict ?? (await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round }));
 	stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
 	if (!submission) {
+		// Bounded no-verdict retries (live-found 2026-07-18, qwable rig): a reviewer that repeatedly ends WITHOUT
+		// calling submit_review re-enters review forever — "round 1" each time, because only SUBMISSIONS record
+		// rounds, so the maxRounds cap never engages, and every cycle burns a fresh sandbox acceptance + reviewer
+		// session. Track consecutive no-verdict outcomes per task+fingerprint (in-process; a restart re-arms the
+		// budget once) and PARK for a human at the cap: an unchanged artifact that three reviewer sessions could
+		// not verdict will not verdict on the fourth try either. New work or a real submission resets the streak.
+		const streakFingerprint = workFingerprint ?? "(unfingerprinted)";
+		const streak = noVerdictStreakByTaskId.get(input.taskId);
+		const count = streak && streak.fingerprint === streakFingerprint ? streak.count + 1 : 1;
+		noVerdictStreakByTaskId.set(input.taskId, { fingerprint: streakFingerprint, count });
+		if (count >= NO_VERDICT_PARK_STREAK) {
+			noVerdictStreakByTaskId.delete(input.taskId);
+			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact).`;
+			const review: RuntimeCardReview = {
+				status: "parked",
+				round: card.review?.round ?? 0,
+				history: card.review?.history ?? [],
+				lastVerdict: card.review?.lastVerdict ?? null,
+				lastSummary: card.review?.lastSummary ?? null,
+				lastFeedback: card.review?.lastFeedback ?? null,
+				lastInsight: card.review?.lastInsight ?? null,
+				signOff: card.review?.signOff ?? null,
+				parkedReason,
+				...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
+				updatedAt: now,
+			};
+			await input.deps.onPark({ taskId: input.taskId, review, reason: parkedReason });
+			return { type: "parked", round: card.review?.round ?? 0, reason: parkedReason };
+		}
 		return { type: "skipped", reason: "no_verdict" };
 	}
+	// A real submission arrived — the reviewer CAN verdict this artifact; the no-verdict budget resets.
+	noVerdictStreakByTaskId.delete(input.taskId);
 
 	// A no-change result still gets a stable work fingerprint so the stall / identical-loop guards engage when a
 	// card keeps coming back with nothing done (a common bad-planning symptom), rather than bouncing to the cap.

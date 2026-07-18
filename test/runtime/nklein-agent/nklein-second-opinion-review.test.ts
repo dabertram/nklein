@@ -98,6 +98,41 @@ describe("runNKleinSecondOpinionReview", () => {
 		});
 	});
 
+	it("parks after three consecutive no-verdict sessions on unchanged work (bounded retry, live-found loop)", async () => {
+		const base2 = { ...base, taskId: "task-noverdict" };
+		const first = makeDeps({ submission: null });
+		expect(await runNKleinSecondOpinionReview({ ...base2, deps: first })).toEqual({
+			type: "skipped",
+			reason: "no_verdict",
+		});
+		const second = makeDeps({ submission: null });
+		expect(await runNKleinSecondOpinionReview({ ...base2, deps: second })).toEqual({
+			type: "skipped",
+			reason: "no_verdict",
+		});
+		const third = makeDeps({ submission: null });
+		const outcome = await runNKleinSecondOpinionReview({ ...base2, deps: third });
+		expect(outcome.type).toBe("parked");
+		expect(third.onPark).toHaveBeenCalledOnce();
+		const parked = firstArg<{ review: RuntimeCardReview; reason: string }>(third.onPark);
+		expect(parked.review.status).toBe("parked");
+		expect(parked.reason).toContain("without a verdict");
+		// After the park the streak is cleared — the next no-verdict is a fresh count, not an instant re-park.
+		const fourth = makeDeps({ submission: null });
+		expect(await runNKleinSecondOpinionReview({ ...base2, deps: fourth })).toEqual({
+			type: "skipped",
+			reason: "no_verdict",
+		});
+		// A real submission resets the streak for its task.
+		const submitting = makeDeps({});
+		await runNKleinSecondOpinionReview({ ...base2, deps: submitting });
+		const afterReset = makeDeps({ submission: null });
+		expect(await runNKleinSecondOpinionReview({ ...base2, deps: afterReset })).toEqual({
+			type: "skipped",
+			reason: "no_verdict",
+		});
+	});
+
 	it("skips when the reviewer session returns no verdict", async () => {
 		const deps = makeDeps({ submission: null });
 		expect(await runNKleinSecondOpinionReview({ ...base, deps })).toEqual({ type: "skipped", reason: "no_verdict" });
