@@ -3193,12 +3193,16 @@ into the existing F12.31. Same verify-before-build caveat.**
   retries are autonomous; devtest- bucket separated) + `dev autonomy [--json]`. LIVE baseline on the real ledger:
   production 54% zero-touch (15/28), streak 10, 37 reopens, 9 cancels. 2 tests. REMAINING: the Model-Performance
   dialog row (same payload pattern as mastModes) + ledgering the capture-gap events so the bound tightens.
-- [ ] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
+- [~] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
   scale chapter runs the SAME workflow over many inputs in parallel; !Klein can only seed cards one at a time (or via
   model-planned decompose). Add a bulk-seed surface: a card template + a list (paths, issue lines, CSV rows) → N cards
   created with per-input substitution, dependency-free, admitted through the normal concurrency/endpoint gates. CLI first
   (`nklein task seed-bulk --template … --inputs …`), board multi-select later. Pairs with F12.106 templates and gives the
   F12.107 ADWs their batch mode. (IndyDevDan scale-compute)
+  **CLI SHIPPED 2026-07-18 (908c13fd5):** `task seed-bulk --template … [--title-template …] --inputs|--inputs-file …
+  [--dry-run]` — pure plan half ({input}/{i}/{slug} substitution, dedupe, # comments, honest 100-input cap) loops
+  the normal createTask path so every card rides the standard admission gates. 3 tests + dry-run live-verified.
+  REMAINING: board multi-select UI affordance.
 
 ## 6. Legacy section alias map
 
