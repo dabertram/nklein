@@ -1338,6 +1338,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [~] **F3.13 — Complete cross-model bounce.** Select a stronger/different loaded reviewer, pass a minimal evidence
   capsule, repair the draft, and avoid recursive review loops.
   **AUDIT 2026-07-18: PARTIAL** — cross-model-bounce core + enforced-reasoning-loop cross_model_carry run in the EVAL harness. MISSING: live stronger-reviewer resolution on the chat path (chat-enforced-reasoning explicitly degrades carry to keep-draft).
+  **CHAT-PATH CARRY LIVE 2026-07-18 (81891f43a)** — the audit's named gap closed: `resolveLocalChatModelDeps`
+  supplies `resolveStrongerPeer` (loaded peers ranked by unambiguous parameter count, embedding ids excluded;
+  no strictly-larger peer ⇒ null ⇒ keep-draft degrade), resolved BEFORE the gate so `strongerPeerAvailable`
+  flips the kind to `cross_model_carry` driving the peer completion (loop dep `completeStronger` — a probe
+  caught the wrong-dep-name silent degrade a spread had hidden). Inside the opt-in NKLEIN_ENFORCED_REASONING
+  flag; +2 tests. Remaining: evidence-capsule framing on the non-chat bounce paths.
 - [ ] **F3.14 — Complete persona-varied self-bounce.** Use distinct system lenses only when no suitable second model is
   available; measure whether it improves the result.
 - [ ] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
