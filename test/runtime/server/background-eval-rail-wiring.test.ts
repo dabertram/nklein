@@ -62,6 +62,34 @@ describe("wireBackgroundEvalRail (F1.31b)", () => {
 		await wiring.stop();
 	});
 
+	it("F1.32b: selectTarget replaces the round-robin and threads the picked MODEL into startEvalSession", async () => {
+		const started: Array<{ scenarioId: string; modelId: string | null }> = [];
+		const targets = [
+			{ scenarioId: "smoke_a", modelId: "strong-32b" },
+			{ scenarioId: "smoke_b", modelId: null },
+			null,
+		];
+		let cursor = 0;
+		const wiring = wireBackgroundEvalRail(
+			wiringDeps({
+				getEvalSessionState: async () => "awaiting_review" as RuntimeTaskSessionState,
+				selectTarget: async () => targets[cursor++] ?? null,
+				startEvalSession: async ({ scenarioId, modelId }) => {
+					started.push({ scenarioId, modelId });
+				},
+			}),
+		);
+		await wiring.service?.tickNow();
+		await wiring.service?.tickNow();
+		await wiring.service?.tickNow();
+		await wiring.stop();
+		// Two picked targets started (with their models); the null pick admitted nothing.
+		expect(started).toEqual([
+			{ scenarioId: "smoke_a", modelId: "strong-32b" },
+			{ scenarioId: "smoke_b", modelId: null },
+		]);
+	});
+
 	it("round-robins scenarios across ticks via the runner's selectNextProject", async () => {
 		// Reach into the service deps indirectly: two selections should alternate the ids.
 		const picks: (string | null)[] = [];

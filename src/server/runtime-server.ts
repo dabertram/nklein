@@ -33,6 +33,7 @@ import type {
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
@@ -160,6 +161,7 @@ import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
+import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
 import {
 	defaultRuntimeIdModelKeyMapPath,
 	initSharedRuntimeIdModelKeyMap,
@@ -3729,6 +3731,41 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		tickIntervalMs: 5 * 60_000,
 		maxRunMs: 30 * 60_000,
 		scenarioIds: ["mid_task"],
+		// F1.32b: the fitness-aware target picker over LIVE candidates — scenario presets as projects
+		// (NKLEIN_EVAL_RAIL_SCENARIOS csv; default the rotation list), LOADED non-embedding models (resident ⇒
+		// they fit resources; capability fails open — the 32k-floor verdict feed is the named remaining sliver
+		// with planEvalCoverage evidence), persisted run history as the recent-coverage window, mode + pins via
+		// NKLEIN_EVAL_RAIL_MODE / _PIN_PROJECT / _PIN_MODEL (config/Settings exposure = remaining).
+		selectTarget: async () => {
+			const scenarioIds = (process.env.NKLEIN_EVAL_RAIL_SCENARIOS ?? "mid_task")
+				.split(",")
+				.map((id) => id.trim())
+				.filter(Boolean);
+			const loadedIds = await fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]);
+			const modeRaw = process.env.NKLEIN_EVAL_RAIL_MODE ?? "evidence";
+			const mode =
+				modeRaw === "pinned" || modeRaw === "rotation" || modeRaw === "random" || modeRaw === "evidence"
+					? modeRaw
+					: "evidence";
+			const selection = selectBackgroundEvalTarget({
+				mode,
+				projects: scenarioIds.map((projectId) => ({ projectId })),
+				models: loadedIds
+					.filter((id) => !/embed/i.test(id))
+					.map((modelId) => ({ modelId, capable: true, fitsResources: true })),
+				recentRuns: await readRailRunHistory().catch(() => []),
+				recentCoverageWindowMs: 6 * 60 * 60_000,
+				now: Date.now(),
+				pinnedProjectId: process.env.NKLEIN_EVAL_RAIL_PIN_PROJECT?.trim() || null,
+				pinnedModelId: process.env.NKLEIN_EVAL_RAIL_PIN_MODEL?.trim() || null,
+				randomSeed: Math.trunc(Date.now() / 60_000),
+			});
+			if (!selection.ok) {
+				return null;
+			}
+			void appendRailRunHistory({ projectId: selection.projectId, modelId: selection.modelId, at: Date.now() });
+			return { scenarioId: selection.projectId, modelId: selection.modelId };
+		},
 		scaffoldEvalWorkspace: async (scenarioId) => {
 			const scaffold = await scaffoldNKleinDevTestProject({
 				scenario: resolveNKleinDevTestProjectScenario(scenarioId),
@@ -3736,7 +3773,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			const ctx = await loadWorkspaceContext(scaffold.workspacePath, { autoCreateIfMissing: true });
 			return { workspacePath: scaffold.workspacePath, workspaceId: ctx.workspaceId };
 		},
-		startEvalSession: async ({ taskId, scenarioId, workspacePath, workspaceId }) => {
+		startEvalSession: async ({ taskId, scenarioId, workspacePath, workspaceId, modelId }) => {
 			const scenario = resolveNKleinDevTestProjectScenario(scenarioId);
 			const baseRef = await railExecFileAsync("git", ["-C", workspacePath, "rev-parse", "--abbrev-ref", "HEAD"])
 				.then(({ stdout }) => stdout.trim() || "main")
@@ -3749,6 +3786,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				taskTitle: scenario.title,
 				baseRef,
 				startInPlanMode: true,
+				// F1.32b: the picker's model for this run (null ⇒ the workspace default resolves as before).
+				...(modelId ? { nkleinSettings: { modelId } } : {}),
 			});
 		},
 		getEvalSessionState: async ({ taskId, workspacePath }) => {

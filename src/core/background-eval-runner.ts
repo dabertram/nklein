@@ -38,8 +38,9 @@ export interface BackgroundEvalRunnerDeps {
 	maxConcurrentEvals: number;
 	/** Read the live runtime signals the admission gate needs. */
 	getSignals: () => Promise<BackgroundEvalRunnerSignals>;
-	/** Pick the next project id to evaluate, or null when there's nothing to run. */
-	selectNextProject: () => string | null;
+	/** Pick the next project id to evaluate, or null when there's nothing to run (sync or async — F1.32b's live
+	 *  fitness-aware picker reads loaded models + persisted run history). */
+	selectNextProject: () => string | null | Promise<string | null>;
 	/** Start a sandboxed run for a project; resolves with its lease identity. */
 	startRun: (project: string) => Promise<{ runId: string; workspaceId: string | null; deadlineAt: number }>;
 	/** Whether a recorded run is still active (false once it reached a terminal state). */
@@ -121,7 +122,7 @@ export function createBackgroundEvalRunner(deps: BackgroundEvalRunnerDeps): Back
 			if (!decision.admit) {
 				reason = decision.reason;
 			} else {
-				const project = deps.selectNextProject();
+				const project = await deps.selectNextProject();
 				if (project === null) {
 					reason = "no_project_to_run";
 				} else {

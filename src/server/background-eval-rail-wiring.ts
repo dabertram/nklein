@@ -32,6 +32,12 @@ export interface BackgroundEvalRailWiringDeps {
 	maxRunMs: number;
 	/** The preset scenario ids to rotate through (round-robin). */
 	scenarioIds: readonly string[];
+	/**
+	 * F1.32b: the fitness-aware target picker — returns the next (scenario, model) or null when nothing is
+	 * eligible. When present it REPLACES the round-robin scenario pick, and the chosen model is threaded into
+	 * `startEvalSession` (null model ⇒ the workspace default, the pre-F1.32b behavior).
+	 */
+	selectTarget?: () => Promise<{ scenarioId: string; modelId: string | null } | null>;
 	/** Scaffold a throwaway dev-test project for a scenario id → its host path + registered workspace id. */
 	scaffoldEvalWorkspace: (scenarioId: string) => Promise<{ workspacePath: string; workspaceId: string | null }>;
 	/** Start a NON-BLOCKING sandboxed eval session for a scaffolded project (must not wait for it to finish). */
@@ -40,6 +46,8 @@ export interface BackgroundEvalRailWiringDeps {
 		scenarioId: string;
 		workspacePath: string;
 		workspaceId: string | null;
+		/** F1.32b: the picker's model for this run (null ⇒ the workspace default). */
+		modelId: string | null;
 	}) => Promise<void>;
 	/** The current session state (null when unknown/gone). */
 	getEvalSessionState: (input: { taskId: string; workspacePath: string }) => Promise<RuntimeTaskSessionState | null>;
@@ -88,6 +96,8 @@ export function wireBackgroundEvalRail(deps: BackgroundEvalRailWiringDeps): Back
 	const saveSettings = deps.saveSettings ?? saveRailControlSettings;
 
 	let service: BackgroundEvalService | null = null;
+	// F1.32b: the model the target picker chose for the tick's imminent startRun (see startSession).
+	let pendingModelId: string | null = null;
 	if (deps.enabled) {
 		const serviceDeps = createBackgroundEvalServiceDeps({
 			now: deps.now,
@@ -99,14 +109,24 @@ export function wireBackgroundEvalRail(deps: BackgroundEvalRailWiringDeps): Back
 				// Synthesize the run's task id (the join key across the lease lifecycle), mirroring the CLI's
 				// `devtest-<scenario>-<ts>` shape; the tick cadence (≥1 min) keeps it unique per run.
 				const taskId = `devtest-${scenarioId}-${deps.now()}`;
-				await deps.startEvalSession({ taskId, scenarioId, workspacePath, workspaceId });
+				// F1.32b: consume the model the picker latched for this tick (selectNextProject → startRun run
+				// serially within one runner tick, so the one-slot latch is race-free).
+				const modelId = pendingModelId;
+				pendingModelId = null;
+				await deps.startEvalSession({ taskId, scenarioId, workspacePath, workspaceId, modelId });
 				return { taskId };
 			},
 			getSessionState: deps.getEvalSessionState,
 			stopSession: deps.stopEvalSession,
 			removeWorkspace: deps.removeWorkspace,
 			resolveWorkspacePath: async (workspaceId) => await deps.resolveWorkspacePathById(workspaceId),
-			selectScenario: createRoundRobinScenarioPicker(deps.scenarioIds),
+			selectScenario: deps.selectTarget
+				? async () => {
+						const target = await deps.selectTarget?.();
+						pendingModelId = target?.modelId ?? null;
+						return target?.scenarioId ?? null;
+					}
+				: createRoundRobinScenarioPicker(deps.scenarioIds),
 			getSignals: deps.getSignals,
 			loadCheckpoint: deps.loadCheckpoint ?? (() => loadBackgroundEvalRunnerLeases()),
 			saveCheckpoint: deps.saveCheckpoint ?? ((leases) => saveBackgroundEvalRunnerLeases(leases)),

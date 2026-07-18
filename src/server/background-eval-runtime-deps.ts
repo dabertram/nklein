@@ -39,8 +39,9 @@ export interface BackgroundEvalRuntimeAtoms {
 	removeWorkspace: (workspacePath: string) => Promise<void>;
 	/** Resolve a workspace id back to its path (for leases recovered after a restart, whose map entry is gone). */
 	resolveWorkspacePath: (workspaceId: string) => Promise<string | null>;
-	/** Pick the next scenario id to evaluate, or null when there's nothing to run (round-robin until F1.32). */
-	selectScenario: () => string | null;
+	/** Pick the next scenario id to evaluate, or null when there's nothing to run (sync round-robin, or F1.32b's
+	 *  async fitness-aware target picker). */
+	selectScenario: () => string | null | Promise<string | null>;
 	/** Compose the live admission signals (interactive work / model idle / resource headroom). */
 	getSignals: () => Promise<BackgroundEvalRunnerSignals>;
 	/** Durable lease checkpoint (survives restart). */

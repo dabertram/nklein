@@ -919,7 +919,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `NKLEIN_EVAL_RAIL`, toggle the rail on in Model Performance, confirm it admits when idle / yields on real cards /
   survives a restart mid-run / leaves zero throwaway workspaces. Follow-ups: F1.32 fitness-aware scenario+model picker
   (round-robin now); the live tick interval is a 5-min const until the service reads the persisted cadence tunable.
-- [ ] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
+- [~] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
   `src/core/background-eval-selection.ts` (`selectBackgroundEvalTarget`) is the pure picker: pinned
   (exact-or-nothing, never substitutes) / evidence (top coverage-probe priority via
   `deriveBackgroundEvalModelEvidence` over `planEvalCoverage`, then per-model project LRU) / rotation (pair-level
@@ -929,6 +929,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   verdicts + context floor, resource fit from `NKLEIN_DEVICE_RAM_GB` headroom, evidence from the fitness store via
   `planEvalCoverage`), persist rail run history for the recent-coverage window, and expose the mode + pins in
   config/Settings.
+  **PICKER LIVE 2026-07-18:** `selectBackgroundEvalTarget` drives the rail's selection seam —
+  `selectNextProject` allows async (runner core + atoms), the wiring's `selectTarget` replaces the round-robin
+  and latches the picked MODEL into `startEvalSession` (→ `nkleinSettings.modelId`; null ⇒ workspace default),
+  run history persisted per dispatch (`rail-run-history-store.ts` JSONL beside the lease checkpoint, corrupt-line
+  tolerant, 500-row read cap) feeding the 6h recent-coverage window, projects from NKLEIN_EVAL_RAIL_SCENARIOS
+  (default mid_task), mode + pins via NKLEIN_EVAL_RAIL_MODE/_PIN_PROJECT/_PIN_MODEL (evidence default). LOADED
+  non-embedding models only (resident ⇒ fitsResources; capable fails open). +3 tests. REMAINING (named):
+  capability = the 32k-floor/model-gate verdict feed + `planEvalCoverage` evidence (needs the fitness-row →
+  MeasuredEvalCell mapping — planEvalCoverage has no live caller yet), catalog/unloadable candidates, and the
+  config/Settings exposure of mode + pins (env-only today).
 - [x] **F1.33b — Mount the rail-findings analysis (cores SHIPPED 2026-07-13).** `src/core/rail-findings.ts` does
   the full F1.33 brain: `classifyRailFindings` (regression [high when newly-broken] / flake [mixed outcomes,
   stable trend] / quality_gap [delivers ≥floor with anomaly runs] / idea [start-failure-dominated → harness
