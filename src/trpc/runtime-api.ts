@@ -364,7 +364,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// same model server the user set — not a hardcoded default port. A cloud selection resolves to null and the
 			// chat falls back to its own default local endpoint (the chat is local-only).
 			resolveModelDeps: () =>
-				resolveLocalChatModelDeps({ baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? undefined }),
+				resolveLocalChatModelDeps({
+					baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? undefined,
+					// F2.7c: an explicit chat-model PIN (selection, not just discovery) — with several models resident
+					// there was no way to target one (the F2.7b vision probe had to unload the rest of the fleet).
+					// Env-first knob; the existing pin path asserts the model is actually loaded (fail-closed).
+					modelId: process.env.NKLEIN_CHAT_MODEL?.trim() || undefined,
+				}),
 			// G3a: when a project is active, route the chat through the tool-using agent loop with READ-ONLY tools
 			// (read_file/list_dir/get_board); without an active workspace this returns null and the chat stays plain.
 			resolveAgentToolDeps: buildChatAgentToolDepsResolver({
