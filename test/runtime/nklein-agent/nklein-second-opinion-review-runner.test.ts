@@ -11,7 +11,8 @@ const h = vi.hoisted(() => ({
 vi.mock("../../../src/nklein-agent/nklein-reviewer-model-selection", () => ({
 	pickDiverseReviewerModel: h.pickDiverseReviewerModel,
 }));
-vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", () => ({
+vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../../src/core/lmstudio-loaded-model-descriptors")>()),
 	fetchLoadedModelDescriptors: h.fetchLoadedModelDescriptors,
 }));
 vi.mock("../../../src/telemetry/self-observation-sink", () => ({ recordSelfObservation: h.recordSelfObservation }));

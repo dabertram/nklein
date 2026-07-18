@@ -203,3 +203,21 @@ export async function fetchLoadedModelDescriptors(
 		return [];
 	}
 }
+
+/**
+ * Pick the best loaded model for the restart-durability REVIEW fallback (live 2026-07-18: `find(first
+ * non-embedding)` handed the deciding review seat to a 7GB vision model while three stronger text reviewers sat
+ * loaded — every round ended no-submission → false park). Preference order, stable within ties so the caller's
+ * order still breaks them: non-vision over vision (a vision model in a text-review seat is a mis-route), then
+ * tool-trained over not (`submit_review` IS a tool call — `trained_for_tool_use` is the closest catalog signal
+ * for "will actually emit the verdict call"). Embeddings are excluded outright. Pure; null when nothing remains.
+ */
+export function pickReviewFallbackDescriptor(loaded: readonly LoadedModelDescriptor[]): LoadedModelDescriptor | null {
+	const candidates = loaded.filter((descriptor) => !descriptor.isEmbedding);
+	if (candidates.length === 0) {
+		return null;
+	}
+	const score = (descriptor: LoadedModelDescriptor): number =>
+		(descriptor.vision === true ? 0 : 2) + (descriptor.toolUse === true ? 1 : 0);
+	return candidates.reduce((best, next) => (score(next) > score(best) ? next : best));
+}

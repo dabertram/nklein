@@ -4,6 +4,7 @@ import {
 	lmStudioApiV1ModelsUrl,
 	mergeLoadedModelDescriptors,
 	parseLoadedModelDescriptors,
+	pickReviewFallbackDescriptor,
 } from "../../../src/core/lmstudio-loaded-model-descriptors";
 
 // Shaped after a real LM Studio /api/v1/models payload (loaded + not-loaded entries mixed).
@@ -237,5 +238,37 @@ describe("vision capability (F2.7b)", () => {
 		});
 		expect(descriptors.find((d) => d.modelKey === "zai-org/glm-4.6v-flash")?.vision).toBe(true);
 		expect(descriptors.find((d) => d.modelKey === "text-only")?.vision).toBeUndefined();
+	});
+});
+describe("pickReviewFallbackDescriptor (deciding-seat fallback ranking)", () => {
+	const d = (runtimeId: string, extra: object = {}) => ({
+		runtimeId,
+		modelKey: runtimeId,
+		isEmbedding: false,
+		...extra,
+	});
+
+	it("prefers a non-vision tool-trained model over a vision model listed first", () => {
+		const loaded = [
+			d("glm-vision", { vision: true, toolUse: true }),
+			d("gemma-reviewer", { toolUse: true }),
+			d("plain-model", {}),
+		];
+		expect(pickReviewFallbackDescriptor(loaded)?.runtimeId).toBe("gemma-reviewer");
+	});
+
+	it("falls back to a vision model only when nothing else is loaded, and excludes embeddings", () => {
+		expect(
+			pickReviewFallbackDescriptor([
+				{ runtimeId: "embed", modelKey: "embed", isEmbedding: true },
+				d("glm-vision", { vision: true }),
+			])?.runtimeId,
+		).toBe("glm-vision");
+		expect(pickReviewFallbackDescriptor([{ runtimeId: "embed", modelKey: "embed", isEmbedding: true }])).toBeNull();
+	});
+
+	it("keeps first-listed order within equal preference (stability)", () => {
+		const loaded = [d("a", { toolUse: true }), d("b", { toolUse: true })];
+		expect(pickReviewFallbackDescriptor(loaded)?.runtimeId).toBe("a");
 	});
 });

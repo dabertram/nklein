@@ -1,5 +1,5 @@
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
-import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { isReasoningModel } from "../core/model-thinking-control";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -164,7 +164,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			const loaded = await fetchLoadedModelDescriptors(
 				workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL,
 			).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
-			const fallback = loaded.find((descriptor) => !descriptor.isEmbedding);
+			const fallback = pickReviewFallbackDescriptor(loaded);
 			if (fallback) {
 				providerId = providerId || workerLaunch?.providerId?.trim() || "lmstudio";
 				modelId = fallback.runtimeId;
