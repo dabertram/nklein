@@ -732,6 +732,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 										task,
 										draft,
 										...(modelDeps.modelId !== undefined ? { modelId: modelDeps.modelId } : {}),
+										...(modelDeps.resolveStrongerPeer
+											? { resolveStrongerPeer: modelDeps.resolveStrongerPeer }
+											: {}),
 										complete: async ({ system, user }) =>
 											modelDeps.complete([
 												...(system ? [{ role: "system" as const, content: system }] : []),

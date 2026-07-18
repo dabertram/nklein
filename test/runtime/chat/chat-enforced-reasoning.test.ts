@@ -77,6 +77,54 @@ describe("maybeEnforceReasoning (§5.AD flag-gated chat hookup)", () => {
 		expect(calls[0]).toBe("critique");
 	});
 
+	it("F3.13: a stronger loaded peer flips the gate to cross_model_carry and the PEER completion drives the repair", async () => {
+		let peerCalls = 0;
+		let selfCalls = 0;
+		const out = await maybeEnforceReasoning({
+			task: HARD_TASK,
+			draft: "draft-needs-help",
+			profile: strugglingProfile(),
+			modelId: "weak-7b",
+			complete: async () => {
+				selfCalls += 1;
+				return "self-answer";
+			},
+			resolveStrongerPeer: async (draftModelId) => {
+				expect(draftModelId).toBe("weak-7b");
+				return {
+					modelId: "strong-32b",
+					complete: async () => {
+						peerCalls += 1;
+						// The carry loop's critique+repair reply: a REPAIRED section replaces the draft.
+						return "FINDINGS: shallow reasoning\nREPAIRED:\npeer-repaired-answer";
+					},
+				};
+			},
+			enabled: true,
+		});
+		expect(peerCalls).toBeGreaterThan(0);
+		expect(selfCalls).toBe(0);
+		expect(out).toContain("peer-repaired-answer");
+	});
+
+	it("F3.13: no stronger peer (resolver null) ⇒ the pre-existing bounce path runs on the SAME model", async () => {
+		let selfCalls = 0;
+		const out = await maybeEnforceReasoning({
+			task: HARD_TASK,
+			draft: "draft-2",
+			profile: strugglingProfile(),
+			modelId: "weak-7b",
+			complete: async () => {
+				selfCalls += 1;
+				return "self-improved";
+			},
+			resolveStrongerPeer: async () => null,
+			enabled: true,
+		});
+		expect(selfCalls).toBeGreaterThan(0);
+		expect(typeof out).toBe("string");
+	});
+
 	it("a throwing completion never breaks the turn — the draft survives", async () => {
 		const out = await maybeEnforceReasoning({
 			task: HARD_TASK,

@@ -1,5 +1,6 @@
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { parseModelAttributes } from "../core/model-attributes";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../core/model-capability-catalog";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
@@ -136,5 +137,36 @@ export async function resolveLocalChatModelDeps(options: ResolveLocalChatModelOp
 		throw new Error(`No loaded local model found at ${baseUrl}. Load a model (e.g. in LM Studio) and try again.`);
 	}
 	const client = new LocalLlmClient({ providerId, modelId, baseUrl });
-	return createChatModelDeps(client, { modelId });
+	const deps = createChatModelDeps(client, { modelId });
+	// F3.13 cross-model carry: rank loaded peers by UNAMBIGUOUS parameter count (parseModelAttributes.paramB) —
+	// deterministic and dependency-light at the chat layer. No strictly-larger loaded peer, or any failure, is
+	// null — the enforced-reasoning loop then keeps the draft (the pre-existing degrade path).
+	deps.resolveStrongerPeer = async (draftModelId) => {
+		try {
+			const loaded = await fetchLoadedModelIds(baseUrl, fetchImpl);
+			const draftParamB = parseModelAttributes(draftModelId).paramB ?? 0;
+			const peer = loaded
+				.filter((id) => id !== draftModelId && !/embed/i.test(id))
+				.map((id) => ({ id, paramB: parseModelAttributes(id).paramB ?? 0 }))
+				.filter((candidate) => candidate.paramB > draftParamB)
+				.sort((left, right) => right.paramB - left.paramB)[0];
+			if (!peer) {
+				return null;
+			}
+			const peerDeps = createChatModelDeps(new LocalLlmClient({ providerId, modelId: peer.id, baseUrl }), {
+				modelId: peer.id,
+			});
+			return {
+				modelId: peer.id,
+				complete: ({ system, user }) =>
+					peerDeps.complete([
+						...(system ? [{ role: "system" as const, content: system }] : []),
+						{ role: "user" as const, content: user },
+					]),
+			};
+		} catch {
+			return null;
+		}
+	};
+	return deps;
 }

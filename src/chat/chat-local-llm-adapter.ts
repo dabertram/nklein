@@ -59,6 +59,15 @@ export interface ChatModelDeps {
 	extractMemories?: (summary: string) => Promise<string[]>;
 	/** The resolved model id (§5.AL) — lets the chat service apply the capability gate when tools are in play. */
 	modelId?: string;
+	/**
+	 * F3.13 cross-model carry: resolve a STRONGER loaded peer (distinct model, higher unambiguous parameter
+	 * count) and a completion bound to it. Null when no stronger peer is loaded — the enforced-reasoning loop
+	 * then degrades to keeping the draft, exactly as before.
+	 */
+	resolveStrongerPeer?: (draftModelId: string) => Promise<{
+		modelId: string;
+		complete: (input: { system?: string; user: string }) => Promise<string>;
+	} | null>;
 }
 
 /** §5.M the extractor system prompt — pull DURABLE facts a future session should know, not transient chatter. */
