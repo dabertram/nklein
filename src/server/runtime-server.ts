@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -151,7 +151,7 @@ import {
 	recordFailedAttempt,
 	validatePasscode,
 } from "../security/passcode-manager";
-import { evaluateRemoteRequestAuth } from "../security/remote-request-auth";
+import { evaluateRemoteRequestAuth, isLoopbackAddress } from "../security/remote-request-auth";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
@@ -225,6 +225,7 @@ import {
 	evaluateRunningTaskTrouble,
 } from "./task-trouble-monitor";
 import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
+import { applyTriggerCardToBoard, handleTriggerIntake, loadTriggerTemplateFile } from "./trigger-intake-handler";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
@@ -3923,6 +3924,87 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				res.end(oauthCallbackResponse.body);
 				return;
 			}
+			// ── F12.106 external-trigger intake ─────────────────────────────────
+			// POST /api/triggers/<name>: an EVENT seeds a board card from the in-repo template
+			// .nklein/triggers/<name>.json (front of Ready for incident-style templates; the autonomous
+			// ready-sweep starts it). LOCAL-ONLY INVARIANT: loopback callers only, regardless of passcode
+			// state — the intake is a factory doorbell, never a remote API. Every fire is audited (one
+			// self-observation + one ledger transition).
+			if (req.method === "POST" && pathname.startsWith("/api/triggers/")) {
+				const triggerHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+				if (!isLoopbackAddress(req.socket.remoteAddress)) {
+					res.writeHead(403, triggerHeaders);
+					res.end(JSON.stringify({ error: "External-trigger intake is loopback-only (local-only invariant)." }));
+					return;
+				}
+				let triggerBody = "";
+				try {
+					triggerBody = await readRequestBody(req);
+				} catch {
+					res.writeHead(400, triggerHeaders);
+					res.end(JSON.stringify({ error: "Invalid request body." }));
+					return;
+				}
+				const triggerResult = await handleTriggerIntake(
+					{
+						name: decodeURIComponent(pathname.slice("/api/triggers/".length)),
+						bodyText: triggerBody,
+						workspaceIdParam: requestUrl.searchParams.get("workspaceId"),
+					},
+					{
+						listWorkspaces: async () =>
+							(await listWorkspaceIndexEntries()).map((entry) => ({
+								workspaceId: entry.workspaceId,
+								repoPath: entry.repoPath,
+							})),
+						readTemplateFile: loadTriggerTemplateFile,
+						seedCard: async ({ entry, template, card }) => {
+							await mutateWorkspaceState(entry.repoPath, (latestState) => {
+								const applied = applyTriggerCardToBoard({
+									board: latestState.board,
+									template,
+									card,
+									randomUuid: () => randomUUID(),
+									now: Date.now(),
+								});
+								return { board: applied.board, value: applied.task.id };
+							});
+						},
+						audit: async ({ entry, triggerName, taskId, payloadBytes }) => {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `External trigger "${triggerName}" seeded card ${taskId} (${payloadBytes} payload bytes).`,
+								taskId,
+								workspacePath: entry.repoPath,
+								metadata: { category: "trigger_intake", triggerName },
+							});
+							await appendAgentLedgerEvent(
+								buildTransitionEvent({
+									workflowId: taskId,
+									taskId,
+									workspacePathHash: hashWorkspacePathForLedger(entry.repoPath),
+									from: "external",
+									to: "trigger_seeded",
+									reason: `trigger:${triggerName}`,
+									controllerDecision: "external_trigger_intake",
+								}),
+							).catch(() => {});
+							// Arm the board machinery for a possibly-headless workspace so the seeded card is swept.
+							await getScopedNKleinTaskSessionService({
+								workspaceId: entry.workspaceId,
+								workspacePath: entry.repoPath,
+							}).catch(() => undefined);
+						},
+						now: () => Date.now(),
+						randomUuid: () => randomUUID(),
+					},
+				);
+				res.writeHead(triggerResult.status, triggerHeaders);
+				res.end(JSON.stringify(triggerResult.body));
+				return;
+			}
+			// ── End external-trigger intake ─────────────────────────────────────
 			// ── Desktop nonce handshake (§5.Y #10) ───────────────────────────────
 			// Expose the nonce only when the runtime was spawned by the desktop
 			// shell (env var set). Readable only by someone who already knows the

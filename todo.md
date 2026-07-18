@@ -3160,7 +3160,7 @@ into the existing F12.31. Same verify-before-build caveat.**
 
 **ADW / software-factory deltas (IndyDevDan "Forget Loop Engineering — Agentic Engineering is about THIS", youtu.be/VQy50fuxI34, David 2026-07-18). Gap analysis: !Klein already IS the kanban-queue factory with review agents, closed-loop verification, fleet orchestration + observability, context engineering, and out-of-loop autonomy — the genuinely uncovered concepts are the FOUR below:**
 
-- [ ] **F12.106 — External-trigger intake: events create cards (the "Production Goes Down" incident ADW).** Every card
+- [~] **F12.106 — External-trigger intake: events create cards (the "Production Goes Down" incident ADW).** Every card
   today is human-seeded; the video's climax is a workflow ENTERED by an event (an alarm fires → the factory responds
   autonomously). Add trigger sources that seed cards from templates: a local webhook endpoint (`POST /api/triggers/<name>`),
   a cron schedule, and a log/file-watch — each mapped to a card TEMPLATE (prompt + filesLikelyTouched + priority + auto-start
@@ -3169,6 +3169,14 @@ into the existing F12.31. Same verify-before-build caveat.**
   BIND to loopback by default; no outbound calls. Seams: the card-mailbox + startTaskSession machinery already cover
   seeding/starting; the new surface is the trigger registry + template store + an auditable trigger→card ledger event.
   (IndyDevDan ADW factory intake; incident-response workflow)
+  **WEBHOOK SLICE SHIPPED 2026-07-18:** `POST /api/triggers/<name>` live — loopback-ONLY (403 otherwise,
+  regardless of passcode), template = `.nklein/triggers/<name>.json` ({payload.*}/{trigger}/{timestamp} tokens,
+  unknown tokens stay visible, provenance footer), lands FRONT of Ready by default and the ordinary ready-sweep
+  auto-starts it (scoped service warmed per fire so headless boards wake), per-(workspace,trigger) 30s
+  alarm-storm damping (released on seed failure), 404/409+?workspaceId disambiguation, audit = self-observation
+  + `external→trigger_seeded` ledger transition. Pure core `trigger-intake.ts` + injectable handler; 10 tests.
+  `autoStart:false` templates are REFUSED (boards are autonomous; honest error over silent start). REMAINING:
+  cron + log/file-watch trigger sources.
 - [ ] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
   !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
   reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
