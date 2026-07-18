@@ -1525,10 +1525,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
   **AUDIT 2026-07-18: DONE** — fitness + confidence band + freshness/age + working Re-evaluate action (Model-Performance dialog) and role policy + pins + resource preference + concurrency caps (Runtime Settings dialog). Caveat: split across the two dialogs rather than one panel — acceptable surface.
-- [ ] **F3.32 — Integrate llmfit into live load/routing decisions.** Consume fit/speed priors, reconcile IDs with the
+- [~] **F3.32 — Integrate llmfit into live load/routing decisions.** Consume fit/speed priors, reconcile IDs with the
   catalog, expose an egress-gated update check/action, and never autonomously download a model.
-- [ ] **F3.33 — Make routing confidence- and resource-aware.** Combine quality confidence, queue time, RAM/VRAM, load
+  **AUDIT 2026-07-18: PRIORS CONSUMED LIVE** — nklein-llmfit-routing-prior.ts feeds fit tags into live routing and
+  resolveModelCapabilityIdsWithCatalog (2026-07-18) unions llmfit tags with the LM Studio catalog for capability
+  gates (vision proven live). MISSING: the egress-gated llmfit-data UPDATE check/action (no refresh flow exists;
+  the vendored data ages silently) — that's the genuine remainder.
+- [~] **F3.33 — Make routing confidence- and resource-aware.** Combine quality confidence, queue time, RAM/VRAM, load
   time, endpoint occupancy, and warm-cache value; record predicted versus realized outcomes.
+  **AUDIT 2026-07-18: CORE + PREVIEW EXIST** — confidence-resource-routing.ts (the pure combiner incl.
+  routingPredictionError |predicted−realized|), routing-decision-log.ts persists predictedModelKey, and
+  `dev routing-preview` renders the ranked order over the LIVE loaded fleet. MISSING: live adoption (the attempt
+  router still selects via the llmfit prior path, not this combiner) + the realized-outcome fold (nothing writes
+  realizedQuality back against predictions). Wire = consult at selectModelForAttempt (record-only first, like
+  F3.7b) + fold at the terminal-attempt seam.
 - [ ] **F3.34 — Add an egress-gated “research this model” flow.** For unknown/failing local models, search current
   primary documentation for API switches, tool dialect, reasoning controls, context/quant quirks, and fit; present a
   provisional catalog update for review and never auto-apply model downloads or unsafe settings.
