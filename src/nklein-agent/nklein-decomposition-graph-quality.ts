@@ -149,16 +149,39 @@ export function assessNKleinPlanTaskGraphQuality(taskGraph: NKleinPlanTaskGraph)
 	const nonDocsExists = classified.some((entry) => !entry.isDocs);
 	const domainCoreExists = classified.some((entry) => entry.isDomainCore);
 
+	// Dependents index: which cards BUILD ON a given card. A test-classified card that non-test cards depend on
+	// is scaffolding/harness infrastructure (e.g. "Project scaffold: … test wiring" as a chain ROOT), not a
+	// floating verifier — the hard must-depend-on-implementation rule cannot apply to it (it is the thing being
+	// depended on). Live-found 2026-07-18: scenario-02's fully-coherent 18-card chain was hard-rejected three
+	// times because its root's title mentioned "test wiring", then the repeated-call guard parked the seed.
+	const nonTestDependentsByTaskId = new Map<string, number>();
+	for (const entry of classified) {
+		if (entry.isTest) {
+			continue;
+		}
+		for (const dependencyId of new Set(entry.task.dependsOn)) {
+			nonTestDependentsByTaskId.set(dependencyId, (nonTestDependentsByTaskId.get(dependencyId) ?? 0) + 1);
+		}
+	}
+
 	for (const entry of classified) {
 		const dependencies = [...new Set(entry.task.dependsOn)]
 			.map((id) => classifiedById.get(id))
 			.filter((dependency): dependency is ClassifiedTask => Boolean(dependency));
 
-		// Hard: a test/acceptance card must verify something — it must depend on a non-test card.
+		// Hard: a test/acceptance card must verify something — it must depend on a non-test card. EXEMPT
+		// foundational cards that non-test work builds on (see the dependents index above): those are harness
+		// scaffolding despite the test-flavored title; surface a warning instead so the operator still sees it.
 		if (entry.isTest && nonTestExists && !dependencies.some((dependency) => !dependency.isTest)) {
-			violations.push(
-				`Test card ${entry.task.id} ("${entry.task.title}") does not depend on any implementation card; add a dependsOn edge to the card(s) it verifies.`,
-			);
+			if ((nonTestDependentsByTaskId.get(entry.task.id) ?? 0) > 0) {
+				warnings.push(
+					`Test-titled card ${entry.task.id} ("${entry.task.title}") has no implementation dependency but non-test cards build on it — treating it as scaffolding, not a floating verifier.`,
+				);
+			} else {
+				violations.push(
+					`Test card ${entry.task.id} ("${entry.task.title}") does not depend on any implementation card; add a dependsOn edge to the card(s) it verifies.`,
+				);
+			}
 		}
 
 		// Hard: a documentation card should document delivered work — it must depend on a non-docs card.

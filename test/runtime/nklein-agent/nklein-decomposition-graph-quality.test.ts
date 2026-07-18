@@ -140,4 +140,26 @@ describe("assessNKleinPlanTaskGraphQuality", () => {
 		);
 		expect(result.warnings.some((warning) => warning.includes("UI card"))).toBe(true);
 	});
+
+	it("exempts a test-titled SCAFFOLD root that non-test cards build on (live-found: coherent chain hard-rejected)", () => {
+		const quality = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "s00", title: "Project scaffold: zero-dependency node test wiring", dependsOn: [] }),
+				task({ id: "s01", title: "Core domain model", dependsOn: ["s00"] }),
+				task({ id: "s02", title: "End-to-end pipeline test", dependsOn: ["s01"] }),
+			]),
+		);
+		expect(quality.violations).toEqual([]);
+		expect(quality.warnings.some((warning) => warning.includes("scaffolding"))).toBe(true);
+		// A genuinely floating test card (nothing builds on it, verifies nothing) still violates.
+		const floating = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "a", title: "Implement feature", dependsOn: [] }),
+				task({ id: "t", title: "Write integration tests", dependsOn: [] }),
+			]),
+		);
+		expect(floating.violations.some((violation) => violation.includes("does not depend on any implementation"))).toBe(
+			true,
+		);
+	});
 });
