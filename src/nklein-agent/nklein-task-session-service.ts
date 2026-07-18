@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
+import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
 import {
 	applyModelStatsTrackingLevel,
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
@@ -235,6 +236,28 @@ function appendVisibleSystemPromptMessage(entry: NKleinTaskSessionEntry, taskId:
 			displayRole: "System prompt",
 		}),
 	);
+}
+
+/**
+ * F4.37 second half: pick the tool-policy map for a session — planning seeds get the plan restriction (§5.B),
+ * VERDICT-ONLY sessions (review / plan-critique, per derivePromptSessionKind) get the judge narrowing (the live
+ * 2026-07-18 tee capture measured a 32.2KB serialized tools block burying submit_review among 25 worker schemas —
+ * the reason dieted judges still ended turns with no tool call). Merge sessions keep editing tools. Same env
+ * opt-out as the prompt diet (NKLEIN_JUDGE_PROMPT_DIET=0) so the diet is ONE lever.
+ */
+function resolveSessionToolPolicies<TValue extends { enabled?: boolean; autoApprove?: boolean }>(args: {
+	taskId: string;
+	isExplicitDecomposition: boolean;
+	basePolicies: Readonly<Record<string, TValue>>;
+}): Record<string, TValue> {
+	if (args.isExplicitDecomposition) {
+		return restrictToolPoliciesForPlanning(args.basePolicies);
+	}
+	const kind = derivePromptSessionKind(args.taskId, { isExplicitDecomposition: false });
+	if (VERDICT_ONLY_SESSION_KINDS.has(kind) && isEnabledByDefaultEnv(process.env.NKLEIN_JUDGE_PROMPT_DIET)) {
+		return restrictToolPoliciesForVerdictSession(args.basePolicies);
+	}
+	return { ...args.basePolicies };
 }
 
 export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionService {
@@ -1241,11 +1264,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					writeScope: launchConfig.writeScope ?? null,
 					forbiddenPaths: launchConfig.forbiddenPaths ?? null,
 				}),
-				// A decompose/plan seed only PLANS (calls decompose_project) — strip execution + write tools so a weak
-				// model can't rabbit-hole on run_commands/edits instead of decomposing (sweep run 7, §5.B).
-				toolPolicies: this.explicitDecompositionTaskIds.has(input.taskId)
-					? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
-					: runtimeSetup.toolPolicies,
+				// Planning seeds: read-only + decompose_project (§5.B). Verdict-only sessions (review/plan-critique):
+				// inspection + submission only — the 32.2KB worker tools block was the post-diet no-submission cause.
+				toolPolicies: resolveSessionToolPolicies({
+					taskId: input.taskId,
+					isExplicitDecomposition: this.explicitDecompositionTaskIds.has(input.taskId),
+					basePolicies: runtimeSetup.toolPolicies,
+				}),
 				onDecompositionApplied: this.onDecompositionApplied,
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(input.taskId, hostWorkspaceRoot),
@@ -1825,10 +1850,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 										basicMemoryEnabled: this.isBasicMemoryEnabled(),
 									}
 								: {}),
-							// Decompose/plan seed: read-only + decompose_project only (strip execution/write) — §5.B, sweep run 7.
-							toolPolicies: this.explicitDecompositionTaskIds.has(request.taskId)
-								? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
-								: runtimeSetup.toolPolicies,
+							// Planning seeds: §5.B restriction; verdict-only sessions: judge narrowing (see resolveSessionToolPolicies).
+							toolPolicies: resolveSessionToolPolicies({
+								taskId: request.taskId,
+								isExplicitDecomposition: this.explicitDecompositionTaskIds.has(request.taskId),
+								basePolicies: runtimeSetup.toolPolicies,
+							}),
 							onDecompositionApplied: this.onDecompositionApplied,
 							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 							requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(request.taskId, request.cwd),
