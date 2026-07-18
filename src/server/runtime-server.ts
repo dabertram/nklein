@@ -539,6 +539,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// raced the completing session's still-held slot, and after the LAST completion no event ever fires again.
 	// A concurrency-limit deferral therefore also arms a one-shot TIMER sweep (clears the debounce window).
 	const deferredRetryTimerByWorkspaceId = new Map<string, ReturnType<typeof setTimeout>>();
+	// Live-found 2026-07-18: one-shot guard for the pinned-model auto-heal (never loop the heal itself).
+	const pinnedModelAutoHealedTaskKeys = new Set<string>();
 	// #29 (user directive: "improve detection of stall"): a RUNTIME-level board-liveness watchdog. Every tick,
 	// if actionable work exists without its own live session (startable-unstarted cards or a non-empty deferred set),
 	// the board has stranded work — self-heal by sweeping, and say so loudly. A live card excludes only itself;
@@ -1017,6 +1019,46 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}, DEFERRED_RETRY_TIMER_MS),
 						);
 						continue;
+					}
+					// Live-found 2026-07-18 (rig9): a W4.2 model switch pinned a model the workspace's candidate set
+					// does not include — the card then retried FOREVER as pinned_model_unavailable (the error text
+					// even tells the operator to clear the override). The autonomous system takes its own advice
+					// ONCE: strip the card's model override, persist, and let the next sweep start it via Auto.
+					if (started.errorCode === "pinned_model_unavailable" && task.nkleinSettings?.modelId) {
+						const healedKey = `${scope.workspaceId}:${task.id}`;
+						if (!pinnedModelAutoHealedTaskKeys.has(healedKey)) {
+							pinnedModelAutoHealedTaskKeys.add(healedKey);
+							await mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+								board: {
+									...latestState.board,
+									columns: latestState.board.columns.map((column) => ({
+										...column,
+										cards: column.cards.map((card) =>
+											card.id === task.id
+												? {
+														...card,
+														nkleinSettings: { ...(card.nkleinSettings ?? {}), modelId: undefined },
+														updatedAt: Date.now(),
+													}
+												: card,
+										),
+									})),
+								},
+								value: null,
+							})).catch(() => null);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Auto-healed unstartable pin on ${task.id}: cleared model override "${task.nkleinSettings.modelId}" (pinned_model_unavailable) — next sweep starts it via Auto routing.`,
+								taskId: task.id,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "pinned_model_auto_heal", clearedModelId: task.nkleinSettings.modelId },
+							});
+							deps.warn(
+								`Auto-healed unstartable pin on ${task.id}: cleared model override ${task.nkleinSettings.modelId}; retrying via Auto on the next sweep.`,
+							);
+							continue;
+						}
 					}
 					deps.warn(
 						`Could not auto-start linked task ${task.id} for ${scope.workspacePath} (${started.errorCode ?? "unknown_code"}): ${started.error ?? "unknown error"}`,
