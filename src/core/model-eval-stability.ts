@@ -418,3 +418,105 @@ export function summarizeModelRoleStability(
 				left.role.localeCompare(right.role),
 		);
 }
+
+// ---------------------------------------------------------------------------
+// F12.33 — behavioral reproducibility per (model, role) + critical-role routing preference
+// ---------------------------------------------------------------------------
+
+export interface BehavioralReproducibility {
+	/** 0..1 — how consistently this (model, role) reproduces its own behavior run-to-run. */
+	score: number;
+	/** The components, for the operator surface + tests. */
+	components: {
+		/** 1 − mean qualitySpread over cells with ≥2 runs (1 when no multi-run cell exists yet). */
+		qualityConsistency: number;
+		/** 1 − flakyCells/cells (1 when there are no cells). */
+		flakeFreedom: number;
+		/** The weakest-link wilsonLower^k floor (0 when unknown — unknown reliability is NOT credited). */
+		reliabilityFloor: number;
+	};
+	/** Fraction of cells whose verdict is trustworthy — the caller's guard against acting on thin data. */
+	settledFraction: number;
+	reason: string;
+}
+
+/**
+ * Collapse a (model, role)'s stability rollup + cells into ONE behavioral-reproducibility score (F12.33):
+ * equal-weight blend of quality consistency (1 − mean run-to-run graded spread), flake freedom (1 − flaky-cell
+ * fraction), and the F12.43 weakest-link reliability floor. Pure; a rollup with zero cells scores 0 (nothing
+ * measured reproduces nothing) with settledFraction 0 so consumers treat it as no-data, not bad-data.
+ */
+export function computeBehavioralReproducibility(
+	rollup: ModelRoleStability,
+	cells: readonly EvalCellStability[],
+): BehavioralReproducibility {
+	const own = cells.filter((cell) => cell.modelId === rollup.modelId && cell.role === rollup.role);
+	if (own.length === 0) {
+		return {
+			score: 0,
+			components: { qualityConsistency: 0, flakeFreedom: 0, reliabilityFloor: 0 },
+			settledFraction: 0,
+			reason: "no measured cells — reproducibility unknown",
+		};
+	}
+	const multiRun = own.filter((cell) => cell.runs >= 2);
+	const qualityConsistency =
+		multiRun.length === 0
+			? 1
+			: 1 - multiRun.reduce((sum, cell) => sum + Math.min(1, Math.max(0, cell.qualitySpread)), 0) / multiRun.length;
+	const flakeFreedom = rollup.cells === 0 ? 1 : 1 - rollup.flakyCells / rollup.cells;
+	const reliabilityFloor = rollup.minLowerBoundPassPowerK ?? 0;
+	const score = (qualityConsistency + flakeFreedom + reliabilityFloor) / 3;
+	return {
+		score,
+		components: { qualityConsistency, flakeFreedom, reliabilityFloor },
+		settledFraction: rollup.settledFraction,
+		reason:
+			`quality-consistency ${qualityConsistency.toFixed(2)} (over ${multiRun.length} multi-run cell(s)), ` +
+			`flake-freedom ${flakeFreedom.toFixed(2)} (${rollup.flakyCells}/${rollup.cells} flaky), ` +
+			`reliability floor ${reliabilityFloor.toFixed(2)}`,
+	};
+}
+
+/** Roles where a STABLE model beats a flakier higher-peak one (they gate/judge other work). */
+export const STABILITY_CRITICAL_ROLES: ReadonlySet<string> = new Set(["reviewer", "architect"]);
+
+/**
+ * F12.33 routing preference: for a stability-critical role, blend the candidate's effectiveness with its
+ * reproducibility so a stable slightly-weaker model can out-rank a flaky peak — but ONLY when the
+ * reproducibility measurement itself is trustworthy (settledFraction ≥ minSettledFraction); thin data leaves
+ * the effectiveness score untouched (never punish a model for being unmeasured). Non-critical roles pass
+ * through unchanged. Pure; returns the adjusted score plus an explanation for record-only consumers.
+ */
+export function adjustScoreForReproducibility(input: {
+	role: string;
+	effectiveScore: number;
+	reproducibility: BehavioralReproducibility | null;
+	/** Blend weight on reproducibility for critical roles (default 0.3). */
+	weight?: number;
+	/** Minimum settled fraction before the measurement is trusted (default 0.5). */
+	minSettledFraction?: number;
+}): { adjustedScore: number; adjusted: boolean; reason: string } {
+	const weight = input.weight ?? 0.3;
+	const minSettled = input.minSettledFraction ?? 0.5;
+	if (!STABILITY_CRITICAL_ROLES.has(input.role)) {
+		return {
+			adjustedScore: input.effectiveScore,
+			adjusted: false,
+			reason: `role "${input.role}" is not stability-critical`,
+		};
+	}
+	if (!input.reproducibility || input.reproducibility.settledFraction < minSettled) {
+		return {
+			adjustedScore: input.effectiveScore,
+			adjusted: false,
+			reason: `reproducibility unmeasured or thin (settled ${input.reproducibility?.settledFraction.toFixed(2) ?? "n/a"} < ${minSettled}) — effectiveness unchanged`,
+		};
+	}
+	const multiplier = 1 - weight + weight * input.reproducibility.score;
+	return {
+		adjustedScore: input.effectiveScore * multiplier,
+		adjusted: true,
+		reason: `critical role "${input.role}": ×${multiplier.toFixed(3)} (reproducibility ${input.reproducibility.score.toFixed(2)}, weight ${weight})`,
+	};
+}

@@ -2741,10 +2741,17 @@ output and NOT acted on. Captured as F12.12.)
   REMAINING WIRE: opt-in consult-before-execute at the tool boundary (context fingerprint from the F12.67
   file-hash tree) and the model-response reuse seam (semantics-changing — flag + A/B before any default); aimock
   stays the record/replay layer for sims.
-- [ ] **F12.33 — Behavioral-reproducibility metric per model×role (feeds the fitness store + routing).** Measure run-to-run
+- [~] **F12.33 — Behavioral-reproducibility metric per model×role (feeds the fitness store + routing).** Measure run-to-run
   CONSISTENCY of a model×role on a fixed fixture (accuracy variation, tool-call stability) so routing can prefer STABLE
   models for critical roles (reviewer/architect) even if a flakier model has a higher peak. Extends the model-role-stability
   telemetry. (arxiv 2605.28840 behavioral-reproducibility; futureagi non-deterministic-prompts)
+  **SCORING CORE SHIPPED 2026-07-18** (model-eval-stability.ts): computeBehavioralReproducibility — equal-weight
+  blend of quality consistency (1 − mean run-to-run graded spread over multi-run cells), flake freedom (1 −
+  flaky-cell fraction), and the F12.43 weakest-link wilsonLower^k floor; zero cells ⇒ score 0 + settledFraction 0
+  (no-data, not bad-data). adjustScoreForReproducibility applies it ONLY to stability-critical roles
+  (reviewer/architect) and ONLY when settledFraction ≥ 0.5 (thin data never punishes an unmeasured model);
+  proven: a stable 70 out-ranks a flaky 80 at default weight 0.3. 4 tests. REMAINING WIRE: record-only consult
+  at attempt-model-selection (ride the F3.7b behavior-profile plumbing), then the fitness-store column.
 
 **Multi-agent orchestration & review (deltas — feeds §5.AW review + routing):**
 - [~] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Research VALIDATES this strongly: cross-model

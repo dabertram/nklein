@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { AggregateModelEvalPolicy, ModelEvalRun } from "../../../src/core/model-eval-aggregation";
 import { summarizeModelEvalCells } from "../../../src/core/model-eval-aggregation";
 import {
+	adjustScoreForReproducibility,
+	computeBehavioralReproducibility,
 	computePassPowerK,
 	DEFAULT_EVAL_STABILITY_POLICY,
 	type EvalStabilityPolicy,
@@ -305,5 +307,92 @@ describe("computePassPowerK (F12.43)", () => {
 		expect(row?.minLowerBoundPassPowerK).not.toBeNull();
 		// The weakest link is the 2/3 easy cell, whose Wilson floor is far below the 3/3 medium cell's.
 		expect(row?.minLowerBoundPassPowerK ?? 1).toBeLessThan(0.2);
+	});
+});
+describe("behavioral reproducibility (F12.33)", () => {
+	const cell = (over: object) => ({
+		modelId: "m",
+		role: "reviewer",
+		difficulty: "medium" as const,
+		runs: 3,
+		passRate: 1,
+		qualitySpread: 0,
+		verdict: "settled_pass" as const,
+		confidence: 0.9,
+		runsOwed: 0,
+		reason: "",
+		...over,
+	});
+	const rollup = (over: object) => ({
+		modelId: "m",
+		role: "reviewer",
+		cells: 2,
+		settledCells: 2,
+		flakyCells: 0,
+		thinCells: 0,
+		settledFraction: 1,
+		totalRunsOwed: 0,
+		meanConfidence: 0.9,
+		minLowerBoundPassPowerK: 0.8,
+		...over,
+	});
+
+	it("perfectly consistent cells score high; spread and flakes drag it down", () => {
+		const good = computeBehavioralReproducibility(rollup({}), [cell({}), cell({ difficulty: "easy" })]);
+		expect(good.score).toBeCloseTo((1 + 1 + 0.8) / 3, 5);
+		const flaky = computeBehavioralReproducibility(rollup({ flakyCells: 1, minLowerBoundPassPowerK: 0.2 }), [
+			cell({ qualitySpread: 0.6 }),
+			cell({ difficulty: "easy", verdict: "flaky" }),
+		]);
+		expect(flaky.score).toBeLessThan(good.score);
+		expect(flaky.components.qualityConsistency).toBeCloseTo(0.7, 5);
+	});
+
+	it("zero cells = unknown (score 0, settledFraction 0), single-run cells don't fake consistency", () => {
+		const none = computeBehavioralReproducibility(rollup({}), []);
+		expect(none.score).toBe(0);
+		expect(none.settledFraction).toBe(0);
+		const single = computeBehavioralReproducibility(rollup({ minLowerBoundPassPowerK: null }), [cell({ runs: 1 })]);
+		expect(single.components.qualityConsistency).toBe(1);
+		expect(single.components.reliabilityFloor).toBe(0);
+	});
+
+	it("adjusts effectiveness only for critical roles with trustworthy measurements", () => {
+		const repro = computeBehavioralReproducibility(rollup({}), [cell({})]);
+		const critical = adjustScoreForReproducibility({ role: "reviewer", effectiveScore: 80, reproducibility: repro });
+		expect(critical.adjusted).toBe(true);
+		expect(critical.adjustedScore).toBeLessThanOrEqual(80);
+		const worker = adjustScoreForReproducibility({ role: "worker", effectiveScore: 80, reproducibility: repro });
+		expect(worker).toMatchObject({ adjusted: false, adjustedScore: 80 });
+		const thin = adjustScoreForReproducibility({
+			role: "reviewer",
+			effectiveScore: 80,
+			reproducibility: { ...repro, settledFraction: 0.2 },
+		});
+		expect(thin).toMatchObject({ adjusted: false, adjustedScore: 80 });
+	});
+
+	it("a stable weaker model can out-rank a flaky peak at the default weight", () => {
+		const stable = adjustScoreForReproducibility({
+			role: "reviewer",
+			effectiveScore: 70,
+			reproducibility: {
+				score: 1,
+				components: { qualityConsistency: 1, flakeFreedom: 1, reliabilityFloor: 1 },
+				settledFraction: 1,
+				reason: "",
+			},
+		});
+		const flaky = adjustScoreForReproducibility({
+			role: "reviewer",
+			effectiveScore: 80,
+			reproducibility: {
+				score: 0.2,
+				components: { qualityConsistency: 0.4, flakeFreedom: 0.5, reliabilityFloor: 0 },
+				settledFraction: 1,
+				reason: "",
+			},
+		});
+		expect(stable.adjustedScore).toBeGreaterThan(flaky.adjustedScore);
 	});
 });
