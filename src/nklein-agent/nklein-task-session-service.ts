@@ -2725,6 +2725,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.secondOpinionReviewRunner.runSecondOpinionReviewSession(input);
 	}
 
+	isSecondOpinionReviewInFlight(taskId: string): boolean {
+		return this.secondOpinionReviewRunner.isSecondOpinionReviewInFlight(taskId);
+	}
+
 	async rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (entry?.summary.state !== "interrupted") {

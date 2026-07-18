@@ -54,6 +54,13 @@ export interface SecondOpinionReviewRunner {
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 	}): Promise<NKleinReviewResult | null>;
+	/**
+	 * Whether a review round for this card is CURRENTLY in flight (the single-flight key is held). The rescue
+	 * dispatcher consults this so a duplicate dispatch skips BEFORE the review core runs — a blocked duplicate
+	 * otherwise resolves "no submission" and increments the no-verdict park streak while the genuine round is
+	 * still working (live-found 2026-07-18: three overlapped rescue dispatches nearly parked a verdicting card).
+	 */
+	isSecondOpinionReviewInFlight(taskId: string): boolean;
 }
 
 /**
@@ -65,6 +72,10 @@ export interface SecondOpinionReviewRunner {
 export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerDeps): SecondOpinionReviewRunner {
 	/** #31: `::review` sessions share one workspace path per task — two concurrent rounds destroy each other. */
 	const inFlightSecondOpinionReviewTaskIds = new Set<string>();
+
+	function isSecondOpinionReviewInFlight(taskId: string): boolean {
+		return inFlightSecondOpinionReviewTaskIds.has(taskId);
+	}
 
 	async function runSecondOpinionReviewSession(input: {
 		taskId: string;
@@ -287,5 +298,5 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		);
 	}
 
-	return { runSecondOpinionReviewSession };
+	return { runSecondOpinionReviewSession, isSecondOpinionReviewInFlight };
 }

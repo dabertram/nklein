@@ -106,6 +106,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "pickDiverseEscalationModel"
 				| "cancelTaskTurn"
 				| "cancelSpeculativeMirror"
+				| "isSecondOpinionReviewInFlight"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -243,6 +244,14 @@ export async function runSecondOpinionReviewForTask(
 		return { type: "skipped", reason: "card_not_found" };
 	}
 	const { card, columnId } = located;
+	// Duplicate-dispatch guard (live 2026-07-18): the stalled-review rescue can re-dispatch a card whose round is
+	// STILL RUNNING (eye/judge sessions run under the runner's single-flight key, invisible to the watchdog's
+	// active-session view). A blocked duplicate resolves "no submission" and increments the no-verdict park
+	// streak — three duplicates would park a card whose genuine round is about to submit. Skip up front instead.
+	if (input.service.isSecondOpinionReviewInFlight?.(input.taskId)) {
+		input.warn?.(`[review-phase] ${input.taskId}: review-resolution skipped (a review round is already in flight)`);
+		return { type: "skipped", reason: "review_round_in_flight" };
+	}
 	// run21 finding: a re-driven/escalated worker is BLIND to the card's declared file scope and burns its
 	// turns on blocked writes (3 strikes → abandoned). Name the fence UP FRONT in every re-drive prompt.
 	const fileScopeNote =

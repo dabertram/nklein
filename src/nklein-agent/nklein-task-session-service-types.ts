@@ -208,6 +208,8 @@ export interface NKleinTaskSessionService {
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null>;
+	/** True while a review round for this card holds the single-flight key (duplicate dispatches must skip). */
+	isSecondOpinionReviewInFlight(taskId: string): boolean;
 	runPlanCritiqueSession(input: {
 		taskId: string;
 		projectRepoPath: string;
