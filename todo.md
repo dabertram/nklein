@@ -3043,11 +3043,18 @@ output and NOT acted on. Captured as F12.12.)
   green-light with the Phase-11 plan; actual benchmark RUNS are fleet-gated regardless.
 
 **Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
-- [ ] **F12.62 — Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an
+- [~] **F12.62 — Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an
   ARCHITECT reasons about the fix in prose/pseudocode (card-tier model), an EDITOR only converts that into exact edits
   (cheaper/faster model) — "a single model splits its attention between solving the problem and conforming to the edit
   format." Even same-model-twice beats solo (Sonnet 77.4%→80.5%). !Klein has per-card model selection but one model does
   both. (aider architect)
+  **CORE SHIPPED 2026-07-18:** `architect-editor-split.ts` — decideArchitectEditorSplit (split only on evidence:
+  write-scoped + non-trivial + model score < 60, OR any prior edit-format failure regardless of tier; unknowns
+  fail toward solo — the split costs a whole extra session), buildArchitectPrompt (prose solve, inspect-only,
+  ends with an intent-level IMPLEMENTATION BRIEF — no diffs), buildEditorPrompt (apply-exactly, no re-litigating),
+  extractImplementationBrief (last-heading anchor, empty ⇒ null ⇒ solo fallback). 5 tests. REMAINING WIRE: run
+  the architect as a bounded secondary session (explorer/plan-critique harness pattern) at worker start when the
+  decision fires, seed the editor with the brief; flag-gate (NKLEIN_ARCHITECT_EDITOR) + fleet A/B before default.
 - [~] **F12.63 — Resilient edit-apply layer (turn format errors into successful edits).** Edit application is the #1
   weak-model bottleneck. Augment diff application: exact → middle-out → Levenshtein-fuzzy (`:start_line:` hint, ~0.8
   threshold) + a syntax/parse check that REJECTS a broken edit before it lands (SWE-agent ACI) + an optional small local
@@ -3063,7 +3070,7 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.64 — LSP-backed symbol tools (Serena-style).** Add `find_symbol` / `find_referencing_symbols` /
   `get_symbols_overview` / `rename_symbol` via real language servers alongside grep — IDE-grade precision at a fraction of
   grep-then-read-whole-file tokens; the saved budget extends a small model's reasoning room. Composes with F11.2b/c. (Serena MCP)
-- [~] **F12.65 — Tool-output truncation + pagination defaults everywhere.** Cap every retrieval/tool result (Claude Code caps
+- [x] **F12.65 — Tool-output truncation + pagination defaults everywhere.** Cap every retrieval/tool result (Claude Code caps
   at 25k tokens; SWE-agent uses a 100-line windowed file view) with head/tail + range/pagination params + sane defaults, so
   one file dump can't blow a small window. Near-free; composes with F12.25. (Anthropic writing-tools-for-agents)
   **AUDIT COMPLETE + THE ONE GAP FIXED 2026-07-17:** audit found every built-in surface ALREADY capped — SDK
@@ -3074,8 +3081,8 @@ output and NOT acted on. Captured as F12.12.)
   through UNBOUNDED** (createMcpTools pipes callTool straight; the known codebase-memory OOM). Fixed:
   `tool-output-cap.ts` `capToolResult` (24k-char default ≈ 6k tokens; 70/30 head/tail middle-truncation + a
   narrowing hint; structured results stringified-then-measured; cyclic-safe) wrapped around EVERY MCP bundle tool's
-  execute at both registration sites in nklein-mcp-runtime-service. 3 core tests green. ⚠ typecheck of the MCP wire
-  PENDING (the session's command-runner outage blocked tsc at the end) — run `npx tsc --noEmit` before committing.
+  execute at both registration sites in nklein-mcp-runtime-service. 3 core tests green. The once-pending MCP-wire
+  typecheck has long since passed (committed a9af3e28; tsc green on every precommit since) — CLOSED 2026-07-18.
 - [ ] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
   tools a card needs enter its context; consider a code-execution wrapper that calls MCP as a script API (Anthropic reports
   150k→2k tokens, 98.7% cut, by not pushing every tool def + intermediate result through the model). Composes with F12.18. (Anthropic code-execution-with-MCP)
