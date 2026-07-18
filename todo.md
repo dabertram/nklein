@@ -1705,6 +1705,12 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 - [~] **F4.30 — Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
   a reasoner, opted-out project, unavailable binary, and failed server must be withheld/fail soft as designed.
   **AUDIT 2026-07-18: PARTIAL** — fit/withhold/fail-soft logic complete + unit-tested (selectSandboxMcpServersForModel + decideMcpServerModelFitById + memory-fit gate, wired at the tool-bundle seam; reasoner-withheld/uncatalogued-failsafe/opt-out proven). MISSING: the LIVE in-sandbox proof (a fitting model actually using codebase-memory/sequential-thinking + the four withhold cases demonstrated live).
+  **LIVE USE PROVEN 2026-07-19 (half the gap):** during the review-pipeline validation runs, gemma-4-31b worker
+  sessions in Docker sandboxes CALLED `sequential-thinking__sequentialthinking` on multiple real turns (tee2
+  response records ids 24/29/35/38 — 31s/46s/11s tool-call turns, finish=tool_calls) — a fitting model using a
+  curated in-sandbox MCP server unprompted, live. STILL MISSING: codebase-memory adoption (consistent with the
+  known finding that models don't call structural-graph tools unprompted — adoption teaching/push needed) + the
+  four withhold cases demonstrated live (reasoner / opt-out project / missing binary / failed server).
 - [x] **F4.31 — Finish Basic Memory container integration.** Inject per-project/global RW mounts, seed hardened offline
   config, isolate permissions, and preserve user-owned Markdown across container/session restarts.
   **AUDIT 2026-07-18: PARTIAL** — per-project container wiring complete (RW mounts via planBasicMemorySandboxWiring, config seed, offline hardening, workspace-hash isolation, host-persisted markdown; tested). MISSING: the GLOBAL-scope RW mount is defined but never activated — the only planBasicMemoryScoping call passes scopes: [].
