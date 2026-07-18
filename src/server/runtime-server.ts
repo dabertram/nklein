@@ -164,6 +164,7 @@ import {
 import {
 	listWorkspaceIndexEntries,
 	loadExistingWorkspaceBoardById,
+	loadWorkspaceBoardById,
 	loadWorkspaceContext,
 	loadWorkspaceContextById,
 	loadWorkspaceState,
@@ -4104,6 +4105,36 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		queue: taskStartQueue,
 		scheduleDrain: scheduleQueuedTaskStartDrain,
 	});
+
+	// Live-found 2026-07-18 (validation rig): the board-liveness watchdog arms inside
+	// getScopedNKleinTaskSessionService — i.e. on a workspace's FIRST API access — so after a runtime restart a
+	// HEADLESS board (no UI tab, no CLI poking it) stays frozen forever: startable cards exist and nothing sweeps
+	// them (dev-full masks this because the web UI always connects). Warm the per-workspace service at boot for
+	// every indexed workspace whose persisted board still has non-terminal cards, so the watchdog runs for exactly
+	// the boards that can need self-healing. Best-effort + sequential + capped; never blocks or fails boot.
+	void (async () => {
+		try {
+			const indexEntries = await listWorkspaceIndexEntries();
+			for (const entry of indexEntries.slice(0, 50)) {
+				try {
+					const board = await loadWorkspaceBoardById(entry.workspaceId);
+					const hasOpenWork = board.columns.some(
+						(column) => column.id !== "completed" && column.id !== "trash" && column.cards.length > 0,
+					);
+					if (hasOpenWork) {
+						await getScopedNKleinTaskSessionService({
+							workspaceId: entry.workspaceId,
+							workspacePath: entry.repoPath,
+						});
+					}
+				} catch {
+					// One unreadable/unresolvable workspace never stops the warm-up sweep.
+				}
+			}
+		} catch {
+			// The warm-up is an availability optimization — boot proceeds regardless.
+		}
+	})();
 
 	return {
 		url,
