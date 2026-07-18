@@ -1176,7 +1176,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet-gated ONLY): live-validate the wire round-trip on a vision-capable local model (e.g. a gemma/qwen-VL)
   — a verification step, not new code. Everything else in F2.7b is implemented + tested (attach→send→vision response→
   history render, all gated fail-closed).
-  **AUDIT 2026-07-18: DONE (code-complete)** — multimodal chat end-to-end: chat-multimodal policy cores, applyImageAttachmentsToPrompt at the send seam, composer attach/chips, out-of-band chat-image-store + history render, vision-capability fail-closed gate; 33 refs + Playwright specs. Remaining = live vision-model validation only (none loaded in the fleet).
+  **AUDIT 2026-07-18: DONE (code-complete)** — multimodal chat end-to-end: chat-multimodal policy cores, applyImageAttachmentsToPrompt at the send seam, composer attach/chips, out-of-band chat-image-store + history render, vision-capability fail-closed gate; 33 refs + Playwright specs.
+  **LIVE VISION VALIDATION COMPLETE 2026-07-18 (both halves):** fail-closed half proven earlier same day (image to a
+  non-vision model → exact refusal notice, zero bytes sent); POSITIVE PATH proven on zai-org/glm-4.6v-flash as the
+  discovered chat model (fleet temporarily narrowed to it): capability union resolved [vision, tool_use]
+  (e38665585), the gate ALLOWED the attachment, and the model answered the red-PNG probe correctly ("red").
+  F2.7b fully validated; the F2.7c chat-model PIN remains the ergonomic gap (had to unload the rest of the fleet
+  to steer discovery).
 - [x] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13; COMPOSITION COMPLETE 2026-07-15 `59ae8926`).**
   All recall sources now unify behind `NKLEIN_UNIFIED_MEMORY`: session memories + §5.M four layers (working from goal/
   focus-step, episodic/semantic from the ledger, procedural from session skills) + query-ranked Basic-Memory notes +
