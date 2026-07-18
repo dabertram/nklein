@@ -2893,10 +2893,18 @@ output and NOT acted on. Captured as F12.12.)
   the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
   **SCOPE WIRE LIVE 2026-07-17:** deliveryCard.filesLikelyTouched now threads into assessDiffMinimality at the
   delivery scan — the out-of-scope signal is active (record-only stance unchanged).
-- [ ] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
+- [~] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
   adequacy, not just "tests pass." Closes the biggest reward-hacking loophole. (verification-horizon 2606.26300; augmentcode mutation-testing)
+  **PURE CORE SHIPPED 2026-07-18:** `mutation-adequacy.ts` — generateLineMutants (13 classic operators:
+  comparison flips, boundary shifts, logical/arithmetic swaps, boolean/off-by-one literal tweaks; string/comment
+  masking so literals never mutate; one site per operator per changed line = bounded mutant count; import/blank/
+  comment lines skipped), computeMutationScore, decideMutationAdequacy (threshold 0.6 default; <3 mutants ⇒
+  UNMEASURED pass-with-note — a thin sample never fakes a fail nor launders as adequacy proof). 5 tests.
+  REMAINING WIRE: runner half — for an attempt that touched tests, mutate the CHANGED impl lines from the result
+  diff, re-run the sandbox acceptance per mutant (bounded, e.g. ≤12 mutants), record mutation_adequacy beside
+  coverage in the ledger; record-only first, gate flip on live data.
 - [~] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
   OpenTelemetry GenAI shape (`invoke_agent`/`execute_tool`/`chat`, `gen_ai.tool.call.*`, `gen_ai.usage.*`,
   `gen_ai.evaluation.*`) to an OTLP endpoint so a LOCAL Docker Langfuse/Phoenix renders traces, tool-call analytics, agent
