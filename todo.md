@@ -692,8 +692,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   completion persists, and the #28 acceptance-failure redrive dispatches acceptance_failed (→ implementing);
   holds absorb re-round prefixes. Remaining paths (LOW-priority residue — the mirror now covers the full happy +
   bounce + failure lifecycle): tRPC manual complete, CLI task commands.
-- [ ] **F1.18b — Flip the durable scheduler default-on after a LIVE restart-mid-run validation (engineering
-  substance shipped 2026-07-13).** **VALIDATION STRENGTHENED 2026-07-16:** the restart-mid-run behavior is now proven
+- [x] **F1.18b — Flip the durable scheduler default-on after a LIVE restart-mid-run validation (engineering
+  substance shipped 2026-07-13).** **FLIPPED 2026-07-18 after the specified live validation ran autonomously
+  (David-greenlit 2026-07-16):** three scenario-01 runs (41-card decompose, real Docker sandboxes, deterministic
+  sim models, isolated HOMEs, NKLEIN_DURABLE_SCHEDULER=1). Run 1 BRICKED and found the real bug the flip gate
+  existed for: a job exhausted the durable budget → 22 transitive dependents cancelled dependency_failed → the
+  runtime's own bounce ladder recovered the card and DELIVERED it → the late success hit reportCompletion's
+  leased-only guard and was dropped → subtree dead on a green board. FIXED (d24785b1d): failedReason on jobs,
+  succeeded-on-failed accepted live+replay, clock-free resurrection rule + 'resurrected' ledger event
+  round-tripped; DRC-17 contract inverted deliberately. Run 2 drained GREEN with resurrect=22 healing the same
+  incident live. Run 3 = the kill: SIGKILL inside an open lease → restart → orphaned lease reclaimed (+12.5s),
+  re-dispatched exactly ONCE (+57.4s, no duplicate starts anywhere), dependents held. Flip is
+  isEnabledByDefaultEnv at runtime-server.ts (opt-out NKLEIN_DURABLE_SCHEDULER=0), one-line reversible. **VALIDATION STRENGTHENED 2026-07-16:** the restart-mid-run behavior is now proven
   DETERMINISTICALLY by a combined integration test (`durable-run-controller.test.ts` "F1.18b: a multi-card restart-mid-run
   resumes BOTH orphaned leases exactly once and keeps the dependent held") asserting all three flip-criterion properties
   together — resumed leases, no duplicate/resurrected-worker starts, held dependent — atop the pre-existing 76 durable

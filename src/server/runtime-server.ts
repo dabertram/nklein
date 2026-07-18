@@ -45,7 +45,7 @@ import {
 } from "../core/delivery-evidence";
 import { assessDeliveryQuality } from "../core/delivery-quality-gate";
 import { assessDiffMinimality } from "../core/diff-minimality";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -1263,7 +1263,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// same-card request received while the prior round settles, defers only while the worker is actively re-driving, and
 	// reruns for quiescent/fresh review states. Acceptance runs also own unique synthetic sandbox sessions, so overlapping
 	// checks cannot dispose one another. The deterministic bounce integration keeps this controller ON permanently.
-	const durableSchedulerEnabled = isTruthyEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
+	// F1.18b FLIP (2026-07-18, David-greenlit): DEFAULT-ON after the specified live validation ran — scenario-01
+	// (41 cards, real Docker sandboxes) drained green under the flag; a SIGKILL inside an open lease + restart
+	// showed the orphaned lease reclaimed (+12.5s), re-dispatched exactly ONCE, dependents held; and the
+	// validation's one real find (late delivery vs dependency_failed cancels) is fixed + replay-tested (the
+	// resurrection rule — live-healed all 22 cancellations in the re-run). Opt-out: NKLEIN_DURABLE_SCHEDULER=0.
+	const durableSchedulerEnabled = isEnabledByDefaultEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,
 		appendEvent: (event) => appendAgentLedgerEvent(event),
