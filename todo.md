@@ -1122,7 +1122,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
   the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
   package's e2e run.
-- [~] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** [E2E WIRING RE-VERIFIED 2026-07-15:
+- [x] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** [E2E WIRING RE-VERIFIED 2026-07-15:
   composer image picker (draftImages + TaskImageStrip + vision warning) → panel onSendMessage(images) →
   sendTaskChatMessage → runtime.sendTaskChatMessage → task-session service threads images → SDK turn
   applyImageAttachmentsToPrompt, with the vision-capability fail-closed check at runtime-api.ts:298. CODE COMPLETE;
@@ -1156,6 +1156,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING (fleet-gated ONLY): live-validate the wire round-trip on a vision-capable local model (e.g. a gemma/qwen-VL)
   — a verification step, not new code. Everything else in F2.7b is implemented + tested (attach→send→vision response→
   history render, all gated fail-closed).
+  **AUDIT 2026-07-18: DONE (code-complete)** — multimodal chat end-to-end: chat-multimodal policy cores, applyImageAttachmentsToPrompt at the send seam, composer attach/chips, out-of-band chat-image-store + history render, vision-capability fail-closed gate; 33 refs + Playwright specs. Remaining = live vision-model validation only (none loaded in the fleet).
 - [x] **F2.9b — Wire the unified memory projection into the turn context (projection SHIPPED 2026-07-13; COMPOSITION COMPLETE 2026-07-15 `59ae8926`).**
   All recall sources now unify behind `NKLEIN_UNIFIED_MEMORY`: session memories + §5.M four layers (working from goal/
   focus-step, episodic/semantic from the ledger, procedural from session skills) + query-ranked Basic-Memory notes +
@@ -1512,11 +1513,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 4A. Temporal retrieval and evidence *(legacy §5.AC)*
 
-- [ ] **F4.1 — Record retrieval attempts/results/citations in the ledger.** Include query plan, source trust/freshness,
+- [~] **F4.1 — Record retrieval attempts/results/citations in the ledger.** Include query plan, source trust/freshness,
   fetch errors, selected spans, synthesis model, unsupported claims, and final use.
-- [ ] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
+  **AUDIT 2026-07-18: PARTIAL** — a retrieval ledger event exists + is wired (buildRetrievalEvent + recordRetrieval at three call sites; query/citations/hitsConsidered/distractorsPruned/usefulness). MISSING: the richer provenance this item enumerates (query plan, source trust/freshness, fetch errors, selected spans, synthesis model, unsupported claims).
+- [~] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
-- [~] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
+  **AUDIT 2026-07-18: PARTIAL** — decideResearchFreshnessGate core exists + tested. MISSING: zero production consumers — not wired into decomposition/research, so online retrieval is not actually staleness/egress-gated and skips are unexplained.
+- [x] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
   leaking raw untrusted instructions. **PURE CORE + PRODUCER SUBSTRATE SHIPPED (`39e03c72`):
   `evidence-currency-status.ts` (`summarizeEvidenceCurrency`, sanitized) + `evidence-currency-capture.ts` — the
   genuinely-missing capability: `extractPublicationDate(html)` (parse article:published_time / JSON-LD datePublished /
@@ -1528,10 +1531,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   SHIPPED (`78c025e1`): the `web_research` tool RESULT now carries a per-source `currency` annotation (date/trust/status,
   never body) so the model sees each source's freshness inline and cites it — F4.3's "show ... in agent output".
   COMPLETE for per-source currency; cross-source conflict resolution is separately F4.5.**
+  **AUDIT 2026-07-18: DONE for its own scope** — per-source currency annotation (date/trust/status, never body) attached to every web_research result via buildCurrencyEvidenceFromSource + summarizeEvidenceCurrency, persisted (appendCurrencyEvidence) + `dev evidence-currency`. The cross-source CONFLICT facet is explicitly delegated to F4.5 (unwired there).
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
+  **AUDIT 2026-07-18: OPEN** — no stale-vs-fresh decomposition proof; impossible until F4.2 wires into decomposition.
 - [~] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. **DETECTION CORE DONE 2026-07-16:** citation-conflict-detection.ts `detectClaimConflicts` groups a flat list of keyed claims (claimKey/value/sourceId) into conflict clusters (≥2 distinct values per key), trim+casefold, order-stable, 6 tests — so synthesis can detect conflicts MECHANICALLY (no dependence on the model to cluster them) and feed the existing `resolveClaimConflictsByAuthorityBatch`. **ANNOTATION CORE DONE 2026-07-16:** citation-conflict-annotation.ts `annotateSynthesisWithConflicts(answer, conflicts)` — the last RENDERING step: takes the detected clusters + their resolutions and appends an operator-facing "## Source-conflict notes" block (per conflict: `using **<winner value>** (from <id>) · Superseded: <minority>` OR `UNRESOLVED — <both views> · Verify`); byte-identical when there are no conflicts. 5 tests. So detect→resolve→annotate is now a complete PURE pipeline. Remaining: ONLY the model-side EXTRACTION seam — pull keyed claims (claimKey/value/sourceId) from the model's cited answer (egress/synthesis-gated), then feed `detectClaimConflicts` → `resolveClaimConflictsByAuthorityBatch` → `annotateSynthesisWithConflicts` at the web-research synthesis render.
   retain minority evidence, and mark unresolved material claims.
+  **AUDIT 2026-07-18: PARTIAL** — the detect→resolve→annotate pipeline is complete + tested (detectClaimConflicts, resolveClaimConflictsByAuthorityBatch, annotateSynthesisWithConflicts). MISSING: the claim-extraction seam at web-research synthesis (zero non-test consumers — conflicts never run on real cited answers).
 - [ ] **F4.6 — Trim synthesis evidence to relevant spans.** Apply extraction before the model call, preserve citation
   addressability, and measure context saving/answer quality.
 - [ ] **F4.R1 — Complete retrieval-provider modes.** Support `none`, user-supplied SearXNG-compatible URL, and an
@@ -1608,6 +1614,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
 - [ ] **F4.22 — Build the user-controlled import flow.** Browse/select, show full source/bundle/findings/trust/provenance,
   compute SHA-256 over the canonical preimage, persist TOFU pins, and force re-review on change.
+  **AUDIT 2026-07-18: OPEN** — only the decideSkillImport core exists; no browse/select UI, no TOFU pin store, no production consumer, canonical-preimage hashing left to the caller.
 - [ ] **F4.23 — Wire skill execution containment.** Enforce effective tool grants, per-file no-auto-execute approvals,
   Docker/egress policy, credential/identity constraints, and the session-level Rule of Two.
 - [~] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. Bundle-load consumer wire = remaining.
@@ -1619,40 +1626,50 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
 #### 4E. Curated sandbox MCP and authored memory *(legacy §5.AR)*
 
+  **AUDIT 2026-07-18: OPEN** — no skill-provenance ledger event at all (ProceduralSkillProvenance is F4.19's different store).
 - [ ] **F4.28 — Add per-project curated-MCP overrides.** Resolve project→global for enablement and optional per-server
   controls; apply the effective value at sandbox/tool-bundle creation.
+  **AUDIT 2026-07-18: OPEN** — per-project/per-server controls entirely absent (flat global booleans; none of the …Override/effective… pattern).
 - [ ] **F4.29 — Complete curated-MCP Settings.** Show global/project switches, active servers, availability, and the
   per-model fit reason; changes affect new sessions predictably.
-- [ ] **F4.30 — Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
+- [~] **F4.30 — Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
   a reasoner, opted-out project, unavailable binary, and failed server must be withheld/fail soft as designed.
-- [ ] **F4.31 — Finish Basic Memory container integration.** Inject per-project/global RW mounts, seed hardened offline
+  **AUDIT 2026-07-18: PARTIAL** — fit/withhold/fail-soft logic complete + unit-tested (selectSandboxMcpServersForModel + decideMcpServerModelFitById + memory-fit gate, wired at the tool-bundle seam; reasoner-withheld/uncatalogued-failsafe/opt-out proven). MISSING: the LIVE in-sandbox proof (a fitting model actually using codebase-memory/sequential-thinking + the four withhold cases demonstrated live).
+- [~] **F4.31 — Finish Basic Memory container integration.** Inject per-project/global RW mounts, seed hardened offline
   config, isolate permissions, and preserve user-owned Markdown across container/session restarts.
+  **AUDIT 2026-07-18: PARTIAL** — per-project container wiring complete (RW mounts via planBasicMemorySandboxWiring, config seed, offline hardening, workspace-hash isolation, host-persisted markdown; tested). MISSING: the GLOBAL-scope RW mount is defined but never activated — the only planBasicMemoryScoping call passes scopes: [].
 - [ ] **F4.32 — Finish Basic Memory audit and production proof.** Dispatch strongest-non-author idle audits, reconcile
   contradictions against code graph/ledger, test write→restart→recall, and optionally preseed offline semantic search.
 
 #### 4F. Native LM Studio API leverage *(legacy §5.AN)*
 
+  **AUDIT 2026-07-18: OPEN** — pure cores (chooseMemoryAuditor + auditMemoryNote) have zero production consumers; no idle dispatch, no reconciliation wiring, no write→restart→recall proof.
 - [ ] **F4.33 — Rewrite native `/api/v1/chat` for the probed contract.** Implement request
   `{model,input:[{type,content}]}` and response `{model_instance_id,output,response_id,stats}` parsing with tolerant,
   typed fallbacks; the prior pure shape is known stale (`26cd46ce`).
+  **AUDIT 2026-07-18: OPEN** — local-native-chat-shape still builds the STALE probed shape; its own header says it must be rewritten to the {model,input[]} request / {model_instance_id,output,…} response.
 - [ ] **F4.34 — Probe and implement native tools/reasoning/SSE events.** Capture real tool call/result, reasoning text,
   message, usage, error, and stream termination shapes; add fixtures and state-machine parsing.
+  **AUDIT 2026-07-18: OPEN** — no SSE/state-machine parsing, no re-derived fixtures, no native tool-call/reasoning event capture (file notes the variants still need probing).
 - [>] **F4.35 — Add stateful native sessions and MCP composition** *(after F4.33–F4.34).* Use response/session IDs to
   avoid resending history, preserve replay/ledger ownership, and fall back to OpenAI-compatible stateless calls.
-- [ ] **F4.36 — Finish native model-management and thinking controls.** Complete safe list/load/unload/status use,
+- [x] **F4.36 — Finish native model-management and thinking controls.** Complete safe list/load/unload/status use,
   verify family-specific switches (never infer from architecture alone), and feed facts into load/routing policies.
 
 #### 4G. Context economy, cache health, and resource frugality *(legacy §5.AQ)*
 
-- [ ] **F4.37 — Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
+  **AUDIT 2026-07-18: DONE** — list/status (parseLmsPs + loaded-model descriptors), load/unload (buildLmsLoad/UnloadArgs + device-routed ensureModelLoadedOnFittingDevice, consumed at start-task-session), idle-TTL evict (auto-loaded-model-registry + keep-alive-ttl), family-specific thinking switches (model-thinking-control, 27 consumers, never architecture-inferred); facts feed load/routing.
+- [~] **F4.37 — Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
   chat/swarm/review, and expose global/project controls.
-- [~] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and **CORE DONE 2026-07-15:** auto-decomposition-depth.ts resolveAutoDecompositionDepth (difficulty×effective-context → depth + reason, 4 tests). **PROMPT SEAM SHIPPED 2026-07-16:** `buildNKleinStartPromptParts`/`buildNKleinPlanningSystemPrompt` take an optional `AutoDecompositionDepthDecision` and emit `formatAutoDecompositionDepthGuidance` as one advisory line in the decompose prompt (depth 0 = shallow, ≥1 = N nested levels); omitted ⇒ byte-identical (default off). 10 tests. **ACTIVATED 2026-07-16:** `start-task-session.ts` now computes the decision for explicit decompose-in-plan tasks
+  **AUDIT 2026-07-18: PARTIAL** — five additive levels + AUTO selector + intent bias exist and are tested (sysprompt-level.ts). MISSING: assembly into chat/swarm/review (resolveSysPromptComponents + request-economy-plan have ZERO consumers; only the binary lean/full toggle is live) and the global/project control exposure.
+- [x] **F4.38 — Feed real budget and task complexity into AUTO prompt depth.** Use quality-effective context and **CORE DONE 2026-07-15:** auto-decomposition-depth.ts resolveAutoDecompositionDepth (difficulty×effective-context → depth + reason, 4 tests). **PROMPT SEAM SHIPPED 2026-07-16:** `buildNKleinStartPromptParts`/`buildNKleinPlanningSystemPrompt` take an optional `AutoDecompositionDepthDecision` and emit `formatAutoDecompositionDepthGuidance` as one advisory line in the decompose prompt (depth 0 = shallow, ≥1 = N nested levels); omitted ⇒ byte-identical (default off). 10 tests. **ACTIVATED 2026-07-16:** `start-task-session.ts` now computes the decision for explicit decompose-in-plan tasks
   from `difficultyTierFromScore(taskDifficulty)` × the routed model's `nkleinLaunchConfig.contextWindow` (effective),
   threads it through `StartNKleinTaskSessionRequest.autoDecompositionDepth` → `buildNKleinStartPromptParts` → the prompt
   line. `difficultyTierFromScore` (5–100 → tier, anchored on the ≤30 low cutoff) added + tested. Full 3-hop wire
   typechecks; 17 tests (core+seam). null for non-decompose ⇒ byte-identical. **Only remaining: a live decompose run to
   observe the guidance shift real granularity (fleet operation, not code) — F4.38 code-complete.**
   difficulty, with a visible reason and deterministic fallback.
+  **AUDIT 2026-07-18: DONE (code-complete)** — resolveAutoDecompositionDepth + difficultyTierFromScore wired at start-task-session (difficulty × routed-model qualityEffectiveContextTokens, visible reason, deterministic null fallback) → service → planning prompt builder; tested. Only a live decompose observation remains (fleet op).
 - [~] **F4.39 — Complete prompt intent modes.** Apply minimize/balance/max-task-info consistently and prove they affect **CORE DONE 2026-07-15 (`5f76b592`):** prompt-intent-mode.ts selectPromptComponentsForIntent (minimize/balance/max by tier, never drops invariants, 4 tests). Prompt-builder adoption = remaining wire. **ASSEMBLER ADOPTION SHIPPED 2026-07-16:** the cache-stable-prefix assembler (prompt-fragment-assembly.ts) is now the intent-mode seam — `PromptFragment` gained optional `tier` + `invariant`, and `selectPromptFragmentsForIntent`/`assemblePromptFragmentsForIntent` filter fragments by mode before assembly. **Byte-identical-safe by construction:** an omitted `tier` defaults to `essential` (kept in every mode), so an un-tagged fragment set is identical in ALL modes and `max_task_info` equals direct assembly — tiering is OPT-IN per fragment, adoption is incremental. 6 tests (minimize/balance/max selection + un-tagged byte-identical + minimize-drops-bytes). REMAINING: tag the live session-prompt fragments (nklein-session-system-prompt.ts / buildSessionSkillFragments) with tiers + thread a `PromptIntentMode` from config/task budget into the session assembly seam (effectful — changes which fragments ship once a non-default mode is selected; do it fragment-by-fragment with a byte-identical default).
   component selection without bypassing invariants.
 - [ ] **F4.40 — Finish byte-stable cache-aware layout.** Stabilize ordering/serialization across all prompt builders,
