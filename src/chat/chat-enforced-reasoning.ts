@@ -3,7 +3,10 @@ import { runEnforcedReasoningLoop } from "../core/enforced-reasoning-loop";
 import { isTruthyEnv } from "../core/env-flag";
 import type { ModelBehaviorProfile } from "../core/model-behavior-profile";
 import { estimateTaskDifficulty } from "../core/task-difficulty-estimate";
-import { readCombinedModelBehaviorProfile } from "../telemetry/model-behavior-profile-store";
+import {
+	persistConsistencyAgreement,
+	readCombinedModelBehaviorProfile,
+} from "../telemetry/model-behavior-profile-store";
 
 /**
  * §5.AD flag-gated adapter hookup — feeds real chat completions into the enforced-reasoning loop. OPT-IN via
@@ -93,6 +96,12 @@ export async function maybeEnforceReasoning(input: MaybeEnforceReasoningInput): 
 			},
 			...(input.modelId !== undefined ? { draftModelId: input.modelId } : {}),
 		});
+		// F3.15 record-only feed: when a consistency vote actually ran, persist its agreement rate into the
+		// model's behavior stream (LOW agreement = stochastic output — a reliability/routing signal). Best-effort;
+		// chat currently remaps consistency to the bounce kind, so today's producers are non-chat surfaces.
+		if (result.consistencyAgreement !== undefined && input.modelId) {
+			void persistConsistencyAgreement(input.modelId, result.consistencyAgreement).catch(() => undefined);
+		}
 		return result.finalDraft;
 	} catch {
 		return input.draft; // the bounce is an enhancement — never let it break the turn.

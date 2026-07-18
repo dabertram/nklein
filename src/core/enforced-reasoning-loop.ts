@@ -41,6 +41,12 @@ export interface EnforcedReasoningLoopResult {
 	roundsRun: number;
 	/** Short trace lines (persona/verdict per round, carry findings, vote agreement) for the ledger/UI. */
 	trace: string[];
+	/**
+	 * F3.15: the self-consistency vote's agreement rate (winner votes / total samples), present only when the
+	 * consistency kind actually ran — the caller records it into the model's behavior profile so reliability and
+	 * routing can learn from it (record-only feed).
+	 */
+	consistencyAgreement?: number;
 }
 
 export async function runEnforcedReasoningLoop(
@@ -85,7 +91,12 @@ export async function runEnforcedReasoningLoop(
 		}
 		const vote = majorityVote(samples, (sample) => sample.trim());
 		trace.push(`self_consistency: ${vote.count}/${vote.total} agreement=${vote.agreement.toFixed(2)}`);
-		return { finalDraft: vote.winner ?? input.draft, roundsRun: samples.length - 1, trace };
+		return {
+			finalDraft: vote.winner ?? input.draft,
+			roundsRun: samples.length - 1,
+			trace,
+			consistencyAgreement: vote.agreement,
+		};
 	}
 
 	// self_bounce_varied — critique rounds through the persona rotation, revising on a `revise` verdict.

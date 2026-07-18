@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildTerminalAttemptEvent } from "../../src/nklein-agent/nklein-ledger-attempt";
 import { appendAgentLedgerEvent } from "../../src/state/agent-attempt-ledger-store";
 import {
+	persistConsistencyAgreement,
 	persistModelBehaviorOutcome,
 	readAllCombinedModelBehaviorProfiles,
 	readAllModelBehaviorProfiles,
@@ -136,5 +137,23 @@ describe("model-behavior-profile-store (§5.AA persistence)", () => {
 		expect(storeOnly.samples).toBe(1);
 		const all = await readAllCombinedModelBehaviorProfiles({ rootDir, ledgerRootDir: ledgerDir });
 		expect(all["prov:model:default"]?.samples).toBe(2);
+	});
+});
+describe("persistConsistencyAgreement (F3.15)", () => {
+	it("round-trips agreement entries beside outcome entries in one fold", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "behavior-agree-"));
+		try {
+			await persistModelBehaviorOutcome("m1", { kind: "success" }, { rootDir: dir, now: 1_000 });
+			await persistConsistencyAgreement("m1", 0.5, { rootDir: dir, now: 2_000 });
+			await persistConsistencyAgreement("m1", 1.0, { rootDir: dir, now: 3_000 });
+			const profile = await readModelBehaviorProfile("m1", { rootDir: dir });
+			expect(profile.samples).toBe(1);
+			expect(profile.consistencySamples).toBe(2);
+			expect(profile.consistencyAgreementEwma).toBeCloseTo(0.5 * 0.7 + 1.0 * 0.3);
+			const all = await readAllModelBehaviorProfiles({ rootDir: dir });
+			expect(all.m1?.consistencySamples).toBe(2);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });

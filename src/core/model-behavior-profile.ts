@@ -80,6 +80,10 @@ export interface ModelBehaviorProfile {
 	/** Counts of each endpoint wire-protocol kind that WON a call (§5.AB) — the mode is the model's preferred
 	 *  protocol, promoted to the front of the endpoint-iteration ladder next time. */
 	endpointKindCounts: Record<string, number>;
+	/** F3.15: self-consistency runs folded into this profile (agreement EWMA below; 0 ⇒ never measured). */
+	consistencySamples?: number;
+	/** F3.15: EWMA of consistency-vote agreement (0..1); LOW = stochastic output. Null until first measured. */
+	consistencyAgreementEwma?: number | null;
 	/** Largest tool count the model has cleared with a success (its complexity ceiling). */
 	complexityCeiling: number | null;
 	/** Largest context (tokens) at which quality still cleared the bar. */
@@ -124,6 +128,28 @@ export function emptyModelBehaviorProfile(modelId: string, now = 0): ModelBehavi
 		complexityCeiling: null,
 		qualityEffectiveContextTokens: null,
 		qualityDegradedAtTokens: null,
+		consistencySamples: 0,
+		consistencyAgreementEwma: null,
+		updatedAt: now,
+	};
+}
+
+/**
+ * F3.15 — fold one self-consistency run's agreement rate (winner votes / total samples) into the profile.
+ * LOW agreement on a model is a stochastic-unreliability signal reliability/routing can consult; recorded
+ * observe-first (nothing gates on it yet). Out-of-range inputs are clamped; the EWMA seeds on the first sample.
+ */
+export function recordConsistencyAgreement(
+	profile: ModelBehaviorProfile,
+	agreement: number,
+	now = 0,
+): ModelBehaviorProfile {
+	const clamped = Math.max(0, Math.min(1, agreement));
+	const isFirst = (profile.consistencySamples ?? 0) === 0;
+	return {
+		...profile,
+		consistencySamples: (profile.consistencySamples ?? 0) + 1,
+		consistencyAgreementEwma: ewma(profile.consistencyAgreementEwma ?? 0, clamped, 0.3, isFirst),
 		updatedAt: now,
 	};
 }

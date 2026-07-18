@@ -21,6 +21,7 @@ import {
 	emptyModelBehaviorProfile,
 	type ModelAttemptOutcome,
 	type ModelBehaviorProfile,
+	recordConsistencyAgreement,
 	recordModelBehaviorOutcome,
 } from "../core/model-behavior-profile";
 import { parseJsonLineWithSchema } from "../core/parse-json-line";
@@ -33,18 +34,53 @@ const DEFAULT_MODEL_BEHAVIOR_ROOT = join(resolveNkleinRuntimeHomePath(homedir())
 const persistedBehaviorOutcomeSchema = z.object({
 	modelId: z.string().min(1),
 	recordedAt: z.number().finite(),
-	outcome: z.object({
-		kind: z.enum(["success", "no_tool_call", "narrated", "loop", "timeout", "malformed", "aborted", "other_failure"]),
-		retries: z.number().finite().optional(),
-		contextTokens: z.number().finite().optional(),
-		qualityOk: z.boolean().optional(),
-		toolCallFormat: z.string().optional(),
-		toolCount: z.number().finite().optional(),
-		promptVariantFamily: z.string().optional(),
-		winningEndpointKind: z.string().optional(),
-	}),
+	outcome: z
+		.object({
+			kind: z.enum([
+				"success",
+				"no_tool_call",
+				"narrated",
+				"loop",
+				"timeout",
+				"malformed",
+				"aborted",
+				"other_failure",
+			]),
+			retries: z.number().finite().optional(),
+			contextTokens: z.number().finite().optional(),
+			qualityOk: z.boolean().optional(),
+			toolCallFormat: z.string().optional(),
+			toolCount: z.number().finite().optional(),
+			promptVariantFamily: z.string().optional(),
+			winningEndpointKind: z.string().optional(),
+		})
+		.optional(),
+	/** F3.15: a self-consistency run's agreement rate (0..1) — folded via `recordConsistencyAgreement`. */
+	consistencyAgreement: z.number().min(0).max(1).optional(),
 });
 type PersistedBehaviorOutcome = z.infer<typeof persistedBehaviorOutcomeSchema>;
+
+/** F3.15: append one self-consistency agreement observation (record-only reliability/routing feed). */
+export async function persistConsistencyAgreement(
+	modelId: string,
+	agreement: number,
+	options: { rootDir?: string; now?: number } = {},
+): Promise<void> {
+	const root = resolveRoot(options.rootDir);
+	await mkdir(root, { recursive: true });
+	const recordedAt = options.now ?? Date.now();
+	const entry = {
+		modelId,
+		recordedAt,
+		consistencyAgreement: Math.max(0, Math.min(1, agreement)),
+	};
+	// Same date-stamped file convention as persistModelBehaviorOutcome (the reader scans every *.jsonl in root).
+	await appendFile(
+		join(root, `${new Date(recordedAt).toISOString().slice(0, 10)}.jsonl`),
+		`${JSON.stringify(entry)}\n`,
+		"utf8",
+	);
+}
 
 export interface ModelBehaviorStoreOptions {
 	/** Override the store root (tests). Defaults to `<runtimeHome>/model-behavior`. */
@@ -105,10 +141,15 @@ export async function readModelBehaviorProfile(
 	const outcomes = (await readAllOutcomes(resolveRoot(options.rootDir))).filter((entry) => entry.modelId === modelId);
 	let profile = emptyModelBehaviorProfile(modelId);
 	for (const entry of outcomes) {
-		profile = recordModelBehaviorOutcome(profile, entry.outcome, {
-			alpha: options.alpha,
-			now: () => entry.recordedAt,
-		});
+		if (entry.outcome) {
+			profile = recordModelBehaviorOutcome(profile, entry.outcome, {
+				alpha: options.alpha,
+				now: () => entry.recordedAt,
+			});
+		}
+		if (entry.consistencyAgreement !== undefined) {
+			profile = recordConsistencyAgreement(profile, entry.consistencyAgreement, entry.recordedAt);
+		}
 	}
 	return profile;
 }
@@ -120,11 +161,17 @@ export async function readAllModelBehaviorProfiles(
 	const outcomes = await readAllOutcomes(resolveRoot(options.rootDir));
 	const byModel: Record<string, ModelBehaviorProfile> = {};
 	for (const entry of outcomes) {
-		const previous = byModel[entry.modelId] ?? emptyModelBehaviorProfile(entry.modelId);
-		byModel[entry.modelId] = recordModelBehaviorOutcome(previous, entry.outcome, {
-			alpha: options.alpha,
-			now: () => entry.recordedAt,
-		});
+		let previous = byModel[entry.modelId] ?? emptyModelBehaviorProfile(entry.modelId);
+		if (entry.outcome) {
+			previous = recordModelBehaviorOutcome(previous, entry.outcome, {
+				alpha: options.alpha,
+				now: () => entry.recordedAt,
+			});
+		}
+		if (entry.consistencyAgreement !== undefined) {
+			previous = recordConsistencyAgreement(previous, entry.consistencyAgreement, entry.recordedAt);
+		}
+		byModel[entry.modelId] = previous;
 	}
 	return byModel;
 }
@@ -182,10 +229,15 @@ export async function readCombinedModelBehaviorProfile(
 	const outcomes = (await readCombinedOutcomes(options)).filter((entry) => entry.modelId === modelId);
 	let profile = emptyModelBehaviorProfile(modelId);
 	for (const entry of outcomes) {
-		profile = recordModelBehaviorOutcome(profile, entry.outcome, {
-			alpha: options.alpha,
-			now: () => entry.recordedAt,
-		});
+		if (entry.outcome) {
+			profile = recordModelBehaviorOutcome(profile, entry.outcome, {
+				alpha: options.alpha,
+				now: () => entry.recordedAt,
+			});
+		}
+		if (entry.consistencyAgreement !== undefined) {
+			profile = recordConsistencyAgreement(profile, entry.consistencyAgreement, entry.recordedAt);
+		}
 	}
 	return profile;
 }
@@ -201,11 +253,17 @@ export async function readAllCombinedModelBehaviorProfiles(
 		// runtime ids for one model combine into ONE profile at the stream level — the EWMA-safe merge (a profile
 		// merge would be order-dependent and wrong). A no-op when the shared map has no entry for the id.
 		const stableModelId = resolveStableRoutingModelId(entry.modelId).trim() || entry.modelId;
-		const previous = byModel[stableModelId] ?? emptyModelBehaviorProfile(stableModelId);
-		byModel[stableModelId] = recordModelBehaviorOutcome(previous, entry.outcome, {
-			alpha: options.alpha,
-			now: () => entry.recordedAt,
-		});
+		let previous = byModel[stableModelId] ?? emptyModelBehaviorProfile(stableModelId);
+		if (entry.outcome) {
+			previous = recordModelBehaviorOutcome(previous, entry.outcome, {
+				alpha: options.alpha,
+				now: () => entry.recordedAt,
+			});
+		}
+		if (entry.consistencyAgreement !== undefined) {
+			previous = recordConsistencyAgreement(previous, entry.consistencyAgreement, entry.recordedAt);
+		}
+		byModel[stableModelId] = previous;
 	}
 	return byModel;
 }

@@ -8,6 +8,7 @@ import {
 	preferredEndpointKind,
 	preferredPromptVariantFamily,
 	preferredToolCallFormat,
+	recordConsistencyAgreement,
 	recordModelBehaviorOutcome,
 } from "../../../src/core/model-behavior-profile";
 
@@ -179,5 +180,19 @@ describe("endpoint-kind learning (§5.AB endpoint-iteration persistence)", () =>
 		});
 		expect(folded.endpointKindCounts).toEqual({ anthropic_messages: 1 });
 		expect(preferredEndpointKind(folded)).toBe("anthropic_messages");
+	});
+});
+describe("recordConsistencyAgreement (F3.15)", () => {
+	it("seeds on first sample, EWMA-folds after, and clamps out-of-range input", () => {
+		let profile = emptyModelBehaviorProfile("m1");
+		profile = recordConsistencyAgreement(profile, 0.8, 10);
+		expect(profile.consistencySamples).toBe(1);
+		expect(profile.consistencyAgreementEwma).toBeCloseTo(0.8);
+		profile = recordConsistencyAgreement(profile, 0.2, 20);
+		expect(profile.consistencySamples).toBe(2);
+		expect(profile.consistencyAgreementEwma).toBeCloseTo(0.8 * 0.7 + 0.2 * 0.3);
+		profile = recordConsistencyAgreement(profile, 7, 30);
+		expect(profile.consistencyAgreementEwma).toBeLessThanOrEqual(1);
+		expect(profile.updatedAt).toBe(30);
 	});
 });
