@@ -2727,12 +2727,20 @@ output and NOT acted on. Captured as F12.12.)
   this for bundle CONTENT — extend it to MCP tool descriptions). Add: an explicit name+version server allowlist, and run
   local stdio MCP servers in a container / restricted user with NO home / SSH-key / cloud-cred access (they run as agent-
   privileged child processes by default). (glasp/pomerium/CSA MCP-security-2026; straiker MCP tool-poisoning)
-- [ ] **F12.32 — Content-addressable tool-result caching + deterministic replay (extends aimock F11.4).** LLM agents are
+- [~] **F12.32 — Content-addressable tool-result caching + deterministic replay (extends aimock F11.4).** LLM agents are
   non-deterministic (up to ~15% accuracy variation run-to-run; even temp=0 isn't reproducible — float non-associativity +
   batch-dependent kernels). The fix isn't eliminating it but BOUNDING it: record model+tool responses for deterministic
   REPLAY (exactly aimock's design), and key a content-addressable cache by hash(prompt, tool-calls, retrieved context) to
   reuse results across runs — cutting inference spend + smoothing tail latency. Wire aimock as the record/replay layer +
   add the input-hash cache. (tianpan deterministic-replay; propelcode defeating-nondeterminism; "the log is the agent" 2605.21997)
+  **PURE CORE SHIPPED 2026-07-18:** `content-addressable-cache.ts` — canonicalJson (deep key-sort so
+  semantically-equal inputs hash equal; undefined dropped, null kept, array order significant), shared FNV-1a
+  contentHash, computeToolResultCacheKey (tool+args+context fingerprint) + computeModelResponseCacheKey
+  (model+messages+tools+sampling params), CACHEABLE_READ_TOOLS fail-closed policy (retrieval tools only —
+  write/edit/run_commands never cacheable), bounded LRU with honest hit/miss/eviction stats. 7 tests.
+  REMAINING WIRE: opt-in consult-before-execute at the tool boundary (context fingerprint from the F12.67
+  file-hash tree) and the model-response reuse seam (semantics-changing — flag + A/B before any default); aimock
+  stays the record/replay layer for sims.
 - [ ] **F12.33 — Behavioral-reproducibility metric per model×role (feeds the fitness store + routing).** Measure run-to-run
   CONSISTENCY of a model×role on a fixed fixture (accuracy variation, tool-call stability) so routing can prefer STABLE
   models for critical roles (reviewer/architect) even if a flakier model has a higher peak. Extends the model-role-stability
