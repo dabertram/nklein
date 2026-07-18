@@ -2897,11 +2897,18 @@ output and NOT acted on. Captured as F12.12.)
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
   adequacy, not just "tests pass." Closes the biggest reward-hacking loophole. (verification-horizon 2606.26300; augmentcode mutation-testing)
-- [ ] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
+- [~] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
   OpenTelemetry GenAI shape (`invoke_agent`/`execute_tool`/`chat`, `gen_ai.tool.call.*`, `gen_ai.usage.*`,
   `gen_ai.evaluation.*`) to an OTLP endpoint so a LOCAL Docker Langfuse/Phoenix renders traces, tool-call analytics, agent
   graphs, cost dashboards, and replay — battle-tested trace UIs for free, staying local-first, aligned to the emerging
   industry standard. Opt-in. (opentelemetry genai-semconv; langfuse otel)
+  **PURE MAPPING SHIPPED 2026-07-18:** `otel-genai-export.ts` — attemptEventToOtelSpans (one invoke_agent parent
+  per attempt + one execute_tool child per recorded tool call; gen_ai.operation.name/request.model/usage.input_tokens
+  + nklein.* extras; error outcomes → ERROR span status; rejected tool calls flagged), DETERMINISTIC trace/span
+  ids from (workflowId,taskId)/attemptId via the shared FNV hash (idempotent re-export, parent links survive
+  partial exports; parentAttemptId → parentSpanId), buildOtlpTracePayload (OTLP/HTTP resourceSpans envelope).
+  4 tests. REMAINING WIRE: the opt-in POSTer (NKLEIN_OTEL_ENDPOINT → POST /v1/traces, batched from the ledger
+  files — a `dev otel-export` CLI first, live tail second) + a docs/ snippet for local Langfuse/Phoenix docker.
 - [~] **F12.48 — Cost/efficiency-per-resolve + Pareto frontier.** Record tokens + LLM-call count + wall-clock + $-equivalent
   per RESOLVED card; render per-model×role accuracy-vs-cost Pareto (HAL: higher reasoning effort often LOWERED accuracy — a
   trade-off invisible without cost-per-resolve). Directly informs routing/default choices on the local fleet.
