@@ -52,6 +52,17 @@ describe("computeZeroTouchKpis (F12.108)", () => {
 		expect(kpis.captureGaps.length).toBeGreaterThan(0);
 	});
 
+	it("an operator merge is a counted human touch (F1.27b residue leaf closed the capture gap)", () => {
+		const events = [
+			transition("card-m", "running", "start_requested"),
+			transition("card-m", "operator_merge", null),
+			transition("card-m", "delivery_merge", null),
+		];
+		const production = computeZeroTouchKpis(events).buckets.find((bucket) => bucket.bucket === "production");
+		expect(production?.tasksDelivered).toBe(1);
+		expect(production?.zeroTouch).toBe(0);
+	});
+
 	it("gate HOLDS sharing the delivery_ prefix are not deliveries (taint/boundary holds)", () => {
 		const events = [
 			transition("card-h", "running", "start_requested"),

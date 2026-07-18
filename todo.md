@@ -667,7 +667,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
     ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
-- [ ] **F1.27b — Migrate adapter call sites onto the workflow command queue (interface LANDED 2026-07-13).** The
+- [x] **F1.27b — Migrate adapter call sites onto the workflow command queue (interface LANDED 2026-07-13).** The
   typed command/event seam exists: `createWorkflowCommandQueue` (src/core/workflow-command-queue.ts) over the pure
   kernel reducer — typed dispatch with held/terminal/persist_failed outcomes, per-task serialization,
   persist-before-notify ledger durability (`wf:<phase> → wf:<phase>` transitions), subscriber events carrying the
@@ -692,6 +692,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   completion persists, and the #28 acceptance-failure redrive dispatches acceptance_failed (→ implementing);
   holds absorb re-round prefixes. Remaining paths (LOW-priority residue — the mirror now covers the full happy +
   bounce + failure lifecycle): tRPC manual complete, CLI task commands.
+  **RESIDUE CLOSED 2026-07-18:** the audited residue seam is the OPERATOR MERGE (both the tRPC procedure and
+  `task merge` CLI converge on `handleMergeTaskWorktrees`) — it now mirrors each merged card into the kernel
+  (delivery_requested → delivered; holds absorb repeats when auto-delivery already walked the ladder) AND
+  ledgers an `operator_merge` transition per card, which closed the F12.108 capture gap: manual merges are now
+  countable human touches in the zero-touch fold (gap removed from captureGaps; regression test). No other CLI
+  command changes phases (create/update/seed-bulk don't; there is no CLI complete/move), and the UI's manual
+  drag-to-completed rides whole-board saveState — a diffuse seam deliberately left to the board-diff audit if it
+  ever matters. Item complete.
 - [x] **F1.18b — Flip the durable scheduler default-on after a LIVE restart-mid-run validation (engineering
   substance shipped 2026-07-13).** **FLIPPED 2026-07-18 after the specified live validation ran autonomously
   (David-greenlit 2026-07-16):** three scenario-01 runs (41-card decompose, real Docker sandboxes, deterministic

@@ -61,6 +61,7 @@ export function computeZeroTouchKpis(events: readonly AgentLedgerEvent[]): ZeroT
 		deliveredAt: number;
 		reopens: number;
 		cancellations: number;
+		operatorMerges: number;
 		startCycles: number;
 		failed: boolean;
 	}
@@ -75,6 +76,7 @@ export function computeZeroTouchKpis(events: readonly AgentLedgerEvent[]): ZeroT
 			deliveredAt: 0,
 			reopens: 0,
 			cancellations: 0,
+			operatorMerges: 0,
 			startCycles: 0,
 			failed: false,
 		};
@@ -98,6 +100,11 @@ export function computeZeroTouchKpis(events: readonly AgentLedgerEvent[]): ZeroT
 		if (to === "wf:cancelled") {
 			state.cancellations += 1;
 		}
+		// F1.27b residue leaf (2026-07-18): operator merges are ledgered as `operator_merge` transitions now —
+		// a manual merge is a HUMAN touch, so it counts (and left the captureGaps list).
+		if (to === "operator_merge") {
+			state.operatorMerges += 1;
+		}
 		if (reason === "start_requested") {
 			state.startCycles += 1;
 		}
@@ -113,14 +120,16 @@ export function computeZeroTouchKpis(events: readonly AgentLedgerEvent[]): ZeroT
 		let streak = 0;
 		let longest = 0;
 		for (const [, state] of deliveredOrdered) {
-			if (state.reopens === 0 && state.cancellations === 0) {
+			if (state.reopens === 0 && state.cancellations === 0 && state.operatorMerges === 0) {
 				streak += 1;
 				longest = Math.max(longest, streak);
 			} else {
 				streak = 0;
 			}
 		}
-		const zeroTouch = delivered.filter(([, state]) => state.reopens === 0 && state.cancellations === 0).length;
+		const zeroTouch = delivered.filter(
+			([, state]) => state.reopens === 0 && state.cancellations === 0 && state.operatorMerges === 0,
+		).length;
 		return {
 			bucket,
 			tasksDelivered: delivered.length,

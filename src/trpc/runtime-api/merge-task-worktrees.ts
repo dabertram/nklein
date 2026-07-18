@@ -1,4 +1,7 @@
+import { buildTransitionEvent } from "../../core/agent-attempt-ledger";
 import type { RuntimeTaskWorktreeMergeRequest, RuntimeTaskWorktreeMergeResponse } from "../../core/api-contract";
+import { hashWorkspacePathForLedger } from "../../nklein-agent/nklein-ledger-attempt";
+import { appendAgentLedgerEvent } from "../../state/agent-attempt-ledger-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import {
@@ -7,6 +10,7 @@ import {
 } from "../../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 import { formatMergeMessage } from "../runtime-task-message-formatting";
+import { getWorkspaceWorkflowQueue } from "./workflow-queue-registry";
 
 /** Emit a self-observation per task-worktree merge step (conflict/blocked → warning, else info), extracted with the handler. */
 function recordTaskWorktreeMergeObservations(input: {
@@ -67,6 +71,26 @@ export async function handleMergeTaskWorktrees(
 		steps: result.steps,
 		ok: result.ok,
 	});
+	// F1.27b (residue leaf): the OPERATOR merge is a completion path too — mirror it into the workflow kernel
+	// (delivery_requested → delivered; holds absorb repeats when auto-delivery already walked the ladder) and
+	// ledger an `operator_merge` transition per merged card, closing the F12.108 capture gap that made a manual
+	// merge indistinguishable from an autonomous delivery. Best-effort: audit-mode mirrors never affect the merge.
+	for (const mergedTaskId of result.mergedTaskIds) {
+		const queue = getWorkspaceWorkflowQueue(workspaceScope.workspacePath, workspaceScope.workspaceId);
+		void queue.dispatch(mergedTaskId, { kind: "delivery_requested" }).catch(() => {});
+		void queue.dispatch(mergedTaskId, { kind: "delivered" }).catch(() => {});
+		void appendAgentLedgerEvent(
+			buildTransitionEvent({
+				workflowId: mergedTaskId,
+				taskId: mergedTaskId,
+				workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+				from: "review",
+				to: "operator_merge",
+				reason: "manual worktree merge",
+				controllerDecision: "operator",
+			}),
+		).catch(() => {});
+	}
 	return {
 		ok: result.ok,
 		column: input.column ?? "review",
