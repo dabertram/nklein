@@ -59,6 +59,8 @@ export const SCHEDULER_EVENT_NAMES = [
 	"dependency_unblocked",
 	/** A leased job's worker reported a terminal outcome (succeeded/failed in `detail`) — the lease concluded. */
 	"completed",
+	/** A dependency_failed-cancelled job whose failed dependency later DELIVERED — back to ready (F1.18b live-found). */
+	"resurrected",
 ] as const;
 const schedulerEventNameSchema = z.enum(SCHEDULER_EVENT_NAMES);
 export type SchedulerEventName = z.infer<typeof schedulerEventNameSchema>;

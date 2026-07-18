@@ -49,6 +49,12 @@ export interface DurableJob {
 	attempts: number;
 	/** Earliest epoch ms the job may be (re)leased — set by retry-backoff after a reclaim. */
 	nextEligibleAt: number;
+	/**
+	 * Why a `failed` job failed — the resurrection eligibility gate (F1.18b live-found): only a
+	 * `dependency_failed` cancellation may be undone when the failed dependency later delivers; a job that
+	 * exhausted its own attempts stays failed. Absent on jobs from before this field.
+	 */
+	failedReason?: "max_attempts" | "dependency_failed" | "attempts_exhausted" | null;
 }
 
 export type DurableSchedulerAction =
@@ -56,6 +62,8 @@ export type DurableSchedulerAction =
 	| { type: "reclaim"; jobId: string; reason: "lease_expired" }
 	/** A job that can no longer make progress → `failed`. */
 	| { type: "fail"; jobId: string; reason: "max_attempts" | "dependency_failed" }
+	/** A dependency_failed-cancelled job whose dependencies ALL succeeded after a late delivery → back to `ready`. */
+	| { type: "resurrect"; jobId: string; reason: "dependency_recovered" }
 	/** A `blocked` job whose dependencies all succeeded → `ready`. */
 	| { type: "unblock"; jobId: string }
 	/** A `ready`, eligible job granted a worker lease → `leased`. */
@@ -177,6 +185,15 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 		}
 	}
 
+	// 1.5 Resurrect dependency_failed cancellations whose dependencies ALL succeeded — the runtime's own
+	// bounce/retry ladder can recover a card AFTER the durable budget failed it (live-found 2026-07-18: a late
+	// delivery_merge left 22 cancelled dependents dead on an otherwise-green board). Clock-free, like fail/unblock.
+	for (const job of input.jobs) {
+		if (job.state === "failed" && job.failedReason === "dependency_failed" && dependenciesSucceeded(job, byId)) {
+			actions.push({ type: "resurrect", jobId: job.jobId, reason: "dependency_recovered" });
+		}
+	}
+
 	// 2. Fail non-terminal jobs blocked behind a failed dependency (they can never run).
 	for (const job of input.jobs) {
 		if ((job.state === "blocked" || job.state === "ready") && anyDependencyFailed(job, byId)) {
@@ -263,6 +280,15 @@ export function applyDurableSchedulerActions(
 			case "fail":
 				job.state = "failed";
 				job.lease = null;
+				job.failedReason = action.reason;
+				break;
+			case "resurrect":
+				// Deps are proven succeeded at decision time, so skip blocked and go straight to ready; attempts are
+				// KEPT (prior lease cycles still count toward the budget — resurrection is not a budget reset).
+				job.state = "ready";
+				job.lease = null;
+				job.failedReason = null;
+				job.nextEligibleAt = 0;
 				break;
 			case "unblock":
 				job.state = "ready";
@@ -292,8 +318,14 @@ export function markDurableJob(
 	maxAttempts = Number.MAX_SAFE_INTEGER,
 ): DurableJob[] {
 	return jobs.map((job) => {
-		if (job.jobId !== jobId || job.state === "succeeded" || job.state === "failed") {
+		if (job.jobId !== jobId || job.state === "succeeded") {
 			return job;
+		}
+		if (job.state === "failed") {
+			// LATE SUCCESS (F1.18b live-found): the runtime's own retry ladder recovered the card after the durable
+			// budget gave up — the delivery seam then reports success here. Reality outranks bookkeeping: accept it
+			// (the scheduler's next tick resurrects dependency_failed dependents). A late FAILURE stays a no-op.
+			return outcome === "succeeded" ? { ...job, state: "succeeded", lease: null, failedReason: null } : job;
 		}
 		if (outcome === "transient_retry") {
 			const attempts = job.attempts + 1;
@@ -301,7 +333,7 @@ export function markDurableJob(
 			// transient retry back to `ready` FOREVER (never fail) on a misconfigured `maxAttempts`. Non-finite ⇒ floor 1.
 			const budget = Number.isFinite(maxAttempts) ? Math.max(1, Math.trunc(maxAttempts)) : 1;
 			return attempts >= budget
-				? { ...job, state: "failed", lease: null }
+				? { ...job, state: "failed", lease: null, failedReason: "attempts_exhausted" as const }
 				: { ...job, state: "ready", lease: null, attempts, nextEligibleAt: 0 };
 		}
 		return { ...job, state: outcome, lease: null };

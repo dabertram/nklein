@@ -699,6 +699,85 @@ describe("replayDurableJobs — skip/identity/backoff/budget", () => {
 	});
 });
 
+describe("F1.18b resurrection — late delivery revives dependency_failed cancellations", () => {
+	// Live-found 2026-07-18 (scenario-01 durable drain): a job exhausted the durable budget, its 22 transitive
+	// dependents were cancelled dependency_failed, then the runtime's own retry ladder recovered the card and
+	// DELIVERED it — the late success was dropped and the subtree stayed dead on an otherwise-green board.
+	it("markDurableJob accepts a late success on a failed job (and only a success)", () => {
+		const failed = [job({ jobId: "a", state: "failed", failedReason: "attempts_exhausted", attempts: 3 })];
+		const revived = markDurableJob(failed, "a", "succeeded");
+		expect(revived[0]).toMatchObject({ state: "succeeded", failedReason: null });
+		const stillFailed = markDurableJob(failed, "a", "failed");
+		expect(stillFailed[0]?.state).toBe("failed");
+		const untouched = markDurableJob([job({ jobId: "a", state: "succeeded" })], "a", "failed");
+		expect(untouched[0]?.state).toBe("succeeded");
+	});
+
+	it("resurrects ONLY dependency_failed jobs once their dependencies all succeed", () => {
+		const jobs = [
+			job({ jobId: "dep", state: "succeeded" }),
+			job({ jobId: "cancelled", state: "failed", failedReason: "dependency_failed", dependsOn: ["dep"] }),
+			job({
+				jobId: "exhausted",
+				state: "failed",
+				failedReason: "attempts_exhausted",
+				dependsOn: ["dep"],
+				attempts: 3,
+			}),
+		];
+		const actions = decideDurableSchedulerActions(input(jobs));
+		const resurrects = actions.filter((a) => a.type === "resurrect");
+		expect(resurrects).toEqual([{ type: "resurrect", jobId: "cancelled", reason: "dependency_recovered" }]);
+		const applied = applyDurableSchedulerActions(jobs, resurrects, { now: 1000, reclaimBackoffMs: 50 });
+		expect(applied.find((j) => j.jobId === "cancelled")).toMatchObject({ state: "ready", failedReason: null });
+		expect(applied.find((j) => j.jobId === "exhausted")?.state).toBe("failed");
+	});
+
+	it("does not resurrect while any dependency is still failed", () => {
+		const jobs = [
+			job({ jobId: "dep-ok", state: "succeeded" }),
+			job({ jobId: "dep-bad", state: "failed", failedReason: "attempts_exhausted", attempts: 3 }),
+			job({
+				jobId: "cancelled",
+				state: "failed",
+				failedReason: "dependency_failed",
+				dependsOn: ["dep-ok", "dep-bad"],
+			}),
+		];
+		const actions = decideDurableSchedulerActions(input(jobs));
+		expect(actions.filter((a) => a.type === "resurrect")).toHaveLength(0);
+	});
+
+	it("replays the full fail → late-success → resurrect → lease sequence to identical state", () => {
+		const initial = [job({ jobId: "a" }), job({ jobId: "b", state: "blocked", dependsOn: ["a"] })];
+		// a leases, exhausts its budget (maxAttempts 1 ⇒ its transient retry fails it), b gets cancelled, then the
+		// late delivery succeeds a, the next tick resurrects b, and the tick after leases it.
+		let jobs: DurableJob[] = initial.map((j) => ({ ...j }));
+		const log: Parameters<typeof replayDurableJobs>[1][number][] = [];
+		const step = (over: Partial<DurableSchedulerInput> = {}) => {
+			const actions = decideDurableSchedulerActions(
+				input(jobs, { maxAttempts: 1, maxConcurrentLeases: 1, ...over }),
+			);
+			for (const action of actions) {
+				log.push({ kind: "scheduled", now: 1000, action });
+			}
+			jobs = applyDurableSchedulerActions(jobs, actions, { now: 1000, reclaimBackoffMs: 50 });
+		};
+		step(); // lease a
+		log.push({ kind: "completed", jobId: "a", outcome: "transient_retry" });
+		jobs = markDurableJob(jobs, "a", "transient_retry", 1); // budget 1 ⇒ failed (attempts_exhausted)
+		step(); // cancels b (dependency_failed)
+		expect(jobs.find((j) => j.jobId === "b")).toMatchObject({ state: "failed", failedReason: "dependency_failed" });
+		log.push({ kind: "completed", jobId: "a", outcome: "succeeded" });
+		jobs = markDurableJob(jobs, "a", "succeeded", 1); // the late delivery
+		step(); // resurrect b
+		step(); // lease b
+		expect(jobs.find((j) => j.jobId === "b")?.state).toBe("leased");
+		const replayed = replayDurableJobs(initial, log, { reclaimBackoffMs: 50, maxAttempts: 1 });
+		expect(replayed).toEqual(jobs);
+	});
+});
+
 describe("decideDurableSchedulerActions — readyOrder (§5.AF depth/fan-out lease priority)", () => {
 	it("leases in raw INPUT order when readyOrder is undefined (identity default, byte-identical)", () => {
 		const jobs = [job({ jobId: "a" }), job({ jobId: "b" }), job({ jobId: "c" })];

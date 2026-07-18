@@ -258,6 +258,22 @@ describe("schedulerEventToDurableLogEntry (read-side fallbacks, via readDurableS
 	});
 
 	// T8 — cancelled with the (otherwise-untested) recognized reason "max_attempts" round-trips as itself.
+	it("round-trips a resurrect action (F1.18b late-delivery revival) — write → read = identity", () => {
+		const entry = {
+			kind: "scheduled",
+			now: 640,
+			action: { type: "resurrect", jobId: "d", reason: "dependency_recovered" },
+		} as const;
+		const event = durableLogEntryToSchedulerEvent(entry, env);
+		expect(event).toMatchObject({
+			event: "resurrected",
+			taskId: "d",
+			detail: "dependency_recovered",
+			recordedAt: 640,
+		});
+		expect(readDurableSchedulerLog([event])).toEqual([entry]);
+	});
+
 	it("round-trips a cancelled with the recognized reason max_attempts", () => {
 		const ev = sched({ event: "cancelled", detail: "max_attempts", recordedAt: 15 });
 		expect(readDurableSchedulerLog([ev])).toEqual([

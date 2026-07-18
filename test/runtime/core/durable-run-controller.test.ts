@@ -438,17 +438,25 @@ describe("DurableRunController", () => {
 		expect(log.length).toBe(logLenBefore);
 	});
 
-	it("DRC-17 treats reportCompletion on an already-failed job as a no-op (cannot be revived)", async () => {
+	it("DRC-17 revives an already-failed job on a LATE SUCCESS report; a late failure stays a no-op", async () => {
+		// Contract inverted 2026-07-18 (F1.18b live validation): the runtime's own bounce/retry ladder recovered a
+		// card AFTER the durable budget failed the job and DELIVERED it — dropping that success left the job failed
+		// and its dependency_failed-cancelled subtree dead forever (22/41 cards undrained). Reality outranks
+		// bookkeeping: succeeded-on-failed is accepted + persisted; failed-on-failed remains a no-op.
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		const { ports, log } = fakePorts();
 		const controller = new DurableRunController(graph, config, ports);
 		await controller.tick();
 		await controller.reportCompletion("a", "failed");
-		const logLenBefore = log.length;
+		const logLenAfterFailure = log.length;
+
+		await controller.reportCompletion("a", "failed");
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "failed" });
+		expect(log.length).toBe(logLenAfterFailure);
 
 		await controller.reportCompletion("a", "succeeded");
-		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "failed" });
-		expect(log.length).toBe(logLenBefore);
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "succeeded" });
+		expect(log.at(-1)).toEqual({ kind: "completed", jobId: "a", outcome: "succeeded" });
 	});
 
 	it("DRC-18 still succeeds a succeeded report even when its error arg looks transient", async () => {

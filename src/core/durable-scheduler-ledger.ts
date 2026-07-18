@@ -75,6 +75,8 @@ function actionToSchedulerFields(action: DurableSchedulerAction): {
 			return { event: "dependency_unblocked", workerId: null, leaseId: null, detail: null };
 		case "fail":
 			return { event: "cancelled", workerId: null, leaseId: null, detail: action.reason };
+		case "resurrect":
+			return { event: "resurrected", workerId: null, leaseId: null, detail: action.reason };
 	}
 }
 
@@ -151,6 +153,12 @@ function schedulerEventToDurableLogEntry(event: AgentSchedulerEvent): DurableSch
 				: "max_attempts";
 			return { kind: "scheduled", now: event.recordedAt, action: { type: "fail", jobId, reason } };
 		}
+		case "resurrected":
+			return {
+				kind: "scheduled",
+				now: event.recordedAt,
+				action: { type: "resurrect", jobId, reason: "dependency_recovered" },
+			};
 		case "completed": {
 			if (event.detail === "succeeded" || event.detail === "failed" || event.detail === "transient_retry") {
 				return { kind: "completed", jobId, outcome: event.detail };

@@ -191,7 +191,14 @@ export class DurableRunController {
 		// `failed`/`interrupted` summary for the SAME task would otherwise be applied again — double-burning an attempt or
 		// PARKING a card that holds no lease and is mid-redispatch. Terminal (succeeded/failed) + unknown stay no-ops too.
 		if (job?.state !== "leased") {
-			return;
+			// LATE SUCCESS (live-found 2026-07-18, scenario-01 durable drain): the runtime's bounce/retry ladder can
+			// recover a card AFTER the durable budget failed the job. Delivery then reported success here and was
+			// silently dropped — leaving the job failed and its dependency_failed-cancelled subtree dead forever
+			// (22/41 cards undrained on an otherwise-green board). Accept succeeded-on-failed; the next tick's
+			// resurrection rule revives the cancelled dependents. Every other non-leased report stays a no-op.
+			if (!(job?.state === "failed" && outcome === "succeeded")) {
+				return;
+			}
 		}
 		const effectiveOutcome = outcome === "failed" && isTransientNetworkError(error) ? "transient_retry" : outcome;
 		await this.ports.appendLog({ kind: "completed", jobId, outcome: effectiveOutcome });
