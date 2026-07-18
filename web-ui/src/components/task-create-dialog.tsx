@@ -1,8 +1,8 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as RadixSwitch from "@radix-ui/react-switch";
+import { renderBulkTemplate } from "@runtime-bulk-seed";
 import { appendTaskContextBlock, type TaskContextImportSource } from "@runtime-task-context-import";
-
 import {
 	ArrowBigUp,
 	ArrowLeft,
@@ -23,7 +23,6 @@ import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
-
 import type { BranchSelectOption } from "@/components/branch-select-dropdown";
 import { BranchSelectDropdown } from "@/components/branch-select-dropdown";
 import { TaskAgentModelPicker, useTaskAgentModelPicker } from "@/components/task-agent-model-picker";
@@ -172,6 +171,8 @@ export function TaskCreateDialog({
 	cloudProviderSupportEnabled?: boolean;
 }): ReactElement {
 	const [mode, setMode] = useState<"single" | "multi">("single");
+	// F12.109 bulk fan-out: an optional shared template stamped over the multi-mode lines ({input}/{i}/{slug}).
+	const [bulkTemplate, setBulkTemplate] = useState("");
 	const [createMore, setCreateMore] = useState(false);
 	const [composerResetKey, setComposerResetKey] = useState(0);
 	const [taskPrompts, setTaskPrompts] = useState<string[]>([]);
@@ -354,8 +355,14 @@ export function TaskCreateDialog({
 	}, []);
 
 	const getValidPrompts = useCallback(() => {
-		return taskPrompts.filter((p) => p.trim());
-	}, [taskPrompts]);
+		const lines = taskPrompts.filter((p) => p.trim());
+		const template = bulkTemplate.trim();
+		if (!template) {
+			return lines;
+		}
+		// Each line becomes the {input} of one card stamped from the shared template.
+		return lines.map((line, index) => renderBulkTemplate(template, line.trim(), index));
+	}, [taskPrompts, bulkTemplate]);
 
 	const resetForCreateMore = useCallback(() => {
 		onPromptChange("");
@@ -589,6 +596,28 @@ export function TaskCreateDialog({
 					</div>
 				) : (
 					<div>
+						<div className="mb-2.5">
+							<input
+								type="text"
+								value={bulkTemplate}
+								onChange={(e) => setBulkTemplate(e.target.value)}
+								placeholder="Optional template — {input} = each line, {i} = index, {slug}"
+								aria-label="Bulk template"
+								className="w-full rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+							/>
+							{bulkTemplate.trim() ? (
+								<div className="mt-1 text-[11px] text-text-tertiary">
+									Each line below is stamped into the template as {"{input}"} — first card:{" "}
+									<span className="text-text-secondary">
+										{renderBulkTemplate(
+											bulkTemplate.trim(),
+											(taskPrompts.find((p) => p.trim()) ?? "…").trim(),
+											0,
+										).slice(0, 120)}
+									</span>
+								</div>
+							) : null}
+						</div>
 						<div className="flex flex-col gap-1.5">
 							{taskPrompts.map((taskPrompt, index) => (
 								<div key={index} className="flex items-center gap-1.5">

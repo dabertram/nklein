@@ -102,6 +102,43 @@ describe("TaskCreateDialog", () => {
 		});
 	}
 
+	it("stamps the bulk template over multi-mode lines (F12.109)", async () => {
+		const createdBatches: string[][] = [];
+		renderDialog({
+			prompt: "- login.ts\n- signup.ts",
+			onCreateMultiple: (prompts) => {
+				createdBatches.push(prompts);
+				return prompts.map((_, index) => `task-${index}`);
+			},
+		});
+		clickButton("Split into 2 tasks");
+		const templateInput = document.body.querySelector('input[aria-label="Bulk template"]');
+		if (!(templateInput instanceof HTMLInputElement)) {
+			throw new Error("Expected the bulk template input in multi mode.");
+		}
+		act(() => {
+			const setNativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+			setNativeValue?.call(templateInput, "Add unit tests for {input} ({i}/{slug})");
+			templateInput.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await flushPromises();
+		const createAll = Array.from(document.body.querySelectorAll("button")).find((candidate) =>
+			candidate.textContent?.startsWith("Create"),
+		);
+		if (!(createAll instanceof HTMLButtonElement)) {
+			throw new Error("Expected the multi-mode Create button.");
+		}
+		act(() => {
+			createAll.click();
+		});
+		await flushPromises();
+		expect(createdBatches).toHaveLength(1);
+		expect(createdBatches[0]).toEqual([
+			"Add unit tests for login.ts (1/login-ts)",
+			"Add unit tests for signup.ts (2/signup-ts)",
+		]);
+	});
+
 	it("imports GitHub issue context into the task prompt", async () => {
 		vi.spyOn(window, "prompt").mockReturnValue("owner/repo#12");
 		mockImportTaskContext.mockResolvedValue({

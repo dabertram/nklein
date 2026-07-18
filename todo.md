@@ -3222,7 +3222,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   row shipped (zeroTouch on getLedgerAnalytics via the mastModes payload pattern + zero-touch-summary section,
   upper-bound caveat rendered in-product). Follow-up (not this item): ledger park/steer/operator-merge events so
   the bound tightens.
-- [~] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
+- [x] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
   scale chapter runs the SAME workflow over many inputs in parallel; !Klein can only seed cards one at a time (or via
   model-planned decompose). Add a bulk-seed surface: a card template + a list (paths, issue lines, CSV rows) → N cards
   created with per-input substitution, dependency-free, admitted through the normal concurrency/endpoint gates. CLI first
@@ -3231,7 +3231,10 @@ into the existing F12.31. Same verify-before-build caveat.**
   **CLI SHIPPED 2026-07-18 (908c13fd5):** `task seed-bulk --template … [--title-template …] --inputs|--inputs-file …
   [--dry-run]` — pure plan half ({input}/{i}/{slug} substitution, dedupe, # comments, honest 100-input cap) loops
   the normal createTask path so every card rides the standard admission gates. 3 tests + dry-run live-verified.
-  REMAINING: board multi-select UI affordance.
+  **BOARD UI SHIPPED 2026-07-18:** the New-tasks dialog's multi mode gained a shared bulk-template field
+  ({input}/{i}/{slug} stamped over the lines via the SAME core renderer, live first-card preview, template kept
+  across create-more) — pure halves moved to `src/core/bulk-seed.ts` and shared via the `@runtime-bulk-seed`
+  alias (vite+vitest+tsconfig, all three). Dialog test covers split→template→create-all. Item complete.
 
 ## 6. Legacy section alias map
 

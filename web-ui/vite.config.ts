@@ -98,6 +98,7 @@ export default defineConfig({
 			"@runtime-task-title": resolve(__dirname, "../src/core/task-title.ts"),
 			"@runtime-task-worktree-path": resolve(__dirname, "../src/workspace/task-worktree-path.ts"),
 			"@runtime-task-state": resolve(__dirname, "../src/core/task-board-mutations.ts"),
+			"@runtime-bulk-seed": resolve(__dirname, "../src/core/bulk-seed.ts"),
 			"@runtime-operator-board-health": resolve(__dirname, "../src/core/operator-board-health.ts"),
 			"@runtime-live-agent-state": resolve(__dirname, "../src/core/live-agent-state.ts"),
 			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
