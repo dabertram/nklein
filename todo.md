@@ -3160,7 +3160,7 @@ into the existing F12.31. Same verify-before-build caveat.**
 
 **ADW / software-factory deltas (IndyDevDan "Forget Loop Engineering — Agentic Engineering is about THIS", youtu.be/VQy50fuxI34, David 2026-07-18). Gap analysis: !Klein already IS the kanban-queue factory with review agents, closed-loop verification, fleet orchestration + observability, context engineering, and out-of-loop autonomy — the genuinely uncovered concepts are the FOUR below:**
 
-- [~] **F12.106 — External-trigger intake: events create cards (the "Production Goes Down" incident ADW).** Every card
+- [x] **F12.106 — External-trigger intake: events create cards (the "Production Goes Down" incident ADW).** Every card
   today is human-seeded; the video's climax is a workflow ENTERED by an event (an alarm fires → the factory responds
   autonomously). Add trigger sources that seed cards from templates: a local webhook endpoint (`POST /api/triggers/<name>`),
   a cron schedule, and a log/file-watch — each mapped to a card TEMPLATE (prompt + filesLikelyTouched + priority + auto-start
@@ -3179,7 +3179,13 @@ into the existing F12.31. Same verify-before-build caveat.**
   auto-started it (queued behind the busy endpoint, then ran) → card reached Review; 429 damping + 404 + both
   audit records verified on disk.
   `autoStart:false` templates are REFUSED (boards are autonomous; honest error over silent start). REMAINING:
-  cron + log/file-watch trigger sources.
+  cron + log/file-watch trigger sources. **CRON + FILE-WATCH SHIPPED (same session, 4358ff4a7):** templates
+  carry optional `cron` (own 5-field local-time matcher core `cron-match.ts` — SDK cron isn't re-exported from
+  its built surface; standard dom/dow either-match rule; loud parse errors) and/or `watch: {path, debounceMs}`;
+  `trigger-scheduler.ts` 60s reconcile rescans templates, fires due cron minutes once each, arms/re-arms/drops
+  fs.watch handles by config fingerprint, and routes EVERY fire through the same handleTriggerIntake
+  (validation+damping+audit) with {source:"cron"|"watch"} payloads. Armed at server boot, disposed on close.
+  +5 tests. All three todo'd sources (webhook, cron, file-watch) live — item complete.
 - [~] **F12.107 — First-class ADW definitions: named, versioned workflow templates (deterministic glue + agent steps).**
   !Klein's decompose→work→review flow is built-in and implicit; the video's core claim is that VALUE lives in explicit,
   reusable AI Developer Workflows — deterministic code around nondeterministic agent steps ("adding code to your ADW",
