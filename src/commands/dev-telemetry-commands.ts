@@ -1455,6 +1455,30 @@ export async function runDevTrajectoryQualityCommand(options: { json?: boolean }
  * F12.48 — per-(model, role) cost-per-resolve + the Pareto frontier over the persisted attempt ledger. Cost only
  * means something divided by delivered outcomes; the frontier names the models NOT dominated per role.
  */
+/** F12.108: zero-touch autonomy KPIs over the attempt ledger — how often does a card ship with no human touch? */
+export async function runDevAutonomyCommand(options: { json?: boolean } = {}): Promise<void> {
+	const { computeZeroTouchKpis } = await import("../core/zero-touch-kpis");
+	const events = await readAllAgentLedger();
+	const kpis = computeZeroTouchKpis(events);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(kpis, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("Zero-touch autonomy KPIs (F12.108)\n\n");
+	for (const bucket of kpis.buckets) {
+		const rate = bucket.zeroTouchRate === null ? "—" : `${Math.round(bucket.zeroTouchRate * 100)}%`;
+		process.stdout.write(
+			`${bucket.bucket}: ${bucket.zeroTouch}/${bucket.tasksDelivered} zero-touch (${rate}) · streak ${bucket.longestZeroTouchStreak} · reopens ${bucket.reopens} · cancels ${bucket.cancellations} · restarts ${bucket.restarts} · failed ${bucket.failed}\n`,
+		);
+	}
+	process.stdout.write(
+		"\nHonesty: rate counts only ledger-VISIBLE touches — upper bound while these capture gaps exist:\n",
+	);
+	for (const gap of kpis.captureGaps) {
+		process.stdout.write(`  - ${gap}\n`);
+	}
+}
+
 /** F12.39: MAST failure-mode distribution per model over the attempt ledger — fix specs vs coordination vs verification. */
 export async function runDevMastModesCommand(options: { json?: boolean } = {}): Promise<void> {
 	const { rollupMastDistribution, mastRemedyHint } = await import("../core/mast-failure-modes");

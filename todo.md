@@ -3179,7 +3179,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   packages) and from decompose (model-planned): an ADW is HUMAN-authored process structure the factory executes repeatedly.
   Start with two recipes proving the shape: "bug-report → repro test → fix card → verify" and "dependency-bump → build →
   test → review card". (IndyDevDan ADW; PITER-style problem→solution pipelines)
-- [ ] **F12.108 — Zero-touch KPIs: measure how autonomous the factory actually is.** The video's measurement thread (KPIs +
+- [~] **F12.108 — Zero-touch KPIs: measure how autonomous the factory actually is.** The video's measurement thread (KPIs +
   the "codebase runs itself" North Star) has no !Klein counterpart: we measure cost/quality (F12.48/F12.42) but not
   AUTONOMY. Ledger projections: zero-touch rate (% of completed cards with ZERO human interventions — no manual redrive, no
   park-resolution, no steer note, no operator merge), interventions-per-card by kind, autonomous streak (longest run of
@@ -3187,6 +3187,12 @@ into the existing F12.31. Same verify-before-build caveat.**
   Model-Performance dialog row; the needs-you/park/steer/merge events already ride the ledger+stores, so this is a pure
   projection. Honest-labeling: a card completed under NKLEIN_* validation flags or dev-test scaffolds must be counted in a
   separate bucket, never inflating the production rate. (IndyDevDan agentic KPIs / ZTE ladder)
+  **CORE + CLI SHIPPED 2026-07-18:** `zero-touch-kpis.ts` (pure transition-stream fold: delivered = delivery_*
+  minus quality_scan; touches = ledger-VISIBLE only (reopens + cancellations) with parks/steers/operator-merges
+  named as captureGaps ⇒ the rate is an explicit UPPER bound; restarts reported but never counted — watchdog
+  retries are autonomous; devtest- bucket separated) + `dev autonomy [--json]`. LIVE baseline on the real ledger:
+  production 54% zero-touch (15/28), streak 10, 37 reopens, 9 cancels. 2 tests. REMAINING: the Model-Performance
+  dialog row (same payload pattern as mastModes) + ledgering the capture-gap events so the bound tightens.
 - [ ] **F12.109 — Bulk fan-out seeding: one template × N inputs ("scale your compute to scale your impact").** The video's
   scale chapter runs the SAME workflow over many inputs in parallel; !Klein can only seed cards one at a time (or via
   model-planned decompose). Add a bulk-seed surface: a card template + a list (paths, issue lines, CSV rows) → N cards

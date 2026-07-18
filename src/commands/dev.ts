@@ -44,6 +44,7 @@ import {
 	runDevAdviceCommand,
 	runDevAirGapStatusCommand,
 	runDevAnswerBudgetsCommand,
+	runDevAutonomyCommand,
 	runDevCapabilityCeilingCommand,
 	runDevCardEffortCommand,
 	runDevCardTrailCommand,
@@ -968,6 +969,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--cap <tokens>", "Soft token cap per card — annotates within/approaching/over.", Number.parseInt)
 		.action(async (options: { json?: boolean; workspace?: string; cap?: number }) => {
 			await runDevCardEffortCommand(options);
+		});
+
+	dev.command("autonomy")
+		.description("Zero-touch autonomy KPIs (F12.108) over the attempt ledger, honestly bucketed.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevAutonomyCommand(options);
 		});
 
 	dev.command("mast-modes")
