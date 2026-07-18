@@ -1012,7 +1012,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   empty (no configured cap ⇒ no veto, fail-open/unchanged). REMAINING (unchanged flags): the durable-JOBS
   representation of idle actions (needs a non-card dispatch kind in the wiring) and the evidence-driven ranker
   feed (data-gated on accumulated realized-value outcomes).
-- [ ] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
+- [~] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
   `src/core/n-eyes-review-schedule.ts` completes the F1.37 brain over the shipped lens/panel/verdict cores:
   `planNEyesSchedule` (round-shifted rotation — every eye a DISTINCT (judge, lens) pair, lenses advance first in
   failure-mass order, judges rotate for family diversity), `dedupeEyeFindings` (case/punctuation-insensitive
@@ -1023,6 +1023,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   mount in `nklein-review-panel-runner` — one sequential judge session per eye carrying its lens stance (unique
   reviewer session ids per the runner's parallelism warning), a confer round re-prompting each judge with the
   others' findings, and the confirmed/disputed set feeding `combinePanelVerdicts`; live-validate on the fleet.
+  **MOUNTED 2026-07-18 (opt-in NKLEIN_N_EYES_REVIEW inside the NKLEIN_REVIEW_PANEL path; default byte-identical):**
+  `runNEyesReviewPanel` in the panel runner — sequential eyes (same session-id constraint as the plain panel),
+  each carrying its lens STANCE + a machine-parseable FINDINGS format (tolerant parser; an unformatted blocking
+  verdict still yields one fallback finding so it is never invisible to dedupe/confer), marginal-value early
+  stop, confer round over the SAME review-session machinery (CONFER: n confirm|dispute lines parsed from
+  feedback; silence is neither vote), `resolveConferredFindings` (out-vote drops, disputes surface, veto-class
+  never silently dropped), surviving findings appended to the effective submission's feedback. Falls through to
+  the plain panel when no eye verdicts. NKLEIN_N_EYES_MAX clamps eyes [2,6], default 4. 7 tests. REMAINING:
+  fleet live-validation (long multi-judge runs; ride a capped rig session).
 
 ### Phase 2 — feature completion: chat, board, safety, and operator workflow
 

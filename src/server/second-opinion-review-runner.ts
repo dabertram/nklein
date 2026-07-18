@@ -32,7 +32,7 @@ import {
 	storeAcceptanceEvidence,
 } from "../nklein-agent/nklein-acceptance-evidence-registry";
 import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
-import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
+import { type PanelJudge, runNEyesReviewPanel, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
 import {
@@ -570,6 +570,49 @@ export async function runSecondOpinionReviewForTask(
 				// §5.AB panel: ≥2 diverse judges ⇒ run each over the SAME seed and combine (majority + veto) into one
 				// submission; a null panel result (no judge produced a verdict) falls through to the single reviewer.
 				if (panelJudges.length > 1) {
+					// F1.37b N-eyes (OPT-IN via NKLEIN_N_EYES_REVIEW inside the panel path; default OFF ⇒ the plain
+					// panel below, byte-identical): every eye is a DISTINCT (judge, lens) pair riding the SAME
+					// sequential review-session machinery; blind findings → marginal-value stop → confer round
+					// (dispute out-votes drop, veto-class findings never silently drop). Falls through to the plain
+					// panel when no eye produced a verdict.
+					if (isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW)) {
+						const maxEyes = Math.min(
+							6,
+							Math.max(2, Number.parseInt(process.env.NKLEIN_N_EYES_MAX ?? "4", 10) || 4),
+						);
+						const nEyesResult = await runNEyesReviewPanel({
+							judges: panelJudges,
+							reviewerTier: "mid",
+							maxEyes,
+							runEyeSession: (_eye, judge, promptSuffix) =>
+								input.service.runSecondOpinionReviewSession({
+									taskId: input.taskId,
+									projectRepoPath: input.workspacePath,
+									baseRef: card.baseRef,
+									seedPrompt: `${seedPrompt}${promptSuffix}`,
+									reviewer: judge.reviewer,
+								}),
+							// The confer round rides the same session machinery; the judge's raw feedback carries the
+							// CONFER: lines (a verdict-shaped reply is fine — only the text is parsed).
+							runConferSession: async (_eye, judge, conferPrompt) => {
+								const conferSubmission = await input.service.runSecondOpinionReviewSession({
+									taskId: input.taskId,
+									projectRepoPath: input.workspacePath,
+									baseRef: card.baseRef,
+									seedPrompt: `${seedPrompt}${conferPrompt}`,
+									reviewer: judge.reviewer,
+								});
+								return conferSubmission?.feedback ?? conferSubmission?.summary ?? null;
+							},
+							warn: input.warn,
+						});
+						if (nEyesResult) {
+							input.warn?.(
+								`N-eyes panel for ${input.taskId}: ${nEyesResult.decision.reason} — ${nEyesResult.eyesRun.length} eye(s), ${nEyesResult.conferred.filter((finding) => finding.status !== "dropped").length} finding(s) survived confer.`,
+							);
+							return nEyesResult.submission;
+						}
+					}
 					const panelResult = await runReviewPanel({
 						judges: panelJudges,
 						runJudgeSession: (judge) =>
