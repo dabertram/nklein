@@ -591,13 +591,14 @@ export async function runSecondOpinionReviewForTask(
 							judges: panelJudges,
 							reviewerTier: "mid",
 							maxEyes,
-							runEyeSession: (_eye, judge, promptSuffix) =>
+							runEyeSession: (eye, judge, promptSuffix) =>
 								input.service.runSecondOpinionReviewSession({
 									taskId: input.taskId,
 									projectRepoPath: input.workspacePath,
 									baseRef: card.baseRef,
 									seedPrompt: `${seedPrompt}${promptSuffix}`,
 									reviewer: judge.reviewer,
+									stampPhase: (phase) => stampPhase(`${eye.eyeId}/${judge.judgeModelKey}: ${phase}`),
 								}),
 							// The confer round rides the same session machinery; the judge's raw feedback carries the
 							// CONFER: lines (a verdict-shaped reply is fine — only the text is parsed).
@@ -629,6 +630,7 @@ export async function runSecondOpinionReviewForTask(
 								baseRef: card.baseRef,
 								seedPrompt,
 								reviewer: judge.reviewer,
+								stampPhase: (phase) => stampPhase(`judge/${judge.judgeModelKey}: ${phase}`),
 							}),
 					});
 					if (panelResult) {

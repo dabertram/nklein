@@ -173,10 +173,21 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		stamp(`session: reviewer=${modelId} (${selectionSource}); bracketed-run enter`);
 		// A reasoning reviewer needs headroom to think BEFORE emitting `submit_review` — floor its per-turn budget so the
 		// inherited (worker-sized) budget can't truncate it mid-reasoning into a `no_verdict` hold. Only raises; only for
-		// reasoning models.
-		const reasoningSafeMaxTokensPerTurn = isReasoningModel(modelId)
-			? Math.max(workerLaunch?.maxTokensPerTurn ?? 0, REASONING_REVIEWER_BUDGET_FLOOR)
-			: (workerLaunch?.maxTokensPerTurn ?? null);
+		// reasoning models. Live-found 2026-07-18 (rig11, glm-4.6v-flash): name-matching alone missed a model whose
+		// CATALOG declares reasoning (default "on") — it burned its whole budget thinking and returned empty on every
+		// review. Union the name predicate with the loaded catalog's declared `reasoning` capability (the descriptors
+		// are already fetched in this resolution).
+		const reasoningDescriptors = await fetchLoadedModelDescriptors(
+			workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL,
+		).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
+		const catalogDeclaresReasoning = reasoningDescriptors.some(
+			(descriptor) =>
+				(descriptor.runtimeId === modelId || descriptor.modelKey === modelId) && descriptor.reasoning === true,
+		);
+		const reasoningSafeMaxTokensPerTurn =
+			isReasoningModel(modelId) || catalogDeclaresReasoning
+				? Math.max(workerLaunch?.maxTokensPerTurn ?? 0, REASONING_REVIEWER_BUDGET_FLOOR)
+				: (workerLaunch?.maxTokensPerTurn ?? null);
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId,
