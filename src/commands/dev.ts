@@ -40,6 +40,7 @@ import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
+import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import {
 	runDevAdviceCommand,
 	runDevAirGapStatusCommand,
@@ -892,6 +893,34 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
 			await runDevOutwardQueueCommand(options);
 		});
+
+	dev.command("otel-export")
+		.description(
+			"F12.47: map the attempt ledger to OTel GenAI spans — print the OTLP payload or POST to a local collector.",
+		)
+		.option(
+			"--endpoint <url>",
+			"OTLP/HTTP base (e.g. http://localhost:4318); default NKLEIN_OTEL_ENDPOINT or print-only.",
+		)
+		.option("--task <id>", "Only this task's attempts.")
+		.option("--since <iso>", "Only events recorded at/after this ISO timestamp.")
+		.option("--limit <n>", "Only the most recent N attempts.", (v: string) => Number.parseInt(v, 10))
+		.option("--service-name <name>", "OTel service.name (default nklein).")
+		.option("--allow-remote", "Permit a non-loopback endpoint (local-only posture otherwise).")
+		.option("--json", "Print the full OTLP payload as JSON (print-only mode).")
+		.action(
+			async (options: {
+				endpoint?: string;
+				task?: string;
+				since?: string;
+				limit?: number;
+				serviceName?: string;
+				allowRemote?: boolean;
+				json?: boolean;
+			}) => {
+				await runDevOtelExportCommand(options);
+			},
+		);
 
 	dev.command("stubborn-failure")
 		.description("Assess a task's stubborn-failure state (F3.29) from its ledger attempts — exhausted? best partial?")

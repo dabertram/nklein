@@ -2915,8 +2915,11 @@ output and NOT acted on. Captured as F12.12.)
   + nklein.* extras; error outcomes → ERROR span status; rejected tool calls flagged), DETERMINISTIC trace/span
   ids from (workflowId,taskId)/attemptId via the shared FNV hash (idempotent re-export, parent links survive
   partial exports; parentAttemptId → parentSpanId), buildOtlpTracePayload (OTLP/HTTP resourceSpans envelope).
-  4 tests. REMAINING WIRE: the opt-in POSTer (NKLEIN_OTEL_ENDPOINT → POST /v1/traces, batched from the ledger
-  files — a `dev otel-export` CLI first, live tail second) + a docs/ snippet for local Langfuse/Phoenix docker.
+  4 tests. **CLI WIRE SHIPPED same day:** `nklein dev otel-export` — reads the attempt ledger, maps via the pure
+  core, prints the OTLP payload (default) or POSTs to --endpoint / NKLEIN_OTEL_ENDPOINT `/v1/traces`;
+  LOOPBACK-ONLY unless --allow-remote (egress posture applies to telemetry); --task/--since/--limit filters.
+  Live-smoked: 3 real attempts → 34 spans. Deterministic ids make repeated export idempotent. REMAINING (nice-to-
+  have): a docs/ snippet for local Langfuse/Phoenix docker + an optional post-run auto-export hook.
 - [~] **F12.48 — Cost/efficiency-per-resolve + Pareto frontier.** Record tokens + LLM-call count + wall-clock + $-equivalent
   per RESOLVED card; render per-model×role accuracy-vs-cost Pareto (HAL: higher reasoning effort often LOWERED accuracy — a
   trade-off invisible without cost-per-resolve). Directly informs routing/default choices on the local fleet.
