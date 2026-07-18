@@ -90,6 +90,7 @@ import { isBusySessionState } from "../core/session-state-predicates";
 import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
 import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
+import { computeZeroTouchKpis } from "../core/zero-touch-kpis.js";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
 import { buildEnforcedEvalChat } from "../nklein-agent/enforced-eval-chat";
 import {
@@ -731,6 +732,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					dominantMode: row.dominantMode,
 					remedyHint: row.dominantMode ? mastRemedyHint(row.dominantMode) : null,
 				})),
+				// F12.108: same events again — the autonomy KPIs ride the analytics payload (rate = upper bound).
+				zeroTouch: (() => {
+					const kpis = computeZeroTouchKpis(events);
+					return { buckets: [...kpis.buckets], captureGaps: [...kpis.captureGaps] };
+				})(),
 			};
 		},
 		// F5.2 memory-corpus health: the freshness audit (behind `dev memory-audit`) over the on-disk basic-memory

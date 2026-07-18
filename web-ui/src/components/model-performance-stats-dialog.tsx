@@ -879,6 +879,30 @@ export function ModelPerformanceStatsDialog({
 								))
 							)}
 						</div>
+						<div
+							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+							data-testid="zero-touch-summary"
+						>
+							<div className="font-semibold text-text-primary">Zero-touch autonomy (F12.108)</div>
+							{(ledgerAnalytics.zeroTouch?.buckets ?? []).every((bucket) => bucket.tasksDelivered === 0) ? (
+								<div className="text-text-tertiary">nothing delivered yet</div>
+							) : (
+								(ledgerAnalytics.zeroTouch?.buckets ?? [])
+									.filter((bucket) => bucket.tasksDelivered > 0)
+									.map((bucket) => (
+										<div key={bucket.bucket} className="mt-1">
+											{bucket.bucket === "production" ? "production" : "dev-test"}:{" "}
+											{bucket.zeroTouchRate === null ? "—" : `${Math.round(bucket.zeroTouchRate * 100)}%`}{" "}
+											zero-touch ({bucket.zeroTouch}/{bucket.tasksDelivered}) · streak{" "}
+											{bucket.longestZeroTouchStreak} · {bucket.reopens} reopen(s) · {bucket.cancellations}{" "}
+											cancel(s)
+										</div>
+									))
+							)}
+							<div className="mt-1 text-text-tertiary">
+								upper bound — parks, steer notes, and operator merges are not ledgered yet
+							</div>
+						</div>
 					</div>
 				)}
 				{memoryAudit?.available && (

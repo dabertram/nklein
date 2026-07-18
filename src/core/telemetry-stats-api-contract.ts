@@ -351,6 +351,21 @@ export const runtimeMastModeRowSchema = z.object({
 });
 export type RuntimeMastModeRow = z.infer<typeof runtimeMastModeRowSchema>;
 
+/** F12.108 — zero-touch autonomy KPIs per bucket (ledger-VISIBLE touches only; the rate is an explicit upper bound). */
+export const runtimeZeroTouchBucketSchema = z.object({
+	bucket: z.enum(["production", "dev_test"]),
+	tasksDelivered: z.number().int().nonnegative(),
+	zeroTouch: z.number().int().nonnegative(),
+	zeroTouchRate: z.number().nullable(),
+	reopens: z.number().int().nonnegative(),
+	cancellations: z.number().int().nonnegative(),
+	/** Extra start cycles beyond each task's first — autonomous watchdog retries included, so reported, not counted. */
+	restarts: z.number().int().nonnegative(),
+	longestZeroTouchStreak: z.number().int().nonnegative(),
+	failed: z.number().int().nonnegative(),
+});
+export type RuntimeZeroTouchBucket = z.infer<typeof runtimeZeroTouchBucketSchema>;
+
 export const runtimeLedgerAnalyticsResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	retrieval: runtimeRetrievalUsefulnessViewSchema,
@@ -359,6 +374,11 @@ export const runtimeLedgerAnalyticsResponseSchema = z.object({
 	opportunistic: z.array(runtimeOpportunisticValueRowSchema),
 	/** F12.39: MAST failure-mode distribution per model — says whether to fix specs, coordination, or verification. */
 	mastModes: z.array(runtimeMastModeRowSchema),
+	/** F12.108: zero-touch autonomy KPIs; captureGaps names the human-touch channels the ledger cannot see yet. */
+	zeroTouch: z.object({
+		buckets: z.array(runtimeZeroTouchBucketSchema),
+		captureGaps: z.array(z.string()),
+	}),
 });
 export type RuntimeLedgerAnalyticsResponse = z.infer<typeof runtimeLedgerAnalyticsResponseSchema>;
 
