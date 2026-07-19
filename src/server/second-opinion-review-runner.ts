@@ -40,6 +40,7 @@ import {
 	runNKleinSecondOpinionReview,
 } from "../nklein-agent/nklein-second-opinion-review";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
+import { recordExecutionOutcomeForTaskSkills } from "../nklein-agent/procedural-skill-execution-recorder";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/task-result-branches";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
@@ -430,6 +431,15 @@ export async function runSecondOpinionReviewForTask(
 		storeAcceptanceEvidence(input.taskId, evidenceFingerprint, acceptance);
 	}
 	stampPhase(reusedAcceptance ? "acceptance-verify reused (work unchanged)" : "acceptance-verify done");
+	// F12.29: a FRESH acceptance verdict is execution-level skill evidence — record validated/refuted for every
+	// procedure surfaced into this task's session (fire-and-forget; the recorder is best-effort by contract).
+	if (!reusedAcceptance && acceptance && typeof acceptance.passed === "boolean") {
+		void recordExecutionOutcomeForTaskSkills({
+			taskId: input.taskId,
+			workspacePath: input.workspacePath,
+			passed: acceptance.passed,
+		});
+	}
 
 	// W4.2 layer 3: probe once per review run for a lineage-diverse escalation worker (null ⇒ park as before).
 	const escalationCandidate = config.secondOpinionReviewEnabled
