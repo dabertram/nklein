@@ -10,6 +10,7 @@
  */
 
 import { isTruthyEnv } from "../core/env-flag.js";
+import { selectFragmentsWithinBudget } from "../core/jit-fragment-budget";
 import type { ProceduralSkill } from "../core/procedural-skill-record.js";
 import { deriveProceduralContextTags, matchProceduralSkills } from "../core/procedural-skill-retrieval.js";
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
@@ -50,6 +51,13 @@ export interface BuildSessionSkillFragmentsInput {
 	 * Only consulted when `NKLEIN_PROCEDURAL_SKILLS` is set; a rejecting loader yields no fragments (fail-soft).
 	 */
 	loadProceduralSkills?: () => Promise<ProceduralSkill[]>;
+	/**
+	 * F4.17 overflow capping: token budget for the OPTIONAL skill-driven fragments (repo map, exemplars,
+	 * procedures, structural nudge). Unset ⇒ no capping (byte-identical). When set, fragments are ranked by
+	 * importance and greedily kept within the budget via `selectFragmentsWithinBudget` — one skill-driven pile
+	 * can never blow a small window.
+	 */
+	fragmentBudgetTokens?: number;
 }
 
 /** Resolve active skills → their `wired` context fragments → assembler PromptFragments (with real producer text). */
@@ -113,5 +121,22 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 		}
 	}
 
+	// F4.17 overflow capping (opt-in budget): every skill-driven fragment is OPTIONAL — rank and keep within the
+	// budget; the structural-retrieval nudge ranks highest (guidance must match offered tools), procedures next,
+	// bulk retrieval fragments last. No budget ⇒ byte-identical.
+	if (input.fragmentBudgetTokens !== undefined && fragments.length > 0) {
+		const importanceFor = (key: string): number =>
+			key === "structural-retrieval" ? 2 : key.startsWith("procedural-skill:") ? 1 : 0;
+		const selection = selectFragmentsWithinBudget(
+			fragments.map((fragment) => ({
+				id: fragment.key,
+				estimatedTokens: Math.ceil(fragment.text.length / 4),
+				importance: importanceFor(fragment.key),
+			})),
+			input.fragmentBudgetTokens,
+		);
+		const kept = new Set(selection.kept);
+		return fragments.filter((fragment) => kept.has(fragment.key));
+	}
 	return fragments;
 }

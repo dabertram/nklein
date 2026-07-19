@@ -16,12 +16,10 @@
  * inspectable reason (for §5.AG surfaces / debugging), analogous to the resolver's `reason` and the API-bridge `notes`.
  */
 
-import type { ContextFragmentId } from "./skill-registry";
-
 /** A context fragment competing for the turn's token budget, tagged with what it costs and how much it helps. */
 export interface FragmentBudgetCandidate {
-	/** The fragment's stable id (composes directly with `fragmentsForSkills` output). */
-	id: ContextFragmentId;
+	/** The fragment's stable id — a registry string or any dynamic fragment key (F4.17 consumer). */
+	id: string;
 	/** Estimated token cost of including this fragment. Non-finite / negative values are floored to 0. */
 	estimatedTokens: number;
 	/**
@@ -39,9 +37,9 @@ export interface FragmentBudgetCandidate {
 /** The outcome of a budget selection: which fragments made the cut, which were dropped, and the accounting. */
 export interface FragmentBudgetSelection {
 	/** The chosen fragment ids, in a stable order (required first — in input order — then kept optionals by rank). */
-	kept: ContextFragmentId[];
+	kept: string[];
 	/** The fragments that did not fit, in the order they were considered and rejected. */
-	dropped: ContextFragmentId[];
+	dropped: string[];
 	/** Total estimated tokens of the `kept` set. */
 	usedTokens: number;
 	/** Whether `usedTokens` exceeds the budget — only ever true because REQUIRED fragments alone overran it. */
@@ -71,8 +69,8 @@ export function selectFragmentsWithinBudget(
 ): FragmentBudgetSelection {
 	const budget = normalizeTokens(budgetTokens);
 
-	const kept: ContextFragmentId[] = [];
-	const dropped: ContextFragmentId[] = [];
+	const kept: string[] = [];
+	const dropped: string[] = [];
 	let usedTokens = 0;
 
 	// 1) Required fragments are non-negotiable — keep them all (in input order), letting the total overrun if it must.

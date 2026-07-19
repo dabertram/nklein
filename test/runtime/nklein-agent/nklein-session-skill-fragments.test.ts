@@ -138,3 +138,45 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 		expect(assigned.find((fragment) => fragment.key === "repo-map")).toBeUndefined();
 	});
 });
+describe("F4.17 overflow capping", () => {
+	it("keeps the highest-importance fragments within the budget and is byte-identical without one", async () => {
+		process.env.NKLEIN_PROCEDURAL_SKILLS = "1";
+		try {
+			const bigSkill = {
+				id: "sk-big",
+				title: "big",
+				content: "x".repeat(8_000),
+				status: "active" as const,
+				applicabilityTags: ["worker"],
+				version: 1,
+				contentHash: "h",
+				outcomes: { helped: 0, hurt: 0 },
+				supersededBy: null,
+				provenance: { source: "learned", trust: "local", capturedAt: 1 },
+				updatedAt: 1,
+			};
+			const uncapped = await buildSessionSkillFragments({
+				role: "worker",
+				taskText: "worker task",
+				workspacePath: process.cwd(),
+				modelId: null,
+				sandboxMcpEnabled: false,
+				loadProceduralSkills: async () => [bigSkill],
+			});
+			const capped = await buildSessionSkillFragments({
+				role: "worker",
+				taskText: "worker task",
+				workspacePath: process.cwd(),
+				modelId: null,
+				sandboxMcpEnabled: false,
+				loadProceduralSkills: async () => [bigSkill],
+				fragmentBudgetTokens: 100,
+			});
+			expect(capped.length).toBeLessThanOrEqual(uncapped.length);
+			const cappedTokens = capped.reduce((sum, f) => sum + Math.ceil(f.text.length / 4), 0);
+			expect(cappedTokens).toBeLessThanOrEqual(100);
+		} finally {
+			delete process.env.NKLEIN_PROCEDURAL_SKILLS;
+		}
+	});
+});

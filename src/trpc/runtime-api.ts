@@ -351,6 +351,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						workspacePath,
 						modelId: modelId ?? null,
 						sandboxMcpEnabled: false,
+						// F4.17 overflow capping — the chat window is lean; skill fragments get a fixed small slice.
+						fragmentBudgetTokens: 1_500,
 					});
 					if (fragments.length === 0) {
 						return null;

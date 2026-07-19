@@ -1760,6 +1760,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: {}),
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
+					// F4.17 overflow capping: skill-driven fragments get ≤8% of the window (cap 2k tokens) so one
+					// retrieval pile can never blow a small context.
+					fragmentBudgetTokens: Math.min(2_000, Math.round(((request.contextWindow ?? 32_000) || 32_000) * 0.08)),
 				});
 				// F12.29: remember which procedures were surfaced so the terminal attempt event can stamp them
 				// (the paired-trajectory audit needs the with-skill/without-skill split).

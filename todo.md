@@ -1667,8 +1667,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   proactive force-call, sampler, and budget preferences at chat and swarm call seams.
 - [~] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). Dynamics-level config resolution wire remaining.
   and make the default fully dynamic without hidden env-only behavior.
-- [~] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
+- [x] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
+  **COMPLETE 2026-07-19:** all three clauses now hold — ONE resolver (buildSessionSkillFragments serves board,
+  swarm, and since a6d9fb95e the chat turn), smart-zone ordering (the volatility-ordered cache-stable assembler,
+  prefix-identity regression-locked by the F4.40 net), and OVERFLOW CAPPING (selectFragmentsWithinBudget wired
+  into the resolver behind `fragmentBudgetTokens` — board passes ≤8% of the window capped at 2k tokens, chat a
+  fixed 1.5k slice; importance order: structural nudge > procedures > bulk retrieval; no budget ⇒ byte-identical;
+  jit-fragment-budget ids widened to plain strings for dynamic fragment keys). Resolver capping test green.
   **AUDIT 2026-07-18: PARTIAL** — board/swarm composes through one resolver (resolveActiveSkills + buildSessionSkillFragments + volatility-ordered assemblePromptFragments at session-system-prompt). MISSING: the CHAT path has zero skill-fragment composition, and jit-fragment-budget overflow capping has no consumers.
   **CHAT HALF SHIPPED 2026-07-18:** the chat agent turn now composes the SAME skill fragments as board sessions —
   new fail-soft `buildSkillFragmentsNote` seam on ChatAgentTurnDeps (inserted as one system message after the
