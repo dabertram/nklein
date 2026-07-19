@@ -54,3 +54,20 @@ describe("test-misinterpretation detector (F12.15b)", () => {
 		expect(assessTestMisinterpretation(events).flagged).toBe(false);
 	});
 });
+
+// F12.55b — bounded tool-result summaries at the ledger capture seam.
+import { summarizeToolResultContent } from "../../src/nklein-agent/nklein-ledger-tool-calls";
+
+describe("tool-result summaries (F12.55b)", () => {
+	it("collapses and bounds string content, extracts text blocks, and nulls non-text", () => {
+		expect(summarizeToolResultContent("  line one\n\n  line two  ")).toBe("line one line two");
+		expect(summarizeToolResultContent([{ type: "text", text: "found 3 matches" }, { type: "image" }])).toBe(
+			"found 3 matches",
+		);
+		expect(summarizeToolResultContent(null)).toBeNull();
+		expect(summarizeToolResultContent([{ type: "image" }])).toBeNull();
+		const long = summarizeToolResultContent("x".repeat(500));
+		expect(long?.length).toBe(161);
+		expect(long?.endsWith("…")).toBe(true);
+	});
+});

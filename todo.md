@@ -3297,9 +3297,12 @@ output and NOT acted on. Captured as F12.12.)
   panel mounts, fires the correctly-shaped query (network-logged), error state renders (his long-running process
   predates the endpoint — full data render proven by direct handler probe: 17 real entries for the same card;
   in-browser data render activates on his next runtime restart). 2 component tests. **FINALIZED 2026-07-19 (split):** panel + trail live (browser-verified); richer result lines split below.
-- [ ] **F12.55b — Capture-time toolCall result summaries** *(split from F12.55 2026-07-19).* Add a bounded
+- [x] **F12.55b — Capture-time toolCall result summaries** *(split from F12.55 2026-07-19).* Add a bounded
   result summary to the ledger toolCall capture so trail lines can say what a call RETURNED, not just what it
-  asked.
+  asked. **SHIPPED same day:** attemptToolCallSchema gains additive `resultSummary` (160-char collapsed text
+  preview via summarizeToolResultContent — string or text blocks, null for non-text); stamped at the
+  extractTerminalToolCalls capture beside resultHash; buildCardActionTrail renders " → <summary>" on action
+  lines so the F12.55 panel now says what came BACK. +1 test.
 - [x] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)

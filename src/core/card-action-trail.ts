@@ -141,7 +141,9 @@ export function buildCardActionTrail(events: readonly AgentLedgerEvent[], taskId
 			trail.push({
 				at: event.completedAt ?? event.recordedAt,
 				kind: "action",
-				text: `${describeToolCall(toolCall.name, files)}${failed ? ` — FAILED (${toolCall.outcome})` : ""}`,
+				text: `${describeToolCall(toolCall.name, files)}${failed ? ` — FAILED (${toolCall.outcome})` : ""}${
+					toolCall.resultSummary ? ` → ${toolCall.resultSummary}` : ""
+				}`,
 				files,
 				reversibility,
 				hypothesis,

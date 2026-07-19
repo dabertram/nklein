@@ -51,6 +51,28 @@ export function deriveToolCallFilePaths(input: unknown): string[] {
 	return [...paths];
 }
 
+/** Bounded plain-text preview of a tool result's content (string or text blocks); null when nothing textual. */
+export function summarizeToolResultContent(content: unknown, maxChars = 160): string | null {
+	let text: string | null = null;
+	if (typeof content === "string") {
+		text = content;
+	} else if (Array.isArray(content)) {
+		text = content
+			.map((block) =>
+				block && typeof block === "object" && (block as { type?: unknown }).type === "text"
+					? String((block as { text?: unknown }).text ?? "")
+					: "",
+			)
+			.filter(Boolean)
+			.join(" ");
+	}
+	const collapsed = text?.replace(/\s+/g, " ").trim() ?? "";
+	if (!collapsed) {
+		return null;
+	}
+	return collapsed.length > maxChars ? `${collapsed.slice(0, maxChars)}…` : collapsed;
+}
+
 export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMessage[]): AttemptToolCall[] {
 	const calls: AttemptToolCall[] = [];
 	const callIndexByUseId = new Map<string, number>();
@@ -77,6 +99,11 @@ export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMe
 					// F1.16: the durable evidence hash of what the tool returned — replay can verify the recorded
 					// execution without re-running the side effect or persisting the payload.
 					call.resultHash = hashToolResultContent(block.content ?? null);
+					// F12.55b: a bounded human preview of the RESULT so the action trail can say what came back.
+					const summary = summarizeToolResultContent(block.content ?? null);
+					if (summary) {
+						call.resultSummary = summary;
+					}
 				}
 			}
 		}

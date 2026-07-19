@@ -77,6 +77,8 @@ const attemptToolCallSchema = z.object({
 	 * needs. Absent on legacy lines and on non-file tools; additive + backward-compatible.
 	 */
 	filePaths: z.array(z.string()).optional(),
+	/** F12.55b: bounded text preview of what the call RETURNED (trail rendering); absent on legacy lines. */
+	resultSummary: z.string().nullable().optional(),
 });
 export type AttemptToolCall = z.infer<typeof attemptToolCallSchema>;
 
