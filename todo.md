@@ -3927,6 +3927,33 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   N2, (2) register the manifest cell per N1, (3) attach invariant packs per N5, (4) add model profiles per N3 —
   and nothing else. That four-step recipe IS what "add nightly coverage for X" means from now on.
 
+### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
+
+**Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
+It exists as recorded VISION so the direction is designed-for, not accidentally precluded — but NO item below is
+buildable, flag-gated-dark, or "prepared" without David's explicit go. The local-only invariant stays enforced
+everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the trust-center posture) until that day.
+
+- [>] **C1 — Cloud-model support as capability CLASSES in the existing mix pattern (David 2026-07-19; blocked on
+  his go).** Leverage cloud models' superior multi-step capability while keeping cloud costs minimal — "best of
+  both worlds: conquer maximum complexity while reducing cloud costs to a minimum." The pattern GENERALIZES what
+  !Klein already does rather than replacing it: cloud models join as capability/cost CLASSES beside the local
+  classes, and every mix must work — 1 max frontier model only → arbitrary cloud-class mixes (frontier for the
+  complex cards, smaller/cheaper cloud models doing the cards !Klein today hands its smallest locals) → one
+  frontier model + one/a-few/many smaller LOCAL models. Key design seams (all already exist, which is the point):
+  (a) **card-depth adaptation** — decomposition granularity must fit the executing model's skill: F4.38's
+  resolveAutoDecompositionDepth (difficulty × quality-effective context) extends its capability axis upward so a
+  frontier executor gets SHALLOW/bigger cards instead of small-model-sized shards, and re-decomposition can
+  re-shard when routing moves a card between classes; (b) **routing** — the fitness store + capability blend +
+  costRank generalize to cloud classes with REAL prices (local-first preference at equal capability; route UP to
+  the cheapest capable class, frontier only when the capability ceiling demands it — F3.35's ceiling verdicts
+  become the route-up trigger); (c) **cost guardrails** — the F12.58 effort meter + F12.40 caps become real-money
+  budget controls (per-card + per-board spend ceilings, hard-stop before surprise bills); (d) **privacy/trust** —
+  any content leaving to a cloud class rides the egress broker with taint labels + signed receipts, and the
+  F12.98-104 trust posture table must honestly show the cloud class OPEN while enabled (per-workspace opt-in,
+  never a global default); (e) **nightly coverage** — cloud-class model profiles join the N3 matrix (mocked, so
+  nightly stays hermetic + free). Materialization decides the rest — this entry is the vision anchor.
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
