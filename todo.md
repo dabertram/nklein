@@ -4009,11 +4009,34 @@ emerging inference-time techniques). Cross-checked vs existing items; duplicates
 k-hop localization⇒F11.2c, in-repo few-shot⇒F11.2h, reward-hack detector⇒F12.44, adaptive reasoning depth⇒F4.38). Same
 verify-before-build caveat: confirm each against current code before implementing.**
 
-- [ ] **F12.78 — "Reason-free, constrain-late" two-phase output for small models.** Let sub-~14B models solve in FREE TEXT,
+- [~] **F12.78 — "Reason-free, constrain-late" two-phase output for small models.** Let sub-~14B models solve in FREE TEXT,
   then a cheap second pass (or LM-Studio json_schema constrained decode) packages the answer into the tool-call/decompose
   JSON — never hard-constrain the reasoning turn. Rationale: the "Constraint Tax" — hard schema decode on small models lifts
   JSON validity 61.5%→100% but HALVES accuracy (19.7%→11%) and makes 88.9% of outputs wrong-but-valid; the failure is
   semantic, not structural. Fits the existing json_schema-only lever (LM Studio ignores top-level grammar). (Constraint Tax 2605.26128)
+  **STRATEGY CORE SHIPPED 2026-07-20:** `constraint-tax-strategy.ts`.
+  **THE LOAD-BEARING STATISTIC IS THE THIRD ONE, NOT THE FIRST TWO.** Validity 61.5%→100% and accuracy 19.7%→11%
+  are the headline; **88.9% of constrained outputs becoming wrong-but-VALID** is the finding that decides the
+  design. That is a FAILURE-MODE CONVERSION, not a quality trade: an invalid output is a LOUD failure (the parser
+  rejects it, the controller retries, the run self-corrects) while a wrong-but-valid output is SILENT — it parses,
+  it type-checks, it flows downstream, and it gets acted on. **Hard-constraining a model that cannot carry the
+  schema does not reduce failures; it hides them**, which is strictly worse for a harness whose premise is that
+  small local models fail often and must fail VISIBLY.
+  `decideConstraintStrategy` therefore defaults sub-14B to free-text-then-package, and — importantly — when
+  capability is entirely unknown it picks the path whose failures are visible rather than the one that looks
+  cleaner. Measured constrained-accuracy overrides the size heuristic in BOTH directions (a small model that
+  measures well gets direct constraint; a 70B that measures badly does not), consistent with Phase 22's finding
+  that parameter count is a poor proxy — the size cutoff is flagged `weakBasis: true` because it is the PAPER'S
+  threshold, not a measurement of this pairing.
+  **The packaging turn is always constrained** (`packagingOnly`) — there is no reasoning left for the constraint
+  to damage, and that is the whole point of splitting the phases. `buildPackagingPrompt` is deliberately narrow:
+  TRANSCRIBE, never re-decide, never invent values, and return `{}` rather than a plausible-looking guess — a
+  packaging pass that "improves" the answer reintroduces exactly the semantic risk the split exists to avoid.
+  10 tests; suite green.
+  REMAINING (F12.78b, effectful): wire the two-phase turn — run the reasoning turn unconstrained, then issue the
+  packaging call with LM Studio's `response_format: json_schema` (the only constrained-decode lever that runtime
+  honours — it ignores top-level `grammar`, see §4A). Needs the turn-loop seam plus model time to confirm the
+  packaging pass does not itself become a failure source on the smallest models.
 - [x] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
   prompt; warn/auto-trim above a model-size-scaled cap (~150 for 32B, far lower for 4–7B) and report which volatility tier to
   shed first. **CORE BUILT 2026-07-17:** `prompt-fragment-lint.ts` — `extractInstructionUnits` (bullets + imperative-lead +
