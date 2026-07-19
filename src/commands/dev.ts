@@ -40,6 +40,7 @@ import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
+import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import {
@@ -893,6 +894,19 @@ export function registerDevCommand(program: Command): void {
 		.option("--reject <id>", "Mark the queued action with this id as rejected.")
 		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
 			await runDevOutwardQueueCommand(options);
+		});
+
+	dev.command("flip-gate")
+		.description("F12.41: powered McNemar verdict over paired A/B outcomes — the default-flip consult.")
+		.requiredOption(
+			"--pairs <file>",
+			'JSONL of paired outcomes: {"a": bool, "b": bool} per line (a=baseline, b=candidate).',
+		)
+		.option("--alpha <n>", "Significance level (default 0.05).")
+		.option("--min-effect <n>", "Minimum practical success-rate improvement (default 0).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { pairs: string; alpha?: string; minEffect?: string; json?: boolean }) => {
+			await runDevFlipGateCommand(options);
 		});
 
 	dev.command("skill-audit")

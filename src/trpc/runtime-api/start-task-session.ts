@@ -11,6 +11,7 @@ import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { recommendModelFloor } from "../../core/language-capability-routing";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
 import { fetchLmsLinkDevices } from "../../core/lms-link-status";
@@ -25,6 +26,7 @@ import {
 } from "../../core/lmstudio-loaded-models";
 import { createLmStudioRestModelClient } from "../../core/lmstudio-rest-model-client";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import { parseModelAttributes } from "../../core/model-attributes";
 import {
 	assessModelSuitability,
 	lookupModelCapability,
@@ -1141,6 +1143,30 @@ export async function handleStartTaskSession(
 				recordedAt: Date.now(),
 			}),
 		).catch(() => {});
+		// F12.83 record-only: the language/task-shape MODEL-SIZE floor vs the routed pick. A breach never re-routes
+		// (observe-first — a strict floor could strand a board on a small fleet); the observation stream accrues the
+		// breach rate that justifies an enforcing floor at the fitness prior.
+		if (
+			(body.filesLikelyTouched?.length ?? 0) > 0 &&
+			(routingDecision.type === "assign" || routingDecision.type === "route_up")
+		) {
+			const floor = recommendModelFloor({ filePaths: body.filesLikelyTouched ?? [] });
+			const pickedParamB = parseModelAttributes(routingDecision.modelKey).paramB ?? null;
+			if (floor.recommendedFloorB > 0 && pickedParamB !== null && pickedParamB < floor.recommendedFloorB) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Language-floor breach for ${body.taskId}: routed ${routingDecision.modelKey} (~${pickedParamB}B) below the recommended ${floor.reason}`,
+					taskId: body.taskId,
+					metadata: {
+						category: "language_floor_breach",
+						recommendedFloorB: floor.recommendedFloorB,
+						pickedParamB,
+						dominantLanguage: floor.dominantLanguage,
+					},
+				});
+			}
+		}
 		// §5.AQ observability: when the warmth preference is what steered the routed pick, say so on the selection
 		// reason the start log prints — the promotion is a surfaced signal (mirrors the diversity-waiver contract).
 		const warmthReasonSuffix =

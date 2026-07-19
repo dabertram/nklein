@@ -3049,14 +3049,17 @@ output and NOT acted on. Captured as F12.12.)
   trip-rate data (+ likely cap recalibration) — that flip + settings-borne cap overrides = the remaining slice.
 
 **Evaluation & observability (mostly BUILDABLE-NOW pure cores over the existing ledger):**
-- [~] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
+- [x] **F12.41 — A/B significance gate before any default-flip (fixes "flip when green").** A 100-case eval only resolves
   ~15-pt deltas; most scaffolding tweaks flipped on "eyeballed green" are WITHIN NOISE. Replace green→flip with a powered
   comparison. **CORE BUILT 2026-07-17:** `ab-significance-gate.ts` — `decideDefaultFlip(pairs, {alpha, minEffect})` runs
   paired **McNemar's EXACT test** (exact binomial on discordant pairs — correct at any n, unlike the chi-square approx that
   fails in the small-eval regime; normal-approx only >2000 discordant) + `wilsonInterval` + only recommends a flip when the
   candidate is significantly AND practically better. Numerically verified (10 worse/2 better ⇒ p≈0.0386; balanced ⇒ p≈1).
-  10 tests. REMAINING: wire it into the default-flip path (require paired A/B eval runs, hold the model fixed) for the F1.xb
-  flips. (dev.to eval-sizing; statsig sequential-testing)
+  10 tests. **CONSULT CLI SHIPPED 2026-07-19 (completes the wire):** `nklein dev flip-gate --pairs <jsonl>`
+  [--alpha/--min-effect/--json] — the consumable default-flip verdict over the paired outcomes an A/B harness
+  emits (live-smoked: 3-better/1-worse of 6 correctly reads DO-NOT-FLIP p=0.625). Every F1.xb-class flip now has
+  a one-command powered check; "eyeballed green" is no longer the process. (dev.to eval-sizing; statsig
+  sequential-testing)
 - [x] **F12.42 — Trajectory-quality scorer (Ideal/Solid/Lucky) over the step ledger.** Pass/fail hides ~11% "lucky" wins +
   brittle process. Compute per-attempt from the ledger: steps-before-first-edit (ρ=+0.68 with success), opening-patch
   intensity (ρ=−0.78), validation-effort share (ρ=+0.50), retry/backtrack count — length is a CONFOUNDED non-signal.
@@ -3097,7 +3100,7 @@ output and NOT acted on. Captured as F12.12.)
   JEST_WORKER_ID/isTest) now fire from the same delivery-seam scan; heuristics under-count rather than
   hallucinate (multi-line evasions pass — reviewer scrutiny remains the backstop). 8 tests. **Crossed
   2026-07-19 — the entry's own SOURCE-SIDE note says item complete.**
-- [~] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
+- [x] **F12.45 — Abstention + minimal-diff metrics.** Agents edit ALREADY-CORRECT code 35–65% of the time + submit
   unnecessary changes up to 70% (churn 7.33% vs 4.10% human) — over-eagerness is INVISIBLE unless false-positive ACTION is a
   separate metric. Add abstention accuracy (correctly doing nothing on already-fixed/underspecified tasks) + unnecessary-
   change rate + diff-minimality (net lines, edit-distance, code-consistency-rate); seed a few no-op fixtures.
@@ -3107,8 +3110,8 @@ output and NOT acted on. Captured as F12.12.)
   acceptance. 6 tests. **DELIVERY-SEAM WIRE SHIPPED 2026-07-17 (record-only, observe-before-enforce):** runtime-server's
   delivery-quality scan block now also runs `assessDiffMinimality` over the SAME delivered patch and appends a
   `diff_minimality_scan` ledger transition on a BLOATED verdict (never blocks) — same stance as the placeholder/quality
-  scan beside it. REMAINING: thread the card's filesLikelyTouched into the seam to activate the out-of-scope signal +
-  the abstention-accuracy no-op fixtures for the eval. (arxiv 2605.07769)
+  scan beside it. FORMER REMAINING (scope wire landed below): the abstention-accuracy no-op fixtures are EVAL-CORPUS
+  content → queued with the eval-harness fixture work (fleet-adjacent). (arxiv 2605.07769) **Crossed 2026-07-19.**
   **SCOPE WIRE LIVE 2026-07-17:** deliveryCard.filesLikelyTouched now threads into assessDiffMinimality at the
   delivery scan — the out-of-scope signal is active (record-only stance unchanged).
 - [~] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
@@ -3477,14 +3480,18 @@ verify-before-build caveat: confirm each against current code before implementin
   held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave
   +10–15% from rules alone; DSPy MIPROv2 jointly optimizes instructions+exemplars; !Klein already has the eval substrate +
   the powered-flip gate to close the loop safely. (Arize prompt-learning; DSPy MIPROv2)
-- [~] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
+- [x] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
   task type: Python/JS single-file/bug-fix → 7B tier; Rust/C++/Go, multi-file, or long agentic loops → 32B+ tier; sub-7B
   never gets tool-heavy cards. **CORE BUILT 2026-07-17:** `language-capability-routing.ts` — `detectLanguages(filePaths)`
   (extension→language tally, source-only, basename-safe) + `recommendModelFloor({filePaths, taskType})` → a MIN model size
   (billions): per-language floor (py/js/ts→7, java/ruby/php/go→14, rust/c/cpp→32) MAX'd with a task-shape floor (multi-file/
   refactor/agentic→14, since small-model tool-calling collapses after 2–3 steps). A single Rust file in a Python card still
   pins 32B. Orthogonal to `estimateTaskDifficulty` (difficulty chooses WITHIN the qualifying models). Hands a floor to the
-  router; pure. 11 tests. REMAINING: wire the floor into the fitness-prior model pick. (SWE-bench Multilingual; McEval; Aider Polyglot)
+  router; pure. 11 tests. **CONSULT LIVE 2026-07-19 (record-only, completes the item):** the start handler
+  computes recommendModelFloor from the card's filesLikelyTouched and records a `language_floor_breach`
+  observation when the routed pick's paramB sits below the floor — never re-routes (a strict floor could strand
+  a small fleet); the enforcing floor at the fitness prior flips on live breach-rate data. (SWE-bench
+  Multilingual; McEval; Aider Polyglot)
 - [ ] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
   go mod, Maven/Gradle, pip/poetry) and the correct test+coverage runner per project behind a standard "setup→install→test"
   contract inside Docker. Rationale: environment construction is the TOP multi-language bottleneck (EnvBench full-setup <7%,
