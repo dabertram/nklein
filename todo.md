@@ -2749,7 +2749,7 @@ output and NOT acted on. Captured as F12.12.)
   hard card fail). GENUINE REMAINDER: (a) the "merge this intent-level edit into the current file" RE-PROMPT rung
   (a bounded secondary-session ask when the ladder exhausts — buildable, composes with the F12.62 editor phase),
   (b) the optional local fast-apply model (Morph/Relace class — fleet/David-gated model acquisition).
-- [~] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
+- [x] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
   Near-free positioning win; composes with the F4.40 cache-stable-prefix assembler. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
@@ -2762,8 +2762,9 @@ output and NOT acted on. Captured as F12.12.)
   The genuine delta shipped: EVENT-DRIVEN tightening — a session flagged by the F12.15 thrash or F12.22 stall
   watches re-anchors at a 3-turn distress cadence instead of the calm 6 (re-ground BEFORE nudging). The standalone
   instruction-reanchor core remains available for a steer-channel variant if the flag-gated §5.AD path proves too
-  quiet in live runs.
-- [~] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
+  quiet in live runs (a contingency, not a remainder — the item's scope is fully live: end-placed anchoring +
+  periodic + event-driven distress cadence).
+- [x] **F12.22 — Progress-ledger stall detector → forced replan (semantic-loop, not just turn-count).** The turn-loop guard
   (§12) bounds LENGTH but not SEMANTIC looping. Track no-progress rounds + repeated-identical tool calls + patch-spirals
   (edit-same-file-no-diff), and on threshold break to a self-reflection + plan-revision step (Magentic-One progress-ledger
   pattern). Subsumes/sharpens F12.15's thrashing detector. (Magentic-One 2411.04468; smallcode early-stop)
@@ -2774,8 +2775,12 @@ output and NOT acted on. Captured as F12.12.)
   (record-only):** the context-focus extension's afterTool hook now accumulates per-CALL progress records (files
   written from the F12.15 extractor, current focus-chain step, run_command-as-verification) and consults
   assessProgressStall on a 12-call window (call-granular — the hook has no turn boundary); a stall records ONE
-  `progress_stall` observation per session; state torn down with the sibling maps. Routing `stalled` into the
-  FORCED-replan path stays the enforcing follow-up (a behavior change — observe first).
+  `progress_stall` observation per session; state torn down with the sibling maps. **FORCED-REPLAN ROUTING
+  SHIPPED 2026-07-19 (completes the item, dark):** `stall-replan-message.ts` buildStallReplanMessage — a fenced
+  end-of-context demand (state what failed → revise the focus chain with a DIFFERENT step → act; finish honestly
+  if complete/impossible) injected ONCE per stalled session at the beforeModel seam, opt-in via
+  NKLEIN_STALL_REPLAN (default OFF = record-only byte-identical). Activation = observe-first flip once the
+  record-only stall telemetry reads clean (David batch). 2 tests.
 - [~] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)

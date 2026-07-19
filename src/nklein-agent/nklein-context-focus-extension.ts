@@ -38,6 +38,7 @@ import {
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
 import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
+import { buildStallReplanMessage } from "./stall-replan-message";
 import { decideTaskReanchorForRequest } from "./task-reanchor-before-model";
 import { latestStepText, narrowToolsForStep } from "./two-phase-before-model";
 import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
@@ -71,6 +72,8 @@ const editHistoryBySessionId = new Map<string, FileEditRecord[]>();
 // afterTool hook has no turn boundary; a 12-call window approximates the 4-turn semantic) + the once-per-session flag.
 const progressRecordsBySessionId = new Map<string, TurnProgressRecord[]>();
 const progressStallFlaggedSessionIds = new Set<string>();
+/** F12.22 enforcing half (opt-in NKLEIN_STALL_REPLAN): sessions owed ONE forced-replan injection. */
+const stallReplanPendingSessionIds = new Set<string>();
 // F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
 // counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
 const readPathsBySessionId = new Map<string, Set<string>>();
@@ -242,6 +245,23 @@ export function createKanbanContextFocusExtension(
 						);
 						finalResult = { ...(finalResult ?? {}), messages: reanchor.messages };
 					}
+				}
+				// F12.22 forced replan (opt-in via NKLEIN_STALL_REPLAN): a session whose progress ledger stalled is
+				// owed ONE end-of-context replan demand — self-reflect, revise the focus chain, act DIFFERENTLY.
+				if (stallReplanPendingSessionIds.has(sessionId)) {
+					stallReplanPendingSessionIds.delete(sessionId);
+					const replanBase = finalResult?.messages ?? baseMessages;
+					finalResult = {
+						...(finalResult ?? {}),
+						messages: [
+							...replanBase,
+							buildStallReplanMessage({
+								reason: "identical no-write tool calls across the whole progress window",
+								focusStep: getCurrentFocusStepForSession(sessionId),
+								now: Date.now(),
+							}),
+						] as typeof replanBase,
+					};
 				}
 				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
 				// over the offered tools and narrow the request's tools to it. Catch-guarded — any failure leaves the turn
@@ -435,6 +455,11 @@ export function createKanbanContextFocusExtension(
 					const stall = assessProgressStall(records, { windowTurns: PROGRESS_STALL_CALL_WINDOW });
 					if (stall.stalled) {
 						progressStallFlaggedSessionIds.add(sessionId);
+						// F12.22 enforcing half (opt-in; default OFF = record-only): owe the next request ONE
+						// forced-replan message that breaks the loop with self-reflection + plan revision.
+						if (isTruthyEnv(process.env.NKLEIN_STALL_REPLAN)) {
+							stallReplanPendingSessionIds.add(sessionId);
+						}
 						recordSelfObservation({
 							signal: "custom",
 							severity: "warning",
@@ -476,6 +501,7 @@ export function forgetSessionFocusState(sessionId: string): void {
 	editThrashFlaggedBySessionId.delete(sessionId);
 	progressRecordsBySessionId.delete(sessionId);
 	progressStallFlaggedSessionIds.delete(sessionId);
+	stallReplanPendingSessionIds.delete(sessionId);
 	readPathsBySessionId.delete(sessionId);
 	ungroundedWriteFlaggedBySessionId.delete(sessionId);
 	forgetLiveTaskUsage(sessionId);
