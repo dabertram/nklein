@@ -1812,6 +1812,29 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// A decomposition callback can mark its seed idle and force-drain a queued child before the seed's initial SDK
 				// turn has unwound. Serializing the actual SDK bootstrap/send here lets the child prepare its sandbox/prompt,
 				// but prevents re-entering the shared SDK/model runtime until the seed turn has really settled. Re-drives and
+				// F12.62 (opt-in NKLEIN_ARCHITECT_EDITOR): the PRIMARY worker start runs the bounded `::architect`
+				// pre-phase for a write-scoped card and starts as the EDITOR with the brief prepended. (The launch-config
+				// path carries the same consult for restarts; primary starts bypass that path — live-found 2026-07-19:
+				// the first A/B ran zero architect sessions because the consult sat only there.)
+				let workerStartPrompt = runtimePrompt;
+				if (
+					isTruthyEnv(process.env.NKLEIN_ARCHITECT_EDITOR) &&
+					!isDerivedTaskSessionId(request.taskId) &&
+					!isHomeAgentSessionId(request.taskId) &&
+					(request.filesLikelyTouched?.length ?? 0) > 0
+				) {
+					const architectBrief = await this.architectRunner
+						.runArchitectPhase({
+							taskId: request.taskId,
+							projectRepoPath: request.workspaceRoot ?? request.cwd,
+							baseRef: this.sandboxState.getBaseRef(request.taskId) ?? "HEAD",
+							taskPrompt: runtimePrompt,
+						})
+						.catch(() => null);
+					if (architectBrief) {
+						workerStartPrompt = buildEditorPrompt({ taskPrompt: runtimePrompt, architectBrief });
+					}
+				}
 				// auxiliary sessions already use this same gate.
 				const startResult = await this.withModelTurnAdmission(
 					{
@@ -1832,11 +1855,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							// the 500–965-token reasoning tax + its truncation risk; hard cards keep their reasoning.
 							prompt: shouldDisableSwarmThinking({
 								modelId,
-								prompt: runtimePrompt,
+								prompt: workerStartPrompt,
 								taskTitle: request.taskTitle ?? null,
 							})
-								? applyThinkingDisable(runtimePrompt, modelId ?? "")
-								: runtimePrompt,
+								? applyThinkingDisable(workerStartPrompt, modelId ?? "")
+								: workerStartPrompt,
 							taskTitle: request.taskTitle,
 							maxTokensPerTurn: request.maxTokensPerTurn ?? null,
 							initialMessages,

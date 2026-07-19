@@ -3187,9 +3187,14 @@ output and NOT acted on. Captured as F12.12.)
   explorer-pattern; tool-only capture; every degraded path → null → worker starts solo) + the
   onArchitectBriefSubmitted threading (runtime-session-input / session-runtime-types / session-runtime tool
   assembly) + the consult in the launch-config start path (write-scoped non-synthetic cards only; brief ⇒ the
-  worker starts as EDITOR via buildEditorPrompt). 2 tool tests + the 5 core tests. REMAINING: fleet A/B on a
-  code-edit fixture (same F12.41 arbiter as F11.2h), then the score/difficulty auto-decision once routing exposes
-  modelEffectiveScore at the start seam.
+  worker starts as EDITOR via buildEditorPrompt). 2 tool tests + the 5 core tests.
+  **A/B ROUND 1 (2026-07-19) — INVALID BUT INSTRUCTIVE:** the consult sat ONLY on the launch-config path; primary
+  card starts bypass it, so arm ON ran ZERO architect sessions (rig log: 0 `::architect` lines) — FIXED same day:
+  the consult now also runs on the PRIMARY start path (workerStartPrompt seam), restarts keep the launch-config
+  consult. Meanwhile the SOLO baseline on the code-fix fixture was stark: 0/3 clean (2× repeated-edit-guard pause
+  grinding the same edit_file input, 1× >20-min timeout, zero patches) vs a variance-only 2/3 on the mis-flagged
+  arm — the fixture reliably reproduces the solve-vs-conform failure. RE-RUN of arm ON on the fixed build is the
+  next fleet slot; then the score/difficulty auto-decision.
 - [~] **F12.63 — Resilient edit-apply layer (turn format errors into successful edits).** Edit application is the #1
   weak-model bottleneck. Augment diff application: exact → middle-out → Levenshtein-fuzzy (`:start_line:` hint, ~0.8
   threshold) + a syntax/parse check that REJECTS a broken edit before it lands (SWE-agent ACI) + an optional small local
