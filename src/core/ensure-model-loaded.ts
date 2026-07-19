@@ -15,6 +15,7 @@
  * its normal handling — an autonomous load must NEVER be load-bearing for whether the dispatch path stays safe.
  */
 
+import { probeLocalGpuCeiling } from "./apple-silicon-probe";
 import {
 	applyLocalDeviceAlias,
 	buildEffectiveCandidate,
@@ -90,9 +91,26 @@ export async function ensureModelLoadedOnFittingDevice(
 			contextLength: input.contextLength,
 			llmfitMemoryBytes: deps.llmfitMemoryBytes?.(modelId) ?? null,
 		});
+		// F12.75: probe the LOCAL device's GPU-wireable ceiling once. On Apple Silicon macOS caps GPU-wireable
+		// memory at ~75% of physical RAM, so the configured RAM map OVERSTATES what a model can occupy there (the
+		// m4mini swap-crash). Local-only by necessity — a remote node's sysctls are unreadable over LM-Link, and
+		// assuming they run the default cap would be right often and catastrophically wrong on a tuned node.
+		// A null probe (non-Mac, or any failure) leaves every candidate exactly as it was before this existed.
+		const localCeiling = await probeLocalGpuCeiling().catch(() => null);
 		// Target devices start empty for the fit check: loadModelExclusive clears the one-at-a-time resident first.
 		const candidates = buildLinkedDeviceList(link)
-			.map((device) => buildEffectiveCandidate(device, deviceRamBytes[device.deviceName], 0))
+			.map((device) =>
+				buildEffectiveCandidate(
+					device,
+					deviceRamBytes[device.deviceName],
+					0,
+					localCeiling !== null &&
+						device.deviceIdentifier !== undefined &&
+						device.deviceIdentifier === link.localDeviceIdentifier
+						? localCeiling.usableBytes
+						: undefined,
+				),
+			)
 			.filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
 		const decision = selectDeviceForModelLoad({ candidateSizeBytes, candidates });
 		if (!decision.fits) {

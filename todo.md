@@ -3734,7 +3734,7 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
   long injected context); `--ubatch-size` is non-monotonic (one bench 59→582→collapse-to-15 tok/s; Apple Silicon likes
   ub 1024/2048). Extend the sweep with a llama-bench pp/tg micro-sweep storing each machine's ubatch sweet spot. (marvin-42 ubatch; apple-silicon-tuning)
-- [~] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
+- [x] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
   iogpu.wired_limit_mb=<MB>` (leave 8–16 GB for the OS) reclaims the wasted 25% — lets a Mac hold a bigger model or the full
   32k KV GPU-resident. Treat the raised ceiling as usable VRAM in the machine-aware fit; helps the known m4mini swap-crash. (baykar increase-vram)
   **CORE + ROUTER WIRE SHIPPED 2026-07-19 — `apple-silicon-vram.ts`.** `gpuUsableBytes` computes the ceiling
@@ -3750,9 +3750,18 @@ output and NOT acted on. Captured as F12.12.)
   test pins that it is not stacked.
   Also encoded: `recommendWiredLimit` ABSTAINS on a 16 GB Mac, where an 8 GB OS reserve leaves 8 GB — BELOW the
   12 GB default cap, so "raising" the limit would LOWER the ceiling. Recommending it would be actively harmful.
-  REMAINING (effectful, needs a machine to probe): read the LOCAL device's `sysctl iogpu.wired_limit_mb` +
-  Apple-Silicon detection and populate the new field at the `buildEffectiveCandidate` seam; surface
-  `recommendWiredLimit`'s command in the dev fleet CLI. Remote linked devices stay unprobeable by design.
+  **PROBE + LOADER WIRE COMPLETE 2026-07-19 (same day):** `apple-silicon-probe.ts` reads `hw.optional.arm64` +
+  `iogpu.wired_limit_mb` (READ-ONLY; injectable exec, llmfit-runner convention) and `ensure-model-loaded` now
+  applies the ceiling to the LOCAL candidate only — matched by `link.localDeviceIdentifier`. Remote nodes keep no
+  ceiling BY DESIGN: their sysctls are unreadable over LM-Link, and assuming they run the default cap would be
+  right often and catastrophically wrong on a tuned node. Null probe (non-Mac / Intel / any failure) ⇒ pre-F12.75
+  behaviour exactly. 7 probe tests + 15 core/wire tests; runtime suite green (10,963).
+  **LIVE-VERIFIED on David's 128 GB Apple Silicon (not just fakes):** total 128.0 GB → usable **96.0 GB**, with
+  **32.0 GB physically present but GPU-UNREACHABLE** at the default cap, `raised=false`. This is the m4mini
+  swap-crash mechanism confirmed on real hardware — the loader was previously free to spend RAM the GPU cannot
+  address. Recommendation emitted: `sudo sysctl iogpu.wired_limit_mb=114688` (112 GB, 16 GB left for macOS)
+  reclaims 16.0 GB. **DAVID: that command is yours to run — !Klein does not change system settings.**
+  NICE-TO-HAVE (not blocking, not a remainder): surface `recommendWiredLimit`'s command in the dev fleet CLI.
 - [x] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
   to task budget/difficulty selecting: backend (MLX for long-output, GGUF for short tool-call/prefill-bound), reasoning
   on/off + `--reasoning-budget` (adaptive thinking saves ~50% compute on easy tasks, no quality loss), sampling (Qwen-coder

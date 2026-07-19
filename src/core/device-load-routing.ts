@@ -309,6 +309,12 @@ export function buildEffectiveCandidate(
 	device: LinkedDeviceInfo,
 	ramBytes: number | undefined,
 	residentSizeBytes: number,
+	/**
+	 * F12.75: the GPU-wireable ceiling for this device when it could be probed (LOCAL device only — a remote
+	 * node's sysctls are not readable over LM-Link). Omit for remote devices; the router then behaves exactly as
+	 * it did before the field existed rather than assuming they run the default macOS cap.
+	 */
+	gpuUsableBytes?: number,
 ): DeviceLoadCandidate | null {
 	if (ramBytes === undefined || ramBytes <= 0) {
 		return null;
@@ -317,6 +323,7 @@ export function buildEffectiveCandidate(
 		deviceName: device.deviceName,
 		...(device.deviceIdentifier !== undefined ? { deviceIdentifier: device.deviceIdentifier } : {}),
 		totalRamBytes: ramBytes,
+		...(gpuUsableBytes !== undefined && gpuUsableBytes > 0 ? { gpuUsableBytes } : {}),
 		residentSizeBytes: Math.max(0, residentSizeBytes),
 	};
 }
