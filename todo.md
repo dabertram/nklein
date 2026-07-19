@@ -4044,7 +4044,7 @@ verify-before-build caveat: confirm each against current code before implementin
   dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
   F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate
   what you don't measure. (SWE-bench Multilingual)
-- [~] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
+- [x] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
   proposed patch + relevant spec/docs — NEVER the conversation history — before a card is accepted. Distinct from existing
   review lenses (which see full context): history-isolation is exactly what breaks error cascades. Rationale: "Three Roles,
   One Model" ~doubled a frozen Qwen3-8B (AppWorld difficulty-1 15.8%→26.3%; scaffolded 8B beat DeepSeek-Coder-33B), no
@@ -4054,9 +4054,30 @@ verify-before-build caveat: confirm each against current code before implementin
   CONSTRUCTION (isolation can't leak in even by accident); explicit "you are seeing this in isolation, judge from
   the objective alone" framing; patch + spec structurally fenced (S2, screen:false like the reviewer); ends on the
   shared `submit_review` contract so the resolution path is reused; diff/spec budget-clamped; no-op branch. 5
-  tests. REMAINING (fleet-gated): the opt-in wire as a distinct corrector pass in the review path (a bounded
-  second session on the frozen worker model seeded with this prompt, verdict folded like an eye), then live
-  validation — needs a loaded model, so it rides the fleet queue.
+  tests. **WIRE SHIPPED + LIVE-VALIDATED 2026-07-20 — item COMPLETE.**
+  WIRE (opt-in `NKLEIN_HISTORY_BLIND_CORRECTOR`, default OFF ⇒ byte-identical): `runReviewSession` in
+  `second-opinion-review-runner` now wraps the primary path; on an approve it runs ONE bounded extra session whose
+  seed **REPLACES** the reviewer's seed. **That replacement is the whole point and must not be "simplified" into
+  the N-eyes pattern beside it, which concatenates `${seedPrompt}${suffix}` and therefore carries the very context
+  the corrector must not see.** A pinned test asserts the corrector seed contains the isolation framing.
+  **THE FOLD IS ONE-DIRECTIONAL, and the asymmetry is the design:** history-isolation makes this a GOOD detector
+  of over-approval (the contextual reviewer was talked into a patch by the worker's narrative) and a BAD detector
+  of over-rejection (it lacks the context that legitimately justified a change). So it may tighten
+  approve → request_changes and may NEVER loosen a request_changes into an approve — an uninformed pass must not
+  overrule an informed one. On a non-approval the corrector does not even run. Best-effort: any corrector failure
+  leaves the primary approve standing. Both outcomes record observations (`history_blind_corrector_override` /
+  `_agreed`) so Phase 15 can measure the override rate before anyone considers defaulting it ON.
+  **LIVE VALIDATION 2026-07-20 (qwen3.6-27b-mlx-vl-oq8 @ m5max, low-power):** fed the corrector a patch that
+  PASSES its tests but misses the objective — rate-limiting asked for HTTP 429 after 5 failures within 15 minutes;
+  the patch returned 401 and had NO time window. Acceptance summary supplied to the model said "npm test
+  (12 passed)". Blind to all history, it returned **request_changes** naming (a) 401 vs the required 429, (b) the
+  entirely missing 15-minute window, (c) the threshold off-by-one. **This is precisely the "passes the tests,
+  misses the intent" case (charter §5 / P20.2-P20.3) caught by isolation alone.** Caveat recorded honestly: the
+  probe posted the seed as a plain chat message with NO tools attached, so the model narrated its intended
+  `submit_review` rather than emitting a tool call — the tool path itself is exercised by the real review-session
+  machinery the wire uses, not by this probe. 3 wire tests (tighten / never-loosen / default-OFF) + 5 core tests;
+  runtime suite green (10,969). External corroboration for the design: Cognition's clean-context reviewer catches
+  ~2 bugs/PR (~58% severe) and performs BETTER with clean context (see P21.11).
 - [~] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
   DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
   detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis

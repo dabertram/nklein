@@ -358,6 +358,111 @@ describe("runSecondOpinionReviewForTask", () => {
 		}
 	});
 
+	it("F12.91 corrector: tightens an approve to request_changes when the history-blind pass objects", async () => {
+		const previous = process.env.NKLEIN_HISTORY_BLIND_CORRECTOR;
+		process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = "1";
+		try {
+			const deps = makeDeps({});
+			// First call = the primary reviewer (approve); second = the corrector (objects).
+			const runSession = vi.fn(async () =>
+				runSession.mock.calls.length === 1
+					? ({
+							verdict: "approve",
+							summary: "LGTM",
+							feedback: null,
+							insight: null,
+						} satisfies ReviewSubmissionInput)
+					: ({
+							verdict: "request_changes",
+							summary: "does not meet the objective",
+							feedback: "the patch never implements the stated behaviour",
+							insight: null,
+						} satisfies ReviewSubmissionInput),
+			);
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service({ ...deps, runSecondOpinionReviewSession: runSession }),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			expect(runSession).toHaveBeenCalledTimes(2);
+			// The corrector's seed REPLACES the reviewer's seed — it must not carry the reviewer context.
+			// The mock is typed as no-arg by the shared `service()` helper, so read the recorded call args directly.
+			const correctorCall = runSession.mock.calls[1] as unknown as [{ seedPrompt?: string }] | undefined;
+			const correctorSeed = String(correctorCall?.[0]?.seedPrompt ?? "");
+			expect(correctorSeed).toContain("HISTORY-BLIND corrector");
+			expect(correctorSeed).toContain("in ISOLATION");
+			// The whole point: the corrector's seed must NOT carry the reviewer's contextual framing.
+			expect(correctorSeed).not.toContain("worker's reasoning:");
+			expect(outcome.type).not.toBe("delivered");
+		} finally {
+			process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = previous;
+		}
+	});
+
+	it("F12.91 corrector: NEVER loosens a request_changes into an approve (one-directional fold)", async () => {
+		const previous = process.env.NKLEIN_HISTORY_BLIND_CORRECTOR;
+		process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = "1";
+		try {
+			const deps = makeDeps({});
+			// Primary rejects. A corrector that approved would be an UNINFORMED pass overruling an informed one —
+			// so the corrector must not even run, and the rejection must stand.
+			const runSession = vi.fn(async () =>
+				runSession.mock.calls.length === 1
+					? ({
+							verdict: "request_changes",
+							summary: "missing tests",
+							feedback: "add a test",
+							insight: null,
+						} satisfies ReviewSubmissionInput)
+					: ({
+							verdict: "approve",
+							summary: "looks fine to me",
+							feedback: null,
+							insight: null,
+						} satisfies ReviewSubmissionInput),
+			);
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service({ ...deps, runSecondOpinionReviewSession: runSession }),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			// Corrector never ran: there is nothing to tighten on a non-approval.
+			expect(runSession).toHaveBeenCalledTimes(1);
+			expect(outcome.type).not.toBe("delivered");
+		} finally {
+			process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = previous;
+		}
+	});
+
+	it("F12.91 corrector: default OFF — no extra session, approve delivers unchanged", async () => {
+		const previous = process.env.NKLEIN_HISTORY_BLIND_CORRECTOR;
+		process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = undefined;
+		try {
+			const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service(deps),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledTimes(1);
+			expect(outcome.type).toBe("delivered");
+		} finally {
+			process.env.NKLEIN_HISTORY_BLIND_CORRECTOR = previous;
+		}
+	});
+
 	it("§5.BB review lenses: the persisted reviewLensesEnabled setting seeds the reviewer with lenses (no env needed)", async () => {
 		const previous = process.env.NKLEIN_REVIEW_LENSES;
 		delete process.env.NKLEIN_REVIEW_LENSES;

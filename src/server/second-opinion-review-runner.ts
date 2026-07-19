@@ -13,6 +13,7 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
+import { buildHistoryBlindCorrectorPrompt } from "../core/history-blind-corrector";
 import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
@@ -642,79 +643,152 @@ export async function runSecondOpinionReviewForTask(
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),
 			}),
-			runReviewSession: async ({ seedPrompt }) => {
-				// §5.AB panel: ≥2 diverse judges ⇒ run each over the SAME seed and combine (majority + veto) into one
-				// submission; a null panel result (no judge produced a verdict) falls through to the single reviewer.
-				if (panelJudges.length > 1) {
-					// F1.37b N-eyes (OPT-IN via NKLEIN_N_EYES_REVIEW inside the panel path; default OFF ⇒ the plain
-					// panel below, byte-identical): every eye is a DISTINCT (judge, lens) pair riding the SAME
-					// sequential review-session machinery; blind findings → marginal-value stop → confer round
-					// (dispute out-votes drop, veto-class findings never silently drop). Falls through to the plain
-					// panel when no eye produced a verdict.
-					if (isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW)) {
-						const maxEyes = Math.min(
-							6,
-							Math.max(2, Number.parseInt(process.env.NKLEIN_N_EYES_MAX ?? "4", 10) || 4),
-						);
-						const nEyesResult = await runNEyesReviewPanel({
+			// F12.91 history-blind CORRECTOR (OPT-IN via NKLEIN_HISTORY_BLIND_CORRECTOR; default OFF ⇒ this wrapper
+			// returns the primary submission untouched and the path is byte-identical).
+			//
+			// The corrector runs ONE bounded extra session whose seed prompt REPLACES the reviewer's seed rather
+			// than appending to it — this is the whole point and the one thing that must not be "simplified" into
+			// the N-eyes pattern above, which concatenates `${seedPrompt}${suffix}` and therefore carries the
+			// conversation context an eye is supposed to share. The corrector must see ONLY objective + diff.
+			//
+			// THE FOLD IS ONE-DIRECTIONAL, and the asymmetry is the design: history-isolation makes this pass a
+			// GOOD detector of over-approval (the contextual reviewer was talked into a patch by the worker's
+			// narrative) and a BAD detector of over-rejection (it lacks the context that legitimately justified a
+			// change). So it may tighten approve → request_changes, and may NEVER loosen a request_changes into an
+			// approve. A corrector that could approve would let an uninformed pass overrule an informed one.
+			runReviewSession: async (sessionArgs) => {
+				const runPrimaryReviewSession = async ({ seedPrompt }: { seedPrompt: string }) => {
+					// §5.AB panel: ≥2 diverse judges ⇒ run each over the SAME seed and combine (majority + veto) into one
+					// submission; a null panel result (no judge produced a verdict) falls through to the single reviewer.
+					if (panelJudges.length > 1) {
+						// F1.37b N-eyes (OPT-IN via NKLEIN_N_EYES_REVIEW inside the panel path; default OFF ⇒ the plain
+						// panel below, byte-identical): every eye is a DISTINCT (judge, lens) pair riding the SAME
+						// sequential review-session machinery; blind findings → marginal-value stop → confer round
+						// (dispute out-votes drop, veto-class findings never silently drop). Falls through to the plain
+						// panel when no eye produced a verdict.
+						if (isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW)) {
+							const maxEyes = Math.min(
+								6,
+								Math.max(2, Number.parseInt(process.env.NKLEIN_N_EYES_MAX ?? "4", 10) || 4),
+							);
+							const nEyesResult = await runNEyesReviewPanel({
+								judges: panelJudges,
+								reviewerTier: "mid",
+								maxEyes,
+								runEyeSession: (eye, judge, promptSuffix) =>
+									input.service.runSecondOpinionReviewSession({
+										taskId: input.taskId,
+										projectRepoPath: input.workspacePath,
+										baseRef: card.baseRef,
+										seedPrompt: `${seedPrompt}${promptSuffix}`,
+										reviewer: judge.reviewer,
+										stampPhase: (phase) => stampPhase(`${eye.eyeId}/${judge.judgeModelKey}: ${phase}`),
+									}),
+								// The confer round rides the same session machinery; the judge's raw feedback carries the
+								// CONFER: lines (a verdict-shaped reply is fine — only the text is parsed).
+								runConferSession: async (_eye, judge, conferPrompt) => {
+									const conferSubmission = await input.service.runSecondOpinionReviewSession({
+										taskId: input.taskId,
+										projectRepoPath: input.workspacePath,
+										baseRef: card.baseRef,
+										seedPrompt: `${seedPrompt}${conferPrompt}`,
+										reviewer: judge.reviewer,
+									});
+									return conferSubmission?.feedback ?? conferSubmission?.summary ?? null;
+								},
+								warn: input.warn,
+							});
+							if (nEyesResult) {
+								input.warn?.(
+									`N-eyes panel for ${input.taskId}: ${nEyesResult.decision.reason} — ${nEyesResult.eyesRun.length} eye(s), ${nEyesResult.conferred.filter((finding) => finding.status !== "dropped").length} finding(s) survived confer.`,
+								);
+								return nEyesResult.submission;
+							}
+						}
+						const panelResult = await runReviewPanel({
 							judges: panelJudges,
-							reviewerTier: "mid",
-							maxEyes,
-							runEyeSession: (eye, judge, promptSuffix) =>
+							runJudgeSession: (judge) =>
 								input.service.runSecondOpinionReviewSession({
 									taskId: input.taskId,
 									projectRepoPath: input.workspacePath,
 									baseRef: card.baseRef,
-									seedPrompt: `${seedPrompt}${promptSuffix}`,
+									seedPrompt,
 									reviewer: judge.reviewer,
-									stampPhase: (phase) => stampPhase(`${eye.eyeId}/${judge.judgeModelKey}: ${phase}`),
+									stampPhase: (phase) => stampPhase(`judge/${judge.judgeModelKey}: ${phase}`),
 								}),
-							// The confer round rides the same session machinery; the judge's raw feedback carries the
-							// CONFER: lines (a verdict-shaped reply is fine — only the text is parsed).
-							runConferSession: async (_eye, judge, conferPrompt) => {
-								const conferSubmission = await input.service.runSecondOpinionReviewSession({
-									taskId: input.taskId,
-									projectRepoPath: input.workspacePath,
-									baseRef: card.baseRef,
-									seedPrompt: `${seedPrompt}${conferPrompt}`,
-									reviewer: judge.reviewer,
-								});
-								return conferSubmission?.feedback ?? conferSubmission?.summary ?? null;
-							},
-							warn: input.warn,
 						});
-						if (nEyesResult) {
-							input.warn?.(
-								`N-eyes panel for ${input.taskId}: ${nEyesResult.decision.reason} — ${nEyesResult.eyesRun.length} eye(s), ${nEyesResult.conferred.filter((finding) => finding.status !== "dropped").length} finding(s) survived confer.`,
-							);
-							return nEyesResult.submission;
+						if (panelResult) {
+							input.warn?.(`Review panel for ${input.taskId}: ${panelResult.decision.reason}`);
+							return panelResult.submission;
 						}
 					}
-					const panelResult = await runReviewPanel({
-						judges: panelJudges,
-						runJudgeSession: (judge) =>
-							input.service.runSecondOpinionReviewSession({
-								taskId: input.taskId,
-								projectRepoPath: input.workspacePath,
-								baseRef: card.baseRef,
-								seedPrompt,
-								reviewer: judge.reviewer,
-								stampPhase: (phase) => stampPhase(`judge/${judge.judgeModelKey}: ${phase}`),
-							}),
+					return input.service.runSecondOpinionReviewSession({
+						taskId: input.taskId,
+						projectRepoPath: input.workspacePath,
+						baseRef: card.baseRef,
+						seedPrompt,
+						reviewer,
+						stampPhase,
 					});
-					if (panelResult) {
-						input.warn?.(`Review panel for ${input.taskId}: ${panelResult.decision.reason}`);
-						return panelResult.submission;
-					}
+				};
+				const primary = await runPrimaryReviewSession(sessionArgs);
+				if (!primary || primary.verdict !== "approve") {
+					// Nothing to tighten: a non-approval already carries the stricter verdict, and running the
+					// corrector could only produce a looser opinion we would discard anyway.
+					return primary;
 				}
-				return input.service.runSecondOpinionReviewSession({
-					taskId: input.taskId,
-					projectRepoPath: input.workspacePath,
-					baseRef: card.baseRef,
-					seedPrompt,
-					reviewer,
-					stampPhase,
-				});
+				if (!isTruthyEnv(process.env.NKLEIN_HISTORY_BLIND_CORRECTOR)) {
+					return primary;
+				}
+				try {
+					const correctorDiff = await getDiff({
+						repoPath: input.workspacePath,
+						taskId: input.taskId,
+						baseRef: card.baseRef,
+						...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
+					}).catch(() => null);
+					if (!correctorDiff || correctorDiff.trim().length === 0) {
+						// No patch to judge in isolation — the corrector has nothing to say and must not guess.
+						return primary;
+					}
+					const correctorSubmission = await input.service.runSecondOpinionReviewSession({
+						taskId: input.taskId,
+						projectRepoPath: input.workspacePath,
+						baseRef: card.baseRef,
+						seedPrompt: buildHistoryBlindCorrectorPrompt({
+							taskObjective: card.prompt,
+							diff: correctorDiff,
+							acceptanceSummary: formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId)),
+						}),
+						reviewer,
+						stampPhase: (phase) => stampPhase(`corrector: ${phase}`),
+					});
+					if (correctorSubmission?.verdict === "request_changes") {
+						input.warn?.(
+							`History-blind corrector OVERRODE an approve for ${input.taskId}: ${correctorSubmission.summary}`,
+						);
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `History-blind corrector overrode an approve for ${input.taskId}: ${correctorSubmission.summary}`,
+							taskId: input.taskId,
+							metadata: { category: "history_blind_corrector_override" },
+						});
+						return correctorSubmission;
+					}
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `History-blind corrector agreed with the approve for ${input.taskId}.`,
+						taskId: input.taskId,
+						metadata: { category: "history_blind_corrector_agreed" },
+					});
+				} catch (error) {
+					// Best-effort by contract: a corrector failure must never block a card that the primary
+					// reviewer already approved.
+					input.warn?.(`History-blind corrector failed for ${input.taskId}: ${String(error)}`);
+				}
+				return primary;
 			},
 			onDeliver: async ({ review }) => {
 				await persistReview(review);
