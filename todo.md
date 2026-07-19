@@ -2990,13 +2990,34 @@ output and NOT acted on. Captured as F12.12.)
   SKIPS bare-JSON-without-marker (too easily a legitimate answer). NOTE 2026-07-17: I redundantly rebuilt a weaker version
   (`forgiving-tool-call-parser.ts`) before finding this — REVERTED. Verify-before-build lesson: the parser lives in
   `src/nklein-agent/`, not `src/core/`. (github Doorman11991/smallcode; promptquorum tool-calling-2026)
-- [ ] **F12.18 — Retrieval-gate the tool catalog to ≤~8 relevant schemas per turn (extends F3.T1).** Selection accuracy
+- [~] **F12.18 — Retrieval-gate the tool catalog to ≤~8 relevant schemas per turn (extends F3.T1).** Selection accuracy
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
   wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
   **ALSO OWNS (routed here 2026-07-19 from F12.66):** the per-card MCP SERVER relevance pre-pick — not registering
   an un-picked server at all, so its schemas never enter the context, rather than narrowing them after load as
   today. Same retrieval-gating decision, one turn earlier in the pipeline.
+  **CORE + RECORD-ONLY WIRE SHIPPED 2026-07-20:** `tool-catalog-retrieval-gate.ts` — `gateToolCatalog` is a
+  DETERMINISTIC lexical + role-affinity gate that runs BEFORE any model call, complementing (not duplicating)
+  F3.T1's `two-phase-tool-pick`, which asks the MODEL to choose. They compose: gate 40 → 7 for free, then
+  optionally two-phase-pick 7 → 1. **Target revised from "≤~8" to 7** on the evidence in P21.9 (40+ → 7 fixed
+  **62%** of tool-use failures; RAG-MCP tripled selection accuracy 13.6% → 43.1% while halving prompt tokens).
+  **THE SAFETY PROPERTY (the reason this core is not trivial):** a relevance gate that drops the tool the agent
+  needs to FINISH does not degrade the turn, it **DEADLOCKS** it — a reviewer cannot submit a verdict it was never
+  offered `submit_review` for. So `alwaysKeep` tools bypass scoring entirely and are never dropped, **and when the
+  always-keep set alone exceeds the cap the CAP YIELDS**, because an oversized offer is survivable and a missing
+  completion tool is not. Pinned by test.
+  **HONESTY:** when no candidate scores above zero (empty task text, or a catalog sharing no vocabulary with the
+  task) it does NOT invent a ranking — it keeps declaration order and reports `arbitrary: true` saying so, so a
+  caller can decline to gate rather than act on a confident-looking but meaningless order.
+  Deterministic + declaration-order tie-breaks, which also protects the P19.2 prefix-cache property (a tool list
+  that varies run-to-run invalidates the whole tools→system→messages cache hierarchy). 11 tests; suite green
+  (10,987). Wired record-only behind `NKLEIN_TOOL_GATE_OBSERVE` (`tool_catalog_gate_observation`) so the drop rate
+  and the arbitrary-rate are measured before anything is withheld.
+  REMAINING (F12.18b): (a) flip from observe to ENFORCING once Phase 15 shows the drop rate is safe, which needs
+  the real `alwaysKeep` set per role wired from the tool registry rather than passed ad hoc; (b) the MCP
+  SERVER-level pre-pick above, which is a registration-time change in `nklein-mcp-runtime-service` and composes
+  with F12.31's surface pinning already there.
 - [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)

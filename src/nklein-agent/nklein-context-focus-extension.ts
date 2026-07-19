@@ -23,6 +23,7 @@ import {
 	recordFileWrite,
 } from "../core/read-before-write-guard";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
+import { DEFAULT_TOOL_CAP, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
 	createToolTrustState,
 	orderOfferedToolsByTrust,
@@ -426,6 +427,43 @@ export function createKanbanContextFocusExtension(
 						if (ordered !== offered) {
 							finalResult = { ...(finalResult ?? {}), tools: ordered };
 						}
+					}
+				}
+				// F12.18 tool-catalog retrieval gate (RECORD-ONLY): score how far the offered catalog is above the
+				// evidence-backed ~7-tool target and record the counterfactual. Selection accuracy craters past
+				// ~10-15 tools and 40+ → 7 fixed 62% of tool-use failures in the harness study, so the drop rate
+				// is worth measuring before anything is actually withheld — withholding a tool the model needed is
+				// a turn-level failure, and this runs BEFORE the two-phase pick that would otherwise mask it.
+				if (isTruthyEnv(process.env.NKLEIN_TOOL_GATE_OBSERVE)) {
+					try {
+						const gateOffered = (finalResult?.tools ?? context.request.tools ?? []) as readonly {
+							name: string;
+							description?: string | null;
+						}[];
+						if (gateOffered.length > DEFAULT_TOOL_CAP) {
+							const gateTask = firstUserGoalText(finalResult?.messages ?? baseMessages) ?? "";
+							const gated = gateToolCatalog({
+								tools: gateOffered.map((tool) => ({
+									name: tool.name,
+									description: tool.description ?? null,
+								})),
+								taskText: gateTask,
+							});
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Tool gate (observe): ${gateOffered.length} offered → would keep ${gated.selected.length}${gated.arbitrary ? " (ARBITRARY — task vocabulary did not discriminate)" : ""}.`,
+								metadata: {
+									category: "tool_catalog_gate_observation",
+									offered: gateOffered.length,
+									wouldKeep: gated.selected.length,
+									wouldDrop: gated.dropped.length,
+									arbitrary: gated.arbitrary,
+								},
+							});
+						}
+					} catch {
+						// Observation only — never disturbs a turn.
 					}
 				}
 				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
