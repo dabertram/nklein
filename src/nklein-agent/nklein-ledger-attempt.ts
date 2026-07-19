@@ -65,6 +65,8 @@ export interface TerminalAttemptInput {
 	timeoutReason: string | null;
 	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
 	toolCalls?: AttemptToolCall[];
+	/** F12.29: procedural-skill ids surfaced into the session prompt (for paired-trajectory auditing). */
+	surfacedSkillIds?: readonly string[];
 	knowledge?: AttemptKnowledgeUsage | null;
 	focusStep?: string | null;
 	// F1.14 completion — the fields the terminal write previously left at their defaults:
@@ -92,6 +94,9 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 			: null;
 	const outcome = mapTerminalStateToOutcome(input.state, input.timeoutReason !== null);
 	return buildAttemptEvent({
+		...(input.surfacedSkillIds && input.surfacedSkillIds.length > 0
+			? { surfacedSkillIds: input.surfacedSkillIds }
+			: {}),
 		workflowId: input.taskId,
 		taskId: input.taskId,
 		workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),

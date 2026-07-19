@@ -276,6 +276,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
+	/** F12.29: procedural-skill ids surfaced into each task's session prompt (from `procedural-skill:` fragment keys). */
+	private readonly surfacedSkillIdsByTaskId = new Map<string, string[]>();
 	// F1.14: the recovery-rung label for the task's NEXT terminal attempt event (promptStrategy) — stamped by the
 	// runtime's re-drive/steer rungs via noteNextAttemptStrategy, consumed (and cleared) at the terminal write.
 	private readonly nextAttemptStrategyByTaskId = new Map<string, string>();
@@ -1759,6 +1761,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});
+				// F12.29: remember which procedures were surfaced so the terminal attempt event can stamp them
+				// (the paired-trajectory audit needs the with-skill/without-skill split).
+				const surfacedSkillIds = sessionSkillFragments
+					.map((fragment) => fragment.key)
+					.filter((key) => key.startsWith("procedural-skill:"))
+					.map((key) => key.slice("procedural-skill:".length));
+				if (surfacedSkillIds.length > 0) {
+					this.surfacedSkillIdsByTaskId.set(request.taskId, surfacedSkillIds);
+				} else {
+					this.surfacedSkillIdsByTaskId.delete(request.taskId);
+				}
 				const attemptRetryNote = await this.buildAttemptRetryNote(request.taskId);
 				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 					this.buildSessionSystemPromptInput({
@@ -3109,6 +3122,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						workspacePath: summary.workspacePath ?? null,
 						state,
 						role,
+						// F12.29: stamp the surfaced procedures (empty/absent = the without-skill trajectory side).
+						...(this.surfacedSkillIdsByTaskId.has(taskId)
+							? { surfacedSkillIds: this.surfacedSkillIdsByTaskId.get(taskId) ?? [] }
+							: {}),
 						providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
 						// §5.BG (c) routing-key flip — DEFAULT-ON (David 2026-07-07 rollout; opt out NKLEIN_STABLE_ROUTING_KEY=0).
 						// The terminal-attempt ledger is the ROUTING EVIDENCE the start path looks up by the candidate's

@@ -2791,9 +2791,12 @@ output and NOT acted on. Captured as F12.12.)
   **CORE SHIPPED 2026-07-19:** `procedural-skill-audit.ts` auditSkillFromPairedTrajectories — success-rate delta
   (promote ≥+15pp, retire ≤−15pp), equal-success cost-saving promote (≥20% cheaper by turns, wallMs fallback),
   ≥3 samples per side or UNMEASURED (never promote/retire on noise), honest numeric reasons. Composes with the
-  F12.29 execution gate (one application vs the population). 4 tests. REMAINING WIRE: the ledger projection that
-  pairs attempts by task-kind tags + skill-surfaced flag (needs the F4.19 consumer to STAMP surfaced-skill ids on
-  attempt events first — that stamp is the prerequisite wire), then a lifecycle sweep consuming the verdicts.
+  F12.29 execution gate (one application vs the population). 4 tests.
+  **PREREQUISITE STAMP SHIPPED 2026-07-19:** attempt events now carry `surfacedSkillIds` (additive, default []) —
+  derived at the primary start from the `procedural-skill:` fragment keys the F4.19 consumer already emits,
+  stashed per task, stamped on the terminal attempt event (absent/empty = the without-skill trajectory side).
+  REMAINING WIRE: the pairing projection (group attempts by task-kind tags × surfaced-vs-not) feeding
+  auditSkillFromPairedTrajectories, then the lifecycle sweep consuming verdicts.
 
 **Supply-chain, determinism & reproducibility:**
 - [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**

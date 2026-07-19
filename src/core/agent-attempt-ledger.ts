@@ -152,6 +152,8 @@ const attemptEventSchema = z.object({
 	ttftMs: z.number().nullable(),
 	tokensPerSec: z.number().nullable(),
 	toolCalls: z.array(attemptToolCallSchema),
+	/** F12.29: procedural-skill ids surfaced into this attempt's prompt (from the F4.19 fragment keys); [] = none. */
+	surfacedSkillIds: z.array(z.string()).default([]),
 	outcome: modelOutcomeKindSchema,
 	qualityScore: z.number().nullable(),
 	qualityOk: z.boolean().nullable(),
@@ -277,6 +279,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	ttftMs?: number | null;
 	tokensPerSec?: number | null;
 	toolCalls?: AttemptToolCall[];
+	surfacedSkillIds?: readonly string[];
 	outcome: ModelOutcomeKind;
 	qualityScore?: number | null;
 	qualityOk?: boolean | null;
@@ -310,6 +313,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		ttftMs: input.ttftMs ?? null,
 		tokensPerSec: input.tokensPerSec ?? null,
 		toolCalls: input.toolCalls ? input.toolCalls.map((call) => ({ ...call })) : [],
+		surfacedSkillIds: input.surfacedSkillIds ? [...input.surfacedSkillIds] : [],
 		outcome: input.outcome,
 		qualityScore: input.qualityScore ?? null,
 		qualityOk: input.qualityOk ?? null,
