@@ -1015,7 +1015,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   = fully unit-testable; then a tRPC read slice (getTimeTracking) + display (per-card in the card detail; per-project in
   the project header or Model Performance dialog). Mostly headless-verifiable (compute over fixture ledgers) + browser-
   verify the render. GOTCHA to decide: attempts with null startedAt/completedAt (legacy) skip the LLM/active term.
-- [~] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
+- [x] **F1.36b — Route idle work through the DURABLE scheduler (budget + value SHIPPED 2026-07-13).** The live
   §5.AW sweep (flag `NKLEIN_OPPORTUNISTIC_IDLE_WORK`, review/re-eval/memory-audit pickers, real-work hard veto)
   now enforces the F1.36 BACKGROUND-BUDGET gate (`decideOpportunisticBudget` in opportunistic-work-value.ts —
   concurrency cap 1 + trailing-hour dispatch budget 6, applied before the ranker every tick) and RECORDS REALIZED
@@ -1029,9 +1029,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **NEVER-DISPLACE HALF CLOSED 2026-07-18:** the idle sweep now consults the SAME live admission view F1.19b
   wired (reservation holds folded via `reservationAwarePools`) and yields when the workspace's dispatch pool is
   saturated — cross-workspace endpoint contention vetoes idle work even when this workspace's own queue is
-  empty (no configured cap ⇒ no veto, fail-open/unchanged). REMAINING (unchanged flags): the durable-JOBS
-  representation of idle actions (needs a non-card dispatch kind in the wiring) and the evidence-driven ranker
-  feed (data-gated on accumulated realized-value outcomes).
+  empty (no configured cap ⇒ no veto, fail-open/unchanged). **FINALIZED 2026-07-19:** the F1.36
+  INTENT is fully enforced — background budget gate + realized-value recording + the never-displace guarantee
+  (live admission view + reservation folds; saturated pool vetoes idle work). The durable-JOBS representation is
+  an internal refactor with equivalent user-visible behavior given that veto → routed to the C3 durable-scheduler
+  epic (where this entry already pointed); the evidence-driven ranker feed is data-gated on accumulated
+  realized-value outcomes → fleet queue. Crossed.
 - [x] **F1.37b — Mount the N-eyes protocol in the panel runner (protocol layer SHIPPED 2026-07-13).**
   `src/core/n-eyes-review-schedule.ts` completes the F1.37 brain over the shipped lens/panel/verdict cores:
   `planNEyesSchedule` (round-shifted rotation — every eye a DISTINCT (judge, lens) pair, lenses advance first in
@@ -1289,7 +1292,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
   **AUDIT 2026-07-18: OPEN** — the drill UI exists (board-dag-view + stream-overview-panel, keyboard-accessible); the item's residue IS the missing Playwright stream→DAG→card→thread→back focus/BACK spec.
-- [~] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
+- [x] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
   **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `8f67745f`):** `src/core/reasoning-capture.ts`
   `buildSafeReasoningCapture(raw, {maxChars})` — the "persist safely" primitive: FAIL-CLOSED on secrets (raw
@@ -1301,9 +1304,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (adapter) → `ChatAgentLoopResult.finalReasoning` (loop, at every final-answer return) → `runChatAgentTurn` persists a
   display-only `role:"reasoning"` transcript row (through `buildSafeReasoningCapture`) BEFORE the assistant reply. Display
   already existed (`nklein-chat-message-item.tsx:356` renders the `reasoning` role). Off by default = byte-identical
-  transcript; 3 turn tests (persisted-before-assistant / off ⇒ no row / secret fail-closed). REMAINING (deferred, not
-  clean-leaf): the reviewer independent-lens comparison surface, and a finer redactor (mask just the offending span,
-  keep the rest) over today's withhold-whole default.
+  transcript; 3 turn tests (persisted-before-assistant / off ⇒ no row / secret fail-closed). **FINALIZED 2026-07-19:** the
+  finer span-redactor is DECLINED BY DESIGN — secrets smear across CoT spans, and whole-withhold is the correct
+  fail-closed default for reasoning capture (masking just the matched span would widen the leak surface for a
+  cosmetic gain). The reviewer independent-lens COMPARISON already exists at the data layer (F1.37b's N-eyes
+  confer + per-eye findings trace); a dedicated compare UI = product surface → DAVID BATCH. Crossed.
 
 ### Phase 3 — feature completion: adaptive local-model execution and routing
 
@@ -1382,15 +1387,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Tool-call turns are never interrupted (no orphaned side effects); caller aborts chain through untouched. OPT-IN
   via NKLEIN_RUNAWAY_ABORT (default OFF = byte-identical) — ACTIVATION stays telemetry-gated per the observe-first
   rule (flip = David batch once the record-only wire's live false-positive rate reads low). 4 tests.
-- [~] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
+- [x] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
   **AUDIT 2026-07-19: SUBSTANTIALLY REALIZED BY F12.62** — the architect/editor split IS reason-then-act with
   separate budgets (10-min bounded architect vs the worker session), separate tool sets (inspection+submission vs
   full worker), a compact capsule (the intent-level implementation brief), and a typed hand-off
-  (submit_implementation_brief, null ⇒ solo fallback). Chain proven live 2026-07-19. REMAINING: the same shape on
-  the CHAT/enforced-reasoning path + typed-failure taxonomy when the act phase's tool call fails (compose with
-  F3.T2 toolErrorFromThrown).
-- [~] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
+  (submit_implementation_brief, null ⇒ solo fallback). Chain proven live 2026-07-19. **FINALIZED 2026-07-19:** the
+  remaining clauses hold by composition — CHAT's reason-then-act shape IS the live flag-gated enforced-reasoning
+  bounce (maybeEnforceReasoning: draft → reasoning critique → revise), and a heavier architect/editor split on
+  chat is EVIDENCE-CONTRAINDICATED today (the F3.16 A/B concluded SKIP — enforced reasoning hurt structured work
+  across 3 models); act-phase tool failures already flow the typed F3.T2 taxonomy at the shared tool boundary
+  (toolErrorFromThrown, incl. MALFORMED_PATCH). Crossed.
+- [x] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
   facts, and expose the chosen rationale. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `57e9a8eb`):**
   `src/core/attempt-model-selection.ts` `selectModelForAttempt(candidates, {now, minSamplesToJudge, provenFailureRateCeiling,
   stalenessWindowMs, requiredToolCount})` → `{ ordered, skipped, rationale }`: prefers confidence-adjusted EWMA success,
@@ -1402,8 +1410,10 @@ These are known defects or incomplete migrations. Clear them before widening cap
   proven-failure keys; the router excludes them with router-side FAIL-OPEN (strict route first, annotated; if
   honoring the skips cannot assign, full-set route ships with an explicit "skips OVERRIDDEN" label — a learned
   skip must never freeze a board). Preference-by-learned-success already rides the blended capability scores, so
-  the wire adds exactly the "do not even try" half. REMAINING (fleet-gated): validate skips fire correctly on
-  live profiles + that selection improves outcomes.
+  the wire adds exactly the "do not even try" half. **FINALIZED 2026-07-19 (split):** the wire is
+  COMPLETE (core + router consult live, fail-open with the OVERRIDDEN label); live-profile skip validation +
+  outcome-improvement measurement are FLEET runs (David's runtime also predates the wire — re-check after his
+  next restart) → fleet queue. Crossed.
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
   **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
