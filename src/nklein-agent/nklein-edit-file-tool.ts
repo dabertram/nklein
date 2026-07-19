@@ -10,6 +10,12 @@ import {
 	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
 import { checkEditSyntax } from "../core/edit-syntax-guard";
+import {
+	assessIntentMergeSafety,
+	buildIntentMergePrompt,
+	decideIntentMerge,
+	parseIntentMergeReply,
+} from "../core/intent-merge-rung";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
@@ -125,7 +131,18 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 	return { path, edits: edits as SearchReplaceBlock[] };
 }
 
-export function createEditFileTool(options: { workspacePath: string; maxFileLines?: number | null }): AgentTool {
+/**
+ * F12.20b: injected caller that runs ONE bounded intent-merge completion (see `intent-merge-rung`). Undefined ⇒
+ * the rung is inert and a failed edit throws exactly as before. Must fall back to `reasoning_content` when
+ * `content` is empty — see the DriftCriticModelCaller contract for why that trap is silent.
+ */
+export type IntentMergeCaller = (prompt: string) => Promise<string | null>;
+
+export function createEditFileTool(options: {
+	workspacePath: string;
+	maxFileLines?: number | null;
+	intentMergeCaller?: IntentMergeCaller;
+}): AgentTool {
 	const maxFileLines = normalizeMaxAgentWritableFileLines(options.maxFileLines);
 	return {
 		name: "edit_file",
@@ -209,7 +226,7 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 				);
 			}
 
-			let applied: { content: string; appliedStrategies: string[] };
+			let applied: { content: string; appliedStrategies: string[] } | undefined;
 			if (request.replaceAll !== undefined) {
 				// #42: whole-file replacement — same guards (protected paths, containment, line limit, secrets).
 				applied = { content: request.replaceAll, appliedStrategies: ["replace-all"] };
@@ -222,7 +239,43 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 				applied = { content: lines.join("\n"), appliedStrategies: [`insert@${boundary}`] };
 			} else {
 				const replaced = applySearchReplaceBlocks(original, request.edits);
-				if (!replaced.ok) {
+				if (!replaced.ok && options.intentMergeCaller) {
+					// F12.20b INTENT-MERGE RUNG — the last step, taken only when the deterministic ladder exhausted.
+					// Every earlier rung applies a BOUNDED edit; this one asks a model to re-emit a WHOLE FILE, so
+					// the merged content is REJECTED unless it changed about as much as the intended edit did. A
+					// failed edit is recoverable; a silent unrelated rewrite is not.
+					const failedIndex = replaced.failedBlockIndex ?? 0;
+					const failedBlock = request.edits[failedIndex];
+					const decision = decideIntentMerge({
+						ladderExhausted: true,
+						bestSimilarity: replaced.bestSimilarity ?? null,
+						fileChars: original.length,
+					});
+					if (decision.kind === "escalate" && failedBlock) {
+						const mergedText = await options
+							.intentMergeCaller(
+								buildIntentMergePrompt({
+									filePath: request.path,
+									currentContent: original,
+									attemptedSearch: failedBlock.search,
+									attemptedReplace: failedBlock.replace,
+								}),
+							)
+							.catch(() => null);
+						const merged = mergedText ? parseIntentMergeReply(mergedText) : null;
+						if (merged) {
+							const safety = assessIntentMergeSafety({
+								original,
+								merged,
+								attemptedReplace: failedBlock.replace,
+							});
+							if (safety.accepted) {
+								applied = { content: merged, appliedStrategies: ["intent-merge"] };
+							}
+						}
+					}
+				}
+				if (!applied && !replaced.ok) {
 					const similarityHint =
 						typeof replaced.bestSimilarity === "number"
 							? ` Closest match was ${(replaced.bestSimilarity * 100).toFixed(0)}% similar.`
@@ -233,7 +286,9 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 						}`.trim(),
 					);
 				}
-				applied = { content: replaced.content, appliedStrategies: replaced.appliedStrategies };
+				if (!applied) {
+					applied = { content: replaced.content, appliedStrategies: replaced.appliedStrategies };
+				}
 			}
 			if (applied.content === original) {
 				return {

@@ -3042,10 +3042,31 @@ output and NOT acted on. Captured as F12.12.)
   breakage + F12.16's MALFORMED_PATCH typed error tells the controller to re-read/re-anchor (retryable, never a
   hard card fail). **FINALIZED 2026-07-19 (split):** the deterministic ladder + typed escalation are complete;
   the extensions split below.
-- [ ] **F12.20b — Intent-merge re-prompt rung** *(split from F12.20 2026-07-19).* When the fuzzy ladder
+- [x] **F12.20b — Intent-merge re-prompt rung** *(split from F12.20 2026-07-19).* When the fuzzy ladder
   exhausts, a bounded secondary-session ask ("merge this intent-level edit into the current file") on the
   worker's own model — composes with the F12.62 editor-phase harness. The optional fast-apply model
   (Morph/Relace class) stays fleet/David-gated model acquisition.
+  **CORE + WIRE SHIPPED + LIVE-VALIDATED 2026-07-20.** `intent-merge-rung.ts` (decide → prompt → parse → JUDGE)
+  wired into `createEditFileTool` behind an injected `intentMergeCaller`; undefined ⇒ a failed edit throws exactly
+  as before (byte-identical).
+  **THE RISK THIS RUNG INTRODUCES, and the reason the core is not just a prompt:** every earlier rung applies a
+  BOUNDED edit — it either places the block or it does not. This one asks a model to re-emit a **WHOLE FILE**, so
+  its blast radius is the entire file. A model that "helpfully" reformats, drops code it judged unused, or
+  modernizes while merging produces a plausible file that passes review by LOOKING fine. **A failed edit is
+  recoverable; a silent unrelated rewrite is not.** Three defenses, all pinned by test: (1) `decideIntentMerge`
+  returns **`reread` rather than escalating when best-similarity < 0.35** — a very low similarity means the search
+  block was probably hallucinated, and merging would launder that error into a whole-file rewrite; (2) a
+  24k-char ceiling, because whole-file re-emission degrades with length exactly where small models are weakest;
+  (3) **`assessIntentMergeSafety` REJECTS a merge that changed materially more than the intended edit** — the
+  caller must run it before writing, and over-broad merges are rejected outright rather than accepted with a
+  warning. Also: it is a LAST STEP, not a retry loop (`priorAttempts > 0` declines), an unparseable reply returns
+  null rather than becoming a file write, and a blank or unchanged merge is refused.
+  **LIVE VALIDATION 2026-07-20 (qwen3.6-27b @ m5max):** fed a file deliberately baited with `var` declarations, a
+  C-style for loop and an explicitly unused helper, plus a whitespace-mismatched anchor the ladder would fail on.
+  The model changed **exactly 1 line** (`return total * 1.2` → `return total * (1 + taxRate)`) and left every
+  piece of bait untouched; safety check accepted at 1 changed line against 4 allowed. **The "change ONLY what the
+  intended edit requires" instruction held under real temptation** — which is the whole question for this rung.
+  14 tests; suite green (11,001).
 - [x] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
