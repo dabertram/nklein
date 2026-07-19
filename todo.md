@@ -4976,6 +4976,58 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   in the *how*, not the *what*. Composes with the existing S11 audit recording.
 
 
+### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
+
+> **This phase exists because the research directly contradicts an assumption threaded through !Klein's routing.**
+> We use `parseModelAttributes(...).paramB` as a capability/size proxy — the F12.83 language floor, the fitness
+> prior, and the F12.110 depth-target work all lean on "bigger = more capable". Two independent measurements say
+> that proxy breaks exactly where we care most.
+>
+> **(1) ATTENTION GEOMETRY DOMINATES PARAM COUNT AT DEPTH.** Same machine (M1 Ultra 128GB), both MoE, llama.cpp
+> discussion #19120: GLM-4.7-Flash (**30B**-A3B) collapses **32× in prefill and 8× in generation** from 0→100k
+> context, while **gpt-oss-120b — four times larger — degrades only 3.9×/2.1× and ends up 6× FASTER at 100k**
+> (188 vs 31 pp512; 31 vs 6.2 tg128). Maintainer diagnosis: *"much larger attention head size, the attention
+> calculations dominate as the context size grows."* **Any capacity or routing plan built on depth-0 benchmarks
+> will be badly wrong at agent context lengths.**
+>
+> **(2) MULTI-TURN TOOL USE IS NON-MONOTONIC IN SIZE.** BFCL V4 raw leaderboard, same family, same architecture:
+> **Qwen3-8B scores 41.75 on Multi-Turn while Qwen3-14B scores 34.75** — the smaller model wins by 7 points.
+> Any architectural or size signal smaller than that gap is noise.
+
+- [ ] **P22.1 — Audit every use of `paramB` as a capability proxy and add a depth caveat.** Sites include the
+  F12.83 language-size floor (`recommendModelFloor`), the fitness prior, and F12.110's depth-target class. The
+  floor is probably still defensible as a WEAK prior for *task complexity*, but it must not be read as a
+  predictor of long-context or multi-turn behaviour. **The measured fitness store is the right authority; paramB
+  is the fallback, and the fallback should say so.**
+- [ ] **P22.2 — Measure fitness AT DEPTH, not at depth 0 (highest-value change to the fitness store).** Every
+  fitness number we hold is effectively a shallow-context measurement. Given (1) above, a model that ranks well
+  on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
+  context-depth dimension to the fitness fingerprint (it already carries context window + quant), and record
+  observations at the depth they were taken.
+- [ ] **P22.3 — Correct the MoE assumptions in `inference-lever-planning.ts` and the roster notes.** Three
+  corrections, all measured: **(a)** the naive roofline (bandwidth ÷ active-param bytes) is **optimistic by ~2×
+  for MoE** — MoE realizes 45–79% of ceiling vs dense at 79–88%, and efficiency FALLS as the active fraction
+  shrinks (gpt-oss-120b at 4.4% active realizes 52%). Budget MoE decode at ~0.5–0.65× roofline. **(b) MoE's
+  advantage is ~45% smaller on PREFILL than on generation** (RTX 4090: 2.9× prefill vs 5.2× generation) — and
+  **agent loops are prefill-bound**, so MoE selection buys an agent less than a chat benchmark implies.
+  **(c) "MoE is weaker at long multi-turn tool use" is FALSIFIED** by BFCL V4: the best general-purpose
+  multi-turn model on the board is an MoE (GLM-4.6, 68.00, beating every dense general model), and the worst
+  collapse is a dense model (Gemma-3-12b, 0.08). **Recipe dominates architecture.** Note F12.76's MoE gate is
+  still correct — it is about *speculative decoding*, where MoE genuinely does badly — but no other MoE penalty
+  is justified.
+- [ ] **P22.4 — Quantization does NOT speed up prefill (correct any note that implies it).** mlx-lm's own
+  BENCHMARKS.md, 64GB M4 Max: bf16→q4 moves prefill **−9%** and generation **+156%**. Dequant cost cancels the
+  bandwidth win when compute-bound. So quantization is a generation and a MEMORY lever, never a TTFT lever — and
+  since agent turns are gated by prefill, quantizing to "make the agent faster" is largely a misconception.
+- [ ] **P22.5 — Record the frontier-MoE reality check in §4A (kills a tempting future idea).** DeepSeek-V3 671B
+  on an M3 Ultra 512GB: **8K-token prompt takes 14.8 MINUTES to prefill under llama.cpp** (9.01 t/s), or 227 s
+  for 15.8K tokens under MLX. Apple's "run 600B+ parameter models on device" claim is true on CAPACITY and
+  deeply misleading on THROUGHPUT. **A frontier open MoE is not a viable agent backend on consumer hardware at
+  agent context depths, regardless of whether it fits in RAM.** Also note an ~8× framework gap on identical
+  hardware (llama.cpp 9 t/s vs MLX 58–82 t/s prefill) — **framework choice dominates model choice here**, which
+  is another argument for P17.1's runtime-adapter boundary.
+
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
