@@ -121,6 +121,7 @@ import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
 import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
+import { combineVerifierVerdicts } from "../core/verifier-ensemble";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
@@ -2052,6 +2053,41 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 												to: "diff_minimality_scan",
 												reason: minimality.reason.slice(0, 900),
 												controllerDecision: `diff_minimality:changed=${minimality.linesChanged},files=${minimality.filesTouched.length}`,
+											}),
+										).catch(() => {});
+									}
+									// F12.97 ENSEMBLE (record-only): no single verifier is safe, so combine the checks that
+									// actually ran into ONE decision — a red execution run rejects outright and cannot be
+									// outvoted, converging advisory objections escalate to review, and verifiers that could
+									// not run are NAMED so absent evidence is never read as agreement. Recorded beside the
+									// individual scans; the enforcing flip is the observe-first David call.
+									const ensemble = combineVerifierVerdicts([
+										// The delivered patch exists because acceptance already passed at this seam.
+										{ kind: "execution_tests", outcome: "pass" },
+										{
+											kind: "shortcut_monitor",
+											outcome: shortcuts.suspicious ? "fail" : "pass",
+											detail: shortcuts.suspicious ? shortcuts.reason.slice(0, 200) : undefined,
+										},
+										{
+											kind: "diff_minimality",
+											outcome: minimality.verdict === "bloated" ? "fail" : "pass",
+											detail: minimality.verdict === "bloated" ? minimality.reason.slice(0, 200) : undefined,
+										},
+										// Not yet wired anywhere — declared so the ensemble reports them as MISSING.
+										{ kind: "property_checks", outcome: "unavailable" },
+										{ kind: "rubric_judge", outcome: "unavailable" },
+									]);
+									if (ensemble.decision !== "accept") {
+										await appendAgentLedgerEvent(
+											buildTransitionEvent({
+												workflowId: taskId,
+												taskId,
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+												from: "review",
+												to: "verifier_ensemble",
+												reason: ensemble.reason.slice(0, 900),
+												controllerDecision: `ensemble:${ensemble.decision};objecting=${ensemble.objecting.join(",")};missing=${ensemble.missing.join(",")}`,
 											}),
 										).catch(() => {});
 									}

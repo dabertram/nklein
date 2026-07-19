@@ -3847,7 +3847,7 @@ verify-before-build caveat: confirm each against current code before implementin
   self-observation on mismatch. Observe-first: does NOT block acceptance yet — flip to blocking once live divergence
   rates show the signal is precise (weak models may predict sloppily; blocking on that would thrash).
   (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
-- [~] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
+- [x] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
   tests + property checks (F12.93) + an LLM rubric judge, and flag shortcut behaviors (solution lookup, test/harness tampering,
   verbosity-gaming); add a "Dockerless" execution-free evidence pre-screen when full test runs are too costly per candidate.
   Rationale: reward hacking is STRUCTURAL — 28.57% of PASSING SWE solutions used shortcuts; a behavior monitor cut that to
@@ -3860,9 +3860,18 @@ verify-before-build caveat: confirm each against current code before implementin
   `verbosity_gaming` (≥30 added prose lines exceeding code 3:1 — the rubric-judge-gaming shape). Under-counts
   rather than hallucinates, same honesty stance as F12.44. Wired record-only at the SAME delivery-seam scan
   (`shortcut_behavior_scan` ledger transition, never blocks). 7 tests.
-  REMAINING: the ENSEMBLE half — require agreement across execution tests + F12.93 property checks + an LLM
-  rubric judge (needs F12.93's property core + a judge pass; multi-verifier design), and the Dockerless
-  execution-free evidence pre-screen for when full test runs are too costly per candidate.
+  **ENSEMBLE SHIPPED 2026-07-19 (completes the item):** `verifier-ensemble.ts` `combineVerifierVerdicts` — the
+  decision layer the finding actually calls for, and it DISTINGUISHES evidence rather than averaging it: a failed
+  BLOCKING verifier (the executed tests) rejects outright and cannot be outvoted by any advisory chorus; two or
+  more advisory objections escalate to human review; a lone objection is surfaced with the delivery instead of
+  auto-accepted; verifiers that could not run are NAMED as missing, because absence of evidence is not approval
+  (nothing-ran ⇒ needs_review, never accept). Order-independent, so acceptance stays replayable. 7 tests.
+  WIRED record-only at the delivery scan beside the individual checks — execution tests + F12.97's own shortcut
+  monitor + F12.45 diff-minimality participate today, while `property_checks` (F12.93b) and `rubric_judge` are
+  declared UNAVAILABLE so every non-accept ledger row states exactly which verifiers were absent. A
+  `verifier_ensemble` transition records the verdict; the enforcing flip is the observe-first David call.
+  FOLLOW-UP (separate concern, not this item's mechanism): the Dockerless execution-free pre-screen for when a
+  full test run per candidate is too costly.
 
 **Research batch 2b (2026-07-17) — local-first TRUST & PRIVACY brief (~40 lookups). !Klein's local-only architecture is a
 market differentiator only if it is VERIFIABLE. Framing: "local AI is private by ARCHITECTURE; cloud AI is private by
