@@ -2374,9 +2374,22 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
 These are intentionally last because they are not clear implementation work, are optional, or depend on external
 hardware/user action. Promote a research item into an earlier concrete package only after its verdict produces one.
 
-- [ ] **D10.1 — Research the orchestrator role** *(legacy §5.AS).* Compare it with current planner/scheduler/reviewer
+- [x] **D10.1 — Research the orchestrator role** *(legacy §5.AS).* Compare it with current planner/scheduler/reviewer
   ownership; adopt with a bounded build plan only if it adds a non-duplicative control-plane capability, otherwise
   record the rejection in `done.md`.
+  **VERDICT 2026-07-19: REJECTED — !Klein already HAS an orchestrator, and it is DETERMINISTIC.** Every function an
+  agent-orchestrator role would claim is already owned, by code rather than by a model: task graph ⇒ the architect's
+  `decompose_project` + subtask-DAG validation; what-runs-when ⇒ `durable-run-controller` over `durable-scheduler` +
+  `planDurableAdmission` + reservations + the board-liveness watchdog; which-model ⇒ `routeNKleinTask` (feasibility ×
+  fitness × context × cost × affinity); recovery ⇒ the §5.AA retry ladder + failover controller + stubborn-failure
+  escalation; quality ⇒ the review panel/N-eyes + acceptance/taint/delivery gates; and the phase machine itself is
+  the board lifecycle (the same finding that closed F3.12). Adding an LLM orchestrator would DUPLICATE that
+  control plane while making it nondeterministic, unreplayable (the §5.AF ledger replay depends on deterministic
+  control decisions), and more expensive on the axis that is actually scarce — model time on a small local fleet.
+  The deterministic-control-plane/LLMs-only-at-the-leaves split is a deliberate architectural strength, not a gap.
+  RE-OPEN ONLY IF: a control decision appears that genuinely needs judgment no rule can express (candidate: a
+  cross-card global re-plan under Phase-14 cloud mixes) — and then as a bounded ADVISORY consult, never as an
+  authority that can act. Rejection recorded in `done.md`.
 - [ ] **D10.2 — Decide whether sacrificial skill classification is worth its cost/risk.** Evaluate the threat model,
   likely negative-detection lift, false-trust risk, and zero-privilege operating cost; add a concrete package only if it
   improves safety over deterministic screening and containment.

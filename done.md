@@ -1954,3 +1954,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
 >       null, new_text: string|null, edits optional), and `parseEditFileRequest` normalizes the shape to an insert
 >       (both numeric and numeric-string insert_line; tested lines 24/33/74). Fixed across #38 + #42. The submit_review
 >       `"name": null` sibling was fixed as #37. Nothing left here.
+
+> - [x] **D10.1 — Orchestrator role: REJECTED (verdict 2026-07-19).** The question was whether !Klein needs a
+>       dedicated agent/LLM "orchestrator" beyond its planner/scheduler/reviewer ownership. It does not: an
+>       orchestrator's whole job is already owned by DETERMINISTIC code — `durable-run-controller` +
+>       `durable-scheduler` + `planDurableAdmission` (what runs when, under capacity + reservations),
+>       `routeNKleinTask` (which model, by feasibility × fitness × context × cost × affinity), the architect's
+>       `decompose_project` + DAG validation (the task graph), the §5.AA ladder + failover + stubborn-failure
+>       escalation (recovery), the review panel + acceptance/taint/delivery gates (quality), and the board
+>       lifecycle itself as the phase machine (the same reasoning that closed F3.12). Adding an LLM orchestrator
+>       would duplicate that plane while making it nondeterministic, unreplayable (§5.AF ledger replay assumes
+>       deterministic control decisions), and costlier on the scarce axis — model time on a small local fleet.
+>       "Deterministic control plane, LLMs only at the leaves" is a deliberate strength. RE-OPEN ONLY IF a control
+>       decision emerges that genuinely needs judgment no rule can express (likeliest: cross-card global re-plan
+>       under Phase-14 cloud mixes), and then only as a bounded ADVISORY consult that cannot act on its own.
