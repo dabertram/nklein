@@ -16,6 +16,8 @@ import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
  */
 
 const { nodeW: NODE_W, nodeH: NODE_H } = DAG_LAYOUT;
+/** Pointer movement (px) below which a gesture is still a CLICK, not a pan — see the onPointerDown note. */
+const DRAG_SLOP_PX = 4;
 
 function nodeStyle(node: DagNode): { fill: string; stroke: string } {
 	if (node.failed) {
@@ -53,7 +55,14 @@ export function BoardDagView({
 }): React.ReactElement | null {
 	// Pan/zoom: a viewBox transform driven by pointer drag + wheel.
 	const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
-	const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+	const dragRef = useRef<{
+		startX: number;
+		startY: number;
+		originX: number;
+		originY: number;
+		/** True once the gesture passed the slop threshold and became a real pan (capture is taken then, not before). */
+		capturing: boolean;
+	} | null>(null);
 
 	const graph = useMemo(() => buildDagGraph(columns, dependencies, sessions), [columns, dependencies, sessions]);
 
@@ -125,18 +134,34 @@ export function BoardDagView({
 						aria-label="Board dependency graph"
 						className="cursor-grab active:cursor-grabbing"
 						onPointerDown={(event) => {
+							// LIVE-FOUND 2026-07-19 (F2.16 Playwright pass): capturing the pointer HERE stole the click
+							// from the nodes — the browser retargets the click to the capturing element, so a node's
+							// onClick never fired and clicking a card in the graph did nothing for a real user (a
+							// synthetic dispatchEvent("click") worked, which is what isolated it). Capture is now
+							// deferred to the first real MOVE below, so a plain click reaches the node and panning is
+							// unchanged.
 							dragRef.current = {
 								startX: event.clientX,
 								startY: event.clientY,
 								originX: view.x,
 								originY: view.y,
+								capturing: false,
 							};
-							event.currentTarget.setPointerCapture(event.pointerId);
 						}}
 						onPointerMove={(event) => {
 							const drag = dragRef.current;
 							if (!drag) {
 								return;
+							}
+							if (!drag.capturing) {
+								// Only a movement past the slop threshold is a pan; below it the gesture is still a click.
+								const movedX = Math.abs(event.clientX - drag.startX);
+								const movedY = Math.abs(event.clientY - drag.startY);
+								if (movedX < DRAG_SLOP_PX && movedY < DRAG_SLOP_PX) {
+									return;
+								}
+								drag.capturing = true;
+								event.currentTarget.setPointerCapture(event.pointerId);
 							}
 							const bounds = event.currentTarget.getBoundingClientRect();
 							const unitsPerPixel = viewW / bounds.width;

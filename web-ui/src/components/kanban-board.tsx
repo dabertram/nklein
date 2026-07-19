@@ -426,7 +426,9 @@ export function KanbanBoard({
 		void fetchMergeHistory(currentProjectId).then(
 			(response) => {
 				if (!cancelled) {
-					setMergeHistory(response.records);
+					// Fail-soft on SHAPE too: the rejection handler below covers a failed call, but a resolved-yet-
+					// malformed body would throw here (unhandled) and abort whatever else the caller was doing.
+					setMergeHistory(response?.records ?? []);
 				}
 			},
 			() => {
@@ -506,7 +508,9 @@ export function KanbanBoard({
 			void fetchCardMailboxCounts(currentProjectId, taskIds).then(
 				(response) => {
 					if (!cancelled) {
-						setMailboxCountByTaskId(response.counts);
+						// Same shape-level fail-soft as the merge-history read: a missing count hides the badge, it
+						// must never throw out of the success path.
+						setMailboxCountByTaskId(response?.counts ?? {});
 					}
 				},
 				() => {

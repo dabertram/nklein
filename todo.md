@@ -1300,12 +1300,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
-- [ ] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
+- [x] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
   stable focus/BACK behavior (closing the DAG returns to the stream context, not a lost state) with a Playwright
   pass over stream→DAG→card→thread→back; fold any gap found there.
-  **AUDIT 2026-07-18: OPEN** — the drill UI exists (board-dag-view + stream-overview-panel, keyboard-accessible); the item's residue IS the missing Playwright stream→DAG→card→thread→back focus/BACK spec.
+  **SPEC SHIPPED + A REAL BUG FOUND AND FIXED 2026-07-19:** `web-ui/tests/stream-drill-focus-back.spec.ts`
+  (5 tests on the existing page-level runtime mock — no live runtime touched): × closes → board context returns,
+  Escape closes → board context returns, node-select drills AND closes (no stacked overlay), keyboard Enter
+  drills, and an open/close round trip leaks no state. **THE BUG THE SPEC CAUGHT:** `board-dag-view`'s SVG called
+  `setPointerCapture` on EVERY pointerdown, so the browser retargeted the resulting click to the capturing SVG —
+  a node's `onClick` never fired and CLICKING A CARD IN THE DEPENDENCY GRAPH DID NOTHING for a real user (only a
+  synthetic `dispatchEvent("click")` worked, which is what isolated it). FIX: capture is deferred to the first
+  pointermove past a 4px slop threshold, so a plain click reaches the node and panning is unchanged. Also
+  hardened two `kanban-board` reads (`response?.records ?? []`, `response?.counts ?? {}`) — both already had
+  rejection handlers, but a resolved-yet-malformed body threw INSIDE the success path, defeating the fail-soft
+  intent. Item complete; the spec folds into Phase-13 N14's UI journeys.
 - [x] **F2.23 — Complete reasoning capture and multi-agent reflection.** Persist reasoning-channel summaries safely,
   show them where useful, and let reviewers compare independent lenses without exposing hidden secrets/raw CoT.
   **SAFE-CAPTURE CORE SHIPPED 2026-07-14 (first a-leaf, `8f67745f`):** `src/core/reasoning-capture.ts`
@@ -2412,8 +2422,19 @@ hardware/user action. Promote a research item into an earlier concrete package o
   without them would convert a human-approved step into an automatic one on exactly the surface with the least
   evidence — the wrong trade at any speed. This is a decision to KEEP the safe default, not a deferral: re-open
   only when F4.20 + F12.31 + S7 + the S10 skill rows are all live, and then re-decide with data.
-- [ ] **D10.4 — Decide optional per-session remote `browse_url` overrides.** Preserve server/project egress policy as the
+- [x] **D10.4 — Decide optional per-session remote `browse_url` overrides.** Preserve server/project egress policy as the
   ceiling and define an understandable, non-sticky scope before implementation.
+  **VERDICT 2026-07-19: REJECTED — a non-sticky per-session WIDENING is exactly the wrong shape for egress.** Work
+  the two directions through: an override that can only NARROW the project policy is safe but pointless (nobody
+  reaches for a control that removes their own capability), while one that WIDENS punches a transient, invisible
+  hole in the single surface where auditability matters most. It would also make the trust posture UNRENDERABLE
+  honestly — F12.98/101/104 report egress classes as open/closed for the workspace, and "closed, except in one
+  live session for the next few minutes" is precisely the kind of asterisk that turns a verifiable claim into a
+  marketing one. The existing path is better on every axis that matters: an operator who needs `browse_url`
+  changes the PROJECT policy — visible, sticky until changed, auditable, and reflected in the posture table. The
+  friction there is a feature, not an oversight. RE-OPEN ONLY IF a workflow appears that genuinely cannot tolerate
+  a project-level policy change (none identified), and then only as an explicitly-logged, time-boxed grant that
+  the posture surface renders as OPEN for its lifetime.
 - [x] **D10.5 — Define measurable criteria for hand-polishing simulator sets 02–20.** If no objective domain-realism or
   coverage gain can be measured, drop the subjective task.
   **CRITERIA DEFINED 2026-07-19 — and they retire the subjective task.** Phase 13 supplies the objective measure
