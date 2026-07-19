@@ -64,14 +64,24 @@ export function createArchitectRunner(deps: ArchitectRunnerDeps): ArchitectRunne
 		}
 		const sandboxManager = deps.getAgentSandboxManager();
 		if (!sandboxManager) {
+			process.stderr.write(`[nklein] Architect phase ${input.taskId}: no sandbox manager — skipping.\n`);
 			return null;
 		}
 		const workerLaunch = deps.getLaunchConfig(input.taskId) ?? null;
 		if (!workerLaunch?.providerId || !workerLaunch.modelId) {
+			process.stderr.write(
+				`[nklein] Architect phase ${input.taskId}: launch config incomplete (provider=${workerLaunch?.providerId ?? "-"} model=${workerLaunch?.modelId ?? "-"}) — skipping.\n`,
+			);
 			return null;
 		}
+
+		// The aider architect pattern allows a DIFFERENT model per phase — NKLEIN_ARCHITECT_MODEL pins the
+		// architect (e.g. a fast reasoner) while the editor keeps the card's routed model. Unset ⇒ inherit.
+		const architectModelId = process.env.NKLEIN_ARCHITECT_MODEL?.trim() || workerLaunch.modelId;
+		process.stderr.write(`[nklein] Architect phase ${input.taskId}: starting ::architect on ${architectModelId}.\n`);
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...workerLaunch,
+			modelId: architectModelId,
 			workspaceRoot: input.projectRepoPath,
 		};
 		const architectTaskId = `${input.taskId}::architect`;
@@ -115,7 +125,12 @@ export function createArchitectRunner(deps: ArchitectRunnerDeps): ArchitectRunne
 					return brief as string | null;
 				},
 			)
-			.catch(() => null);
+			.catch((error) => {
+				process.stderr.write(
+					`[nklein] Architect phase ${input.taskId}: bracketed run failed (${error instanceof Error ? error.message : String(error)}).\n`,
+				);
+				return null;
+			});
 	}
 
 	return { runArchitectPhase };

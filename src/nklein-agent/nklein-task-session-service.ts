@@ -1318,6 +1318,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
 				onExplorerCitationsSubmitted: input.onExplorerCitationsSubmitted,
+				onArchitectBriefSubmitted: input.onArchitectBriefSubmitted,
 				// F11.2j (OPT-IN via NKLEIN_EXPLORER_SUBAGENT; default OFF = tool absent, byte-identical sessions):
 				// the worker-side `explore` delegation — one bounded read-only subagent query per call.
 				runExplorerQuery: isTruthyEnv(process.env.NKLEIN_EXPLORER_SUBAGENT)
@@ -1823,6 +1824,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					!isHomeAgentSessionId(request.taskId) &&
 					(request.filesLikelyTouched?.length ?? 0) > 0
 				) {
+					// Round-3 lesson: a swallowed failure here cost a whole A/B round — always say what happened.
 					const architectBrief = await this.architectRunner
 						.runArchitectPhase({
 							taskId: request.taskId,
@@ -1830,9 +1832,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							baseRef: this.sandboxState.getBaseRef(request.taskId) ?? "HEAD",
 							taskPrompt: runtimePrompt,
 						})
-						.catch(() => null);
+						.catch((error) => {
+							process.stderr.write(
+								`[nklein] Architect phase FAILED for ${request.taskId}: ${error instanceof Error ? error.message : String(error)} — worker starts solo.\n`,
+							);
+							return null;
+						});
 					if (architectBrief) {
+						process.stderr.write(
+							`[nklein] Architect phase for ${request.taskId}: brief received (${architectBrief.length}b) — worker starts as EDITOR.\n`,
+						);
 						workerStartPrompt = buildEditorPrompt({ taskPrompt: runtimePrompt, architectBrief });
+					} else {
+						process.stderr.write(
+							`[nklein] Architect phase for ${request.taskId}: no brief (session yielded null) — worker starts solo.\n`,
+						);
 					}
 				}
 				// auxiliary sessions already use this same gate.
