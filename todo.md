@@ -3093,6 +3093,27 @@ output and NOT acted on. Captured as F12.12.)
   degrades TOOL-CALL reliability before chat quality — keep Q4_K_M as the floor for tool-using roles; ≥32k context is
   required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
   so budget thinking adaptively per card difficulty. Fold into the model-role config + the H7.x inference-lever selection. (Cline local-models; promptquorum)
+  **⚠️ EVIDENCE AUDIT 2026-07-19 (same day as shipping — this item's stated PREMISE is NOT corroborated).**
+  Primary-source research found **no controlled public study of tool-calling accuracy vs quantization level** —
+  not on BFCL, not on any tool-use benchmark, and BFCL does not even carry a quantization axis. Worse for the
+  premise: every well-documented "quant breaks tool calls" report traced to a **template/parser bug, not bit
+  width** — llama.cpp #19382 reproduces malformed tool JSON at **Q8_0**, and #20164's failure vanished by making
+  an optional parameter required. The KLD cliff sits **BELOW Q4** (Q3_K_XL is ~3.5× worse than Q4_K_XL; sub-2-bit
+  collapses loudly into repetition loops, not quiet argument corruption). **So "Q3-and-below degrades TOOL-CALL
+  reliability before chat quality" is folklore we repeated.**
+  WHAT SURVIVES, and it is a better justification than the original: **instruction-following degrades ~3–5×
+  faster than knowledge under 4-bit** — Llama-2-13B IFEval **−4.05** vs MMLU **−1.19** (arXiv 2409.11055) — and
+  **structured/JSON output degrades more than free-form string output** (ACBench arXiv 2505.19433; corroborated
+  by arXiv 2502.12923, where 4-bit held generative fluency but lost structured action-call accuracy). Standard
+  benchmarks also systematically UNDERSTATE the damage: a 1.7% automatic-metric drop corresponded to a **16.0%**
+  human-rated drop (arXiv 2407.03211), and 5–9% of answers FLIP under <1.5% accuracy change (arXiv 2407.09141) —
+  a flip is symmetric noise on multiple-choice but **a wrong tool argument has no "flip back".**
+  **THE BIGGER MISS: context LENGTH dominates bit width.** 4-bit costs ~1% on standard benchmarks but **up to 59%
+  on >64K-token tasks** (arXiv 2505.20276), while 8-bit holds ~0.8%. That is a ~50× amplification, and it is a
+  far better-measured effect than anything tool-calling-specific. **ACTION: the floor stays (the direction is
+  defensible), but the justification must be corrected in the code docblock, and the REAL lever this research
+  points at is P18.1's capability-vs-allocation question, not the quant floor.** Filed as a P15.2 test case: this
+  is precisely the "shipped a mechanism on an unproven premise" pattern the charter §4 admits to.
   **SHIPPED 2026-07-19 — core `inference-lever-planning.ts` + BOTH levers wired record-only at the start seam.**
   QUANT FLOOR: `assessQuantizationFloor` reads the id via `parseModelAttributes` and compares against Q4_K_M — width
   FIRST, then k-quant tier, so a legacy `q4_0` at the same 4 bits is correctly flagged while `q4_k_xl` clears. An id
@@ -3710,6 +3731,21 @@ output and NOT acted on. Captured as F12.12.)
   single-stream (Qwen2.5-Coder-0.5B drafting a 7B, ~62% accept) but CUTS throughput 30–40% above ~8–16 concurrency and is
   bad for MoE. Enable it only when live concurrency==1 and the target isn't MoE — keyed off the concurrency signal !Klein
   already tracks. (ML-SpecQD 2503.13565; spheron speculative-guide)
+  **⚠️ CORRECTNESS FINDING 2026-07-19 — SPEC-DECODE IS NOT LOSSLESS ABOVE TEMPERATURE 0 IN THE ENGINES WE USE.**
+  Verified from SOURCE: both `llama.cpp` (`common/sampling.cpp`, `common_sampler_sample_and_accept_n`) and
+  `mlx-lm` (`speculative_generate_step`) accept a drafted token by **plain argmax/token EQUALITY**
+  (`if (draft[i] != id) break;`) — NOT the Leviathan/Chen rejection-sampling scheme the "speculative decoding is
+  mathematically lossless" proof describes. Consequence: **lossless at temperature 0 / top_k=1, and NOT
+  distribution-preserving above it** — acceptance-on-argmax-match systematically suppresses the tail, biasing
+  output toward higher-probability tokens. Neither tool documents this; llama.cpp's PR #10455 recommends
+  `top_k: 1` as a *performance* tip, which is also the condition under which the implementation is correct.
+  **THIS DIRECTLY AFFECTS WHAT WAS SHIPPED TODAY:** `buildInferenceLeverProfile` (F12.76) gates speculation on
+  batch-1 AND non-MoE, but has **no temperature input** — and the same function recommends the Qwen-coder
+  sampling profile at **temperature 0.6**. Enabling speculation alongside temp 0.6 would silently change the
+  sampling distribution. **REQUIRED FIX before any spec-decode wire: add temperature to the gate and refuse
+  speculation above ~0 unless the runtime is verified to implement true rejection sampling (vLLM does; llama.cpp
+  and mlx-lm do not).** Standard eval harnesses run greedy and are therefore structurally BLIND to this class of
+  bug — it would not show up in our own evals.
   **PREMISE CORRECTION 2026-07-19 (verified against `lms load --help`):** LM Studio DOES expose speculative
   decoding — `--speculative-draft-mtp`, `--speculative-draft-simple`, `--speculative-draft-model`,
   `--speculative-draft-{max,min}-tokens`, `--speculative-draft-min-continue-probability` — **but they are LOAD-TIME
@@ -3746,6 +3782,24 @@ output and NOT acted on. Captured as F12.12.)
 - [>] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
   (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
   the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)
+  **EVIDENCE CONFIRMED + FOLKLORE CORRECTED 2026-07-19 (primary source: llama.cpp PR #7412 comment tables,
+  JohannesGaessler).** This item's flag order is CORRECT and worth defending, because the widely-circulated blog
+  advice says the opposite. Measured, isolating one tensor at a time: **K is far more quantization-sensitive than
+  V, and the asymmetry GROWS as bits drop** — at q8_0 the K/V ΔPPL ratio is 1.10×, at q4_0 it is **8.67×**.
+  The decisive experiment is the equal-memory pair at 6.5 BPV: `q8_0 K / q4_0 V` → ΔPPL 0.024 / KLD 0.0051 vs
+  `q4_0 K / q8_0 V` → ΔPPL 0.188 / KLD 0.0328 — **same memory, ~7.7× worse when the bits are spent on V.**
+  So `--cache-type-k q8_0 --cache-type-v q4_0` (this item's text) is right; the popular
+  "drop K to q4 first, keep V at q8" advice is **folklore with no measurement behind it** and is the worse of the
+  two configurations by ~7×. MECHANISM: K errors pass through the softmax and can REORDER attention, while V
+  errors are linearly averaged and masked by sparse attention weights (KIVI, arXiv 2402.02750, independently).
+  **⚠️ OPERATIONAL CAVEAT: llama.cpp's fused FlashAttention kernels require MATCHING K and V types** — a
+  mismatched q8_0/q4_0 pair silently falls back to a slower non-fused path, on some backends to CPU
+  (discussion #23470). Quality-optimal is not speed-optimal; measure throughput before adopting.
+  **⚠️ AND THE HONEST GAP: nobody has publicly measured `--cache-type-k` against RULER/NIAH at long context.**
+  The entire llama.cpp evidence base is SHORT-CONTEXT perplexity. Separately, naive 2-bit KV is known to collapse
+  NIAH from ~97 to ~70 (arXiv 2606.24033) — retrieval degrades far more violently than perplexity suggests. Since
+  this item exists to hold the 32k floor, **the acceptance test must be a retrieval check at OUR context lengths,
+  not a perplexity number.**
   **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
   exposes NO cache/batch flags at all. The complete load-time lever set is: `--gpu --context-length --parallel
   --ttl --identifier --estimate-only` + the speculative-draft family. There is no `--cache-type-k/-v`, no
@@ -4448,6 +4502,376 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   F12.98-104 trust posture table must honestly show the cloud class OPEN while enabled (per-workspace opt-in,
   never a global default); (e) **nightly coverage** — cloud-class model profiles join the N3 matrix (mocked, so
   nightly stays hermetic + free). Materialization decides the rest — this entry is the vision anchor.
+
+### Phase 15 — PROVING the mechanisms (turn record-only observations into justified defaults)
+
+> **Why this phase exists.** External review (GPT-5.6 Sol, 2026-07-19) landed a hit that is accepted in the
+> [project charter](docs/project-charter.md) §4: *mechanisms have outrun proof.* Dozens of items ship as
+> "core + record-only wire, default OFF, awaiting live validation". Each was individually correct — observe
+> before enforce is the right discipline — but the aggregate is a library of unproven mechanisms rather than a
+> tuned system. Shipping a flag nobody ever flips is indistinguishable from not shipping it.
+>
+> David's direction (2026-07-19): the backlog still goes to zero; this is NOT a feature freeze. But "prove it or
+> default it" becomes SCHEDULED WORK with its own deliverables, not a comment at the end of each item. Much of
+> the guidance will come from David's own hands-on testing — Phase 15 exists so that testing has something
+> systematic to land against instead of being the only mechanism.
+
+- [ ] **P15.1 — Inventory every observe-only mechanism and its decision criteria.** Machine-readable registry of
+  every `record-only` / env-gated / default-OFF mechanism currently in the tree: what it observes, which
+  observation `category` it emits, what evidence would justify turning it ON, and what the default SHOULD become
+  under each outcome. This is the ledger Phase 15 works from; without it "prove the mechanisms" is unbounded.
+  Seed set (non-exhaustive, all shipped 2026-07-17..19): `quant_floor_breach` (F12.27), `language_floor_breach`
+  (F12.83), `adaptive_thinking_recommendation` (F12.27), `scaffold_profile_recommendation` (F12.14),
+  `review_effort_scaling` (F12.35), `verifier_ensemble` (F12.97), `mcp_tool_surface_drift` (F12.31),
+  capability-ceiling advisory (F12.105), `NKLEIN_TYPECHECK_FIRST` (F12.86), `NKLEIN_LEDGER_EXEMPLARS` (F12.81).
+  **Acceptance:** a `docs/dev/mechanism-registry.md` generated FROM the code (not hand-maintained — it will rot),
+  plus a dev CLI that lists mechanisms with zero observations recorded, which is the "shipped but never exercised"
+  smell.
+- [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
+  stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
+  ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with
+  too few observations reports INSUFFICIENT DATA, never a weak recommendation — that is the same
+  absence-of-evidence rule the cores already follow, applied to the meta-level.
+- [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** Flip defaults ONLY
+  where P15.2 produced a verdict. Each flip carries: the evidence, the expected behaviour delta, and a named
+  rollback. Mechanisms whose evidence says "this never fired / never disagreed" get DELETED, not defaulted —
+  removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the
+  review correctly flagged.
+- [ ] **P15.4 — Kill-list pass: remove abandoned cores.** Cores with no consumer and no path to one. The charter
+  is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
+  lesson and has no consumer has already delivered its value and should not also be maintained forever.
+- [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
+  setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
+
+### Phase 16 — Field Reports: user-commanded, fully transparent feedback generation (David 2026-07-19)
+
+> **The problem, stated honestly.** One maintainer cannot personally encounter enough situations to tune a system
+> this large. That is a structural limit, not a work-ethic problem — and it is the same limit that makes the
+> [charter](docs/project-charter.md) §5 "verification gap" hard: ensuring the RIGHT thing was built is much harder
+> than getting something built, and the evidence needed lives on other people's machines, other people's projects,
+> and other people's model fleets.
+>
+> **The solution shape.** !Klein already records everything needed — attempt ledger, self-observation stream,
+> routing decisions, failure capsules, board outcomes. A Field Report turns that into something a human would
+> actually send, written BY the user's own connected models, and shipped only if the user commands it.
+>
+> **David's non-negotiables (2026-07-19), in priority order:**
+> 1. **Never automatic, never hidden.** Explicit user action only. No background collection, no "anonymous
+>    telemetry" default, no opt-out buried in settings. User does nothing ⇒ nothing ever leaves the machine.
+> 2. **Fully reviewable before it exists, fully editable after** — at the granularity of individual findings.
+> 3. **Generated locally.** The user's own models write it; generating feedback must not create the cloud
+>    dependency this project exists to reduce.
+> 4. **Privacy by construction, not by promise.**
+> 5. **Transport is the user's choice, decided last.** A GitHub issue draft the user submits themselves is the
+>    first target precisely because it needs no infrastructure and is fully inspectable.
+
+- [ ] **P16.1 — Field-report content model (PURE core).** Three layers with independent consent:
+  **A — structural/behavioural (default ON):** what the harness DID — card counts, outcome distribution, model
+  CLASS and size band, which mechanisms fired, where cards stalled, retry/park/bounce rates, wall-clock, hardware
+  shape. No project content of any kind.
+  **B — redacted narrative (default OFF, per-item opt-in):** model-written prose describing a pattern, with
+  identifiers replaced by stable placeholders.
+  **C — verbatim excerpts (default OFF, explicit per-item):** actual prompt/diff/error text.
+  **Acceptance:** the layer of every field is declared in the type system, so a Layer-C field cannot be emitted
+  into a Layer-A report by construction rather than by review discipline.
+- [ ] **P16.2 — GROUNDED generation with per-claim provenance (the keystone; do not ship P16 without it).** Every
+  claim in a generated report carries a pointer to the source events that support it, and **any claim that cannot
+  be grounded in recorded events is DROPPED, not softened.** An LLM-written bug report that hallucinates is worse
+  than no report at all: it wastes the maintainer's time and poisons the evidence base that Phase 15 depends on.
+  This is the F12.91/grounding discipline applied to the feedback path. **Acceptance:** a report renders with an
+  inspectable claim→evidence map, and a deliberately-hallucinating fixture model produces a report with those
+  claims REMOVED and the removal counted.
+- [ ] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
+  summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
+  **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
+  payloads invisible in an approval UI but present in model context) applies directly: what the user approves must
+  be byte-identical to what is sent, with no rendering layer that can hide content.
+- [ ] **P16.4 — Redaction engine + adversarial self-test.** Path/identifier/secret scrubbing with stable
+  placeholders. **Acceptance is adversarial:** a test corpus seeds project names, absolute paths, API-key-shaped
+  strings, author names and private URLs into ledger fixtures, and the emitted Layer-A/B report must contain NONE
+  of them. Redaction that is only unit-tested on its own happy path is not redaction.
+- [ ] **P16.5 — The intervention signal (highest-value content).** The single most informative event is not a
+  crash — it is a card where the USER stepped in: overrode a routing decision, re-ran, rejected a review, or
+  hand-edited the result. Those are precisely the harness's blind spots, and precisely the charter §5
+  build-vs-intent gap made observable. Record interventions as first-class events and make them the report's
+  headline section. This also supplies the "operator interventions per resolved task" metric the external review
+  correctly named as a go/no-go measure.
+- [ ] **P16.6 — Local-model generation path + graceful degradation.** The report is written by whatever the user
+  has connected. **A weak local model must degrade to the STRUCTURED report (Layer A is pure aggregation and needs
+  no model at all), never to a hallucinated narrative.** Layer A must be generatable with zero models available.
+- [ ] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
+  and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
+  backend question is deferred until adoption makes it real, and deferring it costs nothing.
+- [ ] **P16.8 — Nightly coverage (Phase 13 recipe).** Field-report generation joins the N1 cells with aimock
+  fixtures, including the adversarial redaction corpus and the hallucination-drop fixture, so the privacy and
+  grounding invariants are regression-protected rather than reviewed once.
+
+### Phase 17 — Interoperability: the runtime-adapter boundary and ACP (research-backed 2026-07-19)
+
+> **Why this is now concrete.** Two findings converged today. (a) Three real performance levers (F12.72/73/74 —
+> KV-cache quantization, cache-reuse, prefill tuning) are **verified unreachable** through LM Studio, so the
+> runtime-adapter boundary is no longer an architectural nicety — it is what unblocks measured wins. (b) Protocol
+> research (below) shows exactly one interop protocol whose transport model MATCHES a local-only product.
+
+- [ ] **P17.1 — Runtime-adapter boundary (LM Studio becomes one adapter, not an assumption).** Extract the
+  provider/runtime seam so a second engine can be added. **This is the unblock for F12.72/73/74.** Candidate
+  second adapter: llama.cpp server (exposes every flag LM Studio hides) or Ollama. Guard rails: the existing
+  LM-Studio-specific knowledge (`/no_think` family handling, JIT behaviour, `loaded_instances` id shape, the
+  GBNF-ignored lesson, `@Nbit` vs `qN_k_m` id conventions) must move INTO the adapter, not stay threaded through
+  the core — the review's "over-specializing on LM Studio internals" point is correct and this is the fix.
+- [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
+  over **stdio** (the only stable transport — HTTP is a draft proposal, do not build against it),
+  `protocolVersion` is the bare integer `1`, capabilities omitted at `initialize` MUST be treated as unsupported,
+  and adding capabilities is explicitly non-breaking. Apache-2.0, `@agentclientprotocol/sdk` on npm.
+  **Minimum conformant agent = `initialize` + `session/new` + `session/prompt` + emit `session/update` + honour
+  `session/cancel`** — four handlers plus a stream adapter over the event stream !Klein already has.
+  **Why this one and not the others:** stdio subprocess transport means NO network, NO auth server, NO cloud —
+  the only protocol of the three that costs nothing philosophically for a local-only product. Payoff is !Klein
+  appearing inside Zed, JetBrains, Neovim and Emacs for one adapter's work, plus the ACP Registry.
+  **DESIGN DECISION to make:** ACP inverts filesystem/terminal ownership — the CLIENT is expected to own `fs/*`
+  and `terminal/*` so the editor can show diffs and gate permissions. !Klein's execution is Docker-isolated, so
+  we would DECLINE the `terminal` client capability and keep execution in our sandbox (conformant, since those
+  caps are optional) at the cost of live terminal output in the editor. `session/request_permission` maps
+  naturally onto the existing S3 confirm queue. Estimate 1–2 weeks done properly.
+- [ ] **P17.3 — MCP session-handshake seam (defensive; time-sensitive).** **The MCP `2026-07-28` revision is the
+  largest since launch and is explicitly BREAKING** — it removes the `initialize`/`initialized` handshake
+  (SEP-2575) and eliminates `Mcp-Session-Id` / protocol-level sessions entirely (SEP-2567), and restructures
+  server→client requests (SEP-2260/2322) away from the SSE model toward an `InputRequiredResult` + re-issue
+  pattern. **Build against the stable `2025-11-25` and keep handshake/session assumptions behind a seam** so the
+  migration is contained. A 12-month deprecation policy protects us; chasing the RC does not.
+- [-] **P17.4 — A2A (Agent2Agent): DECIDED AGAINST, with reasons recorded.** Researched 2026-07-19 and
+  **rejected** — this is a decision, not a deferral. A2A v1.0 is HTTP-native with no stdio binding; its push
+  notifications are **outbound HTTP POSTs to registered webhooks** (a direct egress channel, precisely what the
+  §10c egress fence exists to prevent); AgentCard discovery presumes reachable well-known URIs; signed cards
+  presume a PKI/domain-ownership trust root that is meaningless for localhost peers; and its entire value
+  proposition is CROSS-ORGANIZATIONAL coordination between opaque agents. For a fleet where every agent is ours
+  on our own machines, A2A buys a serialization format and a task state machine we already have, in exchange for
+  3–6 weeks and a network attack surface. **Revisit only if a user concretely needs !Klein to federate with a
+  third-party enterprise agent — and then implement the CLIENT half only.**
+- [ ] **P17.5 — Naming hazard note (§4A candidate).** "ACP" denotes THREE unrelated protocols: Zed/JetBrains'
+  **Agent Client Protocol** (the one we want), IBM/BeeAI's **Agent Communication Protocol** (DEAD — merged into
+  A2A under the Linux Foundation, Aug 2025), and OpenAI/Stripe's **Agentic Commerce Protocol** (unrelated). Most
+  "ACP vs MCP vs A2A" comparison articles online are about the IBM one and are OBSOLETE. Any future research on
+  this topic must disambiguate first or it will import stale conclusions.
+
+
+### Phase 18 — Evidence-driven context policy (research-backed 2026-07-19; the strongest validation of the thesis yet)
+
+> **Read this first — it reframes the whole project.** Primary-source research on effective-vs-advertised context
+> and multi-turn degradation produced a result that *directly validates* !Klein's core bet, and one that should
+> change how the 32k directive is read.
+>
+> **THE HEADLINE (arXiv 2505.06120, 200k+ simulated conversations, 15 models):** multi-turn conversations cost an
+> average **39% performance drop**, which decomposes into only **16% aptitude loss** but a **112% increase in
+> UNRELIABILITY** (the 10–90 interpercentile range more than doubles). **The drop is essentially
+> MODEL-INDEPENDENT** — Gemini 2.5 Pro −34.6, GPT-4.1 −36.6, Claude 3.7 Sonnet −35.9, Llama3.1-**8B** −36.6.
+> A 60-point capability spread produces a 2-point spread in multi-turn degradation.
+> **Interpretation for this project: scaling has NOT fixed multi-turn reliability, and a frontier model is not
+> meaningfully more robust to it than an 8B.** The failure is variance, not capability — models "make early
+> assumptions, commit prematurely, and do not recover". This is the strongest external evidence yet for the
+> charter's bet: the win comes from the HARNESS (small tasks, fresh context, recovery), not from a bigger model.
+> It also means throwing a frontier cloud model at the problem buys far less than intuition suggests.
+
+- [ ] **P18.1 — Re-read the 32k directive as CAPABILITY, not ALLOCATION (needs David's ruling on prime directive #3).**
+  Evidence: (a) **NoLiMa** (arXiv 2502.05167) — with lexical shortcuts removed, 128K-advertised models have
+  **effective lengths of 2K–8K** (GPT-4o 8K, Claude 3.5 Sonnet 4K, Llama 3.3 70B 2K, Gemini 1.5 Pro 2K); agent
+  traces are closer to the NoLiMa regime than the RULER regime because goal↔evidence lexical overlap is low and
+  distractors (superseded plans, failed calls) are everywhere. (b) **RULER** — of 17 models claiming 32K+, only
+  about half hold 32K; the 1M claims are worst (LWM 1M→&lt;4K, InternLM2.5 1M→4K). (c) **Qwen's OWN model card for
+  Qwen3-32B**: "32,768 natively and 131,072 with YaRN", and *"if the average context length does not exceed
+  32,768 tokens, we do not recommend enabling YaRN… as it may potentially degrade model performance."*
+  **So a statically-YaRN'd model pays a tax on EVERY short turn to buy headroom it rarely uses.**
+  **Proposal for David:** keep 32k as a REQUIRED CAPABILITY (a model that cannot reach it is unfit), but stop
+  treating it as a per-slot allocation — allocate task-sized context, which frees the KV memory that F12.75 just
+  proved is the binding constraint on Apple Silicon. **DAVID-DECIDES: this touches prime directive #3, so it is
+  not changed unilaterally.**
+- [ ] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
+  ratio in this phase).** "Lost in the Middle" (arXiv 2307.03172): with 20 documents, gold-doc-in-middle accuracy
+  is **57.2% vs a 56.1% CLOSED-BOOK baseline** — i.e. a document buried mid-context contributes **almost nothing**.
+  The same paper shows **query-aware contextualization** (repeating the query both before AND after the data)
+  restores near-perfect key-value retrieval. !Klein assembles prompts with the task up front; appending a
+  restatement after the payload is nearly free and is one of the few interventions with a measured fix attached.
+- [ ] **P18.3 — Prune distractors before compressing volume.** Chroma "Context Rot" (18 models): **even ONE
+  distractor degrades performance** vs. needle-only, non-uniformly per distractor; and LongMemEval focused
+  (~300-token) prompts beat full (~113k-token) prompts by a wide margin. **Implication: compaction that shortens
+  the transcript but leaves stale failed attempts in place may not help at all.** Relevance density beats token
+  count. Applies directly to the F5.2/compaction path.
+- [ ] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
+  commitment WITHOUT recovery. **Compacting a lost conversation preserves the wrong early commitment.** So the
+  right intervention for a stuck card is RESTART WITH CLEAN RESTATEMENT, not summarize-and-continue. Reconcile
+  this against the existing bounce/re-work/park ladder and the F12.92 drift-critic — !Klein's park/re-work
+  behaviour may already be closer to correct than compaction-first designs, and if so that should be stated and
+  defended rather than left implicit.
+- [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
+  an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
+  own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
+  Any threshold !Klein ships must be labelled an operational default and instrumented, not presented as measured.
+  Phase 13 nightly + the eval harness are where the real number gets produced for OUR workload.
+- [ ] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
+  models performed BETTER on shuffled haystacks than on logically coherent ones.** If coherent structure is a
+  liability for retrieval, then a well-written narrative summary — the standard compaction artifact, and what
+  !Klein produces — is not self-evidently the right format. Nobody has measured this. Cheap to A/B in the eval
+  harness (narrative summary vs. bullet-list of facts vs. shuffled fact list) and potentially a free win.
+
+### Phase 19 — Prompt-cache discipline (prefill is the hidden cost on consumer hardware)
+
+> **Why this matters more here than on a cloud harness.** Measured on Apple Silicon (llama.cpp discussion #4167):
+> prompt processing runs **~24–36× faster per token than generation**. Worked through: a **32k-token full-miss
+> prefill costs ~35 s on an M4 Max** (~106 s on an M1 Pro) — about the same wall-clock as generating ~1,100
+> tokens. In an agent loop whose turns emit a few hundred tokens, **a cache miss can cost several times more than
+> the turn's actual output.** And both vLLM (&lt;1% throughput cost at 0% hit rate) and SGLang (&lt;0.3% RadixAttention
+> overhead) independently measured that prefix caching is nearly free when it MISSES — so there is no measured
+> case for leaving it off, only for structuring prompts so it hits.
+
+- [ ] **P19.1 — Cache-hostile-prefix audit of the assembled prompt (F4.40 hardening).** llama.cpp reuse **"stops
+  reusing at the first unmatched token"** — a single varying byte near position 0 forfeits the entire downstream
+  context. Known killers to audit for and forbid at the head of the prompt: **timestamps/clocks**, session ids,
+  per-request counters, and anything else volatile. Documented real-world case: a Claude Code attribution header
+  that varied between requests sat at the prompt head and produced repeated *"forcing full prompt re-processing
+  due to lack of cache data"*; removing it restored cache hits. **If a clock is needed, it goes in the LAST user
+  message.** F4.40 already stabilizes the prefix — this is the lint that proves it stays stable.
+- [ ] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
+  **tools → system → messages**: a change to tool definitions invalidates **everything**. Therefore tool lists MUST
+  be deterministically sorted and their JSON schemas serialized with stable key ordering. A serializer that
+  iterates a hash map produces different bytes run-to-run and the tools block never caches — an invisible,
+  permanent tax. Also order tool RESULTS by call index, not completion time (parallel calls resolve
+  nondeterministically). *Note: the key-ordering and result-ordering points are high-confidence INFERENCE from
+  prefix semantics — no primary source names them — but they are free to implement and costly to get wrong.*
+- [ ] **P19.3 — Compact the TAIL only, never mid-prefix.** Rewriting turn 3 of 40 forfeits turns 3–40; rewriting
+  turns 30–40 forfeits only those. Prefer a rare full-miss at a natural boundary (amortized over 20+ later cached
+  turns) over frequent partial rewrites, which is the pathological case — repeated full prefill that never
+  amortizes. Pairs with P18.3 (prune distractors) and P18.4 (restart when lost).
+- [ ] **P19.4 — Verify prompt caching EMPIRICALLY per runtime build, not by flag.** llama.cpp issue #15082 is an
+  **unresolved regression** where `--cache-reuse` stopped caching prefixes (identical first ~1000 chars fully
+  reprocessed; bisected to a first-bad commit; an attempted fix did not resolve it). **Do not assume caching works
+  because the flag is set.** Verify via `prompt eval time = … / N tokens` in logs or `/slots` with
+  `LLAMA_SERVER_SLOTS_DEBUG=1`. Belongs with P17.1's second runtime adapter.
+- [ ] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
+  server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
+  **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion
+  thread). Also note `--cache-ram` defaults to **8192 MiB** — host-RAM prompt caching is ON out of the box. The
+  frequently-cited "use `--cache-reuse 256`" has **no primary-source basis**; the flag is a minimum chunk size and
+  the optimum is workload-dependent and publicly unmeasured.
+
+
+### Phase 20 — Evaluation INTEGRITY (research-backed 2026-07-19; do this BEFORE trusting any number we produce)
+
+> **The uncomfortable summary.** In the last five months **OpenAI retracted SWE-bench Verified** (2026-02-23:
+> 59.4% of audited problems had material test defects; all frontier models reproduced gold patches under
+> elicitation — *"improvements… no longer reflect meaningful improvements in real-world software development
+> abilities"*) **and then retracted its own recommended replacement, SWE-bench Pro** (2026-07-08: **~30% of tasks
+> broken**). Terminal-Bench repaired **28 of 89** tasks in 2.1, two of the three defect classes being
+> INFRASTRUCTURE, not task design. **Anything scraped from GitHub issue/PR pairs inherits an irreducible defect:
+> the issue text was written for human collaboration and the tests were written to validate ONE patch, not to
+> define an implementation-agnostic standard.** Plan accordingly — hand-authored tasks are a different quality
+> class, not a marginally better one.
+
+- [ ] **P20.1 — NULL-AGENT BASELINE against our own eval harness (do this FIRST; one afternoon).** Run an agent
+  that does NOTHING against `dev-test`/the eval harness. **If it scores above zero, our grader is forgeable and
+  every other number is meaningless.** BenchJack (arXiv 2605.12673) achieved ~100% on Terminal-Bench, SWE-bench
+  Verified, SWE-bench Pro and WebArena **without solving any task** — e.g. a 10-line `conftest.py` pytest hook
+  forcing all outcomes to "passed", and one validator that checked only *that the last message came from the
+  assistant* (so `{}` scored perfectly on all 890 tasks). Also run random-agent and state-tampering agents.
+  **This gates every other item in Phase 20 and every claim in Phase 13.**
+- [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
+  phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
+  and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking
+  measurement.** Measured: the gap grows **~27–28 pp per tenfold increase in code size**; under 10K LOC worst case
+  is 21 pp, above 25K LOC it reaches **100 pp**; one C-compiler agent scored **97% visible / 0% held-out** via
+  lookup-table memorization. Most common failure is not malice but **feature isolation — each handler passes its
+  own test while sharing no representation with the others; the parts pass and the whole does not exist.**
+  Contamination-proof by construction, needs no external benchmark, and directly measures charter §5's
+  build-vs-intent gap. **NOTE the LOC-scaling result lands exactly on fleet-aware decomposition's territory
+  (F12.110): the gap is worst on large multi-card builds, which is what we are optimizing.**
+- [ ] **P20.3 — NO-OP ABLATION in card acceptance (cheap, devastating).** Stub out the artifact the agent claims
+  to have built and re-run the tests. **If they still pass, the artifact is decorative.** "Building to the Test"
+  (arXiv 2606.28430) demonstrated production agents scoring **222/222 on a hidden oracle while the library they
+  were asked to build sat inert** — the demo reimplemented the tested behaviour inline. Two operational
+  conclusions: **(a) a PERFECT score with an in-loop oracle is evidence of gaming, not quality — it should
+  trigger suspicion, not celebration**; (b) the guardrail prompt telling the agent the oracle was "a development
+  aid, not the goal" did **essentially nothing** — prompt-level instructions not to game the oracle FAILED. This
+  composes with the existing F12.97 shortcut-behaviour monitor as its executable counterpart.
+- [ ] **P20.4 — Reuse the egress fence as the EVAL sandbox + strip `.git`.** Cursor audited 731 Opus 4.8 Max
+  trajectories: **57% found the merged PR or fixed source on the public web** and reproduced it near-verbatim;
+  **9% searched the bundled `.git` history for the future fix commit**. Sealing git history + restricting internet
+  moved scores **87.1% → 73.0%** (−14.1) and **74.7% → 54.0%** (−20.7). Notably an older model declined <1 point —
+  **reward hacking is markedly MORE common in newer models.** !Klein already built this primitive (§10c egress
+  proxy, closed); this item reuses it for evaluation and adds `.git` stripping with restore-at-scoring.
+- [ ] **P20.5 — Metric discipline: pass^1-with-CI as the headline, pass^4 for reliability; NEVER headline
+  pass@k.** `pass@k = E[1−(1−p)^k]` is monotonically INCREASING in k and therefore **rewards variance** — anything
+  that raises output diversity without raising competence (temperature bumps, more retries, more parallel samples)
+  inflates it for free. It is only meaningful given a sound independent selector; without one it is an
+  oracle-assisted upper bound, not achievable performance. For a harness graded by the same tests it iterates
+  against, pass@k is close to circular. τ-bench's pass^8 <25% vs pass^1 <50% is the shape that matters for a
+  multi-card board.
+- [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
+  Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
+  than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
+  89–225-task suite the honest MDE is **~10–18 pp**, and on a 100-task suite even infinite repeats floor the MDE
+  near **8.8 pp** — **repeats fix run noise; only more tasks fix task-sampling noise.** Protocol: fixed identical
+  task set → per-task paired deltas → clustered BCa bootstrap → sign-flip permutation → require CI>0 AND p<0.05.
+  **"Unresolved" as a first-class verdict is the difference between honest and motivated self-evaluation.**
+- [ ] **P20.7 — Control infrastructure noise (we are MORE exposed than a cloud lab, not less).** Anthropic
+  measured a **6 pp score gap (p<0.01)** between most- and least-resourced container configs with model, harness
+  and tasks held constant, and infra error rates of 5.8% / 2.1% / 0.5% across enforcement levels. **Their
+  skepticism threshold: leaderboard differences below 3 pp deserve doubt until eval configuration is documented
+  and matched.** Actions: specify container guarantee and kill-threshold SEPARATELY (equal values turn transient
+  spikes into spurious OOMs), calibrate ~3× headroom, publish infra-error rate alongside every score, and
+  **interleave A/B trials in ABBA order to difference out thermal throttling** — a confound the cloud literature
+  never faces and a laptop always does. Our advantage: serving strictly serially at batch 1 removes the dominant
+  nondeterminism source (batch-invariance — Qwen3-235B at temperature 0 produced **80 unique completions from
+  1000 identical requests** under load-varying batch size), but only if we also pin continuous batching,
+  speculative decoding, prefix-cache hits and quantization-kernel dispatch.
+- [ ] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
+  (3 models × 3 harness configs on SWE-bench Verified): **harness variance was 7.80× MODEL variance** (18.48 pp²
+  vs 2.37 pp²) and **model rankings REVERSED in 6 of 9 comparisons**; HAL reports up to **34 pp** cross-scaffold
+  spread for one model. Publish an ETCSOVG Harness Card (Execution, Tool, Context, Scheduling, Observability,
+  Verification, Governance) for every compared configuration. And run the trivial baselines first: "AI Agents That
+  Matter" (arXiv 2407.01502) found a plain retry-with-temperature-ramp baseline hitting **93.2% at $2.45** where
+  LATS got **88% at $134.50**. **Equalize retries before claiming a scaffold works — retries are the biggest
+  silent cheat.** Expect our harness/model variance ratio to be WORSE than 7.8× because small models sit near a
+  capability cliff that small scaffold changes push them across.
+- [ ] **P20.9 — Benchmark selection for a local fleet (most of the field is unusable for us).** Two filters
+  eliminate most candidates: **x86_64 Docker assumptions** (SWE-bench-family arm64 images are "best-effort,
+  untested") and **no small-model signal** (SWE-bench Pro: Qwen-3 32B scores **3.4%** — a benchmark where our
+  models score ~0% provides no gradient to optimize against). Recommended four: **Aider polyglot** (daily A/B
+  driver, two-attempt structure exercises our bounce/re-work path, ~8% for Qwen2.5-Coder-32B — low but rankable;
+  contamination-inflated so A/B only, never absolute claims); **Terminal-Bench 2.1** (hand-authored,
+  contamination-resistant, ~15% for smaller models); **LiveCodeBench date-sliced** (model-capability CONTROL — it
+  tells us whether a bad run was the model or our harness, which is worth more than a fourth agentic benchmark);
+  **SWE-bench-Live Lite** (quarterly reality check). Explicitly SKIP SWE-bench Pro — no gradient, and its task
+  data is **deliberately GPL-sourced as a legal deterrent against training inclusion**, so keep it away from
+  anything we redistribute.
+- [ ] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
+  disengagement data is the cautionary analogue — the DMV itself states it is not intended to compare companies,
+  because the operator chooses the denominator and defines the numerator with no severity weighting. Design ours
+  as a **severity taxonomy from day one**: `nudge` (typed guidance, no code) / `correction` (user edited output) /
+  `takeover` (user wrote the fix) / `abort`; human wall-clock logged BY THE HARNESS, not estimated;
+  **post-acceptance churn at 24h/7d** (fraction of agent-authored lines later deleted or rewritten); and
+  **autonomous streak length** (consecutive zero-intervention cards — a pass^k analogue for operator effort).
+  Feeds P16.5 directly.
+- [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
+  (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
+  ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
+  SIGN**. The plan of record is "David tests !Klein himself and that guidance tunes the defaults". That plan is
+  sound for finding BUGS and judging FEEL, and it is **structurally unreliable for judging whether !Klein makes
+  you faster.** This is not a criticism of the plan; it is the reason Phase 16's automated instrumentation and
+  P20.10's harness-logged timing are load-bearing rather than nice-to-have. **Whatever we conclude about speed
+  must come from instrumentation, not impression — including yours, and including mine.**
+- [ ] **P20.12 — Spec-conformance judging: prompt structure dominates model choice.** arXiv 2508.12358 (ASE'25):
+  LLM-as-judge for spec conformance fails in a SPECIFIC direction — **over-correction bias, flagging CORRECT code
+  as defective**. A three-step prompt collapsed GPT-4o from **52.4% → 11.0%** on HumanEval, and *more*
+  chain-of-thought made it WORSE. Two structures recovered it: "Behavioral Comparison" (→85.4%) and "Two-Phase
+  Reflective". Relevant to F12.95/the review lenses. Also CodeSpecBench (arXiv 2604.12268): generating executable
+  specs is much harder than generating code — best repo-level score **20.2%** — so **strong code performance
+  masks misalignment with intended semantics**, which is charter §5 stated as a measurement.
+- [ ] **P20.13 — Simulated users are unreliable proxies (bounds what Phase 13 can claim).** arXiv 2601.17087: on
+  τ-bench retail, agent success swings **~9 pp purely from which LLM plays the user**, with systematic
+  miscalibration and a fairness failure (**AAVE speakers see 11.2 pp lower success**, compounding to 19 pp for
+  speakers 55+). Implication for the aimock/nightly layer: **a simulated user validates MECHANISM, never
+  user-facing success rates.** State that limitation in the suite's own documentation so a future reader does not
+  over-read a green nightly run.
+
 
 ## 6. Legacy section alias map
 

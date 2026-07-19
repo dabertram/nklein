@@ -228,6 +228,7 @@ describe("buildInferenceLeverProfile", () => {
 		expectedOutputTokens: 400,
 		liveConcurrency: 1,
 		isMoe: false,
+		temperature: 0,
 		vramHeadroom: "ample" as const,
 		supportsThinking: true,
 	};
@@ -245,6 +246,27 @@ describe("buildInferenceLeverProfile", () => {
 	it("applies the Qwen-coder sampling profile only to that family", () => {
 		expect(buildInferenceLeverProfile(base).sampling).toEqual({ temperature: 0.6, topP: 0.95, topK: 20 });
 		expect(buildInferenceLeverProfile({ ...base, modelId: "mistral-7b-q4_k_m" }).sampling).toBeNull();
+	});
+
+	it("REFUSES speculation above temperature 0 on an argmax-acceptance engine", () => {
+		// llama.cpp / mlx-lm accept drafts on argmax equality — lossless at temp 0, distribution-changing above
+		// it. The Qwen-coder sampling profile this same function recommends runs at 0.6, so this is the live case.
+		const warm = buildInferenceLeverProfile({ ...base, temperature: 0.6 });
+		expect(warm.speculativeDecoding).toBe(false);
+		expect(warm.speculativeDecodingReason).toContain("argmax equality");
+	});
+
+	it("allows speculation above temperature 0 ONLY on an engine with true rejection sampling", () => {
+		const vllmLike = buildInferenceLeverProfile({
+			...base,
+			temperature: 0.6,
+			engineRejectionSampling: true,
+		});
+		expect(vllmLike.speculativeDecoding).toBe(true);
+	});
+
+	it("treats an UNKNOWN temperature as unsafe rather than assuming greedy", () => {
+		expect(buildInferenceLeverProfile({ ...base, temperature: null }).speculativeDecoding).toBe(false);
 	});
 
 	it("enables speculation only at batch-1 on a non-MoE target", () => {

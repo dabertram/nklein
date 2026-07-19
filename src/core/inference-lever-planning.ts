@@ -4,8 +4,14 @@
  * Two findings, one module, because both are levers pulled at the same moment — when a card is about to be handed
  * to a model:
  *
- *  1. QUANT FLOOR. Aggressive quantization degrades TOOL-CALL reliability well before it degrades chat quality: a
- *     Q3 model still writes plausible prose while emitting malformed arguments and hallucinated tool names. The
+ *  1. QUANT FLOOR. Aggressive quantization degrades STRUCTURED output faster than free-form prose.
+ *     ⚠️ EVIDENCE NOTE (audited 2026-07-19, after this module shipped): the original justification — "Q3 breaks
+ *     tool calls specifically" — is NOT supported by any controlled study, and tracked llama.cpp tool-call
+ *     failures reproduce at Q8_0 (template/parser bugs, not bit width). What IS measured: instruction-following
+ *     degrades ~3-5x faster than knowledge under 4-bit (IFEval -4.05 vs MMLU -1.19, arXiv 2409.11055), and
+ *     JSON/structured output degrades more than string output (ACBench, arXiv 2505.19433). That is a weaker but
+ *     honest basis for a floor. Note also that context LENGTH is a far larger risk factor than bit width
+ *     (4-bit: ~1% on standard benchmarks vs up to 59% beyond 64K tokens, arXiv 2505.20276). The
  *     practical floor for a tool-using role is Q4_K_M — 4 bits AND a k-quant of at least medium tier. A legacy
  *     `q4_0` at the same bit width is NOT equivalent and is flagged.
  *     Note for !Klein specifically: architect, worker and reviewer are ALL tool-driven (the harness has no
@@ -341,6 +347,18 @@ export interface InferenceLeverInput {
 	readonly liveConcurrency: number;
 	/** True when the target model is a mixture-of-experts — speculation is bad for MoE. */
 	readonly isMoe: boolean;
+	/**
+	 * Sampling temperature this turn. **Load-bearing for correctness, not performance.** See
+	 * {@link buildInferenceLeverProfile} — speculation above temperature 0 silently changes the output
+	 * distribution on the engines we actually run.
+	 */
+	readonly temperature?: number | null;
+	/**
+	 * True ONLY when the serving engine is verified to implement true Leviathan/Chen rejection sampling (vLLM
+	 * does). `llama.cpp` and `mlx-lm` do NOT — they accept on argmax equality — so this stays false for them,
+	 * which is the safe default.
+	 */
+	readonly engineRejectionSampling?: boolean;
 	readonly vramHeadroom: "ample" | "tight" | "unknown";
 	/** Whether the model exposes a reasoning channel; false disables that lever. */
 	readonly supportsThinking: boolean;
@@ -395,12 +413,26 @@ export function buildInferenceLeverProfile(input: InferenceLeverInput): Inferenc
 			: null;
 
 	const concurrency = Number.isFinite(input.liveConcurrency) ? input.liveConcurrency : Number.POSITIVE_INFINITY;
-	const speculativeDecoding = concurrency === 1 && !input.isMoe;
-	const speculativeDecodingReason = input.isMoe
-		? "speculation disabled — draft-model speculation is bad for MoE targets"
-		: concurrency === 1
-			? "speculation enabled — batch-1 single-stream is where the ~2–2.6× actually lands"
-			: `speculation disabled — live concurrency ${Number.isFinite(concurrency) ? concurrency : "unknown"} is above batch-1, where speculation CUTS throughput 30–40%`;
+	// CORRECTNESS GATE (must come first — this is not a performance question).
+	// Verified from source: llama.cpp (`common_sampler_sample_and_accept_n`) and mlx-lm
+	// (`speculative_generate_step`) accept a drafted token on plain argmax EQUALITY, not the Leviathan/Chen
+	// rejection-sampling scheme the "speculative decoding is lossless" proof describes. That is exactly lossless
+	// at temperature 0 and NOT distribution-preserving above it: accepting only on argmax match suppresses the
+	// tail and biases output toward high-probability tokens. Neither engine documents this, and greedy-running
+	// eval harnesses are structurally blind to it — so a wrong default here would never show up in our own evals.
+	// An UNKNOWN temperature is treated as non-zero: the safe assumption is the one that declines a silent
+	// distribution change.
+	const temperature = input.temperature ?? null;
+	const greedy = temperature !== null && temperature <= 0;
+	const samplingSafe = input.engineRejectionSampling === true || greedy;
+	const speculativeDecoding = samplingSafe && concurrency === 1 && !input.isMoe;
+	const speculativeDecodingReason = !samplingSafe
+		? `speculation disabled — this engine accepts drafts on argmax equality, which is only lossless at temperature 0 (this turn: ${temperature === null ? "temperature unknown" : temperature}). Enabling it here would silently narrow the output distribution.`
+		: input.isMoe
+			? "speculation disabled — draft-model speculation is bad for MoE targets (parallel verification activates a larger expert union and pulls proportionally more weight memory)"
+			: concurrency === 1
+				? "speculation enabled — greedy sampling on a batch-1 single stream is exactly where it is both correct and fast"
+				: `speculation disabled — live concurrency ${Number.isFinite(concurrency) ? concurrency : "unknown"} is above batch-1, where speculation CUTS throughput`;
 
 	const reasons = [
 		backend === null
