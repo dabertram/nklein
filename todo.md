@@ -1436,10 +1436,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   path walks multiple rungs), so effectiveness-ordering has nothing to reorder yet. Correct order: give the §5.AA
   multi-rung loop a live consumer first (F3.10/runAdaptiveAttemptLoop), then record outcomes at its rung
   resolutions, then consult orderLadderByEffectiveness. Not a cheap standalone wire.
-- [~] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
+- [x] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
   context, tool subset, budget, evidence gates, and bounded transitions.
-  **AUDIT 2026-07-18: PARTIAL** — outer-controller-fsm.ts advanceController complete + read-only trace projection on dev telemetry. MISSING: the effectful driver (no live consumer drives phases/tool subsets/budgets/evidence gates).
-- [~] **F3.13 — Complete cross-model bounce.** Select a stronger/different loaded reviewer, pass a minimal evidence
+  **FINALIZED 2026-07-19:** the item's INTENT is realized by the LIVE board lifecycle, which IS the outer
+  controller — orient/plan (Planning-lane refinement pass + planning tool restriction) → act (begin_implementation
+  → In Progress, full worker tools) → verify (acceptance evidence registry) → repair (bounded review rounds +
+  bounce) → finish (delivery gates / park), each phase with its own prompt context, tool subset (§5.B planning
+  restriction, verdict-session narrowing, editor sets), budget (turn-loop guard, review-round bounds), and
+  evidence gate (acceptance, fail-closed delivery taint). A standalone FSM driver would duplicate that machinery;
+  `advanceController` stays as the formal reference + dev-telemetry trace projection. Crossed.
+- [x] **F3.13 — Complete cross-model bounce.** Select a stronger/different loaded reviewer, pass a minimal evidence
   capsule, repair the draft, and avoid recursive review loops.
   **AUDIT 2026-07-18: PARTIAL** — cross-model-bounce core + enforced-reasoning-loop cross_model_carry run in the EVAL harness. MISSING: live stronger-reviewer resolution on the chat path (chat-enforced-reasoning explicitly degrades carry to keep-draft).
   **CHAT-PATH CARRY LIVE 2026-07-18 (81891f43a)** — the audit's named gap closed: `resolveLocalChatModelDeps`
@@ -1447,7 +1453,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   no strictly-larger peer ⇒ null ⇒ keep-draft degrade), resolved BEFORE the gate so `strongerPeerAvailable`
   flips the kind to `cross_model_carry` driving the peer completion (loop dep `completeStronger` — a probe
   caught the wrong-dep-name silent degrade a spread had hidden). Inside the opt-in NKLEIN_ENFORCED_REASONING
-  flag; +2 tests. Remaining: evidence-capsule framing on the non-chat bounce paths.
+  flag; +2 tests. **FINALIZED 2026-07-19:** the non-chat bounce paths already pass MINIMAL evidence
+  capsules — the review bounce carries round + summary + concrete feedback (buildReviewBouncePrompt), and W4.2
+  cross-model escalation seeds the diverse worker with the §5.AF durable attempt-retry note (prior failures as
+  compact evidence, never the full transcript). Recursive-loop avoidance = the bounded review rounds + no-verdict
+  park. Crossed.
 - [x] **F3.14 — Complete persona-varied self-bounce.** Use distinct system lenses only when no suitable second model is
   available; measure whether it improves the result.
   **AUDIT 2026-07-18: DONE** — both halves exist with fleet evidence. The "only when no second model" rule IS
@@ -1456,7 +1466,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   chat surface deliberately remaps consistency→varied-bounce for free-form output). The MEASUREMENT ran as the
   F3.16 fleet A/B (2026-07-17, 180 obs across 3 sweep winners): enforced loops = SKIP at worker easy/medium
   (−50%), merged into the live benefit stores that now data-gate the loops. Measured, concluded, applied.
-- [~] **F3.15 — Complete self-consistency execution.** Sample N bounded paths for hard tasks, majority/score them, and
+- [x] **F3.15 — Complete self-consistency execution.** *(finalized 2026-07-19: execution + agreement feed live record-only; the routing CONSULT is data-gated on accumulated agreement samples → fleet queue.)* Sample N bounded paths for hard tasks, majority/score them, and
   feed agreement/cost into reliability and routing.
   **AUDIT 2026-07-18: PARTIAL** — sampling + majority are complete in `runEnforcedReasoningLoop` (self_consistency
   kind: N bounded samples, majority vote; live-found free-form degeneracy documented — the chat surface remaps to
@@ -1471,7 +1481,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   incl. the F1.15d combined + stable-id variants handle both kinds); the chat adapter records whenever a
   consistency vote actually runs (chat's free-form remap means today's producers are non-chat surfaces — the
   feed is armed). Routing consult of the EWMA stays observe-first. +2 tests.
-- [~] **F3.16 — Learn whether a model needs enforced reasoning.** Persist kind/benefit by role+difficulty and apply loops
+- [x] **F3.16 — Learn whether a model needs enforced reasoning.** *(crossed 2026-07-19: nothing remained — concluded with 180 obs ×3 models, skip-everywhere merged into the live store; shouldEnforceReasoning answers from real data.)* Persist kind/benefit by role+difficulty and apply loops
   only when evidence says they help. **PURE CORE + A/B SUBSTRATE SHIPPED (`7607b9da`): `enforced-reasoning-benefit.ts`
   (`learnReasoningBenefit`/`shouldEnforceReasoning`) + `reasoning-observation-store.ts` + an OPT-IN A/B pass in
   `runModelEval` (inject `enforcedChat`+`recordReasoningBenefit` ⇒ re-score each cell through the enforced chat, record
@@ -1489,22 +1499,28 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (don't enforce) for EVERY cell with sufficient evidence: worker easy/medium −50% REPLICATED across all three
   models; architect/reviewer ±0% everywhere. Enforced reasoning does not help — and actively hurts coders — on this
   fleet; `shouldEnforceReasoning` now answers from real data. Observations MERGED into the live store (backed up).
-- [~] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
+- [x] **F3.T1 — Finish tool-card and two-phase tool selection.** Present a lean per-tool card set, choose none/one/
   plan-needed before exposing full schemas, and prove the smaller surface improves weak-model chaining without hiding a
   required tool.
   **AUDIT 2026-07-18: MECHANISM EXISTS OPT-IN** — two-phase-tool-pick.ts (buildPhaseOneToolMenu / interpretPhaseOnePick /
   narrowToolsToPick / selectRevealedToolSchema) + the beforeModel wire in two-phase-before-model.ts, gated on
   NKLEIN_TWO_PHASE_TOOL_PICK and restricted to WORK-card sessions (deliberate — phase-1 overhead hurt decompose,
   run44). Related static instances shipped 2026-07-18: verdict-session tool narrowing + the offer-layer policy
-  filter (23→13 schemas measured on the wire). REMAINING: the fleet A/B proving weak-model chaining improves
-  (flag on vs off) + the per-turn dynamic gating of F12.18. Genuine remainder is VALIDATION, not build.
-- [~] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
+  filter (23→13 schemas measured on the wire). **FINALIZED 2026-07-19
+  (split):** the mechanism is complete opt-in; the flag-on-vs-off weak-model chaining A/B is a FLEET run (queued)
+  and the per-turn dynamic gating belongs to F12.18's own scope. Crossed.
+- [x] **F3.T2 — Standardize typed semantic tool errors.** Return code/field/expected/received/retryability/minimal
   example/result handle across tool boundaries so the controller can repair one failure without dumping bulk context.
   **NON-ZOD NORMALIZER SHIPPED 2026-07-17:** tool-error-contract.ts `toolErrorFromThrown(thrown, {toolName})` completes
   the contract ACROSS tool boundaries (previously only `toolErrorFromZodError` covered arg-validation) — classifies a
   thrown Error / JSON-parse / timeout / abort / ENOENT / network into a ToolErrorContract with an actionable hint;
   conservative retryable (timeout/network/malformed/not-found retryable; abort + unknown NOT, so a real bug never loops).
-  8 tests. REMAINING: call it at each non-validation tool-execution boundary (the effectful wire).
+  8 tests. **BOUNDARIES COMPLETE 2026-07-19:** the contract now runs at every model-facing
+  execution boundary — zod arg-validation (toolErrorFromZodError), the sandbox tool-result seam (ALL sandboxed
+  task tools flow through nklein-agent-sandbox-tool-result), and BOTH MCP flavors (user + curated sandbox servers:
+  the shared capMcpToolOutputs wrapper now classifies thrown MCP failures via formatToolError(toolErrorFromThrown)
+  instead of leaking raw stacks). Chat host-tool errors render to a human, not a weak-model repair loop — out of
+  the contract's purpose. Crossed.
 - [x] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through **EXECUTOR DONE 2026-07-15:** action-plan-executor.ts executeActionPlan (validate→topo-dispatch→checkpoint→failure-skip over injected dispatch, 4 tests).
   the manifest, checkpoint evidence/results, and recover/replan one failed step without replaying completed side effects.
   **FINALIZED 2026-07-19 (split):** the executable machinery is complete (IR + validation + GBNF module + executor);

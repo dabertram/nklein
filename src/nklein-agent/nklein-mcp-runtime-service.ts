@@ -18,6 +18,7 @@ import {
 	type SandboxMcpServerDef,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
+import { formatToolError, toolErrorFromThrown } from "../core/tool-error-contract";
 import { capToolResult } from "../core/tool-output-cap";
 import {
 	buildMcpOauthCallbackUrl,
@@ -768,11 +769,20 @@ export function createNKleinMcpRuntimeService(
 			// F12.65: MCP results are the ONE tool surface with no built-in cap (SDK read/search/command all
 			// middle-truncate) — one oversized server response can blow a small model's whole window (codebase-memory
 			// has OOM'd a session before). Wrap every MCP tool's execute with the middle-truncation cap.
+			// F3.T2: a THROWN MCP failure previously surfaced as a raw stack string — classify it through the same
+			// typed contract every sandbox tool failure uses, so the model gets code/hint/retryability, not a dump.
 			const capMcpToolOutputs = (serverTools: SdkMcpTool[]): SdkMcpTool[] =>
 				serverTools.map((tool) => ({
 					...tool,
-					execute: async (input: unknown, context: unknown) =>
-						capToolResult(await tool.execute(input, context as never)).value,
+					execute: async (input: unknown, context: unknown) => {
+						try {
+							return capToolResult(await tool.execute(input, context as never)).value;
+						} catch (error) {
+							throw new Error(formatToolError(toolErrorFromThrown(error, { toolName: tool.name })), {
+								cause: error,
+							});
+						}
+					},
 				}));
 
 			for (const server of loadedSettings.servers) {
