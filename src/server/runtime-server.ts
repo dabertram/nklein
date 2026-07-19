@@ -33,6 +33,7 @@ import type {
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks } from "../core/card-pause";
@@ -160,7 +161,7 @@ import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../securi
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { recordMergeHistory } from "../state/merge-history-store";
-import { appendModelEvalRuns } from "../state/model-eval-run-store";
+import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
 import {
 	defaultRuntimeIdModelKeyMapPath,
@@ -3789,12 +3790,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				modeRaw === "pinned" || modeRaw === "rotation" || modeRaw === "random" || modeRaw === "evidence"
 					? modeRaw
 					: "evidence";
+			// F1.32b evidence feed: fold the persisted eval-run log into per-model coverage need so EVIDENCE
+			// mode ranks by real gaps (missing store ⇒ empty map ⇒ zero-need tie, prior behavior). LOADED models
+			// are 32k-floor compliant by the loader invariant — capable:true is justified, not fail-open.
+			const evidenceByModel = buildBackgroundEvalEvidenceByModel(await readAllModelEvalRuns().catch(() => []), {
+				now: Date.now(),
+			});
 			const selection = selectBackgroundEvalTarget({
 				mode,
 				projects: scenarioIds.map((projectId) => ({ projectId })),
 				models: loadedIds
 					.filter((id) => !/embed/i.test(id))
-					.map((modelId) => ({ modelId, capable: true, fitsResources: true })),
+					.map((modelId) => ({
+						modelId,
+						capable: true,
+						fitsResources: true,
+						...(evidenceByModel.has(modelId) ? { evidence: evidenceByModel.get(modelId) } : {}),
+					})),
 				recentRuns: await readRailRunHistory().catch(() => []),
 				recentCoverageWindowMs: 6 * 60 * 60_000,
 				now: Date.now(),

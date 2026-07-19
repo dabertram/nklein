@@ -887,7 +887,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the risky structured-equality + reset logic; the header wiring is typecheck-verified and identical to the 9
   Playwright-tested tabs). **F1.29b nav-adoption COMPLETE across all 10 tabs.** REMAINING (optional, lower value):
   per-section *Save* (vs the current per-section Reset + whole-dialog Save) via the settings-save path.
-- [~] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13; WIRED 2026-07-15, `c486152e`).**
+- [x] **F1.31b — Wire the background-eval SERVICE into the runtime with real deps (driver SHIPPED 2026-07-13; WIRED 2026-07-15, `c486152e`).**
   `src/server/background-eval-service.ts` is the production driver over the §5.AI runner core: startup recovery
   before the first tick, serialized interval ticks (skip-over, never overlap), reap-triggered + shutdown
   throwaway-project cleanup with COLLECTED errors (a stuck sandbox can't wedge shutdown), checkpoint emptied on
@@ -915,11 +915,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   hookup (built before createRuntimeApi so the coordinator injects; real atoms use the STANDALONE `service.startTaskSession`
   -- NO board seed needed, a key simplification; start-at-boot iff intent active; stop on close before task-session
   teardown; global idle signals aggregate running worker sessions across workspaces, excluding derived/home/devtest ids).
-  18 unit tests; runtime boots clean with the flag OFF (byte-identical). **REMAINING = FLEET VALIDATION ONLY:** enable
-  `NKLEIN_EVAL_RAIL`, toggle the rail on in Model Performance, confirm it admits when idle / yields on real cards /
-  survives a restart mid-run / leaves zero throwaway workspaces. Follow-ups: F1.32 fitness-aware scenario+model picker
-  (round-robin now); the live tick interval is a 5-min const until the service reads the persisted cadence tunable.
-- [~] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
+  18 unit tests; runtime boots clean with the flag OFF (byte-identical). **FINALIZED 2026-07-19 (split):** code-complete
+  (deps assembled, coordinator bound, F1.32b picker + evidence feed now live in selectTarget); the remaining live
+  drill — enable `NKLEIN_EVAL_RAIL`, admit-when-idle / yield-on-real-card / restart-survival / zero-leftovers —
+  is FLEET VALIDATION, queued on the fleet-run list. The 5-min tick const → cadence tunable rides the same
+  Settings pass as F1.32b's mode/pins (DAVID BATCH).
+- [x] **F1.32b — Wire the rail target picker into F1.31b's deps (policy SHIPPED 2026-07-13).**
   `src/core/background-eval-selection.ts` (`selectBackgroundEvalTarget`) is the pure picker: pinned
   (exact-or-nothing, never substitutes) / evidence (top coverage-probe priority via
   `deriveBackgroundEvalModelEvidence` over `planEvalCoverage`, then per-model project LRU) / rotation (pair-level
@@ -935,10 +936,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   run history persisted per dispatch (`rail-run-history-store.ts` JSONL beside the lease checkpoint, corrupt-line
   tolerant, 500-row read cap) feeding the 6h recent-coverage window, projects from NKLEIN_EVAL_RAIL_SCENARIOS
   (default mid_task), mode + pins via NKLEIN_EVAL_RAIL_MODE/_PIN_PROJECT/_PIN_MODEL (evidence default). LOADED
-  non-embedding models only (resident ⇒ fitsResources; capable fails open). +3 tests. REMAINING (named):
-  capability = the 32k-floor/model-gate verdict feed + `planEvalCoverage` evidence (needs the fitness-row →
-  MeasuredEvalCell mapping — planEvalCoverage has no live caller yet), catalog/unloadable candidates, and the
-  config/Settings exposure of mode + pins (env-only today).
+  non-embedding models only (resident ⇒ fitsResources; capable fails open). +3 tests. **EVIDENCE FEED LIVE 2026-07-19 (completes the autonomous scope):**
+  `background-eval-evidence-feed.ts` buildBackgroundEvalEvidenceByModel — persisted eval-run log →
+  aggregateModelEvalRuns → per-tier MeasuredEvalCells (measuredAt 0 = conservatively stale) → planEvalCoverage
+  (its FIRST live caller) → per-model evidence threaded into the selectTarget candidates; missing store ⇒ empty
+  map ⇒ prior zero-need ties. Capability for LOADED models is justified by the loader's own 32k-floor invariant
+  (not fail-open). 2 tests. SPLIT: catalog/unloadable candidates ride the autonomous-loader integration (fleet
+  queue); config/Settings exposure of mode + pins = product surface → DAVID BATCH (env levers live today).
 - [x] **F1.33b — Mount the rail-findings analysis (cores SHIPPED 2026-07-13).** `src/core/rail-findings.ts` does
   the full F1.33 brain: `classifyRailFindings` (regression [high when newly-broken] / flake [mixed outcomes,
   stable trend] / quality_gap [delivers ≥floor with anomaly runs] / idea [start-failure-dominated → harness
