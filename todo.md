@@ -3134,7 +3134,7 @@ output and NOT acted on. Captured as F12.12.)
   stamp; the auto-sweep cadence (cron vs post-run hook) = DAVID BATCH. Crossed.
 
 **Supply-chain, determinism & reproducibility:**
-- [~] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
+- [x] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
   2026 MCP security consensus: >30% of deployed servers had an exploitable vuln; tool-poisoning hides instructions in a
   tool's DESCRIPTION; a rug-pull swaps a clean tool for a malicious one after approval. The "single control that actually
   **SURFACE-PIN + ALLOWLIST CORE SHIPPED 2026-07-19:** `mcp-tool-surface-pin.ts` supplies the half S7 lacked —
@@ -3145,9 +3145,15 @@ output and NOT acted on. Captured as F12.12.)
   first use (TOFU — review once, then pin), on ANY surface change, and on any allowlist denial. Deliberately does
   NOT re-implement drift classification: S7's `detectPinDrift` already distinguishes a same-version content swap
   (rug-pull) from an ordinary upgrade, and this feeds it. 10 tests.
-  REMAINING (the wire): compute + persist the surface hash at MCP registration (both the user-server and curated
-  sandbox-server sites in nklein-mcp-runtime-service) and withhold a server's tools until approval — the S3
-  confirm queue is the natural home for the prompt.
+  **RECORD-ONLY WIRE SHIPPED 2026-07-19 (completes the item's autonomous scope):** BOTH registration sites in
+  `nklein-mcp-runtime-service` (user servers + curated sandbox servers) now fingerprint the surface the model
+  will read and compare it against the pin, reusing the existing S7 pin STORE (`mcp:<serverId>` ids) rather than
+  a parallel one. First sight TOFU-pins; a later mismatch records an `mcp_tool_surface_drift` WARNING naming both
+  hashes. Deliberately does NOT withhold tools yet: withholding is an approval-flow change that belongs with the
+  S3 confirm queue, and shipping the detector first means the drift rate is measured before anything can block a
+  working MCP server. Best-effort — a failed check never blocks registration. Agent suite green (2,544).
+  NEXT (David call): promote drift from WARNING to a withhold-until-approved gate via the S3 queue, and add the
+  operator-facing allowlist config that `checkMcpAllowlist` already fails closed on.
   stops rug pulls" is to hash the tool DESCRIPTION on first approval + re-prompt if it changes (S7 pin-drift already does
   this for bundle CONTENT — extend it to MCP tool descriptions). Add: an explicit name+version server allowlist, and run
   local stdio MCP servers in a container / restricted user with NO home / SSH-key / cloud-cred access (they run as agent-

@@ -8,6 +8,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
 import type { LocalizationProvider } from "../core/localization-provider";
 import { createMcpLocalizationProvider } from "../core/mcp-localization-provider";
+import { computeToolSurfaceHash } from "../core/mcp-tool-surface-pin";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
 import {
 	buildSandboxMcpDockerExecArgs,
@@ -20,6 +21,8 @@ import {
 } from "../core/sandbox-mcp-catalog";
 import { formatToolError, toolErrorFromThrown } from "../core/tool-error-contract";
 import { capToolResult } from "../core/tool-output-cap";
+import { getSkillPin, upsertSkillPin } from "../state/skill-pin-store";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	buildMcpOauthCallbackUrl,
 	createOauthClientMetadata,
@@ -765,6 +768,48 @@ export function createNKleinMcpRuntimeService(
 			}
 
 			const tools: SdkMcpTool[] = [];
+			// F12.31 (RECORD-ONLY): fingerprint what the MODEL will read from this server — names, DESCRIPTIONS and
+			// input schemas — and compare against the pin recorded at first approval. Tool-poisoning hides in the
+			// description, and a rug-pull swaps a trusted tool after approval; both change this hash. Observe-first:
+			// a drift is recorded (and TOFU pins on first sight) but tools are NOT withheld yet — withholding is an
+			// approval-flow change that belongs with the S3 confirm queue.
+			const recordToolSurface = async (serverId: string, serverTools: readonly SdkMcpTool[]): Promise<void> => {
+				try {
+					const currentSurfaceHash = computeToolSurfaceHash(
+						serverTools.map((tool) => ({
+							name: tool.name,
+							description: tool.description ?? null,
+							inputSchema: (tool as { inputSchema?: unknown }).inputSchema ?? null,
+						})),
+					);
+					const existing = await getSkillPin(`mcp:${serverId}`);
+					if (!existing) {
+						await upsertSkillPin({
+							id: `mcp:${serverId}`,
+							contentHash: currentSurfaceHash,
+							version: null,
+							trust: "tofu",
+							pinnedAt: Date.now(),
+						});
+						return;
+					}
+					if (existing.contentHash !== currentSurfaceHash) {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `MCP tool surface CHANGED for "${serverId}" since first approval — a changed description or schema is the tool-poisoning/rug-pull signal.`,
+							metadata: {
+								category: "mcp_tool_surface_drift",
+								serverId,
+								pinnedHash: existing.contentHash,
+								currentHash: currentSurfaceHash,
+							},
+						});
+					}
+				} catch {
+					// Observation only — never blocks MCP registration.
+				}
+			};
 
 			// F12.65: MCP results are the ONE tool surface with no built-in cap (SDK read/search/command all
 			// middle-truncate) — one oversized server response can blow a small model's whole window (codebase-memory
@@ -794,6 +839,7 @@ export function createNKleinMcpRuntimeService(
 						serverName: server.name,
 						provider: manager,
 					});
+					await recordToolSurface(server.name, serverTools);
 					tools.push(...capMcpToolOutputs(serverTools));
 				} catch (error) {
 					warnings.push(`Failed to load MCP server "${server.name}": ${toErrorMessage(error)}`);
@@ -815,6 +861,7 @@ export function createNKleinMcpRuntimeService(
 							),
 						);
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
+						await recordToolSurface(server.id, serverTools);
 						tools.push(...capMcpToolOutputs(serverTools));
 					} catch (error) {
 						warnings.push(`Failed to load sandbox MCP server "${server.label}": ${toErrorMessage(error)}`);
