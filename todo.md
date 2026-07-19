@@ -4394,6 +4394,49 @@ into the existing F12.31. Same verify-before-build caveat.**
   or the named class in fixed_target) now drives resolveAutoDecompositionDepth instead of the single launch
   window — a weak class → finer cards; fleet summary computed BEFORE the depth decision, byte-identical off.
   **BORN-ROUTABLE MECHANISM COMPLETE (core + a): the central intent ships.** REMAINING SLICES split below.
+- [ ] **F12.111 — Multi-model SPEC-TIME deliberation: disagreement as an underspecification detector (David 2026-07-20).**
+  **ORIGIN:** David observed that Opus 4.8, Fable 5 and GPT-5.6 Sol take *"slightly differing and largely
+  overlapping perspectives"*, and asked whether that could become a first-class part of initial spec / task
+  analysis — for frontier models AND, if it works, for small local ones.
+  **⚠️ TWO DISAMBIGUATIONS, both load-bearing.** (1) This is **NOT the A2A protocol** (P17.4, rejected: HTTP-native,
+  webhook egress, PKI trust root, cross-org value we do not need). "Agent2agent" here means multi-MODEL
+  deliberation inside !Klein, over local IPC — no protocol, no network. (2) This is **NOT the review panel**.
+  Every multi-model mechanism we have today (`planReviewPanel`, `runReviewPanel`, `runNEyesReviewPanel`,
+  F12.95 discriminative tie-break) runs at **REVIEW** time, on a finished patch. The spec/decompose stage —
+  `auto-clarify`, `clarification-need`, `spec-lint`, `question-clarification-pass`, F12.8 EARS — is entirely
+  SINGLE-model today. **That is the gap this fills, and it is the more valuable end of the pipeline.**
+  **THE DESIGN INSIGHT — do not build this to reach consensus.** Merging N model opinions into one "better" spec
+  is the weak version, and it is the version the evidence argues against: Cognition found *"the
+  unstructured-swarm approach, arbitrary networks of agents negotiating with each other, is mostly a
+  distraction."* But the same source says multi-agent works *"when the additional agents contribute INTELLIGENCE
+  rather than actions"* — which is exactly a spec discussion. So the deliverable is **not a merged spec; it is the
+  DISAGREEMENT SET.** Where models agree, that is weak evidence (shared training biases produce correlated
+  errors). **Where they disagree, the SPEC is ambiguous** — and the honest output is a clarifying question to the
+  user, routed into the machinery that already exists (`nextClarification` / F12.8's one-at-a-time discipline,
+  `clarification-need`, `spec-lint`'s gap classes). Disagreement becomes a *measurement of underspecification*
+  rather than a vote to be settled.
+  **WHY THIS IS THE RIGHT STAGE (research-backed):** the multi-turn literature (arXiv 2505.06120) finds models
+  *"make early assumptions, commit prematurely to a solution, and do not recover"* — a 39% average drop that is
+  **model-independent**. Deliberation placed BEFORE commitment attacks the cause; a review panel after the patch
+  attacks the symptom. And charter §5's verification gap is rooted in underdetermined specs, so this is the
+  cheapest available intervention on "did we build the right thing".
+  **SMALL/LOCAL FLEET PATH (David's "can it apply to local models too?" — yes, three tiers):**
+  · **≥2 distinct loaded families** → run the deliberation across them, reusing the base-family-diversity picker
+    the review panel already has (correlated models are the failure mode; same-family "diversity" is theatre).
+  · **1 loaded model** → the F12.91 / "Three Roles, One Model" trick: the SAME frozen model under distinct
+    STANCES (e.g. pessimist / user-advocate / implementer), which doubled a frozen Qwen3-8B without training.
+    Weaker than true family diversity — must be labelled as such in the output, never presented as independent.
+  · **0 spare capacity** → skip entirely and fall through to today's single-model clarification path.
+  **GATING (do not make this always-on):** F12.35's DOWN result — needless debate INJECTS errors on easy items —
+  applies with full force. Gate on ambiguity, not on ceremony: run it only when `spec-lint`/`clarification-need`
+  already say the spec is thin, or the card is high-difficulty. An easy, well-specified card gets the single path.
+  **HONESTY REQUIREMENTS:** (a) agreement must NOT be reported as validation — say "3 models agreed" and state
+  plainly that correlated training makes that weak evidence; (b) a stance-diverse single model must be labelled
+  as one model wearing hats; (c) surface the actual disagreements verbatim, not a synthesized summary that hides
+  which model dissented and why. **Cost is the risk:** N models on every card is exactly the "elaborate scaffold
+  beats trivial baseline?" trap ("AI Agents That Matter": a plain retry baseline scored 93.2% at $2.45 vs LATS 88%
+  at $134.50). **Acceptance must include a baseline comparison against single-model clarification**, or we will
+  have built ceremony. Feeds P20.2's visible/held-out gap as its natural quality measure.
 - [ ] **F12.110b — Fleet-aware settings surface** *(split 2026-07-19; product/David-batch).* Expose the mode +
   fixed-target as global → per-project → per-card via resolveScopedOverride (F4.16's core, still zero live
   consumers — this is it), plus the smallest-supported-floor optional setting. Env-only today
