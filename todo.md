@@ -4212,10 +4212,24 @@ verify-before-build caveat: confirm each against current code before implementin
   kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off) at createTaskSession → `buildNKleinStartPromptParts` new optional param
   (system-side so the KV prefix stays workspace-stable; omitted/[] byte-identical, test-locked). Backend workspaces get
   [] ⇒ unchanged prompts. 10 tests across reader+builder. (DesignBench; React-19-vs-Vue-3.6 drift)
-- [ ] **F12.90 — Multi-language dev-test scenario expansion.** Add Go, Rust, Java, and a Vue/Angular-frontend scenario to the
+- [>] **F12.90 — Multi-language dev-test scenario expansion** *(BLOCKED on F12.84b — evidence below).* Add Go, Rust, Java, and a Vue/Angular-frontend scenario to the
   dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
   F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate
   what you don't measure. (SWE-bench Multilingual)
+  **⚠️ HARD DEPENDENCY DISCOVERED 2026-07-20 — F12.90 CANNOT LAND BEFORE F12.84b.** Verified directly against the
+  live image: `docker run --rm nklein/agent-sandbox:0.0.1 sh -c "which go cargo mvn javac node"` returns
+  **ONLY `/usr/local/bin/node`.** The agent sandbox has no Go, no Rust, no Maven and no JDK. So a Go/Rust/Java
+  scenario would be DETECTED correctly by F12.84's `detectToolchains` (it reads `go.mod`/`Cargo.toml`/`pom.xml`
+  and plans `go test ./...` etc.) and would then FAIL at execution inside the container — the detection contract
+  is ready, the ENVIRONMENT is not. **This is exactly the failure that would otherwise be discovered as "why does
+  every Go card fail?" weeks after the scenarios shipped**, so it is recorded here instead.
+  **STAGED:** `scripts/dev-fixtures/go-starter/` (go.mod + `internal/schedule` with a least-loaded-first
+  maintenance-window planner and 3 table-ish tests) is written and awaiting container verification — the host has
+  no Go toolchain either (`go` is not installed on the m5max), which is itself a reminder that a fixture we cannot
+  run is a fixture we cannot trust. Do NOT mark this item done on the strength of unrun fixture code.
+  **SEQUENCE:** F12.84b (per-toolchain images/install steps) → verify the Go fixture in the real sandbox → then
+  add Rust/Java/Vue scenarios against the same proven environment path. The Vue/Angular scenario is the exception:
+  it is Node-based, so it could land BEFORE F12.84b if a frontend scenario is wanted sooner.
 - [x] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
   proposed patch + relevant spec/docs — NEVER the conversation history — before a card is accepted. Distinct from existing
   review lenses (which see full context): history-isolation is exactly what breaks error cascades. Rationale: "Three Roles,
