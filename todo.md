@@ -3893,6 +3893,34 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   vendored grading core + instance fetcher (dataset-vendoring footprint = the David green-light already attached
   to F11.3); aimock recordings per model profile exactly like N2/N3 — the SAME four-step growth recipe applies,
   so "add nightly coverage for SWE-bench instance X" needs no further explanation either.
+- [ ] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
+  boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
+  and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
+  tolerant-reader skips are logged today but nothing asserts survival). Composes with F5.6b's migration runner —
+  every real migration gets its before/after fixture pair here.
+- [ ] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
+  mid-worker, mid-review, mid-delivery, mid-compaction, mid-trigger — and assert clean resume: no stuck cards, no
+  double side effects, no orphan leases/worktrees/sessions. Generalizes the one-off F1.18b run-3 proof into a
+  standing lane.
+- [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
+  (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
+  each flag alone. New flags register here at ship time.
+- [ ] **N12 — Recording-staleness workflow (keeps the suite trustworthy under active development).** When a
+  prompt changes legitimately, aimock cells go unmatched — the failure output must DISTINGUISH "behavior broken"
+  from "re-record needed": a prompt-drift report (which request diverged, at which byte, vs the F4.40 prefix
+  contract) + a one-command re-record for a named cell. Without this the suite decays into noise.
+- [ ] **N13 — Suite self-trust: double-run flake quarantine.** Pre-release runs each cell twice; any verdict flip
+  ⇒ the cell is QUARANTINED (reported loudly, excluded from the gate) until root-caused — a suite that flakes
+  gets ignored, which is worse than no suite (the smoke arc's false-green lesson).
+- [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
+  drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
+  round-trips, and the F2.16 stream→DAG→card→thread→BACK focus spec (folds in here). Today's plan is
+  backend-drain-centric; releases also ship the UI.
+- [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
+  ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
+  connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
+  (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [ ] **N7 — Nightly/pre-release wiring + the growth loop.** A `test:nightly` CI/cron entry (local nightly run +
   pre-release checklist step in docs/); failure output good enough to debug from the summary alone (cell id, seed,
   HOME path kept on failure). THE GROWTH LOOP: adding a new dev-test-project later = (1) record its aimock set per
