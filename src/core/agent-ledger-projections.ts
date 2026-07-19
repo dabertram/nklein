@@ -33,6 +33,7 @@ import {
 	fitnessDifficultyTierSchema,
 	recordFitnessOutcome,
 } from "./fitness-table-schema";
+import { parseModelAttributes } from "./model-attributes";
 import {
 	emptyModelBehaviorProfile,
 	type ModelAttemptOutcome,
@@ -703,4 +704,68 @@ export function buildFailingModelList(
 				left.role.localeCompare(right.role) ||
 				left.modelId.localeCompare(right.modelId),
 		);
+}
+
+/** F12.71: one quant tier's observed reliability, aggregated across every model served at that quant. */
+export interface QuantErrorRateRow {
+	/** Normalized quant label (`q4_k_m`, `8bit`, …), or `"unknown"` for ids that carry no quant token. */
+	readonly quant: string;
+	/** Attempts observed at this quant. */
+	readonly attempts: number;
+	/** Individual tool calls observed — the per-STEP denominator the compounding argument needs. */
+	readonly toolCallSteps: number;
+	/** Tool calls that came back with a non-ok outcome. */
+	readonly failedSteps: number;
+	/** failedSteps / toolCallSteps, or null when no steps were observed at this quant. */
+	readonly perStepErrorRate: number | null;
+	/** Distinct model ids contributing — a rate drawn from ONE model is not a property of the quant tier. */
+	readonly modelCount: number;
+}
+
+/**
+ * F12.71 (the measurement half): observed PER-STEP error rate grouped by quantization tier.
+ *
+ * The quant-by-role policy in `inference-lever-planning.ts` currently reasons from PUBLISHED per-step rates. This
+ * projection is what eventually replaces those constants with this fleet's own numbers — same shape, measured.
+ *
+ * Honesty stance: `perStepErrorRate` is null rather than 0 when nothing was observed, and `modelCount` is reported
+ * so a caller can see when a tier's rate rests on a single model. A quant tier represented by one model says more
+ * about that model than about the tier, and the row must not hide that.
+ */
+export function buildQuantErrorRates(events: readonly AgentLedgerEvent[]): QuantErrorRateRow[] {
+	const byQuant = new Map<
+		string,
+		{ attempts: number; toolCallSteps: number; failedSteps: number; models: Set<string> }
+	>();
+	for (const event of events) {
+		if (event.kind !== "attempt") {
+			continue;
+		}
+		const quant = parseModelAttributes(event.modelId).quant ?? "unknown";
+		const bucket = byQuant.get(quant) ?? {
+			attempts: 0,
+			toolCallSteps: 0,
+			failedSteps: 0,
+			models: new Set<string>(),
+		};
+		bucket.attempts += 1;
+		bucket.models.add(event.modelId);
+		for (const call of event.toolCalls) {
+			bucket.toolCallSteps += 1;
+			if (call.outcome !== null && !/^(ok|success)/i.test(call.outcome)) {
+				bucket.failedSteps += 1;
+			}
+		}
+		byQuant.set(quant, bucket);
+	}
+	return [...byQuant.entries()]
+		.map(([quant, bucket]) => ({
+			quant,
+			attempts: bucket.attempts,
+			toolCallSteps: bucket.toolCallSteps,
+			failedSteps: bucket.failedSteps,
+			perStepErrorRate: bucket.toolCallSteps > 0 ? bucket.failedSteps / bucket.toolCallSteps : null,
+			modelCount: bucket.models.size,
+		}))
+		.sort((left, right) => left.quant.localeCompare(right.quant));
 }

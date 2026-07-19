@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessQuantizationFloor,
+	compoundedErrorRate,
 	planThinkingBudget,
 	readQuantization,
+	recommendQuantForRole,
 	toReasoningEffort,
 } from "../../src/core/inference-lever-planning";
 
@@ -140,5 +142,77 @@ describe("toReasoningEffort", () => {
 		expect(toReasoningEffort("low")).toBe("low");
 		expect(toReasoningEffort("medium")).toBe("medium");
 		expect(toReasoningEffort("high")).toBe("high");
+	});
+});
+
+describe("compoundedErrorRate", () => {
+	it("reproduces the argument the policy rests on: 0.5%/step exceeds 10% over 50 steps", () => {
+		expect(compoundedErrorRate(0.005, 50)).toBeGreaterThan(0.1);
+	});
+
+	it("reproduces Q6's ~4% figure at the 20-step horizon it actually describes", () => {
+		const q6 = compoundedErrorRate(0.002, 20);
+		expect(q6).toBeGreaterThan(0.03);
+		expect(q6).toBeLessThan(0.05);
+	});
+
+	it("shows that climbing quant HALVES long-horizon risk without removing it", () => {
+		// At 50 steps Q6 is still ~9.5% — better than Q4's ~22%, but not a rescue. Decomposing the card is the
+		// only lever that actually shortens the horizon, and the policy must not imply otherwise.
+		const q4 = compoundedErrorRate(0.005, 50);
+		const q6 = compoundedErrorRate(0.002, 50);
+		expect(q6).toBeLessThan(q4 / 2);
+		expect(q6).toBeGreaterThan(0.09);
+	});
+
+	it("returns 0 for a non-positive or non-finite horizon", () => {
+		expect(compoundedErrorRate(0.005, 0)).toBe(0);
+		expect(compoundedErrorRate(Number.NaN, 50)).toBe(0);
+	});
+});
+
+describe("recommendQuantForRole", () => {
+	it("holds the floor for short ephemeral work", () => {
+		const policy = recommendQuantForRole({ role: "reviewer", expectedSteps: 3, vramHeadroom: "ample" });
+		expect(policy.targetQuant).toBe("q4_k_m");
+		expect(policy.riskAccepted).toBe(false);
+	});
+
+	it("climbs off the floor as the horizon lengthens", () => {
+		expect(recommendQuantForRole({ role: "worker", expectedSteps: 15, vramHeadroom: "ample" }).targetQuant).toBe(
+			"q5_k_m",
+		);
+		expect(recommendQuantForRole({ role: "worker", expectedSteps: 50, vramHeadroom: "ample" }).targetQuant).toBe(
+			"q6_k",
+		);
+	});
+
+	it("requests an imatrix build below Q6 but not at Q6", () => {
+		expect(recommendQuantForRole({ role: "worker", expectedSteps: 3, vramHeadroom: "ample" }).preferImatrix).toBe(
+			true,
+		);
+		expect(recommendQuantForRole({ role: "worker", expectedSteps: 50, vramHeadroom: "ample" }).preferImatrix).toBe(
+			false,
+		);
+	});
+
+	it("NAMES the accepted risk when tight VRAM pins a long card to the floor", () => {
+		const policy = recommendQuantForRole({ role: "architect", expectedSteps: 50, vramHeadroom: "tight" });
+		expect(policy.targetQuant).toBe("q4_k_m");
+		expect(policy.riskAccepted).toBe(true);
+		expect(policy.reason).toContain("ACCEPTED");
+	});
+
+	it("does NOT downgrade on unknown headroom — unverified is not tight", () => {
+		const policy = recommendQuantForRole({ role: "architect", expectedSteps: 50, vramHeadroom: "unknown" });
+		expect(policy.targetQuant).toBe("q6_k");
+		expect(policy.riskAccepted).toBe(false);
+		expect(policy.reason).toContain("unverified");
+	});
+
+	it("never throws on a non-finite horizon", () => {
+		expect(() =>
+			recommendQuantForRole({ role: "worker", expectedSteps: Number.NaN, vramHeadroom: "ample" }),
+		).not.toThrow();
 	});
 });

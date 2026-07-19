@@ -3702,10 +3702,29 @@ output and NOT acted on. Captured as F12.12.)
   single-stream (Qwen2.5-Coder-0.5B drafting a 7B, ~62% accept) but CUTS throughput 30–40% above ~8–16 concurrency and is
   bad for MoE. Enable it only when live concurrency==1 and the target isn't MoE — keyed off the concurrency signal !Klein
   already tracks. (ML-SpecQD 2503.13565; spheron speculative-guide)
-- [ ] **F12.71 — Quant-by-ROLE policy + imatrix builds (refines the Q4_K_M floor).** Long-horizon errors COMPOUND: Q4_K_M
+- [x] **F12.71 — Quant-by-ROLE policy + imatrix builds (refines the Q4_K_M floor).** Long-horizon errors COMPOUND: Q4_K_M
   ~0.5%/step → >10% over 50 steps; Q6 ~0.2%/step → ~4% at ~1.5× VRAM; code/math are the most quant-sensitive. Encode
   long-horizon/critical roles → Q5_K_M/Q6 (imatrix — a free 10–30% perplexity win below Q6) where VRAM allows, ephemeral →
   Q4_K_M; record error-rate-by-quant in the fitness store. (note.com Q4→Q6; imatrix DeepWiki)
+  **SHIPPED 2026-07-19 — both halves. POLICY:** `recommendQuantForRole` (in `inference-lever-planning.ts`, extending
+  F12.27's flat floor) treats Q4_K_M as a FLOOR, not a target, and climbs to q5_k_m/q6_k as the horizon lengthens.
+  `compoundedErrorRate` EXPRESSES the argument instead of asserting it, so the thresholds are auditable.
+  `preferImatrix` is set below Q6 (free 10–30% perplexity win). Tight VRAM pins to the floor but sets `riskAccepted`
+  and SAYS the horizon warranted more — a resource constraint must not become an invisible quality decision.
+  `"unknown"` headroom does NOT downgrade: here the safer quant is the expensive one, so treating unverified
+  headroom as tight would resolve uncertainty in the direction that compounds error.
+  **MEASUREMENT:** `buildQuantErrorRates` (agent-ledger-projections) aggregates observed per-STEP tool-call error
+  rate by parsed quant tier — the projection that eventually replaces the published constants with this fleet's own
+  numbers. Reports `perStepErrorRate: null` (not 0) when nothing was observed, and `modelCount` so a tier resting on
+  ONE model is visible as such — a one-model rate describes that model, not the tier.
+  **CORRECTION worth keeping (the note's numbers are horizon-ambiguous):** verified against the arithmetic —
+  Q4_K_M@0.5%/step is 9.5% at 20 steps and **22%** at 50; Q6@0.2%/step is 3.9% at 20 and **9.5%** at 50. The note's
+  ">10%" and "~4%" are quoted at DIFFERENT horizons. Implication the policy now encodes honestly: climbing quant
+  roughly HALVES long-horizon risk but does not rescue it — a 50-step chain is ~9.5% wrong even at Q6. **Shortening
+  the horizon (decomposition) is the only lever that actually fixes a long chain; quant is a second-order trim.**
+  Tests: 15 policy/compounding + 6 projection. Runtime suite green (10,932).
+  NEXT (fleet-gated, NOT a blocker for this item): once real drains accrue, compare `buildQuantErrorRates` against
+  the published per-step constants and swap `PER_STEP_ERROR` for measured values.
 - [ ] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
   (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
   the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)

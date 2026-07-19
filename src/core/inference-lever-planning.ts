@@ -204,3 +204,91 @@ export function planThinkingBudget(input: ThinkingBudgetInput): ThinkingBudgetPl
 export function toReasoningEffort(level: ThinkingBudgetLevel): "low" | "medium" | "high" | null {
 	return level === "none" ? null : level;
 }
+
+/**
+ * F12.71 quant-by-ROLE policy — refines the flat Q4_K_M floor above with the COMPOUNDING argument.
+ *
+ * A per-step error rate that looks negligible does not stay negligible over a long chain: at ~0.5%/step (Q4_K_M)
+ * a 50-step card ends up above 10% cumulative, while ~0.2%/step (Q6) lands near 4% for roughly 1.5× the VRAM.
+ * Code and math are the most quant-sensitive domains, which is precisely what this harness does all day.
+ *
+ * So the floor is a FLOOR, not a target: short ephemeral work is fine at it, and long-horizon work should climb.
+ */
+
+/** Published per-step error rates by quant tier. Approximate and sourced from the backlog note, not measured here. */
+const PER_STEP_ERROR: Readonly<Record<QuantTarget, number>> = {
+	q4_k_m: 0.005,
+	q5_k_m: 0.003,
+	q6_k: 0.002,
+};
+
+export type QuantTarget = "q4_k_m" | "q5_k_m" | "q6_k";
+
+/**
+ * Probability that at least one step goes wrong across `steps` independent steps at `perStep` error rate.
+ * This is the whole argument for the policy, expressed rather than asserted.
+ */
+export function compoundedErrorRate(perStep: number, steps: number): number {
+	if (!Number.isFinite(perStep) || !Number.isFinite(steps) || steps <= 0) {
+		return 0;
+	}
+	const rate = Math.max(0, Math.min(1, perStep));
+	return 1 - (1 - rate) ** Math.max(0, steps);
+}
+
+export interface QuantPolicyInput {
+	readonly role: SwarmRole;
+	/** Expected steps/turns this card will run. Long horizons are what make a small per-step rate matter. */
+	readonly expectedSteps: number;
+	/** Whether there is VRAM headroom for a heavier quant. `"unknown"` is NOT treated as tight. */
+	readonly vramHeadroom: "ample" | "tight" | "unknown";
+}
+
+export interface QuantPolicy {
+	readonly targetQuant: QuantTarget;
+	/** Below Q6, an imatrix build is a free 10–30% perplexity win — worth requesting whenever we land under Q6. */
+	readonly preferImatrix: boolean;
+	/** Projected cumulative error at the RECOMMENDED quant over the expected horizon. */
+	readonly projectedCompoundedError: number;
+	/** True when tight VRAM forced a quant below what the horizon warrants — an accepted, NAMED risk. */
+	readonly riskAccepted: boolean;
+	readonly reason: string;
+}
+
+/** Cumulative-error thresholds at which the policy climbs off the floor. */
+const CLIMB_TO_Q5 = 0.05;
+const CLIMB_TO_Q6 = 0.1;
+
+/**
+ * Recommend a quant for a role×horizon. Advisory only — nothing here allocates VRAM or loads a model (the standing
+ * no-auto-load constraint), so the caller may always overrule it.
+ *
+ * Honesty stance: when VRAM headroom is `"tight"` the recommendation is pinned to the floor, but `riskAccepted` is
+ * set and the reason SAYS the horizon warranted more. Downgrading silently would turn a resource constraint into
+ * an invisible quality decision. `"unknown"` headroom does NOT downgrade — the safer quant is the expensive one
+ * here, so treating unverified headroom as tight would resolve uncertainty in the direction that compounds error.
+ */
+export function recommendQuantForRole(input: QuantPolicyInput): QuantPolicy {
+	const steps = Number.isFinite(input.expectedSteps) ? Math.max(1, input.expectedSteps) : 1;
+	const floorRisk = compoundedErrorRate(PER_STEP_ERROR.q4_k_m, steps);
+
+	const warranted: QuantTarget = floorRisk > CLIMB_TO_Q6 ? "q6_k" : floorRisk > CLIMB_TO_Q5 ? "q5_k_m" : "q4_k_m";
+	const tight = input.vramHeadroom === "tight";
+	const targetQuant: QuantTarget = tight ? "q4_k_m" : warranted;
+	const riskAccepted = tight && warranted !== "q4_k_m";
+
+	const horizon = `${steps}-step ${input.role} card projects ${(floorRisk * 100).toFixed(1)}% cumulative error at the Q4_K_M floor`;
+	const reason = riskAccepted
+		? `${horizon} — ${warranted} is warranted, but VRAM headroom is tight, so the floor stands and the added risk is ACCEPTED, not resolved`
+		: targetQuant === "q4_k_m"
+			? `${horizon} — short enough that the floor holds`
+			: `${horizon} — climbing to ${targetQuant}${input.vramHeadroom === "unknown" ? " (VRAM headroom unverified — confirm before loading)" : ""}`;
+
+	return {
+		targetQuant,
+		preferImatrix: targetQuant !== "q6_k",
+		projectedCompoundedError: compoundedErrorRate(PER_STEP_ERROR[targetQuant], steps),
+		riskAccepted,
+		reason,
+	};
+}

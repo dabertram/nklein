@@ -6,6 +6,7 @@ import {
 	buildFailingModelList,
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
+	buildQuantErrorRates,
 	rankModelsByLedgerFitness,
 	rankModelsByLedgerFitnessWithVerdict,
 	summarizeLedgerForDisplay,
@@ -431,5 +432,58 @@ describe("blendCapabilityWithLedgerEvidence", () => {
 		expect(blendCapabilityWithLedgerEvidence(90, 0, 100, { maxShift: 10 })).toBe(80);
 		// result never leaves 0..100.
 		expect(blendCapabilityWithLedgerEvidence(5, 0, 100)).toBe(0);
+	});
+});
+
+describe("buildQuantErrorRates", () => {
+	function quantAttempt(modelId: string, calls: readonly (string | null)[]) {
+		return buildAttemptEvent({
+			...base,
+			attemptId: `${modelId}-${calls.join("-")}`,
+			modelId,
+			outcome: "success",
+			toolCalls: calls.map((outcome, index) => ({ name: `tool-${index}`, fingerprint: null, outcome })),
+		});
+	}
+
+	it("returns nothing for a ledger with no attempts", () => {
+		expect(buildQuantErrorRates([])).toEqual([]);
+	});
+
+	it("groups per-step outcomes by the quant parsed from the model id", () => {
+		const rows = buildQuantErrorRates([
+			quantAttempt("model-a-q4_k_m", ["ok", "error"]),
+			quantAttempt("model-b-q6_k", ["ok", "ok"]),
+		]);
+		const q4 = rows.find((row) => row.quant === "q4_k_m");
+		const q6 = rows.find((row) => row.quant === "q6_k");
+		expect(q4?.perStepErrorRate).toBe(0.5);
+		expect(q6?.perStepErrorRate).toBe(0);
+	});
+
+	it("buckets ids carrying no quant token as unknown rather than dropping them", () => {
+		const rows = buildQuantErrorRates([quantAttempt("qwen2.5-coder-14b", ["ok"])]);
+		expect(rows.map((row) => row.quant)).toEqual(["unknown"]);
+	});
+
+	it("reports null — not 0 — when a quant tier produced no tool-call steps at all", () => {
+		const rows = buildQuantErrorRates([quantAttempt("model-q5_k_m", [])]);
+		expect(rows[0]?.attempts).toBe(1);
+		expect(rows[0]?.perStepErrorRate).toBeNull();
+	});
+
+	it("reports modelCount so a tier resting on ONE model is visible as such", () => {
+		const rows = buildQuantErrorRates([
+			quantAttempt("model-a-q4_k_m", ["ok"]),
+			quantAttempt("model-b-q4_k_m", ["error"]),
+			quantAttempt("solo-q6_k", ["ok"]),
+		]);
+		expect(rows.find((row) => row.quant === "q4_k_m")?.modelCount).toBe(2);
+		expect(rows.find((row) => row.quant === "q6_k")?.modelCount).toBe(1);
+	});
+
+	it("treats a null tool-call outcome as not-a-failure (unrecorded, not failed)", () => {
+		const rows = buildQuantErrorRates([quantAttempt("model-q4_k_m", [null, "ok"])]);
+		expect(rows[0]?.failedSteps).toBe(0);
 	});
 });
