@@ -68,3 +68,24 @@ export function toolTrustGuidance(
 	}
 	return null;
 }
+
+/**
+ * Order an offered-tool list by trust: DROPPED tools are withheld (unless that would empty the offer — never
+ * strand the model tool-less) and DEMOTED tools sink to the catalog tail (stable partition). Returns the input
+ * array itself when nothing changes, so callers can cheaply detect the no-op.
+ */
+export function orderOfferedToolsByTrust<T extends { name: string }>(
+	state: ToolTrustState,
+	offered: readonly T[],
+): readonly T[] {
+	const kept = offered.filter((tool) => toolTrustTier(state, tool.name) !== "dropped");
+	const usable = kept.length >= 1 ? kept : offered;
+	const demoted = usable.filter((tool) => toolTrustTier(state, tool.name) === "demoted");
+	const ordered =
+		demoted.length > 0
+			? [...usable.filter((tool) => toolTrustTier(state, tool.name) !== "demoted"), ...demoted]
+			: usable;
+	return ordered.length === offered.length && ordered.every((tool, index) => tool === offered[index])
+		? offered
+		: ordered;
+}

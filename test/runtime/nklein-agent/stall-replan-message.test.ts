@@ -25,3 +25,32 @@ describe("stall replan message (F12.22 enforcing half)", () => {
 		expect(text).toContain("STOP repeating the current approach.");
 	});
 });
+
+// F12.24 wire helper — offer-ordering by trust (drop-withhold, demote-to-tail, never-strand, no-op identity).
+import { createToolTrustState, orderOfferedToolsByTrust, recordToolOutcome } from "../../../src/core/tool-trust-decay";
+
+describe("offered-tool ordering by trust (F12.24 activation)", () => {
+	const tools = [{ name: "edit_file" }, { name: "read_files" }, { name: "run_command" }];
+
+	it("returns the same array when every tool is trusted (cheap no-op detection)", () => {
+		expect(orderOfferedToolsByTrust(createToolTrustState(), tools)).toBe(tools);
+	});
+
+	it("sinks a demoted tool to the tail and withholds a dropped one, never stranding the model", () => {
+		const state = createToolTrustState();
+		for (let i = 0; i < 3; i += 1) {
+			recordToolOutcome(state, "edit_file", false);
+		}
+		expect(orderOfferedToolsByTrust(state, tools).map((tool) => tool.name)).toEqual([
+			"read_files",
+			"run_command",
+			"edit_file",
+		]);
+		for (let i = 0; i < 2; i += 1) {
+			recordToolOutcome(state, "edit_file", false);
+		}
+		expect(orderOfferedToolsByTrust(state, tools).map((tool) => tool.name)).toEqual(["read_files", "run_command"]);
+		const onlyTool = [{ name: "edit_file" }];
+		expect(orderOfferedToolsByTrust(state, onlyTool)).toBe(onlyTool);
+	});
+});

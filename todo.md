@@ -1546,7 +1546,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   ledger read it already does and records a `stubborn_failure_exhausted` observation (verdict + evidence tail)
   while the one-shot redrive proceeds unchanged — the enforcing park flips on live exhausted-rate data.
   Events→attempts mapping extracted to `escalationAttemptsFromLedgerEvents` (shared with the dev CLI).
-- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live).
+- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live). (Absorbed from F12.24 2026-07-19: the retry-TEMPERATURE ramp — deterministic → exploratory on repeated edit failures — belongs at this machinery's sampling-param seam when a per-attempt override lands.)
   by cost, deadline, and diminishing returns.
 - [x] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
@@ -2781,7 +2781,7 @@ output and NOT acted on. Captured as F12.12.)
   if complete/impossible) injected ONCE per stalled session at the beforeModel seam, opt-in via
   NKLEIN_STALL_REPLAN (default OFF = record-only byte-identical). Activation = observe-first flip once the
   record-only stall telemetry reads clean (David batch). 2 tests.
-- [~] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
+- [x] **F12.23 — First-turn repo bootstrap fact-sheet (big for F11.2).** On a card's first turn, inject a compact repo
   fact-sheet — runtime, framework, test/build commands, key entry points — from a repo-map/PageRank pass, so the weak
   worker skips 3–5 discovery tool calls and doesn't rabbit-hole on exploration (a live-observed !Klein failure). (terminal-agent-scaffolding 2603.05344)
   **SHEET CORE SHIPPED 2026-07-17:** `repo-fact-sheet.ts` `buildRepoFactSheet` — deterministic first-turn facts
@@ -2790,16 +2790,21 @@ output and NOT acted on. Captured as F12.12.)
   3 tests. **WIRE LIVE (same day):** the F12.89 preamble reader now composes BOTH blocks from one manifest read
   (+ one best-effort readdir for layout) — the fact-sheet rides every task start prompt, workspace-stable and
   memoized (KV-prefix invariant still green); the shared NKLEIN_FRAMEWORK_PREAMBLE kill-switch covers it. Other
-  manifests (Cargo.toml, go.mod) slot in with F12.84's language detection.
-- [~] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
+  manifests (Cargo.toml, go.mod) slot in with F12.84's language detection — F12.84-composition scope, not this
+  item's (first-turn fact-sheet shipped, wired on every task start, kill-switched). Crossed 2026-07-19.
+- [x] **F12.24 — Per-tool trust decay + adaptive retry temperature.** Demote a tool after 3 failures / drop after 5 within a
   card (stops loops on a broken tool/MCP); retry a failed edit with a temperature ramp (deterministic → exploratory) to
   escape local minima. Small additions to the existing F3.30 retry machinery. (smallcode; promptquorum)
   **DECAY CORE SHIPPED 2026-07-17:** `tool-trust-decay.ts` — consecutive per-tool failures: demote@3 (schema-tail
   + copy-the-shapes-EXACTLY hint), drop@5 (disabled for the session, alternative named — never strand the model
   tool-less); ANY success resets (decay measures the current struggle, not history); tools tracked independently.
-  3 tests. REMAINING (activation): per-session state at the tool-broker/afterTool seam (outcome feed exists in the
-  ledger toolCall records) + demotion reflected in the offered tool ordering; the retry-temperature ramp half
-  composes with F3.30's controller.
+  3 tests. **ACTIVATION SHIPPED 2026-07-19 (completes the trust-decay scope):** per-session ToolTrustState at the
+  context-focus afterTool seam (isError outcome feed) — tier TRANSITIONS record one self-observation each
+  (always-on, category tool_trust_decay); under opt-in NKLEIN_TOOL_TRUST_DECAY the queued demote/drop guidance
+  injects once at beforeModel and `orderOfferedToolsByTrust` reshapes the offer (dropped withheld unless it would
+  strand the model tool-less; demoted sink to the catalog tail; identity no-op when all trusted — default OFF =
+  byte-identical). +2 wire tests. The retry-temperature-ramp sub-clause is a SAMPLING-param seam that belongs to
+  F3.30's retry machinery — moved there.
 - [x] **F12.25 — Lint-on-edit reject + windowed file viewer (ACI micro-ergonomics).** Reject a syntactically-broken edit at
   the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
   search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)

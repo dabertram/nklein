@@ -21,6 +21,14 @@ import {
 	recordFileRead,
 	recordFileWrite,
 } from "../core/read-before-write-guard";
+import {
+	createToolTrustState,
+	orderOfferedToolsByTrust,
+	recordToolOutcome,
+	type ToolTrustState,
+	toolTrustGuidance,
+	toolTrustTier,
+} from "../core/tool-trust-decay";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
@@ -74,6 +82,11 @@ const progressRecordsBySessionId = new Map<string, TurnProgressRecord[]>();
 const progressStallFlaggedSessionIds = new Set<string>();
 /** F12.22 enforcing half (opt-in NKLEIN_STALL_REPLAN): sessions owed ONE forced-replan injection. */
 const stallReplanPendingSessionIds = new Set<string>();
+// F12.24 per-tool trust decay: per-session consecutive-failure streaks (record-only observation always;
+// demote-hint injection + dropped-tool filtering only under NKLEIN_TOOL_TRUST_DECAY).
+const toolTrustBySessionId = new Map<string, ToolTrustState>();
+const toolTrustObservedBySessionId = new Map<string, Set<string>>();
+const toolTrustPendingGuidanceBySessionId = new Map<string, string[]>();
 // F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
 // counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
 const readPathsBySessionId = new Map<string, Set<string>>();
@@ -262,6 +275,41 @@ export function createKanbanContextFocusExtension(
 							}),
 						] as typeof replanBase,
 					};
+				}
+				// F12.24 enforcement (opt-in via NKLEIN_TOOL_TRUST_DECAY; default OFF = record-only): surface queued
+				// demote/drop guidance once, and withhold dropped tools from the offer (never below one tool).
+				if (isTruthyEnv(process.env.NKLEIN_TOOL_TRUST_DECAY)) {
+					const pendingGuidance = toolTrustPendingGuidanceBySessionId.get(sessionId);
+					if (pendingGuidance && pendingGuidance.length > 0) {
+						toolTrustPendingGuidanceBySessionId.delete(sessionId);
+						const guidanceBase = finalResult?.messages ?? baseMessages;
+						finalResult = {
+							...(finalResult ?? {}),
+							messages: [
+								...guidanceBase,
+								{
+									id: `kanban-tool-trust-${Date.now()}`,
+									role: "user",
+									content: [
+										{
+											type: "text",
+											text: `<system-reminder>\n${pendingGuidance.join("\n")}\n</system-reminder>`,
+										},
+									],
+									createdAt: Date.now(),
+									metadata: { kind: "kanban-tool-trust-guidance" },
+								},
+							] as typeof guidanceBase,
+						};
+					}
+					const trustState = toolTrustBySessionId.get(sessionId);
+					if (trustState) {
+						const offered = finalResult?.tools ?? context.request.tools;
+						const ordered = orderOfferedToolsByTrust(trustState, offered);
+						if (ordered !== offered) {
+							finalResult = { ...(finalResult ?? {}), tools: ordered };
+						}
+					}
 				}
 				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
 				// over the offered tools and narrow the request's tools to it. Catch-guarded — any failure leaves the turn
@@ -469,6 +517,36 @@ export function createKanbanContextFocusExtension(
 						});
 					}
 				}
+				// F12.24 per-tool trust decay: score this call's outcome; a tier TRANSITION records one observation
+				// (always) and queues the guidance line for the next request (only under the enforcement flag).
+				const trust = toolTrustBySessionId.get(sessionId) ?? createToolTrustState();
+				toolTrustBySessionId.set(sessionId, trust);
+				const trustToolName = context.tool.name;
+				const previousTier = toolTrustTier(trust, trustToolName);
+				const tier = recordToolOutcome(trust, trustToolName, context.result.isError !== true);
+				if (tier !== "trusted" && tier !== previousTier) {
+					const observed = toolTrustObservedBySessionId.get(sessionId) ?? new Set<string>();
+					toolTrustObservedBySessionId.set(sessionId, observed);
+					const observationKey = `${tier}:${trustToolName}`;
+					if (!observed.has(observationKey)) {
+						observed.add(observationKey);
+						recordSelfObservation({
+							signal: "custom",
+							severity: tier === "dropped" ? "warning" : "info",
+							message: `Tool trust ${tier} for ${trustToolName} in ${sessionId} (consecutive failures).`,
+							taskId: sessionId,
+							metadata: { category: "tool_trust_decay", tool: trustToolName, tier },
+						});
+						if (isTruthyEnv(process.env.NKLEIN_TOOL_TRUST_DECAY)) {
+							const guidance = toolTrustGuidance(tier, trustToolName);
+							if (guidance) {
+								const pending = toolTrustPendingGuidanceBySessionId.get(sessionId) ?? [];
+								pending.push(guidance);
+								toolTrustPendingGuidanceBySessionId.set(sessionId, pending);
+							}
+						}
+					}
+				}
 				return undefined;
 			},
 		},
@@ -502,6 +580,9 @@ export function forgetSessionFocusState(sessionId: string): void {
 	progressRecordsBySessionId.delete(sessionId);
 	progressStallFlaggedSessionIds.delete(sessionId);
 	stallReplanPendingSessionIds.delete(sessionId);
+	toolTrustBySessionId.delete(sessionId);
+	toolTrustObservedBySessionId.delete(sessionId);
+	toolTrustPendingGuidanceBySessionId.delete(sessionId);
 	readPathsBySessionId.delete(sessionId);
 	ungroundedWriteFlaggedBySessionId.delete(sessionId);
 	forgetLiveTaskUsage(sessionId);
