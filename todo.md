@@ -2798,9 +2798,14 @@ output and NOT acted on. Captured as F12.12.)
   the runtime-verdict penalty reads. Session state cleaned in forgetSessionFocusState. **FINALIZED 2026-07-19 (split):** the
   edit-thrash watch is complete + live record-only; the TEST-misinterpretation detector is its own slice below.
   (daplab 9-failure-patterns; SWE-EVO 2512.18470; SAFEdit 2604.25737; IDE-Bench 2601.20886)
-- [ ] **F12.15b — Test-misinterpretation detector** *(split from F12.15 2026-07-19).* Parse acceptance/test output
+- [x] **F12.15b — Test-misinterpretation detector** *(split from F12.15 2026-07-19).* Parse acceptance/test output
   in the watch window and flag the daplab pattern where a worker "fixes" a failure by rewriting the TEST rather
   than the code (test-file-only edits after a red run) — record-only observation first.
+  **SHIPPED 2026-07-19 (same day):** `test-misinterpretation-detector.ts` — isTestFilePath (dir + suffix
+  conventions) + assessTestMisinterpretation (latest red run followed by ≥2 test-file-ONLY edits flags; any impl
+  edit clears — legitimate test repair never fires it). Wired record-only in the context-focus afterTool watch
+  (red run = run_command with isError; capped 60-event window; ONE `test_misinterpretation` observation per
+  session; state torn down with siblings). 5 tests.
 - [x] **F12.16 — Pre-execution diff/syntax check before applying a patch.** mini-swe-agent + others add a cheap
   pre-execution syntax/diff validator to catch malformed patches before they burn a turn (a "patch does not apply cleanly"
   is an instant SWE-bench fail). Add a pre-apply check (diff applies + syntax parses) that returns a typed

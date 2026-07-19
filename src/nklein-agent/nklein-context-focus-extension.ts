@@ -21,6 +21,7 @@ import {
 	recordFileRead,
 	recordFileWrite,
 } from "../core/read-before-write-guard";
+import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import {
 	createToolTrustState,
 	orderOfferedToolsByTrust,
@@ -87,6 +88,10 @@ const stallReplanPendingSessionIds = new Set<string>();
 const toolTrustBySessionId = new Map<string, ToolTrustState>();
 const toolTrustObservedBySessionId = new Map<string, Set<string>>();
 const toolTrustPendingGuidanceBySessionId = new Map<string, string[]>();
+// F12.15b test-misinterpretation watch (record-only): per-session red-run/edit events, one observation per session.
+const testMisinterpretationEventsBySessionId = new Map<string, TestMisinterpretationEvent[]>();
+const testMisinterpretationFlaggedSessionIds = new Set<string>();
+const TEST_MISINTERPRETATION_EVENT_CAP = 60;
 // F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
 // counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
 const readPathsBySessionId = new Map<string, Set<string>>();
@@ -517,6 +522,35 @@ export function createKanbanContextFocusExtension(
 						});
 					}
 				}
+				// F12.15b (record-only): accumulate red verification runs + edit paths; when the LATEST red run is
+				// followed by test-file-only edits, record ONE test_misinterpretation observation per session —
+				// reviewer scrutiny's tip-off that a failure may be getting "fixed" in the tests.
+				{
+					const misEvents = testMisinterpretationEventsBySessionId.get(sessionId) ?? [];
+					if (/run_command/i.test(context.tool.name) && context.result.isError === true) {
+						misEvents.push({ kind: "red_run" });
+					}
+					for (const edit of edits) {
+						misEvents.push({ kind: "edit", path: edit.path });
+					}
+					if (misEvents.length > TEST_MISINTERPRETATION_EVENT_CAP) {
+						misEvents.splice(0, misEvents.length - TEST_MISINTERPRETATION_EVENT_CAP);
+					}
+					testMisinterpretationEventsBySessionId.set(sessionId, misEvents);
+					if (!testMisinterpretationFlaggedSessionIds.has(sessionId)) {
+						const verdict = assessTestMisinterpretation(misEvents);
+						if (verdict.flagged) {
+							testMisinterpretationFlaggedSessionIds.add(sessionId);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Possible test misinterpretation in ${sessionId}: ${verdict.reason}`,
+								taskId: sessionId,
+								metadata: { category: "test_misinterpretation", testEditCount: verdict.testEditCount },
+							});
+						}
+					}
+				}
 				// F12.24 per-tool trust decay: score this call's outcome; a tier TRANSITION records one observation
 				// (always) and queues the guidance line for the next request (only under the enforcement flag).
 				const trust = toolTrustBySessionId.get(sessionId) ?? createToolTrustState();
@@ -583,6 +617,8 @@ export function forgetSessionFocusState(sessionId: string): void {
 	toolTrustBySessionId.delete(sessionId);
 	toolTrustObservedBySessionId.delete(sessionId);
 	toolTrustPendingGuidanceBySessionId.delete(sessionId);
+	testMisinterpretationEventsBySessionId.delete(sessionId);
+	testMisinterpretationFlaggedSessionIds.delete(sessionId);
 	readPathsBySessionId.delete(sessionId);
 	ungroundedWriteFlaggedBySessionId.delete(sessionId);
 	forgetLiveTaskUsage(sessionId);
