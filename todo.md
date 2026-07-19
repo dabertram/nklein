@@ -2778,10 +2778,16 @@ output and NOT acted on. Captured as F12.12.)
   execution outcome at the terminal-attempt seam (skill-assisted attempt + acceptance verdict → one call, same
   best-effort block as the F4.19 producer), consult the promotion gate in decideSkillLifecycleTransition (opt-in
   param), and the NL-description semantic index (needs the embed path — design with F4.19's retrieval).
-- [ ] **F12.30 — Ground-truth-free skill/procedure auditing for the F4.19 lifecycle.** SkillAudit evolves skills via PAIRED
+- [~] **F12.30 — Ground-truth-free skill/procedure auditing for the F4.19 lifecycle.** SkillAudit evolves skills via PAIRED
   TRAJECTORY auditing without ground truth — compare trajectories that used a procedure vs didn't, to decide promote/revise/
   retire. This is the missing candidate→active promotion SIGNAL for the procedural bank when there's no labeled outcome:
   audit paired attempts to detect whether a surfaced procedure actually helped. (SkillAudit 2606.14239; ACE evolving-playbooks)
+  **CORE SHIPPED 2026-07-19:** `procedural-skill-audit.ts` auditSkillFromPairedTrajectories — success-rate delta
+  (promote ≥+15pp, retire ≤−15pp), equal-success cost-saving promote (≥20% cheaper by turns, wallMs fallback),
+  ≥3 samples per side or UNMEASURED (never promote/retire on noise), honest numeric reasons. Composes with the
+  F12.29 execution gate (one application vs the population). 4 tests. REMAINING WIRE: the ledger projection that
+  pairs attempts by task-kind tags + skill-surfaced flag (needs the F4.19 consumer to STAMP surfaced-skill ids on
+  attempt events first — that stamp is the prerequisite wire), then a lifecycle sweep consuming the verdicts.
 
 **Supply-chain, determinism & reproducibility:**
 - [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
