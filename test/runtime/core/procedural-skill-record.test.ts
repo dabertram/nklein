@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
 	type CreateProceduralSkillInput,
 	createProceduralSkill,
+	isExecutionValidatedForPromotion,
 	proceduralSkillHelpedRate,
+	recordProceduralSkillExecutionOutcome,
 	recordProceduralSkillOutcome,
 	supersedeProceduralSkill,
 } from "../../../src/core/procedural-skill-record";
@@ -63,5 +65,32 @@ describe("procedural-skill-record (F4.19)", () => {
 		expect(proceduralSkillHelpedRate(mixed)).toBe(0.5); // 1 helped / 2 total
 		const helpful = recordProceduralSkillOutcome(recordProceduralSkillOutcome(skill, true, 2), true, 3);
 		expect(proceduralSkillHelpedRate(helpful)).toBe(1); // 2 helped / 2 total
+	});
+});
+describe("F12.29 execution-level validation", () => {
+	const base = createProceduralSkill({
+		id: "s1",
+		title: "t",
+		content: "steps",
+		contentHash: "h",
+		provenance: { source: "learned", trust: "local", capturedAt: 1 },
+		now: 1,
+	});
+
+	it("records validated/refuted execution outcomes additively on legacy records", () => {
+		const once = recordProceduralSkillExecutionOutcome(base, true, 5);
+		expect(once.execution).toEqual({ validated: 1, refuted: 0 });
+		expect(once.updatedAt).toBe(5);
+		const twice = recordProceduralSkillExecutionOutcome(once, false, 6);
+		expect(twice.execution).toEqual({ validated: 1, refuted: 1 });
+		expect(base.execution).toBeUndefined();
+	});
+
+	it("promotion gate: unmeasured is NOT validated; validated must outnumber refuted", () => {
+		expect(isExecutionValidatedForPromotion(base)).toBe(false);
+		const good = recordProceduralSkillExecutionOutcome(base, true, 5);
+		expect(isExecutionValidatedForPromotion(good)).toBe(true);
+		const tied = recordProceduralSkillExecutionOutcome(good, false, 6);
+		expect(isExecutionValidatedForPromotion(tied)).toBe(false);
 	});
 });

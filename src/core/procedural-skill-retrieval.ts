@@ -95,3 +95,34 @@ export function matchProceduralSkills(
 	const limit = options.limit ?? 3;
 	return limit > 0 ? matches.slice(0, limit) : matches;
 }
+
+/**
+ * F12.29 dependency-aware retrieval: expand matched skills with their declared dependencies, DEPENDENCIES FIRST
+ * (a procedure's prerequisites render before it), deduplicated, cycle-safe (a visited id never re-expands), and
+ * missing/superseded/inactive dependencies silently skipped (retrieval never surfaces what the store would not).
+ */
+export function expandSkillsWithDependencies(
+	matched: readonly ProceduralSkill[],
+	all: readonly ProceduralSkill[],
+): ProceduralSkill[] {
+	const byId = new Map(all.map((skill) => [skill.id, skill] as const));
+	const ordered: ProceduralSkill[] = [];
+	const visited = new Set<string>();
+	const visit = (skill: ProceduralSkill): void => {
+		if (visited.has(skill.id)) {
+			return;
+		}
+		visited.add(skill.id);
+		for (const depId of skill.dependsOnSkillIds ?? []) {
+			const dep = byId.get(depId);
+			if (dep && isRetrievableProceduralSkill(dep)) {
+				visit(dep);
+			}
+		}
+		ordered.push(skill);
+	};
+	for (const skill of matched) {
+		visit(skill);
+	}
+	return ordered;
+}

@@ -7,6 +7,7 @@ import {
 } from "../../../src/core/procedural-skill-record";
 import {
 	deriveProceduralContextTags,
+	expandSkillsWithDependencies,
 	isRetrievableProceduralSkill,
 	matchProceduralSkills,
 } from "../../../src/core/procedural-skill-retrieval";
@@ -110,5 +111,36 @@ describe("isRetrievableProceduralSkill", () => {
 		expect(isRetrievableProceduralSkill(mk("a", ["x"]))).toBe(true);
 		expect(isRetrievableProceduralSkill(mk("a", ["x"], { status: "candidate" }))).toBe(false);
 		expect(isRetrievableProceduralSkill(supersedeProceduralSkill(mk("a", ["x"]), "b", 1))).toBe(false);
+	});
+});
+describe("F12.29 dependency-aware expansion", () => {
+	const skill = (id: string, over: object = {}) => ({
+		id,
+		title: id,
+		content: "c",
+		status: "active" as const,
+		applicabilityTags: [],
+		version: 1,
+		contentHash: "h",
+		outcomes: { helped: 0, hurt: 0 },
+		supersededBy: null,
+		provenance: { source: "learned", trust: "local", capturedAt: 1 },
+		updatedAt: 1,
+		...over,
+	});
+
+	it("renders dependencies first, dedupes, and survives cycles", () => {
+		const a = skill("a", { dependsOnSkillIds: ["b"] });
+		const b = skill("b", { dependsOnSkillIds: ["a"] }); // cycle
+		const c = skill("c", { dependsOnSkillIds: ["b"] });
+		const out = expandSkillsWithDependencies([a, c], [a, b, c]);
+		expect(out.map((s) => s.id)).toEqual(["b", "a", "c"]);
+	});
+
+	it("skips missing and non-retrievable dependencies silently", () => {
+		const dep = skill("dep", { status: "quarantined" as const });
+		const main = skill("main", { dependsOnSkillIds: ["dep", "ghost"] });
+		const out = expandSkillsWithDependencies([main], [main, dep]);
+		expect(out.map((s) => s.id)).toEqual(["main"]);
 	});
 });

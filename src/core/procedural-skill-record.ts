@@ -24,6 +24,13 @@ export interface ProceduralSkillProvenance {
 	capturedAt: number;
 }
 
+export interface ProceduralSkillExecutionOutcomes {
+	/** Attempts where the skill was applied AND the sandbox acceptance ran GREEN — execution-level validation. */
+	validated: number;
+	/** Attempts where the skill was applied and acceptance ran RED — execution-level refutation. */
+	refuted: number;
+}
+
 export interface ProceduralSkill {
 	id: string;
 	title: string;
@@ -37,6 +44,13 @@ export interface ProceduralSkill {
 	/** Hash of the canonical content (change detection + TOFU re-review). */
 	contentHash: string;
 	outcomes: ProceduralSkillOutcomes;
+	/**
+	 * F12.29 (Voyager): execution-level validation — stronger than helped/hurt tallies, which are judgment calls.
+	 * Absent on legacy records (treated as zero/zero).
+	 */
+	execution?: ProceduralSkillExecutionOutcomes;
+	/** F12.29: procedures this one depends on (apply those first); retrieval expands them dependency-first. */
+	dependsOnSkillIds?: string[];
 	/** The id of the record that superseded this one, or null while current. */
 	supersededBy: string | null;
 	provenance: ProceduralSkillProvenance;
@@ -93,4 +107,31 @@ export function supersedeProceduralSkill(skill: ProceduralSkill, replacementId: 
 export function proceduralSkillHelpedRate(skill: ProceduralSkill): number {
 	const total = skill.outcomes.helped + skill.outcomes.hurt;
 	return total === 0 ? 0.5 : skill.outcomes.helped / total;
+}
+
+/** Record an execution-level outcome (F12.29): acceptance GREEN after applying the skill ⇒ validated, RED ⇒ refuted. */
+export function recordProceduralSkillExecutionOutcome(
+	skill: ProceduralSkill,
+	validated: boolean,
+	now: number,
+): ProceduralSkill {
+	const current = skill.execution ?? { validated: 0, refuted: 0 };
+	return {
+		...skill,
+		execution: {
+			validated: current.validated + (validated ? 1 : 0),
+			refuted: current.refuted + (validated ? 0 : 1),
+		},
+		updatedAt: now,
+	};
+}
+
+/**
+ * F12.29 promotion gate: a candidate may promote to ACTIVE only when execution has validated it at least once and
+ * validations outnumber refutations — "code validated by execution", not by vibes. Legacy records with no
+ * execution data are NOT promotable under this gate (unmeasured ≠ validated).
+ */
+export function isExecutionValidatedForPromotion(skill: ProceduralSkill): boolean {
+	const execution = skill.execution ?? { validated: 0, refuted: 0 };
+	return execution.validated >= 1 && execution.validated > execution.refuted;
 }
