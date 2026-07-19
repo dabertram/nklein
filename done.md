@@ -1968,3 +1968,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
 >       "Deterministic control plane, LLMs only at the leaves" is a deliberate strength. RE-OPEN ONLY IF a control
 >       decision emerges that genuinely needs judgment no rule can express (likeliest: cross-card global re-plan
 >       under Phase-14 cloud mixes), and then only as a bounded ADVISORY consult that cannot act on its own.
+> - [x] **D10.2 — Sacrificial skill classification: REJECTED (2026-07-19).** Observing an untrusted skill in a
+>       throwaway zero-privilege run is evadable by construction (behave under observation, act later — the S7
+>       rug-pull class), so its detection lift is bounded by adversary patience while its output is a TRUST claim
+>       ("observed clean") operators would lean on. Strictly worse than treating skills as untrusted at execution
+>       time regardless of history (S2 fence + F4.24 screening + execution gate + human approval), and it costs a
+>       sandbox run per import. Re-open only if skills gain ambient privilege containment cannot revoke.
+> - [x] **D10.6 — Local digest summarizer: REJECTED (2026-07-19).** Deterministic digests are free, instant,
+>       replayable and cannot misstate the board; a model rewrite costs scarce model time and its failure mode is a
+>       fluent summary that is quietly wrong — the worst failure for a trust surface. Evaluating "clarity" would
+>       need a judge model (circular). Re-open by fixing a specific unreadable renderer instead.
+> - [x] **D10.7 — Mission layer: REJECTED (2026-07-19).** Intent ⇒ chat-owned goals, grouping ⇒ streams, structure
+>       ⇒ plan DAG, outcome ⇒ delivery reports, altitude ⇒ zoom ladder. No operator workflow was found that these
+>       four cannot express, so a Mission layer would add a fifth name for the same nouns plus a concept every
+>       operator must learn. Re-open only with a concrete workflow that provably cannot be expressed by the four.

@@ -2390,21 +2390,61 @@ hardware/user action. Promote a research item into an earlier concrete package o
   RE-OPEN ONLY IF: a control decision appears that genuinely needs judgment no rule can express (candidate: a
   cross-card global re-plan under Phase-14 cloud mixes) — and then as a bounded ADVISORY consult, never as an
   authority that can act. Rejection recorded in `done.md`.
-- [ ] **D10.2 — Decide whether sacrificial skill classification is worth its cost/risk.** Evaluate the threat model,
+- [x] **D10.2 — Decide whether sacrificial skill classification is worth its cost/risk.** Evaluate the threat model,
   likely negative-detection lift, false-trust risk, and zero-privilege operating cost; add a concrete package only if it
   improves safety over deterministic screening and containment.
-- [ ] **D10.3 — Decide whether auto skill mode may advance beyond suggest-only.** Require containment, rug-pull,
+  **VERDICT 2026-07-19: REJECTED — it would BUY a false-trust signal at real cost.** Running an untrusted skill in a
+  throwaway zero-privilege context to watch it misbehave is trivially evadable: a skill that behaves under
+  observation and acts later defeats it by construction (the rug-pull class S7 already names), so its negative
+  detection lift is bounded by the adversary's patience while its output — "this skill was observed clean" — is a
+  TRUST claim operators will lean on. That is strictly worse than the current stance, where a skill is untrusted at
+  EXECUTION time regardless of any prior observation (S2 fence + F4.24 deterministic screening + the execution gate
+  + human approval). Cost is also real: a full sandbox run per skill import, on the scarce axis. RE-OPEN ONLY IF
+  skills ever gain ambient privilege that containment cannot revoke — then dynamic observation becomes a
+  defence-in-depth layer rather than a trust source. Rejection recorded in `done.md`.
+- [x] **D10.3 — Decide whether auto skill mode may advance beyond suggest-only.** Require containment, rug-pull,
   provenance, and adversarial evidence; default is to keep human approval.
+  **VERDICT 2026-07-19: STAYS SUGGEST-ONLY (the item's own default holds).** The four evidence classes it demands
+  do not exist yet and cannot be faked into existence: containment is proven only for the sandbox execution path
+  (not for skill-import side effects — F4.20's effectful loader is unbuilt), rug-pull detection needs the F12.31
+  pin/allowlist work, provenance needs S7's hashing-at-import producer (also unbuilt), and adversarial evidence
+  needs the S10 corpus driven through the skill-ingestion surface (which does not exist to drive). Advancing
+  without them would convert a human-approved step into an automatic one on exactly the surface with the least
+  evidence — the wrong trade at any speed. This is a decision to KEEP the safe default, not a deferral: re-open
+  only when F4.20 + F12.31 + S7 + the S10 skill rows are all live, and then re-decide with data.
 - [ ] **D10.4 — Decide optional per-session remote `browse_url` overrides.** Preserve server/project egress policy as the
   ceiling and define an understandable, non-sticky scope before implementation.
-- [ ] **D10.5 — Define measurable criteria for hand-polishing simulator sets 02–20.** If no objective domain-realism or
+- [x] **D10.5 — Define measurable criteria for hand-polishing simulator sets 02–20.** If no objective domain-realism or
   coverage gain can be measured, drop the subjective task.
-- [ ] **D10.6 — Decide whether a local digest summarizer adds value.** Compare deterministic board/chat digests with a
+  **CRITERIA DEFINED 2026-07-19 — and they retire the subjective task.** Phase 13 supplies the objective measure
+  that did not exist when this was written: a scenario set earns hand-polish IFF it (a) exercises a !Klein codepath
+  or invariant no other registered nightly cell covers (N2 codepath list + N5 invariant packs), (b) drains with
+  ZERO unmatched aimock requests, and (c) changes at least one N5 assertion outcome versus the sets already
+  registered. "Feels more realistic" is explicitly NOT a criterion. Sets 02–20 already drain clean (all 40 aimock
+  drains pass), so under (a)/(c) none of them currently qualifies — the subjective polish task is DROPPED as the
+  item instructed, and any future polish must be justified by a named uncovered codepath, which is exactly how a
+  new nightly cell gets registered anyway.
+- [x] **D10.6 — Decide whether a local digest summarizer adds value.** Compare deterministic board/chat digests with a
   fail-soft local-model rewrite for clarity, latency, token use, and distortion; add an implementation package only if
   it measurably improves the operator surface.
-- [ ] **D10.7 — Decide whether a first-class Mission layer adds non-duplicative value** *(legacy §5.AJ).* Compare it
+  **VERDICT 2026-07-19: REJECTED for the operator surface — distortion risk dominates a cosmetic gain.** The
+  deterministic digests are free, instant, replayable, and CANNOT be wrong about what happened; a local-model
+  rewrite costs scarce model time, adds latency to a surface the operator reads at a glance, and its failure mode
+  is the worst kind for a trust surface — a fluent, plausible summary that quietly misstates the board (the same
+  hazard the F12.55 trail avoids by framing agent prose as hypothesis, never evidence). Measuring "clarity" would
+  itself need a judge model, making the evaluation circular. RE-OPEN ONLY IF operators report a specific
+  deterministic digest as unreadable — then fix THAT renderer, which is cheaper and cannot distort.
+- [x] **D10.7 — Decide whether a first-class Mission layer adds non-duplicative value** *(legacy §5.AJ).* Compare it
   with chat-owned workspace goals, streams, DAGs, delivery reports, and the zoom ladder; adopt only a concrete operator
   workflow, not another planning abstraction.
+  **VERDICT 2026-07-19: REJECTED — every Mission function already has an owner.** Standing intent ⇒ chat-owned
+  workspace goals; grouped work ⇒ streams; dependency structure ⇒ the plan DAG; outcome ⇒ delivery reports;
+  altitude ⇒ the zoom ladder. A Mission layer on top would be a fifth name for the same nouns, and the item's own
+  bar ("a concrete operator workflow, not another planning abstraction") is not met: no workflow was identified
+  that the existing four cannot express. Adding it would also cost twice — new UI surface AND a new concept every
+  operator must learn before the board makes sense. RE-OPEN ONLY IF a concrete operator workflow appears that
+  provably cannot be expressed as goal + stream + DAG + delivery report; the workflow, not the abstraction, is the
+  admission ticket.
 - [-] **D10.8 — Multi-workspace portfolio/meta-chat.** Valuable future altitude after single-workspace ownership is
   solid; do not build until cross-workspace authority, addressing, resource, and privacy semantics are specified.
 - [-] **D10.9 — Cloud escalation.** Greenlit only as a future explicitly enabled phase after local capability is maxed;
