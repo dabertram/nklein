@@ -89,3 +89,62 @@ describe("ledger few-shot exemplars (F12.81)", () => {
 		expect(messages[2]?.content).toContain("not the answer");
 	});
 });
+
+import type { AgentLedgerEvent } from "../../src/core/agent-attempt-ledger";
+// F12.81 WIRE helper — the ledger↔board join that feeds the pure core.
+import { buildExemplarCandidates, buildLedgerExemplarMessages } from "../../src/nklein-agent/ledger-exemplar-messages";
+
+function attempt(overrides: Record<string, unknown>): AgentLedgerEvent {
+	return {
+		kind: "attempt",
+		attemptId: "att-1",
+		taskId: "task-old",
+		role: "worker",
+		outcome: "success",
+		toolCalls: [{ name: "read_files", fingerprint: null, outcome: "success" }],
+		...overrides,
+	} as unknown as AgentLedgerEvent;
+}
+
+describe("ledger exemplar wire helper (F12.81)", () => {
+	const board = { titleByTaskId: new Map([["task-old", "add retry with backoff to fetchXml"]]) };
+
+	it("joins attempts to card titles and skips the CURRENT card", () => {
+		const candidates = buildExemplarCandidates([attempt({})], board, "task-current");
+		expect(candidates).toHaveLength(1);
+		expect(candidates[0]).toMatchObject({ text: "add retry with backoff to fetchXml", succeeded: true });
+		// The card being started must never be its own exemplar.
+		expect(buildExemplarCandidates([attempt({})], board, "task-old")).toEqual([]);
+	});
+
+	it("drops attempts whose card title is unknown and non-attempt events", () => {
+		expect(buildExemplarCandidates([attempt({ taskId: "ghost" })], board, "x")).toEqual([]);
+		const transition = { kind: "transition", taskId: "task-old" } as unknown as AgentLedgerEvent;
+		expect(buildExemplarCandidates([transition], board, "x")).toEqual([]);
+	});
+
+	it("produces stamped SDK message turns end-to-end, or nothing when nothing is similar", () => {
+		const messages = buildLedgerExemplarMessages({
+			events: [attempt({})],
+			board,
+			taskId: "task-current",
+			targetText: "add retry with backoff to fetchJson",
+			targetRole: "worker",
+			now: 1000,
+		});
+		expect(messages.length).toBeGreaterThan(0);
+		expect(messages[0]).toMatchObject({ id: "kanban-ledger-exemplar-1000-0", role: "user" });
+		expect(JSON.stringify(messages[0]?.metadata)).toContain("kanban-ledger-exemplar");
+
+		expect(
+			buildLedgerExemplarMessages({
+				events: [attempt({})],
+				board,
+				taskId: "task-current",
+				targetText: "rename css theme tokens",
+				targetRole: "worker",
+				now: 1000,
+			}),
+		).toEqual([]);
+	});
+});

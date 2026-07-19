@@ -3645,7 +3645,7 @@ verify-before-build caveat: confirm each against current code before implementin
   rules/prompt file, runs both linters, prints budget + bare prohibitions. LIVE-VERIFIED on !Klein's own AGENTS.md (surfaced
   a real bare prohibition: "don't look for guidance in scattered docs"). REMAINING: optionally wire into the F4.40
   prompt-assembly path as an automatic pre-flight. (gadlet negative-prompting; 16x pink-elephant)
-- [~] **F12.81 — Ledger-sourced dynamic few-shot injection (message-format).** Extends F11.2h (in-repo exemplars) with a
+- [x] **F12.81 — Ledger-sourced dynamic few-shot injection (message-format).** Extends F11.2h (in-repo exemplars) with a
   DIFFERENT signal: retrieve the 2–3 most semantically-similar SUCCESSFUL PAST ATTEMPTS from the agent ledger and inject them
   as real ChatML message turns (not string-concatenated), selected per-card. Rationale: biggest measured lever for small-model
   tool use (Haiku 11%→75% with 3 examples); messages≫strings and dynamic≫fixed; mirrors DSPy BootstrapFewShot over your own
@@ -3659,8 +3659,13 @@ verify-before-build caveat: confirm each against current code before implementin
   similar history ⇒ NO messages: an irrelevant example is worse than none, because a small model imitates it.
   6 tests. SCOPE NOTE: the ledger stores no card TEXT, so the caller joins attempts to board titles and passes
   candidates in — selection/format is here, the join stays with the caller.
-  REMAINING (the wire): perform that join at the start seam and inject the messages ahead of the task turn
-  (mirrors F11.2h's opt-in exemplar wire), then A/B through the F12.41 flip-gate before any default.
+  **WIRE SHIPPED same day (completes the item):** `ledger-exemplar-messages.ts` performs the ledger↔board join
+  (attempts supply outcome/role/tool-sequence, the board supplies titles; the STARTING card is never its own
+  exemplar, unknown-title and non-attempt events are dropped) and the start path passes the result as real
+  `initialMessages` turns — NOT a prompt string, since messages ≫ strings is the whole finding. OPT-IN via
+  `NKLEIN_LEDGER_EXEMPLARS` (default OFF = byte-identical, zero ledger read); an unreadable ledger/board or a
+  card with no similar history yields [] and the field is omitted entirely. +3 wire tests (9 total).
+  NEXT (validation, not build): A/B through the F12.41 flip-gate before any default-on.
 - [ ] **F12.82 — Eval-harness prompt-learning loop for per-role rules.** Use the existing §5.AB eval harness to auto-refine
   decompose/worker/reviewer rule sets: generate rich English feedback on failures → meta-prompt to revise the rules → A/B on
   held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave

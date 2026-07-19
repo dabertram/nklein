@@ -1,3 +1,4 @@
+import type { AgentLedgerEvent } from "../../core/agent-attempt-ledger";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { selectModelForAttempt } from "../../core/attempt-model-selection";
@@ -55,6 +56,7 @@ import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
+import { buildLedgerExemplarMessages } from "../../nklein-agent/ledger-exemplar-messages";
 import { recordBaselineProbe } from "../../nklein-agent/nklein-baseline-probe-registry";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
@@ -63,6 +65,7 @@ import {
 	renderFewShotExemplarBlock,
 	selectWorkspaceFewShotExemplars,
 } from "../../nklein-agent/nklein-few-shot-exemplars";
+import { hashWorkspacePathForLedger } from "../../nklein-agent/nklein-ledger-attempt";
 import {
 	llmfitPriorPredictedWallTimeMs,
 	loadOptInLlmfitRoutingPriorResolver,
@@ -98,7 +101,7 @@ import {
 	type NKleinStartGuardCandidate,
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
-import { readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
+import { readAgentLedger, readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
 import {
 	composeMailboxPromptAddendum,
 	listPendingCardMailbox,
@@ -1419,6 +1422,37 @@ export async function handleStartTaskSession(
 		const handoffPreamble = await loadWorkspaceState(workspaceScope.workspacePath)
 			.then((state) => composeDependencyHandoffPreamble(state.board, body.taskId))
 			.catch(() => "");
+		// F12.81 (OPT-IN via NKLEIN_LEDGER_EXEMPLARS; default OFF = byte-identical, zero ledger read): behavioural
+		// few-shots — the 2–3 most similar SUCCESSFUL past attempts on this board, injected as REAL message turns
+		// (messages ≫ concatenated strings is the finding, so these ride `initialMessages`, not the prompt string).
+		// Best-effort: an unreadable ledger/board yields no exemplars and the start is untouched.
+		const ledgerExemplarMessages = isTruthyEnv(process.env.NKLEIN_LEDGER_EXEMPLARS)
+			? await Promise.all([
+					readAgentLedger({ workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath) }).catch(
+						() => [] as AgentLedgerEvent[],
+					),
+					loadWorkspaceState(workspaceScope.workspacePath).catch(() => null),
+				])
+					.then(([events, state]) => {
+						const titleByTaskId = new Map<string, string>();
+						for (const column of state?.board?.columns ?? []) {
+							for (const card of column.cards ?? []) {
+								if (card.title) {
+									titleByTaskId.set(card.id, card.title);
+								}
+							}
+						}
+						return buildLedgerExemplarMessages({
+							events,
+							board: { titleByTaskId },
+							taskId: body.taskId,
+							targetText: `${body.taskTitle ?? ""}\n${body.prompt}`,
+							targetRole: "worker",
+							now: Date.now(),
+						});
+					})
+					.catch(() => [])
+			: [];
 		// F11.2h (OPT-IN via NKLEIN_FEWSHOT_EXEMPLARS; default OFF = byte-identical prompt, zero scan cost): for a
 		// WRITE-scoped card (filesLikelyTouched present), retrieve 1–2 task-similar existing functions as style
 		// exemplars — deterministic identifier-overlap retrieval, no model. Fleet A/B decides the default.
@@ -1508,6 +1542,8 @@ export async function handleStartTaskSession(
 			// (recency keeps the actual instruction closest to the model — the F12.21 ordering rule).
 			prompt: `${handoffPreamble}${scopePreamble}${exemplarPreamble}${promptWithMailbox}`,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
+			// F12.81: behavioural exemplars as real turns ahead of the task (empty ⇒ omitted ⇒ unchanged start).
+			...(ledgerExemplarMessages.length > 0 ? { initialMessages: ledgerExemplarMessages } : {}),
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,
 			writeScope: body.writeScope,
