@@ -3,6 +3,13 @@
 > **Standing goal:** make !Klein a feature-complete, local-autonomous, multi-LLM kanban swarm, then prove it,
 > harden it, polish it, and prepare it for release. Work this file **top-down** until the backlog reaches zero.
 >
+> **WHY this project is shaped the way it is → [docs/project-charter.md](docs/project-charter.md). READ IT before
+> concluding the roadmap is over-scoped.** !Klein is primarily a research vehicle for understanding agentic coding
+> from the inside — product release is a possible outcome, not the organizing objective. It optimizes for a machine
+> that is too small, not for a model that is too good. Analyses that assume "unreleased tool racing competitors to
+> market" reach confident conclusions from a false premise; the charter also records where outside criticism lands
+> CORRECTLY, and why the recommended feature freeze was rejected.
+>
 > **Single source of truth:** this file contains every remaining task and the engineering knowledge needed to do it.
 > [done.md](done.md) contains shipped work and compact historical evidence. Other Markdown files may document current
 > behavior, operations, legal provenance, test fixtures, or research, but they must not maintain a second backlog.
@@ -22,7 +29,8 @@
 - Add new work at the correct dependency position, not merely at the end. Do not create another planning Markdown file.
 
 Status: `[ ]` ready · `[>]` waits on a named package · `[?]` needs the user/external hardware · `[-]` intentionally
-deferred or optional. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
+deferred or optional · `[~]` **partially done — the item MUST name its concrete remainder inline** (a `[~]` with no
+named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
 ## 1. Prime directives

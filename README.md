@@ -30,11 +30,15 @@ Run `nklein` from a git repository to open that project, or launch it without a 
 
 ### What It Does
 
-- Runs many coding-agent tasks in parallel, each with its own task card and worktree.
-- Supports native NKlein sessions plus CLI-backed agents such as Claude Code, Codex, Gemini, OpenCode, Droid, and Kiro.
-- Helps decompose larger requests into linked task cards.
+- Runs many coding-agent tasks in parallel, each with its own task card, isolated in a hardened Docker sandbox.
+- Runs entirely on LOCAL models. There is no cloud provider path — `CLOUD_ENABLED = false` is a prime directive,
+  not a default you can flip.
+- Decomposes larger requests into linked task cards SIZED for the models you actually have loaded, and routes each
+  card to the model whose measured capability fits it.
+- Verifies work with deterministic checks before it asks a model to judge anything, and tells you what it could
+  NOT verify rather than reporting silence as success.
 - Surfaces runtime state, diffs, review actions, merge actions, and recovery controls in a local web UI.
-- Prioritizes local NKlein-compatible model providers and small-hardware workflows.
+- Targets consumer hardware: 4B–32B models, constrained context budgets, and multiple machines when you have them.
 
 ### Screenshots
 

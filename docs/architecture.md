@@ -7,6 +7,12 @@ This codebase is a fork of Cline Kanban. The repository name and some internal c
 There are three big ideas to hold in your head:
 
 1. The browser is mostly a control surface. It renders state, sends commands, and reacts to live updates.
+> **STALENESS WARNING (2026-07-19):** parts of this document below still describe the retired PTY-backed CLI-agent
+> architecture. The terminal-CLI agents (claude/codex/gemini/opencode/droid/kiro) were REMOVED — see
+> `src/core/agent-catalog.ts` ("the catalog is nklein-only"). PTY survives only for the manual workspace shell panel
+> (`src/terminal/`), NOT for agent execution; agents run in the Docker sandbox. Treat every "PTY-backed agent"
+> statement below as historical until this document is rewritten (tracked in `todo.md`).
+
 2. The local runtime is the source of truth for projects, worktrees, sessions, git operations, and streaming state.
 3. There are two different agent execution paths:
    - most agents run as PTY-backed CLI processes
