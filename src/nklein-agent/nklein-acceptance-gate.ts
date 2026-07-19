@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
+import { parseCompilerDiagnostics, planTypeCheckRepair } from "../core/compiler-diagnostics";
 import { isTruthyEnv } from "../core/env-flag";
 import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -201,6 +202,54 @@ export async function runNKleinAcceptanceGate(
 		);
 	}
 	const runCommand = options.runCommand ?? defaultRunCommand;
+	// F12.86 type-check-FIRST micro-loop (OPT-IN via NKLEIN_TYPECHECK_FIRST; default OFF = byte-identical): a type
+	// check is the cheapest correctness gate there is, so run it BEFORE the expensive acceptance command and
+	// bounce with ANCHORED diagnostics (≤5 `file:line [code]: message`) rather than a wall of compiler output —
+	// weak models self-repair reliably from that shape. Only fires when the repo publishes a typecheck-ish script;
+	// any degraded read yields no check and the normal path runs untouched.
+	if (isTruthyEnv(process.env.NKLEIN_TYPECHECK_FIRST)) {
+		const packageRead = await runCommand({ command: "cat package.json", cwd: options.workspacePath, timeoutMs });
+		const typeCheck = deriveRepoVerifyCommands({
+			packageJsonContent: packageRead.exitCode === 0 ? (packageRead.stdout ?? null) : null,
+			acceptanceCommand: command,
+		}).commands.find((candidate) => /typecheck|type-check|tsc/i.test(candidate.command));
+		if (typeCheck) {
+			const checkRun = await runCommand({ command: typeCheck.command, cwd: options.workspacePath, timeoutMs });
+			if (checkRun.exitCode !== 0) {
+				const diagnostics = parseCompilerDiagnostics(joinOutput(checkRun.stdout, checkRun.stderr), "typescript");
+				const plan = planTypeCheckRepair({ diagnostics, attempt: 0 });
+				const checkOutput = joinOutput(checkRun.stdout, checkRun.stderr);
+				const finishedTypeCheckAt = now();
+				(options.recordObservation ?? recordSelfObservation)({
+					signal: "verification_failed",
+					severity: "error",
+					message: `Type check failed before acceptance: ${typeCheck.command}`,
+					taskId: options.taskId,
+					workspacePath: options.workspacePath,
+					metadata: {
+						command: typeCheck.command,
+						exitCode: checkRun.exitCode,
+						category: "typecheck_first",
+						diagnosticCount: diagnostics.length,
+					},
+					createdAt: finishedTypeCheckAt,
+				});
+				return {
+					present: true,
+					command,
+					passed: false,
+					exitCode: checkRun.exitCode,
+					output: `[type check: ${typeCheck.command}] exit ${checkRun.exitCode ?? "?"}\n${checkOutput.slice(0, 4_000)}`,
+					durationMs: Math.max(0, finishedTypeCheckAt - startedAt),
+					failureCategory: "lint_error",
+					// Anchored instruction when the output parsed; otherwise say so honestly rather than inventing anchors.
+					failureHint:
+						plan.instruction ??
+						`The repo's \`${typeCheck.command}\` failed before the acceptance command ran. Fix the reported type errors first, then re-run.`,
+				};
+			}
+		}
+	}
 	const execution = await runCommand({
 		command,
 		cwd: options.workspacePath,

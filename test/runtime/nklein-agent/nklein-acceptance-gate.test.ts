@@ -454,3 +454,83 @@ describe("nklein acceptance gate", () => {
 		expect(result.output).not.toContain("repo verify");
 	});
 });
+
+describe("type-check-first micro-loop (F12.86)", () => {
+	const PROMPT = ["Fix the retry cap.", "", "Acceptance check: npm test"].join("\n");
+	const PACKAGE_JSON = JSON.stringify({ scripts: { typecheck: "tsc --noEmit", test: "vitest run" } });
+
+	function makeRunner(typeCheckOutput: string | null) {
+		return vi.fn(async ({ command }: { command: string }) => {
+			if (command.startsWith("cat package.json")) {
+				return { exitCode: 0, stdout: PACKAGE_JSON, stderr: "" };
+			}
+			if (/typecheck|tsc/.test(command)) {
+				return typeCheckOutput === null
+					? { exitCode: 0, stdout: "", stderr: "" }
+					: { exitCode: 2, stdout: typeCheckOutput, stderr: "" };
+			}
+			return { exitCode: 0, stdout: "tests pass", stderr: "" };
+		});
+	}
+
+	it("is byte-identical with the flag OFF (no type check runs at all)", async () => {
+		const before = process.env.NKLEIN_TYPECHECK_FIRST;
+		delete process.env.NKLEIN_TYPECHECK_FIRST;
+		try {
+			const runCommand = makeRunner("src/a.ts(1,1): error TS1: boom");
+			const result = await runNKleinAcceptanceGate({ workspacePath: "/tmp/p", taskPrompt: PROMPT, runCommand });
+			expect(result.passed).toBe(true);
+			// Only the acceptance command ran — no package.json read, no type check.
+			expect(runCommand.mock.calls.every(([call]) => !call.command.includes("typecheck"))).toBe(true);
+		} finally {
+			if (before !== undefined) {
+				process.env.NKLEIN_TYPECHECK_FIRST = before;
+			}
+		}
+	});
+
+	it("bounces with ANCHORED diagnostics before the acceptance command runs", async () => {
+		const before = process.env.NKLEIN_TYPECHECK_FIRST;
+		process.env.NKLEIN_TYPECHECK_FIRST = "1";
+		try {
+			const runCommand = makeRunner(
+				["src/a.ts(12,5): error TS2322: Type 'string' is not assignable to type 'number'.", ""].join("\n"),
+			);
+			const result = await runNKleinAcceptanceGate({
+				workspacePath: "/tmp/p",
+				taskPrompt: PROMPT,
+				runCommand,
+				recordObservation: vi.fn(),
+			});
+			expect(result.passed).toBe(false);
+			expect(result.failureCategory).toBe("lint_error");
+			expect(result.failureHint).toContain("src/a.ts:12 [TS2322]");
+			expect(result.failureHint).toContain("do not run tests yet");
+			// The expensive acceptance command must NOT have run — that is the whole point of the cheap gate.
+			expect(runCommand.mock.calls.some(([call]) => call.command === "npm test")).toBe(false);
+		} finally {
+			if (before === undefined) {
+				delete process.env.NKLEIN_TYPECHECK_FIRST;
+			} else {
+				process.env.NKLEIN_TYPECHECK_FIRST = before;
+			}
+		}
+	});
+
+	it("proceeds to the acceptance command when the type check is clean", async () => {
+		const before = process.env.NKLEIN_TYPECHECK_FIRST;
+		process.env.NKLEIN_TYPECHECK_FIRST = "1";
+		try {
+			const runCommand = makeRunner(null);
+			const result = await runNKleinAcceptanceGate({ workspacePath: "/tmp/p", taskPrompt: PROMPT, runCommand });
+			expect(result.passed).toBe(true);
+			expect(runCommand.mock.calls.some(([call]) => call.command === "npm test")).toBe(true);
+		} finally {
+			if (before === undefined) {
+				delete process.env.NKLEIN_TYPECHECK_FIRST;
+			} else {
+				process.env.NKLEIN_TYPECHECK_FIRST = before;
+			}
+		}
+	});
+});

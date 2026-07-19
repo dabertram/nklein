@@ -3676,7 +3676,7 @@ verify-before-build caveat: confirm each against current code before implementin
   yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
   is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable
   and feeds cleaner context to small models. Pairs with F11.2c localization. (Claude Code native LSP Dec-2025)
-- [~] **F12.86 — Multi-language compiler/type-check bounded repair micro-loop as a first-class verify step.** For typed/compiled
+- [x] **F12.86 — Multi-language compiler/type-check bounded repair micro-loop as a first-class verify step.** For typed/compiled
   languages run `tsc`/`cargo check`/`go build`/`javac`, parse structured errors, and give the worker a CAPPED repair loop
   BEFORE any expensive test execution or review. Rationale: cheapest possible early gate; type/compiler feedback cuts compile
   errors >50% and helps weak models most; Rust's detailed errors create a tight self-repair loop. May partly exist for TS —
@@ -3688,9 +3688,17 @@ verify-before-build caveat: confirm each against current code before implementin
   instead of grind, and REPEAT-IDENTICAL diagnostics (order-insensitive `diagnosticsSignature`) ⇒ stop, the same
   no-progress rule the §5.AA ladder uses. The instruction names ≤5 concrete `file:line [code]: message` anchors
   (weak models drown in long lists) and explicitly says not to run tests yet. 9 tests.
-  REMAINING (the effectful wire): run the per-language check in the sandbox BEFORE tests/review and feed the plan
-  back as the worker's next turn — needs the per-language command detection (F11.2g's repo-verify-commands core +
-  F12.84 language detection) plus the acceptance-gate ordering change.
+  **WIRE SHIPPED 2026-07-19 (completes the item):** the acceptance gate now runs the repo's typecheck-ish script
+  BEFORE the expensive acceptance command, behind OPT-IN `NKLEIN_TYPECHECK_FIRST` (default OFF = byte-identical,
+  test-locked: with the flag off no package.json read and no type check occur). On a red check it returns a
+  failing gate result carrying the ANCHORED repair instruction from `planTypeCheckRepair` (≤5
+  `file:line [code]: message` + "do not run tests yet") so the existing bounce machinery feeds it to the worker —
+  and the acceptance command never runs, which is the entire point of a cheap early gate (asserted). Unparsed
+  output degrades to an honest plain hint rather than invented anchors; the type-check command is discovered via
+  F11.2g's `deriveRepoVerifyCommands`, so a repo without one is untouched. Repair-round capping rides the
+  existing review-round bounds. +3 wire tests (19 in the gate suite).
+  FOLLOW-UP (not blocking): non-TypeScript languages parse today via the same core but are only DISCOVERED for
+  npm scripts — cargo/go/javac discovery lands with F12.84's language detection.
 - [x] **F12.87 —  *(finalized 2026-07-19 (split): heuristics + baseline store + PNG decode complete; the delivery-gate wire needs an in-sandbox render harness for UI cards -> validation-gated queue, design with the F12.36 seam it extends.)* Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
   after a UI edit, boot the dev server, load the route, and gate on (a) renders + no console errors, (b) Playwright-style
   pixel-diff vs a golden baseline (maxDiffPixelRatio threshold, AA-filtered). Rationale: frontend is LLMs' distinct weakness
