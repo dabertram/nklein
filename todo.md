@@ -3832,7 +3832,9 @@ name for this suite. When David later says "add nightly-test coverage for dev-te
 that one sentence carries the FULL recipe below — the aimock mocking methodology, the flaky-internal-source mocks,
 the per-LLM behavior matrix, the invariant assertions, and the runner registration — without him re-describing any
 of it. Sequenced AFTER the open backlog is implemented: this layer freezes PROVEN behavior, so it lands once the
-behavior worth freezing is in place.
+behavior worth freezing is in place. First tranche = the smallest 10 dev-test-projects (N2, from-scratch flows)
+PLUS 10 suitable SWE-bench cases (N8 — bug-fixing + continue/extend-existing-codebase flows), so all three entry
+shapes are frozen.
 
 **Why.** Fixes/improvements/behavior changes must never silently break a proven workflow or a finalized behavior for
 any small/medium LLM that !Klein already integrated successfully. The nightly suite is that protection: a full-blown
@@ -3880,6 +3882,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
   proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
   regressions (a cell suddenly 3× slower) are visible. Runtime target: hours is fine; waste is not.
+- [ ] **N8 — SWE-bench tranche: 10 suitable cases as nightly cells (David 2026-07-19 addition).** The dev-test
+  projects cover FROM-SCRATCH flows; nightly must ALSO freeze the two other entry shapes — BUG-FIXING and
+  continue/extend an EXISTING pre-seeded codebase. Pick 10 SUITABLE instances from the SWE-bench palette
+  (Lite/Verified pool; selection bar: small repo, bounded golden-diff scope, deterministic fast test command,
+  fits the 32k-context small-model reality, license-clean to vendor) and register each as a normal nightly cell:
+  the pre-seeded repo IS the workspace (the F11.2 existing-codebase path — repo map, monorepo scoping, onboarding
+  facts must all engage), the card is the issue text, and the invariant pack adds "the instance's OWN
+  fail-to-pass tests go green, pass-to-pass stay green" on top of the standard N5 pack. Rides F11.3a/b for the
+  vendored grading core + instance fetcher (dataset-vendoring footprint = the David green-light already attached
+  to F11.3); aimock recordings per model profile exactly like N2/N3 — the SAME four-step growth recipe applies,
+  so "add nightly coverage for SWE-bench instance X" needs no further explanation either.
 - [ ] **N7 — Nightly/pre-release wiring + the growth loop.** A `test:nightly` CI/cron entry (local nightly run +
   pre-release checklist step in docs/); failure output good enough to debug from the summary alone (cell id, seed,
   HOME path kept on failure). THE GROWTH LOOP: adding a new dev-test-project later = (1) record its aimock set per
