@@ -3854,6 +3854,19 @@ output and NOT acted on. Captured as F12.12.)
   swap-crash mechanism confirmed on real hardware — the loader was previously free to spend RAM the GPU cannot
   address. Recommendation emitted: `sudo sysctl iogpu.wired_limit_mb=114688` (112 GB, 16 GB left for macOS)
   reclaims 16.0 GB. **DAVID: that command is yours to run — !Klein does not change system settings.**
+  **PER-MACHINE VERDICTS for David's actual fleet (computed 2026-07-19, not estimated):**
+  · **m5max (128 GB)** — default ceiling 96.0 GB, **32.0 GB GPU-unreachable**. RAISE to 112 GB:
+    `sudo sysctl iogpu.wired_limit_mb=114688` (reclaims 16 GB, 16 GB left for macOS). David agreed + applied.
+    PERSISTENCE: `sysctl -w` dies at reboot and `/etc/sysctl.conf` is unreliable on current macOS for this key —
+    use a LaunchDaemon at `/Library/LaunchDaemons/com.local.iogpu-wired-limit.plist` (root:wheel, 644,
+    `launchctl bootstrap system`). Revert = `bootout` + `rm` + `sysctl -w iogpu.wired_limit_mb=0`.
+  · **m4mini (24 GB) — DO NOT RAISE.** `recommendWiredLimit` ABSTAINS: default ceiling is **18.0 GB**, while an
+    8 GB OS reserve would cap the GPU at **16.0 GB** — raising it would LOWER the ceiling. macOS's default 75% is
+    already more generous than a safe manual setting at this size. **Note this is precisely the machine with the
+    swap-crash history, and wiring MORE memory there would make that worse, not better** — the crash was OS
+    starvation. The fix for m4mini remains "don't route oversized models to it" (the loader already does this).
+    The lever for more headroom on that box is more RAM, not a different cap.
+  · legion5pro (32 GB) is not Apple Silicon — the cap does not apply.
   NICE-TO-HAVE (not blocking, not a remainder): surface `recommendWiredLimit`'s command in the dev fleet CLI.
 - [x] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
   to task budget/difficulty selecting: backend (MLX for long-output, GGUF for short tool-call/prefill-bound), reasoning
