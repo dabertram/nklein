@@ -3739,10 +3739,21 @@ into the existing F12.31. Same verify-before-build caveat.**
   torn-tail tolerant) + WIRED at the web_research fetch (best-effort, beside the F4.3 currency capture). 4 tests.
   **CLI SHIPPED:** `dev egress-receipts [--json]` lists the log + verifies the whole chain (live-verified: empty log,
   chain INTACT). REMAINING: receipts at future egress classes, session taint-labels threaded in, the Trust Panel surface. (verifiability-as-trust; SLSA provenance)
-- [ ] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
+- [~] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
   adoption blocker for regulated users; provenance is table-stakes for a trust story. (model-licensing survey; AI-BOM)
+  **GATE + BOM SHIPPED 2026-07-19:** `model-license-gate.ts` — `classifyLicenseFamily` (permissive /
+  open_weights_restricted / non_commercial / copyleft / proprietary / unknown), `assessModelLicense(facts,
+  deployment)` applying the real traps (commercial use of a non-commercial model REFUSES; Llama-family
+  700M-MAU ceiling REFUSES; EU multimodal carve-out WARNS; redistributing proprietary weights REFUSES; copyleft
+  obligations WARN), and `buildAiBom` rendering the per-project table (model/version/license/family/hash/verdict)
+  that shows gaps as `unknown` instead of hiding them, with an explicit not-legal-advice note. UNKNOWN never
+  passes silently — it warns, because "we could not tell" ≠ "it is fine". 7 tests. `dev ai-bom
+  [--commercial|--redistributing|--eu|--mau|--json]` live-smoked against the loaded fleet.
+  REMAINING (the DATA source): the local gateway publishes no license field, so every model currently reads
+  `unknown`. Populating real per-model licenses means an operator-supplied/catalog license map — deliberately NOT
+  guessed here, since fabricated compliance data is worse than an honest "unverified".
 - [x] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
   web research, MCP, update check) and self-attests — a signed statement + a runtime probe proving no network calls were made
   during a run. Rationale: regulated/air-gapped demand is real and !Klein is uniquely positioned; "private by architecture"

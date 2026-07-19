@@ -39,6 +39,7 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
+import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
@@ -895,6 +896,25 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
 			await runDevOutwardQueueCommand(options);
 		});
+
+	dev.command("ai-bom")
+		.description("F12.100: render the AI Bill of Materials over the loaded fleet (licenses + verdicts).")
+		.option("--commercial", "Assess for COMMERCIAL deployment.")
+		.option("--redistributing", "Assess for redistributing the weights.")
+		.option("--eu", "Assess for EU deployment (Llama multimodal carve-out).")
+		.option("--mau <n>", "Monthly active users (the Llama-family 700M ceiling).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			async (options: {
+				commercial?: boolean;
+				redistributing?: boolean;
+				eu?: boolean;
+				mau?: string;
+				json?: boolean;
+			}) => {
+				await runDevAiBomCommand(options);
+			},
+		);
 
 	dev.command("flip-gate")
 		.description("F12.41: powered McNemar verdict over paired A/B outcomes — the default-flip consult.")
