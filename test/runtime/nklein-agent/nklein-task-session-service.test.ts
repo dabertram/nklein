@@ -488,8 +488,19 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 	};
 }
 
+/**
+ * Flake fix (2026-07-19, §4A): `vi.waitFor`'s DEFAULT budget is 1s, which is too tight when the full suite runs
+ * 1,099 files in parallel on a downclocked (low-power) machine — it produced three independent false-reds in this
+ * file while every test passed 129/129 in isolation. A longer BUDGET weakens no assertion: waitFor resolves the
+ * instant the condition holds, so this only stops the suite from lying under load. Kept below vitest's 15s
+ * testTimeout so a genuine hang still fails with a useful message rather than a timeout-on-timeout.
+ */
+function waitForSettled<T>(check: () => T | Promise<T>): Promise<T> {
+	return vi.waitFor(check, { timeout: 10_000, interval: 25 });
+}
+
 async function waitForTaskSessionId(runtime: FakeNKleinSessionRuntimeController, taskId: string): Promise<string> {
-	await vi.waitFor(() => {
+	await waitForSettled(() => {
 		expect(runtime.getTaskSessionId(taskId)).toBeTruthy();
 	});
 	return runtime.getTaskSessionId(taskId) ?? "session-1";
@@ -647,7 +658,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "warm-model",
 			baseUrl: "http://localhost:1234/v1",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -668,7 +679,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "warm-model",
 			baseUrl: "http://localhost:1234/v1",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(service.getPromptWarmthLedger().get("warm-model")?.shellKey).toBe(
@@ -709,7 +720,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Decompose this project.",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
@@ -734,7 +745,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			filesLikelyTouched: ["src/index.ts"],
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(runtimeSetup.createToolApprovalMock).toHaveBeenCalledWith(
@@ -776,7 +787,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			startInPlanMode: true,
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
@@ -848,7 +859,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Check whether a newer library release exists",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
@@ -941,7 +952,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Investigate startup",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(summaries.some((summary) => summary.state === "queued")).toBe(true);
 		});
 		const queuedSummary = summaries.find((summary) => summary.state === "queued");
@@ -965,7 +976,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			state: "running",
 			workspacePath: "/workspaces/task-queued",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(service.getSummary("task-queued")).toMatchObject({
@@ -1074,7 +1085,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Investigate startup",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-1");
 		});
 	});
@@ -1109,7 +1120,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(taskResultBranchMocks.applyTaskPatchToResultBranch).toHaveBeenCalledWith({
 				repoPath: "/tmp/project",
 				taskId: "task-result",
@@ -1117,7 +1128,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				patch: "diff --git a/README.md b/README.md\n",
 			});
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-result");
 		});
 		expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-result", { baseRef: "main" });
@@ -1169,7 +1180,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
+		await waitForSettled(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
 		expect(service.getSummary("task-delayed-capture")).toMatchObject({ state: "awaiting_review" });
 		expect(service.getSummary("task-delayed-capture")?.latestHookActivity?.hookEventName).not.toBe(
 			"sandbox_patch_captured",
@@ -1179,7 +1190,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 
 		capture.resolve("diff --git a/README.md b/README.md\n");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-delayed-capture")?.latestHookActivity?.hookEventName).toBe(
 				"sandbox_patch_captured",
 			);
@@ -1214,7 +1225,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					severity: "warning",
@@ -1258,7 +1269,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-shutdown-assembly");
 		runtime.emitAgentEvent(sessionId, { type: "done", text: "ready", reason: "completed" });
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(taskResultBranchMocks.applyTaskPatchToResultBranch).toHaveBeenCalledWith(
 				expect.objectContaining({ taskId: "task-shutdown-assembly" }),
 			);
@@ -1313,7 +1324,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		await waitForTaskSessionId(runtime, "task-shutdown-rebound");
 		await service.stopTaskSession("task-shutdown-rebound");
-		await vi.waitFor(() => expect(taskResultBranchMocks.resolveTaskResultBranchCommit).toHaveBeenCalled());
+		await waitForSettled(() => expect(taskResultBranchMocks.resolveTaskResultBranchCommit).toHaveBeenCalled());
 
 		let disposalSettled = false;
 		const disposal = service.dispose().then(() => {
@@ -1350,7 +1361,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-failed-capture-redrive");
 		runtime.emitAgentEvent(sessionId, { type: "done", text: "ready", reason: "completed" });
-		await vi.waitFor(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
+		await waitForSettled(() => expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalled());
 
 		const redrive = service.sendTaskSessionInput("task-failed-capture-redrive", "Try again");
 		await new Promise((resolve) => setImmediate(resolve));
@@ -1359,7 +1370,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		capture.reject(new Error("git add failed"));
 		await redrive;
-		await vi.waitFor(() => expect(runtime.sendTaskSessionInputMock).toHaveBeenCalled());
+		await waitForSettled(() => expect(runtime.sendTaskSessionInputMock).toHaveBeenCalled());
 		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-failed-capture-redrive");
 		expect(service.getSummary("task-failed-capture-redrive")?.state).toBe("running");
 	});
@@ -1389,7 +1400,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			text: "ready for review",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
 		});
 
@@ -1399,7 +1410,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		await service.sendTaskSessionInput("task-stale-redrive", "Address the review feedback");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
 			expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
 				taskId: "task-stale-redrive",
@@ -1446,7 +1457,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "qwen3-8b",
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-redrive-rebuild");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		runtime.emitAgentEvent(sessionId, {
@@ -1454,7 +1465,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			text: "ready for review",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-redrive-rebuild");
 		});
 
@@ -1466,7 +1477,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		await service.sendTaskSessionInput("task-redrive-rebuild", "Address the review feedback");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					taskId: "task-redrive-rebuild",
@@ -1531,7 +1542,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			text: "ready for review",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-gated-redrive")?.state).toBe("awaiting_review");
 		});
 		runtime.sendTaskSessionInputMock.mockClear();
@@ -1568,7 +1579,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 
 		gateRelease.resolve();
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-gated-redrive",
 				"resolved:Address the review feedback",
@@ -1625,7 +1636,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "qwen3-8b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -1639,13 +1650,13 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "qwen3-8b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(gateRequests.map((request) => request.taskId)).toEqual(["decompose-seed", "queued-child"]);
 		});
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 
 		seedTurn.resolve({ sessionId: createSessionId("decompose-seed"), result: {} });
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.startTaskSessionMock.mock.calls[1]?.[0].taskId).toBe("queued-child");
@@ -1676,7 +1687,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			text: "ready for review",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-restore-fail");
 		});
 
@@ -1688,7 +1699,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		await service.sendTaskSessionInput("task-stale-restore-fail", "Address the review feedback");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "runtime_error",
@@ -1738,10 +1749,10 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-race", { baseRef: "main" });
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "runtime_error",
@@ -1800,7 +1811,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "runtime_error",
@@ -1860,7 +1871,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "runtime_error",
@@ -1912,7 +1923,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "runtime_error",
@@ -2146,7 +2157,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-rebuild");
 		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "done" });
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-rebuild")?.state).toBe("awaiting_review");
 		});
 
@@ -2188,7 +2199,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		// Sending input now rebuilds from the persisted launch config (no live session, no cached launch).
 		await service.sendTaskSessionInput("task-rebuild", "Continue the work");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					taskId: "task-rebuild",
@@ -2228,7 +2239,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-iso-rebuild");
 		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "done" });
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-iso-rebuild")?.state).toBe("awaiting_review");
 		});
 
@@ -2264,14 +2275,14 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await service.sendTaskSessionInput("task-iso-rebuild", "Continue the work");
 
 		// The rebuild must re-prep the sandbox for the task against the HOST repo path…
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith(
 				expect.objectContaining({ taskId: "task-iso-rebuild", projectRepoPath: "/host/project-root" }),
 			);
 		});
 		// …and start the session with the in-container sandbox workdir + sandbox-proxied tools, never host file
 		// tools on a non-existent sandbox cwd (the invariant-#2 bug this locks).
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					taskId: "task-iso-rebuild",
@@ -2303,7 +2314,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Fresh start");
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
@@ -2437,7 +2448,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			"Recovered prompt",
 			"Recovered answer",
 		]);
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: "resolved:",
@@ -2471,7 +2482,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			text: "Original answer",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 		expect(
@@ -2531,7 +2542,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2579,7 +2590,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
 
 		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
 		expect(startRequest?.systemPrompt).toContain("Already attempted this task");
@@ -2604,7 +2615,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				},
 			],
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2629,7 +2640,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2641,7 +2652,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			},
 		]);
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:Continue",
@@ -2666,14 +2677,14 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
 		const nextSummary = await service.sendTaskSessionInput("task-1", "One more thing");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:One more thing",
@@ -2706,7 +2717,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			baseRef: "main",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(service.getSummary("task-1")?.workspacePath).toBe("/workspaces/task-1");
@@ -2714,7 +2725,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		await service.sendTaskSessionInput("task-1", "One more thing");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:One more thing",
@@ -2739,12 +2750,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Investigate startup",
 			mode: "plan",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
 		await service.sendTaskSessionInput("task-1", "Continue");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:Continue",
@@ -2765,7 +2776,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Investigate startup",
 			startInPlanMode: true,
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2825,7 +2836,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				"Read specification.md, call decompose_project with minimumTaskCount: 10, and apply the generated graph.",
 			startInPlanMode: true,
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2896,7 +2907,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				"Create a deeply decomposed, dependency-linked implementation-card graph for the modern cross-platform DAW foundation release described in specification.md.",
 			startInPlanMode: true,
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2932,7 +2943,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 					"Read specification.md, call decompose_project with minimumTaskCount: 10, and apply the generated graph.",
 				startInPlanMode: true,
 			});
-			await vi.waitFor(() => {
+			await waitForSettled(() => {
 				expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 			});
 
@@ -2944,7 +2955,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(25_000);
-			await vi.waitFor(() => {
+			await waitForSettled(() => {
 				expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
 				expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 			});
@@ -2973,7 +2984,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -2987,17 +2998,17 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			type: "done",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
 		await service.sendTaskSessionInput("task-1", "Switch mode", "plan");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		await service.sendTaskSessionInput("task-1", "Keep going");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
 				expect.objectContaining({
 					prompt: "resolved:Switch mode",
@@ -3023,7 +3034,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -3035,7 +3046,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			},
 		]);
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:",
@@ -3066,7 +3077,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Investigate startup",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.warningMessage).toContain('Failed to load MCP server "linear"');
 		});
 
@@ -3082,7 +3093,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Add a task",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -3121,7 +3132,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "/fix issue",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -3216,7 +3227,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Continue");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.listMessages("task-1").map((message) => message.content)).toEqual([
 				"Recovered prompt",
 				"Recovered answer",
@@ -3247,7 +3258,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		runtimeSetup.resolvePromptMock.mockImplementation((prompt: string) => `workflow:${prompt}`);
 		await service.sendTaskSessionInput("task-1", "/continue");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"workflow:/continue",
@@ -3609,7 +3620,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(summary?.reviewReason).toBe("hook");
 		expect(summary?.latestHookActivity?.hookEventName).toBe("agent_end");
 		expect(summary?.latestHookActivity?.finalMessage).toBe("Done. Added the comment.");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(turnCheckpointMocks.captureTaskTurnCheckpoint).toHaveBeenCalledWith({
 				cwd: "/tmp/worktree",
 				taskId: "task-1",
@@ -3634,7 +3645,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		// A reasoning model ends its turn with no content and no tool call.
 		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "" });
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				expect.stringContaining("Your previous turn ended without calling a tool"),
@@ -3822,7 +3833,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		expect(resumed).toHaveLength(1);
 		expect(resumed[0]?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:Continue from the paused checkpoint.",
@@ -3872,7 +3883,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 
 		service.setBoardPaused(false);
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:Do not send until resumed.",
@@ -4427,7 +4438,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -4437,7 +4448,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		]);
 
 		expect(response).not.toBeNull();
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledTimes(1);
 		});
 		sendDeferred.resolve({ text: "done" });
@@ -4455,7 +4466,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
@@ -4481,7 +4492,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
@@ -4505,7 +4516,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
@@ -4531,7 +4542,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			iteration: 1,
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
 		});
 		expect(service.getSummary("task-1")?.latestHookActivity?.notificationType).toBe("credit_limit");
@@ -4547,14 +4558,14 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Initial prompt",
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
@@ -4569,7 +4580,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -4608,7 +4619,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		selfObservationMocks.recordSelfObservation.mockReset();
@@ -4672,14 +4683,14 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
@@ -4749,7 +4760,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
@@ -4819,7 +4830,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 		expect(runtime.startTaskSessionMock).not.toHaveBeenCalled();
@@ -4863,7 +4874,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Initial prompt",
 			contextWindow: 8_000,
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-1");
@@ -4871,7 +4882,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			type: "done",
 			reason: "completed",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 
@@ -4885,7 +4896,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		expect(summary?.state).toBe("running");
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
@@ -4925,7 +4936,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			contextWindow: 1_000_000,
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const startCall = runtime.startTaskSessionMock.mock.calls[0]?.[0];
@@ -4987,7 +4998,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			initialMessages,
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const breakdown = service.getSummary("task-1")?.contextBudgetBreakdown;
@@ -5018,7 +5029,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			contextWindow: 8_000,
 		});
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
 		expect(runtime.startTaskSessionMock).not.toHaveBeenCalled();
@@ -5074,13 +5085,13 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Initial prompt",
 			contextWindow: 8_000,
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
 		await service.sendTaskSessionInput("task-1", "x".repeat(50_000));
 
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				expect.stringContaining("x"),
@@ -5129,7 +5140,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -5143,7 +5154,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
 
 		expect(nextSummary?.state).toBe("running");
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
 		});
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
@@ -5173,7 +5184,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
 		});
-		await vi.waitFor(() => {
+		await waitForSettled(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 

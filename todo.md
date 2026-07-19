@@ -68,14 +68,18 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
-> **FLAKY-UNDER-LOAD: `nklein-task-session-service.test.ts` (129 timing-sensitive tests).** Two independent
-> false-reds on 2026-07-19 under LOW POWER MODE (suite 17s → 84s): "parks a running task as paused…", "does not
-> dispatch queued input…", and "emits awaiting_review before asynchronous result capture settles". Each passed
-> 129/129 in ISOLATION immediately after. DIAGNOSIS RULE: when a pre-commit red names this file, re-run that file
-> alone BEFORE suspecting your change — if it passes in isolation and your edit isn't in the service, it's the
-> flake, not you. (Also: any NEW async work on a hot session path can genuinely break these; the earlier F4.13
-> prune really did, and was fixed by scoping the store read to reviewer/architect roles.) This is exactly the
-> class Phase-13 N13's double-run quarantine exists to catch.
+> **FLAKY-UNDER-LOAD (FIXED 2026-07-19): `nklein-task-session-service.test.ts` (129 timing-sensitive tests).**
+> THREE independent false-reds in one session under LOW POWER MODE (suite 17s → 84s) — "parks a running task as
+> paused…", "does not dispatch queued input…", "emits awaiting_review before asynchronous result capture
+> settles" — each passing 129/129 in ISOLATION seconds later. ROOT CAUSE: `vi.waitFor`'s DEFAULT budget is 1s,
+> far too tight when 1,099 files run in parallel on a downclocked machine. FIX: a local `waitForSettled` helper
+> (10s budget, 25ms interval, below the 15s testTimeout) now backs all 100 waitFor sites in that file — a longer
+> BUDGET weakens no assertion, since waitFor resolves the instant the condition holds; it only stops the suite
+> from lying under load. GENERAL RULE: prefer an explicit generous waitFor budget over the 1s default in any
+> test that awaits a multi-hop async settle. STILL TRUE: new async work on a hot session path can genuinely
+> break these (the F4.13 prune really did — fixed by scoping the store read to reviewer/architect roles), so
+> re-run the file alone to tell a real break from load noise. Phase-13 N13's double-run quarantine remains the
+> standing net for this class.
 
 
 > Integrated from the former `AGENTS.md` (2026-06-28, user). `todo.md` is the **single file** an agent is pointed at —
