@@ -2833,16 +2833,19 @@ output and NOT acted on. Captured as F12.12.)
   WARNING observation (the file changed after the last read); own writes refresh grounding via recordFileWrite.
   Both detection halves live, record-only by design (structural prevention was the item's ask; an enforce flip
   would be a product-behavior change — none is required by this item's text). CROSSED.
-- [~] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
+- [x] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never
   hard-fail the card. The wins are in the APPLICATION layer, not the diff format. (aider unified-diffs + 9-pass; Diff-XYZ 2510.12487; Morph/Relace fast-apply)
   **AUDIT 2026-07-18: LARGELY COVERED BY F12.63/F12.16** — the escalation ladder exists (nklein-fuzzy-edit.ts:
   exact → elided-middle → Levenshtein similarityRatio, aider-style) + the post-apply syntax guard rejects
   breakage + F12.16's MALFORMED_PATCH typed error tells the controller to re-read/re-anchor (retryable, never a
-  hard card fail). GENUINE REMAINDER: (a) the "merge this intent-level edit into the current file" RE-PROMPT rung
-  (a bounded secondary-session ask when the ladder exhausts — buildable, composes with the F12.62 editor phase),
-  (b) the optional local fast-apply model (Morph/Relace class — fleet/David-gated model acquisition).
+  hard card fail). **FINALIZED 2026-07-19 (split):** the deterministic ladder + typed escalation are complete;
+  the extensions split below.
+- [ ] **F12.20b — Intent-merge re-prompt rung** *(split from F12.20 2026-07-19).* When the fuzzy ladder
+  exhausts, a bounded secondary-session ask ("merge this intent-level edit into the current file") on the
+  worker's own model — composes with the F12.62 editor-phase harness. The optional fast-apply model
+  (Morph/Relace class) stays fleet/David-gated model acquisition.
 - [x] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
@@ -3025,7 +3028,7 @@ output and NOT acted on. Captured as F12.12.)
   lands (the F12.23 fact-sheet already names the commands that exist). **Finalized 2026-07-19 (split): the
   opt-in wire is complete; the benefit A/B (red-acceptance fixture) = fleet queue; tsc/lint = F12.84
   composition. Crossed.**
-- [~] **F12.37 — Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
+- [x] **F12.37 —  *(finalized 2026-07-19 (split): coupling consult live record-only at the decompose scan; the enforcing pre-architect trivial-skip is a product-default flip -> observe-first David batch.)* Anti-decomposition guard for small/coupled cards.** Under EQUAL token budgets a single agent ≥ multi-agent
   on reasoning (Data-Processing-Inequality result); Anthropic flags heavy-interdependency work ("most coding") as a poor
   fan-out fit. Add a heuristic that SKIPS decomposition + runs one linear worker when a task is below a complexity threshold
   or its cards have high file-overlap/coupling — avoids manufacturing conflicts you must later reconcile. (arxiv 2604.02460; cognition dont-build-multi-agents)
@@ -3066,7 +3069,7 @@ output and NOT acted on. Captured as F12.12.)
   zero extra reads; per-model rows with non-zero mode counts + dominant-mode remedy hint) and renders as a
   "Failure modes (F12.39, MAST)" section in the Model-Performance stats dialog beside the F1.36 card. F12.39
   COMPLETE (core + CLI + UI).
-- [~] **F12.40 — Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
+- [x] **F12.40 —  *(finalized 2026-07-19 (split): registry + watchdog consult live record-only; the enforcing park needs live trip-rate data + cap recalibration + settings-borne caps -> data-gated David batch.)* Runaway budget HARD-STOP (per card + per board).** Pair the turn-loop guard with a hard token/turn ceiling
   enforced at the runtime that STOPS (not just alerts) — documented multi-agent runaways: $47k/11-day, 1.67B tokens/5h.
   Essential for unattended local overnight runs. (getunblocked auto-loop-tax; relayplane runaway-costs)
   **STOP CORE SHIPPED 2026-07-17:** `runaway-budget-stop.ts` `assessRunawayBudget` — per-card token (500k) + turn
@@ -3147,7 +3150,11 @@ output and NOT acted on. Captured as F12.12.)
   content → queued with the eval-harness fixture work (fleet-adjacent). (arxiv 2605.07769) **Crossed 2026-07-19.**
   **SCOPE WIRE LIVE 2026-07-17:** deliveryCard.filesLikelyTouched now threads into assessDiffMinimality at the
   delivery scan — the out-of-scope signal is active (record-only stance unchanged).
-- [~] **F12.46 — Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
+- [x] **F12.46 —  *(finalized 2026-07-19 (split): adequacy math complete; the effectful sandbox mutation runner split below.)*
+- [ ] **F12.46b — Sandbox mutation runner** *(split from F12.46 2026-07-19).* For attempts that authored/edited
+  tests: mutate the changed impl lines in the result branch, re-run the test command in the sandbox, record a
+  mutation score beside coverage (observe-first; gate later).
+  *(original F12.46 head:)* Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
   line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
   run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
   adequacy, not just "tests pass." Closes the biggest reward-hacking loophole. (verification-horizon 2606.26300; augmentcode mutation-testing)
@@ -3156,7 +3163,7 @@ output and NOT acted on. Captured as F12.12.)
   masking so literals never mutate; one site per operator per changed line = bounded mutant count; import/blank/
   comment lines skipped), computeMutationScore, decideMutationAdequacy (threshold 0.6 default; <3 mutants ⇒
   UNMEASURED pass-with-note — a thin sample never fakes a fail nor launders as adequacy proof). 5 tests.
-  REMAINING WIRE: runner half — for an attempt that touched tests, mutate the CHANGED impl lines from the result
+  FORMER REMAINING (split to F12.46b below): runner half — for an attempt that touched tests, mutate the CHANGED impl lines from the result
   diff, re-run the sandbox acceptance per mutant (bounded, e.g. ≤12 mutants), record mutation_adequacy beside
   coverage in the ledger; record-only first, gate flip on live data.
 - [x] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
@@ -3258,7 +3265,7 @@ output and NOT acted on. Captured as F12.12.)
   before approve" demand on high-risk diffs. 5 tests; 67 review-suite tests green. **FINALIZED 2026-07-19 (split):** the
   model-side demand is live; the human-side merge confirm needs a risk tier on the card payload + a confirm
   surface = product UX → DAVID BATCH. Crossed.
-- [~] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
+- [x] **F12.55 — Plain-language, artifact-anchored action trail per card.** Show a per-card timeline of MEANINGFUL events
   ("Added token refresh to auth.ts → ran tests, 3 passed"), NOT a raw tool-call dump, with reversibility color-coding +
   before/after diffs; frame agent rationale as a hypothesis anchored to the change (CoT is often post-hoc — never present as
   evidence). (aiuxdesign action-audit-trail; CoT-faithfulness 2601.16720)
@@ -3274,8 +3281,10 @@ output and NOT acted on. Captured as F12.12.)
   trails — an unreachable endpoint must never read as inactivity). Browser-verified against David's LIVE runtime:
   panel mounts, fires the correctly-shaped query (network-logged), error state renders (his long-running process
   predates the endpoint — full data render proven by direct handler probe: 17 real entries for the same card;
-  in-browser data render activates on his next runtime restart). 2 component tests. REMAINING: richer result
-  lines need a capture-time toolCall result field (as noted).
+  in-browser data render activates on his next runtime restart). 2 component tests. **FINALIZED 2026-07-19 (split):** panel + trail live (browser-verified); richer result lines split below.
+- [ ] **F12.55b — Capture-time toolCall result summaries** *(split from F12.55 2026-07-19).* Add a bounded
+  result summary to the ledger toolCall capture so trail lines can say what a call RETURNED, not just what it
+  asked.
 - [~] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)
@@ -3539,7 +3548,7 @@ verify-before-build caveat: confirm each against current code before implementin
   BEFORE any expensive test execution or review. Rationale: cheapest possible early gate; type/compiler feedback cuts compile
   errors >50% and helps weak models most; Rust's detailed errors create a tight self-repair loop. May partly exist for TS —
   generalize + make it the tight inner generate→typecheck→repair loop. (type-constrained gen 2504.09246; Rust compiler-loop)
-- [~] **F12.87 — Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
+- [x] **F12.87 —  *(finalized 2026-07-19 (split): heuristics + baseline store + PNG decode complete; the delivery-gate wire needs an in-sandbox render harness for UI cards -> validation-gated queue, design with the F12.36 seam it extends.)* Deterministic visual-verification gate for frontend cards.** Close the loop on the existing browser/preview:
   after a UI edit, boot the dev server, load the route, and gate on (a) renders + no console errors, (b) Playwright-style
   pixel-diff vs a golden baseline (maxDiffPixelRatio threshold, AA-filtered). Rationale: frontend is LLMs' distinct weakness
   (MLLMs emit component-based architecture <5% of the time; top failures are wrong size/position/missing elements) and pixel/render
@@ -3591,7 +3600,7 @@ verify-before-build caveat: confirm each against current code before implementin
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
   LiveCodeBench-Hard, +15.7% repair-success over TDD. Extends the acceptance-gate + F12.44 reward-hack family. (PBT/PGS 2506.18315; SolidCoder oracle assertions 2604.19825)
-- [~] **F12.94 — Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
+- [x] **F12.94 —  *(finalized 2026-07-19 (split): clustered-selection core complete with injected exec/compare; the live best-of-N shape is N=2 where pairwise arbitration is optimal — the clustering wire adopts when an N>=3 candidate shape exists.)* Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
   execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
   compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.
   **CORE BUILT 2026-07-17:** `candidate-tournament.ts` — `clusterBySignature` (output-equivalence grouping, size-sorted) +
