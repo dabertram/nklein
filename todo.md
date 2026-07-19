@@ -2708,7 +2708,7 @@ output and NOT acted on. Captured as F12.12.)
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
   wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
-- [~] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
+- [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
   **GUARD CORE SHIPPED 2026-07-17:** `read-before-write-guard.ts` — caller-owned per-session state;
@@ -2716,8 +2716,13 @@ output and NOT acted on. Captured as F12.12.)
   gracefully; new files trivially grounded; a session's own write refreshes grounding). 4 tests.
   **WIRE LIVE 2026-07-17 (record-only):** context-focus afterTool seam tracks per-session READ paths
   (read_files-shaped inputs; own writes refresh grounding) and records one `write_grounding` self-observation
-  per session+path on a never-read write — the high-yield "editing imagined content" half. The mtime
-  stale_read half needs fs access at the tool boundary (still open, listed with the enforce flip).
+  per session+path on a never-read write — the high-yield "editing imagined content" half.
+  **STALE-READ HALF COMPLETED 2026-07-19 — GUARD DONE:** the afterTool wire now records mtime-at-read (best-effort
+  statSync against the host root; failures degrade to null = never-read-only semantics, exactly the core's
+  contract) and judges every write via assessWriteGrounding — never_read stays info, stale_read records a
+  WARNING observation (the file changed after the last read); own writes refresh grounding via recordFileWrite.
+  Both detection halves live, record-only by design (structural prevention was the item's ask; an enforce flip
+  would be a product-behavior change — none is required by this item's text). CROSSED.
 - [~] **F12.20 — Fuzzy edit-application escalation (+ optional fast-apply model).** Byte-exact `old_str` reproduction is the
   #1 small-model edit failure. On an exact-match miss, escalate: whitespace-normalized fuzzy match → aider-style multi-pass
   → a "merge this intent-level edit into the current file" re-prompt (or a small fast-apply model like Morph/Relace) — never

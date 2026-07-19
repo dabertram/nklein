@@ -6,12 +6,21 @@
 // the extension's mechanics. The per-session re-anchor state lives here behind small accessors the runtime calls on
 // focus-chain update / session end / dispose.
 
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
+import {
+	assessWriteGrounding,
+	createReadBeforeWriteState,
+	type ReadBeforeWriteState,
+	recordFileRead,
+	recordFileWrite,
+} from "../core/read-before-write-guard";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
@@ -65,6 +74,8 @@ const progressStallFlaggedSessionIds = new Set<string>();
 // F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
 // counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
 const readPathsBySessionId = new Map<string, Set<string>>();
+/** F12.19: per-session read/write mtime history for the stale-read half of write grounding. */
+const readBeforeWriteStateBySessionId = new Map<string, ReadBeforeWriteState>();
 const ungroundedWriteFlaggedBySessionId = new Map<string, Set<string>>();
 const PROGRESS_RECORD_CAP = 24;
 const PROGRESS_STALL_CALL_WINDOW = 12;
@@ -335,17 +346,27 @@ export function createKanbanContextFocusExtension(
 				// file's states OSCILLATE (edit → revert → re-edit) record a self-observation once per session+file.
 				// The turn-loop guard can't see this (different tool INPUTS each time); PRM watches reads/hand-offs.
 				const edits = extractFileEditsFromToolInput(context.tool.name, context.input);
-				// F12.19 (record-only): track READ paths; a WRITE to an existing-session-unknown path is the classic
-				// "editing imagined content" hazard — observe once per session+path (mtime staleness needs fs access
-				// the hook doesn't have; the never-read half is the high-yield signal).
+				// F12.19 (record-only): track READ paths WITH their mtime-at-read (best-effort statSync against the
+				// host workspace root — cheap for local files; unknown mtimes degrade to the never-read half only).
 				const knownPaths = readPathsBySessionId.get(sessionId) ?? new Set<string>();
+				const readState = readBeforeWriteStateBySessionId.get(sessionId) ?? createReadBeforeWriteState();
+				readBeforeWriteStateBySessionId.set(sessionId, readState);
+				const statMtime = (relativePath: string): number | null => {
+					try {
+						return statSync(join(orientationWorkspacePath, relativePath)).mtimeMs;
+					} catch {
+						return null;
+					}
+				};
 				if (/^read_files?$|^read_large_file$/i.test(context.tool.name)) {
 					const record =
 						context.input && typeof context.input === "object" ? (context.input as Record<string, unknown>) : {};
 					const rawPaths = Array.isArray(record.paths) ? record.paths : [record.path ?? record.file_path];
 					for (const raw of rawPaths) {
 						if (typeof raw === "string" && raw.trim()) {
-							knownPaths.add(raw.trim());
+							const trimmed = raw.trim();
+							knownPaths.add(trimmed);
+							recordFileRead(readState, trimmed, { mtime: statMtime(trimmed), now: Date.now() });
 						}
 					}
 					readPathsBySessionId.set(sessionId, knownPaths);
@@ -353,17 +374,20 @@ export function createKanbanContextFocusExtension(
 				if (edits.length > 0) {
 					const flaggedWrites = ungroundedWriteFlaggedBySessionId.get(sessionId) ?? new Set<string>();
 					for (const edit of edits) {
-						if (!knownPaths.has(edit.path) && !flaggedWrites.has(edit.path)) {
-							flaggedWrites.add(edit.path);
+						// F12.19 COMPLETE: judge the write against the read history — never_read AND stale_read halves.
+						const verdict = assessWriteGrounding(readState, edit.path, { currentMtime: statMtime(edit.path) });
+						if (verdict.kind !== "grounded" && !flaggedWrites.has(`${verdict.kind}:${edit.path}`)) {
+							flaggedWrites.add(`${verdict.kind}:${edit.path}`);
 							recordSelfObservation({
 								signal: "custom",
-								severity: "info",
-								message: `Write to ${edit.path} with no prior read this session — edits may target imagined content (or it is a new file).`,
+								severity: verdict.kind === "stale_read" ? "warning" : "info",
+								message: `Write to ${edit.path}: ${verdict.detail}`,
 								taskId: sessionId,
-								metadata: { category: "write_grounding", path: edit.path },
+								metadata: { category: "write_grounding", path: edit.path, verdict: verdict.kind },
 							});
 						}
 						knownPaths.add(edit.path);
+						recordFileWrite(readState, edit.path, { mtimeAfterWrite: statMtime(edit.path), now: Date.now() });
 					}
 					readPathsBySessionId.set(sessionId, knownPaths);
 					ungroundedWriteFlaggedBySessionId.set(sessionId, flaggedWrites);
