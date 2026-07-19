@@ -17,6 +17,7 @@ import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
+import { planReviewEffort } from "../core/review-effort-scaling";
 import type { ReviewBoardContext, ReviewRelatedCard, ReviewSubmissionInput } from "../core/review-orchestration";
 import { fingerprintReviewArtifact } from "../core/review-orchestration";
 import { planReviewPanel } from "../core/review-panel-plan";
@@ -32,6 +33,7 @@ import {
 	storeAcceptanceEvidence,
 } from "../nklein-agent/nklein-acceptance-evidence-registry";
 import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
+import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { type PanelJudge, runNEyesReviewPanel, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
@@ -41,7 +43,9 @@ import {
 } from "../nklein-agent/nklein-second-opinion-review";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { recordExecutionOutcomeForTaskSkills } from "../nklein-agent/procedural-skill-execution-recorder";
+import { readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/task-result-branches";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 
@@ -518,6 +522,52 @@ export async function runSecondOpinionReviewForTask(
 			input.warn?.(`Verification-first gate: bouncing ${input.taskId} — ${verificationFirst.submission.summary}`);
 		}
 	}
+	// F12.35 (RECORD-ONLY, deliberately): compare the effort this card WARRANTS against the depth it is about to
+	// get. This feature can only ever REDUCE scrutiny, so it observes before it decides — the observation stream
+	// shows how often the cheap path would have fired and on what evidence, which is what a flip must be argued
+	// from. Difficulty comes from the card's latest ledger attempt; with no difficulty recorded there is nothing
+	// to ground a recommendation on, so nothing is recorded.
+	void (async () => {
+		try {
+			const ledgerEvents = await readAgentLedger({
+				workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
+			});
+			const latestAttempt = ledgerEvents
+				.filter((event) => event.kind === "attempt" && event.taskId === input.taskId)
+				.at(-1);
+			const difficultyTier =
+				latestAttempt && "difficulty" in latestAttempt ? (latestAttempt.difficulty ?? null) : null;
+			if (difficultyTier === null) {
+				return;
+			}
+			const difficulty =
+				difficultyTier === "easy" || difficultyTier === "trivial"
+					? 0.25
+					: difficultyTier === "hard" || difficultyTier === "very-hard"
+						? 0.85
+						: 0.55;
+			const plan = planReviewEffort({
+				difficulty,
+				deterministicGreen: acceptance?.passed ?? null,
+			});
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Review-effort recommendation for ${input.taskId}: ${plan.depth} (${plan.reason})`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "review_effort_scaling",
+					depth: plan.depth,
+					reviewPasses: plan.reviewPasses,
+					debateRounds: plan.debateRounds,
+					difficultyTier,
+				},
+			});
+		} catch {
+			// Observation only — a failed consult must never disturb the review.
+		}
+	})();
 	stampPhase("review-resolution start");
 	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,

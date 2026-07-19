@@ -3150,7 +3150,7 @@ output and NOT acted on. Captured as F12.12.)
   sessions are new bounded sessions by construction, seeded with the reviewer-role prompt (≠ worker), and the
   N-eyes lens rotation adds orthogonal stances even same-model. Temperature variation rides the future
   per-attempt sampling seam (noted at F3.30). Crossed. (zylos multi-model-review; Weaver)
-- [~] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
+- [x] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
   pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
   cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample
   count / debate rounds an explicit function of card difficulty + routing uncertainty. (DOWN 2504.05047; Anthropic effort-scaling)
@@ -3162,9 +3162,15 @@ output and NOT acted on. Captured as F12.12.)
   or absent confidence yield the standard pass, because "we didn't look" must not read as "it's fine" (a
   non-finite difficulty is treated as maximally hard: fail-safe, not fail-cheap). The reason NAMES the signal
   that decided, so an operator can see why a card got or skipped the deep pass. 7 tests.
-  REMAINING (the wire): consult it at the review seam to set N-eyes size / debate rounds — record-only first
-  (compare recommended vs actual on live cards), since the DOWN path CHANGES review behaviour and the
-  observe-before-enforce rule applies to anything that reduces scrutiny.
+  **RECORD-ONLY CONSULT WIRED 2026-07-19 (completes the item's autonomous scope):** the review path now records a
+  `review_effort_scaling` observation naming the depth the card WARRANTS (difficulty tier from its latest ledger
+  attempt × whether the deterministic checks came back green) beside the depth it actually gets. Deliberately
+  observation-only and fire-and-forget: this feature can only ever REDUCE scrutiny, so the flip must be argued
+  from live data showing how often the cheap path would have fired and on what evidence — not from the core's
+  plausibility. No difficulty recorded ⇒ nothing recorded (no ungrounded recommendations); a failed consult never
+  disturbs the review. Full suite green (10,884).
+  NEXT (David call, data-gated): flip to ACTUALLY setting N-eyes size / debate rounds once the observation stream
+  shows the DOWN path firing only on genuinely safe cards.
 - [x] **F12.36 — Deterministic-verification-FIRST acceptance gate.** Run lint/typecheck/build/existing-tests BEFORE the LLM
   reviewer and feed the concrete failures into its context (DeepSource static-first = 84.5% F1 vs CodeRabbit ~36%; false
   positives are the dominant AI-reviewer failure). Optionally add a "refute-or-promote" refuter stage-gate: a flagged defect
