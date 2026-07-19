@@ -2795,8 +2795,11 @@ output and NOT acted on. Captured as F12.12.)
   **PREREQUISITE STAMP SHIPPED 2026-07-19:** attempt events now carry `surfacedSkillIds` (additive, default []) —
   derived at the primary start from the `procedural-skill:` fragment keys the F4.19 consumer already emits,
   stashed per task, stamped on the terminal attempt event (absent/empty = the without-skill trajectory side).
-  REMAINING WIRE: the pairing projection (group attempts by task-kind tags × surfaced-vs-not) feeding
-  auditSkillFromPairedTrajectories, then the lifecycle sweep consuming verdicts.
+  **PAIRING PROJECTION SHIPPED same day:** `skill-trajectory-projection.ts` buildSkillTrajectoryPairs —
+  role-comparable with/without split per surfaced skill (compound surfacing counts on WITH for each; reviewer
+  attempts never pair against worker attempts), duration → wallMs cost, deterministic order. 3 tests. REMAINING:
+  the lifecycle sweep (read ledger → pairs → auditSkillFromPairedTrajectories → apply promote/revise/retire via
+  the store, honoring the F12.29 execution gate) — a `dev skill-audit` CLI first, auto-sweep second.
 
 **Supply-chain, determinism & reproducibility:**
 - [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
