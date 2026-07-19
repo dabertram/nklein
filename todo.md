@@ -3825,6 +3825,67 @@ into the existing F12.31. Same verify-before-build caveat.**
   across create-more) — pure halves moved to `src/core/bulk-seed.ts` and shared via the `@runtime-bulk-seed`
   alias (vite+vitest+tsconfig, all three). Dialog test covers split→template→create-all. Item complete.
 
+### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
+
+**Standing name + contract (memorize this — it is the whole point of the name).** "Nightly tests" is THE canonical
+name for this suite. When David later says "add nightly-test coverage for dev-test-project X" (or any new project),
+that one sentence carries the FULL recipe below — the aimock mocking methodology, the flaky-internal-source mocks,
+the per-LLM behavior matrix, the invariant assertions, and the runner registration — without him re-describing any
+of it. Sequenced AFTER the open backlog is implemented: this layer freezes PROVEN behavior, so it lands once the
+behavior worth freezing is in place.
+
+**Why.** Fixes/improvements/behavior changes must never silently break a proven workflow or a finalized behavior for
+any small/medium LLM that !Klein already integrated successfully. The nightly suite is that protection: a full-blown
+aimock-based e2e layer that drains real dev-test-projects through the REAL runtime with every external dependency
+and every potentially-flaky internal information source mocked properly and extensively. Hours-long runs are
+acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGTH of coverage is the priority.
+
+- [ ] **N1 — Nightly runner + registration convention (the "nightly tests" entry point).** One command
+  (`npm run test:nightly` + `nklein dev nightly [--project <id>] [--model <profile>] [--json]`) that discovers and
+  drains every REGISTERED nightly project×model cell sequentially-by-default (gotcha: parallel batches false-timeout
+  the largest projects — memory `aimock-devtest-projects-validated`), per-run ports + isolated HOMEs
+  (`NKLEIN_AGENT_LEDGER_ROOT` + fresh `.nklein`), machine-readable per-cell verdicts, and a summary that names every
+  skipped/failed cell (no silent truncation). Registration = one manifest entry per project (id, fixture, recording
+  set, invariant pack, model profiles) so ADDING coverage is data, not new plumbing. Seed from
+  `scripts/verify-all-simulated-flows.sh` (253de3e1) — that script is the proto-runner.
+- [ ] **N2 — Smallest-10 dev-test-projects fully covered (the first tranche).** Pick the 10 smallest of the 20
+  dev-test scenario projects (by fixture size/steps at build time), and for each: record/curate the aimock set that
+  drains it end-to-end (0 unmatched requests — the F11.4c invariant), covering EVERY !Klein codepath the project can
+  exercise: decompose → planning/refinement → worker → acceptance → review (approve AND request_changes bounce) →
+  delivery gates, plus steering-behavior (queued + steer input), robustness tweaks (retry ladders, failover, loop
+  guards, park/resume, re-drive), efficiency rails (budgets, capping, admission), and correctness gates (taint,
+  acceptance evidence, fail-closed delivery, syntax guard) — and whatever David missed listing: when a codepath is
+  discovered uncovered mid-work, ADD it here rather than skipping it.
+- [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
+  project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
+  the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
+  rnj-1, glm-4.6v-flash, seed-oss/olmo-3 where role-capable; extend as the catalog grows). The matrix must cover
+  every REASONABLE combination (architect/worker/reviewer role assignments per profile), assert the project FINISHES
+  properly per combination, and encode each family's known quirks as fixtures (reasoning-channel-only output, empty
+  content on json_schema, no-verdict reviewers, Jinja alternation 500s) so a regression in a quirk-handling path
+  fails the matrix loudly.
+- [ ] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
+  git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
+  proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
+  sweep needs an IDLE gateway — must be injectable/mocked for nightly), `lms ps`/loaded-model discovery, Date.now
+  damping windows (trigger 30s, dedup 12min), watchdog tick timing, pmset power mode, filesystem mtimes (F12.19),
+  and free-port probing. Nightly runs must be hermetic: a busy gateway or a slow disk must not flip a verdict.
+- [ ] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
+  the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
+  shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST
+  fire fired (acceptance evidence, review verdicts, taint holds where scripted) and the guards that must NOT fire
+  stayed quiet (false-positive watch: runaway/stall/thrash on healthy runs); replay determinism (a second identical
+  run reaches the same terminal board). Packs are shared composable helpers so new projects assert by reference.
+- [ ] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
+  scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
+  proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
+  regressions (a cell suddenly 3× slower) are visible. Runtime target: hours is fine; waste is not.
+- [ ] **N7 — Nightly/pre-release wiring + the growth loop.** A `test:nightly` CI/cron entry (local nightly run +
+  pre-release checklist step in docs/); failure output good enough to debug from the summary alone (cell id, seed,
+  HOME path kept on failure). THE GROWTH LOOP: adding a new dev-test-project later = (1) record its aimock set per
+  N2, (2) register the manifest cell per N1, (3) attach invariant packs per N5, (4) add model profiles per N3 —
+  and nothing else. That four-step recipe IS what "add nightly coverage for X" means from now on.
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
