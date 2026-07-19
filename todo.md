@@ -1146,16 +1146,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   allowlist), DNS-stub attribution (role-less shared UDP listener — needs a design), and the later policy
   decision whether unauthenticated egress should be DENIED rather than merely unattributed (live-validate
   first).
-- [ ] **F2.6b — Playwright re-validation of the open-workspace picker (typed intents SHIPPED 2026-07-13).**
+- [x] **F2.6b — Playwright re-validation of the open-workspace picker (typed intents SHIPPED 2026-07-13).**
   F2.6 is functionally COMPLETE: the raw `runtime.runCommand` tRPC surface is GONE (contract schema, validator,
   router procedure, handler, and the client-side shell-string builder all removed); the replacement
   `openWorkspaceIn` takes ONLY a typed target-id enum and the SERVER builds the command from its own
   `process.platform` + the workspace path it already knows (`src/core/host-open-intents.ts`, the proven web-ui
   builder ported verbatim incl. shell quoting — hostile-path injection test added), so no arbitrary local-mode
   string ever crosses the wire; `openFile` now server-validates its target (absolute plain path — URLs refused —
-  and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
-  the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
-  package's e2e run.
+  and must exist as a regular file). The web-ui keeps only picker metadata. **PLAYWRIGHT PASS SHIPPED
+  2026-07-19 (completes the item):** `web-ui/tests/open-workspace-picker.spec.ts` — 4 tests over the page-level
+  runtime mock (no live runtime, no process spawned): the Open control renders with its selected target named,
+  the popover lists selectable targets, choosing one re-labels the primary button, and — the security-relevant
+  one — the captured `runtime.openWorkspaceIn` body carries a `targetId` and NOTHING command-shaped (negative
+  assertions on command/cmd/args/shell/exec/path keys AND on `open -a` / `cmd.exe` / `/bin/sh` / `&&` / `||`
+  substrings), so "no arbitrary local-mode string crosses the wire" is REGRESSION-LOCKED rather than
+  review-only. Folds into Phase-13 N14.
 - [x] **F2.7c — Chat model PIN (selection, not just discovery).** Live-found validating F2.7b on the fleet: the chat
   resolves its model by DISCOVERY only (`resolveLocalChatModelDeps` → first loaded non-embedding model) — with several
   models resident there is NO way to select which one a chat session uses (the vision positive-path probe could not
