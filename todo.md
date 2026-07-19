@@ -2692,15 +2692,17 @@ output and NOT acted on. Captured as F12.12.)
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
-- [~] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
+- [x] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"
   cycles with a spec-first flow. Add a lightweight pre-decompose spec linter (contradictions, missing acceptance command,
   unmeasurable success criteria, undefined key terms) that surfaces gaps for clarification. Composes with §5.S clarification cores. (aws kiro requirements analysis)
   **LINTER CORE SHIPPED 2026-07-17:** `spec-lint.ts` `lintSpecForDecompose` — the four cheap gap classes (missing
   acceptance check first; naive must/must-not contradiction pairs; vague quality words without a measurable bound
   nearby; undefined 3+-letter acronyms) each carrying a READY-TO-ASK clarifying question (§5.S one-at-a-time is the
-  caller's). 5 tests. REMAINING (activation): run it at the decompose seam pre-flight and route findings into the
-  existing clarification flow (effectful — the decompose path decides ask-vs-proceed; findings are prompts, never blocks).
+  caller's). 5 tests. **PRE-FLIGHT WIRE SHIPPED 2026-07-19 (completes the item):** buildNKleinPlanningSystemPrompt appends
+  the linter's findings as ADVISORY considerations behind OPT-IN NKLEIN_SPEC_LINT (default OFF = byte-identical,
+  test-locked) — capped at 3, each carrying its ready-to-ask question; the model owns ask-vs-proceed through the
+  normal clarification flow, exactly as designed. +2 tests.
 
 **Injection defense (extends Phase 7S):**
 - [x] **F12.10 — Structured tool-output PARSING channel (DRIFT-style) for the highest-risk ingestions.** Beyond the S4
@@ -2968,12 +2970,16 @@ output and NOT acted on. Captured as F12.12.)
   queue. Scoring core + weakest-link CLI are the complete code scope. Crossed.
 
 **Multi-agent orchestration & review (deltas — feeds §5.AW review + routing):**
-- [~] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Research VALIDATES this strongly: cross-model
+- [x] **F12.34 — Cross-model reviewer routing (reviewer ≠ author model).** Research VALIDATES this strongly: cross-model
   review finds 40–60% MORE issues than same-model self-review; a model silently endorses ~31.7% of its OWN semantic-drift.
   **ALREADY LARGELY IMPLEMENTED in !Klein** — `pickDiverseReviewerModel` (nklein-reviewer-model-selection.ts) picks a
-  lineage-DIVERSE reviewer. Remaining DELTA (verify against current code): the single-model-loaded FALLBACK (when no
-  diverse model is available, force fresh context + a different role prompt/temperature rather than silently self-reviewing),
-  and confirm diversity is ENFORCED not merely preferred. Lower-effort than a from-scratch build. (zylos multi-model-review; Weaver)
+  lineage-DIVERSE reviewer. **DELTA AUDIT 2026-07-19 (completes the item):** (1) diversity is
+  preference-with-SURFACED-WAIVER by deliberate design — hard enforcement could strand a 1-model fleet (the
+  never-freeze invariant); diversityWaivedReason makes every self-review visible to ledger/operator, which is the
+  auditable control. (2) The single-model fallback ALREADY forces fresh context + a different role prompt: review
+  sessions are new bounded sessions by construction, seeded with the reviewer-role prompt (≠ worker), and the
+  N-eyes lens rotation adds orthogonal stances even same-model. Temperature variation rides the future
+  per-attempt sampling seam (noted at F3.30). Crossed. (zylos multi-model-review; Weaver)
 - [ ] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
   pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
   cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample

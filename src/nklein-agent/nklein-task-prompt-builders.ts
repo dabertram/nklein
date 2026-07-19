@@ -5,6 +5,8 @@
  */
 
 import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
+import { isTruthyEnv } from "../core/env-flag";
+import { lintSpecForDecompose } from "../core/spec-lint";
 import {
 	isDecompositionPlanningPrompt,
 	parseAcceptanceCommand,
@@ -28,6 +30,25 @@ export function formatAutoDecompositionDepthGuidance(decision: AutoDecomposition
 		return "Decomposition depth (AUTO): keep the breakdown SHALLOW — a flat set of leaves is enough for this task; only nest a further split when a leaf is genuinely its own multi-step workstream.";
 	}
 	return `Decomposition depth (AUTO): aim for roughly ${decision.depth} level(s) of nested breakdown so each leaf fits the executor model's effective context — split a leaf further only when it clearly exceeds one focused unit of work.`;
+}
+
+/**
+ * F12.9 advisory pre-flight: the spec linter's gap findings rendered as planning-prompt considerations. Empty (or
+ * flag off) ⇒ [] ⇒ the planning prompt is byte-identical. Capped at 3 so a gap-riddled idea can't blow the
+ * instruction budget; each line carries the finding's ready-to-ask question so the model can clarify or proceed.
+ */
+function buildSpecLintAdvisory(spec: string): string[] {
+	if (!isTruthyEnv(process.env.NKLEIN_SPEC_LINT)) {
+		return [];
+	}
+	const findings = lintSpecForDecompose(spec).slice(0, 3);
+	if (findings.length === 0) {
+		return [];
+	}
+	return [
+		"Spec gaps detected by pre-flight lint (advisory — clarify via the normal flow or proceed with explicit assumptions):",
+		...findings.map((finding) => `- ${finding.detail} Consider asking: ${finding.question}`),
+	];
 }
 
 function buildNKleinPlanningSystemPrompt(
@@ -69,6 +90,10 @@ function buildNKleinPlanningSystemPrompt(
 			"If a generated leaf uses `testFirst: true`, include a concrete `acceptanceTestPrompt`; otherwise set `testFirst: false`.",
 			"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
 			"Continue autonomously through the planning workflow when the task can be completed with !Klein-managed tools.",
+			// F12.9 pre-flight (OPT-IN via NKLEIN_SPEC_LINT; default OFF = byte-identical): surface the spec linter's
+			// gap findings as ADVISORY planning considerations — findings are prompts, never blocks; the model still
+			// owns the ask-vs-proceed decision through the normal clarification flow.
+			...buildSpecLintAdvisory(trimmedPrompt),
 		]
 			.filter((line): line is string => line !== null)
 			.join("\n");

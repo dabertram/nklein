@@ -53,3 +53,44 @@ describe("session prompt intent-mode threading (F4.39)", () => {
 		expect(parsePromptIntentMode("bogus")).toBe("max_task_info");
 	});
 });
+
+// F12.9 pre-flight advisory — flag-gated, byte-identical off, capped advisory lines on.
+import { buildNKleinStartPromptParts } from "../../../src/nklein-agent/nklein-task-prompt-builders";
+
+describe("spec-lint pre-flight advisory (F12.9)", () => {
+	const gapIdea = "Decompose this idea into dependent implementation cards: make the app fast and modern.";
+
+	it("is byte-identical with the flag off", () => {
+		const before = process.env.NKLEIN_SPEC_LINT;
+		delete process.env.NKLEIN_SPEC_LINT;
+		try {
+			const prompt = buildNKleinStartPromptParts(gapIdea, true).systemPrompt ?? "";
+			expect(prompt).not.toContain("Spec gaps detected");
+		} finally {
+			if (before !== undefined) {
+				process.env.NKLEIN_SPEC_LINT = before;
+			}
+		}
+	});
+
+	it("appends capped advisory findings with ready-to-ask questions when enabled", () => {
+		const before = process.env.NKLEIN_SPEC_LINT;
+		process.env.NKLEIN_SPEC_LINT = "1";
+		try {
+			const prompt = buildNKleinStartPromptParts(gapIdea, true).systemPrompt ?? "";
+			expect(prompt).toContain("Spec gaps detected by pre-flight lint");
+			expect(prompt).toContain("Consider asking:");
+			const advisoryLines = prompt
+				.split("\n")
+				.filter((line) => line.startsWith("- ") && line.includes("Consider asking:"));
+			expect(advisoryLines.length).toBeGreaterThan(0);
+			expect(advisoryLines.length).toBeLessThanOrEqual(3);
+		} finally {
+			if (before === undefined) {
+				delete process.env.NKLEIN_SPEC_LINT;
+			} else {
+				process.env.NKLEIN_SPEC_LINT = before;
+			}
+		}
+	});
+});
