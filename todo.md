@@ -1353,7 +1353,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   REMAINING: the LIVE decompose/structured production path still selects grammar-vs-required per model without
   the verified-non-reasoner gate this item names — audit lmstudio-response-format's selection + add the
   reasoning-aware switch there.
-- [~] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
+- [x] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
   interrupt safely, and feed classification/recovery metrics. **RECORD-ONLY WIRE SHIPPED 2026-07-15 (`7236debc`):**
   the pure detector (`src/core/runaway-generation-detector.ts` `detectRunawayGeneration`) is now wired into the live SDK
   chat turn (`src/chat/chat-agent-turn.ts`, injected `onRunawayDetected?` hook fired after the model's raw final text);
@@ -1362,7 +1362,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Byte-identical when the hook is omitted; unit-tested (looping text fires + records, clean text doesn't). **Remaining:**
   the "interrupt safely" half (sample the in-flight stream + abort a runaway into the §5.AA retry ladder) is deferred like
   the PRM gate — activate only once telemetry confirms the detector's live false-positive rate is acceptably low.
-  **AUDIT 2026-07-18: PARTIAL** — record-only detection wired (detectRunawayGeneration → onRunawayDetected → self-observation). MISSING: the interrupt-safely half (in-flight sampling/abort into the §5.AA ladder — rides the unbuilt F3.9 vendored model-call seam).
+  **INTERRUPT-SAFELY HALF SHIPPED 2026-07-19 (completes the item):** `runaway-interrupt-model.ts` — an
+  AgentModel decorator UNDER the P0.4 transient-abort wrapper (the F3.9 seam turned out to be live) that samples
+  the in-flight text every 2k chars with detectRunawayGeneration and aborts a degenerate turn via a DERIVED
+  AbortSignal + typed RunawayGenerationInterruptError (deterministically NON-retryable at the transient rung —
+  the failure feeds the session-level §5.AA attempt ladder, whose prompt-variant/budget rungs own the re-frame).
+  Tool-call turns are never interrupted (no orphaned side effects); caller aborts chain through untouched. OPT-IN
+  via NKLEIN_RUNAWAY_ABORT (default OFF = byte-identical) — ACTIVATION stays telemetry-gated per the observe-first
+  rule (flip = David batch once the record-only wire's live false-positive rate reads low). 4 tests.
 - [~] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
   **AUDIT 2026-07-19: SUBSTANTIALLY REALIZED BY F12.62** — the architect/editor split IS reason-then-act with
@@ -1395,7 +1402,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   same-model retry of a SINGLE transient-aborted turn, refuses when the caller aborted or a tool-call delta
   appeared — no SDK rebuild needed (the wrapper rides the config seam). REMAINING: extend the wrapped signals
   beyond transient-abort (finish=length/stall classes per §5.AA) so F3.10's engine adoption has the full turn
-  taxonomy at this seam.
+  taxonomy at this seam. (F3.5's runaway-interrupt decorator 2026-07-19 added the first stall-class signal here —
+  RunawayGenerationInterruptError at the same seam — a taxonomy seed for this extension.)
 - [>] **F3.10 — Adopt the retry-policy engine on swarm paths** *(after F3.9).* Map finish/truncation/stall signals,
   apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool work.
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the

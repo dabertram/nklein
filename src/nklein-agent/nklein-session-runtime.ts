@@ -74,6 +74,7 @@ import {
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
+import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
@@ -515,9 +516,23 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					// same-model retry before any text/reasoning/usage event becomes visible. The wrapper refuses retries
 					// when the outer signal was cancelled or a tool-call delta appeared.
 					modelWrapper: (base) =>
-						createTransientAbortRecoveryModel(base, {
-							onBufferedToken: () => this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
-						}),
+						createTransientAbortRecoveryModel(
+							// F3.5 interrupt-safely (OPT-IN via NKLEIN_RUNAWAY_ABORT; default OFF = byte-identical): sample the
+							// in-flight text and abort a degenerate turn typed, under the recovery buffer so the failure feeds
+							// the §5.AA attempt ladder instead of replaying garbage. Activation stays telemetry-gated.
+							isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
+								? createRunawayInterruptModel(base, {
+										onInterrupt: (verdict) =>
+											process.stderr.write(
+												`[nklein] Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}\n`,
+											),
+									})
+								: base,
+							{
+								onBufferedToken: () =>
+									this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
+							},
+						),
 					extensions: [
 						createKanbanContextFocusExtension(
 							requestedSessionId,
