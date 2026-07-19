@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
-import { parseCompilerDiagnostics, planTypeCheckRepair } from "../core/compiler-diagnostics";
+import { type DiagnosticLanguage, parseCompilerDiagnostics, planTypeCheckRepair } from "../core/compiler-diagnostics";
 import { isTruthyEnv } from "../core/env-flag";
+import { detectToolchains, type ToolchainLanguage } from "../core/language-toolchain-detection";
 import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
@@ -169,6 +170,22 @@ async function defaultRunCommand(execution: NKleinAcceptanceGateExecution): Prom
 	}
 }
 
+/** Map a detected toolchain onto a diagnostic dialect; null when we have no parser for it (⇒ no early gate). */
+function toDiagnosticLanguage(language: ToolchainLanguage): DiagnosticLanguage | null {
+	switch (language) {
+		case "javascript":
+			return "typescript";
+		case "rust":
+			return "rust";
+		case "go":
+			return "go";
+		case "java":
+			return "java";
+		default:
+			return null;
+	}
+}
+
 function joinOutput(stdout: string | undefined, stderr: string | undefined): string {
 	return [stdout, stderr]
 		.map((part) => part?.trim())
@@ -209,14 +226,32 @@ export async function runNKleinAcceptanceGate(
 	// any degraded read yields no check and the normal path runs untouched.
 	if (isTruthyEnv(process.env.NKLEIN_TYPECHECK_FIRST)) {
 		const packageRead = await runCommand({ command: "cat package.json", cwd: options.workspacePath, timeoutMs });
-		const typeCheck = deriveRepoVerifyCommands({
+		const npmTypeCheck = deriveRepoVerifyCommands({
 			packageJsonContent: packageRead.exitCode === 0 ? (packageRead.stdout ?? null) : null,
 			acceptanceCommand: command,
 		}).commands.find((candidate) => /typecheck|type-check|tsc/i.test(candidate.command));
+		// F12.84: beyond npm scripts, detect the toolchain from the repo's root manifests so cargo/go/maven
+		// projects get the same cheap gate (`cargo check`, `go build ./...`, `mvn compile`).
+		const listing = npmTypeCheck
+			? null
+			: await runCommand({ command: "ls -1", cwd: options.workspacePath, timeoutMs });
+		const detected =
+			listing && listing.exitCode === 0
+				? detectToolchains((listing.stdout ?? "").split("\n")).find((toolchain) => toolchain.typecheck !== null)
+				: undefined;
+		const detectedLanguage = detected ? toDiagnosticLanguage(detected.language) : null;
+		const typeCheck = npmTypeCheck
+			? { command: npmTypeCheck.command, language: "typescript" as DiagnosticLanguage }
+			: detected?.typecheck && detectedLanguage
+				? { command: detected.typecheck, language: detectedLanguage }
+				: null;
 		if (typeCheck) {
 			const checkRun = await runCommand({ command: typeCheck.command, cwd: options.workspacePath, timeoutMs });
 			if (checkRun.exitCode !== 0) {
-				const diagnostics = parseCompilerDiagnostics(joinOutput(checkRun.stdout, checkRun.stderr), "typescript");
+				const diagnostics = parseCompilerDiagnostics(
+					joinOutput(checkRun.stdout, checkRun.stderr),
+					typeCheck.language,
+				);
 				const plan = planTypeCheckRepair({ diagnostics, attempt: 0 });
 				const checkOutput = joinOutput(checkRun.stdout, checkRun.stderr);
 				const finishedTypeCheckAt = now();

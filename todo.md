@@ -3667,11 +3667,24 @@ verify-before-build caveat: confirm each against current code before implementin
   observation when the routed pick's paramB sits below the floor — never re-routes (a strict floor could strand
   a small fleet); the enforcing floor at the fitness prior flips on live breach-rate data. (SWE-bench
   Multilingual; McEval; Aider Polyglot)
-- [ ] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
+- [~] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
   go mod, Maven/Gradle, pip/poetry) and the correct test+coverage runner per project behind a standard "setup→install→test"
   contract inside Docker. Rationale: environment construction is the TOP multi-language bottleneck (EnvBench full-setup <7%,
   Multi-Docker-Eval F2P ≤37.7%; "model size and reasoning length are not decisive"); !Klein's sandbox is TS/Python-leaning
   today. Precursor to real multi-language delivery. (EnvBench 2503.14443; Multi-Docker-Eval 2512.06915; ExecutionAgent ISSTA25)
+  **DETECTION CORE SHIPPED 2026-07-19:** `language-toolchain-detection.ts` — `detectToolchains(rootFileNames)`
+  maps root manifests onto the standard setup→install→test contract for JS (package manager chosen by the
+  LOCKFILE, since a pnpm repo installed with npm silently diverges from CI), Rust, Go, Java (maven preferred over
+  gradle when both exist; .kts supported) and Python (poetry vs bare pip; a type gate claimed ONLY when the repo
+  opted into mypy). Polyglot repos return several toolchains in stable order; cargo/gradle correctly report NO
+  install step rather than inventing one. An unrecognized repo yields NOTHING — a wrong install command wastes a
+  sandbox run and teaches the model nothing, so "cannot tell" is the honest answer. `planEnvironmentSetup`
+  renders the ordered steps. 7 tests. **F12.86 FOLLOW-UP CLOSED same day:** the type-check-first gate now falls
+  back to this detector when no npm typecheck script exists, so cargo/go/maven projects get `cargo check` /
+  `go build ./...` / `mvn compile` parsed through the matching diagnostic dialect.
+  REMAINING (the sandbox half): actually CONSTRUCTING the environment inside Docker per toolchain (image/runtime
+  selection, install-step execution, coverage runners) — the detection contract is ready for it; the container
+  work is the effectful piece.
 - [ ] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
   yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
   is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable
