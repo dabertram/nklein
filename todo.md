@@ -3137,7 +3137,7 @@ output and NOT acted on. Captured as F12.12.)
   the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
   search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)
   **AUDIT 2026-07-18: DONE (covered)** — the lint-on-edit reject IS the shipped F12.63 post-apply syntax guard at the edit tool boundary (broken-after-but-ok-before edits fail NOW with the model in context; conservative string/comment-aware balance scan, JSON real-parse); the windowed viewer exists as read_files start_line/end_line ranges + the fuzzy-edit window semantics.
-- [~] **F12.26 — Capability-gated CodeAct (executable code actions) — gated on MEASURED fitness, not "30B+".** Composable code-actions (control flow
+- [x] **F12.26 — Capability-gated CodeAct: the GATE (F12.26b carries the execution surface).** Composable code-actions (control flow
   over multiple tool calls in one turn) give ~+20% success / ~30% fewer steps for CAPABLE models, but impose a "structure
   tax" that HURTS <7B models. Offer it opt-in ONLY for cards routed to 30B+ local models — a natural fit for capability-
   fitness routing. (CodeAct 2402.01030; HF structured-codeagent)
@@ -3155,10 +3155,17 @@ output and NOT acted on. Captured as F12.12.)
   UNMEASURED rather than as weak evidence. The ~7B hard floor is not negotiable by a flattering fitness score,
   since a high score on a tiny model is more likely a small sample than a refutation. A single-step card is
   refused outright — composition with nothing to compose is pure tax. 11 tests; suite green.
-  REMAINING (F12.26b): the actual CodeAct execution surface — offering code-actions as a turn format and running
-  them in the sandbox. That is a substantial effectful package (a code-action executor inside the Docker fence,
-  with the same audit/taint treatment as any other side effect), and it is deliberately NOT bundled with the gate:
-  the gate is what makes the surface safe to build, and it can accrue observations first.
+  **SPLIT MATERIALIZED 2026-07-20** — the gate is the item's decision scope and is complete; the execution
+  surface is a separate effectful package with its own acceptance and its own risk profile.
+- [ ] **F12.26b — CodeAct EXECUTION surface *(split from F12.26 2026-07-20)*.** Offer code-actions as a turn
+  format and run them in the sandbox. **Risk profile is materially different from every other tool:** a
+  code-action is arbitrary code composed by the model at runtime, so it must run inside the Docker fence with the
+  SAME audit/taint treatment as any other side effect — every external effect paired atomically with its audit
+  event, no privileged path, egress fenced. **Do not build this before the gate has observations:** F12.26's
+  `decideCodeActOffer` exists precisely so this surface is only ever offered to pairings measured able to carry
+  it, and enabling it broadly would hand arbitrary composed code to models the evidence says cannot author it.
+  Composes with F12.18's tool gate (a CodeAct turn needs FEWER offered tools, not more — the code IS the
+  composition) and with the F12.97 verifier ensemble (a code-action's effects need the same acceptance evidence).
 - [x] **F12.27 — Tool-role quantization floor + adaptive thinking budget (inference-lever, feeds H7.32).** Q3-and-below
   degrades TOOL-CALL reliability before chat quality — keep Q4_K_M as the floor for tool-using roles; ≥32k context is
   required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
@@ -3205,13 +3212,39 @@ output and NOT acted on. Captured as F12.12.)
   `reasoningEffort` — an automatic override must never fight an explicit user choice.
 
 **Self-improvement without fine-tuning (prompt optimization + skill evolution):**
-- [ ] **F12.28 — Automatic per-(model×role) prompt optimization from the attempt ledger (GEPA/MIPRO-style).** DSPy's GEPA
+- [~] **F12.28 — Automatic per-(model×role) prompt optimization from the attempt ledger (GEPA/MIPRO-style).** DSPy's GEPA
   (reflective Genetic-Pareto optimizer, ICLR-2026 oral) evolves prompt INSTRUCTIONS via natural-language reflection on
   execution traces — +13% over MIPROv2, 35× fewer rollouts, and 67%→93% on MATH from instruction refinement ALONE (no
   fine-tuning). !Klein already records rich attempt-ledger traces per model×role; add an offline optimizer that reflects
   over successes/failures to evolve the decompose/worker/reviewer system prompts PER model×role, gated behind an eval that
   proves the evolved prompt beats the current one before adoption. Potentially a large capability multiplier for weak
   local models. (gepa-ai/gepa; morphllm GEPA; DSPy MIPROv2)
+  **REFLECTION + ADOPTION-GATE CORE SHIPPED 2026-07-20:** `prompt-evolution-gate.ts`.
+  **THE DANGEROUS PART IS NOT THE OPTIMIZER, IT IS ADOPTION.** A loop that adopts a candidate because it "won" a
+  small comparison does not improve the system — it **random-walks** it, confidently, with a plausible rationale
+  attached to every step, and it degrades SILENTLY: nothing errors, the prompts just drift toward whatever noise
+  the last comparison contained. This is the one subsystem that would otherwise quietly rewrite the harness's own
+  instructions, so `decidePromptAdoption` encodes P20.6 directly: PAIRED comparison on an identical task set
+  (~5× sample-size saving, free), a pre-registered minimum detectable effect (default 10pp, caller-overridable),
+  a minimum discordant-pair count, and **`unresolved` as a FIRST-CLASS verdict**.
+  `unresolved` is deliberately distinct from `reject`: reject says the candidate is worse, unresolved says **we
+  learned nothing** — and on the task counts a local fleet can realistically run, unresolved is the EXPECTED
+  answer. Collapsing it into reject would hide that. **Ties count against the challenger** (they sit in the
+  denominator): the incumbent is in production and a challenger must EARN the swap.
+  The reflection prompt asks for a bounded **delta of ≤3 changes, never a rewrite** — a rewrite is unreviewable
+  and silently discards the accumulated reasons behind the incumbent's wording — and carries an explicit
+  `NO CHANGE` escape, because a prompt edit that does not address an observed failure is noise, which is exactly
+  what this loop must not manufacture. `summarizeFailurePatterns` carries counts and failure CLASSES only, never
+  card text, so optimization never drags project content into the loop.
+  **DESIGN CORRECTION during the build:** the first version invented its own failure taxonomy
+  (`tool_call_failed` / `no_tool_calls` / …). Replaced with the LEDGER'S OWN `ModelOutcomeKind` vocabulary
+  (`no_tool_call` / `narrated` / `loop` / `timeout` / `malformed` / `aborted` / `other_failure`) — a private
+  taxonomy would drift from the one the rest of the system reasons about, and a reflection prompt describing
+  failures in private vocabulary is harder to act on. 14 tests; suite green (11,041).
+  REMAINING (F12.28b, effectful): the offline optimizer RUN — take an incumbent prompt + its ledger reflection,
+  call a model for the delta, apply it to a candidate prompt, execute the paired eval through the §5.AB harness,
+  and feed the results to this gate. Needs eval-harness wiring + model time; the gate is what makes it safe to
+  build, and nothing may adopt without passing through it.
 - [x] **F12.29 — Execution-VALIDATED skill entries + dependency-aware retrieval (extends F4.19).** Voyager's lesson: a
   persistent skill library works when skills are code VALIDATED BY EXECUTION, indexed by natural-language description, and
   retrieved dependency-aware (3.3× more progress, no fine-tuning). !Klein's F4.19 distills focus-chains into CANDIDATE
