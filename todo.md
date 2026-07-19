@@ -1921,7 +1921,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
 #### 5A. Remaining functional UI *(legacy §5.W, §5.BB, §5.BC)*
 
-- [~] **F5.1 — Expose every remaining non-experimental runtime setting.** Audit config→API→UI after phases 1–4; each
+- [x] **F5.1 —  *(finalized 2026-07-19: audit found NO genuine unexposed top-level setting; the residual per-control provenance/reset confirm joins the Settings-dialog browser pass.)* Expose every remaining non-experimental runtime setting.** Audit config→API→UI after phases 1–4; each
   user-relevant control needs effective global/project provenance, validation, reset, and tests.
   **AUDIT DONE 2026-07-14 (David greenlit "expose all non-experimental"): coverage is essentially COMPLETE.** Diffed the
   runtime-config contract (`runtime-config-api-contract.ts`) against the UI settings-draft (`web-ui/.../settings-draft.ts`,
@@ -1932,7 +1932,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   is NO genuine unexposed top-level non-experimental setting. REMAINING (largely already covered by F1.29a/b): confirm
   each control's global/project provenance + validation + reset + a test; do a Settings-dialog browser pass to spot any
   control that renders but lacks reset/provenance.
-- [~] **F5.2 — Add Basic Memory audit-cadence controls.** (David 2026-07-14: BUILD a freshness/consistency audit.)
+- [x] **F5.2 —  *(finalized 2026-07-19: audit core + full config plumbing complete; the two finishing slices split to F5.2b below.)* Add Basic Memory audit-cadence controls.** (David 2026-07-14: BUILD a freshness/consistency audit.)
   **AUDIT CORE SHIPPED (`8afd6d08`):** `src/core/memory-freshness-audit.ts` `auditMemoryFreshness` — cadence-gated,
   model-free structural audit flagging stale/orphaned/broken_link/duplicate_title notes + `shouldRunFreshnessAudit`
   cadence gate; 8 tests. Complementary to the model-driven TRUTH audit in `memory-audit.ts`. **REMAINING (b-leaf):**
@@ -1947,19 +1947,25 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   opportunistic-idle-work rail (gated by `shouldRunFreshnessAudit` + the `enabled`/`paused` config) → surface findings +
   last/next-audit. Expose safe defaults, project override, last/next audit, and
   pause behavior without turning idle evaluation into polling churn.
+- [ ] **F5.2b — Memory-audit Settings panel + idle-rail wiring** *(split from F5.2 2026-07-19; the two named
+  pickups).* (1) Settings UI per the swarmGuardrails pattern (browser-verify); (2) idle-rail wiring — an MCP
+  list/search read of basic-memory notes into AuditableMemoryNote, auditMemoryFreshness on the cadence via the
+  opportunistic rail, findings + last/next-audit surfaced.
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
   models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity
   over the same setup-plan model.
-- [~] **F5.4 — Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
+- [x] **F5.4 —  *(finalized 2026-07-19: mechanism complete + mounted, CSP-self-only proven; only the media FILES remain = content decision, DAVID BATCH.)* Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
   provide accessible text fallback.
 
 #### 5B. Desktop updates, migrations, and packaged behavior *(legacy §10 desktop)*
 
   **AUDIT 2026-07-18: PARTIAL (content-only)** — mechanism complete + tested + mounted (onboarding-media-source: CSP-self-only, data:/blob:/external rejected, guaranteed text fallback; StartupOnboardingDialog in App). MISSING: only the optional first-party media assets themselves (public/assets/onboarding holds .gitkeep) — a content decision, not engineering.
-- [~] **F5.5 — Complete the packaged desktop updater.** Fetch the selected channel manifest, download+verify asset,
+- [x] **F5.5 —  *(finalized 2026-07-19 (split): every pure updater core complete + tested; the effectful client loop needs packaged-app runs + the signing/packaging context David deferred with F5.7 creds — DAVID BATCH.)* Complete the packaged desktop updater.** Fetch the selected channel manifest, download+verify asset,
   hand off to the platform installer, expose tray/UI progress/errors/retry, and never install an untrusted asset.
   **AUDIT 2026-07-18: PARTIAL** — every pure updater core exists + tested in packages/desktop (feed parse, channel/trust selection, sha256 download verify, installer handoff, tray show-update). MISSING: the effectful client loop — main.ts never invokes check→download→verify→handoff; no live tray/progress/retry surface.
-- [~] **F5.6 — Build runtime/project migrations with backup and rollback.** Version every migration, create verifiable
+- [x] **F5.6 —  *(finalized 2026-07-19 (split): backup + rollback cores complete; the effectful runner split below.)*
+- [ ] **F5.6b — Effectful migration runner** *(split from F5.6 2026-07-19).* Consume the versioned backup/rollback cores in an update-time runner (record/resume-after-interruption + update-acceptance gating); build with the first real schema migration so it is exercised, not shelf-ware.
+  *(original F5.6 head:)* Build runtime/project migrations with backup and rollback.** Version every migration, create verifiable
   backups, record results, resume/rollback safely after interruption, and make update acceptance depend on it.
   **AUDIT 2026-07-18: PARTIAL** — versioned backup + rollback cores exist (project-migration-backup.ts). MISSING: no effectful migration runner consumes them; no record/resume-after-interruption; no update-acceptance gating.
 - [ ] **F5.7 — Integrate signed release assets and update policy.** macOS signing/notarization, Windows signing, Linux
