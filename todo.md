@@ -3212,7 +3212,7 @@ output and NOT acted on. Captured as F12.12.)
   `reasoningEffort` — an automatic override must never fight an explicit user choice.
 
 **Self-improvement without fine-tuning (prompt optimization + skill evolution):**
-- [~] **F12.28 — Automatic per-(model×role) prompt optimization from the attempt ledger (GEPA/MIPRO-style).** DSPy's GEPA
+- [x] **F12.28 — Prompt optimization: REFLECTION + ADOPTION GATE (F12.28b carries the optimizer run).** DSPy's GEPA
   (reflective Genetic-Pareto optimizer, ICLR-2026 oral) evolves prompt INSTRUCTIONS via natural-language reflection on
   execution traces — +13% over MIPROv2, 35× fewer rollouts, and 67%→93% on MATH from instruction refinement ALONE (no
   fine-tuning). !Klein already records rich attempt-ledger traces per model×role; add an offline optimizer that reflects
@@ -3241,10 +3241,17 @@ output and NOT acted on. Captured as F12.12.)
   (`no_tool_call` / `narrated` / `loop` / `timeout` / `malformed` / `aborted` / `other_failure`) — a private
   taxonomy would drift from the one the rest of the system reasons about, and a reflection prompt describing
   failures in private vocabulary is harder to act on. 14 tests; suite green (11,041).
-  REMAINING (F12.28b, effectful): the offline optimizer RUN — take an incumbent prompt + its ledger reflection,
-  call a model for the delta, apply it to a candidate prompt, execute the paired eval through the §5.AB harness,
-  and feed the results to this gate. Needs eval-harness wiring + model time; the gate is what makes it safe to
-  build, and nothing may adopt without passing through it.
+  **SPLIT MATERIALIZED 2026-07-20** — the gate is the safety-critical scope and is complete; the optimizer run is
+  a separate effectful package that CANNOT adopt anything except through this gate.
+- [ ] **F12.28b — Run the offline prompt optimizer *(split from F12.28 2026-07-20)*.** Take an incumbent prompt +
+  its `summarizeFailurePatterns` reflection, call a model for the ≤3-change delta, apply it to a candidate, run
+  the PAIRED eval through the §5.AB harness on an identical task set, and feed the results to
+  `decidePromptAdoption`. **Nothing may adopt except through that gate**, and the gate's `unresolved` verdict must
+  be surfaced as its own outcome in the run report, not folded into "no change" — the difference between "the
+  candidate did not win" and "we could not tell" is the entire point of building the gate first.
+  **Cost note:** a paired eval needs the SAME task set run twice per candidate, so this is the most model-time-
+  hungry item in Phase 12. Expect `unresolved` to be the common verdict at realistic local task counts, and treat
+  that as the mechanism working rather than as a reason to lower the bar.
 - [x] **F12.29 — Execution-VALIDATED skill entries + dependency-aware retrieval (extends F4.19).** Voyager's lesson: a
   persistent skill library works when skills are code VALIDATED BY EXECUTION, indexed by natural-language description, and
   retrieved dependency-aware (3.3× more progress, no fine-tuning). !Klein's F4.19 distills focus-chains into CANDIDATE
