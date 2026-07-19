@@ -4009,7 +4009,7 @@ emerging inference-time techniques). Cross-checked vs existing items; duplicates
 k-hop localization⇒F11.2c, in-repo few-shot⇒F11.2h, reward-hack detector⇒F12.44, adaptive reasoning depth⇒F4.38). Same
 verify-before-build caveat: confirm each against current code before implementing.**
 
-- [~] **F12.78 — "Reason-free, constrain-late" two-phase output for small models.** Let sub-~14B models solve in FREE TEXT,
+- [x] **F12.78 — "Reason-free, constrain-late": the STRATEGY (F12.78b carries the two-phase turn).** Let sub-~14B models solve in FREE TEXT,
   then a cheap second pass (or LM-Studio json_schema constrained decode) packages the answer into the tool-call/decompose
   JSON — never hard-constrain the reasoning turn. Rationale: the "Constraint Tax" — hard schema decode on small models lifts
   JSON validity 61.5%→100% but HALVES accuracy (19.7%→11%) and makes 88.9% of outputs wrong-but-valid; the failure is
@@ -4033,10 +4033,14 @@ verify-before-build caveat: confirm each against current code before implementin
   TRANSCRIBE, never re-decide, never invent values, and return `{}` rather than a plausible-looking guess — a
   packaging pass that "improves" the answer reintroduces exactly the semantic risk the split exists to avoid.
   10 tests; suite green.
-  REMAINING (F12.78b, effectful): wire the two-phase turn — run the reasoning turn unconstrained, then issue the
-  packaging call with LM Studio's `response_format: json_schema` (the only constrained-decode lever that runtime
-  honours — it ignores top-level `grammar`, see §4A). Needs the turn-loop seam plus model time to confirm the
-  packaging pass does not itself become a failure source on the smallest models.
+  **SPLIT MATERIALIZED 2026-07-20.**
+- [ ] **F12.78b — Wire the two-phase turn *(split from F12.78 2026-07-20)*.** Run the reasoning turn
+  UNCONSTRAINED, then issue the packaging call with LM Studio's `response_format: json_schema` — the only
+  constrained-decode lever that runtime honours (it silently ignores top-level `grammar`, §4A). Needs the
+  turn-loop seam plus model time to confirm the packaging pass does not itself become a failure source on the
+  smallest models. **Acceptance must measure the thing the strategy claims:** compare wrong-but-valid RATES
+  between direct-constrained and two-phase on the same cards, not just validity — the whole argument is that
+  validity improves while correctness degrades, so a validity-only acceptance would confirm the wrong half.
 - [x] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
   prompt; warn/auto-trim above a model-size-scaled cap (~150 for 32B, far lower for 4–7B) and report which volatility tier to
   shed first. **CORE BUILT 2026-07-17:** `prompt-fragment-lint.ts` — `extractInstructionUnits` (bullets + imperative-lead +
@@ -4167,10 +4171,36 @@ verify-before-build caveat: confirm each against current code before implementin
   detection → shoot the dev-server route → readVisualBaseline → decideVisualGate → write-on-baseline_created →
   record-only ledger transition, same stance as the other delivery scans) — needs a per-workspace dev-server URL
   source, the one open design question. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
-- [ ] **F12.88 — Optional local-VLM screenshot review lens.** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
+- [x] **F12.88 — Optional local-VLM screenshot review lens (LENS core; F12.88b carries the wire).** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
   existing review-lens system; fleet/RAM-gated. Pairs with F12.87 (deterministic gate first, VLM for the subjective residue). (Qwen3-VL local)
+  **LENS CORE SHIPPED + LIVE-VALIDATED 2026-07-20:** `vlm-screenshot-lens.ts`.
+  **THE FAILURE MODE THIS CORE EXISTS TO PREVENT:** a VLM asked "does this look right?" WILL answer — when the
+  screenshot is stale, when it shows the wrong page, and when there is no screenshot at all and only the prompt's
+  description to work from. The answer is fluent and specific either way. **A confident visual verdict with no
+  visual evidence behind it is worse than no lens**, because a review lens carries authority its evidence does
+  not. So: no screenshot ⇒ `not_applicable`, NEVER "looks fine" (the lens declines rather than judging rendered
+  output it cannot see); the prompt requires a `SEEN:` citation for every defect; and **an uncited DEFECT claim
+  is DROPPED, not downgraded** — the citation is the only thing separating an observation from a plausible
+  invention, and an uncited claim in a review note gets acted on exactly as if it were seen. Empty, rambling and
+  `NOTHING_VISIBLE` replies all read as `inconclusive`, never as approval: this lens can raise a concern but must
+  never clear a card. Advisory by construction.
+  **LIVE VALIDATION 2026-07-20 (qwen3.6-27b-mlx-VL @ m5max — the loaded model is vision-capable):** rendered a
+  real 560×420 screenshot via headless Chrome containing TWO planted defects, then ran the lens against it. It
+  found **both**, each with a correct citation: "Dialog overlaps header | SEEN: the top edge of the white
+  confirmation dialog box is positioned over the blue header bar" and "Message text is truncated | SEEN: the body
+  text ends abruptly with 'contin'". **The truncation is the significant one — a text-only reviewer reading the
+  CSS diff could not have caught it**, which is precisely the residue this lens exists for. Format contract held
+  exactly; no invented defects. 13 tests; suite green.
+- [ ] **F12.88b — Wire the VLM lens into the review path *(split from F12.88 2026-07-20)*.** Two pieces: (a)
+  SCREENSHOT CAPTURE for the card's build — without it `decideVlmLens` correctly declines forever, so this is the
+  actual blocker, and it must capture the CURRENT build (a stale screenshot produces confident wrong verdicts);
+  (b) register the lens in the §5.AW review-lens system, running only on the F12.87 deterministic gate's
+  subjective residue and only when a vision model is loaded. **RAM note:** the lens needs a vision model resident
+  alongside the coder, which on a constrained fleet is a real cost — under the standing no-auto-load constraint
+  that is an operator decision, so the lens must degrade to `not_applicable` (it already does) rather than
+  requesting a load.
 - [x] **F12.89 — Framework-convention + version-awareness preamble.** At card start, detect framework+version (React 18/19,
   Vue 3.x, Angular) and inject convention rules ("use components, not raw markup"; correct API surface) + verify each imported
   symbol actually exists in the INSTALLED dep version. Rationale: MLLMs write idiomatic components <5% of the time and
