@@ -19,6 +19,7 @@ import {
 } from "../../core/fleet-aware-decomposition";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { assessQuantizationFloor, planThinkingBudget, toReasoningEffort } from "../../core/inference-lever-planning";
 import { recommendModelFloor } from "../../core/language-capability-routing";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
@@ -1178,6 +1179,30 @@ export async function handleStartTaskSession(
 				});
 			}
 		}
+		// F12.27 record-only: the tool-role QUANTIZATION floor (Q4_K_M) vs the routed pick. Aggressive quantization
+		// degrades TOOL-CALL reliability before it degrades chat quality, which is exactly the failure this harness
+		// cannot see — a Q3 model reads as articulate while emitting malformed arguments. Record-only for the same
+		// reason as the language floor: a strict floor could strand a board whose whole fleet is Q3, and the id is
+		// the only evidence available. An id with NO quant token records nothing at all — "unverified" is not a
+		// finding, and logging it on every start would bury the real breaches under the common case.
+		if (routingDecision.type === "assign" || routingDecision.type === "route_up") {
+			const quantFloor = assessQuantizationFloor({ modelId: routingDecision.modelKey, role: cardRole });
+			if (quantFloor.verdict === "below_floor") {
+				recordSelfObservation({
+					signal: "custom",
+					severity: quantFloor.severity === "high" ? "warning" : "info",
+					message: `Quant-floor breach for ${body.taskId}: routed ${routingDecision.modelKey} as ${cardRole} — ${quantFloor.reason}`,
+					taskId: body.taskId,
+					metadata: {
+						category: "quant_floor_breach",
+						role: cardRole,
+						quant: quantFloor.reading.quant,
+						bits: quantFloor.reading.bits,
+						severity: quantFloor.severity,
+					},
+				});
+			}
+		}
 		// F12.105: the honest advisory text, surfaced on the user-visible selection reason (below) when it fires.
 		let ceilingAdvisorySuffix = "";
 		// F12.14 (RECORD-ONLY): would this model be better off on the MINIMAL fenced-bash scaffold? Inverse-scaling
@@ -1236,6 +1261,42 @@ export async function handleStartTaskSession(
 								consecutiveNoToolCallSessions,
 							},
 						});
+					}
+					// F12.27 (RECORD-ONLY, second lever): the adaptive THINKING budget for this card. Reuses the ledger
+					// read above rather than issuing a second one. `expectedToolCalls` is the MEASURED mean tool-call
+					// count of this model's own past attempts — no history means no recommendation at all, because a
+					// guessed density is exactly the input that would make this lever wrong in the direction that hurts
+					// (recommending deep thinking on a turn that will be interrupted by tool calls anyway).
+					if (modelAttempts.length > 0) {
+						const totalToolCalls = modelAttempts.reduce(
+							(sum, event) => sum + (event.kind === "attempt" ? event.toolCalls.length : 0),
+							0,
+						);
+						const budget = planThinkingBudget({
+							difficulty: taskDifficulty,
+							expectedToolCalls: totalToolCalls / modelAttempts.length,
+							supportsThinking: true,
+						});
+						const configured = nkleinLaunchConfig.reasoningEffort ?? null;
+						const recommended = toReasoningEffort(budget.level);
+						// Only worth recording when the recommendation DIFFERS from what will actually be sent —
+						// agreement is not evidence and would drown the stream.
+						if (recommended !== configured) {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Adaptive-thinking recommendation for ${body.taskId}: ${recommended ?? "provider default"} (configured ${configured ?? "provider default"}) — ${budget.reason}`,
+								taskId: body.taskId,
+								metadata: {
+									category: "adaptive_thinking_recommendation",
+									modelKey: routingDecision.modelKey,
+									recommended,
+									configured,
+									difficulty: taskDifficulty,
+									meanToolCallsPerAttempt: totalToolCalls / modelAttempts.length,
+								},
+							});
+						}
 					}
 				} catch {
 					// Observation only — never disturbs a start.

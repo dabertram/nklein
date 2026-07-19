@@ -3081,10 +3081,29 @@ output and NOT acted on. Captured as F12.12.)
   over multiple tool calls in one turn) give ~+20% success / ~30% fewer steps for CAPABLE models, but impose a "structure
   tax" that HURTS <7B models. Offer it opt-in ONLY for cards routed to 30B+ local models — a natural fit for capability-
   fitness routing. (CodeAct 2402.01030; HF structured-codeagent)
-- [ ] **F12.27 — Tool-role quantization floor + adaptive thinking budget (inference-lever, feeds H7.32).** Q3-and-below
+- [x] **F12.27 — Tool-role quantization floor + adaptive thinking budget (inference-lever, feeds H7.32).** Q3-and-below
   degrades TOOL-CALL reliability before chat quality — keep Q4_K_M as the floor for tool-using roles; ≥32k context is
   required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
   so budget thinking adaptively per card difficulty. Fold into the model-role config + the H7.x inference-lever selection. (Cline local-models; promptquorum)
+  **SHIPPED 2026-07-19 — core `inference-lever-planning.ts` + BOTH levers wired record-only at the start seam.**
+  QUANT FLOOR: `assessQuantizationFloor` reads the id via `parseModelAttributes` and compares against Q4_K_M — width
+  FIRST, then k-quant tier, so a legacy `q4_0` at the same 4 bits is correctly flagged while `q4_k_xl` clears. An id
+  with NO quant token (the common case: `qwen2.5-coder-14b`) returns `"unknown"`, never `"ok"`, and records NOTHING —
+  logging "unverified" on every start would bury the real breaches. Severity is role-graded: a worker mangling an edit
+  tool corrupts files (high), a reviewer mangling `submit_review` merely stalls (medium).
+  FINDING worth keeping: all three swarm roles are tool-driven — !Klein has no chat-only role — so the "tool-role"
+  floor is effectively GLOBAL here. The role survives as an input only because the severity differs.
+  THINKING BUDGET: `planThinkingBudget` scales with difficulty but PULLS BACK on tool-dense turns (a tool triggered
+  mid-chain-of-thought cuts accuracy). Wired into the existing F12.14 ledger read (no second IO) using the MEASURED
+  mean tool-call count of that model's own past attempts; no history ⇒ no recommendation, because a guessed density
+  is exactly the input that makes this lever wrong in the harmful direction. `toReasoningEffort` maps onto the real
+  provider enum, with `"none"` → `null` (send no override) rather than collapsing to `"low"` — that enum has no off
+  switch and abstaining must not silently become "think a little". Recorded only when it DISAGREES with the
+  configured effort; agreement is not evidence. 22 core tests; runtime suite green (10,916).
+  DELIBERATELY NOT DONE (observe-before-enforce, the project's standing pattern): neither lever changes behaviour yet.
+  NEXT: once the breach/disagreement rates are visible in the observation stream, (a) promote the quant floor into the
+  fitness prior as a routing penalty, and (b) apply the thinking budget when the user has set NO explicit
+  `reasoningEffort` — an automatic override must never fight an explicit user choice.
 
 **Self-improvement without fine-tuning (prompt optimization + skill evolution):**
 - [ ] **F12.28 — Automatic per-(model×role) prompt optimization from the attempt ledger (GEPA/MIPRO-style).** DSPy's GEPA
