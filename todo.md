@@ -1773,8 +1773,14 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   of the daily block — 4 tests locking the §5.AQ(e) layout. REMAINING: the same net over the OTHER prompt
   builders (decompose seed, review seed, chat prompt) + a serialization-stability sweep of any builder still
   concatenating ad-hoc.
-- [ ] **F4.45 — Use stateful LM Studio responses where verified.** Adopt `previous_response_id`/native sessions behind a
+- [~] **F4.45 — Use stateful LM Studio responses where verified.** Adopt `previous_response_id`/native sessions behind a
   capability gate, with stateless fallback and replay-safe transcript ownership.
+  **VERIFICATION GATE SHIPPED 2026-07-19:** `stateful-responses-gate.ts` — probeStatefulResponses (one minimal
+  1-token POST /v1/responses; injectable fetch; never throws) + decideStatefulResponsesAdoption (opt-in
+  NKLEIN_STATEFUL_RESPONSES; fail-closed on network/404/no-response-id — adopts ONLY on a verified chainable id).
+  4 assertions ×2 tests. REMAINING (the big half): the session-path adoption itself — thread
+  previous_response_id through the model call while the transcript store REMAINS the owner (replay/compaction
+  correctness) with per-turn stateless fallback; SDK-level change, design before build.
 - [~] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned
   facts/evidence, and verify provenance/citation continuity.
   **AUDIT 2026-07-18: WIRE IS LIVE** — buildNKleinContextCompactionConfig (enabled:true, basic strategy,
