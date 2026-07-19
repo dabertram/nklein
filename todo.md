@@ -3825,6 +3825,28 @@ into the existing F12.31. Same verify-before-build caveat.**
   across create-more) — pure halves moved to `src/core/bulk-seed.ts` and shared via the `@runtime-bulk-seed`
   alias (vite+vitest+tsconfig, all three). Dialog test covers split→template→create-all. Item complete.
 
+- [ ] **F12.110 — Fleet-aware decomposition: the available model fleet as DIRECT decompose input (David
+  2026-07-19; ready-to-implement).** Decomposition is largely blind to who will execute; the capability-prior
+  deadlock (cold fleet froze every medium+ card) is the proven failure class this kills at the source — cards
+  are BORN ROUTABLE. Feed a FLEET CAPABILITY SUMMARY (per-role measured fitness classes from the store, effective
+  contexts, counts per class) into the decompose seam: widen F4.38's auto-depth input from one executor to the
+  fleet distribution + add a compact fleet block to the decompose seed so the architect shards a MIX (bigger
+  cards for the strongest class, tight cards for the rest) and stamps each card's difficulty prior + affinity
+  tags to match — routing already consumes both. CONTROL MODES (strong optional user control): `auto` (decompose
+  for the current fleet; recommended eventual default), `smallest` (every card executable by the weakest class —
+  max parallelism/resilience, more cards), `capability-weighted` (the mixed shape), `fixed-target <class>`
+  (decompose as-if for a named class — also what makes decomposition DETERMINISTIC per profile for the N3
+  nightly matrix), `off` (today's behavior). Scope global → per-project → per-card via resolveScopedOverride
+  (F4.16's core, zero consumers — this is its first). Ship OPT-IN dark (flag), A/B through the F12.41 flip-gate
+  before any default. ASSUMPTIONS (build on these unless overridden) + **DAVID-CLARIFY** points: (1) fleet
+  snapshot = LOADABLE-from-catalog with machine-RAM fit, not loaded-only (loader can materialize; loaded-only
+  starves a lazy fleet) — DAVID-CLARIFY if predictability should win instead; (2) fleet-change mid-plan ⇒
+  ADVISORY re-shard suggestion via the existing redecompose trigger, never automatic mid-flight — DAVID-CLARIFY
+  if auto-re-shard is wanted for empty-lane deadlocks; (3) `smallest` = the smallest class in the CURRENT
+  snapshot (adapts), not the catalog floor — DAVID-CLARIFY if reproducible floor-sharding should win. Composes
+  with F12.37's anti-decomposition guard (fleet-aware never overrides the coupling bar) and is the Phase-14 C1
+  cloud on-ramp (cloud classes just widen the same distribution).
+
 ### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
 
 **Standing name + contract (memorize this — it is the whole point of the name).** "Nightly tests" is THE canonical
