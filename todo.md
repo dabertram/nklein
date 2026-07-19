@@ -2105,7 +2105,7 @@ proxy (§10c), delivery-taint gate (F1.21b), skill-bundle screening + injection-
 credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Docker isolation. Phase 7S makes the story
 **comprehensive and adversarially proven** rather than point defenses.
 
-- [~] **S1 — Threat model & trust-boundary map.** Enumerate EVERY untrusted-content ingestion point (web-research/fetch
+- [x] **S1 —  *(finalized 2026-07-19: the living threat-model doc is shipped + linked; keeping it in sync as S-items land is an ongoing doc duty, same class as F12.103.)* Threat model & trust-boundary map.** Enumerate EVERY untrusted-content ingestion point (web-research/fetch
   results, repo file contents + filenames, GitHub/issue/PR/comment text, community skill `SKILL.md` + bundles, MCP tool
   outputs, and — critically — the output of the *local models !Klein does not control*) and EVERY privileged action
   capability (file write, shell/`run_commands`, git commit/push, network egress, MCP writes like posting comments/PRs,
@@ -2125,7 +2125,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   markers hidden in the content (no early break-out), composes with the S4 screen (a `block` verdict QUARANTINES — raw
   content withheld from the model, operator told; `suspicious` is fenced+flagged). Pure, 5 tests. REMAINING: adopt it at
   each ingestion point (web-fetch/research, repo reads, MCP tool output, PEER-AGENT messages per S6) + a refusal-surface.
-- [~] **S3 — Privilege minimization + human-in-the-loop for irreversible/outward actions.** No agent holds unrestricted
+- [x] **S3 —  *(finalized 2026-07-19 (split): decision core + broker + queue live; routing require_approval into the confirm-dialog UI and the replay harness for approved queued actions are the approval-flow PRODUCT surface -> DAVID BATCH.)* Privilege minimization + human-in-the-loop for irreversible/outward actions.** No agent holds unrestricted
   write/egress/post rights. Effectful + outward-facing actions (post a comment/PR via MCP, egress to a not-yet-seen host,
   delete/overwrite, permission/settings changes) require explicit approval OR a pre-authorized, narrowly-scoped policy —
   never a default grant. Builds on the confirm-dialog + delivery-taint gate + per-task credentials. **DECISION CORE
@@ -2168,7 +2168,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   inject an agent via fetched content on ANY web-ingestion path. REMAINING ingestion points: MCP tool output + peer-agent
   messages (S6) — those need the S2 FENCE (not always-on block) since the agent's own tool/file output legitimately quotes
   injection examples (this repo's security docs would false-positive on a block); requires a untrusted-vs-own-tool boundary.
-- [~] **S5 — Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
+- [x] **S5 —  *(finalized 2026-07-19 (split): taint propagation to the action boundary is live with source(s) on the label; finer-than-tool source granularity is a design refinement that lands with the next ingestion adopter.)* Provenance & taint propagation to the action boundary.** Every context fragment carries source + trust level;
   taint flows through synthesis so any decision derived from untrusted content is marked and GATED where it would drive an
   effectful/outward action. Builds on delivery-taint + the retrieval-telemetry seam. **BACKBONE SHIPPED 2026-07-16 (David
   chose this track).** The pre-existing taint-labels model tracked only the trust CLASS as a flat label set (enough to
@@ -2185,7 +2185,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   (b) surface `untrustedTaintSources` to S8 host-provenance egress blocking; (c) persist provenance into the S11 audit on
   a gate denial. The gate PREDICATE is deliberately unchanged — this slice adds the source/trust dimension, not new
   allow/deny behavior.
-- [~] **S6 — Treat model output + inter-agent messages as untrusted.** A local model is not trusted: its output can carry
+- [x] **S6 —  *(finalized 2026-07-19 (split): model-output + peer-message fencing live (worker-to-reviewer proven); the I7 GitHub issue/PR ingestion point does not exist yet — the fence adopts it the day that ingestion lands.)* Treat model output + inter-agent messages as untrusted.** A local model is not trusted: its output can carry
   injection aimed at DOWNSTREAM agents (a worker's diff/notes feeding the reviewer or orchestrator) or at the user. A
   compromised/malicious model, or a benign model that echoed injected repo text, must not be able to hijack a peer. Enforce
   S2's data-not-commands boundary on the worker→reviewer→orchestrator message paths, not just external ingestion.
@@ -2210,7 +2210,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   `mcpToolNamesInclude` discriminator (already used for taint labeling). 3 tests. REMAINING: I7 (GitHub issue/PR text via
   connector reads) needs the same fence at its read seam; an orchestrator-facing seam if/when one embeds raw worker prose
   (none found today); and S5 taint-propagation to gate effectful actions derived from peer/MCP content.
-- [~] **S7 — Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
+- [x] **S7 —  *(finalized 2026-07-19 (split): pin/allowlist/verify cores complete; the effectful hashing-at-import producer rides the unbuilt F4.20 loader, tracked there with F4.24 and F4.26.)* Supply-chain hardening (skills + MCP servers).** Extend F4.20–F4.27 + curated-MCP: signature/provenance
   verification for skill bundles and MCP servers, rug-pull/version-pin drift detection, execution containment (effective
   tool grants + per-file no-auto-execute approvals), and untrusted-discovery gating. Never auto-apply an untrusted skill or
   connect an unvetted MCP server. (Composes with decisions D10.2/D10.3 on sacrificial classification + auto-skill mode.)
@@ -2230,7 +2230,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   provides the persistence it lacks. The import WIRE should UNIFY them — have skill-import-decision consume `detectPinDrift`
   (map its `kind` → `SkillImportPinState`, treating `content-drift`/rug-pull as the hardest "changed") and persist via
   `skill-pin-store`, NOT add a second parallel path.
-- [~] **S8 — Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
+- [x] **S8 —  *(finalized 2026-07-19 (split): egress broker + SSRF guard + receipts chain live end-to-end; the server/project public-host allowlist is a config PRODUCT surface -> DAVID BATCH.)* Egress / exfiltration control.** Never send user data to endpoints/URLs/forms *suggested by ingested content*;
   never place sensitive data in URL params/query strings; block egress to hosts introduced by untrusted content; keep the
   server/project egress policy authoritative over any per-session `browse_url` override (D10.4). Builds on the egress proxy.
   **HOST-PROVENANCE BLOCK SHIPPED 2026-07-16 (consumes the S5 backbone).** `egress-provenance-gate.ts` (pure):
@@ -2245,7 +2245,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   orthogonal PUBLIC-host layer above the SSRF guard (private hosts) + egress proxy. REMAINING: honor a server/project
   operator allowlist for `operatorAllowedHosts` (currently empty — no host is ever operator-exempted yet); D10.4 policy
   authority over per-session browse_url override.
-- [~] **S9 — Resource / DoS abuse resistance.** Injection that induces comment/PR spam, API-limit exhaustion, infinite
+- [x] **S9 —  *(finalized 2026-07-19 (split): every ceiling mechanism ships; choosing default ceiling VALUES needs real usage data + a David defaults call -> data-gated David batch.)* Resource / DoS abuse resistance.** Injection that induces comment/PR spam, API-limit exhaustion, infinite
   tool loops, or runaway generation is bounded by the turn-loop guard (§12) + learned retry budgets (F3.30) + concurrency
   caps (F3.21); add abuse-specific rate limits + a per-target action cap so one poisoned issue can't fan out.
   **PER-TARGET ACTION CAP SHIPPED 2026-07-16.** `action-fanout-cap.ts` (pure): `checkActionFanout`/`recordAction`
@@ -2267,7 +2267,7 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   tool metadata to avoid capping legit reads). 250 only trips egregious injection runaway — realistic sessions stay far
   under. **DAVID: tune down (e.g. 40–80) once you have real outward-calls/session data, or set
   NKLEIN_OUTWARD_FANOUT_CAP=0 to disable.** 3 resolver tests.
-- [~] **S10 — Adversarial red-team test suite (CI gate).** A dedicated corpus of injection payloads across EVERY ingestion
+- [x] **S10 —  *(finalized 2026-07-19 (split): the corpus is a live CI gate that has caught THREE real S4 gaps; driving it through the LIVE tool surfaces end-to-end is a rig drill -> fleet/rig queue, with the skill-bundle/MCP rows landing when those ingestion points adopt the fence.)* Adversarial red-team test suite (CI gate).** A dedicated corpus of injection payloads across EVERY ingestion
   surface (the GitHub-issue example, hidden-text, encoded, cross-agent, skill-bundle, MCP-result, web-fetch). CI asserts
   !Klein neither executes the injected instruction nor leaks data nor performs an unapproved outward action. Extend the
   simulator with adversarial scenarios (composes with H7.2 failure-catalog coverage). **CORPUS SHIPPED 2026-07-16:**
