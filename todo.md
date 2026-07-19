@@ -3654,10 +3654,20 @@ verify-before-build caveat: confirm each against current code before implementin
   DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
   detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis
   mid-run. Rationale: "Steer, Don't Solve" took a frozen 32B from 29.2%→65.0% on SWE-bench Verified with a PROMPTED critic. (Steer Don't Solve 2606.21811)
-- [ ] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
+- [~] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
   LiveCodeBench-Hard, +15.7% repair-success over TDD. Extends the acceptance-gate + F12.44 reward-hack family. (PBT/PGS 2506.18315; SolidCoder oracle assertions 2604.19825)
+  **DERIVATION CORE SHIPPED 2026-07-19:** `spec-invariant-derivation.ts` — `deriveSpecInvariants(spec)` extracts
+  six invariant families from spec/acceptance TEXT (never/always conditions, round-trip, idempotent, bounds,
+  ordering), most-specific-match-per-line, deduped, each carrying its VERBATIM source line as provenance so a
+  human can check the reading; a spec stating no invariants yields [] (never invents an oracle). Plus
+  `renderPropertyScaffold` emitting a fast-check skeleton whose properties FAIL until bound (`expect(false)`) —
+  a silently-green scaffold would be worse than none. 6 tests. (Live-caught by its own test: inflection stems
+  matter — `encode\w*` cannot match "Encoding".)
+  REMAINING (F12.93b, effectful): run the bound properties in the sandbox as a delivery gate — needs fast-check
+  as a sandbox dep + the model-side binding pass (scaffold → real arbitraries/subject), then gate on violations.
+  Composes with F12.97's ensemble half (property checks are one of its three verifiers).
 - [x] **F12.94 —  *(finalized 2026-07-19 (split): clustered-selection core complete with injected exec/compare; the live best-of-N shape is N=2 where pairwise arbitration is optimal — the clustering wire adopts when an N>=3 candidate shape exists.)* Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
   execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
   compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.
