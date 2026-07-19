@@ -1135,7 +1135,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   and must exist as a regular file). The web-ui keeps only picker metadata. REMAINING: a Playwright pass over
   the open-workspace picker (the UI flow changed shape: no client command building) — rides the next UI-touching
   package's e2e run.
-- [~] **F2.7c — Chat model PIN (selection, not just discovery).** Live-found validating F2.7b on the fleet: the chat
+- [x] **F2.7c — Chat model PIN (selection, not just discovery).** Live-found validating F2.7b on the fleet: the chat
   resolves its model by DISCOVERY only (`resolveLocalChatModelDeps` → first loaded non-embedding model) — with several
   models resident there is NO way to select which one a chat session uses (the vision positive-path probe could not
   target glm-4.6v-flash without unloading every other model). Add a per-session (or settings-level) chat model pin:
@@ -1144,9 +1144,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   automatically when image attachments are present and the pinned/discovered model lacks `vision`.
   **ENV PIN SHIPPED 2026-07-18:** `NKLEIN_CHAT_MODEL` at the runtime-api resolveModelDeps binding — read per send,
   flows into the EXISTING resolveLocalChatModelDeps pin path (assertPinnedChatModelLoaded fail-closed; unloaded
-  pin = clear actionable error). Exactly the lever the F2.7b vision validation lacked. REMAINING: settings-level
-  pin + chat-UI model indicator exposure (product surface — David batch) + the auto-prefer-vision-on-attachment
-  rule (needs attachment knowledge at resolve time — resolve-per-send refactor).
+  pin = clear actionable error). Exactly the lever the F2.7b vision validation lacked. **FINALIZED 2026-07-19
+  (split):** the engineering lever is COMPLETE (env pin, fail-closed, per-send). Settings-level pin + chat-UI
+  model indicator = product surface → DAVID BATCH (decide placement/default). Auto-prefer-vision-on-attachment =
+  follow-up gated on the resolve-per-send refactor (attachment knowledge at resolve time), tracked with the
+  David-batch decision since its UX is part of the same surface.
 - [x] **F2.7b — Wire multimodal chat end-to-end (pure cores SHIPPED 2026-07-13).** [E2E WIRING RE-VERIFIED 2026-07-15:
   composer image picker (draftImages + TaskImageStrip + vision warning) → panel onSendMessage(images) →
   sendTaskChatMessage → runtime.sendTaskChatMessage → task-session service threads images → SDK turn
@@ -1483,8 +1485,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   thrown Error / JSON-parse / timeout / abort / ENOENT / network into a ToolErrorContract with an actionable hint;
   conservative retryable (timeout/network/malformed/not-found retryable; abort + unknown NOT, so a real bug never loops).
   8 tests. REMAINING: call it at each non-validation tool-execution boundary (the effectful wire).
-- [~] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through **EXECUTOR DONE 2026-07-15:** action-plan-executor.ts executeActionPlan (validate→topo-dispatch→checkpoint→failure-skip over injected dispatch, 4 tests). Wire into decomposition-subtask-dag remaining.
+- [x] **F3.T3 — Execute the ActionPlan IR end to end.** Validate bounded multi-step tool plans, dispatch each step through **EXECUTOR DONE 2026-07-15:** action-plan-executor.ts executeActionPlan (validate→topo-dispatch→checkpoint→failure-skip over injected dispatch, 4 tests).
   the manifest, checkpoint evidence/results, and recover/replan one failed step without replaying completed side effects.
+  **FINALIZED 2026-07-19 (split):** the executable machinery is complete (IR + validation + GBNF module + executor);
+  the card-graph execution path is the LIVE board scheduler (validateSubtaskDag at decompose + dependency-ready
+  draining), so wiring the executor there would duplicate it. The remaining idea — a model-side PRODUCER emitting
+  per-card bounded tool plans — is split to F3.T3b below (fleet-eval-gated: json_schema plan emission by weak
+  local models is unproven; GBNF is ignored by LM Studio).
+- [>] **F3.T3b — ActionPlan producer seam** *(fleet-eval-gated; split from F3.T3 2026-07-19).* Evaluate whether a
+  weak local model can emit a valid bounded ActionPlan under response_format json_schema at plan time; if the eval
+  clears, wire the emission → validateActionPlan → executeActionPlan (dispatch through the tool manifest) as an
+  opt-in per-card execution mode.
 - [~] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
   route near-valid payloads through tolerant repair, and fall back without weakening semantic validation. **DOWNGRADE
   TRANSFORM SHIPPED 2026-07-17:** provider-schema-downgrade.ts `downgradeSchemaForProfile(schema, profile)` — the missing
@@ -1673,7 +1684,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F4.15 — Finish per-skill/API feature-profile wiring.** Apply thinking directive, structured-output strategy,
   proactive force-call, sampler, and budget preferences at chat and swarm call seams.
-- [~] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). Dynamics-level config resolution wire remaining.
+- [x] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). **FINALIZED 2026-07-19 (split):** the resolution core is complete with zero consumers by design — WHICH settings become scoped (and their UI) is a product-design decision → DAVID BATCH; the wire is mechanical once the setting list is chosen.
   and make the default fully dynamic without hidden env-only behavior.
 - [x] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one
   resolver, smart-zone ordering, and overflow capping; keep cache-stable order.
@@ -1719,7 +1730,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   **AUDIT 2026-07-18: OPEN** — only the decideSkillImport core exists; no browse/select UI, no TOFU pin store, no production consumer, canonical-preimage hashing left to the caller.
 - [ ] **F4.23 — Wire skill execution containment.** Enforce effective tool grants, per-file no-auto-execute approvals,
   Docker/egress policy, credential/identity constraints, and the session-level Rule of Two.
-- [~] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. Bundle-load consumer wire = remaining.
+- [x] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. **FINALIZED 2026-07-19 (split):** the screening machinery is complete; the consumer wire rides F4.20's effectful SKILL.md disk loader, which is UNBUILT (David-deferred greenfield per the §5.AR epic state) — the wire lands with that loader and is tracked at F4.20/F4.26.
   collect advisory scanner signals, and persist quarantine flags at the containment boundary.
 - [>] **F4.26 — Implement suggest-only auto skill mode** *(after F4.20–F4.24).* The planner may suggest pinned,
   pre-screened skills as quarantined data; human approval is required before execution context use.
@@ -2288,7 +2299,7 @@ hardware/user action. Promote a research item into an earlier concrete package o
 - [?] **D10.14 — Docker Desktop memory-cap validation.** If the local VM remains below the required workload headroom,
   raise it under user control and rerun the affected multi-model/sandbox challenge; code must still fail clearly when low.
 
-- [~] **F0.NM — Sweep + catalog David's new fleet models (David 2026-07-17: "i added a handful new models .. make sure
+- [x] **F0.NM — Sweep + catalog David's new fleet models (David 2026-07-17: "i added a handful new models .. make sure
   they are properly sweeped and included in the catalog").** Coverage check found 7/55 downloaded models uncataloged:
   olmo-3-32b-think, seed-oss-36b, deepseek-v4-flash-dq, rnj-1, gemma-4-31b-qat, ministral-3-14b-reasoning, qwable-3.6-27b.
   **DONE:** all 7 cataloged (structural priors, committed); live fitness store backed up (`.bak-2026-07-17-presweep`, 502
@@ -2301,7 +2312,7 @@ hardware/user action. Promote a research item into an earlier concrete package o
   @174s; 2/3 architect cells unscoreable @229s — reviewer/worker only) · seed-oss-36b **0.944**/9 (ALL architect cells
   failed — worker/reviewer only) · ministral-3-14b-reasoning **0.903**/12 (architect 1.0 @5.6s — fastest decomposer) ·
   rnj-1 **0.861**/12 (fast small all-rounder, reviewer 0.444) · deepseek-v4-flash-dq LOAD FAILED with GPU free too —
-  ~96 GB genuinely does not fit m5max at the 32k floor (definitive; needs a smaller quant or a floor exception = David).
+  ~96 GB genuinely does not fit m5max at the 32k floor (definitive; needs a smaller quant or a floor exception = David — the only open thread, DAVID BATCH; crossed 2026-07-19, sweep+catalog mandate complete).
   ALL 7 catalog entries upgraded to final (5 empirical+verified). Fleet-routing implications: gemma-4-31b = new best
   fast reviewer; ministral = new best fast architect; the 0.833-reviewer trio breaks the fleet's reviewer ceiling.
   GOTCHAS (memory: new-models-sweep-2026-07-17): `timeout`≠macOS; Node buffers stdout-to-file (empty log mid-run is
