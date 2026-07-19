@@ -41,6 +41,7 @@ import { readModelPerformanceStats } from "../telemetry/model-performance-stats"
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
+import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import {
 	runDevAdviceCommand,
 	runDevAirGapStatusCommand,
@@ -892,6 +893,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--reject <id>", "Mark the queued action with this id as rejected.")
 		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
 			await runDevOutwardQueueCommand(options);
+		});
+
+	dev.command("skill-audit")
+		.description(
+			"F12.30: pair ledger attempts per surfaced skill and print promote/revise/retire verdicts (read-only).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevSkillAuditCommand(options);
 		});
 
 	dev.command("otel-export")

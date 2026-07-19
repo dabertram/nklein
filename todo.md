@@ -2797,9 +2797,10 @@ output and NOT acted on. Captured as F12.12.)
   stashed per task, stamped on the terminal attempt event (absent/empty = the without-skill trajectory side).
   **PAIRING PROJECTION SHIPPED same day:** `skill-trajectory-projection.ts` buildSkillTrajectoryPairs —
   role-comparable with/without split per surfaced skill (compound surfacing counts on WITH for each; reviewer
-  attempts never pair against worker attempts), duration → wallMs cost, deterministic order. 3 tests. REMAINING:
-  the lifecycle sweep (read ledger → pairs → auditSkillFromPairedTrajectories → apply promote/revise/retire via
-  the store, honoring the F12.29 execution gate) — a `dev skill-audit` CLI first, auto-sweep second.
+  attempts never pair against worker attempts), duration → wallMs cost, deterministic order. 3 tests. **`dev skill-audit`
+  CLI SHIPPED same day** (read-only evidence surface; live-smoked: 226 attempts scanned, honest empty-state until
+  skill-assisted cards run under the stamp). REMAINING: the lifecycle sweep applying verdicts via the store,
+  honoring the F12.29 execution gate (promote requires BOTH the audit verdict AND execution validation).
 
 **Supply-chain, determinism & reproducibility:**
 - [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
