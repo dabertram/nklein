@@ -3710,6 +3710,16 @@ output and NOT acted on. Captured as F12.12.)
   single-stream (Qwen2.5-Coder-0.5B drafting a 7B, ~62% accept) but CUTS throughput 30–40% above ~8–16 concurrency and is
   bad for MoE. Enable it only when live concurrency==1 and the target isn't MoE — keyed off the concurrency signal !Klein
   already tracks. (ML-SpecQD 2503.13565; spheron speculative-guide)
+  **PREMISE CORRECTION 2026-07-19 (verified against `lms load --help`):** LM Studio DOES expose speculative
+  decoding — `--speculative-draft-mtp`, `--speculative-draft-simple`, `--speculative-draft-model`,
+  `--speculative-draft-{max,min}-tokens`, `--speculative-draft-min-continue-probability` — **but they are LOAD-TIME
+  flags, not per-request.** The item title says "per-request gate"; that is NOT achievable on this runtime. The
+  reachable design is a LOAD-TIME decision (does this model get a draft model at all?) plus, if per-request
+  switching is genuinely wanted, loading two instances under different `--identifier`s and ROUTING between them.
+  The decision logic already exists — `buildInferenceLeverProfile` (F12.76) gates on batch-1 AND non-MoE, treating
+  unknown concurrency as not-batch-1. What remains is the load-time wire + the two-instance routing question.
+  NOTE the interaction with the standing no-auto-load/unload production constraint: a draft-model pairing is a
+  LOAD decision, so in production this is a RECOMMENDATION, not something !Klein performs.
 - [x] **F12.71 — Quant-by-ROLE policy + imatrix builds (refines the Q4_K_M floor).** Long-horizon errors COMPOUND: Q4_K_M
   ~0.5%/step → >10% over 50 steps; Q6 ~0.2%/step → ~4% at ~1.5× VRAM; code/math are the most quant-sensitive. Encode
   long-horizon/critical roles → Q5_K_M/Q6 (imatrix — a free 10–30% perplexity win below Q6) where VRAM allows, ephemeral →
@@ -3733,15 +3743,36 @@ output and NOT acted on. Captured as F12.12.)
   Tests: 15 policy/compounding + 6 projection. Runtime suite green (10,932).
   NEXT (fleet-gated, NOT a blocker for this item): once real drains accrue, compare `buildQuantErrorRates` against
   the published per-step constants and swap `PER_STEP_ERROR` for measured values.
-- [ ] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
+- [>] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
   (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
   the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)
-- [ ] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
+  **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
+  exposes NO cache/batch flags at all. The complete load-time lever set is: `--gpu --context-length --parallel
+  --ttl --identifier --estimate-only` + the speculative-draft family. There is no `--cache-type-k/-v`, no
+  `--cache-reuse`, no `-b`/`-ub`. **This item is therefore NOT implementable against the current runtime** — it is
+  blocked on a second runtime adapter (llama.cpp server / Ollama / vLLM), not on !Klein code. Re-scoped from
+  "ready" to "waits on the runtime-adapter boundary" (see the interop phase). Do NOT attempt to pass these flags
+  through LM Studio; they are silently ignored, which is the same failure class as the GBNF-grammar lesson in §4A.
+- [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
   PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse 256` is on (KV-shifting) —
   a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
-- [ ] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
+  **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
+  exposes NO cache/batch flags. The COMPLETE load-time lever set is `--gpu --context-length --parallel --ttl
+  --identifier --estimate-only` plus the speculative-draft family — no `--cache-type-k/-v`, no `--cache-reuse`,
+  no `-b`/`-ub`. **NOT implementable against the current runtime**; blocked on a SECOND RUNTIME ADAPTER
+  (llama.cpp server / Ollama / vLLM), not on !Klein code. Do NOT try to pass these through LM Studio — they are
+  silently ignored, the same failure class as the GBNF-grammar lesson in §4A. This is now a concrete argument FOR
+  the runtime-adapter boundary: three real performance levers are unreachable until it exists.
+- [>] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
   long injected context); `--ubatch-size` is non-monotonic (one bench 59→582→collapse-to-15 tok/s; Apple Silicon likes
   ub 1024/2048). Extend the sweep with a llama-bench pp/tg micro-sweep storing each machine's ubatch sweet spot. (marvin-42 ubatch; apple-silicon-tuning)
+  **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
+  exposes NO cache/batch flags. The COMPLETE load-time lever set is `--gpu --context-length --parallel --ttl
+  --identifier --estimate-only` plus the speculative-draft family — no `--cache-type-k/-v`, no `--cache-reuse`,
+  no `-b`/`-ub`. **NOT implementable against the current runtime**; blocked on a SECOND RUNTIME ADAPTER
+  (llama.cpp server / Ollama / vLLM), not on !Klein code. Do NOT try to pass these through LM Studio — they are
+  silently ignored, the same failure class as the GBNF-grammar lesson in §4A. This is now a concrete argument FOR
+  the runtime-adapter boundary: three real performance levers are unreachable until it exists.
 - [x] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
   iogpu.wired_limit_mb=<MB>` (leave 8–16 GB for the OS) reclaims the wasted 25% — lets a Mac hold a bigger model or the full
   32k KV GPU-resident. Treat the raised ceiling as usable VRAM in the machine-aware fit; helps the known m4mini swap-crash. (baykar increase-vram)
@@ -3789,7 +3820,7 @@ output and NOT acted on. Captured as F12.12.)
   stream + the model-role config UI. 10 tests (41 in the module).
   NOT DONE: no wire — this is the profile BUILDER; F12.70's runtime spec-decode toggle and the per-request backend
   switch are separate effectful changes against the provider layer.
-- [ ] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).** Keep top-fitness models
+- [ ] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).** **`--ttl` IS exposed by `lms load` (verified 2026-07-19), so the TTL half is reachable today; the warm-pool half stays gated by the standing no-auto-load/unload production constraint — !Klein RECOMMENDS a resident set, the operator loads it.** Keep top-fitness models
   resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
   auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
   TTL defaults 60 min). Bounds resident VRAM while avoiding reloads + the m4mini swap-crash from manual `lms load`. New
