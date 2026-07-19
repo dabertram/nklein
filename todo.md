@@ -3664,10 +3664,21 @@ verify-before-build caveat: confirm each against current code before implementin
   tests. REMAINING (fleet-gated): the opt-in wire as a distinct corrector pass in the review path (a bounded
   second session on the frozen worker model seeded with this prompt, verdict folded like an eye), then live
   validation — needs a loaded model, so it rides the fleet queue.
-- [ ] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
+- [~] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
   DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
   detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis
   mid-run. Rationale: "Steer, Don't Solve" took a frozen 32B from 29.2%→65.0% on SWE-bench Verified with a PROMPTED critic. (Steer Don't Solve 2606.21811)
+  **PURE CORE SHIPPED 2026-07-19:** `drift-critic.ts` — `decideDriftCheck` (calm cadence 8 turns, tightened to 4
+  under distress mirroring F12.21's re-anchor rule, with a 4-turn floor so an early run with no trajectory is
+  never judged), `buildDriftCriticPrompt` encoding the STEER-NOT-SOLVE contract explicitly (no code/diffs/
+  step-by-step; an explicit `ON_TRACK` escape so the critic need not invent concerns — a critic that always finds
+  something trains the worker to ignore it), and `parseDriftCriticVerdict` (tolerant DRIFT/HINT parsing, capped
+  at 3 flags so a chatty critic cannot flood the worker's context; ON_TRACK/empty/unparseable all read as
+  on-track — a spurious nudge is worse than none). Feedback renders as an OPTIONAL nudge the worker may reject.
+  11 tests.
+  REMAINING (fleet-gated wire): run the critic as a bounded secondary session on the cadence (explorer/
+  plan-critique harness pattern) and inject `workerNote` at the turn boundary — needs real model time to tune the
+  cadence and confirm the critic's false-positive rate before any default-on.
 - [~] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
