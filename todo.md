@@ -1929,6 +1929,10 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   context/refuse loads before spillover.
 - [ ] **F4.49 — Add Apple unified-memory safety.** Keep peak below the configured safe fraction, cap MLX KV growth, and
   surface a clear refusal/recommendation rather than risking a system freeze.
+  **STANDING CONSTRAINT (David 2026-07-19, decided with F12.110):** production !Klein must NOT auto-load/unload
+  models AT ALL — load churn thrashes prompt caches (MLX especially). The F4.47-50 loader/eviction machinery is
+  DEV-TIME tooling (rigs, sweeps, validation) and any production surface of it is opt-in-off recommendation-only
+  (advise the operator what to load; never act). Re-frame these four items through that lens when picking them up.
 - [ ] **F4.50 — Integrate idle TTL, auto-evict, and JIT load.** Reclaim whole-model memory when idle while respecting
   warm-value and queued-work reservations.
 - [ ] **F4.53 — Add a resource panel.** Show process/system RAM, CPU, fast memory/VRAM, disk, model residency, cache hit,
@@ -3838,12 +3842,12 @@ into the existing F12.31. Same verify-before-build caveat.**
   (decompose as-if for a named class — also what makes decomposition DETERMINISTIC per profile for the N3
   nightly matrix), `off` (today's behavior). Scope global → per-project → per-card via resolveScopedOverride
   (F4.16's core, zero consumers — this is its first). Ship OPT-IN dark (flag), A/B through the F12.41 flip-gate
-  before any default. ASSUMPTIONS (build on these unless overridden) + **DAVID-CLARIFY** points: (1) fleet
-  snapshot = LOADABLE-from-catalog with machine-RAM fit, not loaded-only (loader can materialize; loaded-only
-  starves a lazy fleet) — DAVID-CLARIFY if predictability should win instead; (2) fleet-change mid-plan ⇒
-  ADVISORY re-shard suggestion via the existing redecompose trigger, never automatic mid-flight — DAVID-CLARIFY
-  if auto-re-shard is wanted for empty-lane deadlocks; (3) `smallest` = the smallest class in the CURRENT
-  snapshot (adapts), not the catalog floor — DAVID-CLARIFY if reproducible floor-sharding should win. Composes
+  before any default. **DECISIONS RESOLVED (David 2026-07-19):** (1) fleet snapshot = **LOADED models only** — !Klein must NOT
+  auto-load/unload in production AT ALL (it thrashes prompt caches, e.g. MLX; the autonomous loader is a
+  DEV-TIME tool only — standing product constraint, see the F4.47-50 note); (2) fleet-change mid-plan ⇒
+  **AUTOMATIC re-shard, ON by default**, with a user opt-out setting (rides the existing redecompose trigger);
+  (3) `smallest` = **smallest LOADED** model, with an OPTIONAL setting to target the smallest SUPPORTED catalog
+  floor instead (reproducible sharding for those who want it). Composes
   with F12.37's anti-decomposition guard (fleet-aware never overrides the coupling bar) and is the Phase-14 C1
   cloud on-ramp (cloud classes just widen the same distribution).
 
