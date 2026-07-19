@@ -3137,10 +3137,28 @@ output and NOT acted on. Captured as F12.12.)
   the tool boundary (100%-precision guardrail — never let broken code land), and give a windowed file viewer (~100 lines +
   search) instead of raw full-file `cat`. Disproportionate reliability wins for weak models. (SWE-agent ACI)
   **AUDIT 2026-07-18: DONE (covered)** — the lint-on-edit reject IS the shipped F12.63 post-apply syntax guard at the edit tool boundary (broken-after-but-ok-before edits fail NOW with the model in context; conservative string/comment-aware balance scan, JSON real-parse); the windowed viewer exists as read_files start_line/end_line ranges + the fuzzy-edit window semantics.
-- [ ] **F12.26 — Capability-gated CodeAct (executable code actions) for 30B+ routes.** Composable code-actions (control flow
+- [~] **F12.26 — Capability-gated CodeAct (executable code actions) — gated on MEASURED fitness, not "30B+".** Composable code-actions (control flow
   over multiple tool calls in one turn) give ~+20% success / ~30% fewer steps for CAPABLE models, but impose a "structure
   tax" that HURTS <7B models. Offer it opt-in ONLY for cards routed to 30B+ local models — a natural fit for capability-
   fitness routing. (CodeAct 2402.01030; HF structured-codeagent)
+  **GATE CORE SHIPPED 2026-07-20 — and the item's own "30B+" criterion was REJECTED as the gate.** Phase 22
+  measured two things that break parameter count as a capability proxy at agent depth: a 30B-A3B collapsed **32×**
+  in prefill from 0→100k while a 120B degraded 3.9× and ended up **6× faster** at depth (attention geometry
+  dominates size), and BFCL multi-turn is **non-monotonic within one family** (Qwen3-8B **41.75** vs Qwen3-14B
+  **34.75**). A "30B+" gate would therefore admit models that are bad at exactly the multi-step composition
+  CodeAct demands, and exclude smaller models that are good at it — so `decideCodeActOffer` gates on **measured
+  fitness for this model×role** and falls back to size ONLY when unmeasured, reporting `weakBasis: true` so the
+  caller knows the decision rests on a proxy the project has evidence against.
+  **HONESTY STANCE (the asymmetry drives the design):** CodeAct HURTS models that cannot carry the structure tax,
+  so **unknown capability does NOT earn the offer** — being wrong toward "withhold" costs some composition, being
+  wrong toward "offer" taxes a model that cannot pay. A thin measurement (<5 observations) is treated as
+  UNMEASURED rather than as weak evidence. The ~7B hard floor is not negotiable by a flattering fitness score,
+  since a high score on a tiny model is more likely a small sample than a refutation. A single-step card is
+  refused outright — composition with nothing to compose is pure tax. 11 tests; suite green.
+  REMAINING (F12.26b): the actual CodeAct execution surface — offering code-actions as a turn format and running
+  them in the sandbox. That is a substantial effectful package (a code-action executor inside the Docker fence,
+  with the same audit/taint treatment as any other side effect), and it is deliberately NOT bundled with the gate:
+  the gate is what makes the surface safe to build, and it can accrue observations first.
 - [x] **F12.27 — Tool-role quantization floor + adaptive thinking budget (inference-lever, feeds H7.32).** Q3-and-below
   degrades TOOL-CALL reliability before chat quality — keep Q4_K_M as the floor for tool-using roles; ≥32k context is
   required (live-confirmed); reasoning tokens help hard cards but triggering a tool MID-chain-of-thought can CUT accuracy,
