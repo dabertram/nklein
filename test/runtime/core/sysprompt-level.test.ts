@@ -189,6 +189,7 @@ describe("judge-session prompt diet (F4.37 first consumer)", () => {
 		expect(JUDGE_SESSION_KINDS.has("review")).toBe(true);
 		expect(JUDGE_SESSION_KINDS.has("plan-critique")).toBe(true);
 		expect(JUDGE_SESSION_KINDS.has("merge")).toBe(true);
+		expect(JUDGE_SESSION_KINDS.has("architect-brief")).toBe(true);
 		expect(JUDGE_SESSION_KINDS.has("worker")).toBe(false);
 	});
 });

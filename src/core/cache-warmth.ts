@@ -25,7 +25,14 @@ import { isHomeAgentSessionId } from "./home-agent-session";
  */
 
 /** The session kinds that produce distinct prompt shells (each assembles a different post-shell fragment mix). */
-export type PromptSessionKind = "worker" | "review" | "plan-critique" | "merge" | "architect" | "chat";
+export type PromptSessionKind =
+	| "worker"
+	| "review"
+	| "plan-critique"
+	| "merge"
+	| "architect"
+	| "architect-brief"
+	| "chat";
 
 /** NUL never appears in session kinds, workspace paths, or model ids, so the joined key is collision-free. */
 const SHELL_KEY_SEPARATOR = "\u0000";
@@ -66,6 +73,11 @@ export function derivePromptSessionKind(
 	}
 	if (taskId.endsWith("::merge")) {
 		return "merge";
+	}
+	// F12.62: the bounded solve-in-prose pre-phase — a focused single-deliverable session (NOT the decompose-seed
+	// "architect" kind below, which is a worker-path planning seed).
+	if (taskId.endsWith("::architect")) {
+		return "architect-brief";
 	}
 	return options?.isExplicitDecomposition ? "architect" : "worker";
 }

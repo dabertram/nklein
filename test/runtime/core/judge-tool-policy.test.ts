@@ -35,6 +35,7 @@ describe("verdict-session tool narrowing (F4.37 second half)", () => {
 	it("applies to review and plan-critique but NOT merge (merge must edit files)", () => {
 		expect(VERDICT_ONLY_SESSION_KINDS.has("review")).toBe(true);
 		expect(VERDICT_ONLY_SESSION_KINDS.has("plan-critique")).toBe(true);
+		expect(VERDICT_ONLY_SESSION_KINDS.has("architect-brief")).toBe(true);
 		expect(VERDICT_ONLY_SESSION_KINDS.has("merge")).toBe(false);
 		expect(VERDICT_ONLY_SESSION_KINDS.has("worker")).toBe(false);
 	});

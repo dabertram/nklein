@@ -17,7 +17,7 @@
  */
 
 /** Session kinds whose ONLY valid terminal action is a verdict tool call — review + plan-critique, NOT merge. */
-export const VERDICT_ONLY_SESSION_KINDS: ReadonlySet<string> = new Set(["review", "plan-critique"]);
+export const VERDICT_ONLY_SESSION_KINDS: ReadonlySet<string> = new Set(["review", "plan-critique", "architect-brief"]);
 
 /**
  * Tools a verdict-only session must NOT see: decomposition/board mutation, file mutation, execution-adjacent
