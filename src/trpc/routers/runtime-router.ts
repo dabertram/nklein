@@ -13,6 +13,8 @@ import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from ".
 import {
 	runtimeAnswerPlanQuestionRequestSchema,
 	runtimeAnswerPlanQuestionResponseSchema,
+	runtimeCardEffortRequestSchema,
+	runtimeCardEffortResponseSchema,
 	runtimeCardMailboxCountsRequestSchema,
 	runtimeCardMailboxCountsResponseSchema,
 	runtimeCardMailboxSendRequestSchema,
@@ -331,6 +333,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskActionTrailResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskActionTrail(ctx.workspaceScope, input);
+			}),
+		getCardEffort: workspaceProcedure
+			.input(runtimeCardEffortRequestSchema)
+			.output(runtimeCardEffortResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getCardEffort(ctx.workspaceScope, input);
 			}),
 		listAdwWorkflows: workspaceProcedure.output(runtimeAdwListWorkflowsResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.listAdwWorkflows(ctx.workspaceScope);

@@ -325,3 +325,27 @@ export const runtimeTaskSessionInputResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeTaskSessionInputResponse = z.infer<typeof runtimeTaskSessionInputResponseSchema>;
+
+// F12.58 — the per-card cost/effort meter (projection of the persisted task-run summaries through
+// `computeCardEffort`). `untrackedRuns` is the honesty counter: spend is UNDER-counted when > 0.
+export const runtimeCardEffortRequestSchema = z.object({
+	taskId: z.string().min(1),
+});
+export type RuntimeCardEffortRequest = z.infer<typeof runtimeCardEffortRequestSchema>;
+
+export const runtimeCardEffortResponseSchema = z.object({
+	card: z
+		.object({
+			runs: z.number().int().nonnegative(),
+			totalTokens: z.number().nonnegative(),
+			promptTokens: z.number().nonnegative(),
+			completionTokens: z.number().nonnegative(),
+			untrackedRuns: z.number().int().nonnegative(),
+			wallMs: z.number().nonnegative(),
+		})
+		.nullable(),
+	boardTotalTokens: z.number().nonnegative(),
+	boardWallMs: z.number().nonnegative(),
+	boardUntrackedRuns: z.number().int().nonnegative(),
+});
+export type RuntimeCardEffortResponse = z.infer<typeof runtimeCardEffortResponseSchema>;

@@ -3311,14 +3311,18 @@ output and NOT acted on. Captured as F12.12.)
   models misread vague tasks / stall; tight scope + acceptance check is the fix; every change stays in a reviewable
   worktree). Just-in-time by placement: it renders only on an empty board, never as a tutorial. The dialog's own
   template menu (with tooltips) remains the deeper set.
-- [~] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
+- [x] **F12.58 — Per-card cost/effort meter + budget guardrails.** Parallel agents multiply spend/compute/heat/machine-load
   invisibly. Show tokens/time per card + a board-level total, with an optional soft cap that pauses or escalates a card
   approaching its budget. (portal26 agent-cost-control; Conductor)
   **METER SHIPPED 2026-07-17:** `card-effort.ts` `computeCardEffort` (per-card tokens/wall/runs/models over the
   persisted task-run summaries; untracked runs counted honestly — never silently undercounted) + `assessEffortBudget`
   (advisory within/approaching/over at 75%/100%; the REACTION stays caller policy) + `dev card-effort [--workspace]
   [--cap]`. LIVE: 13 cards / 482k tokens on the habit-deep-chain workspace; one card correctly reads over a 200k cap.
-  REMAINING: board-UI meter (tRPC slice + card chip — token data is per-workspace-store, needs the 6-touch slice) and
+  **UI METER SHIPPED 2026-07-19 (completes the item):** getCardEffort tRPC slice (contract + handler over
+  readTaskRunSummaries→computeCardEffort + router) + a collapsed "Cost meter" panel at BOTH card-detail mounts —
+  tokens/wall/runs, prompt-completion split, the untracked-runs honesty warning, and the board total for
+  proportion; loads on open, no polling; honest failure state for legacy runtimes. 2 component tests. FORMER
+  REMAINING TEXT (now done except budget guardrails which ride F12.40's data-gated flip): board-UI meter and
   the pause/escalate reaction wire (policy decision: auto-pause is an autonomy change — David's call on default).
 - [x] **F12.59 — Escalation cards: recommendation + confidence + preserved context (never a blank question).** When blocked/
   uncertain, raise a distinct escalation card stating a RECOMMENDED action + confidence + preserved context, with

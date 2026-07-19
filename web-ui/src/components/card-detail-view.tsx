@@ -6,6 +6,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { ActionTrailPanel } from "@/components/detail-panels/action-trail-panel";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { AgentWatchPanel } from "@/components/detail-panels/agent-watch-panel";
+import { CardEffortPanel } from "@/components/detail-panels/card-effort-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
 import { type DiffLineComment, DiffViewerPanel } from "@/components/detail-panels/diff-viewer-panel";
 import { ExpandPlanTaskPanel } from "@/components/detail-panels/expand-plan-task-panel";
@@ -839,6 +840,7 @@ export function CardDetailView({
 								workspaceId={currentProjectId}
 							/>
 							<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+							<CardEffortPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -1028,6 +1030,7 @@ export function CardDetailView({
 									workspaceId={currentProjectId}
 								/>
 								<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+								<CardEffortPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

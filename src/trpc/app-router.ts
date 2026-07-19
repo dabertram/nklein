@@ -15,6 +15,8 @@ import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/
 import type {
 	RuntimeAnswerPlanQuestionRequest,
 	RuntimeAnswerPlanQuestionResponse,
+	RuntimeCardEffortRequest,
+	RuntimeCardEffortResponse,
 	RuntimeCardMailboxCountsRequest,
 	RuntimeCardMailboxCountsResponse,
 	RuntimeCardMailboxSendRequest,
@@ -340,6 +342,11 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskActionTrailRequest,
 		) => Promise<RuntimeTaskActionTrailResponse>;
+		/** F12.58: the per-card cost/effort meter (tokens + wall time; board totals alongside). */
+		getCardEffort: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeCardEffortRequest,
+		) => Promise<RuntimeCardEffortResponse>;
 		/** F12.107: list the workspace's ADW definitions (.nklein/workflows). */
 		listAdwWorkflows: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeAdwListWorkflowsResponse>;
 		/** F12.107: start an ADW run (deterministic steps host-side; agent steps as swept board cards). */

@@ -1,6 +1,7 @@
 // Browser-side query helpers: per-task actions — diagnostics, escalation, evidence, pause/resume, acceptance, merge.
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeCardEffortResponse,
 	RuntimeFocusChainHistoryResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskActionTrailResponse,
@@ -117,4 +118,10 @@ export async function fetchTaskActionTrail(
 ): Promise<RuntimeTaskActionTrailResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getTaskActionTrail.query({ taskId });
+}
+
+/** F12.58: the per-card cost/effort meter (tokens + wall time; board totals alongside). */
+export async function fetchCardEffort(workspaceId: string | null, taskId: string): Promise<RuntimeCardEffortResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getCardEffort.query({ taskId });
 }
