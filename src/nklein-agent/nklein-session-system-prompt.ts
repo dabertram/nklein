@@ -1,4 +1,9 @@
-import { type AssembledPrompt, assemblePromptFragments, type PromptFragment } from "../core/prompt-fragment-assembly";
+import {
+	type AssembledPrompt,
+	assemblePromptFragmentsForIntent,
+	type PromptFragment,
+} from "../core/prompt-fragment-assembly";
+import type { PromptIntentMode } from "../core/prompt-intent-mode";
 
 /**
  * The fragment inputs for one session's system-prompt assembly (§5.AQ). A subset of the caller's context — only what
@@ -19,6 +24,8 @@ export interface SessionSystemPromptInput {
 	sessionEnv?: string | null;
 	/** §5.AE skill-driven fragments; deduped against the fixed keys below, then re-sorted by volatility. */
 	skillFragments?: readonly PromptFragment[];
+	/** F4.39 prompt-intent mode; omitted ⇒ `max_task_info` (byte-identical to direct assembly). */
+	intentMode?: PromptIntentMode;
 }
 
 /**
@@ -47,5 +54,10 @@ export function buildSessionSystemPrompt(input: SessionSystemPromptInput): Assem
 	];
 	const fixedKeys = new Set(baseFragments.map((fragment) => fragment.key));
 	const extraSkillFragments = (input.skillFragments ?? []).filter((fragment) => !fixedKeys.has(fragment.key));
-	return assemblePromptFragments([...baseFragments, ...extraSkillFragments]);
+	// F4.39: intent-mode selection before assembly. Base fragments are un-tiered (= essential, kept in every
+	// mode); only tier-tagged skill fragments can drop, and the default mode admits everything (byte-identical).
+	return assemblePromptFragmentsForIntent(
+		[...baseFragments, ...extraSkillFragments],
+		input.intentMode ?? "max_task_info",
+	);
 }

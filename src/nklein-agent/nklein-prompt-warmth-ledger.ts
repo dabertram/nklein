@@ -1,6 +1,7 @@
 import { buildPromptShellKey, type PromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
 import { lintInstructionBudget, lintProhibitions } from "../core/prompt-fragment-lint";
+import type { PromptIntentMode } from "../core/prompt-intent-mode";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { now } from "./nklein-session-state";
 import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
@@ -38,6 +39,8 @@ export interface AssembleSessionSystemPromptInput {
 	 * by volatility, so these land in their correct churn bucket regardless of append position.
 	 */
 	skillFragments?: readonly PromptFragment[];
+	/** F4.39 prompt-intent mode passthrough; omitted ⇒ `max_task_info` (byte-identical to direct assembly). */
+	intentMode?: PromptIntentMode;
 }
 
 export interface PromptWarmthLedger {

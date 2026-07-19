@@ -74,7 +74,8 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 		);
 		const guidance = buildStructuralRetrievalGuidance(offeredServerIds);
 		if (guidance) {
-			fragments.push({ key: "structural-retrieval", volatility: "config", text: guidance });
+			// F4.39: "standard" tier — retrieval guidance is task info a minimize-mode prompt can drop.
+			fragments.push({ key: "structural-retrieval", volatility: "config", text: guidance, tier: "standard" });
 		}
 	}
 
@@ -117,6 +118,8 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 				key: `procedural-skill:${skill.id}`,
 				volatility: "config",
 				text: `Learned procedure — ${skill.title}:\n${skill.content}`,
+				// F4.39: "enriching" tier — learned procedures are helpful extras; balance/minimize modes drop them.
+				tier: "enriching",
 			});
 		}
 	}

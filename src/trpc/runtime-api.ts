@@ -83,7 +83,8 @@ import { buildModelTuningRecommendations } from "../core/model-tuning-recommenda
 import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
-import { assemblePromptFragments } from "../core/prompt-fragment-assembly";
+import { assemblePromptFragmentsForIntent } from "../core/prompt-fragment-assembly";
+import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
@@ -357,7 +358,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					if (fragments.length === 0) {
 						return null;
 					}
-					return assemblePromptFragments(fragments).text;
+					// F4.39: chat honors the same configured intent mode (default max_task_info = byte-identical).
+					return assemblePromptFragmentsForIntent(
+						fragments,
+						parsePromptIntentMode(process.env.NKLEIN_PROMPT_INTENT),
+					).text;
 				} catch {
 					return null;
 				}

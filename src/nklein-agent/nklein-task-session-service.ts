@@ -7,6 +7,7 @@ import {
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
+import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
@@ -1010,6 +1011,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				now: new Date(),
 			}).block,
 			skillFragments: (dieted ? dieted.skillFragments : (args.skillFragments ?? [])) as readonly PromptFragment[],
+			// F4.39: configured intent mode (unset/unknown ⇒ max_task_info = byte-identical assembly).
+			intentMode: parsePromptIntentMode(process.env.NKLEIN_PROMPT_INTENT),
 		};
 	}
 

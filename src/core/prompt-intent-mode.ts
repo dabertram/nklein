@@ -39,3 +39,11 @@ export function selectPromptComponentsForIntent<T extends IntentSelectableCompon
 ): T[] {
 	return components.filter((component) => isComponentIncludedForIntent(component, mode));
 }
+
+/**
+ * F4.39 env threading: parse a configured intent mode with a BYTE-IDENTICAL default — anything unset/unknown
+ * resolves to `max_task_info`, which assembles exactly like direct (mode-less) assembly.
+ */
+export function parsePromptIntentMode(value: string | undefined | null): PromptIntentMode {
+	return value === "minimize" || value === "balance" || value === "max_task_info" ? value : "max_task_info";
+}
