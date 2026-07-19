@@ -96,6 +96,7 @@ import {
 } from "../core/self-improvement-gate";
 import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
+import { assessShortcutBehaviors } from "../core/shortcut-behavior-monitor";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -2006,6 +2007,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 												to: "reward_hack_scan",
 												reason: rewardHack.reason.slice(0, 900),
 												controllerDecision: `reward_hack:${rewardHack.signals
+													.map((signal) => signal.kind)
+													.join(",")
+													.slice(0, 200)}`,
+											}),
+										).catch(() => {});
+									}
+									// F12.97 shortcut-behavior monitor (record-only, same stance): the classes F12.44 cannot
+									// see — the VERIFIER's own config weakened, looked-up-solution provenance, or a prose
+									// flood that games a rubric judge. Evidence for reviewer scrutiny, never a block.
+									const shortcuts = assessShortcutBehaviors(patch);
+									if (shortcuts.suspicious) {
+										await appendAgentLedgerEvent(
+											buildTransitionEvent({
+												workflowId: taskId,
+												taskId,
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+												from: "review",
+												to: "shortcut_behavior_scan",
+												reason: shortcuts.reason.slice(0, 900),
+												controllerDecision: `shortcut:${shortcuts.signals
 													.map((signal) => signal.kind)
 													.join(",")
 													.slice(0, 200)}`,

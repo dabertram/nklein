@@ -68,6 +68,16 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **FLAKY-UNDER-LOAD: `nklein-task-session-service.test.ts` (129 timing-sensitive tests).** Two independent
+> false-reds on 2026-07-19 under LOW POWER MODE (suite 17s → 84s): "parks a running task as paused…", "does not
+> dispatch queued input…", and "emits awaiting_review before asynchronous result capture settles". Each passed
+> 129/129 in ISOLATION immediately after. DIAGNOSIS RULE: when a pre-commit red names this file, re-run that file
+> alone BEFORE suspecting your change — if it passes in isolation and your edit isn't in the service, it's the
+> flake, not you. (Also: any NEW async work on a hot session path can genuinely break these; the earlier F4.13
+> prune really did, and was fixed by scoping the store read to reviewer/architect roles.) This is exactly the
+> class Phase-13 N13's double-run quarantine exists to catch.
+
+
 > Integrated from the former `AGENTS.md` (2026-06-28, user). `todo.md` is the **single file** an agent is pointed at —
 > `AGENTS.md`/`CLAUDE.md` are now thin pointers here. **When to add tribal knowledge to this section:** the user had to
 > intervene/correct/hand-hold · multiple back-and-forths to get something working · something required reading many files
@@ -3675,11 +3685,22 @@ verify-before-build caveat: confirm each against current code before implementin
   self-observation on mismatch. Observe-first: does NOT block acceptance yet — flip to blocking once live divergence
   rates show the signal is precise (weak models may predict sloppily; blocking on that would thrash).
   (SolidCoder 2604.19825; Self-Execution-Sim 2604.03253)
-- [ ] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
+- [~] **F12.97 — Diverse-verifier acceptance ensemble + shortcut monitor (extends F12.44).** Require agreement across execution
   tests + property checks (F12.93) + an LLM rubric judge, and flag shortcut behaviors (solution lookup, test/harness tampering,
   verbosity-gaming); add a "Dockerless" execution-free evidence pre-screen when full test runs are too costly per candidate.
   Rationale: reward hacking is STRUCTURAL — 28.57% of PASSING SWE solutions used shortcuts; a behavior monitor cut that to
   0.56% and lifted clean resolution 40.2%→60.5%; no single verifier is safe. (Verification Horizon 2606.26300; Dockerless verifier 2606.28436)
+  **SHORTCUT MONITOR SHIPPED 2026-07-19:** `shortcut-behavior-monitor.ts` `assessShortcutBehaviors(patch)` — the
+  three classes F12.44 cannot see: `harness_tampering` (the VERIFIER's own config weakened —
+  --passWithNoTests / continue-on-error / `|| true` / added test excludes / --no-verify / a no-op "test" script,
+  and ONLY when a weakening token is added, so touching a harness file innocently stays quiet),
+  `solution_lookup` (issue/PR/gist/SO links or "copied from the upstream patch" prose in delivered code), and
+  `verbosity_gaming` (≥30 added prose lines exceeding code 3:1 — the rubric-judge-gaming shape). Under-counts
+  rather than hallucinates, same honesty stance as F12.44. Wired record-only at the SAME delivery-seam scan
+  (`shortcut_behavior_scan` ledger transition, never blocks). 7 tests.
+  REMAINING: the ENSEMBLE half — require agreement across execution tests + F12.93 property checks + an LLM
+  rubric judge (needs F12.93's property core + a judge pass; multi-verifier design), and the Dockerless
+  execution-free evidence pre-screen for when full test runs are too costly per candidate.
 
 **Research batch 2b (2026-07-17) — local-first TRUST & PRIVACY brief (~40 lookups). !Klein's local-only architecture is a
 market differentiator only if it is VERIFIABLE. Framing: "local AI is private by ARCHITECTURE; cloud AI is private by
