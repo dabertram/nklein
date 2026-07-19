@@ -388,6 +388,16 @@ export function countKanbanPersistedMessagesTokens(messages: readonly NKleinSdkP
 	return messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 }
 
+/**
+ * F4.46 pinned-facts RETENTION contract: a message stamped `metadata.compactionPinned === true` is never
+ * summarized, truncated, or dropped by any compaction stage — the caller pins evidence/citation messages whose
+ * exact bytes (e.g. `file:line` provenance) must survive summarization. The emergency rebuild carries pinned
+ * messages over verbatim as well, so the contract holds even at the last resort.
+ */
+export function isCompactionPinnedMessage(message: NKleinSdkPersistedMessage): boolean {
+	return (message.metadata as { compactionPinned?: unknown } | undefined)?.compactionPinned === true;
+}
+
 function compactOlderTextMessages(
 	messages: NKleinSdkPersistedMessage[],
 	targetTokens: number,
@@ -403,7 +413,7 @@ function compactOlderTextMessages(
 			continue;
 		}
 		const message = messages[index];
-		if (!message || typeof message.content !== "string") {
+		if (!message || isCompactionPinnedMessage(message) || typeof message.content !== "string") {
 			continue;
 		}
 		if (message.content.length <= COMPACTED_MESSAGE_PREVIEW_CHARS) {
@@ -430,6 +440,7 @@ async function compactOlderTextMessagesWithProvider(
 		const message = messages[index];
 		if (
 			!message ||
+			isCompactionPinnedMessage(message) ||
 			typeof message.content !== "string" ||
 			message.content.length <= COMPACTED_MESSAGE_PREVIEW_CHARS
 		) {
@@ -501,7 +512,7 @@ function compactStructuredMessages(
 		index += 1
 	) {
 		const message = messages[index];
-		if (!message || typeof message.content === "string") {
+		if (!message || isCompactionPinnedMessage(message) || typeof message.content === "string") {
 			continue;
 		}
 		const compactedContent = message.content.map(compactStructuredContentBlock);
@@ -567,12 +578,15 @@ function buildEmergencyCompactionMessage(
 		summary = summary.slice(0, Math.max(1, Math.floor(summary.length * 0.75)));
 	}
 	const baseMessage = firstUserMessage ?? messages[0];
+	// F4.46 retention contract: pinned evidence messages ride through even the emergency rebuild verbatim.
+	const pinned = messages.filter((message) => isCompactionPinnedMessage(message));
 	return [
 		{
 			...(baseMessage ?? {}),
 			role: "user",
 			content: summary,
 		},
+		...pinned,
 	];
 }
 
