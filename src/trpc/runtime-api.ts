@@ -57,7 +57,7 @@ import {
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
-import { resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
+import { parseDeviceRamGb, resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import {
@@ -67,7 +67,12 @@ import {
 	validateHostOpenFilePath,
 } from "../core/host-open-intents";
 import { parseLmsLsCatalog } from "../core/lms-model-catalog";
-import { createDefaultLmsRunner, fetchLmsPsModelsCached, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
+import {
+	createDefaultLmsRunner,
+	fetchLmsPsModelsCached,
+	groupModelsByMachine,
+	LOCAL_MACHINE_ID,
+} from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { mastRemedyHint, rollupMastDistribution } from "../core/mast-failure-modes";
@@ -315,6 +320,36 @@ function resolveRailCoordinator(deps: CreateRuntimeApiDependencies): RailControl
 		outcomeLog: createRailOutcomeLog(),
 	});
 	return fallbackRailCoordinator;
+}
+
+// F3.23 — fold the live `lms ps` snapshot into the read-only machine-pool view (id + resident models + the
+// operator's NKLEIN_DEVICE_RAM_GB budget). Best-effort: unreachable lms ⇒ [].
+async function buildMachinePoolsView(): Promise<
+	{
+		id: string;
+		residentModels: { identifier: string; modelKey: string; isEmbedding: boolean }[];
+		configuredRamGb: number | null;
+	}[]
+> {
+	const models = await fetchLmsPsModelsCached(createDefaultLmsRunner());
+	const ramByMachine = parseDeviceRamGb(process.env.NKLEIN_DEVICE_RAM_GB);
+	const pools: {
+		id: string;
+		residentModels: { identifier: string; modelKey: string; isEmbedding: boolean }[];
+		configuredRamGb: number | null;
+	}[] = [];
+	for (const [machineId, machineModels] of groupModelsByMachine(models)) {
+		pools.push({
+			id: machineId,
+			residentModels: machineModels.map((model) => ({
+				identifier: model.identifier,
+				modelKey: model.modelKey,
+				isEmbedding: model.isEmbedding,
+			})),
+			configuredRamGb: ramByMachine[machineId] ?? null,
+		});
+	}
+	return pools.sort((left, right) => (left.id < right.id ? -1 : 1));
 }
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
@@ -707,6 +742,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				// catalog (machine + size) + the NKLEIN_DEVICE_RAM_GB map + real loaded state. Best-effort: any failing
 				// source degrades to no upgrades (never breaks the fitness view).
 				capabilityUpgrades: await computeCapabilityUpgrades(fitnessRows).catch(() => []),
+				// F3.23: the read-only machine-pool view — resident models per machine + the configured RAM budget.
+				machinePools: await buildMachinePoolsView().catch(() => []),
 			};
 		},
 		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value — the same three

@@ -150,12 +150,29 @@ export const runtimeCapabilityUpgradeSchema = z.object({
 });
 export type RuntimeCapabilityUpgrade = z.infer<typeof runtimeCapabilityUpgradeSchema>;
 
+// F3.23 — the read-only machine-pool view: which machine serves which resident models, with the configured RAM
+// budget when the operator supplied NKLEIN_DEVICE_RAM_GB. The editable roster is a separate product surface.
+export const runtimeMachinePoolSchema = z.object({
+	id: z.string(),
+	residentModels: z.array(
+		z.object({
+			identifier: z.string(),
+			modelKey: z.string(),
+			isEmbedding: z.boolean(),
+		}),
+	),
+	configuredRamGb: z.number().nullable(),
+});
+export type RuntimeMachinePool = z.infer<typeof runtimeMachinePoolSchema>;
+
 export const runtimeFitnessTableResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	rows: z.array(runtimeFitnessRowSchema),
 	// F3.35 enrichment — best not-loaded upgrade per ceiling-hit role (empty when the fleet clears every role, or when
 	// the catalog/RAM-map inputs are unavailable). Server-computed so the CLI and UI share one code path.
 	capabilityUpgrades: z.array(runtimeCapabilityUpgradeSchema).default([]),
+	// F3.23 — live machine pools (empty when lms is unreachable; never breaks the fitness view).
+	machinePools: z.array(runtimeMachinePoolSchema).default([]),
 });
 export type RuntimeFitnessTableResponse = z.infer<typeof runtimeFitnessTableResponseSchema>;
 

@@ -798,6 +798,28 @@ export function ModelPerformanceStatsDialog({
 						</ul>
 					</div>
 				)}
+				{(fitnessTable?.machinePools ?? []).length > 0 && (
+					<div
+						className="mb-2 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+						data-testid="machine-pools"
+					>
+						<div className="mb-1 font-semibold text-text-primary">Machine pools (F3.23)</div>
+						<ul className="space-y-1">
+							{(fitnessTable?.machinePools ?? []).map((pool) => (
+								<li key={pool.id} data-testid="machine-pool-row">
+									<span className="font-semibold">{pool.id}</span>
+									{pool.configuredRamGb !== null ? ` · ${pool.configuredRamGb} GB budget` : ""} ·{" "}
+									{pool.residentModels.length} resident:{" "}
+									<span className="font-mono">
+										{pool.residentModels
+											.map((model) => `${model.identifier}${model.isEmbedding ? " (embed)" : ""}`)
+											.join(", ") || "none"}
+									</span>
+								</li>
+							))}
+						</ul>
+					</div>
+				)}
 				{topReevalCells.length > 0 && (
 					<div
 						className="mb-2 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"

@@ -1575,9 +1575,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F3.22 — Make routing pool-aware.** Prefer a free smallest-sufficient machine/model, preserve warm rails when
   beneficial, and avoid spill/thrash.
   **AUDIT 2026-07-18: DONE** — `selectSwarmRouteForTask` (model-swarm-route.ts pool→model layers) wired at start-task-session.ts; smallest-sufficient FREE pool (model-pool-routing makePoolComparator), §5.AQ warm-rail preference, poolFreeSlots avoids spill; model-swarm-route + model-pool-routing tests.
-- [~] **F3.23 — Add machine-pool settings.** Show endpoint, models, power/resource state, caps, override provenance, and
+- [x] **F3.23 — Add machine-pool settings.** Show endpoint, models, power/resource state, caps, override provenance, and
   a safe editable roster/preset.
-  **AUDIT 2026-07-18: PARTIAL (leaning open)** — only per-provider/host/endpoint/model caps editable (concurrency-editor in runtime-settings). MISSING: machine-pool view (endpoint + resident models + power/resource state + override provenance + editable roster).
+  **POOL VIEW SHIPPED 2026-07-19 (completes the autonomous scope):** getFitnessTable now returns `machinePools`
+  (live `lms ps` grouped by machine + the NKLEIN_DEVICE_RAM_GB budget; best-effort, never breaks the fitness
+  view) and the Model Performance dialog renders a "Machine pools (F3.23)" section — machine id, RAM budget,
+  resident models with embed tags. Live-data-proven (the real 4-model resident fleet resolves). Caps stay
+  editable in Runtime Settings (concurrency editor). SPLIT: power/resource live state, override provenance
+  columns, and the EDITABLE roster are the product surface the entry names → DAVID BATCH (roster semantics
+  couple to the autonomous loader).
 - [x] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
   **FINALIZED 2026-07-19 (split):** multi-pool routing unit-proven AND the 2026-07-15 live run validated multi-machine fan-out + cap-3 concurrency across the real 3-machine fleet (recorded in the fleet-live session evidence). The remaining ENDPOINT-LOSS survival leg + a committed proof artifact = F3.24b below.
