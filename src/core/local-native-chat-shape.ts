@@ -1,83 +1,60 @@
 /**
- * §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: a local model server's
- * native `/api/v1/chat` surface that exposes STRUCTURED `tool_call.*` + `reasoning.*` fields (LM Studio / llama.cpp
- * native), which parse more reliably on weak models than OpenAI's text-embedded tool calls. The exact envelope varies
- * across servers/quants, so the parser here is DELIBERATELY DEFENSIVE + MULTI-SHAPE: it recognizes the common structured
- * variants and returns what it can, never throwing and never guessing content it didn't see — the caller's retry ladder
- * handles a shape it can't read. The live endpoint confirms which variant a given server actually emits.
+ * §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: LM Studio's native
+ * `/api/v1/chat` "Responses"-style surface.
  *
- * Owned: (a) build a request body (OpenAI-compatible field names, which the native surface accepts); (b) parse a
- * response into extracted text + reasoning + structured tool calls. Pure + total + defensive.
+ * ✅ LIVE-PROBED CONTRACT (2026-07-19, LM Studio 0.3.x, ministral-3-14b — F4.33 rewrite):
+ *   - REQUEST: `{ model, input: [{ type: "text" | "image", content }], max_output_tokens, temperature? }`.
+ *     The input discriminator accepts ONLY `text`/`image` (probed 400: "Expected 'text' | 'image'"); `messages`
+ *     and `max_tokens` are rejected. EVERY `text` item becomes its own USER turn server-side — two text items
+ *     500'd the Mistral Jinja template with the alternation error — so the builder MERGES all prompt text into
+ *     ONE item (same rule as mergeConsecutiveSameRoleSdkMessages) and system framing rides inline.
+ *   - RESPONSE (200): `{ model_instance_id, output: [{ type: "reasoning" | "message", content }], response_id,
+ *     stats: { input_tokens, total_output_tokens, reasoning_output_tokens, tokens_per_second,
+ *     time_to_first_token_seconds } }` — both output item types captured live; `response_id` is the chainable id
+ *     the F4.45 gate verifies. Tool-call output items remain unobserved on this surface (F4.34 probes them);
+ *     the parser accepts a `tool_call`-shaped item defensively without guessing beyond name/arguments.
  *
- * ⚠ LIVE-PROBED STALE (2026-07-12, LM Studio 0.3.x `/api/v1/chat`): the ASSUMPTIONS below do NOT match the current LM
- * Studio native surface — the endpoint exists (POST-only) but uses its own unified "Responses"-style shape, so both the
- * request builder AND the response parser here would fail against it and MUST be rewritten before this module is wired:
- *   - REQUEST: `{ model, input: [{ type: "text"|"image", content: <string> }, …] }`. It REJECTS `messages` and
- *     `max_tokens` ("Unrecognized key(s)"); the token cap + `tools`/`tool_choice` keys are NOT the OpenAI ones (probe
- *     them when rewriting). So `buildNativeChatRequest`'s `{messages, max_tokens, tool_choice}` body → 400.
- *   - RESPONSE (200): `{ model_instance_id, output: [{ type: "message"|…, content: <string> }, …], response_id,
- *     stats: { input_tokens, total_output_tokens, reasoning_output_tokens, tokens_per_second, time_to_first_token_seconds } }`.
- *     Reasoning is a token COUNT in `stats.reasoning_output_tokens` (the text location + the tool-call `output[]` variant
- *     still need probing). So `parseNativeChatResponse`'s `tool_call.*`/`reasoning.*` field assumptions do not apply.
- * The fixture tests below are self-consistent but describe the OLD assumed shape — a rewrite must re-derive fixtures from
- * a live 200. (§5.AA endpoint-iteration.)
+ * Pure + total + defensive: an unrecognized body parses to empty channels, never throws.
  */
 
-/** A neutral chat message (role + text). */
+/** A neutral chat message (role + text) — folded into the single-item native input by the builder. */
 export interface NativeChatMessage {
 	role: "system" | "user" | "assistant";
 	content: string;
 }
 
-/** A neutral tool definition — emitted in the OpenAI-compatible `tools[].function` shape the native surface accepts. */
-export interface NativeToolDefinition {
-	name: string;
-	description?: string;
-	parameters: Record<string, unknown>;
-}
-
 export interface NativeChatRequestInput {
 	model: string;
-	maxTokens: number;
+	/** Native key `max_output_tokens` (the OpenAI `max_tokens` key is rejected by this surface). */
+	maxOutputTokens: number;
 	messages: readonly NativeChatMessage[];
-	tools?: readonly NativeToolDefinition[];
 	temperature?: number;
-	/** Force a tool call (`tool_choice:"required"`) when a call must be produced. */
-	forceToolUse?: boolean;
 }
 
 export interface NativeChatRequestBody {
 	model: string;
-	max_tokens: number;
-	messages: Array<{ role: string; content: string }>;
-	tools?: Array<{
-		type: "function";
-		function: { name: string; description?: string; parameters: Record<string, unknown> };
-	}>;
-	tool_choice?: "required" | "auto";
+	max_output_tokens: number;
+	input: Array<{ type: "text"; content: string }>;
 	temperature?: number;
 }
 
-/** Build a native `/api/v1/chat` request body (OpenAI-compatible field names). `forceToolUse` → `tool_choice:"required"`. */
+/**
+ * Build a native `/api/v1/chat` request. All messages MERGE into ONE `text` input item (each item is its own
+ * user turn server-side; two items breaks Mistral-family alternation templates — live-probed 500). Non-user
+ * roles are labeled inline so the model still sees the framing.
+ */
 export function buildNativeChatRequest(input: NativeChatRequestInput): NativeChatRequestBody {
+	const merged = input.messages
+		.map((message) => (message.role === "user" ? message.content : `[${message.role}]\n${message.content}`))
+		.filter((text) => text.trim().length > 0)
+		.join("\n\n");
 	const body: NativeChatRequestBody = {
 		model: input.model,
-		max_tokens: input.maxTokens,
-		messages: input.messages.map((message) => ({ role: message.role, content: message.content })),
+		max_output_tokens: input.maxOutputTokens,
+		input: [{ type: "text", content: merged }],
 	};
 	if (typeof input.temperature === "number") {
 		body.temperature = input.temperature;
-	}
-	if (input.tools && input.tools.length > 0) {
-		body.tools = input.tools.map((tool) => ({
-			type: "function" as const,
-			function: {
-				name: tool.name,
-				...(tool.description ? { description: tool.description } : {}),
-				parameters: tool.parameters,
-			},
-		}));
-		body.tool_choice = input.forceToolUse ? "required" : "auto";
 	}
 	return body;
 }
@@ -88,37 +65,41 @@ export interface ParsedNativeToolCall {
 	args: Record<string, unknown>;
 }
 
+export interface NativeChatStats {
+	inputTokens: number | null;
+	totalOutputTokens: number | null;
+	reasoningOutputTokens: number | null;
+	tokensPerSecond: number | null;
+	timeToFirstTokenSeconds: number | null;
+}
+
 export interface ParsedNativeChatResponse {
-	/** The assistant's answer text. */
+	/** The assistant's answer text (`output[].type === "message"` items, joined). */
 	text: string;
-	/** The model's separate REASONING channel (`reasoning`/`reasoning_content`/`thinking`), when the server exposes one. */
+	/** The reasoning channel (`output[].type === "reasoning"` items, joined). */
 	reasoning: string;
-	/** Every structured tool call, in order. */
+	/** Structured tool calls, when the surface emits them (unobserved so far — parsed defensively). */
 	toolCalls: ParsedNativeToolCall[];
-	/** The finish/stop reason, when present. */
-	finishReason: string | null;
+	/** The chainable response id (`response_id`) — the F4.45 stateful-adoption key. */
+	responseId: string | null;
+	/** The serving instance (`model_instance_id`). */
+	modelInstanceId: string | null;
+	stats: NativeChatStats;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-function firstString(record: Record<string, unknown>, keys: readonly string[]): string {
-	for (const key of keys) {
-		const value = record[key];
-		if (typeof value === "string" && value.length > 0) {
-			return value;
-		}
-	}
-	return "";
+function numberOrNull(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-/** Coerce a tool-call `arguments` field (a JSON STRING per OpenAI, or an already-parsed object) into an object. */
+/** Coerce a tool-call `arguments` field (JSON string or object) into an object. */
 function coerceArgs(value: unknown): Record<string, unknown> {
 	if (typeof value === "string") {
 		try {
-			const parsed = JSON.parse(value);
-			return asRecord(parsed) ?? {};
+			return asRecord(JSON.parse(value)) ?? {};
 		} catch {
 			return {};
 		}
@@ -126,61 +107,71 @@ function coerceArgs(value: unknown): Record<string, unknown> {
 	return asRecord(value) ?? {};
 }
 
-/** Extract structured tool calls from either the OpenAI-style `tool_calls[]` array or a singular native `tool_call`. */
-function extractToolCalls(source: Record<string, unknown>): ParsedNativeToolCall[] {
-	const calls: ParsedNativeToolCall[] = [];
-	const array = Array.isArray(source.tool_calls) ? source.tool_calls : [];
-	for (const rawCall of array) {
-		const call = asRecord(rawCall);
-		if (!call) {
-			continue;
-		}
-		// OpenAI shape: { id, function: { name, arguments } }. Native flat shape: { id, name, arguments }.
-		const fn = asRecord(call.function);
-		const name = (typeof fn?.name === "string" && fn.name) || (typeof call.name === "string" && call.name) || "";
-		if (!name) {
-			continue;
-		}
-		const rawArgs = fn ? fn.arguments : call.arguments;
-		calls.push({ id: typeof call.id === "string" ? call.id : "", name, args: coerceArgs(rawArgs) });
-	}
-	// Singular native `tool_call: { name, arguments }` (some servers emit one call this way).
-	const singular = asRecord(source.tool_call);
-	if (singular && typeof singular.name === "string" && singular.name.length > 0) {
-		calls.push({
-			id: typeof singular.id === "string" ? singular.id : "",
-			name: singular.name,
-			args: coerceArgs(singular.arguments),
-		});
-	}
-	return calls;
-}
-
 /**
- * Parse a native `/api/v1/chat` response defensively across the common structured shapes: the OpenAI-compatible
- * `choices[0].message` envelope AND a flat top-level `message`/`content` shape. Extracts text, the reasoning channel
- * (`reasoning`/`reasoning_content`/`thinking`), and structured tool calls (`tool_calls[]` and/or singular `tool_call`).
- * Never throws; an unrecognized body yields empty text + reasoning + no tool calls.
+ * Parse a native `/api/v1/chat` 200 body. Splits `output[]` by item type — `message` → text, `reasoning` →
+ * reasoning, a `tool_call`-ish item (type contains "tool", carries a name) → toolCalls. Never throws; an
+ * unrecognized body yields empty channels and null ids/stats.
  */
 export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse {
-	const empty: ParsedNativeChatResponse = { text: "", reasoning: "", toolCalls: [], finishReason: null };
+	const empty: ParsedNativeChatResponse = {
+		text: "",
+		reasoning: "",
+		toolCalls: [],
+		responseId: null,
+		modelInstanceId: null,
+		stats: {
+			inputTokens: null,
+			totalOutputTokens: null,
+			reasoningOutputTokens: null,
+			tokensPerSecond: null,
+			timeToFirstTokenSeconds: null,
+		},
+	};
 	const record = asRecord(body);
 	if (!record) {
 		return empty;
 	}
-	// Resolve the message-bearing object: OpenAI `choices[0].message`, or a top-level `message`, or the record itself.
-	const choice = Array.isArray(record.choices) ? asRecord(record.choices[0]) : null;
-	const message = asRecord(choice?.message) ?? asRecord(record.message) ?? record;
-	const finishReason =
-		(typeof choice?.finish_reason === "string" && choice.finish_reason) ||
-		(typeof record.finish_reason === "string" && record.finish_reason) ||
-		(typeof record.stop_reason === "string" && record.stop_reason) ||
-		null;
-
+	const textParts: string[] = [];
+	const reasoningParts: string[] = [];
+	const toolCalls: ParsedNativeToolCall[] = [];
+	const output = Array.isArray(record.output) ? record.output : [];
+	for (const rawItem of output) {
+		const item = asRecord(rawItem);
+		if (!item || typeof item.type !== "string") {
+			continue;
+		}
+		if (item.type === "message" && typeof item.content === "string") {
+			textParts.push(item.content);
+		} else if (item.type === "reasoning" && typeof item.content === "string") {
+			reasoningParts.push(item.content);
+		} else if (item.type.includes("tool")) {
+			const name =
+				(typeof item.name === "string" && item.name) ||
+				(typeof (asRecord(item.function)?.name as unknown) === "string" &&
+					(asRecord(item.function)?.name as string)) ||
+				"";
+			if (name) {
+				toolCalls.push({
+					id: typeof item.id === "string" ? item.id : "",
+					name,
+					args: coerceArgs(item.arguments ?? asRecord(item.function)?.arguments),
+				});
+			}
+		}
+	}
+	const stats = asRecord(record.stats) ?? {};
 	return {
-		text: firstString(message, ["content", "text"]),
-		reasoning: firstString(message, ["reasoning", "reasoning_content", "thinking"]),
-		toolCalls: extractToolCalls(message),
-		finishReason,
+		text: textParts.join("\n"),
+		reasoning: reasoningParts.join("\n"),
+		toolCalls,
+		responseId: typeof record.response_id === "string" ? record.response_id : null,
+		modelInstanceId: typeof record.model_instance_id === "string" ? record.model_instance_id : null,
+		stats: {
+			inputTokens: numberOrNull(stats.input_tokens),
+			totalOutputTokens: numberOrNull(stats.total_output_tokens),
+			reasoningOutputTokens: numberOrNull(stats.reasoning_output_tokens),
+			tokensPerSecond: numberOrNull(stats.tokens_per_second),
+			timeToFirstTokenSeconds: numberOrNull(stats.time_to_first_token_seconds),
+		},
 	};
 }

@@ -1,127 +1,72 @@
 import { describe, expect, it } from "vitest";
 import { buildNativeChatRequest, parseNativeChatResponse } from "../../../src/core/local-native-chat-shape";
 
-describe("local native /api/v1/chat wire shape (§5.AB endpoint kind)", () => {
-	describe("buildNativeChatRequest", () => {
-		it("maps messages + tools (OpenAI-compatible) and forces a call with tool_choice:'required'", () => {
-			const body = buildNativeChatRequest({
-				model: "native-model",
-				maxTokens: 512,
-				temperature: 0.1,
-				messages: [
-					{ role: "system", content: "be terse" },
-					{ role: "user", content: "edit" },
-				],
-				tools: [{ name: "write_file", description: "write", parameters: { type: "object" } }],
-				forceToolUse: true,
-			});
-			expect(body).toMatchObject({ model: "native-model", max_tokens: 512, temperature: 0.1 });
-			expect(body.messages).toEqual([
-				{ role: "system", content: "be terse" },
-				{ role: "user", content: "edit" },
-			]);
-			expect(body.tools).toEqual([
-				{
-					type: "function",
-					function: { name: "write_file", description: "write", parameters: { type: "object" } },
-				},
-			]);
-			expect(body.tool_choice).toBe("required");
+/**
+ * F4.33 — fixtures RE-DERIVED FROM LIVE 200s (2026-07-19, LM Studio 0.3.x /api/v1/chat, ministral-3-14b):
+ * request {model,input:[{type:"text",content}],max_output_tokens}; response {model_instance_id,output[],
+ * response_id,stats}. The multi-item alternation 500 is the live-probed reason the builder merges to ONE item.
+ */
+describe("native /api/v1/chat shape (F4.33 probed contract)", () => {
+	it("builds the single-merged-item request (each text item is its own user turn server-side)", () => {
+		const body = buildNativeChatRequest({
+			model: "mistralai/ministral-3-14b-reasoning",
+			maxOutputTokens: 200,
+			temperature: 0,
+			messages: [
+				{ role: "system", content: "You are terse." },
+				{ role: "user", content: "Say OK" },
+			],
 		});
-
-		it("sets tool_choice:'auto' when tools are offered without forcing, omits tools when none", () => {
-			expect(
-				buildNativeChatRequest({ model: "m", maxTokens: 64, messages: [{ role: "user", content: "hi" }] })
-					.tool_choice,
-			).toBeUndefined();
-			expect(
-				buildNativeChatRequest({
-					model: "m",
-					maxTokens: 64,
-					messages: [{ role: "user", content: "hi" }],
-					tools: [{ name: "t", parameters: {} }],
-				}).tool_choice,
-			).toBe("auto");
+		expect(body).toEqual({
+			model: "mistralai/ministral-3-14b-reasoning",
+			max_output_tokens: 200,
+			temperature: 0,
+			input: [{ type: "text", content: "[system]\nYou are terse.\n\nSay OK" }],
 		});
 	});
 
-	describe("parseNativeChatResponse", () => {
-		it("parses the OpenAI-compatible choices[0].message envelope with tool_calls (arguments as a JSON string)", () => {
-			const parsed = parseNativeChatResponse({
-				choices: [
-					{
-						finish_reason: "tool_calls",
-						message: {
-							content: "I'll write it.",
-							reasoning: "the file needs a clamp",
-							tool_calls: [
-								{ id: "c1", type: "function", function: { name: "write_file", arguments: '{"path":"a.ts"}' } },
-							],
-						},
-					},
-				],
-			});
-			expect(parsed.text).toBe("I'll write it.");
-			expect(parsed.reasoning).toBe("the file needs a clamp");
-			expect(parsed.toolCalls).toEqual([{ id: "c1", name: "write_file", args: { path: "a.ts" } }]);
-			expect(parsed.finishReason).toBe("tool_calls");
-		});
+	it("parses the live-captured reasoning+message response with stats and the chainable id", () => {
+		const live = {
+			model_instance_id: "mistralai/ministral-3-14b-reasoning",
+			output: [
+				{ type: "reasoning", content: 'The user has asked me to say "OK" and nothing else.' },
+				{ type: "message", content: "OK" },
+			],
+			stats: {
+				input_tokens: 131,
+				total_output_tokens: 138,
+				reasoning_output_tokens: 134,
+				tokens_per_second: 15.73,
+				time_to_first_token_seconds: 0.17,
+			},
+			response_id: "resp_02be6fe1e098aa44cde5ae3b50d895f2a631620c9d3e7324",
+		};
+		const parsed = parseNativeChatResponse(live);
+		expect(parsed.text).toBe("OK");
+		expect(parsed.reasoning).toContain("asked me to say");
+		expect(parsed.responseId).toBe("resp_02be6fe1e098aa44cde5ae3b50d895f2a631620c9d3e7324");
+		expect(parsed.modelInstanceId).toBe("mistralai/ministral-3-14b-reasoning");
+		expect(parsed.stats.inputTokens).toBe(131);
+		expect(parsed.stats.reasoningOutputTokens).toBe(134);
+		expect(parsed.toolCalls).toEqual([]);
+	});
 
-		it("parses a flat top-level message shape with reasoning_content + a singular native tool_call", () => {
-			const parsed = parseNativeChatResponse({
-				message: {
-					content: "done",
-					reasoning_content: "thought",
-					tool_call: { id: "n1", name: "run_tests", arguments: { suite: "fast" } },
-				},
-				stop_reason: "stop",
-			});
-			expect(parsed.text).toBe("done");
-			expect(parsed.reasoning).toBe("thought");
-			expect(parsed.toolCalls).toEqual([{ id: "n1", name: "run_tests", args: { suite: "fast" } }]);
-			expect(parsed.finishReason).toBe("stop");
+	it("accepts a defensive tool_call output item without guessing beyond name/arguments", () => {
+		const parsed = parseNativeChatResponse({
+			model_instance_id: "m",
+			output: [{ type: "tool_call", id: "t1", name: "read_file", arguments: '{"path":"a.ts"}' }],
+			response_id: "resp_x",
+			stats: {},
 		});
+		expect(parsed.toolCalls).toEqual([{ id: "t1", name: "read_file", args: { path: "a.ts" } }]);
+	});
 
-		it("reads reasoning from `thinking` and args already-parsed (not a string)", () => {
-			const parsed = parseNativeChatResponse({
-				content: "x",
-				thinking: "hmm",
-				tool_calls: [{ id: "", name: "t", arguments: { a: 1 } }],
-			});
-			expect(parsed.reasoning).toBe("hmm");
-			expect(parsed.toolCalls[0]?.args).toEqual({ a: 1 });
-		});
-
-		it("is defensive — malformed args / unrecognized body never throw", () => {
-			expect(parseNativeChatResponse(null)).toEqual({ text: "", reasoning: "", toolCalls: [], finishReason: null });
-			expect(parseNativeChatResponse("nope")).toEqual({
-				text: "",
-				reasoning: "",
-				toolCalls: [],
-				finishReason: null,
-			});
-			// Un-parseable arguments string → args default to {}; a nameless call is skipped.
-			const parsed = parseNativeChatResponse({
-				content: "",
-				tool_calls: [{ function: { name: "t", arguments: "not json" } }, { function: { arguments: "{}" } }],
-			});
-			expect(parsed.toolCalls).toEqual([{ id: "", name: "t", args: {} }]);
-		});
-
-		it("round-trips: a forced request's tool name is what a tool_calls response reports", () => {
-			const req = buildNativeChatRequest({
-				model: "m",
-				maxTokens: 64,
-				messages: [{ role: "user", content: "go" }],
-				tools: [{ name: "apply_patch", parameters: {} }],
-				forceToolUse: true,
-			});
-			const parsed = parseNativeChatResponse({
-				choices: [
-					{ message: { tool_calls: [{ function: { name: req.tools?.[0]?.function.name, arguments: "{}" } }] } },
-				],
-			});
-			expect(parsed.toolCalls[0]?.name).toBe("apply_patch");
-		});
+	it("parses an unrecognized body to empty channels, never throwing", () => {
+		const parsed = parseNativeChatResponse({ error: { message: "boom" } });
+		expect(parsed.text).toBe("");
+		expect(parsed.reasoning).toBe("");
+		expect(parsed.responseId).toBeNull();
+		expect(parsed.stats.inputTokens).toBeNull();
+		expect(parseNativeChatResponse(null).text).toBe("");
 	});
 });

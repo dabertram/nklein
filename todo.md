@@ -1834,10 +1834,17 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 #### 4F. Native LM Studio API leverage *(legacy §5.AN)*
 
   **AUDIT 2026-07-18: OPEN** — pure cores (chooseMemoryAuditor + auditMemoryNote) have zero production consumers; no idle dispatch, no reconciliation wiring, no write→restart→recall proof.
-- [ ] **F4.33 — Rewrite native `/api/v1/chat` for the probed contract.** Implement request
+- [x] **F4.33 — Rewrite native `/api/v1/chat` for the probed contract.** Implement request
   `{model,input:[{type,content}]}` and response `{model_instance_id,output,response_id,stats}` parsing with tolerant,
   typed fallbacks; the prior pure shape is known stale (`26cd46ce`).
-  **AUDIT 2026-07-18: OPEN** — local-native-chat-shape still builds the STALE probed shape; its own header says it must be rewritten to the {model,input[]} request / {model_instance_id,output,…} response.
+  **REWRITTEN 2026-07-19 FROM LIVE PROBES (ministral-3-14b @ the real gateway):** request
+  `{model, input:[{type:"text",content}], max_output_tokens, temperature?}` — the discriminator accepts ONLY
+  text|image (probed 400), and EVERY text item becomes its own USER turn server-side (two items 500'd the
+  Mistral Jinja alternation — live-probed), so the builder MERGES all messages into ONE item with inline role
+  labels. Response `{model_instance_id, output:[{type:"reasoning"|"message",content}], response_id, stats{...}}`
+  fully parsed (both item types captured live; response_id = the F4.45 chainable id; defensive tool_call item
+  acceptance for F4.34). Fixtures re-derived from real 200 bodies; consumer client updated
+  (maxOutputTokens). 9 tests across shape+client.
 - [ ] **F4.34 — Probe and implement native tools/reasoning/SSE events.** Capture real tool call/result, reasoning text,
   message, usage, error, and stream termination shapes; add fixtures and state-machine parsing.
   **AUDIT 2026-07-18: OPEN** — no SSE/state-machine parsing, no re-derived fixtures, no native tool-call/reasoning event capture (file notes the variants still need probing).

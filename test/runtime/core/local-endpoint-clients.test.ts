@@ -76,31 +76,33 @@ describe("local endpoint clients (§5.AB)", () => {
 	});
 
 	describe("callLocalNativeChat", () => {
-		it("posts the built request and returns the parsed response (reasoning + tool calls)", async () => {
+		it("posts the F4.33 probed request shape and parses the Responses-style body", async () => {
 			const { impl, calls } = mockFetch({
-				choices: [
-					{
-						finish_reason: "tool_calls",
-						message: {
-							content: "ok",
-							reasoning: "think",
-							tool_calls: [{ id: "c1", function: { name: "run_tests", arguments: '{"suite":"fast"}' } }],
-						},
-					},
+				model_instance_id: "native",
+				output: [
+					{ type: "reasoning", content: "think" },
+					{ type: "message", content: "ok" },
 				],
+				response_id: "resp_1",
+				stats: { input_tokens: 10, total_output_tokens: 4 },
 			});
 			const result = await callLocalNativeChat({
 				url: LOCAL_NATIVE_URL,
 				model: "native",
-				maxTokens: 128,
+				maxOutputTokens: 128,
 				messages: [{ role: "user", content: "test" }],
-				tools: [{ name: "run_tests", parameters: {} }],
 				fetchImpl: impl,
 			});
 			const sent = JSON.parse(String((calls[0]?.init as { body?: string } | undefined)?.body));
-			expect(sent).toMatchObject({ model: "native", max_tokens: 128, tool_choice: "auto" });
+			expect(sent).toEqual({
+				model: "native",
+				max_output_tokens: 128,
+				input: [{ type: "text", content: "test" }],
+			});
+			expect(result.text).toBe("ok");
 			expect(result.reasoning).toBe("think");
-			expect(result.toolCalls).toEqual([{ id: "c1", name: "run_tests", args: { suite: "fast" } }]);
+			expect(result.responseId).toBe("resp_1");
+			expect(result.stats.inputTokens).toBe(10);
 		});
 
 		it("REFUSES a non-local native endpoint", async () => {
@@ -109,7 +111,7 @@ describe("local endpoint clients (§5.AB)", () => {
 				callLocalNativeChat({
 					url: "http://8.8.8.8:1234/api/v1/chat",
 					model: "m",
-					maxTokens: 8,
+					maxOutputTokens: 8,
 					messages: [{ role: "user", content: "hi" }],
 					fetchImpl: impl,
 				}),
