@@ -3746,7 +3746,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   public weights) pass; any new remote URL fails CI with an explicit privacy-guarantee message. Verified live: the
   module set's ONLY remote URL today is the model download. REMAINING: surface the guarantee in the Trust Panel
   (F12.98) + config-level assertion that codeEmbeddingDefaults.baseUrl stays local. (local RAG privacy)
-- [~] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
+- [x] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
   from the fitness prior / F3.35), ADVISE honestly — "this exceeds the local fleet; a larger local model or a cloud model would
   resolve it" — rather than silently delivering a weak result. Rationale: honesty is the trust play; pairs the local-first
   stance with a non-dark-pattern escape hatch (the user chooses, informed). Extends F3.35 capability-ceiling surfacing. (honest-hybrid advisory)
@@ -3756,7 +3756,11 @@ into the existing F12.31. Same verify-before-build caveat.**
   HONEST proceed-anyway message naming the gap + the informed escape hatch (a stronger local — or a cloud model,
   ONCE ENABLED, honest about current reality) + "Your call." Never blocks; unmeasured ⇒ silent. Wired record-only at
   the routing seam (`capability_ceiling_advisory` observation; difficulty/capability share the feasibility scale,
-  normalized /100). 5 tests. REMAINING: the USER-FACING surface (show the advisory on the card, not just telemetry)
+  normalized /100). 5 tests. **USER-FACING SURFACE SHIPPED 2026-07-19 (completes the item):** the advisory is
+  stamped on the user-visible `selectionReason` ("why this model") with a stable `Capability-ceiling advisory:`
+  marker and extracted by the board into a WARNING toast at all three start sites (12s, dedup-keyed per task) —
+  the same marker contract the pinned-model recommendation already uses. Work still proceeds (never blocks);
+  a clearing fleet stamps nothing (no noise). +2 surface-contract tests (7 total). FORMER REMAINING TEXT:
   = David-batch product decision; the enforcing/prompt-to-escalate flip is data-gated on the accrued signal.
 
 **ADW / software-factory deltas (IndyDevDan "Forget Loop Engineering — Agentic Engineering is about THIS", youtu.be/VQy50fuxI34, David 2026-07-18). Gap analysis: !Klein already IS the kanban-queue factory with review agents, closed-loop verification, fleet orchestration + observability, context engineering, and out-of-loop autonomy — the genuinely uncovered concepts are the FOUR below:**

@@ -151,6 +151,31 @@ function extractPinnedModelRecommendation(selectionReason: string | undefined): 
 	return selectionReason?.match(/Pinned-model recommendation:.*$/u)?.[0] ?? null;
 }
 
+/**
+ * F12.105: the honest capability-ceiling advisory the runtime stamped on the selection reason — this card is
+ * harder than the loaded fleet's measured ceiling. Surfaced as a WARNING toast (the work proceeds; the user just
+ * deserves to know a stronger model would do it more reliably), extracted by the same marker contract the
+ * pinned-model recommendation uses.
+ */
+function extractCeilingAdvisory(selectionReason: string | undefined): string | null {
+	return selectionReason?.match(/Capability-ceiling advisory:.*$/u)?.[0] ?? null;
+}
+
+function showCeilingAdvisoryToast(taskId: string, selectionReason: string | undefined): void {
+	const advisory = extractCeilingAdvisory(selectionReason);
+	if (!advisory) {
+		return;
+	}
+	showAppToast(
+		{
+			intent: "warning",
+			message: advisory,
+			timeout: 12000,
+		},
+		`capability-ceiling-advisory:${taskId}`,
+	);
+}
+
 function showPinnedModelRecommendationToast(taskId: string, selectionReason: string | undefined): void {
 	const pinnedModelRecommendation = extractPinnedModelRecommendation(selectionReason);
 	if (!pinnedModelRecommendation) {
@@ -504,6 +529,7 @@ export function useBoardInteractions({
 				return false;
 			}
 			showPinnedModelRecommendationToast(taskId, started.selectionReason);
+			showCeilingAdvisoryToast(taskId, started.selectionReason);
 			if (!optimisticMove) {
 				setBoard((currentBoard) => {
 					const currentColumnId = getTaskColumnId(currentBoard, taskId);
@@ -968,6 +994,7 @@ export function useBoardInteractions({
 						return;
 					}
 					showPinnedModelRecommendationToast(taskId, started.selectionReason);
+					showCeilingAdvisoryToast(taskId, started.selectionReason);
 					setBoard((currentBoard) => {
 						const moved = moveTaskToColumn(currentBoard, taskId, getTaskActiveColumnId(selection.card), {
 							insertAtTop: true,
@@ -1018,6 +1045,7 @@ export function useBoardInteractions({
 					return;
 				}
 				showPinnedModelRecommendationToast(taskId, started.selectionReason);
+				showCeilingAdvisoryToast(taskId, started.selectionReason);
 				setBoard((currentBoard) => {
 					const moved = moveTaskToColumn(currentBoard, taskId, "planning", { insertAtTop: true });
 					if (!moved.moved) {

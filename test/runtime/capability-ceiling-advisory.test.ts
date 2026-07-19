@@ -68,3 +68,31 @@ describe("capability-ceiling advisory (F12.105)", () => {
 		expect(tight.exceedsFleet).toBe(true);
 	});
 });
+
+// F12.105 surface contract: the marker prefix the board UI extracts from the selection reason.
+describe("ceiling advisory surface marker (F12.105)", () => {
+	it("matches the board's extraction regex when stamped on a selection reason", () => {
+		const verdict = assessCeilingAdvisory({
+			cardDifficulty: 0.9,
+			role: "worker",
+			bestAvailableCapability: 0.4,
+			routedModelKey: "small-model",
+		});
+		expect(verdict.exceedsFleet).toBe(true);
+		const selectionReason = `Routed to small-model. Capability-ceiling advisory: ${verdict.advisory}`;
+		const extracted = selectionReason.match(/Capability-ceiling advisory:.*$/u)?.[0] ?? null;
+		expect(extracted).not.toBeNull();
+		expect(extracted).toContain(verdict.advisory ?? "");
+	});
+
+	it("stamps nothing when the fleet clears the card (no toast, no noise)", () => {
+		const verdict = assessCeilingAdvisory({
+			cardDifficulty: 0.3,
+			role: "worker",
+			bestAvailableCapability: 0.8,
+			routedModelKey: "strong-model",
+		});
+		expect(verdict.exceedsFleet).toBe(false);
+		expect(verdict.advisory).toBeNull();
+	});
+});

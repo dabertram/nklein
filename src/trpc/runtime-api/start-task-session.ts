@@ -1174,11 +1174,13 @@ export async function handleStartTaskSession(
 				});
 			}
 		}
-		// F12.105 honest capability-ceiling advisory (record-only, observe-first): when THIS card's difficulty
+		// F12.105: the honest advisory text, surfaced on the user-visible selection reason (below) when it fires.
+		let ceilingAdvisorySuffix = "";
+		// F12.105 honest capability-ceiling advisory: when THIS card's difficulty
 		// materially exceeds the best available loaded capability for the role, record an honest advisory so the
 		// user can be told the truth (a stronger local — or a cloud model, once enabled — would resolve it more
 		// reliably) rather than silently shipping a weak result. Never blocks; difficulty/capability share the
-		// feasibility scale, normalized /100. The surfacing UI is a David-batch product decision; the signal accrues now.
+		// feasibility scale, normalized /100. Surfaced on the selection reason + a board toast; telemetry still accrues.
 		if (routingDecision.type === "assign" || routingDecision.type === "route_up") {
 			const bestWorkerCapability = roleScopedSelectionCandidates
 				.filter((candidate) => candidate.role === "worker")
@@ -1198,6 +1200,9 @@ export async function handleStartTaskSession(
 				routedModelKey: routingDecision.modelKey,
 			});
 			if (advisory.exceedsFleet && advisory.advisory) {
+				// Marker-prefixed so the board surface can extract it from the selection reason (mirrors the
+				// pinned-model-recommendation contract) — the user hears the truth instead of only telemetry.
+				ceilingAdvisorySuffix = ` Capability-ceiling advisory: ${advisory.advisory}`;
 				recordSelfObservation({
 					signal: "custom",
 					severity: "info",
@@ -1295,7 +1300,8 @@ export async function handleStartTaskSession(
 			roleClassReasonSuffix +
 			roleClassPinSuffix +
 			taskModelRecommendationSuffix +
-			pinnedModelRecommendationSuffix;
+			pinnedModelRecommendationSuffix +
+			ceilingAdvisorySuffix;
 		const routedModelKey =
 			routingDecision.type === "assign" || routingDecision.type === "route_up" ? routingDecision.modelKey : null;
 		if (taskModelPin && taskPinnedModelKey && routedModelKey !== taskPinnedModelKey) {
