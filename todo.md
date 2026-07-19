@@ -4873,6 +4873,109 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   over-read a green nightly run.
 
 
+### Phase 21 — Competitive intelligence: verified steals and unclaimed territory (researched 2026-07-19)
+
+> **THE STRATEGIC HEADLINE, and it bears directly on the charter.** Three agent-agnostic orchestrators DIED in
+> six months: **Vibe Kanban sunset 2026-04-10** — *"the vast majority are free users and we couldn't find a
+> business model that we could get excited about"*, despite *"thousands of software engineers use Vibe Kanban
+> every day"*; **Crystal** deprecated Feb 2026; **Terragon** shut down 2026-01-16. **The thesis was right; the
+> business wasn't.** This does not weaken !Klein's position — it clarifies it. A local-first tool that costs its
+> owner nothing to run is structurally better positioned than the VC-funded ones that died, and it confirms the
+> charter's ordering: **do not organize this project around a market that just killed three better-funded
+> attempts at the generic version.** Do not expect a commercial moat from orchestration UI.
+>
+> **UNCLAIMED TERRITORY (verified ABSENT across every product surveyed):** (1) dependency-graph decomposition with
+> **file-overlap serialization** — only Fusion has a real DAG and even that is human/planner-declared with no
+> overlap analysis; GitHub's own docs push overlap-avoidance onto the human. (2) **Capability-aware routing to a
+> fleet of LOCAL models** — Fusion names Ollama as a provider with no local-model doc page; Kangentic and KanBots
+> are local-first but cloud-CLI-backed; Amp states "frontier cloud models exclusively". **Nobody documents a local
+> machine fleet with fitness-based routing.** (3) **Published quality numbers** — zero of the surveyed products
+> publish benchmarks; Fusion has an eval harness and no results.
+
+- [ ] **P21.1 — Track "correct edit format %" as a first-class fitness metric, and route weak models to
+  WHOLE-FILE edits.** Aider's leaderboard: **Qwen2.5-Coder-32B scores 16.4% with `whole` format vs 8.0% with
+  `diff`** — a **2× swing from edit format alone**, on exactly our target model class. Aider tracks edit-format
+  correctness as its own metric and we do not. Compose with Cline's measured diff work: **order-invariant
+  multi-diff apply + per-model-family diff markers** gave **>10% average, ~+25% on Sonnet 3.5, >+21% on GPT-4.1**
+  — root cause was that *"many LLMs would often return them out of sequence"*. **This is probably the single
+  highest-value steal in the survey for a small-model fleet.**
+- [ ] **P21.2 — Tool-call FORMAT negotiation per model (the canonical local-model harness bug).** Cline issue
+  #10843: Qwen2.5-Coder-32B emits **correct JSON** tool calls; Cline's streaming parser only recognizes
+  Anthropic-flavoured **XML**, so it answers "no tool was used", the model repeats the identical payload, and it
+  **loops until context exhaustion**. Forcing XML made the same 32B model "drive Cline's tool functions
+  flawlessly." **This is a harness format-contract bug being mistaken for model incapacity across the whole
+  ecosystem.** Goose's `GOOSE_TOOLSHIM` (convert tool defs to text prompts, parse text calls back) is the general
+  fix. Cross-check !Klein's own parser against JSON-emitting and XML-emitting models before blaming a model.
+- [ ] **P21.3 — ASSERT the served context length; never assume it.** Ollama's 2k default *"silently discards
+  context that exceeds the window"* — Aider calls this *"especially dangerous because many users don't even
+  realize that most of their data is being discarded"*; OpenCode's own guidance is "start around 16k–32k"; an
+  independent Roo evaluation found silent truncation of refactors until **`num_predict` was raised to 12000** (an
+  OUTPUT limit, not input). **Add a startup assertion that probes actual served context AND output cap per
+  endpoint, and refuse to route on unverified values.** Directly protects prime directive #3, which currently
+  trusts what the endpoint advertises.
+- [ ] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
+  published postmortem (2026-05-23, 14 tasks marked complete but absent from main): **(a)** reject sibling
+  branches as merge targets — theirs squashed onto a sibling `fusion/fn-*` branch inherited from a parent;
+  **(b)** commit attribution must be **line-anchored** (trailers or conventional-commit subject), never
+  `git log --grep` first-hit — theirs attributed two tasks to an unrelated commit "merely because its body
+  mentioned them in prose"; **(c)** **NEVER clear `modifiedFiles` when a task claims real work** — their no-op
+  finalize silently destroyed the audit trail; move the task back to `todo` with progress preserved and emit a
+  typed audit event. Audit !Klein's merge/finalize path against all three.
+- [ ] **P21.5 — ⚠️ Fusion's multi-node P0 is OUR failure surface too.** Their self-audit found **"Checkout CAS is
+  local-row atomic, not central-distributed"** — with no central claim table, two nodes can each evaluate the
+  local single-row precondition as true before either write is globally fenced, causing **double-checkout**.
+  SQLite WAL guarantees do not cross database files. They also found stale ownership after node failure has no
+  deterministic handoff, and peer gossip at a **120 s default** with no assignment-specific fallback. **!Klein's
+  multi-machine fleet routing has the same shape. Audit for double-claim before it bites.** Their fix: a central
+  claim table with `INSERT … ON CONFLICT … WHERE <precondition>` plus epoch bumping.
+- [ ] **P21.6 — "One task = one context window = one PR" as a hard sizing invariant.** Backlog.md's framing is
+  the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
+  read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
+  review the SPEC, review the PLAN (before any code), review the CODE — are unenforced discipline; !Klein can
+  ENFORCE them. Sizing rule: **the TIGHTER of review-capacity and model-context wins.** Feeds F12.110's
+  depth-target work, which currently optimizes only the model-context side.
+- [ ] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
+  **on timeout you get no partial output at all.** At local-model speeds timeouts will be a dominant failure mode
+  for us, so partial-result return is not a nicety. Audit !Klein's park/timeout paths for total-loss cases.
+- [ ] **P21.8 — Starve the orchestrator of tools + summary-only subagent returns.** Roo Code and Kilo Code
+  converged INDEPENDENTLY on this: subtasks run "in complete isolation with its own conversation history", do NOT
+  inherit parent context, and return a **single `attempt_completion` summary that becomes the source of truth**;
+  and Roo's orchestrator mode **deliberately cannot read files, write files, call MCPs, or run commands.** Both
+  are ideal for keeping a planner inside small-model competence. Note Kilo has since **deprecated** its
+  orchestrator mode — "there's no need for a dedicated orchestrator" — i.e. the industry moved orchestration from
+  a user-visible MODE into a capability/policy LAYER, which is where !Klein already has it.
+- [ ] **P21.9 — Aggressive tool-catalog pruning has a measured payoff (strengthens F12.18).** arXiv 2607.08938:
+  filtering tools **from 40+ down to 7** fixed **62% of tool-use failures**; detailed contexts fixed 81% of
+  instruction failures and externalized domain knowledge 81% of knowledge failures; headline **"89.7% of LLM
+  performance at 4% of the cost."** F12.18 (retrieval-gate the tool catalog to ≤~8 schemas) is already the right
+  shape — this supplies the external evidence for it and suggests ~7 as the target, not ~8-12.
+- [ ] **P21.10 — Answer Fusion's Docker-cost argument explicitly (§4A + charter).** Fusion **does not
+  containerize agent tasks** and published measured startup overheads to justify it: Wasm/WASI ~1–10 ms,
+  **Bubblewrap ~5–20 ms**, Firecracker ~100 ms, **Docker 50–500 ms**, gVisor 200–500 ms; they recommend
+  Bubblewrap short-term and rejected Docker partly on "daemon dependency adds failure modes". !Klein's
+  strict-Docker prime directive is defensible — Conductor says the quiet part out loud, *"Workspace isolation is
+  development isolation, **not a security boundary**"*, and worktree-only tools are in that weaker class — but we
+  should **state the cost we accept and why**, rather than leave a competitor's measured figure unanswered.
+- [ ] **P21.11 — External empirical support for F12.91 (record in §4A).** Cognition's published reviewer data is
+  the only hard number in the space: Devin Review catches **~2 bugs per PR, ~58% of them severe** (logic errors,
+  missing edge cases, security vulnerabilities), and the reviewer performs **BETTER with clean context** because
+  "context rot" degrades longer ones. That is exactly F12.91's history-blind corrector, validated externally.
+  Their broader conclusion also matches !Klein's architecture: **"multi-agent systems work best today when writes
+  stay single-threaded and the additional agents contribute intelligence rather than actions"**, and
+  *"the unstructured-swarm approach… is mostly a distraction"* — map-reduce-and-manage wins.
+- [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
+  (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
+  so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
+  which is strictly coarser. Honest limitation in their implementation: **all conflicts are warnings, not
+  blocks.** Relevant to the F12.64 LSP-symbol-tools item — the same symbol index serves both.
+- [ ] **P21.13 — Steal container-use's three primitives.** (a) **`merge` vs `apply`** — `merge` preserves full
+  environment history with a merge commit, `apply` stages changes UNCOMMITTED so the human authors them: two
+  trust levels behind one flag. (b) **Secrets as REFERENCES, never values** — store `op://`, `env://`, `vault://`
+  and resolve into the container at execution, so *"the AI model never sees actual secret values"* and values are
+  stripped from logs. (c) **Log the COMMANDS EXECUTED, not just the diffs** — for weak models the failure lives
+  in the *how*, not the *what*. Composes with the existing S11 audit recording.
+
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
