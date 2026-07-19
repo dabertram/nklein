@@ -3193,8 +3193,20 @@ output and NOT acted on. Captured as F12.12.)
   the consult now also runs on the PRIMARY start path (workerStartPrompt seam), restarts keep the launch-config
   consult. Meanwhile the SOLO baseline on the code-fix fixture was stark: 0/3 clean (2× repeated-edit-guard pause
   grinding the same edit_file input, 1× >20-min timeout, zero patches) vs a variance-only 2/3 on the mis-flagged
-  arm — the fixture reliably reproduces the solve-vs-conform failure. RE-RUN of arm ON on the fixed build is the
-  next fleet slot; then the score/difficulty auto-decision.
+  arm — the fixture reliably reproduces the solve-vs-conform failure.
+  **ROUNDS 2-4 (2026-07-19): FOUR wire bugs found+fixed by the fixture** — (2) ::architect derived to WORKER kind
+  (full shell+tools = the no-tool-call pathology; fix: architect-brief kind joins both diet sets, 1092df0f3),
+  (3) a TDZ ordering slip, (4) the aux start path never forwarded onArchitectBriefSubmitted so
+  submit_implementation_brief WAS NEVER REGISTERED — both models flailed at a tool the seed demanded (fix
+  7b258d73d, + consult/runner outcome logging after a swallowed error cost two rounds, + NKLEIN_ARCHITECT_MODEL
+  to pin a fast architect per the aider different-model-per-phase pattern).
+  **MECHANISM PROVEN + PRELIMINARY SIGNAL (round 4, ministral architect + gemma editor):** 3/3 architect sessions
+  produced briefs (397/473/609b) once registered; the ONE within-deadline measured editor run completed CLEAN
+  with a captured patch in 411s and NO repeated-edit grind — vs the solo baseline's 0/3 clean. Runs 2-3 were
+  1-cap-host contention artifacts (leftover chains occupied the endpoint; no worker record inside 35min).
+  VERDICT: mechanism validated end-to-end; direction positive at n=1; statistical n needs a cleaner harness
+  (board reset between runs). Flag stays opt-in; next = harness cleanup + n≥5/arm through the F12.41 gate, and
+  the score/difficulty auto-decision once routing exposes effectiveScore at the start seam.
 - [~] **F12.63 — Resilient edit-apply layer (turn format errors into successful edits).** Edit application is the #1
   weak-model bottleneck. Augment diff application: exact → middle-out → Levenshtein-fuzzy (`:start_line:` hint, ~0.8
   threshold) + a syntax/parse check that REJECTS a broken edit before it lands (SWE-agent ACI) + an optional small local
