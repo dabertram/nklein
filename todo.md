@@ -3477,10 +3477,14 @@ output and NOT acted on. Captured as F12.12.)
   REMAINING: apply the same trick to the F11.2a/l hierarchical summary when it lands (the diff engine is ready).
 
 **Local-inference levers for the fleet (all feed H7.x; verified vs llama.cpp official docs):**
-- [ ] **F12.68 — ⚠ FIX: llama.cpp `--ctx-size` is a SHARED budget across slots (latent bug vs the 32k floor).** With `-np N`
+- [x] **F12.68 — ⚠ FIX: llama.cpp `--ctx-size` is a SHARED budget across slots (latent bug vs the 32k floor).** With `-np N`
   each session silently gets `ctx/N` unless you set `--ctx-size = 32k × concurrency_cap` (or `--kv-unified`). Combined with
   the concurrency caps + 32k floor !Klein already has, mis-sizing here silently STARVES each session's context. Audit +
   compute ctx-size from the cap. (llama.cpp server README; digitalapplied vram-guide)
+  **DONE (core 372d757b4 + wire verified 2026-07-19):** `planSharedSlotLoadContextLength` multiplies the
+  per-session plan by `concurrentSlots` with the 32k/slot floor, and the LIVE loader (lms-model-runner load path)
+  consumes it — under-floor mis-fits surface a caveat naming the max safe slot count ("lower this model's
+  concurrency cap to ≤N"). The audit clause is this wire check. Crossed.
 - [ ] **F12.69 — MTP + n-gram self-speculation as the zero-cost fast path.** Prefer Unsloth MTP GGUFs in LM Studio (toggle
   MTP in load params — ~50% throughput, NO draft model in VRAM) + `--spec-type ngram-mod` for llama.cpp coder roles (zero
   VRAM, shines on the templated/JSON output agents emit). ~1.5× free speedup, no draft-pair bookkeeping. (localllm MTP; llama.cpp ngram)
