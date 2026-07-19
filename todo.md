@@ -3627,11 +3627,19 @@ verify-before-build caveat: confirm each against current code before implementin
   dev-test suite so per-language regressions + the visual/env/LSP gates above are actually measured (and aimock-replayable per
   F11.4). Rationale: the current suite is TS/Python-leaning while per-language capability varies 2× — you can't route or gate
   what you don't measure. (SWE-bench Multilingual)
-- [ ] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
+- [~] **F12.91 — History-blind corrector role (3rd reuse of the frozen local model).** Add a review pass that sees ONLY the
   proposed patch + relevant spec/docs — NEVER the conversation history — before a card is accepted. Distinct from existing
   review lenses (which see full context): history-isolation is exactly what breaks error cascades. Rationale: "Three Roles,
   One Model" ~doubled a frozen Qwen3-8B (AppWorld difficulty-1 15.8%→26.3%; scaffolded 8B beat DeepSeek-Coder-33B), no
   training. (Three Roles One Model 2604.11465)
+  **PURE CORE SHIPPED 2026-07-19:** `history-blind-corrector.ts` `buildHistoryBlindCorrectorPrompt({taskObjective,
+  diff, specExcerpt?, acceptanceSummary?})` — the input type has NO history/reasoning/focus-chain fields BY
+  CONSTRUCTION (isolation can't leak in even by accident); explicit "you are seeing this in isolation, judge from
+  the objective alone" framing; patch + spec structurally fenced (S2, screen:false like the reviewer); ends on the
+  shared `submit_review` contract so the resolution path is reused; diff/spec budget-clamped; no-op branch. 5
+  tests. REMAINING (fleet-gated): the opt-in wire as a distinct corrector pass in the review path (a bounded
+  second session on the frozen worker model seeded with this prompt, verdict folded like an eye), then live
+  validation — needs a loaded model, so it rides the fleet queue.
 - [ ] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
   DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
   detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis
