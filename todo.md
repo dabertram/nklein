@@ -2894,10 +2894,19 @@ output and NOT acted on. Captured as F12.12.)
   missing ones, and re-run the §5.AB sweep so routing uses current evidence. (promptquorum, mindstudio, tembo.io 2026 roundups)
 
 **Scaffolding & failure guards (feeds H7.2 + F11.3):**
-- [ ] **F12.14 — Minimal-scaffold baseline + inverse-scaling discipline.** mini-swe-agent (~100 lines, bash-only, no native
+- [~] **F12.14 — Minimal-scaffold baseline + inverse-scaling discipline.** mini-swe-agent (~100 lines, bash-only, no native
   tool-calling) scores >74% on SWE-bench Verified and is model-agnostic — evidence that scaffolding should scale INVERSELY
   with model strength and be extended ONLY when a bottleneck is empirically shown. Add a minimal fenced-bash agent profile
-  as a baseline/fallback for the weakest models, and treat each new scaffold feature as opt-in-until-proven. (mini-swe-agent.com; already noted in §4A research-2026-07-02)
+  as a baseline/fallback for the weakest models, and treat each new scaffold feature as opt-in-until-proven.
+  **PURE CORE SHIPPED 2026-07-19:** `scaffold-profile.ts` — `MINIMAL_SCAFFOLD` (the mini-swe-agent shape: ONE
+  `run_command` tool, native tool-calling OFF, a contract demanding exactly one fenced command per turn and
+  forbidding "what I would do" narration) + `selectScaffoldProfile` choosing from OBSERVED behaviour rather than
+  a guess about model strength: 2+ consecutive no-tool-call sessions ⇒ minimal (a model that cannot drive the
+  surface needs FEWER tools, not more), >50% tool-call failure over ≥8 attempts ⇒ minimal, thin evidence (<8
+  attempts) ⇒ STANDARD (switching on noise makes behaviour unpredictable for no measured gain), operator
+  override always wins. The minimal profile is a FALLBACK, never a silent default, and the reason always names
+  the evidence. 6 tests. Uncomfortable-but-true framing kept: this is the inverse-scaling discipline applied to
+  !Klein's own scaffolding-heavy thesis. (mini-swe-agent.com; already noted in §4A research-2026-07-02)
 - [x] **F12.15 — Failure-taxonomy-aligned live guards.** 2026 taxonomies (SWE-EVO, SAFEdit, IDE-Bench) name recurring
   failures !Klein should detect explicitly: THRASHING/backtracking (repeatedly editing one file with no progress — a
   distinct signal from the turn-loop guard), FILE/LINE localization failure (edited without viewing all files needing
