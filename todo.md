@@ -1535,14 +1535,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   weak local model can emit a valid bounded ActionPlan under response_format json_schema at plan time; if the eval
   clears, wire the emission → validateActionPlan → executeActionPlan (dispatch through the tool manifest) as an
   opt-in per-card execution mode.
-- [~] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
+- [x] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
   route near-valid payloads through tolerant repair, and fall back without weakening semantic validation. **DOWNGRADE
   TRANSFORM SHIPPED 2026-07-17:** provider-schema-downgrade.ts `downgradeSchemaForProfile(schema, profile)` — the missing
   OUTBOUND half (the selector `selectProviderSchemaProfile` + inbound `tool-argument-repair` were done): pure recursive
   transform that strips `enum` (keeps/infers a type), forces `additionalProperties:false`, and collapses object nesting
   past `maxDepth` (or entirely when nested objects unsupported) into a generic object — only relaxes constraints, never
-  mutates. 9 tests. REMAINING: apply it at the tool/structured-output schema seams before handing schemas to weak
-  endpoints (the effectful wire), + route near-valid payloads through the existing repair.
+  mutates. 9 tests. **OUTBOUND WIRE SHIPPED 2026-07-19 (completes the item):** the constrained-tool-call schema now
+  downgrades through selectProviderSchemaProfile(schemaProviderFromProviderId(providerId)) before it ships —
+  LM Studio's permissive profile keeps today's bytes identical; llama.cpp/openai-compat endpoints get the
+  smallest safe dialect instead of a silently-rejected rich schema. providerId threaded through
+  createChatAgentModel; the inbound near-valid repair was ALREADY live at the chat tool executor
+  (tool-argument-repair). +1 mapping test.
 
 #### 3B. Evaluation, routing, and machine pools *(legacy §5.AB, §5.AL)*
 

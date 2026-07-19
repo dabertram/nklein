@@ -54,3 +54,15 @@ describe("offered-tool ordering by trust (F12.24 activation)", () => {
 		expect(orderOfferedToolsByTrust(state, onlyTool)).toBe(onlyTool);
 	});
 });
+
+// F3.T4 outbound wire — provider-id → schema-profile family mapping.
+import { schemaProviderFromProviderId } from "../../../src/core/provider-schema-profile";
+
+describe("schema provider mapping (F3.T4)", () => {
+	it("maps runtime provider ids onto profile families with the local default", () => {
+		expect(schemaProviderFromProviderId(null)).toBe("lmstudio");
+		expect(schemaProviderFromProviderId("lmstudio-local")).toBe("lmstudio");
+		expect(schemaProviderFromProviderId("llama-cpp-server")).toBe("llamacpp");
+		expect(schemaProviderFromProviderId("my-remote-gateway")).toBe("openai-compatible");
+	});
+});

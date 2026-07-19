@@ -286,6 +286,7 @@ export function buildChatAgentToolDepsResolver(input: {
 		const behaviorProfile = modelId ? await readCombinedModelBehaviorProfile(modelId).catch(() => null) : null;
 		const toolModel = createChatAgentModel(client, activeDefinitions, {
 			modelId,
+			providerId: DEFAULT_LOCAL_CHAT_PROVIDER_ID,
 			apiProfile: skillApiProfile,
 			preferredPromptVariantFamily: behaviorProfile ? preferredPromptVariantFamily(behaviorProfile) : null,
 			onPromptVariantOutcome: ({ winningFamily }) => {

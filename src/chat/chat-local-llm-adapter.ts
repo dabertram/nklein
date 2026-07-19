@@ -2,6 +2,8 @@ import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { extractCompletionUsage } from "../core/completion-usage";
 import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
+import { downgradeSchemaForProfile } from "../core/provider-schema-downgrade";
+import { schemaProviderFromProviderId, selectProviderSchemaProfile } from "../core/provider-schema-profile";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { raisedTokenBudget } from "../core/retry-policy";
@@ -495,6 +497,8 @@ export function createChatAgentModel(
 		onPromptVariantOutcome?: (outcome: { winningFamily: PromptVariantFamily | null }) => void;
 		/** F4.12 test seam: override the truncation-observation store root (defaults to the runtime home). */
 		truncationStoreRootDir?: string;
+		/** F3.T4: the runtime provider id, mapped to a schema-profile family for the outbound downgrade. */
+		providerId?: string | null;
 	} = {},
 ): (
 	messages: readonly ChatPromptMessage[],
@@ -695,7 +699,18 @@ export function createChatAgentModel(
 						? offeredRemaining
 						: anchored.tools;
 			// Build the forced schema whenever we have a tool to force.
-			const schema = forceTools.length > 0 ? buildConstrainedToolCallSchema(forceTools) : null;
+			// F3.T4 outbound half: downgrade the constrained schema to the endpoint's SAFE dialect before it ships
+			// (LM Studio's profile is permissive ⇒ byte-identical today; llama.cpp/openai-compat endpoints get the
+			// smallest safe schema instead of a silently-rejected rich one). Inbound near-valid payloads already
+			// route through tool-argument-repair at the executor.
+			const rawSchema = forceTools.length > 0 ? buildConstrainedToolCallSchema(forceTools) : null;
+			const schemaProfile = selectProviderSchemaProfile(schemaProviderFromProviderId(options.providerId ?? null));
+			const schema = rawSchema
+				? {
+						...rawSchema,
+						schema: downgradeSchemaForProfile(rawSchema.schema, schemaProfile),
+					}
+				: null;
 			// Bug-hunt fix (2026-07-05): on the PLAIN no-call path, require BOTH a genuine named match (`matchedNames`)
 			// AND that named tool still being unused (`anchoredRemaining`). `matchedNames.length > 0` alone is not enough:
 			// it's satisfied even when every NAMED tool is already used (forceTools then silently falls back to

@@ -52,3 +52,19 @@ export const PROVIDER_SCHEMA_PROFILES: Record<SchemaProvider, ProviderSchemaProf
 export function selectProviderSchemaProfile(provider: SchemaProvider): ProviderSchemaProfile {
 	return PROVIDER_SCHEMA_PROFILES[provider];
 }
+
+/**
+ * F3.T4: map a runtime provider id (free string from settings) onto the schema-profile family. LM Studio is the
+ * local default; llama.cpp servers are recognized by name; anything else gets the conservative openai-compatible
+ * profile (the smallest safe dialect).
+ */
+export function schemaProviderFromProviderId(providerId: string | null | undefined): SchemaProvider {
+	const id = (providerId ?? "").toLowerCase();
+	if (id.includes("llama")) {
+		return "llamacpp";
+	}
+	if (id === "" || id.includes("lmstudio") || id.includes("lm-studio")) {
+		return "lmstudio";
+	}
+	return "openai-compatible";
+}
