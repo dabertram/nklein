@@ -3129,10 +3129,21 @@ output and NOT acted on. Captured as F12.12.)
   sessions are new bounded sessions by construction, seeded with the reviewer-role prompt (≠ worker), and the
   N-eyes lens rotation adds orthogonal stances even same-model. Temperature variation rides the future
   per-attempt sampling seam (noted at F3.30). Crossed. (zylos multi-model-review; Weaver)
-- [ ] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
+- [~] **F12.35 — Confidence-gated review + effort scaling (DOWN pattern).** Trigger the expensive second-opinion + A/B-lens
   pass only when worker confidence is low / deterministic checks are red / lenses disagree — skip it on high-confidence green
   cards (up to 6× efficiency, FEWER induced errors since needless debate injects mistakes). Make #review-passes / sample
   count / debate rounds an explicit function of card difficulty + routing uncertainty. (DOWN 2504.05047; Anthropic effort-scaling)
+  **PURE CORE SHIPPED 2026-07-19:** `review-effort-scaling.ts` `planReviewEffort` → {depth, reviewPasses,
+  debateRounds, reason}. UP signals dominate in order: lens DISAGREEMENT (4 eyes / 2 debate rounds — the deep
+  pass exists for exactly this), RED deterministic checks (review the failure, don't sample around it), then hard
+  difficulty >0.75 or routing uncertainty >0.5. The DOWN path fires ONLY when every reassuring signal is present
+  AND positive — easy (≤0.4) + checks GREEN + worker confidence ≥0.7 — and unknowns never buy it: absent checks
+  or absent confidence yield the standard pass, because "we didn't look" must not read as "it's fine" (a
+  non-finite difficulty is treated as maximally hard: fail-safe, not fail-cheap). The reason NAMES the signal
+  that decided, so an operator can see why a card got or skipped the deep pass. 7 tests.
+  REMAINING (the wire): consult it at the review seam to set N-eyes size / debate rounds — record-only first
+  (compare recommended vs actual on live cards), since the DOWN path CHANGES review behaviour and the
+  observe-before-enforce rule applies to anything that reduces scrutiny.
 - [x] **F12.36 — Deterministic-verification-FIRST acceptance gate.** Run lint/typecheck/build/existing-tests BEFORE the LLM
   reviewer and feed the concrete failures into its context (DeepSource static-first = 84.5% F1 vs CodeRabbit ~36%; false
   positives are the dominant AI-reviewer failure). Optionally add a "refute-or-promote" refuter stage-gate: a flagged defect
