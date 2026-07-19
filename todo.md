@@ -2828,10 +2828,22 @@ output and NOT acted on. Captured as F12.12.)
   queue. Audit core + CI invariant + live-builder nets are the complete code scope. Crossed.
 
 **Onboarding & spec (feeds F11.1):**
-- [ ] **F12.8 — EARS-notation acceptance criteria in the initializer.** Kiro/Spec-Kit converge on EARS ("WHEN <condition>
+- [~] **F12.8 — EARS-notation acceptance criteria in the initializer.** Kiro/Spec-Kit converge on EARS ("WHEN <condition>
   THE SYSTEM SHALL <behavior>") to produce clear, TESTABLE acceptance criteria, and on 3–5 clarifying questions asked
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
+  **PURE CORE SHIPPED 2026-07-19:** `ears-acceptance-criteria.ts` — `renderEarsCriterion` DERIVES the EARS
+  pattern from the fields present (ubiquitous / event-driven / state-driven / IF-THEN unwanted-behaviour /
+  WHERE feature-gate) rather than trusting a caller label, so a sentence cannot be mislabelled; whitespace and
+  trailing periods are normalised. EARS earns its place because the shape maps mechanically onto a check — the
+  trigger is the setup, the behaviour is the assertion — whereas prose criteria ("should be fast") quietly become
+  whatever the model decides they mean. Plus `selectClarifications` / `nextClarification`: the four what/why gap
+  topics (problem → core actions → out-of-scope → success criteria) in priority order, capped at 5, with only
+  UNANSWERED ones returned and ONE handed back at a time (the discipline that stops a wall of questions being
+  answered with one vague paragraph); no implementation-steering questions. 6 tests. Pairs with F12.9's spec-lint
+  — that finds the gaps, this renders the well-formed criterion and sequences the questions.
+  REMAINING (the wire): F11.1's guided initializer is where these emit + the versioned spec artifact lands —
+  that surface is unbuilt and David-plan-coupled, so the core is ready and waits for it.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
 - [x] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"
