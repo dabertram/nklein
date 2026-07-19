@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessQuantizationFloor,
+	buildInferenceLeverProfile,
 	compoundedErrorRate,
 	planThinkingBudget,
 	readQuantization,
@@ -214,5 +215,68 @@ describe("recommendQuantForRole", () => {
 		expect(() =>
 			recommendQuantForRole({ role: "worker", expectedSteps: Number.NaN, vramHeadroom: "ample" }),
 		).not.toThrow();
+	});
+});
+
+describe("buildInferenceLeverProfile", () => {
+	const base = {
+		modelId: "qwen2.5-coder-14b-q4_k_m",
+		role: "worker" as const,
+		difficulty: 0.5,
+		expectedSteps: 5,
+		expectedToolCalls: 1,
+		expectedOutputTokens: 400,
+		liveConcurrency: 1,
+		isMoe: false,
+		vramHeadroom: "ample" as const,
+		supportsThinking: true,
+	};
+
+	it("prefers MLX for a generation-bound turn and GGUF for a short tool-call turn", () => {
+		expect(buildInferenceLeverProfile({ ...base, expectedOutputTokens: 4000 }).backend).toBe("mlx");
+		expect(buildInferenceLeverProfile({ ...base, expectedOutputTokens: 200 }).backend).toBe("gguf");
+	});
+
+	it("gives NO backend opinion when the turn's shape does not distinguish them", () => {
+		const profile = buildInferenceLeverProfile({ ...base, expectedOutputTokens: 0, expectedToolCalls: 0 });
+		expect(profile.backend).toBeNull();
+	});
+
+	it("applies the Qwen-coder sampling profile only to that family", () => {
+		expect(buildInferenceLeverProfile(base).sampling).toEqual({ temperature: 0.6, topP: 0.95, topK: 20 });
+		expect(buildInferenceLeverProfile({ ...base, modelId: "mistral-7b-q4_k_m" }).sampling).toBeNull();
+	});
+
+	it("enables speculation only at batch-1 on a non-MoE target", () => {
+		expect(buildInferenceLeverProfile(base).speculativeDecoding).toBe(true);
+		expect(buildInferenceLeverProfile({ ...base, liveConcurrency: 4 }).speculativeDecoding).toBe(false);
+		expect(buildInferenceLeverProfile({ ...base, isMoe: true }).speculativeDecoding).toBe(false);
+	});
+
+	it("treats unknown concurrency as NOT batch-1 — speculation is opt-in on evidence", () => {
+		const profile = buildInferenceLeverProfile({ ...base, liveConcurrency: Number.NaN });
+		expect(profile.speculativeDecoding).toBe(false);
+	});
+
+	it("keeps the reasoning override consistent with the thinking plan", () => {
+		const profile = buildInferenceLeverProfile({ ...base, difficulty: 0.9, expectedToolCalls: 1 });
+		expect(profile.thinking.level).toBe("high");
+		expect(profile.reasoningEffort).toBe("high");
+	});
+
+	it("sends no reasoning override when the plan says abstain", () => {
+		const profile = buildInferenceLeverProfile({ ...base, difficulty: 0.2, expectedToolCalls: 9 });
+		expect(profile.thinking.level).toBe("none");
+		expect(profile.reasoningEffort).toBeNull();
+	});
+
+	it("composes the quant floor and quant policy rather than re-deciding them", () => {
+		const profile = buildInferenceLeverProfile({ ...base, modelId: "model-q3_k_m", expectedSteps: 50 });
+		expect(profile.quantFloor.verdict).toBe("below_floor");
+		expect(profile.quant.targetQuant).toBe("q6_k");
+	});
+
+	it("explains every lever it decided", () => {
+		expect(buildInferenceLeverProfile(base).reasons).toHaveLength(6);
 	});
 });

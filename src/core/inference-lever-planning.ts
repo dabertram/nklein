@@ -292,3 +292,140 @@ export function recommendQuantForRole(input: QuantPolicyInput): QuantPolicy {
 		reason,
 	};
 }
+
+/**
+ * F12.76 UNIFIED per-task inference-lever profile (consolidates F12.27 / F12.70 / F12.71; feeds H7.32).
+ *
+ * One decision point rather than five scattered ones: given what we know about a card and the model it routed to,
+ * choose the backend, reasoning budget, sampling, output cap, quant target and the speculative-decoding gate
+ * together. They interact — a long-output card wants MLX and a generous cap, while a prefill-bound tool-call turn
+ * wants GGUF, a short cap and NO speculation — so deciding them independently is how they end up contradicting.
+ *
+ * Honesty stance, applied throughout: every lever this cannot ground in evidence is returned as `null`, meaning
+ * "send no override, let the configured/provider default stand". A guessed sampling profile or a fabricated
+ * backend preference is worse than no opinion, because it silently overrides a setting someone chose deliberately.
+ */
+
+export type InferenceBackend = "mlx" | "gguf";
+
+export interface SamplingProfile {
+	readonly temperature: number;
+	readonly topP: number;
+	readonly topK: number;
+}
+
+/**
+ * Published sampling profile for the Qwen coder family. Deliberately the ONLY family encoded: these values are
+ * vendor guidance for that family, and applying them to an unrelated model would be a guess wearing evidence's
+ * clothes. Every other model gets `null` and keeps its configured sampling.
+ */
+const QWEN_CODER_SAMPLING: SamplingProfile = { temperature: 0.6, topP: 0.95, topK: 20 };
+
+function samplingForModel(modelId: string): SamplingProfile | null {
+	const id = modelId.toLowerCase();
+	return id.includes("qwen") && id.includes("coder") ? QWEN_CODER_SAMPLING : null;
+}
+
+export interface InferenceLeverInput {
+	readonly modelId: string;
+	readonly role: SwarmRole;
+	/** Card difficulty 0..1. */
+	readonly difficulty: number;
+	/** Expected steps/turns over the card's life — drives the quant policy's compounding argument. */
+	readonly expectedSteps: number;
+	/** Expected tool calls THIS turn — drives the thinking budget. */
+	readonly expectedToolCalls: number;
+	/** Rough expected output tokens this turn; long generations favour MLX, short tool calls favour GGUF prefill. */
+	readonly expectedOutputTokens: number;
+	/** Live concurrency across the fleet. Speculation only pays at batch-1. */
+	readonly liveConcurrency: number;
+	/** True when the target model is a mixture-of-experts — speculation is bad for MoE. */
+	readonly isMoe: boolean;
+	readonly vramHeadroom: "ample" | "tight" | "unknown";
+	/** Whether the model exposes a reasoning channel; false disables that lever. */
+	readonly supportsThinking: boolean;
+}
+
+export interface InferenceLeverProfile {
+	/** Preferred backend, or null when the evidence does not favour either. */
+	readonly backend: InferenceBackend | null;
+	/** Provider `reasoningEffort` override, or null to leave the configured value alone. */
+	readonly reasoningEffort: "low" | "medium" | "high" | null;
+	readonly thinking: ThinkingBudgetPlan;
+	/** Sampling override, or null when this model's family has no grounded profile. */
+	readonly sampling: SamplingProfile | null;
+	readonly quant: QuantPolicy;
+	readonly quantFloor: QuantFloorAssessment;
+	/** F12.70: enable draft-model speculation? Batch-1 AND non-MoE, both required. */
+	readonly speculativeDecoding: boolean;
+	readonly speculativeDecodingReason: string;
+	/** Human-readable trace of every lever, for the observation stream and the model-role config UI. */
+	readonly reasons: readonly string[];
+}
+
+/** Above this many expected output tokens a turn counts as generation-bound rather than prefill-bound. */
+const LONG_OUTPUT_TOKENS = 1500;
+
+/**
+ * Build the unified profile. Pure and total — every sub-decision delegates to the lever cores above, so this adds
+ * composition and cross-lever consistency, not a second opinion about any individual lever.
+ */
+export function buildInferenceLeverProfile(input: InferenceLeverInput): InferenceLeverProfile {
+	const quantFloor = assessQuantizationFloor({ modelId: input.modelId, role: input.role });
+	const quant = recommendQuantForRole({
+		role: input.role,
+		expectedSteps: input.expectedSteps,
+		vramHeadroom: input.vramHeadroom,
+	});
+	const thinking = planThinkingBudget({
+		difficulty: input.difficulty,
+		expectedToolCalls: input.expectedToolCalls,
+		supportsThinking: input.supportsThinking,
+	});
+	const sampling = samplingForModel(input.modelId);
+
+	const outputTokens = Number.isFinite(input.expectedOutputTokens) ? Math.max(0, input.expectedOutputTokens) : 0;
+	const longOutput = outputTokens >= LONG_OUTPUT_TOKENS;
+	// Backend preference only when the turn's shape actually distinguishes them; an ambiguous mid-length turn gets
+	// no opinion rather than a coin-flip that would override a deliberate configuration.
+	const backend: InferenceBackend | null = longOutput
+		? "mlx"
+		: input.expectedToolCalls > 0 && outputTokens > 0
+			? "gguf"
+			: null;
+
+	const concurrency = Number.isFinite(input.liveConcurrency) ? input.liveConcurrency : Number.POSITIVE_INFINITY;
+	const speculativeDecoding = concurrency === 1 && !input.isMoe;
+	const speculativeDecodingReason = input.isMoe
+		? "speculation disabled — draft-model speculation is bad for MoE targets"
+		: concurrency === 1
+			? "speculation enabled — batch-1 single-stream is where the ~2–2.6× actually lands"
+			: `speculation disabled — live concurrency ${Number.isFinite(concurrency) ? concurrency : "unknown"} is above batch-1, where speculation CUTS throughput 30–40%`;
+
+	const reasons = [
+		backend === null
+			? `no backend preference — ${outputTokens} expected output tokens does not clearly favour MLX or GGUF`
+			: backend === "mlx"
+				? `MLX — ${outputTokens} expected output tokens is generation-bound`
+				: `GGUF — short tool-call turn, prefill-bound`,
+		thinking.reason,
+		sampling === null
+			? `no sampling override — "${input.modelId}" is not a family with a grounded published profile`
+			: `sampling ${sampling.temperature}/${sampling.topP}/${sampling.topK} (Qwen-coder family guidance)`,
+		quant.reason,
+		quantFloor.reason,
+		speculativeDecodingReason,
+	];
+
+	return {
+		backend,
+		reasoningEffort: toReasoningEffort(thinking.level),
+		thinking,
+		sampling,
+		quant,
+		quantFloor,
+		speculativeDecoding,
+		speculativeDecodingReason,
+		reasons,
+	};
+}

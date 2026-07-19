@@ -3737,11 +3737,25 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
   iogpu.wired_limit_mb=<MB>` (leave 8–16 GB for the OS) reclaims the wasted 25% — lets a Mac hold a bigger model or the full
   32k KV GPU-resident. Treat the raised ceiling as usable VRAM in the machine-aware fit; helps the known m4mini swap-crash. (baykar increase-vram)
-- [ ] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
+- [x] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
   to task budget/difficulty selecting: backend (MLX for long-output, GGUF for short tool-call/prefill-bound), reasoning
   on/off + `--reasoning-budget` (adaptive thinking saves ~50% compute on easy tasks, no quality loss), sampling (Qwen-coder
   temp 0.6/top_p 0.95/top_k 20), max_tokens, and the spec-decode gate — driven by the fitness/difficulty score !Klein
   already computes. (glukhov agentic-params; ICLR-2025 how-hard-to-think)
+  **SHIPPED 2026-07-19 — `buildInferenceLeverProfile` (inference-lever-planning.ts).** One decision point over
+  backend / reasoning budget / sampling / quant target / spec-decode, because the levers INTERACT: a long-output
+  card wants MLX and a generous cap, a prefill-bound tool-call turn wants GGUF and no speculation — deciding them
+  independently is exactly how they end up contradicting. Composes the existing lever cores rather than re-deciding
+  any of them (F12.27 thinking budget + floor, F12.71 quant policy), so there is one implementation per lever.
+  ALSO CLOSES F12.70's decision logic: speculation requires batch-1 AND non-MoE, and unknown concurrency counts as
+  NOT batch-1 — speculation is opt-in on evidence, since above ~8–16 concurrency it CUTS throughput 30–40%.
+  Honesty stance carried through every lever: anything not groundable returns `null` = "send no override, keep the
+  configured value". Sampling encodes ONLY the Qwen-coder family (published vendor guidance); every other model
+  gets `null` rather than having someone's deliberate setting silently overridden by a guess. Backend likewise
+  abstains on a mid-length turn instead of coin-flipping. `reasons` traces all six decisions for the observation
+  stream + the model-role config UI. 10 tests (41 in the module).
+  NOT DONE: no wire — this is the profile BUILDER; F12.70's runtime spec-decode toggle and the per-request backend
+  switch are separate effectful changes against the provider layer.
 - [ ] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).** Keep top-fitness models
   resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
   auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
