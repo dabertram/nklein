@@ -1345,8 +1345,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **AUDIT 2026-07-18: PARTIAL** — model-side failover done + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON). MISSING: the endpoint-alternatives leg (same model, different endpoint) on the swarm paths.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
-- [ ] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
+- [~] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
   for verified non-reasoners; fall back to prose extraction conservatively.
+  **AUDIT 2026-07-19: MECHANISM LIVE ON THE EVAL/DECOMPOSE PATH** — nklein-local-llm-client supports
+  `toolChoice:"required"` with the documented reasoning-model rationale (grammar dead-ends to empty content;
+  required lands the call in the tool_calls channel), and the decompose eval path uses it (model-eval-runner:147).
+  REMAINING: the LIVE decompose/structured production path still selects grammar-vs-required per model without
+  the verified-non-reasoner gate this item names — audit lmstudio-response-format's selection + add the
+  reasoning-aware switch there.
 - [~] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
   interrupt safely, and feed classification/recovery metrics. **RECORD-ONLY WIRE SHIPPED 2026-07-15 (`7236debc`):**
   the pure detector (`src/core/runaway-generation-detector.ts` `detectRunawayGeneration`) is now wired into the live SDK
@@ -1357,8 +1363,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the "interrupt safely" half (sample the in-flight stream + abort a runaway into the §5.AA retry ladder) is deferred like
   the PRM gate — activate only once telemetry confirms the detector's live false-positive rate is acceptably low.
   **AUDIT 2026-07-18: PARTIAL** — record-only detection wired (detectRunawayGeneration → onRunawayDetected → self-observation). MISSING: the interrupt-safely half (in-flight sampling/abort into the §5.AA ladder — rides the unbuilt F3.9 vendored model-call seam).
-- [ ] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
+- [~] **F3.6 — Complete reason-then-act orchestration.** Run reasoning and constrained action phases with separate
   budgets/tool sets, preserve a compact capsule, and land the tool call or a typed failure.
+  **AUDIT 2026-07-19: SUBSTANTIALLY REALIZED BY F12.62** — the architect/editor split IS reason-then-act with
+  separate budgets (10-min bounded architect vs the worker session), separate tool sets (inspection+submission vs
+  full worker), a compact capsule (the intent-level implementation brief), and a typed hand-off
+  (submit_implementation_brief, null ⇒ solo fallback). Chain proven live 2026-07-19. REMAINING: the same shape on
+  the CHAT/enforced-reasoning path + typed-failure taxonomy when the act phase's tool call fails (compose with
+  F3.T2 toolErrorFromThrown).
 - [~] **F3.7 — Use `ModelBehaviorProfile` at attempt start.** Prefer learned winners, skip proven failures, decay stale
   facts, and expose the chosen rationale. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `57e9a8eb`):**
   `src/core/attempt-model-selection.ts` `selectModelForAttempt(candidates, {now, minSamplesToJudge, provenFailureRateCeiling,
@@ -1376,8 +1388,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
   **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
-- [ ] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
+- [~] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
+  **AUDIT 2026-07-19: THE SEAM EXISTS AND IS LIVE (P0.4)** — `createTransientAbortRecoveryModel` wraps the shared
+  AgentModel seam in every session start (modelWrapper in nklein-session-runtime): buffered tokens, bounded
+  same-model retry of a SINGLE transient-aborted turn, refuses when the caller aborted or a tool-call delta
+  appeared — no SDK rebuild needed (the wrapper rides the config seam). REMAINING: extend the wrapped signals
+  beyond transient-abort (finish=length/stall classes per §5.AA) so F3.10's engine adoption has the full turn
+  taxonomy at this seam.
 - [>] **F3.10 — Adopt the retry-policy engine on swarm paths** *(after F3.9).* Map finish/truncation/stall signals,
   apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool work.
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
