@@ -2990,7 +2990,7 @@ output and NOT acted on. Captured as F12.12.)
   SKIPS bare-JSON-without-marker (too easily a legitimate answer). NOTE 2026-07-17: I redundantly rebuilt a weaker version
   (`forgiving-tool-call-parser.ts`) before finding this — REVERTED. Verify-before-build lesson: the parser lives in
   `src/nklein-agent/`, not `src/core/`. (github Doorman11991/smallcode; promptquorum tool-calling-2026)
-- [~] **F12.18 — Retrieval-gate the tool catalog to ≤~8 relevant schemas per turn (extends F3.T1).** Selection accuracy
+- [x] **F12.18 — Retrieval-gate the tool catalog (GATE half; F12.18b carries enforcement + the MCP pre-pick).** Selection accuracy
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
   wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
@@ -3014,10 +3014,20 @@ output and NOT acted on. Captured as F12.12.)
   that varies run-to-run invalidates the whole tools→system→messages cache hierarchy). 11 tests; suite green
   (10,987). Wired record-only behind `NKLEIN_TOOL_GATE_OBSERVE` (`tool_catalog_gate_observation`) so the drop rate
   and the arbitrary-rate are measured before anything is withheld.
-  REMAINING (F12.18b): (a) flip from observe to ENFORCING once Phase 15 shows the drop rate is safe, which needs
-  the real `alwaysKeep` set per role wired from the tool registry rather than passed ad hoc; (b) the MCP
-  SERVER-level pre-pick above, which is a registration-time change in `nklein-mcp-runtime-service` and composes
-  with F12.31's surface pinning already there.
+  **SPLIT MATERIALIZED 2026-07-20** — the gate + its observation wire are complete and are this item's core
+  scope; enforcement is deliberately gated on evidence (Phase 15), which makes it a separate package rather than
+  an open remainder.
+- [ ] **F12.18b — Enforce the tool gate + MCP server pre-pick *(split from F12.18 2026-07-20)*.**
+  (a) **Flip observe → ENFORCING**, but only once P15.2 reports the drop rate and the `arbitrary` rate from
+  `tool_catalog_gate_observation`. **Do not flip on intuition:** withholding a tool the model needed is a
+  turn-level failure, and the gate itself reports when its ranking was arbitrary — enforcing while the arbitrary
+  rate is high would drop tools by declaration order, which is not a policy anyone chose. Needs the real
+  per-role `alwaysKeep` set wired from the tool registry (today it is a caller-supplied list), and that set is
+  the deadlock guard, so it must be correct BEFORE enforcement, not after.
+  (b) **MCP SERVER-level pre-pick** (routed here from F12.66): decline to REGISTER an irrelevant server at all,
+  so its schemas never enter the context — the same retrieval decision one turn earlier and strictly cheaper than
+  narrowing after load. Registration-time change in `nklein-mcp-runtime-service`, composing with F12.31's surface
+  pinning already at both registration sites.
 - [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
@@ -4289,7 +4299,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   torn-tail tolerant) + WIRED at the web_research fetch (best-effort, beside the F4.3 currency capture). 4 tests.
   **CLI SHIPPED:** `dev egress-receipts [--json]` lists the log + verifies the whole chain (live-verified: empty log,
   chain INTACT). REMAINING: receipts at future egress classes, session taint-labels threaded in, the Trust Panel surface. (verifiability-as-trust; SLSA provenance)
-- [~] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
+- [x] **F12.100 — Model provenance + license gate + AI-BOM.** Track each fleet model's license and flag redistribution/usage
   traps (Llama's 700M-MAU cap + EU multimodal block) vs clean Apache/MIT; refuse or warn on a non-compliant model for a given
   deployment; emit an AI Bill of Materials (models + versions + licenses + hashes) per project. Rationale: license is a real
   adoption blocker for regulated users; provenance is table-stakes for a trust story. (model-licensing survey; AI-BOM)
@@ -4301,9 +4311,25 @@ into the existing F12.31. Same verify-before-build caveat.**
   that shows gaps as `unknown` instead of hiding them, with an explicit not-legal-advice note. UNKNOWN never
   passes silently — it warns, because "we could not tell" ≠ "it is fine". 7 tests. `dev ai-bom
   [--commercial|--redistributing|--eu|--mau|--json]` live-smoked against the loaded fleet.
-  REMAINING (the DATA source): the local gateway publishes no license field, so every model currently reads
-  `unknown`. Populating real per-model licenses means an operator-supplied/catalog license map — deliberately NOT
-  guessed here, since fabricated compliance data is worse than an honest "unverified".
+  **DATA HALF SHIPPED 2026-07-20 — item COMPLETE.** `model-license-declaration.ts` + the `dev ai-bom` wire.
+  The remainder was "a license data source", and the tempting answer — a hardcoded table of well-known model
+  licenses — was REJECTED as fabricated compliance data: licenses change between releases, quantized re-uploads
+  often carry different terms than the upstream weights, and a table that is right 90% of the time yields a BOM
+  that is confidently wrong 10% of the time **with no way for a reader to tell which rows are which.**
+  **THE MECHANISM: the operator DECLARES, and the BOM records that it was a declaration.** `NKLEIN_MODEL_LICENSES`
+  takes `key-or-prefix*=license[;note]` (prefix matching is what makes it usable — one fleet carries many
+  quantized variants of a model). Provenance is a SEPARATE AXIS from the license itself: `gateway` (nothing
+  publishes it today) / `operator` (a human took responsibility) / `unknown` (nobody said, warns).
+  **This deliberately mirrors P23.2's evidence/authority split: an operator declaring a licence is an act of
+  AUTHORITY, not of verification — it records who is responsible for the claim, it does not make the claim true.**
+  So a declared licence never reads as verified, and `renderProvenanceNote` is printed on BOTH the text and JSON
+  paths, because without it a reader cannot distinguish an operator's claim from a checked fact.
+  **NEVER infers from a name** — "llama" in a model id is not evidence of the Llama licence; a test pins that.
+  Malformed config entries are SKIPPED rather than thrown (a typo must not take down a runtime) and simply leave
+  that model unknown ⇒ warn: silence is never upgraded to permission.
+  **LIVE-SMOKED 2026-07-20 on the loaded fleet, both paths:** undeclared → `unknown/unknown/warn` + "Unknown is
+  not permission"; declared `qwen3.6-*=apache-2.0` → `apache-2.0/permissive/allow` + "OPERATOR-DECLARED … NOT a
+  verification — !Klein did not check them against any model card or registry." 15 tests.
 - [x] **F12.101 — Air-gapped profile + offline self-attestation.** A first-class mode that disables ALL egress (model download,
   web research, MCP, update check) and self-attests — a signed statement + a runtime probe proving no network calls were made
   during a run. Rationale: regulated/air-gapped demand is real and !Klein is uniquely positioned; "private by architecture"
