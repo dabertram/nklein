@@ -4227,6 +4227,11 @@ verify-before-build caveat: confirm each against current code before implementin
   maintenance-window planner and 3 table-ish tests) is written and awaiting container verification — the host has
   no Go toolchain either (`go` is not installed on the m5max), which is itself a reminder that a fixture we cannot
   run is a fixture we cannot trust. Do NOT mark this item done on the strength of unrun fixture code.
+  **VERIFICATION ATTEMPTED AND FAILED 2026-07-20:** `docker run golang:1.22-alpine` could not complete its image
+  pull inside a 10-minute budget on the low-power machine (the process exited 0 with only "Unable to find image
+  locally" in its log — **a zero exit code from a killed pull is NOT a passing test run**, and it would have been
+  easy to misread it as one). The fixture therefore remains UNVERIFIED. Verify it as part of F12.84b, in the
+  sandbox image that will actually run it, rather than in an ad-hoc container.
   **SEQUENCE:** F12.84b (per-toolchain images/install steps) → verify the Go fixture in the real sandbox → then
   add Rust/Java/Vue scenarios against the same proven environment path. The Vue/Angular scenario is the exception:
   it is Node-based, so it could land BEFORE F12.84b if a frontend scenario is wanted sooner.
