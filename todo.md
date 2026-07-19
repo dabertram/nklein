@@ -3857,10 +3857,13 @@ into the existing F12.31. Same verify-before-build caveat.**
   request.fleetDecompositionGuidance → buildNKleinStartPromptParts planning branch (after the F4.38 depth line);
   computed at the start handler from the LOADED routing candidates (entry.key + blended worker capability +
   paramB) behind OPT-IN `NKLEIN_FLEET_AWARE_DECOMPOSE` with `NKLEIN_FLEET_DECOMPOSE_MODE`/`_TARGET` env levers.
-  7 tests + the prefix-identity net stays green. REMAINING SLICES: (a) F4.38 depth-target widening (feed the
-  selected class's effectiveContextTokens into resolveAutoDecompositionDepth instead of the launch window),
-  (b) settings surface + per-project/per-card scoped override via resolveScopedOverride (env-only today),
-  (c) the AUTO RE-SHARD wire at the redecompose trigger (default-ON w/ opt-out per David's decision #2).
+  7 tests + the prefix-identity net stays green. **SLICE (a) SHIPPED 2026-07-19:** the depth-target class's
+  effectiveContextTokens (candidate.entry.contextWindow.effective, the WEAKEST clearable class in auto/smallest
+  or the named class in fixed_target) now drives resolveAutoDecompositionDepth instead of the single launch
+  window — a weak class → finer cards; fleet summary computed BEFORE the depth decision, byte-identical off.
+  REMAINING SLICES: (b) settings surface + per-project/per-card scoped override via resolveScopedOverride
+  (env-only today) = product surface; (c) the AUTO RE-SHARD wire at the redecompose trigger (default-ON w/
+  opt-out per David's decision #2).
 
 ### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
 

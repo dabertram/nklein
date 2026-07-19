@@ -13,6 +13,7 @@ import {
 	buildFleetCapabilitySummary,
 	buildFleetDecompositionGuidance,
 	parseFleetDecompositionMode,
+	selectDepthTargetClass,
 } from "../../core/fleet-aware-decomposition";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
@@ -1407,40 +1408,57 @@ export async function handleStartTaskSession(
 						.catch(() => null)
 				: null;
 		const scopePreamble = scopeNote ? `${scopeNote}\n\n` : "";
-		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
-		// estimate × the routed model's quality-effective context, so the planning prompt steers breakdown granularity to
-		// what the task hardness + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
-		const autoDecompositionDepth =
-			body.startInPlanMode && isExplicitDecompositionPrompt(promptWithMailbox)
-				? resolveAutoDecompositionDepth({
-						difficulty: difficultyTierFromScore(taskDifficulty),
-						qualityEffectiveContextTokens: nkleinLaunchConfig.contextWindow ?? 40_000,
-					})
-				: null;
 		// F12.110 (OPT-IN dark via NKLEIN_FLEET_AWARE_DECOMPOSE; default OFF = byte-identical): the LOADED fleet as
 		// direct decompose input so cards are BORN ROUTABLE. Loaded-only by David's decision (production !Klein never
 		// auto-loads/unloads — prompt-cache preservation); mode via NKLEIN_FLEET_DECOMPOSE_MODE (auto default),
-		// fixed target via NKLEIN_FLEET_DECOMPOSE_TARGET. Advisory lines only — the architect still decides.
-		const fleetDecompositionGuidance =
-			autoDecompositionDepth !== null && isTruthyEnv(process.env.NKLEIN_FLEET_AWARE_DECOMPOSE)
-				? buildFleetDecompositionGuidance(
-						buildFleetCapabilitySummary(
-							roleScopedSelectionCandidates.map((candidate) => ({
-								modelKey: candidate.entry.key,
-								paramB: parseModelAttributes(candidate.entry.modelId).paramB ?? null,
-								workerCapability: blendedCapabilityForKey(
-									candidate.entry.key,
-									candidate.entry.capability.effectiveScore,
-									candidate.role,
-									candidate.entry.modelId,
-								),
-								effectiveContextTokens: null,
-							})),
-						),
-						parseFleetDecompositionMode(process.env.NKLEIN_FLEET_DECOMPOSE_MODE),
-						process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+		// fixed target via NKLEIN_FLEET_DECOMPOSE_TARGET. Computed BEFORE the depth decision so slice (a) can drive
+		// depth from the selected class's effective context (the weakest clearable class, not the routed model).
+		const isDecomposePlanTask = body.startInPlanMode && isExplicitDecompositionPrompt(promptWithMailbox);
+		const fleetAwareDecomposeOn = isTruthyEnv(process.env.NKLEIN_FLEET_AWARE_DECOMPOSE);
+		const fleetDecompositionMode = parseFleetDecompositionMode(process.env.NKLEIN_FLEET_DECOMPOSE_MODE);
+		const fleetCapabilitySummary =
+			isDecomposePlanTask && fleetAwareDecomposeOn
+				? buildFleetCapabilitySummary(
+						roleScopedSelectionCandidates.map((candidate) => ({
+							modelKey: candidate.entry.key,
+							paramB: parseModelAttributes(candidate.entry.modelId).paramB ?? null,
+							workerCapability: blendedCapabilityForKey(
+								candidate.entry.key,
+								candidate.entry.capability.effectiveScore,
+								candidate.role,
+								candidate.entry.modelId,
+							),
+							effectiveContextTokens: candidate.entry.contextWindow.effective,
+						})),
 					)
 				: null;
+		// F12.110 slice (a): when fleet-aware is on, the depth-target class's effective context drives granularity
+		// (a weak class → finer cards) instead of the single launch window; else fall back to the launch config.
+		const fleetDepthTargetClass = fleetCapabilitySummary
+			? selectDepthTargetClass(
+					fleetCapabilitySummary,
+					fleetDecompositionMode,
+					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+				)
+			: null;
+		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
+		// estimate × the effective context, so the planning prompt steers breakdown granularity to what the task hardness
+		// + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.
+		const autoDecompositionDepth = isDecomposePlanTask
+			? resolveAutoDecompositionDepth({
+					difficulty: difficultyTierFromScore(taskDifficulty),
+					qualityEffectiveContextTokens:
+						fleetDepthTargetClass?.effectiveContextTokens ?? nkleinLaunchConfig.contextWindow ?? 40_000,
+				})
+			: null;
+		// Advisory lines only — the architect still decides (byte-identical off / empty fleet).
+		const fleetDecompositionGuidance = fleetCapabilitySummary
+			? buildFleetDecompositionGuidance(
+					fleetCapabilitySummary,
+					fleetDecompositionMode,
+					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+				)
+			: null;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
