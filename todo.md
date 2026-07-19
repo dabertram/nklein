@@ -3746,10 +3746,18 @@ into the existing F12.31. Same verify-before-build caveat.**
   public weights) pass; any new remote URL fails CI with an explicit privacy-guarantee message. Verified live: the
   module set's ONLY remote URL today is the model download. REMAINING: surface the guarantee in the Trust Panel
   (F12.98) + config-level assertion that codeEmbeddingDefaults.baseUrl stays local. (local RAG privacy)
-- [ ] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
+- [~] **F12.105 — Honest hybrid capability-ceiling advisory.** When a local model cannot do a card well (capability-ceiling
   from the fitness prior / F3.35), ADVISE honestly — "this exceeds the local fleet; a larger local model or a cloud model would
   resolve it" — rather than silently delivering a weak result. Rationale: honesty is the trust play; pairs the local-first
   stance with a non-dark-pattern escape hatch (the user chooses, informed). Extends F3.35 capability-ceiling surfacing. (honest-hybrid advisory)
+  **CORE + RECORD-ONLY WIRE SHIPPED 2026-07-19:** `capability-ceiling-advisory.ts` `assessCeilingAdvisory` — the
+  CARD-level counterpart to F3.35's role-level ceiling (distinct: fires per card at routing time). When the card's
+  difficulty materially exceeds (default 0.15 margin) the best AVAILABLE loaded capability for the role, composes an
+  HONEST proceed-anyway message naming the gap + the informed escape hatch (a stronger local — or a cloud model,
+  ONCE ENABLED, honest about current reality) + "Your call." Never blocks; unmeasured ⇒ silent. Wired record-only at
+  the routing seam (`capability_ceiling_advisory` observation; difficulty/capability share the feasibility scale,
+  normalized /100). 5 tests. REMAINING: the USER-FACING surface (show the advisory on the card, not just telemetry)
+  = David-batch product decision; the enforcing/prompt-to-escalate flip is data-gated on the accrued signal.
 
 **ADW / software-factory deltas (IndyDevDan "Forget Loop Engineering — Agentic Engineering is about THIS", youtu.be/VQy50fuxI34, David 2026-07-18). Gap analysis: !Klein already IS the kanban-queue factory with review agents, closed-loop verification, fleet orchestration + observability, context engineering, and out-of-loop autonomy — the genuinely uncovered concepts are the FOUR below:**
 

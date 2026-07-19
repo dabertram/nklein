@@ -4,6 +4,7 @@ import { selectModelForAttempt } from "../../core/attempt-model-selection";
 import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../core/auto-decomposition-depth";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
+import { assessCeilingAdvisory } from "../../core/capability-ceiling-advisory";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
@@ -1170,6 +1171,39 @@ export async function handleStartTaskSession(
 						pickedParamB,
 						dominantLanguage: floor.dominantLanguage,
 					},
+				});
+			}
+		}
+		// F12.105 honest capability-ceiling advisory (record-only, observe-first): when THIS card's difficulty
+		// materially exceeds the best available loaded capability for the role, record an honest advisory so the
+		// user can be told the truth (a stronger local — or a cloud model, once enabled — would resolve it more
+		// reliably) rather than silently shipping a weak result. Never blocks; difficulty/capability share the
+		// feasibility scale, normalized /100. The surfacing UI is a David-batch product decision; the signal accrues now.
+		if (routingDecision.type === "assign" || routingDecision.type === "route_up") {
+			const bestWorkerCapability = roleScopedSelectionCandidates
+				.filter((candidate) => candidate.role === "worker")
+				.reduce<number | null>((best, candidate) => {
+					const cap = blendedCapabilityForKey(
+						candidate.entry.key,
+						candidate.entry.capability.effectiveScore,
+						candidate.role,
+						candidate.entry.modelId,
+					);
+					return best === null || cap > best ? cap : best;
+				}, null);
+			const advisory = assessCeilingAdvisory({
+				cardDifficulty: taskDifficulty / 100,
+				role: "worker",
+				bestAvailableCapability: bestWorkerCapability === null ? null : bestWorkerCapability / 100,
+				routedModelKey: routingDecision.modelKey,
+			});
+			if (advisory.exceedsFleet && advisory.advisory) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Capability-ceiling advisory for ${body.taskId}: ${advisory.advisory}`,
+					taskId: body.taskId,
+					metadata: { category: "capability_ceiling_advisory", gap: advisory.gap },
 				});
 			}
 		}
