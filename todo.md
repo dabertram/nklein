@@ -3161,6 +3161,15 @@ output and NOT acted on. Captured as F12.12.)
   extractImplementationBrief (last-heading anchor, empty ⇒ null ⇒ solo fallback). 5 tests. REMAINING WIRE: run
   the architect as a bounded secondary session (explorer/plan-critique harness pattern) at worker start when the
   decision fires, seed the editor with the brief; flag-gate (NKLEIN_ARCHITECT_EDITOR) + fleet A/B before default.
+  **WIRE SHIPPED 2026-07-19 (opt-in NKLEIN_ARCHITECT_EDITOR, default byte-identical):** nklein-architect-tool.ts
+  (submit_implementation_brief + buildArchitectSeedPrompt = pure-core prompt + tool-call submission clause) +
+  nklein-architect-runner.ts (bounded `::architect` session on the SAME model via the secondary-session harness,
+  explorer-pattern; tool-only capture; every degraded path → null → worker starts solo) + the
+  onArchitectBriefSubmitted threading (runtime-session-input / session-runtime-types / session-runtime tool
+  assembly) + the consult in the launch-config start path (write-scoped non-synthetic cards only; brief ⇒ the
+  worker starts as EDITOR via buildEditorPrompt). 2 tool tests + the 5 core tests. REMAINING: fleet A/B on a
+  code-edit fixture (same F12.41 arbiter as F11.2h), then the score/difficulty auto-decision once routing exposes
+  modelEffectiveScore at the start seam.
 - [~] **F12.63 — Resilient edit-apply layer (turn format errors into successful edits).** Edit application is the #1
   weak-model bottleneck. Augment diff application: exact → middle-out → Levenshtein-fuzzy (`:start_line:` hint, ~0.8
   threshold) + a syntax/parse check that REJECTS a broken edit before it lands (SWE-agent ACI) + an optional small local

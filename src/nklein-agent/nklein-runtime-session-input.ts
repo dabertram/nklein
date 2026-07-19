@@ -1,6 +1,7 @@
 import type { RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
 import type { createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import type { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
+import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import type { NKleinExplorerCitationsSubmittedHandler } from "./nklein-explorer-tool";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
@@ -33,6 +34,8 @@ export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
 	onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
 	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
+	/** F12.62: capture the `::architect` session's submit_implementation_brief hand-back. */
+	onArchitectBriefSubmitted?: NKleinArchitectBriefSubmittedHandler;
 	toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
 	extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
 }

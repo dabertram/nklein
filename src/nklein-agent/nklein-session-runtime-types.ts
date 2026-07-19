@@ -7,6 +7,7 @@
 import type { ToolExecutors } from "@cline/sdk";
 import type { RuntimeNKleinReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import type { NKleinExplorerCitationsSubmittedHandler, NKleinExplorerQueryHandler } from "./nklein-explorer-tool";
@@ -139,6 +140,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
 	/** When provided, this is an F11.2j `::explore` turn: the `submit_citations` tool is attached and findings are reported here. */
 	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
+	/** F12.62: capture the `::architect` session's submit_implementation_brief hand-back. */
+	onArchitectBriefSubmitted?: NKleinArchitectBriefSubmittedHandler;
 	/** F11.2j: when provided, the worker-side `explore` tool is attached — one bounded read-only subagent query per call. */
 	runExplorerQuery?: NKleinExplorerQueryHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */

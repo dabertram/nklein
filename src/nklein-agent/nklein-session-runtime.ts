@@ -32,6 +32,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
+import { createNKleinArchitectBriefTool } from "./nklein-architect-tool";
 import { createNKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { compactKanbanFocusedMessages } from "./nklein-context-focus-policy";
 import { createNKleinDecompositionTools } from "./nklein-decomposition-tool";
@@ -375,6 +376,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// F11.2j `::explore` turns get the structured `submit_citations` findings tool — same gating pattern.
 			...(request.onExplorerCitationsSubmitted
 				? [createNKleinExplorerCitationsTool({ onSubmitted: request.onExplorerCitationsSubmitted })]
+				: []),
+			...(request.onArchitectBriefSubmitted
+				? [createNKleinArchitectBriefTool({ onSubmitted: request.onArchitectBriefSubmitted })]
 				: []),
 			// F11.2j worker sessions get the `explore` delegation tool when the service wired a query handler.
 			...(request.runExplorerQuery ? [createNKleinExploreTool(request.runExplorerQuery)] : []),

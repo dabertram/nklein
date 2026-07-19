@@ -1,4 +1,5 @@
 import { readdirSync } from "node:fs";
+import { buildEditorPrompt } from "../core/architect-editor-split";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
 import {
@@ -7,7 +8,9 @@ import {
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
+import { createArchitectRunner } from "./nklein-architect-runner";
 
 import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 
@@ -372,6 +375,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 		runBudget: 6,
+	});
+	/** F12.62 (opt-in NKLEIN_ARCHITECT_EDITOR): the bounded `::architect` pre-phase for write-scoped worker cards. */
+	private readonly architectRunner = createArchitectRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		getPauseController: () => this.pauseController,
+		getHarness: () => this.secondarySessionHarness,
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
+		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
 	/** W2.3a/W1.1b: learned quality-effective budgets (read by the ContextBudgetController) + the stall-signature
 	 * adaptive retry (re-sends the card on a raised per-turn budget). Owns its three state maps/flags. */
@@ -1213,6 +1227,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			sandboxExtraTools,
 			this.retrievalToolsBuilder.build(input.taskId),
 		);
+		// F12.62 (opt-in NKLEIN_ARCHITECT_EDITOR): for a write-scoped WORKER card, run ONE bounded `::architect`
+		// pre-phase (same model, fresh window) and start the worker as the EDITOR with the brief prepended — the
+		// documented aider architect win for weak models. Every degraded path (no sandbox, no brief, throw) falls
+		// back to the original prompt, so the flag can never cost a card. The score/difficulty auto-decision
+		// (decideArchitectEditorSplit) engages when routing exposes those signals at this seam; the operator flag
+		// is the explicit opt-in until then.
+		let effectiveStartPrompt = input.prompt;
+		if (
+			isTruthyEnv(process.env.NKLEIN_ARCHITECT_EDITOR) &&
+			!isDerivedTaskSessionId(input.taskId) &&
+			!isHomeAgentSessionId(input.taskId) &&
+			(launchConfig.filesLikelyTouched?.length ?? 0) > 0
+		) {
+			const architectBrief = await this.architectRunner
+				.runArchitectPhase({
+					taskId: input.taskId,
+					projectRepoPath: input.workspaceRoot ?? launchConfig.workspaceRoot ?? input.cwd,
+					baseRef: this.sandboxState.getBaseRef(input.taskId) ?? "HEAD",
+					taskPrompt: input.prompt,
+				})
+				.catch(() => null);
+			if (architectBrief) {
+				effectiveStartPrompt = buildEditorPrompt({ taskPrompt: input.prompt, architectBrief });
+			}
+		}
 		const startResult = await this.sessionRuntime
 			.startTaskSession({
 				taskId: input.taskId,
@@ -1222,11 +1261,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// 500–965-token reasoning tax + its truncation risk at no correctness cost; hard cards keep reasoning.
 				prompt: shouldDisableSwarmThinking({
 					modelId: launchConfig.modelId,
-					prompt: input.prompt,
+					prompt: effectiveStartPrompt,
 					taskTitle: null,
 				})
-					? applyThinkingDisable(input.prompt, launchConfig.modelId ?? "")
-					: input.prompt,
+					? applyThinkingDisable(effectiveStartPrompt, launchConfig.modelId ?? "")
+					: effectiveStartPrompt,
 				initialMessages: input.initialMessages,
 				maxTokensPerTurn: input.maxTokensPerTurn ?? input.launchConfig.maxTokensPerTurn ?? null,
 				images: input.images,
