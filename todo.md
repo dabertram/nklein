@@ -2799,8 +2799,12 @@ output and NOT acted on. Captured as F12.12.)
   role-comparable with/without split per surfaced skill (compound surfacing counts on WITH for each; reviewer
   attempts never pair against worker attempts), duration → wallMs cost, deterministic order. 3 tests. **`dev skill-audit`
   CLI SHIPPED same day** (read-only evidence surface; live-smoked: 226 attempts scanned, honest empty-state until
-  skill-assisted cards run under the stamp). REMAINING: the lifecycle sweep applying verdicts via the store,
-  honoring the F12.29 execution gate (promote requires BOTH the audit verdict AND execution validation).
+  skill-assisted cards run under the stamp). **LIFECYCLE SWEEP SHIPPED same
+  day:** `procedural-skill-audit-sweep.ts` runSkillAuditSweep — promote DOUBLE-GATED (audit verdict AND F12.29
+  execution validation; either alone insufficient), retire deprecates from any non-terminal status,
+  revise/unmeasured = evidence only, report-only mode never persists; `dev skill-audit --apply` runs it. 3 sweep
+  tests. F12.30's autonomous half COMPLETE — remaining is live data accrual (skill-assisted cards under the
+  stamp) + the auto-sweep cadence decision (David: cron vs post-run hook).
 
 **Supply-chain, determinism & reproducibility:**
 - [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**

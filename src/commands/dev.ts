@@ -896,11 +896,10 @@ export function registerDevCommand(program: Command): void {
 		});
 
 	dev.command("skill-audit")
-		.description(
-			"F12.30: pair ledger attempts per surfaced skill and print promote/revise/retire verdicts (read-only).",
-		)
+		.description("F12.30: pair ledger attempts per surfaced skill and print promote/revise/retire verdicts.")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { json?: boolean }) => {
+		.option("--apply", "Apply the lifecycle sweep (promote via the audit+execution double gate; retire deprecates).")
+		.action(async (options: { json?: boolean; apply?: boolean }) => {
 			await runDevSkillAuditCommand(options);
 		});
 
