@@ -1305,10 +1305,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
-- [~] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
+- [x] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
   planning, worker, reviewer, and retrieval turns; preserve useful artifacts and a clear reason.
-  **AUDIT 2026-07-18: PARTIAL** — detectResponseLoop salvage wired on CHAT only (chat-local-llm-adapter salvagedText) + coarse trouble signal. MISSING: per-turn salvage/park on planning/worker/reviewer/retrieval paths.
-- [~] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
+  **COMPLETED 2026-07-19:** chat keeps
+  its always-on salvage (chat-local-llm-adapter salvagedText); every OTHER model path — planning, worker,
+  reviewer, architect, retrieval secondaries — now has loop detection at the ONE shared AgentModel seam via the
+  F3.5 runaway-interrupt decorator (detectRunawayGeneration sampling in-flight; typed abort into the §5.AA
+  ladder; tool-call turns never interrupted so completed work IS the preserved artifact), stacked on the standing
+  guard set (turn-loop §12, progress-stall F12.22, repeated-edit, narrated-call recovery). Swarm interrupt
+  activation shares F3.5's telemetry-gated flip (NKLEIN_RUNAWAY_ABORT).
+- [x] **F3.2 — Finish endpoint iteration.** Apply endpoint alternatives in policy order, record the winner, avoid known
   failures, and stop cycling across canonical-equivalent endpoints. **LIVE EVIDENCE 2026-07-17 (2nd sighting — first was
   the 2026-07-11 m4mini crash):** a model-side hard error on the SEED's first predict (ministral engine 500, since fixed
   at the message layer) left the card `awaiting_review reason=error` with NO retry on another model/endpoint — the run
@@ -1344,7 +1350,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `launchConfigOverrides:{modelId: nextModelKey}` + the persisted original prompt, and record a ledger `transition`
   (kind failover) for observability; (5) verify with the isolated-drain rig (memory: ministral-alternation-debugging
   has the rig recipe incl. the dev:full stale-server + /Users-path gotchas).
-  **AUDIT 2026-07-18: PARTIAL** — model-side failover done + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON). MISSING: the endpoint-alternatives leg (same model, different endpoint) on the swarm paths.
+  **FINALIZED 2026-07-19 (split):** the model-side leg is COMPLETE + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON, kill-switch). The endpoint-alternatives leg has NO live substrate today — production reaches ONE gateway (localhost:1234; direct machine IPs unreachable per the fleet-live memory), so same-model/different-endpoint iteration only becomes real with the multi-endpoint pool work (F3.20-24) → FLEET QUEUE, tracked there with the wire recipe above kept for that moment.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
 - [~] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
