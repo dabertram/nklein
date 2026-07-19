@@ -3829,7 +3829,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   across create-more) — pure halves moved to `src/core/bulk-seed.ts` and shared via the `@runtime-bulk-seed`
   alias (vite+vitest+tsconfig, all three). Dialog test covers split→template→create-all. Item complete.
 
-- [~] **F12.110 — Fleet-aware decomposition: the available model fleet as DIRECT decompose input (David
+- [x] **F12.110 — Fleet-aware decomposition: the available model fleet as DIRECT decompose input (David
   2026-07-19; ready-to-implement).** Decomposition is largely blind to who will execute; the capability-prior
   deadlock (cold fleet froze every medium+ card) is the proven failure class this kills at the source — cards
   are BORN ROUTABLE. Feed a FLEET CAPABILITY SUMMARY (per-role measured fitness classes from the store, effective
@@ -3861,9 +3861,20 @@ into the existing F12.31. Same verify-before-build caveat.**
   effectiveContextTokens (candidate.entry.contextWindow.effective, the WEAKEST clearable class in auto/smallest
   or the named class in fixed_target) now drives resolveAutoDecompositionDepth instead of the single launch
   window — a weak class → finer cards; fleet summary computed BEFORE the depth decision, byte-identical off.
-  REMAINING SLICES: (b) settings surface + per-project/per-card scoped override via resolveScopedOverride
-  (env-only today) = product surface; (c) the AUTO RE-SHARD wire at the redecompose trigger (default-ON w/
-  opt-out per David's decision #2).
+  **BORN-ROUTABLE MECHANISM COMPLETE (core + a): the central intent ships.** REMAINING SLICES split below.
+- [ ] **F12.110b — Fleet-aware settings surface** *(split 2026-07-19; product/David-batch).* Expose the mode +
+  fixed-target as global → per-project → per-card via resolveScopedOverride (F4.16's core, still zero live
+  consumers — this is it), plus the smallest-supported-floor optional setting. Env-only today
+  (NKLEIN_FLEET_AWARE_DECOMPOSE / _MODE / _TARGET); the UI/placement is David's call.
+- [ ] **F12.110c — Auto re-shard on fleet change** *(split 2026-07-19; DESIGN-HEAVY effectful, flag for Fable or
+  a dedicated pass).* David's decision #2: automatic re-shard default-ON w/ opt-out when the LOADED fleet changes
+  mid-plan and strands cards. DESIGN SENSITIVITY (why this is not a one-shot wire): the existing
+  decideRedecomposeTrigger fires at DECOMPOSE time on the fresh graph, not on a fleet-change event — so this needs
+  a new check-point (a fleet-watch at the F12.106 trigger-scheduler / board-liveness watchdog cadence) that (i)
+  detects the loaded-class set diverging from the set the plan was sized for, (ii) identifies now-unclearable
+  cards, (iii) re-shards ONLY those without churning the whole board or disrupting running work (the never-disrupt
+  constraint), (iv) respects the opt-out. Cadence + disruption-safety are the hard part; build carefully or with
+  Fable.
 
 ### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
 
