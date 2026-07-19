@@ -3782,10 +3782,21 @@ verify-before-build caveat: confirm each against current code before implementin
   a unique output and plain plurality degenerates to "pick attempt #0". The two effectful signals (`signatureOf` = exec-output
   hash; `compare` = discriminating-input exec / LLM A/B) are INJECTED; pure/deterministic. 14 tests. REMAINING: wire into the
   §5.AW aggregation path (supply the exec-output signature + a real pairwise judge). (Semantic Voting 2605.08680; Symbolic Equiv 2604.06485; PDR+RTV 2604.16529; GenRM)
-- [ ] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
+- [~] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
   prompt a local model to synthesize test inputs that expose their behavioral differences, run all in the sandbox, and vote by
   agreement. Complements F12.94 for the hard tie case. Rationale: +10–15% Best@k in "Scaling Agentic Verifier", sometimes
   beating ground-truth tests; prompt-only + existing sandbox. (Scaling Agentic Verifier 2602.04254)
+  **PURE CORE SHIPPED 2026-07-19:** `discriminative-tiebreak.ts` — `needsDiscriminativeTiebreak` fires ONLY on
+  the genuine hard case (≥2 passing candidates whose existing signatures are identical; already-differing
+  candidates route to F12.94 clustering instead), `buildDiscriminativeProbePrompt` asks for INPUTS ONLY and
+  explicitly forbids naming a winner or predicting outputs (execution decides, not the model's read of the
+  diffs), `parseDiscriminativeProbes` de-dupes + caps and returns [] on an unparseable reply, and
+  `voteDiscriminativeTiebreak` groups by output signature and takes the majority — reporting INCONCLUSIVE for an
+  even split or when every candidate still looks identical, because an arbitrary pick dressed as a verdict is
+  worse than an honest escalate. 10 tests.
+  REMAINING (effectful): run the synthesized probes against each candidate in the sandbox and feed the results
+  to the vote — needs the §5.AW best-of-N path to reach the ≥2-candidate tie case live (today's shape is N=2
+  primary+speculative, where F12.4 execution arbitration usually resolves it first).
 - [x] **F12.96 — Predict-then-execute verification pass.** Before accept, ask the worker to PREDICT outputs/trace for key
   inputs, run for real in the sandbox, and diff; a mismatch blocks acceptance and localizes the bug for a targeted repair.
   Rationale: LLMs routinely "hallucinate" that buggy code is correct during mental tracing — concrete execution catches
