@@ -2913,7 +2913,7 @@ output and NOT acted on. Captured as F12.12.)
   missing ones, and re-run the §5.AB sweep so routing uses current evidence. (promptquorum, mindstudio, tembo.io 2026 roundups)
 
 **Scaffolding & failure guards (feeds H7.2 + F11.3):**
-- [~] **F12.14 — Minimal-scaffold baseline + inverse-scaling discipline.** mini-swe-agent (~100 lines, bash-only, no native
+- [x] **F12.14 — Minimal-scaffold baseline + inverse-scaling discipline.** mini-swe-agent (~100 lines, bash-only, no native
   tool-calling) scores >74% on SWE-bench Verified and is model-agnostic — evidence that scaffolding should scale INVERSELY
   with model strength and be extended ONLY when a bottleneck is empirically shown. Add a minimal fenced-bash agent profile
   as a baseline/fallback for the weakest models, and treat each new scaffold feature as opt-in-until-proven.
@@ -2925,7 +2925,16 @@ output and NOT acted on. Captured as F12.12.)
   attempts) ⇒ STANDARD (switching on noise makes behaviour unpredictable for no measured gain), operator
   override always wins. The minimal profile is a FALLBACK, never a silent default, and the reason always names
   the evidence. 6 tests. Uncomfortable-but-true framing kept: this is the inverse-scaling discipline applied to
-  !Klein's own scaffolding-heavy thesis. (mini-swe-agent.com; already noted in §4A research-2026-07-02)
+  !Klein's own scaffolding-heavy thesis.
+  **RECORD-ONLY CONSULT WIRED 2026-07-19 (completes the item's autonomous scope):** the start path folds THIS
+  model's own ledger history (tool-call attempts, malformed/rejected calls, and the trailing streak of attempts
+  that produced no tool call at all) through `selectScaffoldProfile` and records a
+  `scaffold_profile_recommendation` observation ONLY when the evidence says minimal — so the stream measures how
+  often the fallback would fire, and on what evidence, before any scaffold swap is built. Fire-and-forget; a
+  failed consult never disturbs a start.
+  NEXT (David call, data-gated): actually SERVING the minimal profile is a session-construction change (tool set
+  + prompt contract + no native tool-calling) and should be argued from the recommendation rate, not from the
+  paper. (mini-swe-agent.com; already noted in §4A research-2026-07-02)
 - [x] **F12.15 — Failure-taxonomy-aligned live guards.** 2026 taxonomies (SWE-EVO, SAFEdit, IDE-Bench) name recurring
   failures !Klein should detect explicitly: THRASHING/backtracking (repeatedly editing one file with no progress — a
   distinct signal from the turn-loop guard), FILE/LINE localization failure (edited without viewing all files needing

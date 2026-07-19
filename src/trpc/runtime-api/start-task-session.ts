@@ -50,6 +50,7 @@ import { deriveMonorepoTaskScope } from "../../core/monorepo-task-scope";
 import type { ModelClassFacts } from "../../core/role-model-class";
 import { selectSwarmRoleModel } from "../../core/role-model-swarm-pick";
 import { buildRoutingDecisionRecord } from "../../core/routing-decision-log";
+import { selectScaffoldProfile } from "../../core/scaffold-profile";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { applySpeedCapabilityDial } from "../../core/speed-capability-dial";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
@@ -1179,6 +1180,68 @@ export async function handleStartTaskSession(
 		}
 		// F12.105: the honest advisory text, surfaced on the user-visible selection reason (below) when it fires.
 		let ceilingAdvisorySuffix = "";
+		// F12.14 (RECORD-ONLY): would this model be better off on the MINIMAL fenced-bash scaffold? Inverse-scaling
+		// says a model that keeps failing structured tool calls needs FEWER tools, not more. Observed from THIS
+		// model's own ledger history (attempts + malformed/rejected calls); recorded only when the evidence says
+		// minimal, so the stream measures how often the fallback would fire before any swap is built.
+		if (routingDecision.type === "assign" || routingDecision.type === "route_up") {
+			void (async () => {
+				try {
+					const events = await readAgentLedger({
+						workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+					});
+					const modelAttempts = events.filter(
+						(event) => event.kind === "attempt" && event.modelId === routingDecision.modelKey,
+					);
+					let attempts = 0;
+					let failures = 0;
+					for (const event of modelAttempts) {
+						if (event.kind !== "attempt") {
+							continue;
+						}
+						for (const call of event.toolCalls) {
+							attempts += 1;
+							if (call.outcome !== null && !/^(ok|success)/i.test(call.outcome)) {
+								failures += 1;
+							}
+						}
+					}
+					const consecutiveNoToolCallSessions = (() => {
+						let streak = 0;
+						for (let index = modelAttempts.length - 1; index >= 0; index -= 1) {
+							const event = modelAttempts[index];
+							if (event?.kind !== "attempt" || event.toolCalls.length > 0) {
+								break;
+							}
+							streak += 1;
+						}
+						return streak;
+					})();
+					const selection = selectScaffoldProfile({
+						toolCallAttempts: attempts,
+						toolCallFailures: failures,
+						consecutiveNoToolCallSessions,
+					});
+					if (selection.profile === "minimal") {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Minimal-scaffold recommendation for ${routingDecision.modelKey}: ${selection.reason}`,
+							taskId: body.taskId,
+							metadata: {
+								category: "scaffold_profile_recommendation",
+								modelKey: routingDecision.modelKey,
+								toolCallAttempts: attempts,
+								toolCallFailures: failures,
+								consecutiveNoToolCallSessions,
+							},
+						});
+					}
+				} catch {
+					// Observation only — never disturbs a start.
+				}
+			})();
+		}
 		// F12.105 honest capability-ceiling advisory: when THIS card's difficulty
 		// materially exceeds the best available loaded capability for the role, record an honest advisory so the
 		// user can be told the truth (a stronger local — or a cloud model, once enabled — would resolve it more
