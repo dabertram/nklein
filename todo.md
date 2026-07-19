@@ -3734,9 +3734,25 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
   long injected context); `--ubatch-size` is non-monotonic (one bench 59→582→collapse-to-15 tok/s; Apple Silicon likes
   ub 1024/2048). Extend the sweep with a llama-bench pp/tg micro-sweep storing each machine's ubatch sweet spot. (marvin-42 ubatch; apple-silicon-tuning)
-- [ ] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
+- [~] **F12.75 — Apple-Silicon wired-memory enrichment for load routing.** macOS caps GPU-usable RAM at ~75%; `sudo sysctl
   iogpu.wired_limit_mb=<MB>` (leave 8–16 GB for the OS) reclaims the wasted 25% — lets a Mac hold a bigger model or the full
   32k KV GPU-resident. Treat the raised ceiling as usable VRAM in the machine-aware fit; helps the known m4mini swap-crash. (baykar increase-vram)
+  **CORE + ROUTER WIRE SHIPPED 2026-07-19 — `apple-silicon-vram.ts`.** `gpuUsableBytes` computes the ceiling
+  (~75% default, or an explicit `iogpu.wired_limit_mb`); `recommendWiredLimit` renders the sysctl command FOR A
+  HUMAN. !Klein never runs it — raising a wired limit is a system-settings change, and this stays consistent with
+  the standing recommend-don't-act loader stance. Wired as an OPTIONAL `gpuUsableBytes` field on
+  `DeviceLoadCandidate`; absent (the only possible value for a REMOTE device whose sysctl we cannot read) ⇒
+  byte-identical routing. 15 tests; runtime suite green (10,956).
+  **INTERACTION BUG AVERTED — worth remembering (§4A-adjacent):** the router already applies `reserveFraction`
+  (default 0.25) against total RAM. That 0.75 numerically resembles the macOS GPU cap but is a DIFFERENT quantity
+  (swap-avoidance buffer vs. GPU-wireable ceiling). Multiplying them (0.75 × 0.75 ≈ 0.56) would silently strand
+  ~44% of a Mac and make big models look unplaceable. The ceiling therefore REPLACES the denominator; a regression
+  test pins that it is not stacked.
+  Also encoded: `recommendWiredLimit` ABSTAINS on a 16 GB Mac, where an 8 GB OS reserve leaves 8 GB — BELOW the
+  12 GB default cap, so "raising" the limit would LOWER the ceiling. Recommending it would be actively harmful.
+  REMAINING (effectful, needs a machine to probe): read the LOCAL device's `sysctl iogpu.wired_limit_mb` +
+  Apple-Silicon detection and populate the new field at the `buildEffectiveCandidate` seam; surface
+  `recommendWiredLimit`'s command in the dev fleet CLI. Remote linked devices stay unprobeable by design.
 - [x] **F12.76 — Unified per-task inference-lever profile (consolidates the levers; feeds H7.32).** One routing decision keyed
   to task budget/difficulty selecting: backend (MLX for long-output, GGUF for short tool-call/prefill-bound), reasoning
   on/off + `--reasoning-budget` (adaptive thinking saves ~50% compute on easy tasks, no quality loss), sampling (Qwen-coder

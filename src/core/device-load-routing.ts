@@ -152,6 +152,21 @@ export interface DeviceLoadCandidate {
 	totalRamBytes: number;
 	/** Sum of currently-resident model bytes on THIS device (its own `lms ps`), in bytes. */
 	residentSizeBytes: number;
+	/**
+	 * F12.75 (OPTIONAL): bytes the GPU may actually WIRE on this device, from
+	 * {@link ../core/apple-silicon-vram.gpuUsableBytes}. On Apple Silicon, macOS caps GPU-wireable memory at ~75%
+	 * of physical RAM, so `totalRamBytes` OVERSTATES what a model can occupy — the gap is physically present but
+	 * GPU-unreachable, and spending it is the m4mini swap-crash.
+	 *
+	 * When present this REPLACES `totalRamBytes` as the headroom denominator. It must never be combined
+	 * multiplicatively with `reserveFraction`: the reserve is a swap-avoidance buffer against the OS, a different
+	 * quantity that merely happens to sit near the same 0.75. Stacking them (0.75 × 0.75 ≈ 0.56) would strand ~44%
+	 * of a Mac's memory and make big models look unplaceable.
+	 *
+	 * Absent (the default, and the only possible value for a REMOTE linked device whose sysctl we cannot read) ⇒
+	 * behaviour is byte-identical to before this field existed.
+	 */
+	gpuUsableBytes?: number;
 }
 
 export interface DeviceLoadRoutingInput {
@@ -216,7 +231,9 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 		const decision = decideModelLoad({
 			candidateSizeBytes: input.candidateSizeBytes,
 			residentSizeBytes: candidate.residentSizeBytes,
-			totalRamBytes: candidate.totalRamBytes,
+			// F12.75: the GPU-wireable ceiling wins when known — see the field docs for why it REPLACES rather
+			// than scales the total.
+			totalRamBytes: candidate.gpuUsableBytes ?? candidate.totalRamBytes,
 			reserveFraction,
 			...(input.userBudgetBytes !== undefined ? { userBudgetBytes: input.userBudgetBytes } : {}),
 		});
