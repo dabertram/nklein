@@ -3873,9 +3873,20 @@ into the existing F12.31. Same verify-before-build caveat.**
   class is closed." **ATTESTATION SHIPPED — F12.101 COMPLETE:** `dev air-gap-status --attest` chains the current EFFECTIVE posture into
   the tamper-evident egress-receipt log (category air_gap_attestation). LIVE-PROVEN end-to-end: profile ON ⇒ all
   classes closed ⇒ attestation appended ⇒ `dev egress-receipts` independently verifies the chain INTACT. (EU AI Act; air-gapped LLM demand)
-- [ ] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
+- [~] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)
+  **SBOM HALF SHIPPED 2026-07-19:** `sbom-generation.ts` — `buildSbomFromLockfile` (npm v2/v3 `packages` map →
+  components with version/integrity/license, root + workspace links skipped, unparseable input ⇒ empty rather
+  than a partial guess), `renderCycloneDxJson` (spec 1.5; dev deps marked `scope:"excluded"` so a reader can tell
+  what SHIPS from what merely builds, absent fields omitted rather than invented) and `renderSbomSummary` which
+  STATES the gaps. Same honesty stance as F12.100: an unpublished license counts as UNKNOWN (never folded into
+  permissive) and a missing digest counts as not-byte-verifiable. 5 tests. `dev sbom [--lockfile|--json|--name|
+  --version]` live-smoked on this repo: 527 components (329 runtime / 198 dev-only), 4 unknown licenses, 4
+  without digests — real gaps, surfaced.
+  REMAINING: the SIGNING + SLSA-provenance + reproducible-build legs, which need release credentials and a
+  release pipeline — the same David-gated credential blocker as F5.7's signing activation, not code that can be
+  written headlessly.
 - [x] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
   diagram, retention (none-by-default), egress inventory, model licenses, and the EU-AI-Act / GDPR posture. Rationale: enterprise
   adoption needs a defensible written posture; the architecture already supports the strongest claims — document them.

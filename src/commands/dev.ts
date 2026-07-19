@@ -43,6 +43,7 @@ import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
+import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import {
 	runDevAdviceCommand,
@@ -895,6 +896,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--reject <id>", "Mark the queued action with this id as rejected.")
 		.action(async (options: { json?: boolean; approve?: string; reject?: string }) => {
 			await runDevOutwardQueueCommand(options);
+		});
+
+	dev.command("sbom")
+		.description("F12.102: build the app's Software Bill of Materials from its npm lockfile.")
+		.option("--lockfile <path>", "Lockfile path (default ./package-lock.json).")
+		.option("--name <name>", "Application name for the CycloneDX metadata.")
+		.option("--version <version>", "Application version for the CycloneDX metadata.")
+		.option("--json", "Emit the CycloneDX document instead of the summary.")
+		.action(async (options: { lockfile?: string; name?: string; version?: string; json?: boolean }) => {
+			await runDevSbomCommand(options);
 		});
 
 	dev.command("ai-bom")
