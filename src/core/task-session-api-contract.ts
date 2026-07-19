@@ -111,6 +111,10 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	lastHookAt: z.number().nullable().default(null),
 	latestHookActivity: runtimeTaskHookActivitySchema.nullable().default(null),
 	warningMessage: z.string().nullable().optional(),
+	/** F12.56: LIVE pending-input queue depth for the running session (absent on legacy summaries = unknown). */
+	pendingPromptCount: z.number().nullable().optional(),
+	/** F12.56: how many of the pending prompts are STEER deliveries (land before the next model iteration). */
+	pendingSteerCount: z.number().nullable().optional(),
 	latestUsage: runtimeTaskSessionUsageSchema.nullable().optional(),
 	contextBudgetBreakdown: runtimeContextBudgetBreakdownSchema.nullable().optional(),
 	latestTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),

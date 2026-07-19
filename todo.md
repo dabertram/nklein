@@ -3289,7 +3289,7 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.55b — Capture-time toolCall result summaries** *(split from F12.55 2026-07-19).* Add a bounded
   result summary to the ledger toolCall capture so trail lines can say what a call RETURNED, not just what it
   asked.
-- [~] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
+- [x] **F12.56 — Non-blocking mid-task steering input.** A per-card "steering" field that injects a note into the RUNNING
   agent between tool calls without stopping it ("use the v2 API", "don't touch config"); show queued notes on the card. One
   of the most-requested agentic-UX features. (victordibia multi-agent-ux; claude-code#30492)
   **STEER DELIVERY SHIPPED 2026-07-17:** the injection channel already existed end-to-end (SDK pending-prompt queue,
@@ -3297,8 +3297,11 @@ output and NOT acted on. Captured as F12.12.)
   what was missing was plumbing. Now: `delivery: "queue"|"steer"` on the sendTaskSessionInput contract → service
   option → dispatch; CHAT guidance to a RUNNING card (sendInput + deliverLive relay seams) now uses **steer** — the
   note lands before the very next model iteration instead of behind earlier queued input; web SendTerminalInputOptions
-  carries `steer`. Default path byte-identical. REMAINING: surfacing the live pending-steer queue on the card (the
-  `pending_prompts` SDK event is read but not forwarded to the summary — mailbox badge covers next-start notes only).
+  carries `steer`. Default path byte-identical. **QUEUE SURFACE SHIPPED 2026-07-19 (completes the item):** the `pending_prompts`
+  SDK event now lands on the summary (pendingPromptCount + pendingSteerCount, additive optional) via a dedicated
+  adapter arm, and the card's agent panel shows a "Pending input — N queued · M steer" chip while running
+  (hidden at zero; tooltip explains steer-vs-queue). Component-tested (render + hide); the plumbing is typed
+  end-to-end; a live-fire check on a running session joins the fleet queue's next rig run.
 - [x] **F12.57 — Beginner onboarding: good-first-task templates + honest empty states (complements F11.1).** Seed the empty
   board with preset "good first task" templates scoped to what LOCAL models reliably do; broad relatable examples;
   just-in-time tips (not an upfront tutorial); an honest "here's what can go wrong / how to recover." (nngroup new-AI-users)

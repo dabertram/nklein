@@ -2075,3 +2075,44 @@ describe("NKleinAgentChatPanel", () => {
 		expect(container.textContent).toContain("Move Card To Completed");
 	});
 });
+
+describe("pending-input chip (F12.56)", () => {
+	it("shows queued + steer counts for a running session and hides when empty", async () => {
+		(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+		resetWorkspaceMetadataStore();
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running", null, { pendingPromptCount: 3, pendingSteerCount: 1 })}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain("Pending input");
+		expect(container.textContent).toContain("3 queued");
+		expect(container.textContent).toContain("1 steer");
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running", null, { pendingPromptCount: 0, pendingSteerCount: 0 })}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		expect(container.textContent).not.toContain("Pending input");
+		await act(async () => {
+			root.unmount();
+		});
+		container.remove();
+	});
+});

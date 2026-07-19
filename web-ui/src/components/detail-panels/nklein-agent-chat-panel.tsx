@@ -1226,6 +1226,20 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 						<NKleinContextBudgetBar breakdown={summary.contextBudgetBreakdown} />
 					</div>
 				) : null}
+				{summary?.state === "running" && (summary.pendingPromptCount ?? 0) > 0 ? (
+					<div className="px-2 pt-2">
+						<div
+							className="inline-flex items-center gap-1 rounded-full border border-border-primary bg-surface-secondary px-2 py-0.5 text-[11px] text-text-secondary"
+							title="Input waiting on the running session — steer notes land before the next model iteration; queued notes wait for the current input to drain."
+						>
+							<span className="font-medium">Pending input</span>
+							<span>
+								{summary.pendingPromptCount} queued
+								{(summary.pendingSteerCount ?? 0) > 0 ? ` · ${summary.pendingSteerCount} steer` : ""}
+							</span>
+						</div>
+					</div>
+				) : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
 						<div className="text-[11px] text-text-secondary">{cardContentText}</div>

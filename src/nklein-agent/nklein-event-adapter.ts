@@ -134,6 +134,17 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		emitSummary(input, withHeartbeat({ lastOutputAt: now() }, { token: true }));
 		return;
 	}
+	// F12.56: the SDK's live pending-input queue — surface depth + steer split on the summary so the card can
+	// show what is waiting on the running session (previously read but dropped; mailbox covered next-start only).
+	if (eventRecord?.type === "pending_prompts") {
+		const payload = asRecord(eventRecord.payload);
+		const prompts = Array.isArray(payload?.prompts) ? (payload.prompts as { delivery?: unknown }[]) : [];
+		emitSummary(input, {
+			pendingPromptCount: prompts.length,
+			pendingSteerCount: prompts.filter((prompt) => prompt?.delivery === "steer").length,
+		});
+		return;
+	}
 	const agentEvent = readAgentEvent(event);
 	const chunkEvent = readChunkEvent(event);
 	const hookEvent = readHookEvent(event);
