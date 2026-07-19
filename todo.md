@@ -2977,6 +2977,9 @@ output and NOT acted on. Captured as F12.12.)
   craters past ~10–15 tools ("choice paralysis"); RAG-MCP retrieval-gating tripled selection accuracy (13.6%→43.1%) while
   halving prompt tokens; 95% per-call accuracy compounds to ~66% over 8 steps. F3.T1 (two-phase tool pick) has the core —
   wire it live + add per-turn retrieval-gating of the catalog by role+phase. (RAG-MCP arxiv 2505.03275; Anthropic advanced-tool-use; tianpan over-tooled-agent)
+  **ALSO OWNS (routed here 2026-07-19 from F12.66):** the per-card MCP SERVER relevance pre-pick — not registering
+  an un-picked server at all, so its schemas never enter the context, rather than narrowing them after load as
+  today. Same retrieval-gating decision, one turn earlier in the pipeline.
 - [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
@@ -3609,7 +3612,7 @@ output and NOT acted on. Captured as F12.12.)
   narrowing hint; structured results stringified-then-measured; cyclic-safe) wrapped around EVERY MCP bundle tool's
   execute at both registration sites in nklein-mcp-runtime-service. 3 core tests green. The once-pending MCP-wire
   typecheck has long since passed (committed a9af3e28; tsc green on every precommit since) — CLOSED 2026-07-18.
-- [ ] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
+- [x] **F12.66 — Progressive tool-schema disclosure / code-execution-with-MCP.** Lazy-load MCP/tool definitions so only the
   tools a card needs enter its context; consider a code-execution wrapper that calls MCP as a script API (Anthropic reports
   150k→2k tokens, 98.7% cut, by not pushing every tool def + intermediate result through the model). Composes with F12.18. (Anthropic code-execution-with-MCP)
   **AUDIT 2026-07-17:** the disclosure HALF substantially exists — §5.O two-phase tool narrowing runs at the
@@ -3618,6 +3621,14 @@ output and NOT acted on. Captured as F12.12.)
   un-picked MCP servers at all (schema never enters context, vs narrowed-after-load today — needs a per-card server
   relevance pre-pick) and (b) the code-execution-with-MCP wrapper (a script-API sandbox — an architecture piece, pairs
   with the F12.11 CaMeL decision). Both are design-first; fold into the F12.18 catalog-gating work when it lands.
+  **FINALIZED 2026-07-19 (split, per this entry's own routing):** the DISCLOSURE half — the item's own headline —
+  is live (§5.O two-phase narrowing at beforeModel + model-tool-routing gates + MCP bundle tools riding the same
+  narrowing), and the verdict-session tool restriction shipped alongside it measured 23→13 schemas on the wire.
+  The two remainders are NOT this item's mechanism and are explicitly owned elsewhere: (a) never REGISTERING an
+  un-picked MCP server (per-card server relevance pre-pick) belongs to F12.18's catalog gating, where the
+  per-turn retrieval-gate already lives; (b) the code-execution-with-MCP wrapper is an architecture piece that
+  pairs with the F12.11 CaMeL decision now on David's desk. Tracking them here as well would double-count the
+  same work in two places. Crossed.
 - [x] **F12.67 — Merkle-tree incremental cache for the repo-map/summary (F11.2l).** Cursor hashes files into a Merkle tree
   and only re-embeds/re-summarizes the branches that changed (7.9s→0.5s time-to-first-query). Apply the Merkle-diff trick to
   keep !Klein's cached repo-map / hierarchical summary (F11.2a/l) cheap to refresh incrementally. (cursor secure-codebase-indexing)
