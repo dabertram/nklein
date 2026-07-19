@@ -52,6 +52,8 @@ export interface StartNKleinTaskSessionRequest {
 	 * one advisory guidance line. Absent ⇒ no depth line (byte-identical); only set for explicit decompose-in-plan tasks.
 	 */
 	autoDecompositionDepth?: AutoDecompositionDepthDecision | null;
+	/** F12.110 — advisory fleet-sharding guidance lines for the decompose seed (null/[] ⇒ byte-identical). */
+	fleetDecompositionGuidance?: readonly string[] | null;
 	/** Normalized !Klein task title; written to SDK session metadata (best-effort). */
 	taskTitle?: string;
 	initialMessages?: NKleinSdkPersistedMessage[];

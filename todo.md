@@ -3829,7 +3829,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   across create-more) — pure halves moved to `src/core/bulk-seed.ts` and shared via the `@runtime-bulk-seed`
   alias (vite+vitest+tsconfig, all three). Dialog test covers split→template→create-all. Item complete.
 
-- [ ] **F12.110 — Fleet-aware decomposition: the available model fleet as DIRECT decompose input (David
+- [~] **F12.110 — Fleet-aware decomposition: the available model fleet as DIRECT decompose input (David
   2026-07-19; ready-to-implement).** Decomposition is largely blind to who will execute; the capability-prior
   deadlock (cold fleet froze every medium+ card) is the proven failure class this kills at the source — cards
   are BORN ROUTABLE. Feed a FLEET CAPABILITY SUMMARY (per-role measured fitness classes from the store, effective
@@ -3850,6 +3850,17 @@ into the existing F12.31. Same verify-before-build caveat.**
   floor instead (reproducible sharding for those who want it). Composes
   with F12.37's anti-decomposition guard (fleet-aware never overrides the coupling bar) and is the Phase-14 C1
   cloud on-ramp (cloud classes just widen the same distribution).
+  **SLICE 1 SHIPPED 2026-07-19 (core + dark seed wire):** `fleet-aware-decomposition.ts` — mode parser (auto
+  default), buildFleetCapabilitySummary (dedupe + measured-over-unmeasured ranking), selectDepthTargetClass
+  (weakest drives clearable-fleet-wide depth; fixed_target honored), buildFleetDecompositionGuidance (mixed/
+  smallest/fixed-target advisory blocks, ≤4 named classes, byte-silent off/empty). Threaded
+  request.fleetDecompositionGuidance → buildNKleinStartPromptParts planning branch (after the F4.38 depth line);
+  computed at the start handler from the LOADED routing candidates (entry.key + blended worker capability +
+  paramB) behind OPT-IN `NKLEIN_FLEET_AWARE_DECOMPOSE` with `NKLEIN_FLEET_DECOMPOSE_MODE`/`_TARGET` env levers.
+  7 tests + the prefix-identity net stays green. REMAINING SLICES: (a) F4.38 depth-target widening (feed the
+  selected class's effectiveContextTokens into resolveAutoDecompositionDepth instead of the launch window),
+  (b) settings surface + per-project/per-card scoped override via resolveScopedOverride (env-only today),
+  (c) the AUTO RE-SHARD wire at the redecompose trigger (default-ON w/ opt-out per David's decision #2).
 
 ### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
 

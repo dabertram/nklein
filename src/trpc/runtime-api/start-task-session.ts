@@ -9,6 +9,11 @@ import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence";
+import {
+	buildFleetCapabilitySummary,
+	buildFleetDecompositionGuidance,
+	parseFleetDecompositionMode,
+} from "../../core/fleet-aware-decomposition";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { recommendModelFloor } from "../../core/language-capability-routing";
@@ -1412,6 +1417,30 @@ export async function handleStartTaskSession(
 						qualityEffectiveContextTokens: nkleinLaunchConfig.contextWindow ?? 40_000,
 					})
 				: null;
+		// F12.110 (OPT-IN dark via NKLEIN_FLEET_AWARE_DECOMPOSE; default OFF = byte-identical): the LOADED fleet as
+		// direct decompose input so cards are BORN ROUTABLE. Loaded-only by David's decision (production !Klein never
+		// auto-loads/unloads — prompt-cache preservation); mode via NKLEIN_FLEET_DECOMPOSE_MODE (auto default),
+		// fixed target via NKLEIN_FLEET_DECOMPOSE_TARGET. Advisory lines only — the architect still decides.
+		const fleetDecompositionGuidance =
+			autoDecompositionDepth !== null && isTruthyEnv(process.env.NKLEIN_FLEET_AWARE_DECOMPOSE)
+				? buildFleetDecompositionGuidance(
+						buildFleetCapabilitySummary(
+							roleScopedSelectionCandidates.map((candidate) => ({
+								modelKey: candidate.entry.key,
+								paramB: parseModelAttributes(candidate.entry.modelId).paramB ?? null,
+								workerCapability: blendedCapabilityForKey(
+									candidate.entry.key,
+									candidate.entry.capability.effectiveScore,
+									candidate.role,
+									candidate.entry.modelId,
+								),
+								effectiveContextTokens: null,
+							})),
+						),
+						parseFleetDecompositionMode(process.env.NKLEIN_FLEET_DECOMPOSE_MODE),
+						process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+					)
+				: null;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
@@ -1439,6 +1468,7 @@ export async function handleStartTaskSession(
 			mode: requestedNKleinTaskMode,
 			startInPlanMode: body.startInPlanMode,
 			autoDecompositionDepth, // F4.38 — advisory decompose-depth guidance (null for non-decompose tasks)
+			fleetDecompositionGuidance, // F12.110 — advisory fleet sharding (null unless the dark flag is on)
 			apiKey: nkleinLaunchConfig.apiKey,
 			baseUrl: nkleinLaunchConfig.baseUrl,
 			reasoningEffort: nkleinLaunchConfig.reasoningEffort,

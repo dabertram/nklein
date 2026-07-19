@@ -55,6 +55,7 @@ function buildNKleinPlanningSystemPrompt(
 	prompt: string,
 	startInPlanMode?: boolean,
 	autoDepth?: AutoDecompositionDepthDecision | null,
+	fleetGuidance?: readonly string[] | null,
 ): string | null {
 	if (!startInPlanMode) {
 		return null;
@@ -80,6 +81,8 @@ function buildNKleinPlanningSystemPrompt(
 				: null,
 			// F4.38 — advisory AUTO depth guidance (omitted ⇒ byte-identical to the prior prompt).
 			autoDepth ? formatAutoDecompositionDepthGuidance(autoDepth) : null,
+			// F12.110 — advisory fleet-sharding guidance (omitted/[] ⇒ byte-identical; cards born routable).
+			...(fleetGuidance ?? []),
 			acceptanceCommand
 				? `Use \`defaultAcceptanceCommand: "${acceptanceCommand}"\` unless a generated leaf needs a narrower objective check.`
 				: null,
@@ -132,9 +135,11 @@ export function buildNKleinStartPromptParts(
 	// F12.89: workspace-stable frontend convention lines (detectFrontendFramework → buildFrameworkPreamble).
 	// Appended to the SYSTEM side so the KV-cache prefix stays stable per workspace; omitted/[] ⇒ byte-identical.
 	frameworkPreamble?: readonly string[],
+	// F12.110: advisory fleet-sharding lines for the PLANNING branch only (omitted/[] ⇒ byte-identical).
+	fleetGuidance?: readonly string[] | null,
 ): NKleinStartPromptParts {
 	const baseSystemPrompt = startInPlanMode
-		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth)
+		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth, fleetGuidance)
 		: isRefinableWorkCard
 			? buildNKleinRefinementSystemPrompt()
 			: null;
