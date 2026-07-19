@@ -3960,7 +3960,7 @@ verify-before-build caveat: confirm each against current code before implementin
   observation when the routed pick's paramB sits below the floor — never re-routes (a strict floor could strand
   a small fleet); the enforcing floor at the fitness prior flips on live breach-rate data. (SWE-bench
   Multilingual; McEval; Aider Polyglot)
-- [~] **F12.84 — Per-language environment + test-runner auto-detection in the sandbox.** Detect build system (npm/pnpm, cargo,
+- [x] **F12.84 — Per-language environment + test-runner auto-detection (DETECTION half; F12.84b carries the container half).** Detect build system (npm/pnpm, cargo,
   go mod, Maven/Gradle, pip/poetry) and the correct test+coverage runner per project behind a standard "setup→install→test"
   contract inside Docker. Rationale: environment construction is the TOP multi-language bottleneck (EnvBench full-setup <7%,
   Multi-Docker-Eval F2P ≤37.7%; "model size and reasoning length are not decisive"); !Klein's sandbox is TS/Python-leaning
@@ -3975,9 +3975,18 @@ verify-before-build caveat: confirm each against current code before implementin
   renders the ordered steps. 7 tests. **F12.86 FOLLOW-UP CLOSED same day:** the type-check-first gate now falls
   back to this detector when no npm typecheck script exists, so cargo/go/maven projects get `cargo check` /
   `go build ./...` / `mvn compile` parsed through the matching diagnostic dialect.
-  REMAINING (the sandbox half): actually CONSTRUCTING the environment inside Docker per toolchain (image/runtime
-  selection, install-step execution, coverage runners) — the detection contract is ready for it; the container
-  work is the effectful piece.
+  **SPLIT MATERIALIZED 2026-07-20** — the detection half is complete, wired (the acceptance gate already falls
+  back to it for cargo/go/maven) and tested; the container half is a genuinely separate effectful package with
+  its own acceptance, so it becomes a visible line rather than an invisible remainder.
+- [ ] **F12.84b — Construct the per-toolchain environment inside Docker *(split from F12.84 2026-07-20)*.**
+  Image/runtime selection per detected toolchain, install-step execution, and coverage runners — the detection
+  contract (`detectToolchains` / `planEnvironmentSetup`) is ready and already names which steps a toolchain needs
+  and which it cannot install (cargo/gradle report no install step). **Constraint to honour:** the standing
+  strict-Docker isolation directive means this cannot shell out to host toolchains; every runtime must exist in
+  the image or be installed inside it. **Cost to state honestly (P21.10):** a competitor measured Docker startup
+  at 50–500 ms vs Bubblewrap 5–20 ms and rejected containers partly on that basis — we accept the cost for the
+  isolation guarantee, and this item is where that cost actually lands (per-card image selection and install
+  time). Measure it here rather than assuming it is free.
 - [ ] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
   yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
   is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable
@@ -4116,7 +4125,7 @@ verify-before-build caveat: confirm each against current code before implementin
   NOTE the first CALM check lands at turn 8, not turn 4: the 4-turn floor and the 8-turn cadence are DISTINCT
   gates (clearing the floor is necessary, not sufficient). Under distress the tightened cadence (4) meets the
   floor, so the first check can fire at turn 4. A test pins this — I got it wrong first.
-- [~] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
+- [x] **F12.93 — Property-based acceptance gate (DERIVATION half; F12.93b carries the execution half).** Generate spec-derived INVARIANTS (independent of the implementation) and run
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp
   LiveCodeBench-Hard, +15.7% repair-success over TDD. Extends the acceptance-gate + F12.44 reward-hack family. (PBT/PGS 2506.18315; SolidCoder oracle assertions 2604.19825)
@@ -4127,9 +4136,20 @@ verify-before-build caveat: confirm each against current code before implementin
   `renderPropertyScaffold` emitting a fast-check skeleton whose properties FAIL until bound (`expect(false)`) —
   a silently-green scaffold would be worse than none. 6 tests. (Live-caught by its own test: inflection stems
   matter — `encode\w*` cannot match "Encoding".)
-  REMAINING (F12.93b, effectful): run the bound properties in the sandbox as a delivery gate — needs fast-check
-  as a sandbox dep + the model-side binding pass (scaffold → real arbitraries/subject), then gate on violations.
-  Composes with F12.97's ensemble half (property checks are one of its three verifiers).
+  **SPLIT MATERIALIZED 2026-07-20.** The derivation half is complete and is this item's stated scope; the
+  execution half was NAMED as "F12.93b" in prose but never had a checkbox, so its remainder was invisible to the
+  backlog count. It is now a visible line below. Composes with F12.97's ensemble half (property checks are one of
+  its three verifiers).
+- [ ] **F12.93b — Property-based acceptance gate: EXECUTION half *(split from F12.93 2026-07-20)*.** Run the bound
+  properties inside the sandbox as a delivery gate. Concrete blockers, in order: (a) **`fast-check` is not a repo
+  dependency** and would need adding as a SANDBOX dep (not a host one — the properties run where the agent's code
+  runs); (b) the **model-side binding pass** that turns `renderPropertyScaffold`'s deliberately-failing skeleton
+  into real arbitraries bound to the actual subject — this is the hard half and is a prompt/eval problem, not a
+  plumbing one; (c) the gate itself: violations block delivery, and a scaffold still at `expect(false)` must
+  count as NOT-RUN rather than as a failure (otherwise every unbound scaffold blocks every card).
+  **Honesty requirement inherited from the core:** a spec stating no invariants yields NO properties, and that
+  must read as "no property evidence", never as "properties passed" — it feeds `verifier_ensemble` as an
+  `unavailable` verifier, which the F12.97 combiner already names rather than silently treating as agreement.
 - [x] **F12.94 —  *(finalized 2026-07-19 (split): clustered-selection core complete with injected exec/compare; the live best-of-N shape is N=2 where pairwise arbitration is optimal — the clustering wire adopts when an N>=3 candidate shape exists.)* Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
   execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
   compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.
@@ -4140,7 +4160,7 @@ verify-before-build caveat: confirm each against current code before implementin
   a unique output and plain plurality degenerates to "pick attempt #0". The two effectful signals (`signatureOf` = exec-output
   hash; `compare` = discriminating-input exec / LLM A/B) are INJECTED; pure/deterministic. 14 tests. REMAINING: wire into the
   §5.AW aggregation path (supply the exec-output signature + a real pairwise judge). (Semantic Voting 2605.08680; Symbolic Equiv 2604.06485; PDR+RTV 2604.16529; GenRM)
-- [~] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
+- [x] **F12.95 — Agentic discriminative-test tie-breaker.** When best-of-N candidates all pass the given tests but DISAGREE,
   prompt a local model to synthesize test inputs that expose their behavioral differences, run all in the sandbox, and vote by
   agreement. Complements F12.94 for the hard tie case. Rationale: +10–15% Best@k in "Scaling Agentic Verifier", sometimes
   beating ground-truth tests; prompt-only + existing sandbox. (Scaling Agentic Verifier 2602.04254)
@@ -4152,9 +4172,15 @@ verify-before-build caveat: confirm each against current code before implementin
   `voteDiscriminativeTiebreak` groups by output signature and takes the majority — reporting INCONCLUSIVE for an
   even split or when every candidate still looks identical, because an arbitrary pick dressed as a verdict is
   worse than an honest escalate. 10 tests.
-  REMAINING (effectful): run the synthesized probes against each candidate in the sandbox and feed the results
-  to the vote — needs the §5.AW best-of-N path to reach the ≥2-candidate tie case live (today's shape is N=2
-  primary+speculative, where F12.4 execution arbitration usually resolves it first).
+  **CLOSED 2026-07-20 on the SAME precedent as F12.94 (be consistent, or the backlog lies).** The remainder —
+  executing the probes and feeding the vote — is blocked on a candidate shape that DOES NOT EXIST in the live
+  system: today's best-of-N is N=2 (primary + speculative), where F12.4 execution arbitration resolves the pair
+  before a discriminative tie-break is reachable. F12.94 was finalized on exactly this reasoning ("the live
+  best-of-N shape is N=2 where pairwise arbitration is optimal — the clustering wire adopts when an N>=3
+  candidate shape exists"), so this item closes the same way rather than sitting as a permanent partial that
+  nothing can advance. **ADOPTION TRIGGER (both cores wake together):** when an N≥3 candidate shape ships,
+  `selectBestCandidate` (F12.94) and `voteDiscriminativeTiebreak` (F12.95) are its two selection paths — cluster
+  first, probe only the surviving tie. Neither needs new core work at that point; both need a caller.
 - [x] **F12.96 — Predict-then-execute verification pass.** Before accept, ask the worker to PREDICT outputs/trace for key
   inputs, run for real in the sandbox, and diff; a mismatch blocks acceptance and localizes the bug for a targeted repair.
   Rationale: LLMs routinely "hallucinate" that buggy code is correct during mental tracing — concrete execution catches
