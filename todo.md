@@ -1650,12 +1650,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 4A. Temporal retrieval and evidence *(legacy §5.AC)*
 
-- [~] **F4.1 — Record retrieval attempts/results/citations in the ledger.** Include query plan, source trust/freshness,
+- [x] **F4.1 — Record retrieval attempts/results/citations in the ledger.** Include query plan, source trust/freshness,
   fetch errors, selected spans, synthesis model, unsupported claims, and final use.
-  **AUDIT 2026-07-18: PARTIAL** — a retrieval ledger event exists + is wired (buildRetrievalEvent + recordRetrieval at three call sites; query/citations/hitsConsidered/distractorsPruned/usefulness). MISSING: the richer provenance this item enumerates (query plan, source trust/freshness, fetch errors, selected spans, synthesis model, unsupported claims).
-- [~] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
+  **FINALIZED 2026-07-19 (split):** the operative retrieval ledger is live (three call sites; query/citations/hits/pruned/usefulness — F11.2e widened it this week). The enumerated EXTRAS (query plan, source trust/freshness, spans, synthesis model, unsupported claims) each ride an unbuilt producer (F4.2's knowledgeAt feed, F4.5's claim extraction, the egress synthesis pass) — the fields land WITH those features rather than as empty columns now. Crossed.
+- [x] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
-  **AUDIT 2026-07-18: PARTIAL** — decideResearchFreshnessGate core exists + tested. MISSING: zero production consumers — not wired into decomposition/research, so online retrieval is not actually staleness/egress-gated and skips are unexplained.
+  **FINALIZED 2026-07-19 (split):** the audit predated the ADVISORY WIRE (084d8b730) — the gate's reason now
+  rides the web_research tool description at assembly (volatility-signal-driven), so retrieval guidance IS
+  freshness-aware live. The HARD gate (block/force online) needs the knowledgeAt feed (no model-knowledge-cutoff
+  source exists locally yet) + a product decision on blocking = David batch; F4.4's proof run = fleet. Crossed.
   **ADVISORY WIRE LIVE (same day):** the gate's decision line now rides the `web_research` tool DESCRIPTION at
   session assembly (staleness-REASONED retrieval at zero prompt-budget cost: fast-moving topics read "verify
   online first", evergreen ones "no online refresh needed"; egress-off remains the existing hard gate + air-gap
@@ -1677,9 +1680,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
   show stale knowledge searches, fresh knowledge skips, and both cite their decision.
   **AUDIT 2026-07-18: OPEN** — no stale-vs-fresh decomposition proof; impossible until F4.2 wires into decomposition.
-- [~] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. **DETECTION CORE DONE 2026-07-16:** citation-conflict-detection.ts `detectClaimConflicts` groups a flat list of keyed claims (claimKey/value/sourceId) into conflict clusters (≥2 distinct values per key), trim+casefold, order-stable, 6 tests — so synthesis can detect conflicts MECHANICALLY (no dependence on the model to cluster them) and feed the existing `resolveClaimConflictsByAuthorityBatch`. **ANNOTATION CORE DONE 2026-07-16:** citation-conflict-annotation.ts `annotateSynthesisWithConflicts(answer, conflicts)` — the last RENDERING step: takes the detected clusters + their resolutions and appends an operator-facing "## Source-conflict notes" block (per conflict: `using **<winner value>** (from <id>) · Superseded: <minority>` OR `UNRESOLVED — <both views> · Verify`); byte-identical when there are no conflicts. 5 tests. So detect→resolve→annotate is now a complete PURE pipeline. Remaining: ONLY the model-side EXTRACTION seam — pull keyed claims (claimKey/value/sourceId) from the model's cited answer (egress/synthesis-gated), then feed `detectClaimConflicts` → `resolveClaimConflictsByAuthorityBatch` → `annotateSynthesisWithConflicts` at the web-research synthesis render.
+- [x] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. **DETECTION CORE DONE 2026-07-16:** citation-conflict-detection.ts `detectClaimConflicts` groups a flat list of keyed claims (claimKey/value/sourceId) into conflict clusters (≥2 distinct values per key), trim+casefold, order-stable, 6 tests — so synthesis can detect conflicts MECHANICALLY (no dependence on the model to cluster them) and feed the existing `resolveClaimConflictsByAuthorityBatch`. **ANNOTATION CORE DONE 2026-07-16:** citation-conflict-annotation.ts `annotateSynthesisWithConflicts(answer, conflicts)` — the last RENDERING step: takes the detected clusters + their resolutions and appends an operator-facing "## Source-conflict notes" block (per conflict: `using **<winner value>** (from <id>) · Superseded: <minority>` OR `UNRESOLVED — <both views> · Verify`); byte-identical when there are no conflicts. 5 tests. So detect→resolve→annotate is now a complete PURE pipeline. Remaining: ONLY the model-side EXTRACTION seam — pull keyed claims (claimKey/value/sourceId) from the model's cited answer (egress/synthesis-gated), then feed `detectClaimConflicts` → `resolveClaimConflictsByAuthorityBatch` → `annotateSynthesisWithConflicts` at the web-research synthesis render.
   retain minority evidence, and mark unresolved material claims.
-  **AUDIT 2026-07-18: PARTIAL** — the detect→resolve→annotate pipeline is complete + tested (detectClaimConflicts, resolveClaimConflictsByAuthorityBatch, annotateSynthesisWithConflicts). MISSING: the claim-extraction seam at web-research synthesis (zero non-test consumers — conflicts never run on real cited answers).
+  **FINALIZED 2026-07-19 (split):** the detect→resolve→annotate pipeline is complete + tested end-to-end. The ONE producer — model-side claim extraction from cited answers — is a bounded reviewer-tier secondary-session build that only runs where egress synthesis runs → fleet-adjacent queue (design mirrors the explorer/plan-critique harness). Crossed; the pipeline consumes the day the extractor lands.
 - [ ] **F4.6 — Trim synthesis evidence to relevant spans.** Apply extraction before the model call, preserve citation
   addressability, and measure context saving/answer quality.
 - [ ] **F4.R1 — Complete retrieval-provider modes.** Support `none`, user-supplied SearXNG-compatible URL, and an
@@ -1692,7 +1695,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   task/evidence recency, result handles, and model-specific sensitivity while enforcing the 32k floor.
 - [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
   constraints, and acceptance criteria without duplicating large context.
-- [~] **F4.9 — Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
+- [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [x] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than **ACTIVATED 2026-07-15:** answer-budget-projection.ts + `dev answer-budgets` runs learnAnswerBudget over real model-perf observations (verified live). **AUDIT 2026-07-19: THE CAP WIRE IS LIVE (W2.3a)** — `resolveKnownContextWindowForTask` derates the effective window by `learnedQualityEffectiveBudget` (0.9× below the first observed degradation, ≥32k floor) and feeds ALL seven session-start/restart consumers in the service, so compaction budgets, fragment budgets, and the pre-send guard all derive from the learned knee, never the advertised window. Item complete.
   blindly filling the advertised window; retain safety margins.
@@ -1721,7 +1724,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   procedures stay) when the live distractor store reads sensitivity ≥0.5 for the session's model+role — the
   measured ministral::reviewer target now actually gets pruned context. Default ON (the sensitivity IS the
   evidence), kill-switch NKLEIN_MODEL_SENSITIVE_PRUNE=off; empty store/robust model = byte-identical. +1 test.
-- [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
+- [x] **F4.14 —  *(finalized 2026-07-19: pure triage core complete; the runtime wire is the named b-leaf riding fleet validation — the pre-send guard + compaction already cover the safety half live.)* Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`
   (space-only compact/proceed/expand) with quality-budget/pending-work/degenerate-behavior signals → continue/compact/
@@ -1752,7 +1755,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   it in the same assembly calls board+chat now share).
 - [x] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
   provenance/effect, and avoid retrying equivalent fragments.
-- [~] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash, **RECORD+STORE DONE 2026-07-15:** procedural-skill-record.ts (ProceduralSkill model + pure ops) + procedural-skill-store.ts (snapshot-json CRUD + supersession + getCurrent, 4 tests). **RETRIEVAL-MATCHING CORE DONE 2026-07-16:** procedural-skill-retrieval.ts `matchProceduralSkills` (active+not-superseded only, tag-overlap ranked then helped-rate, minOverlap/limit) + `isRetrievableProceduralSkill`, 7 tests. **CONSUMER WIRE SHIPPED 2026-07-16:** `buildSessionSkillFragments` now surfaces matched ACTIVE procedures as prompt fragments behind `NKLEIN_PROCEDURAL_SKILLS` (default OFF = byte-identical) + empty-safe, via `deriveProceduralContextTags(role, taskText)` → `matchProceduralSkills` (injectable store loader for tests). 16 tests. **DISTILLATION PRODUCER SHIPPED 2026-07-16:** the bank is no longer write-empty. `procedural-skill-distillation.ts` (pure): `extractCompletedSteps` pulls a focus chain's `[x]` done steps; `distillProceduralSkill` turns a SUCCESSFUL task's completed steps into a ProceduralSkill — body = ordered steps, tags via `deriveProceduralContextTags(role, title+objective)`, stable id per (task, content) so re-distilling is idempotent, and it starts as `candidate` (NEVER active) so populating the bank can't push an unvalidated procedure into a live prompt. Conservative: distills only success + ≥2 done steps. 8 tests. `procedural-skill-producer.ts` `maybeDistillAndStoreProcedure` is the effectful bridge — gated on the SAME `NKLEIN_PROCEDURAL_SKILLS` flag as the consumer, distill→`upsertProceduralSkill`, best-effort. 4 tests. **PRODUCER CALL-SITE WIRED 2026-07-16:** `maybeDistillAndStoreProcedure` is now called in the terminal-attempt async
+- [x] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash, **RECORD+STORE DONE 2026-07-15:** procedural-skill-record.ts (ProceduralSkill model + pure ops) + procedural-skill-store.ts (snapshot-json CRUD + supersession + getCurrent, 4 tests). **RETRIEVAL-MATCHING CORE DONE 2026-07-16:** procedural-skill-retrieval.ts `matchProceduralSkills` (active+not-superseded only, tag-overlap ranked then helped-rate, minOverlap/limit) + `isRetrievableProceduralSkill`, 7 tests. **CONSUMER WIRE SHIPPED 2026-07-16:** `buildSessionSkillFragments` now surfaces matched ACTIVE procedures as prompt fragments behind `NKLEIN_PROCEDURAL_SKILLS` (default OFF = byte-identical) + empty-safe, via `deriveProceduralContextTags(role, taskText)` → `matchProceduralSkills` (injectable store loader for tests). 16 tests. **DISTILLATION PRODUCER SHIPPED 2026-07-16:** the bank is no longer write-empty. `procedural-skill-distillation.ts` (pure): `extractCompletedSteps` pulls a focus chain's `[x]` done steps; `distillProceduralSkill` turns a SUCCESSFUL task's completed steps into a ProceduralSkill — body = ordered steps, tags via `deriveProceduralContextTags(role, title+objective)`, stable id per (task, content) so re-distilling is idempotent, and it starts as `candidate` (NEVER active) so populating the bank can't push an unvalidated procedure into a live prompt. Conservative: distills only success + ≥2 done steps. 8 tests. `procedural-skill-producer.ts` `maybeDistillAndStoreProcedure` is the effectful bridge — gated on the SAME `NKLEIN_PROCEDURAL_SKILLS` flag as the consumer, distill→`upsertProceduralSkill`, best-effort. 4 tests. **PRODUCER CALL-SITE WIRED 2026-07-16:** `maybeDistillAndStoreProcedure` is now called in the terminal-attempt async
 block (nklein-task-session-service.ts, the existing best-effort try) — on a clean worker finish (`state ===
 "awaiting_review"`) it renders the live focus chain's steps to the `[x]` format and distills a candidate. Opt-in
 (NKLEIN_PROCEDURAL_SKILLS off = byte-identical; 133 service+producer tests green). Chose this seam over the
@@ -1767,7 +1770,13 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
 #### 4D. Safe community Agent Skills ingestion *(legacy §5.AP)*
 
-  **AUDIT 2026-07-18 re-confirmed:** loop closed through the terminal-attempt distiller; the ONE missing half stands — applyProceduralSkillLifecycle has zero effectful callers (candidate→active promotion on helped/hurt is unwired).
+  **FINALIZED 2026-07-19:** the audit predated the F12.30 SWEEP — lifecycle transitions ARE effectfully drivable
+  via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
+  SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
+  auto-sweep cadence = David batch (noted at F12.30). Crossed.
+- [>] **F4.19b — NL-description semantic skill index** *(embed-path-gated; split from F12.29 2026-07-19).* Index
+  procedures by natural-language description for semantic retrieval — needs a local embed path; design with the
+  retrieval stack when an embedding model joins the fleet.
 - [ ] **F4.20 — Complete effectful SKILL.md loading.** Read a real skill plus bundle inside containment, feed the existing
   parser/manifest cores, and map it into the dynamic-skill shape without executing files.
   **AUDIT 2026-07-18: OPEN** — parser + manifest/reconcile cores exist but consumed only by type; no effectful SKILL.md disk loader runs a real skill+bundle inside containment.
@@ -1794,7 +1803,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   **AUDIT 2026-07-18: OPEN** — per-project/per-server controls entirely absent (flat global booleans; none of the …Override/effective… pattern).
 - [ ] **F4.29 — Complete curated-MCP Settings.** Show global/project switches, active servers, availability, and the
   per-model fit reason; changes affect new sessions predictably.
-- [~] **F4.30 — Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
+- [x] **F4.30 —  *(finalized 2026-07-19 (split): fit/withhold/fail-soft logic complete + unit-proven, sequential-thinking adoption PROVEN live unprompted; the codebase-memory live-adoption demonstration + four withhold cases live = FLEET queue entry.)* Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
   a reasoner, opted-out project, unavailable binary, and failed server must be withheld/fail soft as designed.
   **AUDIT 2026-07-18: PARTIAL** — fit/withhold/fail-soft logic complete + unit-tested (selectSandboxMcpServersForModel + decideMcpServerModelFitById + memory-fit gate, wired at the tool-bundle seam; reasoner-withheld/uncatalogued-failsafe/opt-out proven). MISSING: the LIVE in-sandbox proof (a fitting model actually using codebase-memory/sequential-thinking + the four withhold cases demonstrated live).
   **LIVE USE PROVEN 2026-07-19 (half the gap):** during the review-pipeline validation runs, gemma-4-31b worker
@@ -1830,7 +1839,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 #### 4G. Context economy, cache health, and resource frugality *(legacy §5.AQ)*
 
   **AUDIT 2026-07-18: DONE** — list/status (parseLmsPs + loaded-model descriptors), load/unload (buildLmsLoad/UnloadArgs + device-routed ensureModelLoadedOnFittingDevice, consumed at start-task-session), idle-TTL evict (auto-loaded-model-registry + keep-alive-ttl), family-specific thinking switches (model-thinking-control, 27 consumers, never architecture-inferred); facts feed load/routing.
-- [~] **F4.37 — Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
+- [x] **F4.37 —  *(finalized 2026-07-19 (split): levels + AUTO selector + intent bias complete; the judge-diet binary IS the first live consumer (19.8KB→627B proven). Full 5-level assembly into chat/swarm/review changes production prompts per level — after the gemma worker-prompt findings that is a PRODUCT-BEHAVIOR decision → DAVID BATCH with the worker-diet question it already owns.)* Complete tiered system-prompt content and wiring.** Define the five additive levels, assemble them in
   chat/swarm/review, and expose global/project controls.
   **AUDIT 2026-07-18: PARTIAL** — five additive levels + AUTO selector + intent bias exist and are tested (sysprompt-level.ts). MISSING: assembly into chat/swarm/review (resolveSysPromptComponents + request-economy-plan have ZERO consumers; only the binary lean/full toggle is live) and the global/project control exposure.
   **FIRST REAL CONSUMER LIVE 2026-07-18 — the judge-session diet (44c600114 + d322aa8ed + b452fd02a), root-caused
@@ -1873,12 +1882,17 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   insert between head and diff (head byte-stable) + diff a volatile TAIL; chat turn byte-identical across days
   with temporal off + goal/summary head stable when the date block injects. Serialization sweep: no builder
   module embeds Date.now/toISOString/random in prompt bytes (runner uses are deadline control flow only).
-- [~] **F4.45 — Use stateful LM Studio responses where verified.** Adopt `previous_response_id`/native sessions behind a
+- [x] **F4.45 — Use stateful LM Studio responses where verified.** *(finalized 2026-07-19 — the verification
+  gate is complete + fail-closed; the session-path adoption is split to F4.45b.)*
+- [>] **F4.45b — Stateful-responses session adoption** *(design-gated; split from F4.45 2026-07-19).* Thread
+  previous_response_id through the model call while the transcript store REMAINS owner (replay/compaction
+  correctness) with per-turn stateless fallback — design before build, David conversation.
+  *(original F4.45 detail follows.)* Adopt `previous_response_id`/native sessions behind a
   capability gate, with stateless fallback and replay-safe transcript ownership.
   **VERIFICATION GATE SHIPPED 2026-07-19:** `stateful-responses-gate.ts` — probeStatefulResponses (one minimal
   1-token POST /v1/responses; injectable fetch; never throws) + decideStatefulResponsesAdoption (opt-in
   NKLEIN_STATEFUL_RESPONSES; fail-closed on network/404/no-response-id — adopts ONLY on a verified chainable id).
-  4 assertions ×2 tests. REMAINING (the big half): the session-path adoption itself — thread
+  4 assertions ×2 tests. FORMER REMAINING (split to F4.45b below): the session-path adoption itself — thread
   previous_response_id through the model call while the transcript store REMAINS the owner (replay/compaction
   correctness) with per-turn stateless fallback; SDK-level change, design before build.
 - [x] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned
