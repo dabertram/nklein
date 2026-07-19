@@ -4641,7 +4641,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   or the named class in fixed_target) now drives resolveAutoDecompositionDepth instead of the single launch
   window — a weak class → finer cards; fleet summary computed BEFORE the depth decision, byte-identical off.
   **BORN-ROUTABLE MECHANISM COMPLETE (core + a): the central intent ships.** REMAINING SLICES split below.
-- [ ] **F12.111 — Multi-model SPEC-TIME deliberation: disagreement as an underspecification detector (David 2026-07-20).**
+- [x] **F12.111 — Multi-model SPEC-TIME deliberation: the CORE (F12.111b carries the wire).**
   **ORIGIN:** David observed that Opus 4.8, Fable 5 and GPT-5.6 Sol take *"slightly differing and largely
   overlapping perspectives"*, and asked whether that could become a first-class part of initial spec / task
   analysis — for frontier models AND, if it works, for small local ones.
@@ -4684,6 +4684,37 @@ into the existing F12.31. Same verify-before-build caveat.**
   beats trivial baseline?" trap ("AI Agents That Matter": a plain retry baseline scored 93.2% at $2.45 vs LATS 88%
   at $134.50). **Acceptance must include a baseline comparison against single-model clarification**, or we will
   have built ceremony. Feeds P20.2's visible/held-out gap as its natural quality measure.
+  **CORE SHIPPED + LIVE-VALIDATED 2026-07-20:** `spec-deliberation.ts` — `decideDeliberationStaffing` (gated on
+  AMBIGUITY, not ceremony: a well-specified card gets the single path, per F12.35's DOWN result),
+  `buildDeliberationPrompt` over three stances, `parseDeliberationReply`, `combineDeliberation`.
+  Output is the DISAGREEMENT SET rendered as clarifying questions — never a merged spec. `agreementCaveat` states
+  plainly that agreement is weak evidence (correlated training ⇒ correlated errors) and, in single-model mode,
+  that the stances were ONE model wearing hats. 18 tests.
+  **⚠️ TWO DEFECTS FOUND ONLY BY LIVE VALIDATION — both silent, both invisible to the unit tests.**
+  **(1) The parser was too strict for real output.** It anchored `AMBIGUITY:` at line start; the live model emits
+  the payload mid-line wrapped in markdown and backticks
+  (`` - *Ambiguity 4:* Block duration. `AMBIGUITY: … | READINGS: …` ``). First live run: **all three stances
+  parsed ZERO** ambiguities from replies that contained nine good ones. **A parser strict enough to reject real
+  output turns a working model into a silent no-op** — same shape as the drift critic's empty-`content` trap: no
+  error, just nothing. Fixed with an unanchored match + markup stripping.
+  **(2) The model echoes the prompt's own FORMAT EXAMPLE back**, and the now-tolerant parser accepted it —
+  producing a clarifying question literally asking the human to choose between "<reading A>" and "<reading B>".
+  Guarded: any capture still carrying angle-bracket placeholders is dropped as a template echo.
+  **LIVE RESULT after both fixes (qwen3.6-27b, single-model stances over a deliberately vague rate-limiting
+  spec):** 9 ambiguities → real clarifying questions, e.g. *"Definition of 'too many requests' — did you mean 'a
+  fixed threshold per time window' or 'a dynamic threshold based on user tier'?"*, *"How 'admins' are identified —
+  by a role/flag in the auth token, or by originating from an internal IP range?"*. **These are exactly the
+  questions that would otherwise be answered silently and wrongly by the implementer.**
+  KNOWN LIMITATION (honest, not a bug): grouping is literal-key based, so "rate limit threshold" and
+  "Definition of 'too many requests'" survive as two questions despite being one ambiguity. Semantic dedup would
+  need embeddings; until then the human sees mild duplication, which is the safe direction.
+- [ ] **F12.111b — Wire spec deliberation into the initializer/decompose path *(split 2026-07-20)*.** Run the
+  staffing decision at spec time, fan out the stances (or cross-family models), and route
+  `clarifyingQuestions` into the EXISTING clarification machinery (`nextClarification` / F12.8's one-at-a-time
+  discipline) rather than presenting a wall of questions. **Acceptance MUST include the baseline comparison the
+  item demands:** deliberation vs plain single-model clarification on the same specs — without it we cannot tell
+  the feature from ceremony, and P20.8's finding (a trivial baseline beat an elaborate scaffold at 1/50th the
+  cost) is the standing warning.
 - [ ] **F12.110b — Fleet-aware settings surface** *(split 2026-07-19; product/David-batch).* Expose the mode +
   fixed-target as global → per-project → per-card via resolveScopedOverride (F4.16's core, still zero live
   consumers — this is it), plus the smallest-supported-floor optional setting. Env-only today
