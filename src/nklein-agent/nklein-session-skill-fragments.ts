@@ -11,6 +11,7 @@
 
 import { isTruthyEnv } from "../core/env-flag.js";
 import { selectFragmentsWithinBudget } from "../core/jit-fragment-budget";
+import { estimateDistractorSensitivity } from "../core/model-sensitive-pruning";
 import type { ProceduralSkill } from "../core/procedural-skill-record.js";
 import { deriveProceduralContextTags, matchProceduralSkills } from "../core/procedural-skill-retrieval.js";
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
@@ -18,6 +19,7 @@ import { selectSandboxMcpServersForModel } from "../core/sandbox-mcp-catalog.js"
 import { buildSkillPromptFragments } from "../core/skill-prompt-fragments.js";
 import { resolveActiveSkills, type SkillDynamicsLevel } from "../core/skill-resolver.js";
 import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-guidance.js";
+import { readAllDistractorObservations } from "../state/distractor-observation-store";
 import { getCurrentProceduralSkills } from "../state/procedural-skill-store.js";
 import { buildNKleinRepoMap } from "./nklein-repo-map.js";
 
@@ -124,6 +126,31 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 		}
 	}
 
+	// F4.13 model-sensitive pruning (default ON; NKLEIN_MODEL_SENSITIVE_PRUNE=off opts out): a model MEASURED
+	// distractor-sensitive for this role (live noise-A/B rows, e.g. ministral-14b::reviewer) gets its bulk
+	// advisory evidence withheld — every fragment here is optional context, never an invariant, and for a
+	// sensitive model that context is measured to HURT. Missing/empty store or robust model ⇒ byte-identical.
+	// Scoped to the CRITICAL roles (reviewer/architect — where the live prune-hard evidence sits and where a
+	// distracted judgment is costliest); worker/chat sessions skip the store read entirely.
+	if (
+		process.env.NKLEIN_MODEL_SENSITIVE_PRUNE !== "off" &&
+		input.modelId &&
+		(input.role === "reviewer" || input.role === "architect") &&
+		fragments.length > 0
+	) {
+		const observations = await readAllDistractorObservations().catch(() => []);
+		const relevant = observations.filter(
+			(observation) => observation.modelId === input.modelId && observation.role === input.role,
+		);
+		if (relevant.length > 0 && estimateDistractorSensitivity(relevant) >= 0.5) {
+			// Surgical: withhold the BULK evidence fragments (retrieval guidance, repo-map class) that mirror the
+			// measured distractor shape; validated procedures are short targeted guidance and stay.
+			const pruned = fragments.filter((fragment) => fragment.key.startsWith("procedural-skill:"));
+			if (pruned.length !== fragments.length) {
+				return pruned;
+			}
+		}
+	}
 	// F4.17 overflow capping (opt-in budget): every skill-driven fragment is OPTIONAL — rank and keep within the
 	// budget; the structural-retrieval nudge ranks highest (guidance must match offered tools), procedures next,
 	// bulk retrieval fragments last. No budget ⇒ byte-identical.

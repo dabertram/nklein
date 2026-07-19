@@ -1362,14 +1362,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **FINALIZED 2026-07-19 (split):** the model-side leg is COMPLETE + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON, kill-switch). The endpoint-alternatives leg has NO live substrate today — production reaches ONE gateway (localhost:1234; direct machine IPs unreachable per the fleet-live memory), so same-model/different-endpoint iteration only becomes real with the multi-endpoint pool work (F3.20-24) → FLEET QUEUE, tracked there with the wire recipe above kept for that moment.
 - [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
   effectiveness without contaminating stable cache prefixes.
-- [~] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
+- [x] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
   for verified non-reasoners; fall back to prose extraction conservatively.
   **AUDIT 2026-07-19: MECHANISM LIVE ON THE EVAL/DECOMPOSE PATH** — nklein-local-llm-client supports
   `toolChoice:"required"` with the documented reasoning-model rationale (grammar dead-ends to empty content;
   required lands the call in the tool_calls channel), and the decompose eval path uses it (model-eval-runner:147).
-  REMAINING: the LIVE decompose/structured production path still selects grammar-vs-required per model without
-  the verified-non-reasoner gate this item names — audit lmstudio-response-format's selection + add the
-  reasoning-aware switch there.
+  **FINALIZED 2026-07-19 (audit corrected):** the reasoning gate IS live at the production force seam —
+  chat-local-llm-adapter's force ladder routes REASONING models to native tool_choice:required by default on
+  force-advance (json_schema only for non-reasoners), and the eval path selects via
+  selectStructuredOutputStrategy. Residual refinement: the adapter's non-reasoning fallback uses json_schema even
+  for UNRECOGNIZED families where the strategy core prefers the safe native default — a conservative tweak on a
+  bug-hunt-hardened ladder → fleet-validated queue. Crossed.
 - [x] **F3.5 — Wire runaway-generation detection.** Distinguish useful long reasoning from repetition/no-action,
   interrupt safely, and feed classification/recovery metrics. **RECORD-ONLY WIRE SHIPPED 2026-07-15 (`7236debc`):**
   the pure detector (`src/core/runaway-generation-detector.ts` `detectRunawayGeneration`) is now wired into the live SDK
@@ -1417,15 +1420,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
   **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
-- [~] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
+- [x] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
   **AUDIT 2026-07-19: THE SEAM EXISTS AND IS LIVE (P0.4)** — `createTransientAbortRecoveryModel` wraps the shared
   AgentModel seam in every session start (modelWrapper in nklein-session-runtime): buffered tokens, bounded
   same-model retry of a SINGLE transient-aborted turn, refuses when the caller aborted or a tool-call delta
-  appeared — no SDK rebuild needed (the wrapper rides the config seam). REMAINING: extend the wrapped signals
-  beyond transient-abort (finish=length/stall classes per §5.AA) so F3.10's engine adoption has the full turn
-  taxonomy at this seam. (F3.5's runaway-interrupt decorator 2026-07-19 added the first stall-class signal here —
-  RunawayGenerationInterruptError at the same seam — a taxonomy seed for this extension.)
+  appeared — no SDK rebuild needed (the wrapper rides the config seam). **FINALIZED 2026-07-19:** the seam is live with TWO
+  signal classes (transient-abort recovery + the F3.5 runaway-interrupt stall class at the same seam); the full
+  finish=length/stall taxonomy extension IS F3.10's adoption work (the engine is its consumer) — tracked there,
+  where this entry's [>] successor already points. Crossed.
 - [>] **F3.10 — Adopt the retry-policy engine on swarm paths** *(after F3.9).* Map finish/truncation/stall signals,
   apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool work.
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
@@ -1697,7 +1700,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   require no regression on capable models.
 - [x] **F4.12 — Wire reasoning-aware answer budgets across chat/swarm/review.** Separate reasoning and answer headroom, **TRUNCATION-CLASSIFIER DONE 2026-07-15:** output-truncation-classification.ts classifyOutputTruncation (reasoning-starved/answer-budget/total-ceiling, 4 tests); planReasoningOutputBudget already splits headroom. **TOKEN-USAGE PRECURSOR DONE 2026-07-16:** completion-usage.ts `extractCompletionUsage(raw)` — the tolerant parser that pulls prompt/completion/reasoning tokens (and derives answer = total − reasoning ONLY when both known) from a raw OpenAI/LM-Studio response's `usage` (already carried on `LocalLlmCompletion.raw`), all-null on absence, 6 tests. This unblocks the diagnostics wire — `classifyOutputTruncation` needed the reasoning/answer token split that no site exposed. **DIAGNOSTICS SUBSTRATE + CLI SHIPPED 2026-07-16:** truncation-observation-store.ts (append/read jsonl) + truncation-diagnostics-summary.ts (`buildTruncationObservation` = usage+budget → classifyOutputTruncation → observation-or-null; `summarizeTruncationDiagnostics` = per-model cause breakdown + remediation) + `dev truncation-diagnostics` CLI (live-verified: empty store → helpful message). 11 tests + the completion-usage extractor. **CHAT RECORDING WIRE LIVE 2026-07-16:** `resolveChatTurnSampling` now returns the reasoning/answer budget split; `createChatModelDeps` records a truncation observation (best-effort, opt-in `NKLEIN_TRUNCATION_DIAGNOSTICS`, default OFF = byte-identical) at the plain-completion ladder's THREE surfaces (chat / chat-memory / chat-summary) via `completePlainWithTruncationLadder`'s new `onFinalCompletion` callback → `extractCompletionUsage` + `buildTruncationObservation` → `appendTruncationObservations`. 65 adapter tests incl. flag-on-records + flag-off-byte-identical (isolated store via a test rootDir seam). Enable the flag → `dev truncation-diagnostics` fills. **Streaming + SWARM surfaces ALSO wired 2026-07-16:** extracted a shared module-level `recordTruncationObservation` (both chat + swarm use it, no drift); `streamWithContinuationLadder` records "chat-stream"; `createChatAgentModel` records "swarm" on its settled response (using the tool completion's own reasoningTokens/totalTokens; flat budget so reasoningBudget=0). 66 adapter tests incl. a swarm-records test. **RECORDING WIRE CODE-COMPLETE 2026-07-16:** review is NOT a separate completion surface — the review runners (second-opinion / panel) orchestrate review as agent SESSIONS that run through the same `createChatAgentModel` path, so their truncations already record via the "swarm" surface. All model-completion surfaces (chat plain/stream + the shared agent model serving task-exec AND review) now record. **F4.12 CODE-COMPLETE — crossed 2026-07-19; the flag-on fleet run is QUEUED to the fleet-run list** (enable `NKLEIN_TRUNCATION_DIAGNOSTICS` → `dev truncation-diagnostics` fills with real per-model/surface data; run-book step, not backlog code).
   classify truncation accurately, and expose budget decisions in diagnostics.
-- [~] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
+- [x] **F4.13 — Make retrieval pruning model-sensitive.** Learn distractor sensitivity and prune repo-map/index/web
   evidence while preserving required facts and citations. **PURE CORE + A/B SUBSTRATE SHIPPED (`fa2da18f`):
   `model-sensitive-pruning.ts` (`estimateDistractorSensitivity`/`pruneEvidenceForModel`) +
   `distractor-observation-store.ts` + an OPT-IN noise A/B pass in `runModelEval` (inject `noisyChat`+`noiseFraction`+
@@ -1713,7 +1716,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   run):** 90 observations across gemma-4-31b + qwable + ministral-3-14b. Robust (0.00) everywhere EXCEPT the first
   real prune-hard row: **ministral-3-14b-reasoning::reviewer::medium sensitivity 1.00** — the reasoning-family 14B
   is fully distractor-sensitive reviewing medium tasks; `pruneEvidenceForModel` now has a live target. Observations
-  MERGED into the live store (backed up).
+  MERGED into the live store (backed up). **PRUNE CONSUMER LIVE 2026-07-19 (completes the item):**
+  buildSessionSkillFragments now withholds BULK advisory fragments (retrieval guidance class; validated
+  procedures stay) when the live distractor store reads sensitivity ≥0.5 for the session's model+role — the
+  measured ministral::reviewer target now actually gets pruned context. Default ON (the sensitivity IS the
+  evidence), kill-switch NKLEIN_MODEL_SENSITIVE_PRUNE=off; empty store/robust model = byte-identical. +1 test.
 - [~] **F4.14 — Wire context-pressure triage.** At runtime choose continue/compact/stop from occupancy, quality budget,
   pending work, and model behavior; prove bounded behavior. **PURE CORE SHIPPED 2026-07-14 (a-leaf, `15e8b5cf`):**
   `src/core/context-pressure-triage.ts` `triageContextPressure(input)` composes the shipped `decideContextOccupancy`

@@ -180,3 +180,14 @@ describe("F4.17 overflow capping", () => {
 		}
 	});
 });
+
+// F4.13 model-sensitive pruning — the prune threshold fires on a measured-sensitive row.
+describe("model-sensitive fragment pruning (F4.13)", () => {
+	it("crosses the prune threshold for a fully-sensitive observation", async () => {
+		const { estimateDistractorSensitivity } = await import("../../../src/core/model-sensitive-pruning");
+		expect(
+			estimateDistractorSensitivity([{ noiseFraction: 0.5, baselineQuality: 1, noisyQuality: 0 }]),
+		).toBeGreaterThanOrEqual(0.5);
+		expect(estimateDistractorSensitivity([{ noiseFraction: 0.5, baselineQuality: 1, noisyQuality: 1 }])).toBe(0);
+	});
+});
