@@ -1,9 +1,106 @@
 # 36 - Dark Factory Dschinn Universal Agent
 
 Complexity tier: 36/36 master challenge
-Expected decomposition size: 400-650 dependent implementation cards before coding.
+Expected decomposition size: **~51-card vertical spine FIRST**, then replan from evidence and expand one capability family at a time. (The old "400-650 cards before coding" target was removed 2026-07-20 — see the corrections preamble.)
 Domain pressure: autonomous agent operating system, local GPU/unified-memory inference, blue-green brain updates, persistent user memory, software-product factory, market research, business automation, marketing/sales operations, self-improvement, plugin ecosystems, long-running multi-project orchestration, financial governance, cloud migration, hardware procurement, safety and audit.
-Acceptance command: npm test
+Acceptance command: npm test — **BUT SEE "`npm test` IS NOT AN INDEPENDENT ORACLE" BELOW. A green run from the implementing agent's own tests is not evidence of correctness.**
+
+## ⚠️ WHAT THIS PROJECT ACTUALLY IS (external review incorporated 2026-07-20 — read before the vision language)
+
+**This is a governed autonomous-factory SIMULATION and an extreme-decomposition stress test. It is NOT, and
+passing it does NOT demonstrate, a working autonomous business.** The vision sections below are deliberately
+ambitious; this preamble is the honest scope, and it wins wherever the two disagree.
+
+External assessment (2026-07-20), recorded verbatim because the split is the useful part:
+
+| Dimension | Score |
+|---|---|
+| Value as a !Klein stress test | **9/10** |
+| Value as research architecture | **8/10** |
+| Proof that a real autonomous business factory works | **3/10 today** |
+| Test of whether a 3B model can EXECUTE a prescribed architecture | **9/10** |
+| Test of whether a 3B model can independently DESIGN the right architecture | **4/10** |
+
+**Passing this project would demonstrate:** that a deterministic, governed control-plane model for an autonomous
+factory can be implemented and survive its *scripted* threat model.
+
+**Passing would NOT demonstrate:** real market-research quality · products anybody wants · safe long-running
+browser operation · reliable local-model judgment · legal or accounting correctness · marketing effectiveness ·
+production recovery over weeks · owner comprehension under real operational load. Those need a **second
+ecological-validation tier**: deterministic simulation proves the control plane; repeated LIVE trials prove
+whether it governs reality. Do not let a green `npm test` be read as either.
+
+The spine underneath the branding is what makes this worth keeping: deterministic logical time and seeded
+entropy · event-sourced authority-relevant state · snapshot/restore/failover with idempotent side effects ·
+capability attenuation and revocation · evidence graphs that preserve contradictions · adversarial fixtures
+instead of safety promises · candidate/shadow brain with evidence-gated promotion · a situation report that makes
+hundreds of decisions humanly reviewable · and a deliberately weak local brain that must decompose or escalate
+rather than bluff. **That thesis — determinism, governance, reviewability, graceful weakness — is the research
+target. The "Dschinn" branding is not.**
+
+**RETIRED FRAMING (do not reintroduce):** "wipe away OpenClaw/Hermes" is removed as a design criterion. Those
+systems move quickly and the comparison is unmeasurable. The measurable goal is: *demonstrate stricter
+governance, evidence handling, local-model adaptation, and software-factory integration than comparable
+systems.* Likewise "real dark factory, not a workflow toy" oversells what passing proves — see above.
+
+## `npm test` IS NOT AN INDEPENDENT ORACLE (added 2026-07-20)
+
+The implementing agents write **both the code and the tests**. A green `npm test` is therefore consistent with:
+correct implementation · weak tests · tests written around the implementation's mistake · a simulated success
+whose fixture merely reports success · **requirements quietly omitted by both the code and the tests**.
+
+This is not hypothetical: OpenAI's 2026 evaluation audits found benchmark tests that reject CORRECT
+implementations, accept incomplete ones, and encode unstated requirements
+(https://openai.com/index/separating-signal-from-noise-coding-evaluations/). This project must therefore be
+graded by an **external harness the implementing agent cannot edit**.
+
+**!Klein already has the mechanism:** `test/protected/**` is human-gated — edits require an explicit
+`{intent,diff,reason,expectedEffects}` approval (prime directive #5). The oracle for this project lives there.
+
+Required contents of the protected oracle:
+- Global-invariant tests (determinism, conservation, audit totality, taint/evidence separation).
+- **Hidden/adversarial scenario seeds** the agent never sees.
+- **Mutation and metamorphic tests** — a mutant that survives the agent's own suite must die here.
+- Event-log schema + audit-totality checks.
+- **Crash injection at nondeterministically selected boundaries** (not at boundaries the agent chose).
+- Invalid capability-chain generation.
+- **Evidence/authorization separation checks** (the S29 laundering regression above).
+- A real browser-based operator journey.
+- Questions a HUMAN must be able to answer from the situation report alone.
+- Live-adapter contract trials, run separately from deterministic CI.
+
+**Baseline discipline before trusting any of it:** run a **null agent** (does nothing) against this oracle. If it
+scores above zero, the oracle is forgeable and every other number is meaningless. Also run a **no-op ablation** —
+stub the artifact the agent claims to have built and re-run; if the tests still pass, the artifact is decorative.
+
+## TWO VARIANTS — run both, grade with the SAME oracle (added 2026-07-20)
+
+The current specification tells the agent that the SPEC does the thinking and the model follows. That is a valid
+and interesting test, but it measures **faithful execution, retrieval and dependency extraction — NOT
+architecture discovery.** Keep both variants; the DELTA between them is the most valuable research output here.
+
+- **PRESCRIPTIVE benchmark** (what exists today): full build guide, exact interfaces, the 51-card spine.
+  Measures whether !Klein can make a *tiny* model execute a large *known* design.
+- **DISCOVERY benchmark** (to author): vision, invariants, threat model and acceptance criteria ONLY — **no file
+  map, no prescribed interfaces**. Measures whether stronger models can DERIVE a sound architecture.
+
+Both graded by the same independent acceptance suite above.
+
+## THIS SPECIFICATION IS ITSELF A CONTEXT BENCHMARK (added 2026-07-20)
+
+It is **23,691 words / 182 KB**, and it instructs the agent to "read the entire specification before planning".
+Against a 32k context that leaves essentially nothing for system instructions, repository evidence, reasoning, or
+the plan output. **That is acceptable only if we call it what it is: a retrieval, compaction and
+requirements-traceability test.** It is currently ALSO carrying repetition and some conflicting abstractions
+across base + v2 + v3 + v4 + the small-model guide.
+
+Planned split (progressive disclosure — much closer to real large-project work):
+1. A short authoritative **charter**.
+2. A **machine-readable requirement index with stable IDs** (the traceability spine).
+3. **Threat and invariant catalogs.**
+4. The **first-slice packet** (the 51-card spine).
+5. **Capability-specific packets**, loaded only when decomposing that capability.
+6. Historical v2/v3/v4 rationale moved OUT of the active execution spec.
 
 ## How to use this challenge
 
@@ -45,7 +142,7 @@ This challenge should absorb the best of these directions and then exceed them: 
 
 ## Product vision
 
-Build the final master universal super-agent tool: a sovereign, owner-controlled, lights-out software and business factory. It runs on a machine with large unified memory or one or more GPUs, can also burst into cloud or frontier model providers when policy allows, maintains two brains so one can keep working while the other updates, and operates continuously across many projects.
+Build the final master universal super-agent tool: a sovereign, owner-controlled, lights-out software and business factory. It runs on a machine with large unified memory or one or more GPUs, can also burst into cloud or frontier model providers when policy allows, maintains two brain **deployment SLOTS** (active + candidate) so one can keep working while the other updates — **CLARIFIED 2026-07-20: two versioned SLOTS, not two permanently resident model stacks.** On constrained local hardware the candidate may be cold, remotely located on an owned machine, replay-only, or loaded only during an explicit evaluation window. Requiring simultaneous residency would contradict this project's own consumer-memory thesis (and !Klein's standing no-auto-load/unload production constraint), and operates continuously across many projects.
 
 The system must have a chat interface for owner steering, but chat is not the center. The center is an autonomous operating loop that discovers opportunities, plans work, writes software, tests it, ships it, creates marketing assets, publishes campaigns, monitors results, manages support, improves products, tracks finances, updates its own model/tool stack, and proposes reinvestment decisions.
 
@@ -1039,9 +1136,31 @@ how to implement: 1) create an `opportunity` evidence node (trust from the taint
 acceptance: `opportunity.test.ts`: scoring a fixture opportunity yields a thesis node linked to it; a web-scraped opportunity's thesis is `web-scraped-untrusted` and `traceGrounding(thesis, "first-party-verified").grounded === false`. invariant: **Evidence-led, taint-carried (E3, E2).**
 
 **`S29` — Thesis → verified `productSpec`.** dependsOn: `S08`, `S28`. files: `src/factory/product-spec.ts`, `test/factory/product-spec.test.ts`.
-interface: `export function hardenToProductSpec(log: EventLog, g: EvidenceGraph, thesis: Thesis, verification: { byOwner:boolean }): Tainted<ProductSpec>`.
-how to implement: 1) build a `ProductSpec` from the thesis. 2) if `verification.byOwner` → call `verify(...)` to raise the spec to `first-party-verified` (emits a verification audit) — **the only** path to a buildable spec. 3) else leave it tainted (build will be declined downstream).
-acceptance: `product-spec.test.ts`: owner-verified thesis → a `first-party-verified` spec + a verification event; unverified → spec stays `web-scraped-untrusted`. invariant: **Taint monotonicity via explicit verify (E2 / E11.5).**
+**⚠️ CORRECTED 2026-07-20 — THE MOST SERIOUS FLAW IN THE ORIGINAL SPEC.** The old design let
+`verification.byOwner` raise a web-derived thesis to `first-party-verified`. **That is epistemically wrong and is
+an information-LAUNDERING vector sitting immediately upstream of spending, publishing, and self-modification.**
+An owner can legitimately say *"I approve spending €50 to test this weak hypothesis."* An owner **cannot make the
+hypothesis true by approving it.** The original taint model conflated three INDEPENDENT dimensions; they are now
+separate, and no transition on one may silently move another:
+
+- **`EvidenceGrade`**: `unverified` → `corroborated` → `directly-observed` → `experimentally-verified`.
+  Moved ONLY by a reproducible verification process. **Owner approval can never move it.**
+- **`ContentRisk`**: `ordinary` | `untrusted` | `adversarial` | `quarantined`. Moved only by a sanitizer or a
+  quarantine review.
+- **`Authorization`**: `none` | `policy-delegated` | `owner-approved`. Moved only by an owner or policy action.
+
+interface: `export function hardenToProductSpec(log: EventLog, g: EvidenceGraph, thesis: Thesis, grant: { authorization: Authorization }): Graded<ProductSpec>`.
+how to implement: 1) build a `ProductSpec` from the thesis, carrying the thesis's OWN `evidenceGrade` and
+`contentRisk` forward unchanged. 2) apply `grant.authorization` to the AUTHORIZATION axis only, emitting an
+authorization audit event that records who granted it and for what budget. 3) the downstream build gate requires
+BOTH sufficient authorization AND an evidence grade that meets the stakes — a low-evidence thesis may still be
+built as an explicitly-labelled EXPERIMENT, but it may never be recorded as verified.
+acceptance: `product-spec.test.ts`: (a) owner-approved unverified thesis → `authorization: "owner-approved"` AND
+`evidenceGrade: "unverified"` — **assert the grade did NOT move**; (b) an experimental verification run raises
+`evidenceGrade` with NO change to authorization; (c) a spec that is owner-approved but unverified is buildable
+only through the experiment path and is labelled as such in the situation report; (d) **the laundering
+regression test**: no sequence of owner approvals may produce `experimentally-verified`.
+invariant: **Evidence/authority separation (E2 / E11.5) — three axes, independently monotonic.**
 
 **`S30` — Build the product via the governed KleinAdapter.** dependsOn: `S27`, `S29`. files: `src/factory/build-step.ts`, `test/factory/build-step.test.ts`.
 interface: `export function buildProduct(log:EventLog, adapter:KleinAdapter, g:EvidenceGraph, spec:Tainted<ProductSpec>, brain:Brain, grant:Capability, clock:Clock): CommissionResult`.
@@ -1271,7 +1390,13 @@ Note: **inject** clock+prng+log; **never** import a wall clock; money is integer
 
 **P1. Floating-point money (breaks determinism + conservation).** A 3B will write `revenue * 0.3`. That yields `0.30000000000000004` and silently violates `assertConservation`. **Fix:** money is **integer minor units** everywhere; split by **basis points with integer math**, giving the remainder to `reserve` (S21) so cents are never lost or created. The ledger schema (`z.number().int()`) will reject non-integers — trust the schema.
 
-**P2. Losing the dependsOn graph on a 600-card plan (the signature #36 failure).** The model forgets an edge and a card runs before its dependency exists, or it builds breadth before the spine. **Fix:** (a) build **strictly** in `Snn` order for the slice; (b) for decomposed cards, the §M0 rule is mandatory — every card lists *both* its slice-primitive deps *and* the prior layer card of the same capability; (c) never schedule a card whose `dependsOn` aren't all `done`; (d) when unsure, **over-depend**. A card with a missing edge is a bug even if it happens to pass in isolation. The 30-day invariant battery (S40) is the backstop: breadth that regresses the spine fails it.
+**P2. Losing the dependsOn graph on a 600-card plan (the signature #36 failure).** The model forgets an edge and a card runs before its dependency exists, or it builds breadth before the spine. **Fix:** (a) build **strictly** in `Snn` order for the slice; (b) for decomposed cards, the §M0 rule is mandatory — every card lists *both* its slice-primitive deps *and* the prior layer card of the same capability; (c) never schedule a card whose `dependsOn` aren't all `done`; (d) **CORRECTED 2026-07-20 — do NOT "when unsure, over-depend".** False dependencies serialize a swarm and hide
+poor modularity, which is the opposite of what this project is testing. **Every dependency must STATE WHAT IT
+CARRIES**, one of: `artifact` (needs a file/output that card produces) · `api-schema` (needs a type/contract it
+defines) · `authority-policy` (needs a capability or policy it establishes) · `shared-resource` (mutual exclusion
+on the same file/table) · `ordering-only` (a migration that must precede). **An UNKNOWN dependency triggers
+INVESTIGATION, not automatic serialization** — record it as an open question on the card rather than an edge.
+A card with a genuinely missing edge is still a bug even if it passes in isolation. The 30-day invariant battery (S40) is the backstop: breadth that regresses the spine fails it.
 
 **P3. Faking an audit / a passing test (the DGM + AI-Village failure, in miniature).** The model will (a) write a side effect without its audit event, or (b) have the fixture build report `outcome:"success"` and assume it's done. **Fix:** (a) **every** external side effect must be created **together with** its `AuditEvent` (the `moveMoney`/`launchProduct`/`reply` helpers do both atomically) — `assertAuditTotality` (S11) is a differential test that *will* catch an orphan; (b) **never trust a self-reported success** — `verifyBuildSuccess` (S26) re-derives truth from the `EvidenceBundle`, and the `fabricateTestLog` fixture exists precisely to fail any code that skips re-derivation (invariant V8.11). If you find yourself writing `// tests passed` without bundle evidence, stop.
 

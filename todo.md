@@ -5105,6 +5105,76 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is another argument for P17.1's runtime-adapter boundary.
 
 
+### Phase 23 — dev-test-project 36 (Dark Factory / Dschinn) hardening (external review incorporated 2026-07-20)
+
+> **Verdict: KEEP IT — likely the most valuable dev-test project in the repo — but describe it honestly.** It is a
+> governed autonomous-factory SIMULATION and an extreme-decomposition test, NOT proof of a working autonomous
+> business. External assessment: !Klein stress test **9/10**, research architecture **8/10**, proof a real
+> autonomous business factory works **3/10 today**, "can a 3B EXECUTE a prescribed architecture" **9/10**, "can a
+> 3B DESIGN the right architecture" **4/10**. Spec + user-prompt already corrected in-place (2026-07-20).
+
+- [x] **P23.1 — Honest framing + retire unmeasurable competitor goals.** DONE 2026-07-20: added a
+  "WHAT THIS PROJECT ACTUALLY IS" preamble that outranks the vision language; removed "wipe away OpenClaw/Hermes"
+  (unmeasurable against fast-moving projects — replaced with "demonstrate stricter governance/evidence/local-model
+  adaptation/factory integration") and "real dark factory, not a workflow toy" (oversells what passing proves).
+  Recorded what passing WOULD and would NOT demonstrate, and that a second **ecological-validation tier** of live
+  trials is required: deterministic simulation proves the control plane, repeated live runs prove it governs
+  reality.
+- [x] **P23.2 — ⚠️ Fix the evidence/authority conflation (the most serious flaw).** DONE 2026-07-20. The old S29
+  let owner approval raise a web-derived thesis to `first-party-verified` — **epistemically wrong, and an
+  information-LAUNDERING vector sitting immediately upstream of spending, publishing and self-modification.** An
+  owner can approve spending €50 to test a weak hypothesis; an owner cannot make the hypothesis TRUE by approving
+  it. Split into three independently-monotonic axes: **`EvidenceGrade`** (moved only by reproducible
+  verification), **`ContentRisk`** (moved only by sanitizer/quarantine review), **`Authorization`** (moved only by
+  owner/policy). Added a laundering REGRESSION test: no sequence of owner approvals may ever produce
+  `experimentally-verified`.
+- [x] **P23.3 — Remove the 400–650-card mandate; spine-first instead.** DONE 2026-07-20. A fixed card count
+  rewards fragmentation over plan quality, creates a huge stale plan before any architectural assumption is
+  tested, multiplies false dependencies, and incentivises 600 plausible-looking cards regardless of need. New
+  sequence: plan the **51-card spine** → implement + validate against the independent oracle → **REPLAN from what
+  implementation taught** → expand one capability family at a time → stop when every requirement has coverage,
+  not when a counter hits 650. Graph-scale rendering/scheduling becomes a SEPARATE generated test so a quantity
+  benchmark cannot distort the architecture benchmark.
+- [x] **P23.4 — Replace "when unsure, over-depend" with TYPED dependencies.** DONE 2026-07-20. False dependencies
+  serialize a swarm and hide poor modularity — the opposite of what this project tests. Every edge must now state
+  what it carries: `artifact` · `api-schema` · `authority-policy` · `shared-resource` · `ordering-only`. **An
+  unknown dependency triggers INVESTIGATION (an open question on the card), never automatic serialization.**
+- [ ] **P23.5 — Build the PROTECTED external oracle (the real remaining work).** `npm test` is not an independent
+  oracle: the agents write both the code and the tests, so green is equally consistent with correct code, weak
+  tests, tests written around the mistake, a fixture that merely reports success, or **requirements omitted by
+  both**. !Klein already has the mechanism — **`test/protected/**` is human-gated** (prime directive #5), so the
+  oracle lives there. Contents specified in the project's spec: global invariants, hidden/adversarial seeds,
+  mutation + metamorphic tests, event-log schema/audit-totality, **crash injection at boundaries the agent did
+  not choose**, invalid capability chains, the S29 evidence/authorization separation check, a browser operator
+  journey, human-answerable situation-report questions, and live-adapter contract trials outside deterministic CI.
+  **Gate: run a NULL AGENT against it first (P20.1) — if it scores above zero the oracle is forgeable — plus the
+  no-op ablation (P20.3).**
+- [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
+  the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
+  extraction, but NOT of architecture discovery. Keep the prescriptive benchmark and add a discovery variant
+  carrying vision + invariants + threats + acceptance criteria ONLY (no file map, no prescribed interfaces).
+  **The DELTA between the two, graded by one oracle, is the most valuable research output this project can
+  produce.**
+- [ ] **P23.7 — Progressive-disclosure split of the specification.** It is **23,691 words / 182 KB** and instructs
+  "read the entire specification before planning" — against a 32k context that leaves nothing for system
+  instructions, repo evidence, reasoning or plan output. That is acceptable ONLY if named honestly as a
+  retrieval/compaction/traceability test (now recorded in the spec). Split into: short authoritative charter ·
+  **machine-readable requirement index with stable IDs** (the traceability spine) · threat + invariant catalogs ·
+  first-slice packet · per-capability packets loaded on demand · historical v2/v3/v4 rationale moved OUT of the
+  active execution spec. Base+v2+v3+v4+small-model-guide currently carry repetition and some conflicting
+  abstractions.
+- [x] **P23.8 — "Two brains" = two versioned deployment SLOTS, not two resident stacks.** DONE 2026-07-20:
+  clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
+  explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory
+  thesis AND !Klein's standing no-auto-load/unload production constraint.
+- [ ] **P23.9 — Keep the Dschinn/!Klein boundary strict (review confirmed it is mostly right).** Dschinn owns
+  portfolio decisions, business operations, financial governance, owner policy, opportunity research and tool
+  selection; !Klein owns software planning, implementation, review, testing and delivery; `KleinAdapter`
+  translates. **Finance/marketing/"universal agent" machinery must never leak into !Klein's core, and Dschinn must
+  CONSUME !Klein's evidence rather than reconstruct its execution internals.** Add a boundary lint/check so the
+  leak is caught mechanically rather than by reviewer memory.
+
+
 ## 6. Legacy section alias map
 
 This map preserves the old enumeration as a lookup aid; it is not a second queue.
