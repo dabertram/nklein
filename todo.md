@@ -2800,7 +2800,7 @@ output and NOT acted on. Captured as F12.12.)
   over successes/failures to evolve the decompose/worker/reviewer system prompts PER model×role, gated behind an eval that
   proves the evolved prompt beats the current one before adoption. Potentially a large capability multiplier for weak
   local models. (gepa-ai/gepa; morphllm GEPA; DSPy MIPROv2)
-- [~] **F12.29 — Execution-VALIDATED skill entries + dependency-aware retrieval (extends F4.19).** Voyager's lesson: a
+- [x] **F12.29 — Execution-VALIDATED skill entries + dependency-aware retrieval (extends F4.19).** Voyager's lesson: a
   persistent skill library works when skills are code VALIDATED BY EXECUTION, indexed by natural-language description, and
   retrieved dependency-aware (3.3× more progress, no fine-tuning). !Klein's F4.19 distills focus-chains into CANDIDATE
   procedures — strengthen it: attach an execution/acceptance-validation signal to promotion (not just helped/hurt tallies),
@@ -2809,10 +2809,14 @@ output and NOT acted on. Captured as F12.12.)
   acceptance-level, stronger than helped/hurt judgment tallies; legacy records = unmeasured) +
   `dependsOnSkillIds`; recordProceduralSkillExecutionOutcome + isExecutionValidatedForPromotion (candidate→active
   requires ≥1 validation AND validated > refuted — unmeasured ≠ validated) + expandSkillsWithDependencies
-  (dependencies-first, deduped, cycle-safe, non-retrievable deps skipped). 4 tests. REMAINING WIRE: record the
-  execution outcome at the terminal-attempt seam (skill-assisted attempt + acceptance verdict → one call, same
-  best-effort block as the F4.19 producer), consult the promotion gate in decideSkillLifecycleTransition (opt-in
-  param), and the NL-description semantic index (needs the embed path — design with F4.19's retrieval).
+  (dependencies-first, deduped, cycle-safe, non-retrievable deps skipped). 4 tests. **EXECUTION RECORDER WIRED
+  2026-07-19 (completes the item):** `procedural-skill-execution-recorder.ts` at the review runner's FRESH
+  acceptance verdict — reads the task's latest attempt's surfacedSkillIds from the ledger, records
+  validated/refuted per surfaced skill (fire-and-forget, best-effort by contract). The promotion gate is enforced
+  at the OPERATIVE promotion path (the F12.30 sweep double-gates on isExecutionValidatedForPromotion);
+  decideSkillLifecycleTransition is the separate §5.AR skill-IMPORT lifecycle whose activation bar already
+  requires deterministic validation — no consult needed there. SPLIT OUT: the NL-description semantic index
+  needs the embed path and folds into F4.19's retrieval design (tracked at F4.19).
 - [~] **F12.30 — Ground-truth-free skill/procedure auditing for the F4.19 lifecycle.** SkillAudit evolves skills via PAIRED
   TRAJECTORY auditing without ground truth — compare trajectories that used a procedure vs didn't, to decide promote/revise/
   retire. This is the missing candidate→active promotion SIGNAL for the procedural bank when there's no labeled outcome:
