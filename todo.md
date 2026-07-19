@@ -4078,7 +4078,7 @@ verify-before-build caveat: confirm each against current code before implementin
   machinery the wire uses, not by this probe. 3 wire tests (tighten / never-loosen / default-OFF) + 5 core tests;
   runtime suite green (10,969). External corroboration for the design: Cognition's clean-context reviewer catches
   ~2 bugs/PR (~58% severe) and performs BETTER with clean context (see P21.11).
-- [~] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
+- [x] **F12.92 — Every-k-step drift critic.** A second local model inspects the running trajectory every 5–10 turns and emits
   DRIFT FLAGS + short hints (not solutions), fed back to the worker. Distinct from the §12 turn-loop guard (a repetition
   detector) and F12.42 trajectory scorer (post-hoc): this catches subgoal drift / over-commitment to a wrong hypothesis
   mid-run. Rationale: "Steer, Don't Solve" took a frozen 32B from 29.2%→65.0% on SWE-bench Verified with a PROMPTED critic. (Steer Don't Solve 2606.21811)
@@ -4090,9 +4090,32 @@ verify-before-build caveat: confirm each against current code before implementin
   at 3 flags so a chatty critic cannot flood the worker's context; ON_TRACK/empty/unparseable all read as
   on-track — a spurious nudge is worse than none). Feedback renders as an OPTIONAL nudge the worker may reject.
   11 tests.
-  REMAINING (fleet-gated wire): run the critic as a bounded secondary session on the cadence (explorer/
-  plan-critique harness pattern) and inject `workerNote` at the turn boundary — needs real model time to tune the
-  cadence and confirm the critic's false-positive rate before any default-on.
+  **WIRE SHIPPED + LIVE-VALIDATED 2026-07-20 — item COMPLETE.** Wired into `nklein-context-focus-extension`
+  (the live `beforeModel` seam that already hosts the F12.21 goal re-anchor whose cadence rule this mirrors),
+  behind an injected `driftCriticCaller` — undefined ⇒ inert, byte-identical.
+  **DESIGN: the critic runs OUT OF BAND and `beforeModel` NEVER awaits it.** Two independent steps per turn:
+  (a) inject any verdict a PREVIOUS turn's check produced, (b) kick off the next check without awaiting. A nudge
+  that is optional by design cannot justify taxing every worker turn with a second model's latency, so verdicts
+  land a turn or more later; an `inFlight` set stops a slow critic being re-started every turn. Any critic failure
+  is swallowed. Both outcomes record observations (`drift_critic_flagged` / `drift_critic_on_track`) so Phase 15
+  can measure the false-positive rate before anyone defaults it ON.
+  **⚠️ LIVE-FOUND SILENT-INERTNESS TRAP (now a documented contract on `DriftCriticModelCaller`):** a reasoning
+  model returns an EMPTY `message.content` and puts everything in `reasoning_content`. Since
+  `parseDriftCriticVerdict("")` correctly reads as ON-TRACK (it must never manufacture feedback), **a caller that
+  reads only `.content` yields a critic that never fires and looks perfectly healthy doing so.** The caller MUST
+  fall back to `reasoning_content`. This is the same class as the §4A "reasoning models return empty content"
+  lesson, but with a nastier failure mode: not an error, just permanent silence.
+  **LIVE VALIDATION 2026-07-20 (qwen3.6-27b-mlx-vl-oq8 @ m5max, low-power):** fed a genuinely drifting trajectory
+  — objective "fix login 500 → return 400", worker building a generic schema-validation framework + plugin system
+  + registry. Verdict `onTrack:false` with three well-formed flags, all correct and all STEER-not-solve:
+  "Building a generic schema-validation framework and plugin system → revert to applying the existing validation
+  helper directly", "Expanding scope from a single endpoint fix to a full validation architecture → focus on
+  wiring the missing email check into the login route handler", "Implementing registry and plugin infrastructure
+  → prioritize returning the 400 response over framework abstraction". Flag cap (3) held. 7 wire-contract tests
+  + 11 core tests; runtime suite green (10,976).
+  NOTE the first CALM check lands at turn 8, not turn 4: the 4-turn floor and the 8-turn cadence are DISTINCT
+  gates (clearing the floor is necessary, not sufficient). Under distress the tightened cadence (4) meets the
+  floor, so the first check can fire at turn 4. A test pins this — I got it wrong first.
 - [~] **F12.93 — Property-based acceptance gate.** Generate spec-derived INVARIANTS (independent of the implementation) and run
   a PBT engine (Hypothesis/fast-check) as a delivery gate, separate from the model's own example tests. Rationale: catches
   code that passes example tests but violates invariants — breaks self-generated-test "self-deception"; +12.6pp

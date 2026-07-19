@@ -9,6 +9,7 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
+import { buildDriftCriticPrompt, decideDriftCheck, parseDriftCriticVerdict } from "../core/drift-critic";
 import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
@@ -48,7 +49,7 @@ import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
 import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 import { buildStallReplanMessage } from "./stall-replan-message";
-import { decideTaskReanchorForRequest } from "./task-reanchor-before-model";
+import { decideTaskReanchorForRequest, firstUserGoalText } from "./task-reanchor-before-model";
 import { latestStepText, narrowToolsForStep } from "./two-phase-before-model";
 import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
 
@@ -159,6 +160,30 @@ async function appendRepoMapBeforeModel(
 	};
 }
 
+/**
+ * F12.92 drift-critic per-session state.
+ *
+ * The critic runs OUT OF BAND: `beforeModel` never awaits it. A critic that blocked the worker's turn would tax
+ * every run with a second model's latency for a nudge that is optional by design — so a check is kicked off
+ * without awaiting, and its verdict is injected on a LATER turn when it is ready. `inFlight` prevents a slow
+ * critic from being started again on each subsequent turn.
+ */
+const driftCriticLastCheckTurnBySessionId = new Map<string, number>();
+const driftCriticPendingNoteBySessionId = new Map<string, string>();
+const driftCriticInFlightSessionIds = new Set<string>();
+
+/**
+ * Injected caller that runs ONE bounded critic completion and returns its raw text (null ⇒ no verdict).
+ *
+ * ⚠️ IMPLEMENTER CONTRACT — LIVE-FOUND 2026-07-20, and violating it makes this feature SILENTLY INERT:
+ * a reasoning model returns an EMPTY `message.content` and puts everything in `message.reasoning_content`.
+ * `parseDriftCriticVerdict("")` correctly reads as ON-TRACK (it must never manufacture feedback), so a caller
+ * that reads only `.content` produces a critic that never fires and looks perfectly healthy while doing so.
+ * **The caller MUST fall back to `reasoning_content` when `content` is empty.** Confirmed against
+ * qwen3.6-27b-mlx-vl-oq8: content empty, reasoning_content carried three correct DRIFT/HINT pairs.
+ */
+export type DriftCriticModelCaller = (prompt: string) => Promise<string | null>;
+
 export function createKanbanContextFocusExtension(
 	sessionId: string,
 	// The agent-perceived (sandbox) cwd. Used only for the large-file workflow's per-session state key; under
@@ -174,6 +199,8 @@ export function createKanbanContextFocusExtension(
 	// §5.O opt-in two-phase tool narrowing: when supplied (only when NKLEIN_TWO_PHASE_TOOL_PICK is set), beforeModel runs a
 	// phase-1 pick over the offered tools and narrows the request's tools to it. Undefined ⇒ inert (byte-identical default).
 	twoPhasePickCaller?: TwoPhasePickModelCaller,
+	// F12.92 opt-in drift critic (only supplied when NKLEIN_DRIFT_CRITIC is set). Undefined ⇒ inert, byte-identical.
+	driftCriticCaller?: DriftCriticModelCaller,
 ): NKleinSdkRuntimeExtension {
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
@@ -262,6 +289,91 @@ export function createKanbanContextFocusExtension(
 							reanchor.nextLastReanchorTurn ?? context.snapshot.iteration,
 						);
 						finalResult = { ...(finalResult ?? {}), messages: reanchor.messages };
+					}
+				}
+				// F12.92 DRIFT CRITIC (opt-in: inert unless a `driftCriticCaller` was injected). Two independent
+				// steps, in this order:
+				//   (a) INJECT any verdict that a previous turn's check already produced. Injection is what the
+				//       worker sees; it is a plain nudge the worker may reject (steer, don't solve).
+				//   (b) KICK OFF the next check WITHOUT awaiting it. The critic must never sit on the worker's
+				//       critical path — a nudge that is optional by design cannot justify taxing every turn with a
+				//       second model's latency. Its verdict lands on a later turn.
+				if (driftCriticCaller) {
+					const pendingNote = driftCriticPendingNoteBySessionId.get(sessionId);
+					if (pendingNote) {
+						driftCriticPendingNoteBySessionId.delete(sessionId);
+						const driftBase = finalResult?.messages ?? baseMessages;
+						finalResult = {
+							...(finalResult ?? {}),
+							messages: [
+								...driftBase,
+								{
+									id: `kanban-drift-critic-${driftBase.length}`,
+									role: "user" as const,
+									content: [{ type: "text" as const, text: pendingNote }],
+									createdAt: Date.now(),
+									metadata: { kind: "kanban-drift-critic" },
+								},
+							],
+						};
+					}
+					const driftTurn = context.snapshot.iteration;
+					const driftDistress =
+						progressStallFlaggedSessionIds.has(sessionId) ||
+						(editThrashFlaggedBySessionId.get(sessionId)?.size ?? 0) > 0;
+					const driftDecision = decideDriftCheck({
+						turn: driftTurn,
+						lastCheckTurn: driftCriticLastCheckTurnBySessionId.get(sessionId) ?? null,
+						inDistress: driftDistress,
+					});
+					if (driftDecision.check && !driftCriticInFlightSessionIds.has(sessionId)) {
+						driftCriticInFlightSessionIds.add(sessionId);
+						driftCriticLastCheckTurnBySessionId.set(sessionId, driftTurn);
+						const chain = focusChainBySessionId.get(sessionId) ?? null;
+						const objective =
+							firstUserGoalText(finalResult?.messages ?? baseMessages) ?? "(objective unavailable)";
+						const recentActivity =
+							lastOfferedToolNames.length > 0
+								? `Tools offered this turn: ${lastOfferedToolNames.slice(0, 20).join(", ")}`
+								: "(no recent tool activity recorded)";
+						void driftCriticCaller(
+							buildDriftCriticPrompt({
+								taskObjective: objective,
+								focusChain: chain ? chain.steps.map((step) => `- ${step.text}`).join("\n") : null,
+								recentActivity,
+							}),
+						)
+							.then((text) => {
+								const verdict = parseDriftCriticVerdict(text ?? "");
+								// ON-TRACK (and any unparseable reply) injects NOTHING — a spurious nudge is worse
+								// than none, and a critic that always finds something trains the worker to ignore it.
+								if (!verdict.onTrack && verdict.workerNote) {
+									driftCriticPendingNoteBySessionId.set(sessionId, verdict.workerNote);
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Drift critic flagged ${verdict.flags.length} concern(s) at turn ${driftTurn}.`,
+										metadata: {
+											category: "drift_critic_flagged",
+											flags: verdict.flags.length,
+											turn: driftTurn,
+										},
+									});
+								} else {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Drift critic found the run on-track at turn ${driftTurn}.`,
+										metadata: { category: "drift_critic_on_track", turn: driftTurn },
+									});
+								}
+							})
+							.catch(() => {
+								// Best-effort: a failed critic must never disturb the worker's run.
+							})
+							.finally(() => {
+								driftCriticInFlightSessionIds.delete(sessionId);
+							});
 					}
 				}
 				// F12.22 forced replan (opt-in via NKLEIN_STALL_REPLAN): a session whose progress ledger stalled is
