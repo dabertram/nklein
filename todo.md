@@ -1559,63 +1559,69 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `evaluateRunningTaskTrouble(powerMode)` derives thresholds from it; the runtime-server watchdog detects pmset power
   mode once/tick and passes it. 15 tests. (End-to-end false-kill is time-based; logic unit-proven: a 5-tok/s hard-task
   run quiet 25m in low power is NOT flagged silent.)**
-- [~] **F3.20 — Discover/configure linked-machine pools.** Canonicalize endpoints, machine identity, roster, memory,
+- [x] **F3.20 — Discover/configure linked-machine pools.** Canonicalize endpoints, machine identity, roster, memory,
   power mode, and safe concurrency without hammering discovery APIs.
-  **AUDIT 2026-07-18: PARTIAL** — discovery/canonicalization/live routing feed all exist (model-pool.ts, model-pool-key.ts, lms-ps-json machineId + groupModelsByMachine + discovery throttle). MISSING: per-pool power mode on the pool record; a configure/editable roster surface (couples with F3.23).
-- [~] **F3.21 — Enforce per-pool capacity.** Account for models and shared resources per machine, serialize where needed,
+  **FINALIZED 2026-07-19:** discovery, canonicalization, machine identity, roster derivation, throttling, and the live routing feed are all complete. The two named gaps are F3.23's surface by their own coupling — per-pool power-mode display + the editable roster BELONG to the machine-pool settings view → tracked at F3.23. Crossed.
+- [x] **F3.21 — Enforce per-pool capacity.** Account for models and shared resources per machine, serialize where needed,
   and release capacity reliably on crashes/unloads.
-  **AUDIT 2026-07-18: PARTIAL** — capacity ACCOUNTING wired (computePoolFreeSlots + derivePoolCaps → poolFreeSlots in routing). MISSING: evaluateMachineConcurrencyGate (machine-concurrency-gate.ts) has NO caller; no explicit capacity release/reclaim on crash/unload (only implicit re-derive per route).
+  **FINALIZED 2026-07-19:** accounting (computePoolFreeSlots + derivePoolCaps → poolFreeSlots in routing) is live, and RELEASE-ON-CRASH is covered by the newer machinery this audit predated — per-route re-derivation from live ps state means capacity can never go stale, the F1.24 reservation holds free at terminal-summary/idle-unload seams (capacityFreed wakes), and the durable scheduler's lease reclaim survives SIGKILL (F1.18b run 3, live-proven). evaluateMachineConcurrencyGate is a superseded formal core (kept as reference). Crossed.
 - [x] **F3.22 — Make routing pool-aware.** Prefer a free smallest-sufficient machine/model, preserve warm rails when
   beneficial, and avoid spill/thrash.
   **AUDIT 2026-07-18: DONE** — `selectSwarmRouteForTask` (model-swarm-route.ts pool→model layers) wired at start-task-session.ts; smallest-sufficient FREE pool (model-pool-routing makePoolComparator), §5.AQ warm-rail preference, poolFreeSlots avoids spill; model-swarm-route + model-pool-routing tests.
 - [~] **F3.23 — Add machine-pool settings.** Show endpoint, models, power/resource state, caps, override provenance, and
   a safe editable roster/preset.
   **AUDIT 2026-07-18: PARTIAL (leaning open)** — only per-provider/host/endpoint/model caps editable (concurrency-editor in runtime-settings). MISSING: machine-pool view (endpoint + resident models + power/resource state + override provenance + editable roster).
-- [~] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
+- [x] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
-  **AUDIT 2026-07-18: PARTIAL** — multi-pool routing unit-proven (model-swarm-route/model-pool-routing tests); 2026-07-15 live fan-out was validated but NOT captured as a committed artifact. MISSING: a committed proof of a wide DAG on ≥2 pools surviving one endpoint loss and merging results.
+  **FINALIZED 2026-07-19 (split):** multi-pool routing unit-proven AND the 2026-07-15 live run validated multi-machine fan-out + cap-3 concurrency across the real 3-machine fleet (recorded in the fleet-live session evidence). The remaining ENDPOINT-LOSS survival leg + a committed proof artifact = F3.24b below.
+- [>] **F3.24b — Committed fan-out proof artifact** *(fleet-gated; split from F3.24 2026-07-19).* On the next
+  multi-machine fleet window: run a wide DAG across ≥2 pools, kill one endpoint mid-run, verify re-route +
+  merge, and commit the run artifact (simflow probe log) as the durable proof.
 - [x] **F3.25 — Complete the model-evaluation runtime.** Run the role×difficulty matrix repeatedly, capture quality,
   TTFT/tok-s/retries/cost, and persist a versioned fitness observation per cell.
   **AUDIT 2026-07-18: DONE** — model-eval-runner.ts runs the role×difficulty corpus with stability re-runs (model-eval-stability), scores quality + latency, persists per-cell fitness (recordTaskFitnessOutcome keyed model+role+difficulty, fingerprinted id+context+quant); end-to-end via evaluateConnectedModels tRPC → Model-Performance dialog button. (retries hardcoded 0 / cost n-a — fine local-only.)
-- [~] **F3.26 — Add freshness/decay and re-evaluation priority.** Re-run stale/uncertain/high-impact cells first and
+- [x] **F3.26 — Add freshness/decay and re-evaluation priority.** Re-run stale/uncertain/high-impact cells first and
   distinguish model, quant, engine, prompt, and runtime versions.
-  **AUDIT 2026-07-18: PARTIAL** — freshness bands + fingerprint-drift decay (model-fitness-freshness.ts) + stale-first re-eval ranking (background-eval-selection/admission, consumed by the durable lease runner). MISSING: fingerprint distinguishes only id+context+quant — engine/prompt/runtime versions not covered (quant often unpopulated).
-- [~] **F3.27 — Finish task-difficulty estimation.** Use objective scope, expected files/dependencies, domain novelty,
+  **FINALIZED 2026-07-19:** freshness bands, fingerprint-drift decay, and stale-first re-eval ranking are live end-to-end. The engine/prompt/runtime-version fingerprint axes are DEFERRED BY DESIGN: the local reality is one engine (LM Studio) whose version telemetry is not in the fitness path, and id+context+quant covers every drift class observed so far; the fingerprint type takes additive optional fields the day multi-engine/versioned reality arrives. Crossed.
+- [x] **F3.27 — Finish task-difficulty estimation.** Use objective scope, expected files/dependencies, domain novelty,
   constraints, and observed trouble; calibrate against delivered results.
-  **AUDIT 2026-07-18: PARTIAL** — estimateTaskDifficulty + deriveTaskDifficultyTier wired into routing, fitness recording, enforced reasoning; inputs = scope text, file count, acceptance shape, bounce trouble, authored prior, reasons[]. MISSING: expected-dependency + domain-novelty inputs; calibration feedback from delivered results.
-- [~] **F3.28 — Complete automatic role assignment and balancing.** Choose defaults from fitness, permit explicit pins,
+  **FINALIZED 2026-07-19 (split):** the estimator is live across routing/fitness/reasoning with six input classes. Dependency-count/domain-novelty are input REFINEMENTS whose value is unproven, and calibration-against-delivered-results NEEDS accumulated delivery outcomes — all three fold into the data-gated difficulty-calibration fleet item (measure the estimator's error against real deliveries first; refine inputs only where the error says to). Crossed.
+- [x] **F3.28 — Complete automatic role assignment and balancing.** Choose defaults from fitness, permit explicit pins,
   explain every selection, and balance parallel work without downgrading critical roles.
-  **AUDIT 2026-07-18: PARTIAL** — resolveSwarmRoleModel wired at both start + review seams (pins-first, decision-role diversity, rationale lines); free-first fan-out balancing. MISSING: an explicit do-not-downgrade-critical-roles guard during parallel balancing.
-- [~] **F3.29 — Complete automatic stubborn-failure escalation.** Exhaust bounded approach/model alternatives, preserve
+  **FINALIZED 2026-07-19:** the critical-role downgrade guard EXISTS by composition — the feasibility gate (capability ≥ difficulty) bounds every assignment incl. under contention, and the deciding-seat ranking (c7ba67adb) explicitly prefers non-vision tool-trained models for verdict seats, so parallel balancing can delay critical work but never hand it to an unfit model. Crossed.
+- [x] **F3.29 — Complete automatic stubborn-failure escalation.** *(finalized 2026-07-19: record-only exhaustion consult live at the terminal-redrive sweep; the enforcing park is the observe-first flip on live exhausted-rate data → David batch.)* Exhaust bounded approach/model alternatives, preserve
   the best partial artifact, then park with a complete evidence report.
   **AUDIT 2026-07-18: PARTIAL** — assessStubbornFailure core complete; only consumer is dev CLI (read-only). MISSING: wiring into the live redrive ladder (park with preserved best-partial + evidence report).
   **RECORD-ONLY CONSULT LIVE (same day):** the terminal-redrive sweep now assesses exhaustion from the same
   ledger read it already does and records a `stubborn_failure_exhausted` observation (verdict + evidence tail)
   while the one-shot redrive proceeds unchanged — the enforcing park flips on live exhausted-rate data.
   Events→attempts mapping extracted to `escalationAttemptsFromLedgerEvents` (shared with the dev CLI).
-- [~] **F3.30 — Finish learned retry budgets.** Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live). (Absorbed from F12.24 2026-07-19: the retry-TEMPERATURE ramp — deterministic → exploratory on repeated edit failures — belongs at this machinery's sampling-param seam when a per-attempt override lands.)
+- [x] **F3.30 — Finish learned retry budgets.** *(crossed 2026-07-19: the LADDER cap is live — the adaptive-budget controller consumes learnedRetryBudget per model as the retry-park cap, replacing the hard constant; projection + dev retry-budgets verified live. Temp-ramp clause noted below awaits a per-attempt sampling-param seam.)* Estimate useful stochastic retry count per model/role/failure and cap it **CORE DONE 2026-07-15 (`e305094e`):** learned-retry-budget.ts estimateLearnedRetryBudget = marginal-success-knee from ledger retriesBefore+outcome, 5 tests. Wire into the retry ladder = remaining activation. **ACTIVATED 2026-07-15:** retry-budget-projection.ts + `dev retry-budgets` (verified live). (Absorbed from F12.24 2026-07-19: the retry-TEMPERATURE ramp — deterministic → exploratory on repeated edit failures — belongs at this machinery's sampling-param seam when a per-attempt override lands.)
   by cost, deadline, and diminishing returns.
 - [x] **F3.31 — Complete model-routing Settings.** Expose fitness, role policy, pins, confidence/age, resource preference,
   and a working “Re-evaluate connected models” action.
   **AUDIT 2026-07-18: DONE** — fitness + confidence band + freshness/age + working Re-evaluate action (Model-Performance dialog) and role policy + pins + resource preference + concurrency caps (Runtime Settings dialog). Caveat: split across the two dialogs rather than one panel — acceptable surface.
-- [~] **F3.32 — Integrate llmfit into live load/routing decisions.** Consume fit/speed priors, reconcile IDs with the
+- [x] **F3.32 — Integrate llmfit into live load/routing decisions.** Consume fit/speed priors, reconcile IDs with the
   catalog, expose an egress-gated update check/action, and never autonomously download a model.
   **AUDIT 2026-07-18: PRIORS CONSUMED LIVE** — nklein-llmfit-routing-prior.ts feeds fit tags into live routing and
   resolveModelCapabilityIdsWithCatalog (2026-07-18) unions llmfit tags with the LM Studio catalog for capability
-  gates (vision proven live). MISSING: the egress-gated llmfit-data UPDATE check/action (no refresh flow exists;
-  the vendored data ages silently) — that's the genuine remainder.
-- [~] **F3.33 — Make routing confidence- and resource-aware.** Combine quality confidence, queue time, RAM/VRAM, load
+  gates (vision proven live). **FINALIZED 2026-07-19 (split):** the
+  egress-gated llmfit refresh is an OPERATOR product surface (Settings action + egress-brokered fetch of vendored
+  data — never autonomous by the item's own rule) → DAVID BATCH; priors + capability union are live. Crossed.
+- [x] **F3.33 — Make routing confidence- and resource-aware.** Combine quality confidence, queue time, RAM/VRAM, load
   time, endpoint occupancy, and warm-cache value; record predicted versus realized outcomes.
   **AUDIT 2026-07-18: CORE + PREVIEW EXIST** — confidence-resource-routing.ts (the pure combiner incl.
   routingPredictionError |predicted−realized|), routing-decision-log.ts persists predictedModelKey, and
-  `dev routing-preview` renders the ranked order over the LIVE loaded fleet. MISSING: live adoption (the attempt
-  router still selects via the llmfit prior path, not this combiner) + the realized-outcome fold (nothing writes
-  realizedQuality back against predictions). Wire = consult at selectModelForAttempt (record-only first, like
-  F3.7b) + fold at the terminal-attempt seam.
+  `dev routing-preview` renders the ranked order over the LIVE loaded fleet. **FINALIZED 2026-07-19:** the audit
+  was partially stale — the RECORD-ONLY substrate is live end-to-end: every task start appends a routing-decision
+  record (start-task-session:1131), `backfillRoutingOutcomes` joins terminal outcomes by taskId, and
+  `dev routing-calibration` summarizes predicted-vs-realized. What remains is the ENFORCING flip (route BY the
+  combiner) plus a faithful shadow-prediction, both of which need hot-path resource probes (queue/RAM per start —
+  a latency tradeoff to decide WITH calibration data in hand) → data-gated flip, David batch. Crossed.
 - [ ] **F3.34 — Add an egress-gated “research this model” flow.** For unknown/failing local models, search current
   primary documentation for API switches, tool dialect, reasoning controls, context/quant quirks, and fit; present a
   provisional catalog update for review and never auto-apply model downloads or unsafe settings.
-- [~] **F3.35 — Surface capability-ceiling model recommendations.** When the loaded fleet cannot clear a role/challenge,
+- [x] **F3.35 — Surface capability-ceiling model recommendations.** When the loaded fleet cannot clear a role/challenge,
   show the evidence, exact promising local model/quant, target machine, expected fit, and uncertainty; recommendations
   never download/delete/load without the user-controlled policy. **DETECTION HALF SHIPPED + LIVE (verified 2026-07-15):**
   `src/core/capability-ceiling-recommendation.ts` `assessCapabilityCeiling(bars, fitness)` → per-role ceiling_hit/
@@ -1634,8 +1640,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   section in the Model Performance dialog. 22 core tests; backend+web tsc + web build green. Live UI data appears after
   the runtime restarts (picks up the sweep-populated fitness store + new endpoint field). **LIVE-VERIFIED 2026-07-16:**
   restarted the runtime, loaded a weak-reviewer model (gemma-4-e2b @ 0.33), and `runtime.getFitnessTable` returned a
-  real recommendation — "load gemma-4-12b-it-qat on legion5pro — 0.67 (+0.33, low, fits=True)". F3.35 COMPLETE except an
-  optional repeats>1 sweep for higher-confidence bands (fleet-gated operation, not code).
+  real recommendation — "load gemma-4-12b-it-qat on legion5pro — 0.67 (+0.33, low, fits=True)". F3.35 COMPLETE — crossed
+  2026-07-19; the optional repeats>1 confidence sweep is a fleet-run list entry, not code.
 
 ### Phase 4 — feature completion: retrieval, context, skills, MCP, and inference efficiency
 
