@@ -3134,9 +3134,20 @@ output and NOT acted on. Captured as F12.12.)
   stamp; the auto-sweep cadence (cron vs post-run hook) = DAVID BATCH. Crossed.
 
 **Supply-chain, determinism & reproducibility:**
-- [ ] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
+- [~] **F12.31 — MCP hardening: pin tool DESCRIPTIONS + name/version allowlist + sandbox local servers (extends S7/Phase 7S).**
   2026 MCP security consensus: >30% of deployed servers had an exploitable vuln; tool-poisoning hides instructions in a
   tool's DESCRIPTION; a rug-pull swaps a clean tool for a malicious one after approval. The "single control that actually
+  **SURFACE-PIN + ALLOWLIST CORE SHIPPED 2026-07-19:** `mcp-tool-surface-pin.ts` supplies the half S7 lacked —
+  `computeToolSurfaceHash` fingerprints exactly what the MODEL reads (names + DESCRIPTIONS + input schemas),
+  order-insensitively, so a reordering raises no false alarm while a poisoned description cannot pass silently;
+  `checkMcpAllowlist` gates server name/version and FAILS CLOSED on an unset policy (an unconfigured allowlist is
+  not an approval); `reviewToolSurface` combines them into one pre-offer verdict requiring operator approval on
+  first use (TOFU — review once, then pin), on ANY surface change, and on any allowlist denial. Deliberately does
+  NOT re-implement drift classification: S7's `detectPinDrift` already distinguishes a same-version content swap
+  (rug-pull) from an ordinary upgrade, and this feeds it. 10 tests.
+  REMAINING (the wire): compute + persist the surface hash at MCP registration (both the user-server and curated
+  sandbox-server sites in nklein-mcp-runtime-service) and withhold a server's tools until approval — the S3
+  confirm queue is the natural home for the prompt.
   stops rug pulls" is to hash the tool DESCRIPTION on first approval + re-prompt if it changes (S7 pin-drift already does
   this for bundle CONTENT — extend it to MCP tool descriptions). Add: an explicit name+version server allowlist, and run
   local stdio MCP servers in a container / restricted user with NO home / SSH-key / cloud-cred access (they run as agent-
