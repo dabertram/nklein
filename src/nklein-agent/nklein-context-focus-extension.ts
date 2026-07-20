@@ -52,7 +52,7 @@ import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
 import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 import { buildStallReplanMessage } from "./stall-replan-message";
-import { decideTaskReanchorForRequest, firstUserGoalText } from "./task-reanchor-before-model";
+import { decideTaskReanchorForRequest, firstUserGoalText, PAYLOAD_REANCHOR_TOKENS } from "./task-reanchor-before-model";
 import { latestStepText, narrowToolsForStep } from "./two-phase-before-model";
 import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
 
@@ -327,6 +327,32 @@ export function createKanbanContextFocusExtension(
 							reanchor.nextLastReanchorTurn ?? context.snapshot.iteration,
 						);
 						finalResult = { ...(finalResult ?? {}), messages: reanchor.messages };
+					}
+					// F4.8b: the re-anchor firing was entirely unobserved — which is how F4.8 stayed hidden. Every
+					// audit reported the requirement satisfied because the IMPORT CHAIN was complete, and nothing
+					// could contradict that, because nothing recorded whether a block ever reached a prompt.
+					//
+					// Records BOTH outcomes: `appended: false` is the cadence gate declining, and a flag that is on
+					// while the gate never fires is indistinguishable from the flag being off without it. This is
+					// also what would make a measured A/B on the default possible at all — the decision David still
+					// holds — so it is recorded regardless of which way that goes.
+					try {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Goal re-anchor ${reanchor.appended ? "injected" : "declined by cadence"} for ${sessionId} at turn ${context.snapshot.iteration}.`,
+							taskId: sessionId,
+							metadata: {
+								category: "goal_reanchor",
+								appended: reanchor.appended,
+								turn: context.snapshot.iteration,
+								payloadDriven: payloadTokensThisTurn >= PAYLOAD_REANCHOR_TOKENS,
+								carriedConstraints: cardContractBySessionId.get(sessionId)?.constraints != null,
+								carriedAcceptance: cardContractBySessionId.get(sessionId)?.acceptanceCriteria != null,
+							},
+						});
+					} catch {
+						// Telemetry must never break a turn.
 					}
 				}
 				// F12.92 DRIFT CRITIC (opt-in: inert unless a `driftCriticCaller` was injected). Two independent

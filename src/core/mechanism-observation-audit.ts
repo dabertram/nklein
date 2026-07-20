@@ -258,6 +258,23 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: **this is the flag that started the whole item.** Its firing was entirely unobserved,
+		// which is exactly how F4.8 stayed hidden — every audit reported the requirement satisfied because the
+		// IMPORT CHAIN was complete, and nothing could contradict that because nothing recorded whether a block
+		// ever reached a prompt.
+		//
+		// Records `appended: false` too: a flag that is ON while the cadence gate never fires is
+		// indistinguishable from the flag being off. This is also what makes a measured A/B on the DEFAULT
+		// possible — the decision still open with David — so it is recorded regardless of which way that goes.
+		category: "goal_reanchor",
+		item: "F4.8",
+		observes: "a goal re-anchor block injected or declined by cadence, and which elements it carried",
+		enabledBy: "NKLEIN_GOAL_REANCHOR",
+		expectation: "every_run",
+		firesWhen: "attempt_started",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: NO code change needed — this was already instrumented and merely unregistered, which
 		// is the outcome the check-the-source-first procedure exists to find. Two of the remaining flags turned out
 		// this way; reaching for instrumentation without reading would have added a duplicate emission to a
