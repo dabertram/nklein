@@ -5320,7 +5320,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   created the gap.
   Two hypotheses were disproved on the way, and are recorded so they are not re-tried: the 5s sweep DEBOUNCE
   (the watchdog ticks every 30s, well outside it) and a stale lane-name assertion.
-  NEXT: confirm whether the durable controller ever starts a `startable` card the sweep hands it.
+  **CONFIRMED 2026-07-20: TWO INDEPENDENT GUARDS BOTH DECLINE, so under a durable run the watchdog sweep CANNOT
+  start a startable non-deferred card by any path.**
+  1. `startRescueCandidates` (runtime-server.ts:1135) — under `hasRun`, restarts the deferred set only and
+     **returns**. With `deferred: 0` it does nothing at all.
+  2. `autoStartTaskIds` (runtime-server.ts:889) — even reached directly, `if (!bypassDurableGuard && hasRun) return;`
+     refuses. Only the deferred path passes `bypassDurableGuard: true`.
+  The split is INTENTIONAL and reasoned — *"the discovery legs stay the controller's job … so we never start a
+  card its DAG hasn't unblocked"* — which is sound. **The gap is what happens when the controller then doesn't
+  start it either.** The rescue was handed over; nothing confirmed it was picked up.
+  ⚠️ **A CHECK I RAN THAT LOOKS LIKE DISPROOF AND IS NOT:** the failing run contains **ZERO** log lines matching
+  `durable`. That is **silence, not absence** — the controller may simply not log — and reading it as "durable was
+  off" would have sent this investigation back to the start. Recorded because the mistake is inviting.
+  **WHAT WOULD ACTUALLY SETTLE IT: instrument, do not read.** Log `hasRun(workspaceId)` at the sweep, and log the
+  durable controller's dispatch decision for the specific card. Three code-reading hypotheses have now been
+  raised here and two of them were wrong (the 5s debounce; the stale lane names) — **this subsystem is not
+  yielding to inspection, and the next step should produce evidence rather than another theory.**
   And separately, why two identical-seed runs differ (28 vs 30) — **do not treat that as noise to average over**;
   it is the more consequential finding, because it means every other nightly verdict is drawn from an unstable
   process.
