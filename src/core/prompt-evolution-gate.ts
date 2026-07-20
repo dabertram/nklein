@@ -23,6 +23,7 @@
  * subsystem that would otherwise quietly rewrite the harness's own instructions.
  */
 
+import { decideDefaultFlip } from "./ab-significance-gate";
 import type { AgentLedgerEvent } from "./agent-attempt-ledger";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
 import type { SwarmRole } from "./role-model-class";
@@ -198,25 +199,34 @@ export function decidePromptAdoption(input: {
 			reason: `only ${discordant} discordant pair(s) of ${total} task(s); ${minDiscordant} are needed before a paired comparison can separate the prompts. UNRESOLVED means we learned nothing — it is NOT a rejection, and adopting here would be a coin flip.`,
 		};
 	}
-	if (Math.abs(effectPoints) < minEffect) {
+	// DELEGATE the statistics to F12.41's gate rather than reimplementing them. That module runs McNemar's EXACT
+	// test (exact binomial on the discordant pairs — correct at any n, unlike the chi-square approximation that
+	// fails in exactly the small-eval regime a local fleet lives in). An earlier version of this function used a
+	// bare effect-size threshold: weaker, AND a second implementation of a decision this project had already
+	// made once. One implementation per lever.
+	const flip = decideDefaultFlip({
+		pairs: input.results.map((result) => ({ a: result.incumbentPassed, b: result.candidatePassed })),
+		minEffect: minEffect / 100,
+	});
+	if (flip.flip) {
 		return {
 			...base,
-			verdict: "unresolved",
-			reason: `observed effect ${effectPoints.toFixed(1)}pp is inside the pre-registered ${minEffect}pp minimum detectable effect — the comparison cannot distinguish this from noise`,
+			verdict: "adopt",
+			reason: `${flip.reason} (${candidateWins} candidate win(s) vs ${incumbentWins} over ${discordant} discordant pair(s))`,
 		};
 	}
-	if (effectPoints < 0) {
+	// Not a flip. Distinguish "the candidate is actually WORSE" from "we could not tell" — collapsing those two
+	// is the exact failure this gate exists to prevent.
+	if (effectPoints < 0 && flip.mcnemar.significant) {
 		return {
 			...base,
 			verdict: "reject",
-			reason: `candidate is WORSE by ${Math.abs(effectPoints).toFixed(1)}pp (${incumbentWins} incumbent win(s) vs ${candidateWins})`,
+			reason: `candidate is significantly WORSE by ${Math.abs(effectPoints).toFixed(1)}pp — ${flip.reason}`,
 		};
 	}
-	// A clear, adequately-powered win. Ties are already counted against the challenger by living in the
-	// denominator: the incumbent is in production and a challenger must EARN the swap.
 	return {
 		...base,
-		verdict: "adopt",
-		reason: `candidate wins by ${effectPoints.toFixed(1)}pp over ${discordant} discordant pair(s) (${candidateWins} vs ${incumbentWins}), clearing the ${minEffect}pp bar`,
+		verdict: "unresolved",
+		reason: `${flip.reason} — UNRESOLVED means we learned nothing. This is NOT a rejection, and it is the EXPECTED answer at the task counts a local fleet can realistically run.`,
 	};
 }

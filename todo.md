@@ -3236,6 +3236,15 @@ output and NOT acted on. Captured as F12.12.)
   `NO CHANGE` escape, because a prompt edit that does not address an observed failure is noise, which is exactly
   what this loop must not manufacture. `summarizeFailurePatterns` carries counts and failure CLASSES only, never
   card text, so optimization never drags project content into the loop.
+  **⚠️ SECOND DESIGN CORRECTION 2026-07-20 (found while reading F12.82): the gate DUPLICATED existing
+  machinery, and used a WEAKER method than the one already in the tree.** `decidePromptAdoption` originally
+  decided significance with a bare effect-size threshold; F12.41's `ab-significance-gate.ts` has implemented
+  **McNemar's EXACT test** (exact binomial over discordant pairs — correct at any n, unlike the chi-square
+  approximation that fails in precisely the small-eval regime a local fleet lives in) since 2026-07-17. Now
+  delegated: the statistics come from `decideDefaultFlip`, and this module keeps only what is genuinely its own —
+  the adopt/reject/**unresolved** trichotomy and the ties-count-against-the-challenger stance. **One
+  implementation per lever**, the same rule applied in F12.76. The test that asserted the old wording was
+  rewritten to assert BEHAVIOUR rather than the delegated module's internal phrasing.
   **DESIGN CORRECTION during the build:** the first version invented its own failure taxonomy
   (`tool_call_failed` / `no_tool_calls` / …). Replaced with the LEDGER'S OWN `ModelOutcomeKind` vocabulary
   (`no_tool_call` / `narrated` / `loop` / `timeout` / `malformed` / `aborted` / `other_failure`) — a private
@@ -4086,11 +4095,22 @@ verify-before-build caveat: confirm each against current code before implementin
   `NKLEIN_LEDGER_EXEMPLARS` (default OFF = byte-identical, zero ledger read); an unreadable ledger/board or a
   card with no similar history yields [] and the field is omitted entirely. +3 wire tests (9 total).
   NEXT (validation, not build): A/B through the F12.41 flip-gate before any default-on.
-- [ ] **F12.82 — Eval-harness prompt-learning loop for per-role rules.** Use the existing §5.AB eval harness to auto-refine
+- [>] **F12.82 — Eval-harness prompt-learning loop for per-role rules** *(SUBSTANTIALLY COVERED — see routing note).* Use the existing §5.AB eval harness to auto-refine
   decompose/worker/reviewer rule sets: generate rich English feedback on failures → meta-prompt to revise the rules → A/B on
   held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave
   +10–15% from rules alone; DSPy MIPROv2 jointly optimizes instructions+exemplars; !Klein already has the eval substrate +
   the powered-flip gate to close the loop safely. (Arize prompt-learning; DSPy MIPROv2)
+  **AUDIT 2026-07-20 — this is now MOSTLY BUILT, and reading it exposed a duplication bug in F12.28.** The loop
+  this item describes (feedback on failures → meta-prompt revision → A/B on held-out cards → keep only
+  significant wins) is exactly F12.28's shape, and both halves already exist: `prompt-evolution-gate.ts`
+  (reflection over ledger failures + the adopt/reject/unresolved decision) and F12.41's
+  `ab-significance-gate.ts` (McNemar exact, the "significance gate" this item names). **F12.28 was reimplementing
+  the significance test until this audit; it now delegates.**
+  WHAT REMAINS THAT IS GENUINELY DISTINCT: the TARGET. F12.28 evolves per-(model×role) SYSTEM PROMPTS; this item
+  evolves per-role RULE SETS through the §5.AB eval harness on held-out cards. Same machinery, different artifact
+  and a different eval surface. **Do NOT build a second optimizer** — extend F12.28b's run to accept a rule-set
+  target, and reuse the same gate. Re-scoped from `[ ]` to `[>]` waiting on F12.28b, since building it first
+  would duplicate the optimizer exactly as F12.28 duplicated the statistics.
 - [x] **F12.83 — Language- & task-type-aware model routing.** Extend per-card model selection to route on detected LANGUAGE ×
   task type: Python/JS single-file/bug-fix → 7B tier; Rust/C++/Go, multi-file, or long agentic loops → 32B+ tier; sub-7B
   never gets tool-heavy cards. **CORE BUILT 2026-07-17:** `language-capability-routing.ts` — `detectLanguages(filePaths)`

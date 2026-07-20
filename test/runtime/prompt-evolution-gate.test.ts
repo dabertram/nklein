@@ -114,7 +114,9 @@ describe("decidePromptAdoption", () => {
 		// 10 vs 8 over 100 tasks = 2pp, well under the default 10pp bar despite 18 discordant pairs.
 		const decision = decidePromptAdoption({ results: pairs(10, 8, 82) });
 		expect(decision.verdict).toBe("unresolved");
-		expect(decision.reason).toContain("minimum detectable effect");
+		// Assert the BEHAVIOUR and our own framing, not the delegated gate's internal wording — the statistics
+		// come from ab-significance-gate (McNemar exact) and its phrasing is not this module's contract.
+		expect(decision.reason).toContain("we learned nothing");
 	});
 
 	it("counts ties against the challenger — the incumbent must be beaten, not merely matched", () => {
