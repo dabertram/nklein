@@ -4951,7 +4951,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   rewritten). Live-smoked against the known case: `cache-stable-prefix-order.ts` → "4 of 4 exported core
   symbol(s) have NO non-test consumer", matching the hand audit exactly. Output always closes with the caveat
   that each entry is a QUESTION, not a verdict.
-- [ ] **P15.1b — Observation-count half of the mechanism registry *(split from P15.1 2026-07-20)*.** The
+- [x] **P15.1b — Observation-count half of the mechanism registry (CORE; P15.1c carries the CLI + doc gen).** The
   complement to the unwired-core scan: list mechanisms that ARE wired but have recorded ZERO observations —
   shipped, reachable, and never actually exercised. Needs the telemetry store (`recordSelfObservation` categories:
   `quant_floor_breach`, `language_floor_breach`, `adaptive_thinking_recommendation`,
@@ -4959,7 +4959,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `history_blind_corrector_*`, `drift_critic_*`, `tool_catalog_gate_observation`). **A wired mechanism with zero
   observations is a DIFFERENT and subtler failure than an unwired core**: the code is reachable, the tests pass,
   and it still never fires — which is how the drift critic's `reasoning_content` trap would have looked from the
-  outside. Generate `docs/dev/mechanism-registry.md` from BOTH scans together.
+  outside.
+  **CORE SHIPPED 2026-07-20:** `mechanism-observation-audit.ts` + `MECHANISM_REGISTRY` (11 entries, each naming
+  the backlog item that owns it).
+  **THE DISTINCTION THAT MAKES THE REPORT USABLE — zero observations has THREE causes and conflating them makes
+  it worthless:** (a) **`never_enabled`** — the flag was off, so zero is the CORRECT result; reporting it as a
+  defect would bury the real signal under every opt-in feature we have deliberately not switched on. (b)
+  **`silent_but_exceptional`** — the mechanism only fires on a breach/drift/override, so silence on a healthy run
+  is **evidence of health, not of breakage**; every record-only floor and drift detector is in this class.
+  (c) **`enabled_but_silent`** — on, expected to fire every run, and recorded nothing. **Only (c) is actionable**,
+  and it is the one a "we shipped it" claim hides.
+  Plus **`unknown_enablement`**: when flag history cannot be shown, the audit says INCONCLUSIVE rather than
+  accusing — claiming "never enabled" without evidence would excuse a real silence just as wrongly as blaming an
+  innocent one. 10 tests; suite green.
+- [ ] **P15.1c — Wire the mechanism audit to live telemetry + generate the registry doc *(split 2026-07-20)*.**
+  Read counts via `readSelfObservationEvents`, add `nklein dev mechanism-registry`, and generate
+  `docs/dev/mechanism-registry.md` from BOTH scans (unwired-core + observation-count) so the two failure modes
+  appear side by side. **Flag history is the hard part and must not be faked:** the honest input for
+  `knownEnabledFlags` is the CURRENT process env, which only proves what is on NOW — so anything older than this
+  process must report `unknown_enablement` rather than being back-dated from a guess.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with
