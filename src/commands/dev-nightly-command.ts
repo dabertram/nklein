@@ -11,6 +11,7 @@ import {
 	type NightlyManifest,
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
+import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
 
 const execFileAsync = promisify(execFile);
 
@@ -64,6 +65,28 @@ function portForCell(index: number): number {
  * statistically, because they do not resample anything. Widening coverage means more CELLS, not more runs.
  */
 const NIGHTLY_FIXED_SEED = "7";
+
+/** Where the previous run's per-cell durations live — used to order the next run fastest-first (N6). */
+const LAST_RUN_PATH = join(tmpdir(), "nklein-nightly-last.json");
+
+/** Read prior per-cell wall times, keyed `project × profile`. Absent/corrupt file = no history, not an error. */
+async function readPriorDurations(): Promise<Map<string, number>> {
+	try {
+		const raw = JSON.parse(await readFile(LAST_RUN_PATH, "utf8")) as {
+			verdicts?: { cell?: { projectId?: string; modelProfile?: string }; durationMs?: number }[];
+		};
+		const out = new Map<string, number>();
+		for (const verdict of raw.verdicts ?? []) {
+			const key = `${verdict.cell?.projectId} × ${verdict.cell?.modelProfile}`;
+			if (typeof verdict.durationMs === "number" && verdict.durationMs > 0) {
+				out.set(key, verdict.durationMs);
+			}
+		}
+		return out;
+	} catch {
+		return new Map();
+	}
+}
 
 const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	perfect: "perfect",
@@ -139,9 +162,26 @@ export async function runDevNightlyCommand(options: {
 		return;
 	}
 
-	const cells = enumerateNightlyCells(manifest, { project: options.project, model: options.model });
+	const enumerated = enumerateNightlyCells(manifest, { project: options.project, model: options.model });
+
+	// N6: order fastest-first from the PREVIOUS run's durations, so a failure surfaces at minute 4 rather than
+	// hour 3. Execution stays strictly sequential (maxParallel 1) — the ordering is the whole gain here, and the
+	// parallelism half is what makes the two largest projects false-timeout.
+	const prior = await readPriorDurations();
+	const cellKey = (cell: NightlyCell) => `${cell.projectId} × ${cell.modelProfile}`;
+	const plan = planNightlySchedule({
+		cells: enumerated.map((cell) => ({
+			id: cellKey(cell),
+			lastDurationMs: prior.get(cellKey(cell)) ?? null,
+		})),
+		maxParallel: 1,
+	});
+	const byKey = new Map(enumerated.map((cell) => [cellKey(cell), cell]));
+	// planNightlySchedule throws CoverageWeakenedError rather than silently dropping a cell, so this cannot narrow
+	// the suite; the filter is a type narrowing, not a safety net.
+	const cells = plan.scheduledCells.map((id) => byKey.get(id)).filter((cell): cell is NightlyCell => Boolean(cell));
 	if (options.dryRun) {
-		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY:\n`);
+		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations):\n`);
 		for (const [index, cell] of cells.entries()) {
 			process.stdout.write(
 				`  ${cell.projectId} × ${cell.modelProfile}  (port ${portForCell(index)}, set ${cell.recordingSet})\n`,
@@ -175,11 +215,26 @@ export async function runDevNightlyCommand(options: {
 				durationMs: verdict.durationMs ?? null,
 			});
 		});
+	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
+	// "the nightly got slower" and is usually absorbed rather than investigated.
+	const regressions = detectDurationRegressions(
+		verdicts.map((verdict) => ({
+			cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
+			baselineMs: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`) ?? null,
+			currentMs: verdict.durationMs ?? 0,
+		})),
+	);
+	if (regressions.length > 0 && !options.json) {
+		process.stdout.write(`\n${regressions.length} cell(s) got materially slower:\n`);
+		for (const regression of regressions) {
+			process.stdout.write(`  ${regression.detail}\n`);
+		}
+	}
 	if (failureReports.length > 0 && !options.json) {
 		process.stdout.write(`\n${summarizeNightlyFailures(failureReports).text}\n`);
 	}
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ ...summary, verdicts, failureReports }, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ ...summary, verdicts, failureReports, regressions }, null, 2)}\n`);
 	} else {
 		process.stdout.write(`\n${summary.summary}\n`);
 	}

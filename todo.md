@@ -5174,9 +5174,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Widening coverage means more CELLS, not more runs. Anyone reaching for "run the nightly a few more times to be
   sure" is doing the thing P20.6's `taskFloorMdePoints` exists to refuse, in a case where it buys even less than
   usual.
-  REMAINING: the `test:nightly` entry, the N5b real-drain adapter (so packs get evaluated per cell rather than
-  only the pass/fail outcome), and the N6 scheduler wire (the runner is hardcoded sequential; N6 can order it
-  fastest-first while keeping the heavy cells pinned).
+  **N6 SCHEDULER + SELF-COST WATCH ALSO WIRED 2026-07-20.** The runner now orders cells fastest-first from the
+  PREVIOUS run's persisted durations, and reports any cell that got materially slower. That un-orphans
+  `nightly-schedule.ts` on the day it shipped — two of today's cores now have live consumers instead of joining
+  the P15.4b pile.
+  **Execution stays strictly sequential (`maxParallel: 1`) and that is deliberate.** The ORDERING is the whole
+  gain; the parallelism half is precisely what makes the two largest projects false-timeout. Taking the cheap half
+  of N6 and declining the expensive half is the right trade here, not an incomplete wire.
+  **Demonstrated rather than assumed:** with no history the order is manifest order; seeding prior durations
+  (smoke 3s, 02 20s, 01 90s) reordered the run to smoke → 02 → 01 with unmeasured cells last, exactly as N6
+  specifies. `planNightlySchedule` throws `CoverageWeakenedError` rather than dropping a cell, so this reordering
+  cannot silently shrink the suite.
+  REMAINING: the `test:nightly` entry, and the N5b real-drain adapter (so invariant PACKS get evaluated per cell
+  rather than only the coarse pass/fail outcome — the packs exist and are still unread by the runner).
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
