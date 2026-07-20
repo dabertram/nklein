@@ -5431,8 +5431,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   hence FAIL/FAIL/PASS/PASS/FAIL — while the *consequence* is deterministic once it happens, which is why the
   stranded counts were identical across failing runs (33/19/14 both times).
   **THE FIX IS THE SAME SHAPE AS THE OTHER THREE: one bounded re-drive on `capture_failed`, then hold for the
-  operator.** Worth doing as a FAMILY rather than a fourth one-off — enumerate every `return` that leaves a card
-  held in Review and check each has a rung, or the fifth will be found the same way.
+  operator.**
+  **✅ FAMILY ENUMERATED (2026-07-20) — and the answer is better than "there might be more": THE GAP IS EXACTLY
+  ONE.** Every Review-hold site in `runtime-server.ts`:
+  | line | cause | recovery rung |
+  |---|---|---|
+  | **1610** | **`capture_failed` / `unknown`** | **❌ NONE — this is N7d** |
+  | 1930 | empty patch | ✅ `emptyPatchRedriveAttemptsByTaskKey` (terminal hold AFTER its rung) |
+  | 2232 | self-improvement M4 blockers | ⭕ none **BY DESIGN** — "Review and merge manually" is the intended
+  behaviour for self-modification, not an oversight |
+  | 2341 | acceptance re-drive itself failed | ✅ `acceptanceFailureRedriveAttemptsByTaskKey` (terminal after rung) |
+  | (2264) | boundary violation | ✅ `boundaryViolationRedriveAttemptsByTaskKey` |
+  So: **five hold sites, three with rungs, one deliberate manual hold, ONE missing rung.** There is no fifth
+  sibling waiting to be found this way — **which is worth as much as finding the fourth**, because it converts
+  "fix this and hope" into "fix this and the family is complete".
+  ⚠️ The enumeration covers `runtime-server.ts` only. `nklein-sandbox-review-finalizer.ts:283` logs a related
+  prior-round capture failure and was NOT audited here.
   **PREVIOUS HYPOTHESIS (demoted): the durable JOB GRAPH disagrees with the BOARD about
   dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
   while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
