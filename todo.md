@@ -5277,6 +5277,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
   Reuse scaffolds where hermetically safe, cache aimock fixture parsing, and emit per-cell wall/cost from a real
   run so `detectDurationRegressions` has a baseline to compare against. Rides N7's runner.
+  **✅ THE WALL-TIME BASELINE HALF IS ALREADY COMPLETE (verified 2026-07-20) — and had a silent-death hazard, now
+  fixed.** `dev nightly` already captures per-cell `durationMs` (`runCell`), PERSISTS `{summary, verdicts}` to the
+  last-run file, reads it back via `readPriorDurations` (keyed `projectId × modelProfile`), and feeds
+  `baselineMs`/`currentMs` to `detectDurationRegressions` — so a materially-slower cell is already surfaced against
+  its own prior run. **The bug found while verifying:** the write used a re-spelled path literal instead of the
+  `LAST_RUN_PATH` constant the reader uses. Identical strings today, so it worked — but if either ever changed, the
+  write would land elsewhere, every baseline read would miss, and regression detection would go **permanently dead
+  with no error**, the precise silent failure N7 exists to prevent. Now both sides go through the one constant.
+  **GENUINE REMAINDER = the COST half only:** per-cell TOKEN cost has no source in a sim/aimock drain (no real
+  model calls), so a cost baseline needs a real-fleet nightly run — fleet-gated, not code I can write blind. And
+  fixture-parse caching is the only untouched buildable sub-part; scaffold reuse the item argues AGAINST by default.
   **⚠️ "WHERE HERMETICALLY SAFE" IS THE WHOLE ITEM, and it is the one phrase that can silently undo N6.** A reused
   scaffold that carries ANY state between cells — a warm store, a leftover worktree, a cached fitness row — makes
   cell B pass because cell A ran first. That is not a faster suite, it is **a suite with hidden ordering

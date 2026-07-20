@@ -423,11 +423,10 @@ export async function runDevNightlyCommand(options: {
 	} else {
 		process.stdout.write(`\n${summary.summary}\n`);
 	}
-	await writeFile(
-		join(tmpdir(), "nklein-nightly-last.json"),
-		JSON.stringify({ ...summary, verdicts }, null, 2),
-		"utf8",
-	).catch(() => {});
+	// Write the baseline through the SAME constant readPriorDurations reads (not a re-spelled literal): if the two
+	// paths ever drifted, the write would land elsewhere, every read would miss, and detectDurationRegressions would
+	// go permanently dead WITHOUT any error — the exact silent-regression-detection failure this whole suite guards.
+	await writeFile(LAST_RUN_PATH, JSON.stringify({ ...summary, verdicts }, null, 2), "utf8").catch(() => {});
 	if (!summary.ok) {
 		process.exitCode = 1;
 	}
