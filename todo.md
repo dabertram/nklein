@@ -5369,7 +5369,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   treating it as a per-slot allocation — allocate task-sized context, which frees the KV memory that F12.75 just
   proved is the binding constraint on Apple Silicon. **DAVID-DECIDES: this touches prime directive #3, so it is
   not changed unilaterally.**
-- [~] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
+- [x] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
   ratio in this phase).** "Lost in the Middle" (arXiv 2307.03172): with 20 documents, gold-doc-in-middle accuracy
   is **57.2% vs a 56.1% CLOSED-BOOK baseline** — i.e. a document buried mid-context contributes **almost nothing**.
   The same paper shows **query-aware contextualization** (repeating the query both before AND after the data)
@@ -5391,9 +5391,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **This is a good argument for auditing before building:** the naive read of P18.2 was "add a restatement", which
   would have produced a SECOND restatement mechanism alongside the one already wired. The actual defect was one
   parameter.
-  REMAINING (P18.2b): pass real payload size at the call site — the extension must measure the tokens THIS turn
-  is adding (tool results, retrieved docs) and thread them in. Until then the payload trigger is inert and the
-  cadence path is unchanged, which is the safe default but does NOT yet deliver the measured win.
+  **WIRE COMPLETED 2026-07-20 — the payload trigger is now live, not inert.** The context-focus extension tracks
+  the request message count per session, so "what this turn ADDED" is measurable, and sums those messages with
+  the project's existing `ceil(chars/4)` convention (`estimateTextTokens` from `eval-context-footprint`) —
+  **reused rather than adding a fourth private estimator**, which the capability index surfaced in one search.
+  Still gated behind `NKLEIN_GOAL_REANCHOR` (the re-anchor's own flag), so default behaviour is unchanged; when
+  that flag is on, a tool-heavy turn now re-anchors the goal instead of waiting out the 6-turn cadence.
+  **Suite green (11,143); `npm run typecheck` clean** (the hook's check, not bare `tsc` — a distinction that cost
+  two wasted retries earlier today when vitest passed and typecheck did not).
 - [x] **P18.3 — Prune distractors before compressing volume (PRUNER; P18.3b carries the wire).** Chroma "Context Rot" (18 models): **even ONE
   distractor degrades performance** vs. needle-only, non-uniformly per distractor; and LongMemEval focused
   (~300-token) prompts beat full (~113k-token) prompts by a wide margin. **Implication: compaction that shortens

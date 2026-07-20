@@ -12,6 +12,7 @@ import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { buildDriftCriticPrompt, decideDriftCheck, parseDriftCriticVerdict } from "../core/drift-critic";
 import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
 import { isTruthyEnv } from "../core/env-flag";
+import { estimateTextTokens } from "../core/eval-context-footprint";
 import type { FocusChain } from "../core/focus-chain";
 import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
@@ -169,6 +170,8 @@ async function appendRepoMapBeforeModel(
  * without awaiting, and its verdict is injected on a LATER turn when it is ready. `inFlight` prevents a slow
  * critic from being started again on each subsequent turn.
  */
+/** P18.2: request message count at the previous turn, so "what this turn ADDED" is measurable. */
+const lastRequestMessageCountBySessionId = new Map<string, number>();
 const driftCriticLastCheckTurnBySessionId = new Map<string, number>();
 const driftCriticPendingNoteBySessionId = new Map<string, string>();
 const driftCriticInFlightSessionIds = new Set<string>();
@@ -278,11 +281,26 @@ export function createKanbanContextFocusExtension(
 					const inDistress =
 						progressStallFlaggedSessionIds.has(sessionId) ||
 						(editThrashFlaggedBySessionId.get(sessionId)?.size ?? 0) > 0;
+					// P18.2: measure the PAYLOAD this turn is adding, so a large tool result re-anchors the goal
+					// even when the cadence says no. "Lost in the Middle" measured a buried document scoring
+					// 57.2% against a 56.1% CLOSED-BOOK baseline — on a 6-turn cadence, five of every six
+					// large-payload turns would bury the goal with no restatement at all.
+					// Payload = the messages added since the last request, which for a tool-using turn is the
+					// tool output. Reuses the project's existing `ceil(chars/4)` convention rather than adding a
+					// fourth private estimator.
+					const previousLength = lastRequestMessageCountBySessionId.get(sessionId) ?? currentMessages.length;
+					const addedMessages = currentMessages.slice(Math.max(0, previousLength));
+					const payloadTokensThisTurn = addedMessages.reduce(
+						(sum, message) => sum + estimateTextTokens(JSON.stringify(message.content ?? "")),
+						0,
+					);
+					lastRequestMessageCountBySessionId.set(sessionId, currentMessages.length);
 					const reanchor = decideTaskReanchorForRequest({
 						messages: currentMessages,
 						turnCount: context.snapshot.iteration,
 						lastReanchorTurn: goalReanchorLastTurnBySessionId.get(sessionId) ?? null,
 						everyNTurns: inDistress ? GOAL_REANCHOR_DISTRESS_EVERY_N_TURNS : GOAL_REANCHOR_EVERY_N_TURNS,
+						payloadTokensThisTurn,
 					});
 					if (reanchor.appended) {
 						goalReanchorLastTurnBySessionId.set(
