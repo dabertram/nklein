@@ -5298,7 +5298,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   shredding the text. Acceptance seeds project name, author name, home/linux/deep paths, an internal URL, an
   email, an `sk-` key, a `ghp_` token and a JWT into realistic prose and asserts **none survive** — including
   partial fragments (`sk-proj`, `ghp_`, `eyJhbGci`). 10 tests.
-- [~] **P16.5 — The intervention signal (highest-value content).** The single most informative event is not a
+- [x] **P16.5 — The intervention signal: the TAXONOMY + metrics (P16.5b carries capture).** The single most informative event is not a
   crash — it is a card where the USER stepped in: overrode a routing decision, re-ran, rejected a review, or
   hand-edited the result. Those are precisely the harness's blind spots, and precisely the charter §5
   build-vs-intent gap made observable. Record interventions as first-class events and make them the report's
@@ -5321,13 +5321,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **`autonomousStreak`** — consecutive newest tasks with zero interventions, a pass^k analogue for operator
   effort. **`rankInterventionsForReport`** puts takeovers and aborts before nudges, because those are where the
   harness was most confidently wrong. 10 tests.
-  REMAINING (P16.5b): the capture wire — emit an `InterventionEvent` at the four real seams (typed guidance,
-  user edit of agent output, human-authored fix, card abandon) with harness-measured wall-clock. **Until then the
-  metric has no input**, which is the `enabled_but_silent` shape P15.1b exists to catch — verify with
-  `dev mechanism-registry` after wiring, not by inspection.
-- [ ] **P16.6 — Local-model generation path + graceful degradation.** The report is written by whatever the user
+  **SPLIT MATERIALIZED 2026-07-20.**
+- [ ] **P16.5b — Capture intervention events at the four real seams *(split from P16.5 2026-07-20)*.** Emit an
+  `InterventionEvent` for: typed guidance (nudge), a user edit of agent output (correction), a human-authored fix
+  (takeover), and card abandon (abort) — each with **harness-MEASURED wall-clock**, never a later estimate.
+  **Until this lands the metric has no input**, which is exactly the `enabled_but_silent` shape P15.1b exists to
+  catch: verify with `dev mechanism-registry` after wiring, not by inspection.
+- [~] **P16.6 — Local-model generation path + graceful degradation.** The report is written by whatever the user
   has connected. **A weak local model must degrade to the STRUCTURED report (Layer A is pure aggregation and needs
   no model at all), never to a hallucinated narrative.** Layer A must be generatable with zero models available.
+  **CORE SHIPPED 2026-07-20: `field-report-generation.ts`.**
+  **THE LOAD-BEARING PROPERTY: Layer A needs no model, and none should be INVITED to it.** A model asked to
+  summarise counts will paraphrase them, and **a paraphrased count is a claim that can be wrong about something
+  that was never in doubt.** So with no model reachable the plan is Layer A only, and the reason says the report
+  is *"complete and correct without one — nothing is degraded except the prose."*
+  **The degradation ladder is asymmetric on purpose.** A model with NO grounding history still gets a narrative
+  ATTEMPT, because P16.2's grounding filters the result anyway — a bad attempt costs tokens, not correctness. But
+  a model MEASURED to ground below 60% over ≥3 reports stops being asked, since most of its narrative would be
+  discarded. A thin history (1 report) counts as no evidence rather than as a poor rate.
+  **`checkLayerAAlwaysProducible` guards the invariant** and attributes failure correctly: an empty Layer A is a
+  **TELEMETRY defect, not a model problem** — aggregation cannot fail for lack of a model, so an empty Layer A
+  means the observations were never read. Misattributing that to "the model was weak" would send the fix to the
+  wrong subsystem entirely. 10 tests; suite green (11,193).
+  REMAINING (P16.6b): the effectful generation call itself (local model, `reasoning_content` fallback per the
+  F12.92 contract) plus feeding the observed grounded-rate back so the ladder has real input.
 - [ ] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
