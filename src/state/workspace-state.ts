@@ -8,6 +8,7 @@ import {
 	type RuntimeWorkspaceStateSaveRequest,
 	runtimeBoardDataSchema,
 } from "../core/api-contract";
+import { diffCardLanes } from "../core/card-lane-changes";
 import { updateTaskDependencies } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -777,42 +778,16 @@ export interface RuntimeWorkspaceAtomicMutationResponse<T> {
  */
 function recordLaneChanges(previous: RuntimeBoardData, next: RuntimeBoardData): void {
 	try {
-		const laneOf = (board: RuntimeBoardData): Map<string, string> => {
-			const lanes = new Map<string, string>();
-			for (const column of board.columns) {
-				for (const card of column.cards) {
-					lanes.set(card.id, column.id);
-				}
-			}
-			return lanes;
-		};
-		const before = laneOf(previous);
-		const after = laneOf(next);
-		for (const [taskId, lane] of after) {
-			const from = before.get(taskId);
-			if (from === lane) {
-				continue;
-			}
+		// The diff itself is pure and lives in `card-lane-changes.ts`, where its edge cases are pinned: entering vs
+		// moving, leaving, a card listed in two columns, and a stable event order. This half is emission only.
+		for (const change of diffCardLanes(previous, next)) {
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
-				// A card APPEARING is a distinct event from a card MOVING, and conflating them would make a newly
-				// created card look like it arrived from nowhere mid-run.
-				message: from ? `Card ${taskId} moved ${from} → ${lane}.` : `Card ${taskId} entered the board in ${lane}.`,
-				taskId,
-				metadata: { category: "card_lane_change", fromLane: from ?? null, toLane: lane },
+				message: change.message,
+				taskId: change.taskId,
+				metadata: { category: "card_lane_change", fromLane: change.fromLane, toLane: change.toLane },
 			});
-		}
-		for (const [taskId, lane] of before) {
-			if (!after.has(taskId)) {
-				recordSelfObservation({
-					signal: "custom",
-					severity: "info",
-					message: `Card ${taskId} left the board (was in ${lane}).`,
-					taskId,
-					metadata: { category: "card_lane_change", fromLane: lane, toLane: null },
-				});
-			}
 		}
 	} catch {
 		// Telemetry must never break a board write.

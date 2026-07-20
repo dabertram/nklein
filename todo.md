@@ -5771,7 +5771,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Verified by reintroducing the unscoped regex: 2 tests fail and it returns s00's branch.** A malformed board
   now reads as UNKNOWN dependents rather than an empty set — **zero is the number that makes a run which stalled
   21 cards look harmless.**
-- [~] **N17 — COMPLETE per-card tracking: every trail collected, ready for debugging *(David 2026-07-20)*.**
+- [x] **N17 — COMPLETE per-card tracking: every trail collected, ready for debugging *(David 2026-07-20)*.**
   *"we need to implement complete tracking for every thing that happens to/on a card/task … rather over covered
   than missing any detail … future debugging as easy as possible."*
   **`dev card-timeline <cardId> --home <path>` SHIPPED** (`card-lifecycle-trail.ts` + command). Merges every
@@ -5825,6 +5825,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   They share the attempt's timestamp (the ledger does not stamp each call), so a fractional offset preserves their
   ORDER within the attempt **without inventing precision the record does not have** — the same discipline the
   timestamp-less runtime log gets.
+  **✅ N17b BOTH HALVES DONE 2026-07-20 — N17 IS COMPLETE.** `src/commands` is now indexed by
+  `dev capability-index` (`INDEXED_DIRS = ["src/core", "src/commands"]`), so the near-duplication that produced
+  `card-trail`/`card-timeline` cannot recur silently; and lane-change events flow end to end — emitted at the
+  persist chokepoint, carried as self-observations with a `taskId`, and therefore surfaced by the timeline
+  through a source it already reads. **The trail now shows every lane a card PASSED THROUGH, not just where it
+  ended** — which is the difference between seeing a bounce and not, and the bounce count was the finding in the
+  `s03` investigation.
+  ⚠️ **THE DIFF SHIPPED WITH NO TEST, AND THAT IS THE SAME DEFECT SHAPE AS N16.** The pure half of the trail was
+  pinned by fifteen tests while **the half that actually produces the events had none.** Extracted to
+  `card-lane-changes.ts` and pinned by nine: entering vs moving vs leaving, no event on an unchanged board, no
+  event on a reorder WITHIN a lane, a stable order, and a card listed in two columns resolving deterministically.
+  That last one matters more than it looks — **an unstable read would emit a phantom lane change on every
+  persist, and a forensic tool that INVENTS events is worse than one that misses them.**
+  **WHY A DIFF RATHER THAN AN INTENT PARAMETER, recorded because the obvious design is the wrong one:** having
+  each mover declare "I am moving card X to lane Y" records what callers *meant*, and a mover that forgets leaves
+  **no event at all** — a silent gap that reads as "nothing happened" and is therefore trusted. A diff of two
+  persisted boards cannot be forgotten by a caller. The honest cost: it sees the RESULT, not the reason, so two
+  moves between one persist collapse into one event and it cannot say who moved the card. **Complete-but-coarse
+  beats detailed-but-holed** for a trail whose whole value is that a gap means something.
 - [~] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
   *"one very annoying thing with claude and also with copilot is, that while reading the chat log it happens
   regularly that the text 'jumps' when thinking blocks collapse after they finish or other activity is happening
