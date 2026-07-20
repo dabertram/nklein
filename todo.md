@@ -6146,7 +6146,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   wire:** without a target supersession cannot be proven, so an unwired pruner correctly does nothing — it will
   look installed and change nothing, which is precisely the `enabled_but_silent` shape P15.1b was built to catch.
   Verify with `dev mechanism-registry` after wiring, not by inspection.
-- [ ] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
+- [x] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
   commitment WITHOUT recovery. **Compacting a lost conversation preserves the wrong early commitment.** So the
   right intervention for a stuck card is RESTART WITH CLEAN RESTATEMENT, not summarize-and-continue. Reconcile
   this against the existing bounce/re-work/park ladder and the F12.92 drift-critic — !Klein's park/re-work
@@ -6170,8 +6170,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Two bounds, both about not destroying what exists: restarts are capped (unbounded restarting is **a loop that
   discards work while looking like progress**), and a card with CAPTURED WORK parks instead of restarting —
   a human can often salvage a half-right diff that no fresh attempt recovers.
-  REMAINING (P18.4b): the wire — feed `decideDriftCheck`'s verdict + live context utilisation in, and act on the
-  remedy. Reconciling against the existing bounce/re-work/park ladder happens there, where both are visible.
+  The wire is P18.4b.
+- [ ] **P18.4b — Wire the off-track remedy *(split from P18.4 2026-07-20)*.** Feed the drift verdict + live
+  context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for
+  belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing
+  them on paper would compare a design against a memory of a design.
+  ⚠️ **THE FIRST THING TO CHECK IS WHETHER COMPACTION IS ALREADY REACHED BY A PATH THAT DOES NOT CONSULT DRIFT.**
+  If any compaction trigger fires on context pressure alone, P18.4's core is decorative: the harmful branch stays
+  live and the new decision only ever runs on cards that were going to be fine. **A remedy core that competes
+  with an existing unconditional trigger loses silently** — same shape as the retry ladder that had no consumer
+  acting on its choice.
 - [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
   an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
   own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
