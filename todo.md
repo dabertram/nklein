@@ -7388,10 +7388,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   exit codes encode P19.4's whole principle: `not_working` fails a script, `indeterminate` does NOT** — a harness
   gap must never fail a check that would then "fix" a cache never shown broken, which is #15082 in reverse. 4
   wire tests pin the last-line reading and that a missing timing stays `indeterminate`.
-  REMAINING (P19.4b): the fully-effectful probe that ISSUES the two requests itself (rather than reading a
-  captured log) — send the same prefix twice against a live endpoint. Needs a running model; belongs with
-  P17.1's adapter. The detector and the log path are now consumed and exercised, so that probe feeds a proven
-  assessor.
+  **✅ P19.4b PROBED LIVE 2026-07-20 (fleet access) — caching WORKS on our fleet, including the growing-prefix
+  reuse agent turns depend on.** Loaded `qwen/qwen3-8b` (unloaded after) and issued identical + prefix-extended
+  requests with `max_tokens=1` so wall-clock ≈ prefill:
+  - COLD prefill of a 5423-token prompt: **5.00s**. WARM (byte-identical) repeat: **0.15s / 0.14s** — a **97% drop**,
+    so the endpoint reuses the KV cache for an identical prefix across separate API calls.
+  - GROWING PREFIX (the real agent pattern — same prefix + a new tail, 5439 tokens): **0.26s** vs 5.00s cold, so
+    only the appended tail was re-prefilled; the shared history prefix was reused.
+  This is the empirical confirmation the item demanded, on the runtime we actually ship (LM Studio + MLX): the
+  llama.cpp #15082 silent-cache-absence regression does NOT affect us, and the cost model's load-bearing assumption
+  — that after the first turn an agent pays prefill only for the new tokens — HOLDS on measured evidence, not a
+  flag. (Measured via the OpenAI API latency, not llama.cpp's `prompt eval time` log line, because MLX models do
+  not emit that line; the `prompt-cache-verification.ts` detector still serves the GGUF/llama.cpp endpoints.)
+  REMAINING (low value): wire this two-request latency probe as a repeatable startup/`dev` assertion per endpoint —
+  belt-and-braces, since the danger is now measured absent on the fleet.
 - [x] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
   server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
   **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion
