@@ -5303,7 +5303,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   that varied between requests sat at the prompt head and produced repeated *"forcing full prompt re-processing
   due to lack of cache data"*; removing it restored cache hits. **If a clock is needed, it goes in the LAST user
   message.** F4.40 already stabilizes the prefix — this is the lint that proves it stays stable.
-- [~] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
+- [x] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
   **tools → system → messages**: a change to tool definitions invalidates **everything**. Therefore tool lists MUST
   be deterministically sorted and their JSON schemas serialized with stable key ordering. A serializer that
   iterates a hash map produces different bytes run-to-run and the tools block never caches — an invisible,
@@ -5323,9 +5323,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   which sorts only to COMPARE surfaces for drift — this fixes the order actually SENT. Guarded by a test that
   asserts every `tools.push` in the service goes through the stabilizer, so a new registration site cannot bypass
   it silently. Suite green (11,107).
-  REMAINING (P19.2b): the two INFERRED halves — stable JSON key ordering in tool schemas (a serializer iterating
-  a hash map produces different bytes run-to-run) and ordering tool RESULTS by call index rather than completion
-  time (parallel calls resolve nondeterministically). Both need a serializer audit rather than a one-line sort.
+  **THE TWO INFERRED HALVES WERE AUDITED AND CLOSED — NEITHER ORIGINATES IN OUR CODE.** Worth recording, because
+  the research flagged both as high-confidence inference and the honest outcome was to REDUCE scope, not add work:
+  · **JSON key ordering in tool schemas — NOT a defect here.** The concern (a serializer iterating a hash map
+    emits different bytes run-to-run) is real in languages with unordered maps, but JS objects preserve INSERTION
+    order for string keys and `JSON.parse`/`JSON.stringify` round-trip it faithfully. Our code passes the server's
+    schema straight through (`tool.inputSchema as Record<string, unknown>`) and builds no schema from a `Map`/`Set`
+    iteration. **We do not introduce the nondeterminism.** The residual risk is a SERVER emitting varying key
+    order; `canonicalJson` already exists and would defend against it, but that changes the bytes the model sees
+    to guard an INFERRED risk we do not cause — **not shipped, deliberately.** Revisit only if a real server is
+    observed reordering its schema keys.
+  · **Tool-RESULT ordering — not ours either.** There is no `Promise.all` over tool calls in the agent path;
+    parallel-call result ordering belongs to the SDK, not to this codebase. Nothing to fix at this layer.
+  **NET: one real defect (the MCP tool list) found and fixed; two inferred defects audited away.** An audit that
+  correctly shrinks the backlog is as valuable as one that grows it.
 - [ ] **P19.3 — Compact the TAIL only, never mid-prefix.** Rewriting turn 3 of 40 forfeits turns 3–40; rewriting
   turns 30–40 forfeits only those. Prefer a rare full-miss at a natural boundary (amortized over 20+ later cached
   turns) over frequent partial rewrites, which is the pathological case — repeated full prefill that never
