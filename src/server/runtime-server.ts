@@ -1132,8 +1132,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// each call site's original candidate ORDER (order decides which card wins a scarce slot in autoStartTaskIds).
 		orderedCandidates: readonly string[],
 	): Promise<void> => {
-		if (durableRunWiring?.hasRun(scope.workspaceId)) {
+		const durableOwnsDiscovery = durableRunWiring?.hasRun(scope.workspaceId) === true;
+		if (durableOwnsDiscovery) {
 			const deferred = [...new Set(deferredTaskIds)];
+			// N7d instrumentation (2026-07-20): three code-reading hypotheses about why a startable card is never
+			// rescued produced two wrong answers, so this records the actual branch taken instead of inviting a
+			// fourth. The handover to the controller is INVISIBLE today — that invisibility is why a card can be
+			// dropped between two components while both look healthy.
+			if (deferred.length === 0 && orderedCandidates.length > 0) {
+				deps.warn(
+					`Rescue HANDOVER: durable run owns discovery; ${orderedCandidates.length} candidate(s) [${orderedCandidates.slice(0, 5).join(", ")}] handed to the controller and NOT started here (deferred set empty). If the controller does not dispatch them, nothing will.`,
+				);
+			}
 			if (deferred.length > 0) {
 				await autoStartTaskIds(scope, deferred, { bypassDurableGuard: true });
 			}

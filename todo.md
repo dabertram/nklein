@@ -5253,6 +5253,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   489s). Not caused by these changes — the assertion is pre-existing and fires before any of this code. Whether
   that is a real regression or a stale assertion is **N7d**, and it is exactly the kind of thing the nightly
   exists to surface; it had simply never been run.
+  ✅ **LANE EMISSION VERIFIED END-TO-END 2026-07-20 on a real passing run:** `01 × perfect` drained fully and the
+  runner printed `core-invariants: all 3 invariant(s) satisfied` from REAL board counts — the drain emitted, the
+  runner parsed, the collector built state, the pack judged it. The whole N5/N5b/N7 chain is proven on live data,
+  not fixtures.
   REMAINING (N7c): gate/guard SIGNALS are still unemitted, so `mustFire`/`mustStayQuiet` stay empty and every
   signal-level assertion remains `indeterminate`. Lanes are done; signals are the other half.
   **THIS IS THE KEYSTONE: everything downstream is built and idle without it.** N5's packs, N5b's collector, the
@@ -5332,10 +5336,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   ⚠️ **A CHECK I RAN THAT LOOKS LIKE DISPROOF AND IS NOT:** the failing run contains **ZERO** log lines matching
   `durable`. That is **silence, not absence** — the controller may simply not log — and reading it as "durable was
   off" would have sent this investigation back to the start. Recorded because the mistake is inviting.
-  **WHAT WOULD ACTUALLY SETTLE IT: instrument, do not read.** Log `hasRun(workspaceId)` at the sweep, and log the
-  durable controller's dispatch decision for the specific card. Three code-reading hypotheses have now been
-  raised here and two of them were wrong (the 5s debounce; the stale lane names) — **this subsystem is not
-  yielding to inspection, and the next step should produce evidence rather than another theory.**
+  **WHAT WOULD ACTUALLY SETTLE IT: instrument, do not read.** Three code-reading hypotheses were raised here and
+  two were wrong (the 5s debounce; the stale lane names) — **this subsystem does not yield to inspection.**
+  A `Rescue HANDOVER` warning is now emitted (runtime-server.ts) whenever the durable branch hands candidates to
+  the controller with an empty deferred set: *"handed to the controller and NOT started here … if the controller
+  does not dispatch them, nothing will."* **The handover was INVISIBLE before, and that invisibility is precisely
+  how a card gets dropped between two components while both look healthy.**
+  **🔀 THE THIRD RUN PASSED. The failure is INTERMITTENT, not deterministic.**
+  | run | outcome | completed |
+  |---|---|---|
+  | 1 | FAILED | 30 |
+  | 2 | FAILED | 28 |
+  | 3 | **PASSED** | full drain |
+  Same cell, same fixed seed 7, three different outcomes. This **confirms the nondeterminism as the primary
+  finding** and demotes "the drain leaves cards undrained" to a symptom of it.
+  ⚠️ **AND BY THIS PROJECT'S OWN RULES (P20.5/P20.6), 3 RUNS IS NOT A RATE.** It is tempting to write "fails ~2/3
+  of the time"; that would be a point estimate with an interval spanning nearly everything. **No failure rate is
+  claimed here**, and one should not be quoted until the run count supports it — the same discipline that was
+  written into `buildHeadline` this morning applies to its author.
+  The instrumentation has NOT yet fired: run 3 passed, so no rescue was needed. It is armed for the next failure.
   And separately, why two identical-seed runs differ (28 vs 30) — **do not treat that as noise to average over**;
   it is the more consequential finding, because it means every other nightly verdict is drawn from an unstable
   process.
