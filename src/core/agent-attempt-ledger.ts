@@ -857,3 +857,71 @@ export function summarizeToolUsageByModel(events: readonly AgentLedgerEvent[]): 
 	);
 	return rollups;
 }
+
+/** The tool names that MUTATE files — the ones whose success/error rate IS the "edit-format reliability" signal (P21.1). */
+export const EDIT_TOOL_NAMES: readonly string[] = ["apply_patch", "editor", "write_file", "edit_file", "create_file"];
+
+export interface ModelEditReliabilityRollup {
+	modelId: string;
+	/** Completed edit-tool calls (successes + errors) across ALL edit tools, per model. */
+	editCalls: number;
+	editSuccesses: number;
+	editErrors: number;
+	/** editSuccesses / editCalls over completed edit calls only; null when the model made no completed edit call. */
+	successRate: number | null;
+	/** Which edit tools this model actually used (so a diff-only vs whole-file model is visible), success-desc. */
+	byTool: readonly { toolName: string; calls: number; successRate: number }[];
+}
+
+/**
+ * P21.1 — roll the per-(model, tool) usage up into ONE edit-format-reliability number per model: the fraction of a
+ * model's file-MUTATING calls (`apply_patch`/`editor`/`write_file`/`edit_file`/`create_file`) that SUCCEEDED. Aider's
+ * data makes this a first-class routing dimension (whole-file 16.4% vs diff 8.0% on the same 32B — a 2× swing from
+ * edit format alone), and it was previously only visible as scattered per-tool rows. `successRate` is `null` (never 0)
+ * when a model made no completed edit call, so "we have no edit evidence for this model" stays distinct from "it fails
+ * every edit" — the same absent-evidence-≠-capability rule as the fitness store. Derived purely from the existing
+ * ledger outcomes (no new instrumentation); the coarse `is_error` grain proxies "struggles to edit", not specifically
+ * "struggles with DIFF format" (see P21.1's note for the granularity limit).
+ */
+export function summarizeEditReliabilityByModel(
+	events: readonly AgentLedgerEvent[],
+	editToolNames: readonly string[] = EDIT_TOOL_NAMES,
+): ModelEditReliabilityRollup[] {
+	const editSet = new Set(editToolNames);
+	const perTool = summarizeToolUsageByModel(events).filter((row) => editSet.has(row.toolName));
+	const byModel = new Map<string, ModelEditReliabilityRollup>();
+	for (const row of perTool) {
+		const rollup = byModel.get(row.modelId) ?? {
+			modelId: row.modelId,
+			editCalls: 0,
+			editSuccesses: 0,
+			editErrors: 0,
+			successRate: null,
+			byTool: [],
+		};
+		rollup.editSuccesses += row.successes;
+		rollup.editErrors += row.errors;
+		rollup.editCalls = rollup.editSuccesses + rollup.editErrors;
+		(rollup.byTool as { toolName: string; calls: number; successRate: number }[]).push({
+			toolName: row.toolName,
+			calls: row.calls,
+			successRate: row.successRate,
+		});
+		byModel.set(row.modelId, rollup);
+	}
+	const rollups = [...byModel.values()];
+	for (const rollup of rollups) {
+		rollup.successRate = rollup.editCalls > 0 ? rollup.editSuccesses / rollup.editCalls : null;
+		(rollup.byTool as { toolName: string; calls: number; successRate: number }[]).sort(
+			(a, b) => b.calls - a.calls || a.toolName.localeCompare(b.toolName),
+		);
+	}
+	// Most edit-active models first; a model with edit evidence outranks one without (null last).
+	rollups.sort(
+		(left, right) =>
+			right.editCalls - left.editCalls ||
+			(right.successRate ?? -1) - (left.successRate ?? -1) ||
+			left.modelId.localeCompare(right.modelId),
+	);
+	return rollups;
+}

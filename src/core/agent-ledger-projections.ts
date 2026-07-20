@@ -13,10 +13,12 @@ import {
 	type AgentAttemptEvent,
 	type AgentLedgerEvent,
 	type ModelContextUsageRollup,
+	type ModelEditReliabilityRollup,
 	type ModelOutcomeRollup,
 	type ModelSpeedRollup,
 	type ModelToolUsageRollup,
 	selectAttempts,
+	summarizeEditReliabilityByModel,
 	summarizeModelContextUsage,
 	summarizeModelOutcomes,
 	summarizeModelSpeed,
@@ -184,6 +186,8 @@ export interface LedgerDisplaySummary {
 	profiles: ModelBehaviorProfile[];
 	/** Per-(model, tool) usage + outcome counts — which tools each model leans on and where it fails (§5.AA). */
 	toolUsage: ModelToolUsageRollup[];
+	/** P21.1: per-model EDIT-format reliability — the success rate over all file-mutating calls, as one headline. */
+	editReliability: ModelEditReliabilityRollup[];
 	/** Per-model speed (ttft + tok/s) from the ledger — a §5.AB selection signal alongside the outcome rollup. */
 	speed: ModelSpeedRollup[];
 	/** Per-model context usage (avg/max prompt tokens + over-budget count) — a §5.AD budget / §5.AB routing input. */
@@ -422,6 +426,7 @@ export function summarizeLedgerForDisplay(events: readonly AgentLedgerEvent[]): 
 		byFlow: summarizeModelOutcomesByFlow(events),
 		profiles: buildModelBehaviorProfilesFromLedger(events),
 		toolUsage: summarizeToolUsageByModel(events),
+		editReliability: summarizeEditReliabilityByModel(events),
 		speed: summarizeModelSpeed(events),
 		contextUsage: summarizeModelContextUsage(events),
 	};

@@ -101,6 +101,7 @@ describe("summarizeLedgerForDisplay", () => {
 			byFlow: [],
 			profiles: [],
 			toolUsage: [],
+			editReliability: [],
 			speed: [],
 			contextUsage: [],
 		});

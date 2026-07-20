@@ -363,6 +363,17 @@ source repo went private — so if it vanishes the buildable source still lives 
     **NEVER poll a live endpoint in a tight loop to pass time.** To wait: use the background-task completion
     notification, the Monitor tool, or a single spaced check — and read the drain's OWN reported duration for timing,
     never a hand-counted loop. Real speed/completion numbers must come from a clean run instrumented properly.
+  - **CLEAN-MEASURED DRAIN 2026-07-20 (real `date` stamps, background notification, no polling):** `openai/gpt-oss-120b`
+    on m5max, ACT mode (`--no-plan`), `mid_task` — **real wall time 8m52s** (532s), NOT the 30-60 min I'd wrongly
+    guessed; it CLASSIFIED (didn't hit the 30-min bound). Outcome: `blocked_by_review_cards` (1 card in review, 0
+    completed, acceptance not run). **But inspecting the transcript: the 120B made only 2 exploration calls
+    (`find_files`, `get_file_size`) then emitted a DECOMPOSITION PLAN as prose (a "card-01 Scoring Cap Logic..." table)
+    - it treated the ACT-mode task as "break this into cards" instead of "implement it." ZERO edit-tool calls, no
+    delivered patch (git shows only the initial fixture).** So the card reached `review` carrying a plan, not code -
+    the outcome overstates it. GENUINE FINDINGS: (1) a 120B ACT-mode drain is ~9 min, not tens of minutes; (2) model
+    BEHAVIOUR, not speed, is the blocker - the 14B emitted empty output, the 120B decomposed-instead-of-implemented,
+    so NONE of the three drains produced a real edit -> the P21.1 edit-reliability metric still has no data; (3) the
+    ACT-mode worker prompt likely needs a firmer "implement, do not decompose" steer for a strong general model.
 
 - **AN AUDIT'S OWN ARTEFACTS CONTAMINATE ITS INPUT — check the flattering result, not the alarming one.**
   Hit FOUR times on 2026-07-20, in four different tools, each time producing a *better* number than reality:
@@ -7924,6 +7935,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `toolUsage`), and (b) whether the specific whole-file-vs-diff format lever adds anything ON TOP of the existing
   split (likely marginal — the split already removes the format-attention tax). Reclassified from "highest-value
   unbuilt steal" to "core shipped via F12.62; residual is a naming + a maybe-redundant lever, David-gated."
+  **✅ THE "first-class metric" HALF IS NOW BUILT 2026-07-20.** `summarizeEditReliabilityByModel` (agent-attempt-
+  ledger.ts) rolls the existing per-(model,tool) outcomes up into ONE per-model edit-format success rate over all
+  file-mutating tools (`apply_patch`/`editor`/`write_file`/`edit_file`/`create_file`), with `byTool` so a diff-vs-
+  whole-file split is visible, and `successRate: null` (never 0) when a model has no completed edit call (absent
+  evidence ≠ zero capability). Wired into the ledger projection (`editReliability`) + shown by `dev` telemetry as a
+  headline row. 3 tests. So the edit-format signal is no longer buried across per-tool rows. **BUT it has NO real
+  data yet** — see the drain finding below: none of the three real drains produced an actual edit-tool call, so
+  every real edit-reliability row is currently `n/a`. The metric is READY; it needs drains that actually EDIT.
 - [ ] **P21.2 — Tool-call FORMAT negotiation per model (the canonical local-model harness bug).** Cline issue
   #10843: Qwen2.5-Coder-32B emits **correct JSON** tool calls; Cline's streaming parser only recognizes
   Anthropic-flavoured **XML**, so it answers "no tool was used", the model repeats the identical payload, and it

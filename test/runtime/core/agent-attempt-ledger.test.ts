@@ -9,6 +9,7 @@ import {
 	selectAttempts,
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
+	summarizeEditReliabilityByModel,
 	summarizeKnowledgeDebtOutcomes,
 	summarizeKnowledgeOutcomeByModel,
 	summarizeModelContextUsage,
@@ -223,6 +224,54 @@ describe("summarizeToolUsageByModel", () => {
 			]),
 		]);
 		expect(rollups.map((row) => row.toolName)).toEqual(["b_tool", "a_tool"]);
+	});
+});
+
+describe("summarizeEditReliabilityByModel (P21.1)", () => {
+	it("aggregates ALL edit tools into one per-model success rate; non-edit tools are ignored", () => {
+		const rollups = summarizeEditReliabilityByModel([
+			attemptWithTools("strong", [
+				{ name: "apply_patch", outcome: "success" },
+				{ name: "editor", outcome: "success" },
+				{ name: "read_files", outcome: "error" }, // NOT an edit tool — must not affect the rate
+			]),
+			attemptWithTools("strong", [{ name: "write_file", outcome: "success" }]),
+			attemptWithTools("weak", [
+				{ name: "apply_patch", outcome: "error" },
+				{ name: "apply_patch", outcome: "error" },
+				{ name: "apply_patch", outcome: "success" },
+			]),
+		]);
+		const strong = rollups.find((r) => r.modelId === "strong");
+		expect(strong).toMatchObject({ editCalls: 3, editSuccesses: 3, editErrors: 0 });
+		expect(strong?.successRate).toBe(1);
+		const weak = rollups.find((r) => r.modelId === "weak");
+		expect(weak).toMatchObject({ editCalls: 3, editSuccesses: 1, editErrors: 2 });
+		expect(weak?.successRate).toBeCloseTo(1 / 3);
+	});
+
+	it("a model with NO completed edit call reports successRate null (not 0) — absent evidence ≠ zero capability", () => {
+		const [row] = summarizeEditReliabilityByModel([
+			// Only an incomplete (null-outcome) edit call + a non-edit call: no COMPLETED edit evidence.
+			attemptWithTools("m", [
+				{ name: "apply_patch", outcome: null },
+				{ name: "read_files", outcome: "success" },
+			]),
+		]);
+		expect(row?.modelId).toBe("m");
+		expect(row?.editCalls).toBe(0);
+		expect(row?.successRate).toBeNull();
+	});
+
+	it("byTool exposes which edit format a model used (diff vs whole-file visibility)", () => {
+		const [row] = summarizeEditReliabilityByModel([
+			attemptWithTools("m", [
+				{ name: "write_file", outcome: "success" },
+				{ name: "write_file", outcome: "success" },
+				{ name: "apply_patch", outcome: "error" },
+			]),
+		]);
+		expect(row?.byTool.map((t) => t.toolName)).toEqual(["write_file", "apply_patch"]); // calls desc
 	});
 });
 

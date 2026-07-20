@@ -185,6 +185,22 @@ export async function runDevLedgerCommand(options: { json?: boolean }): Promise<
 			);
 		}
 	}
+	if (summary.editReliability.length > 0) {
+		// P21.1: the headline edit-format signal — the per-model success rate across ALL file-mutating tools, so a
+		// model that struggles to EDIT (aider: 2× swing from edit format alone) is visible at a glance, not buried
+		// across per-tool rows. `n/a` = no completed edit call yet (absent evidence, NOT zero capability).
+		process.stdout.write("\nPer-model EDIT reliability (P21.1 — success rate over file-mutating calls):\n");
+		for (const row of summary.editReliability) {
+			const rate =
+				row.successRate === null
+					? "n/a (no edits)"
+					: `${String(Math.round(row.successRate * 100)).padStart(3)}% ok`;
+			const tools = row.byTool.map((t) => t.toolName).join("+") || "—";
+			process.stdout.write(
+				`  ${row.modelId.padEnd(40)} ${String(row.editCalls).padStart(3)} edit(s)  ${rate}  [${tools}]\n`,
+			);
+		}
+	}
 
 	if (summary.speed.length > 0) {
 		process.stdout.write("\nPer-model speed (from ledger ttft + tok/s — a §5.AB selection signal):\n");
