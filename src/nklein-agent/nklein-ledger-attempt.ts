@@ -61,6 +61,8 @@ export interface TerminalAttemptInput {
 	endedAt: number;
 	promptTokens: number | null;
 	completionTokens: number | null;
+	/** N18: reasoning-only tokens, when the server reported them; null = not reported. */
+	reasoningTokens?: number | null;
 	/** Non-null when the run ended on a bounded turn/stream/tool timeout (§5.C). */
 	timeoutReason: string | null;
 	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
@@ -113,6 +115,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		promptStrategy: input.promptStrategy ?? null,
 		difficulty: input.difficulty ?? null,
 		contextTokens: input.promptTokens,
+		reasoningTokens: input.reasoningTokens ?? null,
 		contextBudgetTarget: input.contextBudgetTarget ?? null,
 		tokensPerSec,
 		outcome,

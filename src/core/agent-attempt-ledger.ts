@@ -143,6 +143,10 @@ const attemptEventSchema = z.object({
 	/** §5.AA tool-set-reduction level (0 = full set). */
 	simplificationLevel: z.number(),
 	contextTokens: z.number().nullable(),
+	// N18: reasoning-only tokens for this attempt, when the server reported them. Additive with a null default so
+	// the 226 existing v1 records (which lack it) parse unchanged — no schemaVersion bump. null means "not
+	// reported", distinct from 0; the fitness/behaviour rollups that read this must keep them apart.
+	reasoningTokens: z.number().nullable().default(null),
 	/** §5.AD context budget target in play. */
 	contextBudgetTarget: z.number().nullable(),
 	/** §5.AB task-difficulty label (trivial → very-hard) when estimated. */
@@ -280,6 +284,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	completedAt?: number | null;
 	ttftMs?: number | null;
 	tokensPerSec?: number | null;
+	reasoningTokens?: number | null;
 	toolCalls?: AttemptToolCall[];
 	surfacedSkillIds?: readonly string[];
 	outcome: ModelOutcomeKind;
@@ -314,6 +319,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		completedAt: input.completedAt ?? null,
 		ttftMs: input.ttftMs ?? null,
 		tokensPerSec: input.tokensPerSec ?? null,
+		reasoningTokens: input.reasoningTokens ?? null,
 		toolCalls: input.toolCalls ? input.toolCalls.map((call) => ({ ...call })) : [],
 		surfacedSkillIds: input.surfacedSkillIds ? [...input.surfacedSkillIds] : [],
 		outcome: input.outcome,

@@ -3308,6 +3308,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						endedAt: summary.updatedAt,
 						promptTokens,
 						completionTokens,
+						// N18: reasoning tokens now flow to the ledger too (per-ATTEMPT), from the same
+						// `readSessionUsage` result that `usage` came from. null when the server reported no
+						// breakdown — the fitness rollups keep null and 0 apart.
+						reasoningTokens: usage?.reasoningTokens ?? null,
 						timeoutReason,
 						toolCalls,
 						knowledge,
