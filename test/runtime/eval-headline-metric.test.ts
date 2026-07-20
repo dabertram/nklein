@@ -102,3 +102,36 @@ describe("P20.5b — the discipline has a LIVE consumer", () => {
 		expect(rows[0]?.passPowerK).toBeLessThan(rows[0]?.successRate ?? 1);
 	});
 });
+
+describe("P20.5b — repo-level enforcement", () => {
+	it("no source file introduces pass@k as a reported metric", async () => {
+		// The honest wire for assertHeadlineMetricAllowed. Nothing NAMES its own metric at runtime today, so adding
+		// a caller would be theatre — a call that exists to make a guard look wired. What the rule actually needs is
+		// to fire when someone ADDS pass@k to a report, and that moment is a source change, not a request.
+		//
+		// This currently passes trivially (no occurrence exists). That is the point: it is a ratchet, not a
+		// discovery. It costs nothing today and refuses the metric the day someone reaches for it — which, per
+		// P20.5, is the day it would flatter a change.
+		const { readdirSync, readFileSync, statSync } = await import("node:fs");
+		const { join } = await import("node:path");
+		const offenders: string[] = [];
+		const walk = (dir: string) => {
+			for (const entry of readdirSync(dir)) {
+				if (entry === "node_modules" || entry.startsWith(".")) {
+					continue;
+				}
+				const path = join(dir, entry);
+				if (statSync(path).isDirectory()) {
+					walk(path);
+				} else if (/\.(ts|tsx)$/.test(path) && !path.includes("eval-headline-metric")) {
+					const text = readFileSync(path, "utf8");
+					if (/pass@k|passAtK|pass_at_k/i.test(text)) {
+						offenders.push(path);
+					}
+				}
+			}
+		};
+		walk("src");
+		expect(offenders).toEqual([]);
+	});
+});

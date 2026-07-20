@@ -6174,7 +6174,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   local-fleet run counts is the COMMON case rather than an edge one. And zero runs renders as *"no result to
   report"*, never as 0% — an absent measurement and a measured zero are different claims.
   The wire is P20.5b.
-- [~] **P20.5b — Route every eval report through `buildHeadline` *(split from P20.5 2026-07-20)*.**
+- [x] **P20.5b — Route every eval report through `buildHeadline` *(split from P20.5 2026-07-20)*.**
   **FIRST LIVE CONSUMER WIRED 2026-07-20 (same session, deliberately):** `buildFitnessTableView` now carries
   `headline`, `underpowered` and `passPowerK` per cell, and it is reached from `runtime-api.ts` — so P20.5 is
   **no longer a rule nobody is subject to.** Closing this immediately was the point: the alternative was shipping
@@ -6188,9 +6188,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   And `passPowerK` answers the question a multi-card board actually asks — not *"does it usually work?"* but
   *"does it work FOUR TIMES RUNNING?"*, which is what finishing a card without intervention requires. It falls off
   far faster than the success rate suggests.
-  REMAINING: `assertHeadlineMetricAllowed` still has NO caller — the throw-guard is armed but nothing hands it a
-  metric name. It fires only once a report path names its own metric, which no surface does yet. Recorded rather
-  than glossed: the FORMATTING half is wired, the NAMING half is not.
+  **THE NAMING HALF IS NOW ENFORCED TOO — as a REPO RATCHET rather than a fake caller.** Nothing names its own
+  metric at runtime today, so adding a call to `assertHeadlineMetricAllowed` would have been theatre: **a call
+  that exists to make a guard look wired.** What the rule actually needs is to fire when someone ADDS pass@k to a
+  report, and **that moment is a source change, not a request.** So a test scans `src` for `pass@k` / `passAtK` /
+  `pass_at_k` and fails.
+  It passes trivially today (no occurrence exists) — **that is the point: a ratchet, not a discovery.** It costs
+  nothing now and refuses the metric the day someone reaches for it, which per P20.5 is precisely the day it
+  would flatter a change. **Verified by planting `pass@k` in an unrelated core: the test named that file and
+  failed; removing it went green again.**
 - [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
