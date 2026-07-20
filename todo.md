@@ -7926,7 +7926,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > **Qwen3-8B scores 41.75 on Multi-Turn while Qwen3-14B scores 34.75** — the smaller model wins by 7 points.
 > Any architectural or size signal smaller than that gap is noise.
 
-- [~] **P22.1 — Audit every use of `paramB` as a capability proxy and add a depth caveat.** Sites include the
+- [x] **P22.1 — Audit every use of `paramB` as a capability proxy and add a depth caveat.** Sites include the
   F12.83 language-size floor (`recommendModelFloor`), the fitness prior, and F12.110's depth-target class. The
   floor is probably still defensible as a WEAK prior for *task complexity*, but it must not be read as a
   predictor of long-context or multi-turn behaviour. **The measured fitness store is the right authority; paramB
@@ -7946,8 +7946,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     unknown/no-file fallback is 14, so `recommendedFloorB` is ALWAYS ≥ 7 — the `=== 0` *"no floor — a capable
     small model suffices"* branch is UNREACHABLE. Recorded, not deleted (harmless defensive code); a genuine
     "no floor" would need a language floor of 0, which the table does not have.
-  REMAINING (P22.1b): F12.110's depth-target class — verify it reads paramB as a weak prior too (the same
-  measured-first discipline); it was not re-read in this pass, so it is named rather than claimed clean.
+  · F12.110's depth-target class (`selectDepthTargetClass` / `rankFleetClass`) — ✅ VERIFIED COMPLIANT 2026-07-20:
+    ranks by MEASURED capability first, and its paramB fallback is `Math.min(49, paramB)` while measured
+    capability spans 0–100 — so **any measured class structurally outranks any unmeasured one regardless of
+    size.** That is the P22.1 rule ("measured is the authority; size is the fallback") enforced by the NUMBER
+    RANGE, not by discipline — a size prior that cannot possibly beat a measurement. `describeClass` shows
+    "unmeasured" honestly rather than implying the size is a verdict. No change needed.
+  **P22.1 COMPLETE — all four proxy sites audited; the one that could mislead (`recommendModelFloor`) is fixed,
+  the other three were already sound.**
 - [ ] **P22.2 — Measure fitness AT DEPTH, not at depth 0 (highest-value change to the fitness store).** Every
   fitness number we hold is effectively a shallow-context measurement. Given (1) above, a model that ranks well
   on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
