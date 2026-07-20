@@ -7258,6 +7258,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   un-churned. No judgeable card reports **"churn is UNMEASURED, which is not the same as low."**
   REMAINING (P20.10b): the collector — attribute accepted lines to a card and re-read them at 24h/7d via git.
   Needs real history; the judging is done.
+  **COLLECTOR SHIPPED 2026-07-20: `churn-collector.ts`, 13 tests, verified against REAL git history.**
+  Git is an injected PORT, so the arithmetic is testable without a repository and the same logic works against a
+  sandbox result branch or main. Live check: 16 of 206 attributed lines still belong to the last commit touching
+  `nightly-invariant-pack.ts` — which matches the size of that commit, so the counting is not merely self-consistent.
+  **IT USES BLAME, NOT DIFF, and that is the measurement decision.** Diffing a card's commit against a later ref
+  answers *"how much changed nearby"*, not *"how much of what this card wrote is still here"* — a later commit
+  touching adjacent lines inflates it and a rename destroys it. Blame asks the actual question: is each authored
+  line still attributed to the card's commit?
+  **AN UNREADABLE FILE COUNTS AS FULLY CHURNED *AND* IS NAMED.** Counting it as surviving would hide a DELETED
+  file — the strongest churn signal there is — behind a read error; counting it silently would make the
+  denominator lie. Survival above authorship is CLAMPED, because negative churn would read as *"the card added
+  lines after the fact"*, a nonsense a reader would rightly disbelieve.
+  ⚠️ **STATED IN THE SOURCE BECAUSE A CHURN NUMBER IMPLIES MORE PRECISION THAN IT HAS:** a MOVED line reads as
+  churn (blame does not follow content across a relocating refactor) and a REFORMAT reads as churn. **Both push
+  the number UP** — so a LOW churn figure is trustworthy while a HIGH one deserves a look before it is believed.
+  That asymmetry has to be known before anyone acts on a ranking.
+  `countAttributedLines("")` returns 0 rather than matching every line — a blank prefix would `startsWith`-match
+  everything and report total survival, a silent and flattering lie.
+  REMAINING: the scheduler that samples at 24h/7d and feeds `assessChurn`. Needs elapsed time, not code.
 - [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
   (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
   ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
