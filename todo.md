@@ -5361,8 +5361,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **THE SHARPENED QUESTION: the board simply STOPPED PROMOTING `planning` → `ready`.** Final state is
   `ready: 0, in_progress: 0` with 22 dependency-free cards sitting in `planning`. Nothing was in flight and
   nothing was waiting on anything — promotion just ceased after 19.
-  NEXT: find what moves a card `planning` → `ready` and why it stopped while 22 eligible cards remained. The
-  handover warning is a SYMPTOM of that (the sweep sees startable cards and declines), not the cause.
+  **✅ DECISIVE EVIDENCE — the 14 stranded cards NEVER STARTED AT ALL.** Each appears **exactly once** in the
+  whole runtime log, and that single line is the handover warning. No session, no attempt, no error. For these
+  cards the handover really was terminal.
+  ⚠️ **A framing that had to be checked and survived:** `task-board-ready-sweep.ts` warns that *"started cards
+  PARK IN PLANNING while they run"*, so a card in `planning` is NOT necessarily unstarted — the 22 could have
+  been cards whose sessions died. The one-log-line count settles it: **they were never started**, so the
+  "planning" lane is telling the truth here rather than hiding a dead session.
+  **SO THE SCOPE IS NOW EXACT, and it sits between the earlier claim and its correction:**
+  - "the controller never dispatches" — too broad; 19 of 33 handed cards went through fine.
+  - "the handover is harmless" — too narrow; for 14 cards it was the last thing that ever happened to them.
+  **The controller silently drops a SUBSET of the cards handed to it, and drops them completely.**
+  Everything else is now ruled out by evidence: not dependencies (`dependsOn: none`), not stream or write-scope
+  (identical to the completed cards), not the sweep debounce (30s tick vs 5s window), not lane naming, not a dead
+  session (one log line each), not the diagnostics (run 5 failed after them).
+  NEXT: the durable controller's admission/dispatch path is the only remaining place this can happen — find why
+  it accepts 19 and silently drops 14 with no log line of its own. **That silence is itself the bug's best
+  fingerprint: a component that declines work without recording the decision.**
   It also resolves the ambiguity flagged earlier: `durable run owns discovery` means `hasRun` is TRUE, so the
   **"zero durable log lines" reading really was silence rather than absence** — treating it as disproof would
   have killed the correct hypothesis.
