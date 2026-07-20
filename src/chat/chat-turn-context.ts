@@ -1,5 +1,6 @@
 import type { MultimodalContentPart } from "../core/chat-multimodal";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { consolidateChatContextWindow, splitChatContextWindow } from "./chat-context-window";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -127,6 +128,26 @@ export function renderChatTurnPrompt(
 		: null;
 	if (temporal?.inject) {
 		messages.push({ role: "system", content: temporal.block });
+	}
+	// F4.8b: recorded HERE, at the decision, rather than at the call site — `enabled` and `injected` are different
+	// facts. The flag only makes the block ELIGIBLE; `decideTemporalContextInjection` then relevance-gates it, so a
+	// turn can have the feature on and no block rendered. Observing the flag would answer the wrong question, and
+	// re-deriving the decision at the caller would be a second copy of it, free to drift from this one.
+	if (temporal) {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Knows-today block ${temporal.inject ? "injected" : "withheld"} for this turn.`,
+				metadata: {
+					category: "knows_today_injection",
+					enabled: options.enabled === true,
+					injected: temporal.inject,
+				},
+			});
+		} catch {
+			// Telemetry must never break prompt rendering.
+		}
 	}
 	// Defensive re-filter: a hand-built context could carry display-only roles; the prompt never accepts them.
 	for (const message of context.recentMessages.filter(isPromptRole)) {

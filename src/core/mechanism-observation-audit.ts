@@ -246,6 +246,18 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: the flag only makes the block ELIGIBLE — `decideTemporalContextInjection` then
+		// relevance-gates it, so a turn can have the feature ON and render nothing. Observing the flag would have
+		// answered the wrong question; this records the DECISION, at the decision.
+		category: "knows_today_injection",
+		item: "§5.AC",
+		observes: "whether the knows-today block was injected on a turn, distinct from whether it was enabled",
+		enabledBy: null,
+		expectation: "every_run",
+		firesWhen: "attempt_started",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: the n-eyes panel silently falls through to the plain panel when no eye returns a
 		// verdict, and the plain panel silently falls through to a single reviewer. Two levels of degradation,
 		// each invisible — so a run with NKLEIN_N_EYES_REVIEW on that quietly decided by ONE reviewer looked

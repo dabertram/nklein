@@ -82,6 +82,11 @@ export const NON_MECHANISM_FLAGS: Readonly<Record<string, string>> = {
 	NKLEIN_DEBUG_STREAM_EVENTS: "debug tracer — prints SDK stream events with timings; the printout is the observation",
 	NKLEIN_EVAL_RAIL: "eval harness — runs throwaway dev-test evals whose results are the artifact",
 	NKLEIN_EVAL_DISTRACTOR_PROBE: "eval harness — produces the degradation data `dev distractor-sensitivity` reads",
+	// Not a dev/eval instrument, but exempt for the stronger reason: its ARTIFACT is the record. Enabling it
+	// persists a `reasoning` row per turn into the transcript, so "did it capture?" is answered by reading the
+	// transcript. A telemetry category would be a second source of truth for the same fact — the duplicate the
+	// ledger check already prevented twice (EXPLORER_SUBAGENT, the procedural consumer).
+	NKLEIN_REASONING_CAPTURE: "artifact-observable — persists a reasoning row per turn; the transcript IS the record",
 };
 
 /** Matches the project's default-OFF idiom. A flag read any other way is invisible here — stated, not hidden. */
