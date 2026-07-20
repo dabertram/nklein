@@ -237,6 +237,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: only decomposition STALLS were observed — the failure modes — so the mechanism's
+		// normal operation was invisible and "did fleet-awareness change the breakdown at all?" had no answer.
+		// That is the question the feature exists to be judged on, and it alters decompose granularity.
+		category: "fleet_aware_decompose",
+		item: "F12.110",
+		observes:
+			"the fleet-aware decompose decision: target class, effective context and depth — including when the fleet summary is empty and it changes nothing",
+		enabledBy: "NKLEIN_FLEET_AWARE_DECOMPOSE",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: the architect phase's failure was swallowed by `.catch(() => null)`, after which the
 		// session falls back to the plain prompt and looks IDENTICAL to one where the feature was never enabled.
 		// A silent degradation to the default path is indistinguishable from the feature being off.

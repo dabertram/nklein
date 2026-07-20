@@ -1657,6 +1657,32 @@ export async function handleStartTaskSession(
 					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
 				)
 			: null;
+		// F4.8b: record what fleet-aware decomposition actually DECIDED. Only decomposition STALLS were observed
+		// (`decomposition_*_stall`) — the failure modes — so the mechanism's normal operation was invisible and
+		// "did fleet-awareness change the breakdown at all?" had no answer. That is the question the whole feature
+		// exists to be judged on, and it changes decompose granularity, which is not a small effect to run blind.
+		if (isDecomposePlanTask && fleetAwareDecomposeOn) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Fleet-aware decompose for ${body.taskId}: target class ${fleetDepthTargetClass?.modelKey ?? "none"}, depth ${autoDecompositionDepth ?? "unset"}.`,
+					taskId: body.taskId,
+					metadata: {
+						category: "fleet_aware_decompose",
+						mode: fleetDecompositionMode,
+						// null when the fleet summary came out EMPTY — the case where the feature is on and does
+						// nothing, which a success-only record would hide.
+						targetClass: fleetDepthTargetClass?.modelKey ?? null,
+						effectiveContextTokens: fleetDepthTargetClass?.effectiveContextTokens ?? null,
+						autoDecompositionDepth: autoDecompositionDepth ?? null,
+						guidanceLines: fleetDecompositionGuidance?.length ?? 0,
+					},
+				});
+			} catch {
+				// Telemetry must never block a task start.
+			}
+		}
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
