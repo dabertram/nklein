@@ -5860,6 +5860,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   ships broken, and so is "the unit test passes."*
   REMAINING (U1c): the browser-level check across the five hard cases, ideally as a Playwright assertion on a
   visible element's document offset. Composes with N14's UI release journeys.
+  **⚠️ BROWSER VERIFICATION ATTEMPTED 2026-07-20 AND NOT ACHIEVED — recorded rather than skipped.**
+  Started the web-ui dev server and inspected the live DOM. The `data-scroll-anchored` container is correctly
+  placed in source (on the `overflow-y-auto` scroll container, beside `ref={scrollContainerRef}`), but **the page
+  had ZERO scrollable containers**: the chat panel only mounts for a card with real session history, which needs a
+  live backend session with messages.
+  **So the hook's real-browser behaviour is UNVERIFIED.** The unit tests prove the arithmetic and the source
+  placement is confirmed by reading, but *"the text does not move while reading"* has not been observed. Given the
+  whole item is about a perceptual defect, that gap is the important part of this record — **and a developer is
+  normally pinned to the bottom watching output, which is the one state where the bug cannot occur.**
+  NEXT for U1c: drive a card to a state with scrollable history first (a drained dev-test cell leaves one), then
+  detach from the bottom and assert a visible element's document offset across a collapse. That is a browser-level
+  test with a setup cost, not a quick check.
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
