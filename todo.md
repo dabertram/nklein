@@ -6229,6 +6229,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   🐛 **And it caught an over-claim in its OWN table:** `cold_load.seconds = 65` was labelled `measured` on the
   strength of a 40–90s field range with no recorded sample. The assessor downgrades it. **Kept as-is rather than
   quietly relabelled — the mechanism catching its author is the demonstration that it works.**
+  **🔗 THE TABLE IS BOUND TO THE LIVE CONSTANTS, not a copy of them.** A test asserts each catalogued value equals
+  the constant actually in force (`COMPACTION_UTILISATION`, `CODEACT_FITNESS_BAR`, `RESIDENCY_FITNESS_BAR`,
+  `COLD_LOAD_SECONDS`, `REGRESSION_RATIO`). Without it the table is documentation duplicating a constant, and
+  **documentation that duplicates a constant drifts from it** — at which point the provenance labels describe
+  numbers the system no longer uses. That is WORSE than no table: a confident, wrong account of where our
+  thresholds came from. Verified by changing a catalogued value: the test named the id and failed; restoring it
+  went green.
+  REMAINING (P18.5b): produce a REAL measurement for at least one entry and flip it to `measured` with a genuine
+  sample. Needs nightly/eval-harness runs — and per P20.6's arithmetic, enough TASKS rather than enough repeats.
 - [ ] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
   models performed BETTER on shuffled haystacks than on logically coherent ones.** If coherent structure is a
   liability for retrieval, then a well-written narrative summary — the standard compaction artifact, and what

@@ -85,3 +85,28 @@ describe("SHIPPED_THRESHOLDS", () => {
 		expect(citable).toEqual([]);
 	});
 });
+
+describe("the table must not DRIFT from the live constants", () => {
+	it("every catalogued value matches the constant actually in force", async () => {
+		// Without this the table is documentation, and documentation that duplicates a constant drifts from it —
+		// at which point the provenance labels describe numbers the system no longer uses. That would be worse
+		// than no table: a confident, wrong account of where our thresholds came from.
+		const [offTrack, codeact, residency] = await Promise.all([
+			import("../../src/core/off-track-intervention"),
+			import("../../src/core/codeact-gating"),
+			import("../../src/core/resident-set-recommendation"),
+		]);
+		const nightly = await import("../../src/core/nightly-schedule");
+		const live = new Map<string, number>([
+			["compaction.context_utilisation", offTrack.COMPACTION_UTILISATION],
+			["codeact.fitness_bar", codeact.CODEACT_FITNESS_BAR],
+			["residency.fitness_bar", residency.RESIDENCY_FITNESS_BAR],
+			["cold_load.seconds", residency.COLD_LOAD_SECONDS],
+			["regression.slowdown_ratio", nightly.REGRESSION_RATIO],
+		]);
+		for (const threshold of SHIPPED_THRESHOLDS) {
+			expect(live.get(threshold.id), `${threshold.id} is catalogued but has no live constant bound`).toBeDefined();
+			expect(threshold.value, `${threshold.id} drifted from its live constant`).toBe(live.get(threshold.id));
+		}
+	});
+});
