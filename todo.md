@@ -1740,6 +1740,26 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [ ] **F4.7 — Wire smart-zone context arrangement into every prompt path.** Keep stable system/skill prefixes,
   task/evidence recency, result handles, and model-specific sensitivity while enforcing the 32k floor.
+  **⚠️ AUDIT 2026-07-20 — DECIDE BEFORE BUILDING: this item may be REDUNDANT, and its two cores are UNWIRED.**
+  Verified by consumer count: `cache-stable-prefix-order.ts` has **ZERO** non-test consumers
+  (`orderFragmentsForStablePrefix`, `planCacheStablePrefixOrder`, `planCacheStablePrefixWithReuse` — 0 each), and
+  `context-smart-zone.ts`'s two apparent consumers are **comment mentions in docblocks, not calls**. These are
+  textbook P15.1 "shipped but never exercised" cores.
+  **AND THE GOAL THEY SERVE IS ALREADY MET BY OTHER MEANS.** F4.40 (`[x]`, correctly) achieved byte-stable
+  cache-aware layout NOT by routing builders through an assembler, but by PROVING the existing builders already
+  emit stable prefixes and regression-locking that with 12 tests (session-env is a true suffix; decompose/review/
+  chat seeds byte-identical; no builder embeds `Date.now`/`toISOString`/random in prompt bytes). **That is the
+  better solution to the same problem** — it is non-invasive, changes no behaviour, and yields the same guarantee
+  with a test net that fails loudly if anyone breaks it.
+  **DOCUMENTATION DRIFT TO FIX:** F12.73 and two other items refer to "the cache-stable-prefix assembler (F4.40)"
+  as though an assembler is running. There is no assembler in the prompt path — there is a proven-stable set of
+  builders plus a regression net. Anyone reasoning from "the assembler stabilizes the prefix" is reasoning about
+  code that never executes.
+  **THE DECISION (P15.4 kill-list candidate):** either wire the smart-zone arrangement for the recency/salience
+  benefit it uniquely offers (which F4.40's net does NOT provide), or DELETE both cores and let F4.40's proof
+  stand alone. **Deleting is a legitimate and preferred outcome** — a core that taught its lesson and has no
+  consumer has already delivered its value, and maintaining it forever is the cost the charter warns about.
+  Do not wire it merely because it exists.
 - [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
   constraints, and acceptance criteria without duplicating large context.
 - [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
