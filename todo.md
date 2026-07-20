@@ -7833,6 +7833,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   multi-diff apply + per-model-family diff markers** gave **>10% average, ~+25% on Sonnet 3.5, >+21% on GPT-4.1**
   — root cause was that *"many LLMs would often return them out of sequence"*. **This is probably the single
   highest-value steal in the survey for a small-model fleet.**
+  **🔎 DATA-SOURCE SCOUT 2026-07-20 (the root-cause-correct first step is MEASURE, before routing).** The per-attempt
+  ledger already records `toolCalls[].outcome` (`attemptToolCallSchema`), so the SHAPE for an edit-format metric
+  exists — aggregate `apply_patch`/`editor`/`write_file` call outcomes per model. BUT the blocker found: the
+  reliably-populated outcome vocabulary is ATTEMPT-level (`success`/`loop`/… via `mapTerminalStateToOutcome`); it is
+  NOT established that a MALFORMED-diff apply failure is captured as a distinct per-tool-call outcome string (the
+  approval path detects "could not identify changed files in patch input" in `nklein-runtime-setup.ts`, but whether
+  that reaches `toolCalls[].outcome` as a queryable failure marker is unverified). So the correct build order is:
+  (1) FIRST instrument apply_patch/editor success-vs-malformed as a distinct per-tool-call outcome at the apply
+  site, THEN (2) a pure `computeEditFormatSuccessRate(attempts, editToolNames)` core over it, THEN (3) surface it
+  in the fitness view. Building the metric on the current outcome field would silently miscount (a miscounting
+  metric is worse than none) — so step 1 is the real first task, not an assumed-present data read. The ROUTING half
+  (weak model → whole-file) stays fleet-gated behind the measured metric.
 - [ ] **P21.2 — Tool-call FORMAT negotiation per model (the canonical local-model harness bug).** Cline issue
   #10843: Qwen2.5-Coder-32B emits **correct JSON** tool calls; Cline's streaming parser only recognizes
   Anthropic-flavoured **XML**, so it answers "no tool was used", the model repeats the identical payload, and it
