@@ -4143,7 +4143,7 @@ output and NOT acted on. Captured as F12.12.)
   stream + the model-role config UI. 10 tests (41 in the module).
   NOT DONE: no wire — this is the profile BUILDER; F12.70's runtime spec-decode toggle and the per-request backend
   switch are separate effectful changes against the provider layer.
-- [~] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).**
+- [x] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).**
   **RECOMMENDATION CORE SHIPPED 2026-07-20: `resident-set-recommendation.ts`, 10 tests.** This is the half the
   standing constraint actually allows: !Klein says WHICH models are worth keeping loaded; the operator loads them.
   **WHY THIS IS NOT `model-residency-planner.ts`, WHICH ALREADY EXISTED.** That core answers *"if X does not fit,
@@ -4164,9 +4164,19 @@ output and NOT acted on. Captured as F12.12.)
   advice that caused it.
   🐛 A test caught a real off-by-one: a model requested EXACTLY ONCE was being recommended. Its single load had to
   happen anyway, so residency buys zero seconds while consuming an exclusive slot — the gate is `<= 1`, not `<= 0`.
-  REMAINING (F12.77b): the `--ttl` half (`lms load --ttl` is verified exposed) + the surface that shows this
-  recommendation, and the llama-swap evaluation. The warm-POOL half stays permanently out of scope under the
-  standing constraint — it is not deferred, it is declined.
+  The TTL half + the surface are F12.77b.
+- [ ] **F12.77b — TTL guidance + the recommendation surface *(split from F12.77 2026-07-20)*.** Feed
+  `recommendResidentSet` real fitness/request counts, show the result somewhere an operator sees it, and evaluate
+  llama-swap for finer TTL control. `lms load --ttl` is verified exposed (2026-07-19), so the TTL half is
+  reachable today — but as GUIDANCE printed for the operator, never as a command !Klein runs.
+  **⚠️ THE WARM-POOL HALF OF F12.77 IS DECLINED, NOT DEFERRED.** Keeping models resident automatically, TTL-evicting
+  cold ones, and preloading on idle are all auto-load/unload, which the standing constraint (David 2026-07-19)
+  rules out for production on prompt-cache-thrash and MLX grounds. Recorded as declined so a future reader does
+  not mistake an empty slot for unfinished work and helpfully build it.
+  **THE RISK IN THIS ITEM: a surface that offers a "apply this" button.** That single affordance would convert a
+  recommendation into an auto-loader while the core stays honest — the type-level guard in
+  `resident-set-recommendation.ts` protects the DATA, and cannot protect a button someone adds beside it. The
+  surface must present the set as guidance to act on manually, with the `lms` command shown as copyable text.
  **`--ttl` IS exposed by `lms load` (verified 2026-07-19), so the TTL half is reachable today; the warm-pool half stays gated by the standing no-auto-load/unload production constraint — !Klein RECOMMENDS a resident set, the operator loads it.** Keep top-fitness models
   resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
   auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
