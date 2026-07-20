@@ -258,6 +258,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: `useNativeForce` fires when `forceToolCall` is set REGARDLESS of the flag, so the
+		// flag's marginal effect is only the `!forceToolCall` case. Recording "native force ran" alone would
+		// attribute the force-advance path's traffic to the flag and make it look far more active than it is —
+		// `flagDriven` in the metadata isolates the difference the flag actually makes.
+		category: "native_force_tool_call",
+		item: "§5.AA",
+		observes: "the native force tool-call path being taken, and whether the FLAG or force-advance drove it",
+		enabledBy: "NKLEIN_NATIVE_FORCE_TOOL_CALL",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: the source comment notes an EMPTY panel "still resolves to undefined so nothing is
 		// threaded" — so the feature can be enabled, plan a panel, find no eligible lens, and produce a
 		// byte-identical prompt. Indistinguishable from the flag being off, and the outcome that says the lens

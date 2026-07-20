@@ -27,6 +27,7 @@ import {
 } from "../nklein-agent/nklein-prompt-variation";
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import { appendTruncationObservations } from "../state/truncation-observation-store";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
@@ -735,6 +736,26 @@ export function createChatAgentModel(
 				const useNativeForce =
 					modelIsReasoning && (Boolean(forceToolCall) || isTruthyEnv(process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL));
 				if (useNativeForce) {
+					// F4.8b: record that the NATIVE-FORCE path was taken, and — critically — WHY.
+					//
+					// `useNativeForce` fires when `forceToolCall` is set regardless of the flag, so the flag's
+					// MARGINAL effect is only the `!forceToolCall` case. Recording "native force ran" alone would
+					// attribute the force-advance path's traffic to the flag and make it look far more active than it
+					// is. `flagDriven` isolates the difference the flag actually makes.
+					try {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Native force tool-call path taken (${forceToolCall ? "force-advance" : "flag-driven"}).`,
+							metadata: {
+								category: "native_force_tool_call",
+								flagDriven: !forceToolCall,
+								modelIsReasoning,
+							},
+						});
+					} catch {
+						// Telemetry must never break a turn.
+					}
 					// On the FORCE-ADVANCE path offer the native call a SINGLE tool — the next undone step — not the whole
 					// forceTools set. Live-probed 2026-07-01 (qwopus3.6-27b): `tool_choice:"required"` with ONE tool lands a
 					// clean STRUCTURED call for exactly that tool even when the model is fixated (it kept narrating the already-
