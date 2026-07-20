@@ -7357,6 +7357,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The effectful half is P20.3b.
 - [ ] **P20.3b — Run the ablation for real *(split from P20.3 2026-07-20)*.** Stub the artifact, re-run the suite
   in the sandbox, and fold the verdict into card acceptance.
+  **ASSESSOR NOW CONSUMABLE 2026-07-20 via `dev ablation`** (de-orphans `no-op-ablation.ts`): `--baseline <file>
+  --ablated <file>` reads two captured `{testId,passed}` JSONL runs and returns the verdict. Live-exercised:
+  two green→red tests → **LOAD_BEARING** (exit 0); all-green after stub → **DECORATIVE** (exit 1); all-red
+  baseline → **INCONCLUSIVE** (exit 0). **The exit codes carry the asymmetry P20.3b turns on** — `decorative`
+  fails a script, `inconclusive` does NOT, because failing on missing evidence is the false accusation that
+  sends someone to delete working code, inverted. So P20.3b now needs only the EFFECTFUL half: stub-and-run in
+  the sandbox producing the two files this already judges. That half is where the "stub must throw, not return a
+  plausible default" rule lives — the assessor is proven, the stubbing is not yet built.
   **⚠️ THE STUB MUST FAIL LOUDLY IF CALLED, NOT RETURN A PLAUSIBLE DEFAULT.** A stub returning `null`, `0`, `[]`
   or an empty string can let tests pass for the WRONG reason — they would report `decorative` on an artifact that
   is genuinely load-bearing but tolerant of empty input. That is a FALSE ACCUSATION, and it is the expensive

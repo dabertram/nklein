@@ -39,6 +39,7 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
+import { runDevAblationCommand } from "./dev-ablation-command";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevCacheCheckCommand } from "./dev-cache-check-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
@@ -1049,6 +1050,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { cold?: string; warm?: string; json?: boolean }) => {
 			await runDevCacheCheckCommand(options);
+		});
+	dev.command("ablation")
+		.description("Did stubbing the artifact break anything, or is it decorative? (P20.3 — from two captured runs.)")
+		.option("--baseline <file>", "One {testId,passed} JSON per line: the suite as-is.")
+		.option("--ablated <file>", "Same suite with the artifact stubbed out.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { baseline?: string; ablated?: string; json?: boolean }) => {
+			await runDevAblationCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
