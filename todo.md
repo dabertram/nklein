@@ -5344,7 +5344,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `renderClaimWithProvenance` shows evidence **ids + kinds, never prose provenance**, since prose could itself be
   fabricated. 10 tests.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [~] **P16.2b — Wire grounded generation + the ADVERSARIAL acceptance *(split from P16.2 2026-07-20)*.** Feed
+- [x] **P16.2b — Wire grounded generation + the ADVERSARIAL acceptance *(split from P16.2 2026-07-20)*.** Feed
   real observation ids to the local model, parse its cited ids back, and run the acceptance this item specifies:
   **a deliberately-hallucinating fixture whose claims must be REMOVED and the removal COUNTED.** That fixture is
   not optional colour — a grounding filter that has never been shown to reject anything is an assumption, the
@@ -5361,8 +5361,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Layer-A report is still complete, because the arithmetic path is not optional.
   **The fixture's job is to lie predictably**, which is exactly why a real model was unnecessary — a hostile
   fixture tests the filter better than a cooperative model would. 7 tests.
-  REMAINING: only the live model call (shares P16.6b's seam and its `reasoning_content` contract). The behaviour
-  this item exists to prove is now proven.
+  **CLOSED 2026-07-20.** The only thing left was the live model call, and that is **P16.6b's seam, not a second
+  one** — it is already a visible `[ ]` line with the `reasoning_content` contract attached. Holding P16.2b open
+  for it would double-count one piece of work across two items and make the backlog look larger than it is.
+  What this item existed to PROVE is proven: the grounding filter has been shown to reject, against a fixture
+  built to lie. That was the whole point — *"a grounding filter that has never been shown to reject anything is
+  an assumption."*
 - [x] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
   summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
   **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
@@ -5456,7 +5460,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   narrative pass and feed the observed grounded-rate back so the ladder has real input. **Honour the
   `reasoning_content` contract** (F12.92): a reasoning model returns empty `message.content`, and a caller reading
   only `.content` would make the narrative pass silently produce nothing while looking healthy.
-- [~] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
+- [x] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
   **RENDERER SHIPPED 2026-07-20** (same module as P16.3). `renderIssueDraft` returns markdown and nothing else —
@@ -5464,7 +5468,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the reporter's own machine, from their own telemetry, and reviewed by them before submission. !Klein did not
   send this — a person did."* It **REFUSES to render** when included content carries unacknowledged hidden
   characters, and the caller must surface that refusal rather than swallow it. 12 tests.
-  REMAINING (P16.7b): the UI that hosts the toggles and opens the prefilled draft. Pure-core side is complete.
+  Pure-core side complete; the UI is P16.7b.
+- [ ] **P16.7b — The review UI that hosts the toggles and opens the prefilled draft *(split from P16.7
+  2026-07-20)*.** Render the per-section and per-claim toggles over `projectReviewState`, show the running "what
+  this reveals" indicator, and open the prefilled GitHub draft. **There is no submit path to build, because there
+  is none to expose** — `renderIssueDraft` returns markdown and stops.
+  **THE UI IS WHERE P16.3's GUARANTEE CAN BE LOST.** The promise is that the user reviews the EXACT bytes that
+  would leave the machine. Any convenience the UI adds on top — syntax highlighting, markdown preview, collapsed
+  sections, truncation with an ellipsis — **reintroduces the arXiv 2607.05744 hazard the transport module was
+  written to close**: a rendering layer between approved and sent is precisely how invisible content survives
+  approval. So the review pane must show raw bytes, and if a preview is offered it must sit BESIDE the raw view,
+  never replace it.
+  Second: `renderIssueDraft` **REFUSES** to render on unacknowledged hidden characters. The UI must surface that
+  refusal as a blocking, explained state — a swallowed refusal (silent empty draft, disabled button with no
+  reason) converts a working guard into a confusing bug and teaches the user to route around it.
 - [>] **P16.8 — Nightly coverage (Phase 13 recipe)** *(waits on N1 — the nightly runner does not exist yet).* Field-report generation joins the N1 cells with aimock
   fixtures, including the adversarial redaction corpus and the hallucination-drop fixture, so the privacy and
   grounding invariants are regression-protected rather than reviewed once.
