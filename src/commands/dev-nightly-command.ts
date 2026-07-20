@@ -305,20 +305,42 @@ export async function runDevNightlyCommand(options: {
 
 	// N7: every failing cell gets a report that is checked for being ACTIONABLE, not merely printed. A failure the
 	// next morning cannot be re-run — the state is gone — so the summary is the only artifact that survives.
-	const failureReports = verdicts
-		.filter((verdict) => verdict.outcome === "failed")
-		.map((verdict) => {
-			const home = /isolated HOME kept for inspection: ([^)]+)/.exec(verdict.reason ?? "")?.[1]?.trim() ?? null;
-			return buildNightlyFailureReport({
-				cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
-				seed: NIGHTLY_FIXED_SEED,
-				homePath: home,
-				homeRetained: home !== null,
-				packResult: null,
-				error: verdict.reason ?? null,
-				durationMs: verdict.durationMs ?? null,
-			});
-		});
+	// N7d: a cell can fail because a card is HELD FOR THE OPERATOR — a deliberate fail-closed hold
+	// (`nklein-sandbox-review-finalizer.ts`: "an explicit operator hold ... a manual redrive starts cleanly"),
+	// not a defect. Unattended, that hold blocks every dependent card and the run reports "left cards undrained",
+	// which reads as a bug when it is the system doing exactly what it was told.
+	//
+	// This NAMES the case; it deliberately does NOT change the verdict. Whether an operator hold should count as
+	// a nightly pass is a product decision (see N7d's options a/b/c) and not one a reporting change should make
+	// quietly.
+	const operatorHoldNote = async (home: string | null): Promise<string> => {
+		if (!home) {
+			return "";
+		}
+		const log = await readFile(join(home, "runtime.log"), "utf8").catch(() => "");
+		const held = /Task result capture (?:failed|has not settled) for ([^;]+); held in Review/.exec(log);
+		return held
+			? ` ⚠️ HELD FOR OPERATOR, not a defect: ${held[1]?.trim()} had its sandbox result capture fail and is held in Review BY DESIGN (a manual redrive starts cleanly). Unattended there is no operator, so its dependents stay blocked and the run reports "undrained". See N7d.`
+			: "";
+	};
+
+	const failureReports = await Promise.all(
+		verdicts
+			.filter((verdict) => verdict.outcome === "failed")
+			.map(async (verdict) => {
+				const home = /isolated HOME kept for inspection: ([^)]+)/.exec(verdict.reason ?? "")?.[1]?.trim() ?? null;
+				const holdNote = await operatorHoldNote(home);
+				return buildNightlyFailureReport({
+					cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
+					seed: NIGHTLY_FIXED_SEED,
+					homePath: home,
+					homeRetained: home !== null,
+					packResult: null,
+					error: `${verdict.reason ?? ""}${holdNote}`.trim() || null,
+					durationMs: verdict.durationMs ?? null,
+				});
+			}),
+	);
 	// N5/N5b/N7: resolve each cell's invariant pack and judge the drained state against it.
 	//
 	// ⚠️ `subscriptions` IS DELIBERATELY ALMOST EMPTY, and that is the honest wire rather than a stub. The runner
