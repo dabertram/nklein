@@ -3,7 +3,11 @@ import {
 	MECHANISM_REGISTRY,
 	type MechanismFinding,
 } from "../core/mechanism-observation-audit";
-import { countSelfObservationsByCategory } from "../telemetry/self-observation-sink";
+import {
+	countSelfObservationsByCategory,
+	newestSelfObservationAt,
+	newestSelfObservationByCategory,
+} from "../telemetry/self-observation-sink";
 
 /**
  * P15.1c — `nklein dev mechanism-registry`: which shipped mechanisms are demonstrably firing?
@@ -38,12 +42,18 @@ export async function runDevMechanismRegistryCommand(options: { json?: boolean }
 	// high-frequency category, which made every other mechanism's count read as zero by truncation — see the
 	// counter's docblock. Counting needs only the tally, so there is no reason to truncate it.
 	const countsByCategory = await countSelfObservationsByCategory().catch(() => new Map<string, number>());
+	// The audit needs the telemetry WINDOW, not just the counts: a mechanism whose emission site postdates every
+	// recorded observation has had no chance to fire, and calling that a defect trains people to skip the report.
+	const newestObservationAt = await newestSelfObservationAt().catch(() => null);
+	const newestByCategory = await newestSelfObservationByCategory().catch(() => new Map<string, number>());
 	const totalObservations = [...countsByCategory.values()].reduce((sum, n) => sum + n, 0);
 
 	// Only flags we can SEE are passed as known-enabled; everything else stays unknown by construction.
 	const result = auditMechanismObservations({
 		registry: MECHANISM_REGISTRY,
 		countsByCategory,
+		...(newestObservationAt !== null ? { newestObservationAt } : {}),
+		newestByCategory,
 		knownEnabledFlags: flagsOnNow(),
 		// No longer saturated: the tally is exhaustive, so a zero now genuinely means "never recorded".
 		windowSaturated: false,

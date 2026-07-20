@@ -150,3 +150,54 @@ describe("window saturation (live-found 2026-07-20 — it produced a FALSE findi
 		expect(result.summary).toContain("inconclusive");
 	});
 });
+
+describe("too_new_to_judge — silence before the mechanism existed", () => {
+	const LANDED = Date.UTC(2026, 6, 19);
+	const entry = {
+		category: "review_effort_scaling",
+		item: "F12.35",
+		observes: "the review depth a card would have been given",
+		enabledBy: null,
+		expectation: "every_run" as const,
+		addedOn: LANDED,
+		firesWhen: "second_opinion_review_session",
+	};
+
+	it("does NOT accuse a mechanism whose trigger has not run since it landed", () => {
+		// The real 2026-07-20 false alarm: 139 review sessions recorded, all of them 07-09→07-17, and the emission
+		// site landed 07-19. The audit called it "reachable and still never fired" — a defect verdict against a
+		// mechanism that had not yet had a single chance. A report that cries wolf on every new mechanism is one
+		// people learn to skip.
+		const result = auditMechanismObservations({
+			registry: [entry],
+			countsByCategory: new Map(),
+			newestByCategory: new Map([["second_opinion_review_session", Date.UTC(2026, 6, 17)]]),
+			knownEnabledFlags: new Set<string>(),
+		});
+		expect(result.findings[0]?.status).toBe("too_new_to_judge");
+		expect(result.actionable).toHaveLength(0);
+	});
+
+	it("DOES accuse it once its trigger has run since it landed — or the check would excuse everything", () => {
+		// The other half. Without this the new status would be a blanket amnesty rather than a window check.
+		const result = auditMechanismObservations({
+			registry: [entry],
+			countsByCategory: new Map(),
+			newestByCategory: new Map([["second_opinion_review_session", Date.UTC(2026, 6, 20)]]),
+			knownEnabledFlags: new Set<string>(),
+		});
+		expect(result.findings[0]?.status).toBe("enabled_but_silent");
+	});
+
+	it("judges against the TRIGGER's window, not unrelated newer telemetry", () => {
+		// Wall-clock recency proves nothing: telemetry from some other activity does not mean a review happened.
+		const result = auditMechanismObservations({
+			registry: [entry],
+			countsByCategory: new Map(),
+			newestObservationAt: Date.UTC(2026, 6, 20),
+			newestByCategory: new Map([["second_opinion_review_session", Date.UTC(2026, 6, 17)]]),
+			knownEnabledFlags: new Set<string>(),
+		});
+		expect(result.findings[0]?.status).toBe("too_new_to_judge");
+	});
+});

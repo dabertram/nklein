@@ -245,6 +245,77 @@ function parseSelfObservationEventRecord(line: string): SelfObservationEventReco
  * Counting does not need the event objects, only the tally, so this streams the files and never truncates. That
  * is what makes a ZERO here mean "never recorded" rather than "pushed out of the window by something chattier".
  */
+/**
+ * Epoch ms of the NEWEST observation on disk, or null when there are none.
+ *
+ * Exists so the mechanism audit can ask "could this have fired yet?" before calling silence a defect — a
+ * mechanism whose emission site postdates all telemetry has had no chance to record anything.
+ */
+export async function newestSelfObservationAt(options: { rootDir?: string } = {}): Promise<number | null> {
+	const rootDir = resolveRootDir(options.rootDir);
+	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+	const logFiles = entries
+		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+		.map((entry) => entry.name)
+		.sort();
+	// Newest FILE first: the logs are date-named, so the last file holds the newest record and scanning it alone
+	// is enough. Falling back through older files keeps an empty newest-day file from reporting "no telemetry".
+	for (const file of [...logFiles].reverse()) {
+		const raw = await readFile(join(rootDir, file), "utf8").catch(() => "");
+		let newest: number | null = null;
+		for (const line of raw.split("\n")) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			try {
+				const parsed = JSON.parse(line) as { createdAt?: unknown };
+				if (typeof parsed.createdAt === "number" && (newest === null || parsed.createdAt > newest)) {
+					newest = parsed.createdAt;
+				}
+			} catch {
+				// A malformed line must not hide a real newest timestamp in the same file.
+			}
+		}
+		if (newest !== null) {
+			return newest;
+		}
+	}
+	return null;
+}
+
+/** Newest observation timestamp PER CATEGORY, so a mechanism can be judged against its own trigger's window. */
+export async function newestSelfObservationByCategory(
+	options: { rootDir?: string } = {},
+): Promise<Map<string, number>> {
+	const rootDir = resolveRootDir(options.rootDir);
+	const newest = new Map<string, number>();
+	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+	const logFiles = entries
+		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+		.map((entry) => entry.name);
+	for (const file of logFiles) {
+		const raw = await readFile(join(rootDir, file), "utf8").catch(() => "");
+		for (const line of raw.split("\n")) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			try {
+				const parsed = JSON.parse(line) as { createdAt?: unknown; metadata?: { category?: unknown } };
+				const category = parsed.metadata?.category;
+				if (typeof category === "string" && typeof parsed.createdAt === "number") {
+					const current = newest.get(category);
+					if (current === undefined || parsed.createdAt > current) {
+						newest.set(category, parsed.createdAt);
+					}
+				}
+			} catch {
+				// A malformed line must not hide a real timestamp.
+			}
+		}
+	}
+	return newest;
+}
+
 export async function countSelfObservationsByCategory(
 	options: { rootDir?: string } = {},
 ): Promise<Map<string, number>> {

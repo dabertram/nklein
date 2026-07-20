@@ -36,11 +36,32 @@ export interface MechanismEntry {
 	readonly observes: string;
 	/** Env flag / setting that enables it, or null when it is always on. */
 	readonly enabledBy: string | null;
+	/**
+	 * Epoch ms at which the mechanism's emission site LANDED, when known.
+	 *
+	 * ⚠️ **WITHOUT THIS THE AUDIT FALSE-ALARMS ON EVERY NEW MECHANISM.** Found 2026-07-20:
+	 * `review_effort_scaling` was reported `enabled_but_silent` — "the code is reachable and still never fired" —
+	 * against 139 recorded review sessions. Every one of those sessions ran 07-09→07-17; the emission landed
+	 * 07-19. **Zero was the correct answer, and the audit called it a defect.** An all-time observation count
+	 * compared against a one-day-old mechanism is not evidence of anything, and a report that cries wolf on every
+	 * newly-added mechanism is one people learn to skip.
+	 */
+	readonly addedOn?: number;
+	/**
+	 * Category whose presence proves this mechanism's TRIGGERING ACTIVITY occurred.
+	 *
+	 * `every_run` means every run OF THAT ACTIVITY, not every wall-clock day. `review_effort_scaling` fires per
+	 * REVIEW; if no review has happened since its emission landed, silence is not evidence of a defect. Without
+	 * this the audit still false-alarms — merely having newer telemetry from some unrelated activity is not proof
+	 * the mechanism had a chance.
+	 */
+	readonly firesWhen?: string;
 	readonly expectation: FiringExpectation;
 }
 
 export type MechanismStatus =
 	| "healthy"
+	| "too_new_to_judge"
 	| "never_enabled"
 	| "enabled_but_silent"
 	| "silent_but_exceptional"
@@ -62,6 +83,13 @@ export interface MechanismAuditInput {
 	 * would excuse a real silence.
 	 */
 	readonly knownEnabledFlags?: ReadonlySet<string>;
+	/**
+	 * Epoch ms of the NEWEST observation read. Used only to answer "could this mechanism have fired yet?" — a
+	 * mechanism whose emission site postdates all available telemetry is `too_new_to_judge`, never a defect.
+	 */
+	readonly newestObservationAt?: number;
+	/** Newest observation timestamp per category, so a mechanism can be judged against ITS trigger's window. */
+	readonly newestByCategory?: ReadonlyMap<string, number>;
 	/**
 	 * True when the observation read hit its cap, so older events were TRUNCATED away.
 	 *
@@ -100,6 +128,28 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
 			});
 			continue;
 		}
+		// Judge the WINDOW before judging the mechanism. If no telemetry postdates the emission site, the
+		// mechanism has not had a chance to fire and silence carries no information either way.
+		// Prefer the TRIGGER's newest timestamp over the global one: the question is whether the activity this
+		// mechanism attaches to has occurred since it landed, not whether any telemetry at all has been written.
+		// `every_run` means every run OF THAT ACTIVITY — newer telemetry from something unrelated proves nothing.
+		const windowNewest =
+			entry.firesWhen !== undefined
+				? (input.newestByCategory?.get(entry.firesWhen) ?? null)
+				: (input.newestObservationAt ?? null);
+		if (entry.addedOn !== undefined && windowNewest !== null && windowNewest < entry.addedOn) {
+			findings.push({
+				...entry,
+				observations,
+				status: "too_new_to_judge",
+				note:
+					entry.firesWhen !== undefined
+						? `no observations, but no "${entry.firesWhen}" has occurred since this mechanism's emission site landed — its triggering activity has not run, so silence says nothing`
+						: "no observations, but the newest telemetry PREDATES this mechanism's emission site — it has not had a chance to fire, so silence says nothing",
+			});
+			continue;
+		}
+
 		const alwaysOn = entry.enabledBy === null;
 		const known = input.knownEnabledFlags;
 		const enabled = alwaysOn || (known ? known.has(entry.enabledBy) : false);
@@ -239,6 +289,9 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		observes: "the review depth a card would have been given",
 		enabledBy: null,
 		expectation: "every_run",
+		// cf69c28de, 2026-07-19 — the emission landed AFTER every review session in the local telemetry.
+		addedOn: Date.UTC(2026, 6, 19),
+		firesWhen: "second_opinion_review_session",
 	},
 	{
 		category: "mcp_tool_surface_drift",
