@@ -5683,6 +5683,30 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **THE FIX IS NARROW: make the re-drive restore fire on EVERY re-drive, not just the first.** Not "do not
   dispose" — the disposal is right. **DAVID: this supersedes the option A/B/C choice; the question is no longer
   where to stop disposing but why the restore is not repeated.**
+  **🔍 REFINED ONCE MORE — "the restore is not repeated" was the SYMPTOM, not the cause.**
+  Round 3 shows **no turn activity whatsoever**. Round 2 emitted `prompt_prefix_reuse`, `prompt_preflight_lint`
+  and a `transition` — the signature of a real turn. Round 3 emitted **none of them**:
+  ```
+  798340  card moved review → in_progress     ← bounced a 2nd time
+        (3.6 seconds of NOTHING — no prompt, no transition, no restore attempt)
+  802004  Could not capture … workspace unavailable
+  ```
+  **The restore was not skipped by a guard — it was never REACHED, because `sendTaskSessionInput` never ran.**
+  The restore lives inside the send path, so no turn means no restore, and the capture failure is a finalize
+  running against a card whose worker round **never started**.
+  **So the causal chain is: second bounce → card moved to `in_progress` → NO TURN DISPATCHED → a finalize attempt
+  runs anyway → no workspace (correctly disposed after round 2) → `capture_failed` → held.**
+  This rejoins the handover thread rather than replacing it: *"the card moved lanes but nothing started it"* is
+  the same shape as the 14 stranded cards, now observed on a card that had already run twice. **The workspace
+  disposal is entirely correct and is NOT the bug** — it only became visible because the un-started round tried to
+  finalize.
+  ⚠️ THREE FRAMINGS HAVE NOW BEEN CORRECTED ON THIS ITEM (controller-drops-everything → restore-not-repeated →
+  no-turn-dispatched), each by evidence rather than argument. **Recorded so the next reader inherits the
+  corrections, not just the conclusion** — and so the pattern is visible: every wrong framing here came from
+  reasoning about which component *should* have acted, and every correction came from asking what the trail
+  actually recorded.
+  NEXT: why a second bounce moves the card to `in_progress` without dispatching a turn. `dev card-timeline` now
+  makes that one command rather than an afternoon.
 - [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
