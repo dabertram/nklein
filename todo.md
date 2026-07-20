@@ -1831,8 +1831,36 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stand alone. **Deleting is a legitimate and preferred outcome** — a core that taught its lesson and has no
   consumer has already delivered its value, and maintaining it forever is the cost the charter warns about.
   Do not wire it merely because it exists.
+- [x] **F4.8a — The re-anchor verification *(split from F4.8 2026-07-20)*.**
+  **SHIPPED: `reanchor-coverage.ts`, 12 tests.** Assesses a re-anchor against F4.8's four named elements AND the
+  "without duplicating large context" clause — **the two are not traded off.** A re-anchor that carries everything
+  by pasting the context back in has solved nothing; one that is admirably small while dropping the acceptance
+  criteria has solved nothing either. Both are pinned by test (a 12k block over 40k context fails at full coverage;
+  a 40-char block fails at partial coverage).
+  **Coverage is read from the STRUCTURED SOURCE, never by string-matching the rendered block.** A test drives the
+  LIVE `buildContextReanchor` with a goal whose text says *"Satisfy the acceptance criteria and constraints listed
+  in the card"* — the rendered block therefore CONTAINS the phrase "acceptance criteria" while carrying none. A
+  string-matching checker would call that covered and **report the gap below as satisfied**, turning this module
+  into the thing it exists to detect.
 - [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
   constraints, and acceptance criteria without duplicating large context.
+  **⚠️ F4.8a RAN THE VERIFICATION AND IT FAILS TODAY — precisely, and the reason is a wiring gap, not a bug.**
+  Two re-anchor cores exist and they SPLIT F4.8's requirement between them:
+  - `context-reanchor.ts` (§5.AD/§5.N) is **WIRED** — traced core → `task-reanchor-before-model` →
+    `nklein-context-focus-extension` → `nklein-session-runtime:546`. It carries goal, current step, card title and
+    recent tools: **objective ✓, current focus ✓.**
+  - `instruction-reanchor.ts` (F12.21) carries the **acceptance criteria** + plan step as a tail message on the
+    F12.56 steer channel — and has **ZERO importers outside its own test.**
+  So **the elements the live path is missing are exactly the ones only the unwired core provides.** F4.8 does not
+  fail because the mechanism is broken; it fails because **half of it was never connected**, and nothing surfaced
+  that because each core passes its own tests in isolation. That is the P15.1 orphan pattern reappearing inside a
+  requirement rather than inside a module list.
+  `auditReanchorPaths` keeps `availableButUnwired` SEPARATE from `missingFromLive` on purpose: "never built" and
+  "built and never connected" are different problems with different fixes, and merging them sends someone to
+  rebuild a core that already exists — the exact duplication P15.6's capability index was added to prevent.
+  **THE WORK: (1) wire F12.21's `instruction-reanchor` (acceptance criteria — a wire, the core is done);
+  (2) `constraints` is carried by NEITHER core and needs building.** `auditReanchorPaths(OBSERVED_REANCHOR_PATHS)`
+  is the executable gate; its test pins `passed: false` and will fail when the wire lands.
 - [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [x] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than **ACTIVATED 2026-07-15:** answer-budget-projection.ts + `dev answer-budgets` runs learnAnswerBudget over real model-perf observations (verified live). **AUDIT 2026-07-19: THE CAP WIRE IS LIVE (W2.3a)** — `resolveKnownContextWindowForTask` derates the effective window by `learnedQualityEffectiveBudget` (0.9× below the first observed degradation, ≥32k floor) and feeds ALL seven session-start/restart consumers in the service, so compaction budgets, fragment budgets, and the pre-send guard all derive from the learned knee, never the advertised window. Item complete.
