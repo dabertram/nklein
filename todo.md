@@ -5428,9 +5428,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     🐛 **The test caught a bug in my OWN change before it shipped:** I called `extractCompletionUsage(result.usage)`
     when the function reads `.usage` itself and wants `result` — one level too deep, a silent perpetual null
     dressed as "no reasoning reported". Pinned by a test asserting a known count comes through AND that the wrong
-    (usage-object) shape reads empty. The `RuntimeTaskSessionUsage`/ledger path still carries no reasoning field —
-    that remains the API-contract change — but the per-turn stream, which is where "is this card slow" gets
-    answered, now has it.
+    (usage-object) shape reads empty. ✅ **AND THE LEDGER/CONTRACT PATH IS NOW DONE TOO** — the "API-contract change"
+    turned out clean and verifiable without a model. `RuntimeTaskSessionUsage` gained an optional
+    `reasoningTokens`; `readSessionUsage` populates it (usage-OBJECT level, distinct from the wrapper level — 5
+    tests pin the level I got wrong once); and the per-ATTEMPT ledger event carries it via an additive
+    `.nullable().default(null)` field. **Backward-compat VERIFIED against real on-disk data: 226 of 226 existing
+    v1 records parse, 0 failures** — the default makes old records lawful without a schemaVersion bump, and null
+    stays distinct from 0 at every layer. So `model_usage` is now tracked at THREE grains — per-turn telemetry,
+    session summary, and per-attempt ledger — each carrying reasoning tokens; the only genuinely-remaining gap is
+    per-REQUEST (the SDK aggregates calls within a turn), which is the design question noted above, not a missing
+    field.
   - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
     `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
     through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
