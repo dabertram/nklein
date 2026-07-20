@@ -5345,8 +5345,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   The over-claim came from reading a warning COUNT as an outcome count — the warning fires when the sweep
   declines, which is not the same as the controller failing. **Caught by checking one stranded card (`s00` turned
   out to have progressed fine) rather than by accepting a conclusion that fitted.**
-  NEXT: diff the 19 dispatched against the 14 stranded — dependency depth, lane at handover, or lease state are
-  the obvious candidates. The evidence is retained and the trigger reproduces.
+  **DIFF DONE — A NEGATIVE RESULT THAT RULES OUT THE OBVIOUS ANSWER.** Compared the 19 completed cards against
+  the 22 left in `planning` on every attribute the board carries:
+  | attribute | completed (19) | planning (22) |
+  |---|---|---|
+  | `streamId` | all one stream | **all the same stream** |
+  | `agentId` | `nklein` | **`nklein`** |
+  | `startInPlanMode` | false | **false** |
+  | `filesLikelyTouched` | 0–3 | **1–2** |
+  | `dependsOn` | — | **none — they are NOT dependency-blocked** |
+  **The stranded cards are structurally INDISTINGUISHABLE from the completed ones.** So it is not "some cards are
+  special": nothing about a card predicts whether it strands, which fits the run-to-run nondeterminism (the same
+  card completes in one run and strands in the next) and rules out the dependency/stream/scope explanations that
+  would have been the natural first guesses.
+  **THE SHARPENED QUESTION: the board simply STOPPED PROMOTING `planning` → `ready`.** Final state is
+  `ready: 0, in_progress: 0` with 22 dependency-free cards sitting in `planning`. Nothing was in flight and
+  nothing was waiting on anything — promotion just ceased after 19.
+  NEXT: find what moves a card `planning` → `ready` and why it stopped while 22 eligible cards remained. The
+  handover warning is a SYMPTOM of that (the sweep sees startable cards and declines), not the cause.
   It also resolves the ambiguity flagged earlier: `durable run owns discovery` means `hasRun` is TRUE, so the
   **"zero durable log lines" reading really was silence rather than absence** — treating it as disproof would
   have killed the correct hypothesis.
