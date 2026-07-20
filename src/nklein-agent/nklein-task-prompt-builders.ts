@@ -7,6 +7,7 @@
 import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
 import { isTruthyEnv } from "../core/env-flag";
 import { lintSpecForDecompose } from "../core/spec-lint";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	isDecompositionPlanningPrompt,
 	parseAcceptanceCommand,
@@ -42,6 +43,26 @@ function buildSpecLintAdvisory(spec: string): string[] {
 		return [];
 	}
 	const findings = lintSpecForDecompose(spec).slice(0, 3);
+	// F4.8b: record the lint's RESULT either way. Emitting only when gaps are found would make "does the spec
+	// lint ever catch anything?" — the question that decides whether this advisory earns its place in the prompt
+	// — answerable only in the affirmative. A clean spec is the informative half of that ratio.
+	try {
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message:
+				findings.length === 0
+					? "Spec lint found no gaps in the decompose spec."
+					: `Spec lint found ${findings.length} gap(s) in the decompose spec.`,
+			metadata: {
+				category: "spec_lint",
+				findings: findings.length,
+				detailKinds: findings.map((finding) => finding.detail.slice(0, 60)),
+			},
+		});
+	} catch {
+		// Telemetry must never break prompt construction.
+	}
 	if (findings.length === 0) {
 		return [];
 	}

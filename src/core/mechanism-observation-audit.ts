@@ -226,6 +226,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: emitted nothing, so "does the spec lint ever catch anything?" — the question deciding
+		// whether this advisory earns its place in the prompt — had no answer. Records the clean case too, because
+		// a found/clean RATIO is the useful number and a gaps-only emission can only ever answer "yes".
+		category: "spec_lint",
+		item: "F12.10",
+		observes: "the decompose spec lint's result, including when it finds nothing",
+		enabledBy: "NKLEIN_SPEC_LINT",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: an ABORTED TURN reported only to stderr — not countable, not attributable to a card,
 		// and gone when the process exits. This mechanism kills a generation mid-flight; how often it fires is
 		// both the argument for enabling it and the first thing wanted after a card behaved oddly.
