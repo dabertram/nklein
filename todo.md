@@ -5355,10 +5355,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     parallel-call result ordering belongs to the SDK, not to this codebase. Nothing to fix at this layer.
   **NET: one real defect (the MCP tool list) found and fixed; two inferred defects audited away.** An audit that
   correctly shrinks the backlog is as valuable as one that grows it.
-- [ ] **P19.3 — Compact the TAIL only, never mid-prefix.** Rewriting turn 3 of 40 forfeits turns 3–40; rewriting
+- [x] **P19.3 — Compact the TAIL only, never mid-prefix — AUDITED: the design is already correct.** Rewriting turn 3 of 40 forfeits turns 3–40; rewriting
   turns 30–40 forfeits only those. Prefer a rare full-miss at a natural boundary (amortized over 20+ later cached
   turns) over frequent partial rewrites, which is the pathological case — repeated full prefill that never
   amortizes. Pairs with P18.3 (prune distractors) and P18.4 (restart when lost).
+  **AUDIT 2026-07-20 — `context-compaction.ts` already has the only viable shape, and no code change is warranted.**
+  What it does: **system + pinned messages ALWAYS survive** (the cacheable head is preserved verbatim), the
+  **most-recent slice survives verbatim** (recency is where live task state lives), and the MIDDLE is summarized.
+  **THE RESEARCH'S "compact the tail only" IS NOT LITERALLY ACHIEVABLE, and saying so is the point.** You cannot
+  compact only the tail — the tail is the live state you must keep, and the head is the part worth caching. Any
+  compaction necessarily rewrites the MIDDLE, which means the cache is lost from the first summarized message
+  onward. **That cost is inherent to compaction, not a defect in this implementation**, and an item that demanded
+  otherwise would have sent someone chasing an impossible design.
+  What the research ACTUALLY supports, and what we already do: compact **rarely, at a natural boundary**, so one
+  full prefill amortizes over many later cached turns. The 0.8 threshold is a HIGH one — it fires late, which is
+  the amortizing direction. The pathological case the research names is FREQUENT partial rewrites that never
+  amortize; we are not in it.
+  **THE REAL LEVER IS P18.3, NOT THIS ITEM:** Chroma measured focused ~300-token prompts beating full
+  ~113k-token ones, and that **even ONE distractor degrades performance**. Pruning stale failed attempts before
+  compressing volume is worth more than any rearrangement of what compaction rewrites — and unlike cache
+  placement, it improves quality as well as cost. Closed here so the effort lands there instead.
 - [ ] **P19.4 — Verify prompt caching EMPIRICALLY per runtime build, not by flag.** llama.cpp issue #15082 is an
   **unresolved regression** where `--cache-reuse` stopped caching prefixes (identical first ~1000 chars fully
   reprocessed; bisected to a first-bad commit; an attempted fix did not resolve it). **Do not assume caching works
