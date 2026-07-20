@@ -6750,7 +6750,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Per P18.5, `GRADIENT_FLOOR_PERCENT = 5` is an **OPERATIONAL DEFAULT**, chosen above SWE-bench Pro's 3.4% and
   below Aider's "low but rankable" ~8%. **The boundary between those two IS the judgement**, and it is labelled
   as a judgement rather than a finding.
-- [ ] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
+- [~] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
   disengagement data is the cautionary analogue — the DMV itself states it is not intended to compare companies,
   because the operator chooses the denominator and defines the numerator with no severity weighting. Design ours
   as a **severity taxonomy from day one**: `nudge` (typed guidance, no code) / `correction` (user edited output) /
@@ -6758,6 +6758,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **post-acceptance churn at 24h/7d** (fraction of agent-authored lines later deleted or rewritten); and
   **autonomous streak length** (consecutive zero-intervention cards — a pass^k analogue for operator effort).
   Feeds P16.5 directly.
+  **CHURN CORE SHIPPED 2026-07-20: `post-acceptance-churn.ts`, 12 tests.** The severity taxonomy and autonomous
+  streak already lived in `operator-intervention.ts` (shared with P16.5); this adds the missing half.
+  **WHY CHURN IS THE MOST VALUABLE METRIC IN THIS PHASE, and it follows directly from P20.1's finding.** Every
+  other signal here measures a MOMENT — the review approved, acceptance exited zero, the card reached
+  `completed`. P20.1 established that our grader **cannot tell a real completion from a forged one**, because it
+  reads the board and the board is inside the trust boundary. **Churn is outside it.** A card whose code was
+  entirely rewritten within 24h was not a success whatever the board recorded, and **no amount of state tampering
+  changes what a human later deleted.**
+  **JUDGED ON 24h, NOT 7d.** Seven-day churn conflates "this was wrong" with "the code evolved" — and a metric
+  that punishes evolution would push the harness toward **work nobody touches afterwards, which is not the same
+  thing as work that was right.** The GAP between the two windows is reported separately and is more informative
+  than either number: it separates *wrong on arrival* from *the thing moved*.
+  **SMALL DENOMINATORS ARE THE TRAP, and they are handled rather than mentioned.** A card authoring 4 lines with
+  3 later touched reports 75% churn — arithmetic, not signal, and it would **dominate any ranking sorted by
+  churn rate.** Below 20 authored lines the result is `indeterminate`, and `summariseChurn` excludes those from
+  the mean while REPORTING how many were excluded (averaging them lets tiny cards swing the mean; dropping them
+  silently hides that the sample covers fewer cards than it appears to — the same pair of errors P20.7's
+  infra-error rate avoids).
+  A 7d figure below the 24h one is clamped rather than producing a negative gap that would read as code being
+  un-churned. No judgeable card reports **"churn is UNMEASURED, which is not the same as low."**
+  REMAINING (P20.10b): the collector — attribute accepted lines to a card and re-read them at 24h/7d via git.
+  Needs real history; the judging is done.
 - [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
   (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
   ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
