@@ -5350,6 +5350,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   cannot be equated. What IS established: an intermittent `test:fast` failure exists, it is now NAMED, and
   "passes in isolation but fails in the suite" is a much smaller search space than "something somewhere is not
   hermetic".
+  **✅ A THIRD INTERMITTENT — NAMED, ROOT-CAUSED, AND FIXED 2026-07-20 (the capture mechanism paid off exactly as
+  designed).** The `.husky/pre-commit` log named it on failure:
+  `nklein-provider-credential-helpers.test.ts > normalizeEpochMs > "treats missing / non-finite / non-positive as
+  already-expired"` — `1 failed | 11658 passed`, `expected 1784573280622 to be less than 1784573280615` (an 8ms
+  overshoot). This is a `Date.now` DAMPING WINDOW — precisely the class N4/N13 predicted. Root cause: the test
+  captured `before = Date.now()` ONCE, then asserted every one of six `normalizeEpochMs(bad)` results (each returns
+  `Date.now()-1`) was `< before + 1`; on a slow machine (low-power mode) the loop took >1ms, so a later result
+  out-ran the stale baseline. Not a product bug — the helper is correct (a bad expiry IS in the past); the TEST's
+  window was too tight. Fixed by comparing each result to a `Date.now()` sampled AFTER its own call (result =
+  callNow−1 is always < a now taken after), which is timing-robust by construction — proven 5/5 green under
+  repetition. NOT asserted to be the earlier unnamed flake (that one was never named, so they cannot be equated),
+  but it IS a real, unhermetic-under-load instance now permanently removed from the gate. Lesson for the class:
+  a Date.now-window assertion must sample its comparison clock AFTER the code under test, never before it.
   **This is precisely the input this item's quarantine needs.** A cell that flips verdict between runs is exactly
   what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
   NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it

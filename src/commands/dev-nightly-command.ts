@@ -174,6 +174,13 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 		});
 		// F11.4c: a drain that leaves unmatched aimock requests did not cover what the run did. The summary core
 		// refuses to call such a run ok, so surface the count rather than swallowing it.
+		// SAFETY of the `?? "0"` default (verified 2026-07-20): a missing "Unmatched…" line would otherwise read as
+		// "0 unmatched" = clean coverage the run may not have had — the silent-failure class this suite guards. It is
+		// safe ONLY because we reach here exclusively on a subprocess exit 0, and verify-simulated-flow's fail() does
+		// process.exit(1) on every failure BEFORE it prints that line (any non-zero exit rejects execFileAsync → the
+		// catch below → a failure verdict, never this "passed" branch). So a clean exit always printed the line first.
+		// If that script is ever changed to succeed without printing it, this default silently under-reports — treat
+		// the fail()-forces-nonzero-exit contract as load-bearing here, not incidental.
 		const unmatched = Number.parseInt(/unmatched[^0-9]*(\d+)/i.exec(stdout)?.[1] ?? "0", 10);
 		return {
 			cell,

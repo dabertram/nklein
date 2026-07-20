@@ -59,9 +59,13 @@ describe("normalizeEpochMs", () => {
 	});
 
 	it("treats missing / non-finite / non-positive as already-expired (now − 1ms)", () => {
-		const before = Date.now();
+		// The invariant is "returns a timestamp already in the PAST", so compare each result to a `now` sampled AFTER
+		// its own call — never to a single `before` captured up front. normalizeEpochMs(bad) returns Date.now()-1, so a
+		// now taken after the call is always strictly greater; the old `before + 1` window flaked on slow machines
+		// (low-power mode) where the 6-iteration loop took >1ms and a later result out-ran the stale baseline.
 		for (const bad of [null, undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
-			expect(normalizeEpochMs(bad)).toBeLessThan(before + 1);
+			const normalized = normalizeEpochMs(bad);
+			expect(normalized).toBeLessThan(Date.now());
 		}
 	});
 });
