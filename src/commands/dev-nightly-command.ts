@@ -15,6 +15,7 @@ import {
 } from "../core/nightly-manifest";
 import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
 import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
+import { buildOperatorHoldEvidence, type SurvivingArtefact } from "../core/operator-hold-evidence";
 
 const execFileAsync = promisify(execFile);
 
@@ -122,6 +123,16 @@ async function readFiredSignals(home: string): Promise<Set<string>> {
 		}
 	}
 	return fired;
+}
+
+/** Read the cell's self-observation telemetry as one blob. Empty when absent — never throws. */
+async function readTelemetryText(home: string): Promise<string> {
+	const dir = join(home, ".nklein", "nklein", "telemetry");
+	const files = await readdir(dir).catch(() => [] as string[]);
+	const parts = await Promise.all(
+		files.filter((name) => name.endsWith(".jsonl")).map((name) => readFile(join(dir, name), "utf8").catch(() => "")),
+	);
+	return parts.join("\n");
 }
 
 function parseTerminalLanes(json: string | null): { cardId: string; lane: string }[] {
@@ -313,15 +324,76 @@ export async function runDevNightlyCommand(options: {
 	// This NAMES the case; it deliberately does NOT change the verdict. Whether an operator hold should count as
 	// a nightly pass is a product decision (see N7d's options a/b/c) and not one a reporting change should make
 	// quietly.
-	const operatorHoldNote = async (home: string | null): Promise<string> => {
+	// N16: assemble REPRODUCIBLE evidence for an operator hold, not just a note. The remedy is a product
+	// decision; the detection and the evidence are what let one be made.
+	const operatorHoldNote = async (home: string | null, cellId: string): Promise<string> => {
 		if (!home) {
 			return "";
 		}
 		const log = await readFile(join(home, "runtime.log"), "utf8").catch(() => "");
 		const held = /Task result capture (?:failed|has not settled) for ([^;]+); held in Review/.exec(log);
-		return held
-			? ` ⚠️ HELD FOR OPERATOR, not a defect: ${held[1]?.trim()} had its sandbox result capture fail and is held in Review BY DESIGN (a manual redrive starts cleanly). Unattended there is no operator, so its dependents stay blocked and the run reports "undrained". See N7d.`
-			: "";
+		if (!held?.[1]) {
+			return "";
+		}
+		const cardId = held[1].trim();
+		// The reason CODE lives in the capture-failure line, not the hold line.
+		// The reason CODE and the branch ref live in the SELF-OBSERVATION telemetry, not runtime.log — found by
+		// running this against a real retained run, where both came out `unknown`/`?`. A detector reading the
+		// wrong source fails QUIETLY: it still produces a report, just one missing the two fields that decide
+		// the remedy.
+		const telemetry = await readTelemetryText(home);
+		const reason =
+			/Could not capture sandbox task result patch[^"\n]*/.exec(telemetry)?.[0] ??
+			/Could not capture sandbox task result patch[^"\n]*/.exec(log)?.[0] ??
+			held[0];
+
+		// Dependency edges + surviving artefacts come from the retained workspace; absent, the evidence says so
+		// rather than reporting an empty subtree as "nothing blocked".
+		let dependencyEdges: { fromTaskId: string; toTaskId: string }[] = [];
+		try {
+			const boards = await readdir(join(home, ".nklein", "nklein", "workspaces"));
+			for (const entry of boards) {
+				const raw = await readFile(
+					join(home, ".nklein", "nklein", "workspaces", entry, "board.json"),
+					"utf8",
+				).catch(() => "");
+				if (raw) {
+					const parsed = JSON.parse(raw) as { dependencies?: { fromTaskId: string; toTaskId: string }[] };
+					dependencyEdges = parsed.dependencies ?? [];
+					break;
+				}
+			}
+		} catch {
+			// Leave the edges empty; the summary distinguishes "no dependents" from "could not read the board".
+		}
+
+		// Scoped to the HELD CARD. An unscoped search returns whichever branch appears first in the blob — verified
+		// against a real run, where it returned s00's branch for a hold on s03. Pointing a reader at the wrong
+		// artefact is worse than reporting none: they would inspect intact work and conclude nothing was lost.
+		const branchRef =
+			new RegExp(`Sandbox task result branch updated: ([^\\s"\\\\]*${cardId}[^\\s"\\\\]*)`).exec(telemetry)?.[1] ??
+			null;
+		const artefacts: SurvivingArtefact[] = branchRef
+			? [
+					{
+						kind: "result_branch",
+						ref: branchRef,
+						detail:
+							"branch present in the retained workspace — inspect with `git -C <home>/.nklein/dev-workspaces/* log`",
+					},
+				]
+			: [];
+
+		const evidence = buildOperatorHoldEvidence({
+			cardId,
+			holdMessage: reason,
+			dependencyEdges,
+			logLines: log.split("\n"),
+			survivingArtefacts: artefacts,
+			seed: NIGHTLY_FIXED_SEED,
+			cellId,
+		});
+		return `\n  ${evidence.summary}${dependencyEdges.length === 0 ? "\n  (NOTE: no dependency edges were readable, so the blocked-dependent count is UNKNOWN rather than zero.)" : ""}`;
 	};
 
 	const failureReports = await Promise.all(
@@ -329,7 +401,7 @@ export async function runDevNightlyCommand(options: {
 			.filter((verdict) => verdict.outcome === "failed")
 			.map(async (verdict) => {
 				const home = /isolated HOME kept for inspection: ([^)]+)/.exec(verdict.reason ?? "")?.[1]?.trim() ?? null;
-				const holdNote = await operatorHoldNote(home);
+				const holdNote = await operatorHoldNote(home, `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`);
 				return buildNightlyFailureReport({
 					cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
 					seed: NIGHTLY_FIXED_SEED,
