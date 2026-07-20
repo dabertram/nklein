@@ -5463,6 +5463,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   bug in that framing, it is a run that legitimately needs a person; (c) accept the stall and rely on N5's
   invariant packs to report it clearly. **(b) is the cheapest and may be the most honest**: the nightly currently
   reports this as "left cards undrained", which reads as a defect when it is the system doing what it was told.
+  **✅ THE REPORTING HALF OF (b) SHIPPED 2026-07-20 — naming the case WITHOUT deciding the verdict.** A failing
+  cell's report now reads the retained `runtime.log` and, when it finds the operator-hold signature, says so:
+  *"HELD FOR OPERATOR, not a defect: `<card>` had its sandbox result capture fail and is held in Review BY
+  DESIGN (a manual redrive starts cleanly). Unattended there is no operator, so its dependents stay blocked."*
+  **It deliberately does NOT change pass/fail.** Whether an operator hold counts as a nightly pass is a product
+  decision, and **a reporting change is exactly the wrong place to make one quietly** — the note gives the
+  morning reader the information without pre-empting the choice between (a), (b) and (c).
+  Verified against the RETAINED log of the real failing run: the detector finds `s03`, the exact held card.
   **PREVIOUS HYPOTHESIS (demoted): the durable JOB GRAPH disagrees with the BOARD about
   dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
   while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
