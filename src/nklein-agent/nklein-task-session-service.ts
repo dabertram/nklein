@@ -1564,6 +1564,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		} catch {
 			// Telemetry must never prevent an attempt from starting.
 		}
+		// F4.8b: sandbox-MCP is a PREDICATE (`isSandboxMcpEnabled`) called four times per session, not an event.
+		// Recorded ONCE here at session start with its own category — NOT folded into `attempt_started`, because a
+		// registry entry keyed on `attempt_started` would count every attempt as this mechanism firing and report
+		// it healthy even if MCP were never offered. That is the exact "records the wrong thing" defect found in
+		// the stall-replan wiring; a dedicated category keeps the observation meaning what it says.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Sandbox MCP ${this.isSandboxMcpEnabled() ? "offered" : "withheld"} for ${request.taskId}.`,
+				taskId: request.taskId,
+				metadata: { category: "sandbox_mcp_offer", enabled: this.isSandboxMcpEnabled() },
+			});
+		} catch {
+			// Telemetry must never prevent an attempt from starting.
+		}
 		// F1.5 rehydration + seeding: the card's persisted focus chain survives restarts, but the LIVE store starts
 		// empty — reseed it (never clobbers a chain the session emits first). A fresh plan-born card with NO chain
 		// yet gets an initial one from its plan task's contract, applied through the normal path so it persists to

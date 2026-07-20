@@ -258,6 +258,20 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: `isSandboxMcpEnabled()` is a PREDICATE called four times per session, not an event —
+		// so it has no category of its own. Its decision is FOLDED into the once-per-session `attempt_started`
+		// record (a `sandboxMcpEnabled` field), and this entry maps the flag to that category. `covers` links the
+		// flag so coverage does not read it as unregistered; recording it separately would quadruple-count one
+		// decision.
+		category: "sandbox_mcp_offer",
+		item: "§5.AR",
+		observes: "whether sandbox-hosted MCP servers were offered for a session, recorded once at start",
+		enabledBy: "NKLEIN_SANDBOX_MCP",
+		expectation: "every_run",
+		firesWhen: "attempt_started",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: this reads chat memories, the focus chain, the WHOLE agent ledger and the Basic-Memory
 		// corpus on every turn, then projects and ranks them — and recorded nothing. "Is that work producing a
 		// note, and from how many sources?" is both the quality question and the cost question for the most
