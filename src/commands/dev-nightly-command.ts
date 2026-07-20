@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
 import {
 	type CellVerdict,
 	enumerateNightlyCells,
@@ -53,6 +54,17 @@ function portForCell(index: number): number {
  * summary reported N profiles covered. Invisible from outside: all cells pass, coverage is a fraction of what it
  * claims. An unknown profile is therefore SKIPPED WITH A REASON rather than quietly falling back.
  */
+/**
+ * The drain script pins `seed: 7` internally and exposes no override. Recorded here so the failure report can
+ * state it (N7 requires cell id + seed + HOME to be debuggable from the summary alone) rather than leaving a
+ * reader to discover it by reading the script.
+ *
+ * ⚠️ A FIXED SEED MEANS REPEAT NIGHTLY RUNS ARE NOT INDEPENDENT SAMPLES. They re-walk one path. That is excellent
+ * for reproducibility and worthless for estimating variance — so per P20.6, repeats of this suite buy NOTHING
+ * statistically, because they do not resample anything. Widening coverage means more CELLS, not more runs.
+ */
+const NIGHTLY_FIXED_SEED = "7";
+
 const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	perfect: "perfect",
 	flaky: "flaky",
@@ -146,8 +158,28 @@ export async function runDevNightlyCommand(options: {
 	}
 
 	const summary = summarizeNightlyRun(verdicts);
+
+	// N7: every failing cell gets a report that is checked for being ACTIONABLE, not merely printed. A failure the
+	// next morning cannot be re-run — the state is gone — so the summary is the only artifact that survives.
+	const failureReports = verdicts
+		.filter((verdict) => verdict.outcome === "failed")
+		.map((verdict) => {
+			const home = /isolated HOME kept for inspection: ([^)]+)/.exec(verdict.reason ?? "")?.[1]?.trim() ?? null;
+			return buildNightlyFailureReport({
+				cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
+				seed: NIGHTLY_FIXED_SEED,
+				homePath: home,
+				homeRetained: home !== null,
+				packResult: null,
+				error: verdict.reason ?? null,
+				durationMs: verdict.durationMs ?? null,
+			});
+		});
+	if (failureReports.length > 0 && !options.json) {
+		process.stdout.write(`\n${summarizeNightlyFailures(failureReports).text}\n`);
+	}
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ ...summary, verdicts }, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ ...summary, verdicts, failureReports }, null, 2)}\n`);
 	} else {
 		process.stdout.write(`\n${summary.summary}\n`);
 	}

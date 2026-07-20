@@ -5162,7 +5162,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `summarizeNightlyFailures` surfaces undebuggable cells FIRST and separately: a run with 12 failures where 3
   cannot be investigated has two problems, and the second compounds — it costs a morning every run, while the 12
   are merely today's work.
-  REMAINING: the runner itself (the `test:nightly` entry + the N5b real-drain adapter noted above).
+  **FAILURE REPORT WIRED INTO THE LIVE RUNNER 2026-07-20** — `dev nightly` now builds an N7 report per failing
+  cell and prints undebuggable ones first. This un-orphans `nightly-failure-report.ts` the same day it shipped,
+  rather than adding it to the 19-module cluster P15.4b is triaging.
+  **🔎 FOUND WHILE WIRING — THE SEED IS HARDCODED TO 7 IN THE DRAIN SCRIPT, with no override.** Not missing;
+  constant and undocumented. Now recorded as `NIGHTLY_FIXED_SEED` so the report can state it (N7 requires cell id
+  + seed + HOME) instead of leaving a reader to find it by reading the script.
+  **⚠️ AND THE CONSEQUENCE, WHICH LANDS ON P20.6: a fixed seed means repeat nightly runs are NOT independent
+  samples.** They re-walk one path. That is excellent for reproducibility and **worthless for estimating
+  variance** — so repeats of this suite buy nothing statistically, because they do not resample anything.
+  Widening coverage means more CELLS, not more runs. Anyone reaching for "run the nightly a few more times to be
+  sure" is doing the thing P20.6's `taskFloorMdePoints` exists to refuse, in a case where it buys even less than
+  usual.
+  REMAINING: the `test:nightly` entry, the N5b real-drain adapter (so packs get evaluated per cell rather than
+  only the pass/fail outcome), and the N6 scheduler wire (the runner is hardcoded sequential; N6 can order it
+  fastest-first while keeping the heavy cells pinned).
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
