@@ -1573,9 +1573,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
-				message: `Sandbox MCP ${this.isSandboxMcpEnabled() ? "offered" : "withheld"} for ${request.taskId}.`,
+				message: `Sandbox MCP ${this.isSandboxMcpEnabled() ? "offered" : "withheld"} for ${request.taskId} (basic-memory ${this.isBasicMemoryEnabled() ? "on" : "off"}).`,
 				taskId: request.taskId,
-				metadata: { category: "sandbox_mcp_offer", enabled: this.isSandboxMcpEnabled() },
+				metadata: {
+					category: "sandbox_mcp_offer",
+					enabled: this.isSandboxMcpEnabled(),
+					// F4.8b: basic-memory is a sibling predicate resolved at the same seam and offered through the
+					// same MCP bundle, so its enablement rides the SAME once-per-session record rather than adding a
+					// second. It is a distinct field, not a shared category count — the mistake caught on sandbox MCP.
+					basicMemoryEnabled: this.isBasicMemoryEnabled(),
+				},
 			});
 		} catch {
 			// Telemetry must never prevent an attempt from starting.

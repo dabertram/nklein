@@ -276,8 +276,13 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// decision.
 		category: "sandbox_mcp_offer",
 		item: "§5.AR",
-		observes: "whether sandbox-hosted MCP servers were offered for a session, recorded once at start",
+		observes:
+			"whether sandbox-hosted MCP servers (and basic-memory) were offered for a session, recorded once at start",
 		enabledBy: "NKLEIN_SANDBOX_MCP",
+		// F4.8b: basic-memory rides the same record as a distinct FIELD (basicMemoryEnabled), resolved at the same
+		// seam through the same MCP bundle. `covers` maps its flag here so coverage does not read it unregistered;
+		// it is observable via the field, not via a separate category count.
+		covers: ["NKLEIN_BASIC_MEMORY"],
 		expectation: "every_run",
 		firesWhen: "attempt_started",
 		addedOn: Date.UTC(2026, 6, 20),

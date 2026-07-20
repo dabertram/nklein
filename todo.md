@@ -5282,7 +5282,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
   NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
   in isolation where it does not reproduce.
-- [ ] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
+- [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind
   `NKLEIN_GOAL_REANCHOR` — **default OFF, so nothing reached a prompt.** *"Imported"* and *"reaches a live
@@ -5301,7 +5301,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   that this caveat is not boilerplate: its one flagged deliverable (`drift_detection`) IS genuinely default-off —
   but gated by an INJECTED CALLER, not by any of the four flags the scanner listed. **Right answer, wrong
   reason**, and only reading it revealed that.
-  **PROGRESS 2026-07-20: 5 → 9 of 40 registered.** Four were added on VERIFIED evidence — the flag name derives
+  **✅ COMPLETE 2026-07-20: 5 → 33 of 33 product mechanism flags registered, 0 unregistered, `actionable: []`.**
+  Every default-OFF flag was READ (never heuristically classified) and resolved one of six ways: instrument it
+  (16), already observable via ledger/store/transcript (3 — EXPLORER_SUBAGENT, REASONING_CAPTURE,
+  TRUNCATION_DIAGNOSTICS), already instrumented and merely unregistered (2 — ADAPTIVE_RETRY, RESIDENCY_HEARTBEAT),
+  needs no observation / eval-harness output IS the record (7 dev/eval flags exempt with a stated reason each),
+  instrument SELECTIVELY (the timer-driven OPPORTUNISTIC_IDLE_WORK records at dispatch not per tick; the
+  marginal-effect NATIVE_FORCE_TOOL_CALL carries `flagDriven`), or fold a sibling PREDICATE into an existing
+  once-per-session record as a distinct field (SANDBOX_MCP + BASIC_MEMORY).
+  **THE FINDING BENEATH THE COUNT: every instrumented flag was UNOBSERVABLE in the same way** — mechanisms
+  recorded what they DID and stayed silent about what they DECLINED, so the firing RATE that alone justifies
+  enabling a default-OFF feature was never obtainable. Three flags (LEAN_SYSPROMPT, LEDGER_EXEMPLARS,
+  FEWSHOT_EXEMPLARS) even said "enable to measure" / "Fleet A/B decides" in their OWN COMMENTS while recording
+  nothing an A/B could read — a stated intention with no mechanism behind it. All now record the null result too.
+  **BUGS FOUND IN THE AUDIT ITSELF BY USING IT** (each fixed + pinned): the registry false-alarmed on every
+  newly-added mechanism (`too_new_to_judge` added); a never-fired TRIGGER skipped the window check and fell
+  through to an accusation; the coverage numerator overstated itself by one after an exemption; and I twice
+  nearly registered a shared category that would count the wrong thing (attempt_started for sandbox-MCP) — the
+  `STALL_REPLAN` defect, caught before shipping by asking what the category would actually count.
+  **PROGRESS LOG (superseded, kept for the trail): 5 → 9 of 40 registered.** Four were added on VERIFIED evidence — the flag name derives
   a category that genuinely exists AND was read at its emission site (`baseline_probe`, `repo_verify`,
   `tool_trust_decay`, `typecheck_first`). All four now report `never_enabled` — *"zero is the CORRECT result, not
   a smell"* — which is the point of registering them.
