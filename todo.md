@@ -7096,7 +7096,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   whatever it says is subject to P18.5's provenance rules.
   The narrative arm is deliberately PLAIN prose: an elaborately-written arm would confound "coherent structure"
   with "better writing", and the hypothesis under test is about the former.
-  REMAINING (P18.6b): run the A/B in the eval harness. Needs model time.
+  **✅ DE-ORPHANED 2026-07-20 via `dev compaction-format` — the arms are inspectable before any model time.**
+  The format core had NO consumer (the built-but-unwired shape this session drained). The A/B needs the harness
+  to pick a WINNER, but the arms are deterministic, so a `dev` command renders all three from a `{id,text}` JSONL
+  fact set and — crucially — **checks the load-bearing invariant at runtime**: every arm carries the identical
+  fact-id SET, so a broken renderer surfaces as a failed invariant rather than as a silently invalid experiment.
+  Live-exercised: three arms rendered, the shuffle genuinely de-cohered (a fact moved to last), invariant green.
+  A test pins the check CAN fail on a hand-built mismatch — an invariant that cannot fail proves nothing. The
+  command ships NO preferred arm, matching the item: nobody has measured this, and a `dev` tool that named a
+  winner would be doing exactly what P18.6 warns against.
+  REMAINING (P18.6b): run the A/B in the eval harness for a WINNER. Needs model time; the arms and their
+  comparability check are now built and exercised, so the harness wires a ready experiment.
 
 ### Phase 19 — Prompt-cache discipline (prefill is the hidden cost on consumer hardware)
 

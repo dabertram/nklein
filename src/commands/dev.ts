@@ -44,6 +44,7 @@ import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
+import { runDevCompactionFormatCommand } from "./dev-compaction-format-command";
 import { runDevEnvGatedCommand } from "./dev-env-gated-command";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
@@ -1031,6 +1032,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { spec?: string; answered?: string; criteria?: string; json?: boolean }) => {
 			await runDevSpecReviewCommand(options);
+		});
+	dev.command("compaction-format")
+		.description("Render one fact set as all three compaction arms (P18.6); checks they are comparable.")
+		.option("--facts <file>", "One {id,text} JSON per line.")
+		.option("--seed <n>", "Shuffle seed for the shuffled_facts arm (default 1).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { facts?: string; seed?: string; json?: boolean }) => {
+			await runDevCompactionFormatCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
