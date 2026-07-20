@@ -7959,7 +7959,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
   context-depth dimension to the fitness fingerprint (it already carries context window + quant), and record
   observations at the depth they were taken.
-- [ ] **P22.3 — Correct the MoE assumptions in `inference-lever-planning.ts` and the roster notes.** Three
+- [x] **P22.3 — Correct the MoE assumptions in `inference-lever-planning.ts` and the roster notes.** Three
   corrections, all measured: **(a)** the naive roofline (bandwidth ÷ active-param bytes) is **optimistic by ~2×
   for MoE** — MoE realizes 45–79% of ceiling vs dense at 79–88%, and efficiency FALLS as the active fraction
   shrinks (gpt-oss-120b at 4.4% active realizes 52%). Budget MoE decode at ~0.5–0.65× roofline. **(b) MoE's
@@ -7970,6 +7970,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   collapse is a dense model (Gemma-3-12b, 0.08). **Recipe dominates architecture.** Note F12.76's MoE gate is
   still correct — it is about *speculative decoding*, where MoE genuinely does badly — but no other MoE penalty
   is justified.
+  **AUDIT + CAPTURE DONE 2026-07-20 — the premise inverted, and that IS the finding.** The three corrections were
+  expected to fix wrong assumptions in `inference-lever-planning.ts` and the roster notes. The audit found NONE
+  to fix: the module's ONLY MoE handling is the speculative-decoding gate (line ~432), which P22.3 itself confirms
+  is correct (MoE genuinely does badly at speculation — parallel verification activates a larger expert union);
+  no roofline/throughput estimator exists to be optimistic; and NO routing/capability code penalizes MoE for
+  multi-turn. So the code was already right. The three measured corrections are now recorded as standing guidance
+  in `docs/dev/gpu-offload-and-moe.md` §7 (budget MoE decode at ~0.5–0.65× roofline; MoE's prefill advantage is
+  ~45% smaller than generation and agent loops are prefill-bound; the "MoE weaker at multi-turn" claim is
+  FALSIFIED — GLM-4.6 tops BFCL V4, recipe dominates architecture) so those errors can never be INTRODUCED. F12.76's
+  MoE speculation gate is explicitly left as correct.
 - [ ] **P22.4 — Quantization does NOT speed up prefill (correct any note that implies it).** mlx-lm's own
   BENCHMARKS.md, 64GB M4 Max: bf16→q4 moves prefill **−9%** and generation **+156%**. Dequant cost cancels the
   bandwidth win when compute-bound. So quantization is a generation and a MEMORY lever, never a TTFT lever — and

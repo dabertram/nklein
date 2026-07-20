@@ -93,6 +93,26 @@ extra concurrency? Largely **yes, with one caveat**:
   for the 32 GB box.
 - Always: `--estimate-only` before a real remote load; device-scoped unload (never evict another machine's model).
 
+## 7. MoE performance — the measured corrections (P22.3, 2026-07-20)
+
+⚠️ **These are the numbers to budget MoE from. A code audit found NO wrong MoE assumption in
+`inference-lever-planning.ts` — its only MoE handling is the speculative-decoding gate (F12.76), which is
+CORRECT (MoE genuinely does badly at speculation: parallel verification activates a larger expert union). And no
+routing/capability code penalizes MoE for multi-turn. So this section captures the research so those errors are
+never INTRODUCED, not fixes to existing ones.**
+
+- **(a) The naive roofline is ~2× optimistic for MoE.** Bandwidth ÷ active-param-bytes overstates decode: MoE
+  realizes **45–79%** of ceiling (dense: 79–88%), and efficiency FALLS as the active fraction shrinks
+  (gpt-oss-120b at 4.4% active realizes ~52%). **Budget MoE decode at ~0.5–0.65× roofline**, not 1×.
+- **(b) MoE's speed advantage is ~45% smaller on PREFILL than on generation** (RTX 4090: 2.9× prefill vs 5.2×
+  generation). **Agent loops are prefill-bound** (see Phase 19), so MoE selection buys an agent LESS than a chat
+  benchmark implies. Do not size an agent's MoE win off generation-benchmark deltas.
+- **(c) "MoE is weaker at long multi-turn tool use" is FALSIFIED.** BFCL V4: the best general-purpose multi-turn
+  model is an MoE (GLM-4.6, 68.00, beating every dense general model); the worst collapse is a DENSE model
+  (Gemma-3-12b, 0.08). **Recipe dominates architecture** — do not add an MoE penalty for multi-turn/agentic
+  routing. Our own catalog agrees: qwen3.5-122b-a10b (MoE) is the strongest all-round sweep result, and
+  gpt-oss-20b's chain-weakness is about ~3.6B ACTIVE params, not MoE-ness.
+
 ## Sources
 
 - [llama.cpp #20757 — two-tier GPU+RAM expert cache for MoE offload](https://github.com/ggml-org/llama.cpp/issues/20757)
