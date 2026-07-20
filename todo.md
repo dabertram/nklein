@@ -6156,6 +6156,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `pass_all` / `pass_any` / pass-rate / flakiness / terminal states over 3–5 repeats — which is the pass^k shape
   this item argues for, computed from the runs rather than estimated. Use it rather than writing a second
   reliability summarizer.
+  **DISCIPLINE CORE SHIPPED 2026-07-20: `eval-headline-metric.ts`, 10 tests.**
+  **IT DELIBERATELY COMPUTES ALMOST NOTHING.** Both statistics already existed — `wilsonInterval` (F12.41) and
+  `computePassPowerK` (`model-eval-stability.ts`), both found via `dev capability-index` before writing a line.
+  Re-implementing either would have been the FOURTH duplication caught this session. What did not exist is the
+  part that actually prevents the mistake: **a headline that refuses to be pass@k.**
+  **`assertHeadlineMetricAllowed` THROWS, it does not warn** (variants covered: `pass@k`, `pass_at_k`,
+  `pass-at-8`, `passAt4`). A warning would be read, acknowledged and ignored, and the metric would ship anyway —
+  because **pass@k is the number that makes a change look best**, which is precisely why it gets reported when
+  nobody decided in advance. The whole content of this item is "do not headline this", so the enforcement cannot
+  be something a reader skims past. The error explains WHY, so the rule outlives whoever wrote it.
+  **`buildHeadline` always emits BOTH pass^1-with-CI and pass^k**, because either alone misleads in a PREDICTABLE
+  direction: pass^1 alone flatters a flaky system that occasionally works; pass^k alone buries a real capability
+  under end-to-end compounding. The pair is the honest summary — neither half is. Pinned by the τ-bench shape:
+  50/100 reports pass^1 ≈ 50% and pass^8 < 10%.
+  A wide interval reports **UNDERPOWERED — "report this as unresolved rather than as a result"**, which at
+  local-fleet run counts is the COMMON case rather than an edge one. And zero runs renders as *"no result to
+  report"*, never as 0% — an absent measurement and a measured zero are different claims.
 - [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
