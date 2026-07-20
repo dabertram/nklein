@@ -5219,7 +5219,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > 5. **Transport is the user's choice, decided last.** A GitHub issue draft the user submits themselves is the
 >    first target precisely because it needs no infrastructure and is fully inspectable.
 
-- [ ] **P16.1 — Field-report content model (PURE core).** Three layers with independent consent:
+- [x] **P16.1 — Field-report content model (PURE core).** Three layers with independent consent:
   **A — structural/behavioural (default ON):** what the harness DID — card counts, outcome distribution, model
   CLASS and size band, which mechanisms fired, where cards stalled, retry/park/bounce rates, wall-clock, hardware
   shape. No project content of any kind.
@@ -5228,6 +5228,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **C — verbatim excerpts (default OFF, explicit per-item):** actual prompt/diff/error text.
   **Acceptance:** the layer of every field is declared in the type system, so a Layer-C field cannot be emitted
   into a Layer-A report by construction rather than by review discipline.
+  **SHIPPED 2026-07-20: `field-report-content.ts` — and the acceptance criterion is VERIFIED, not asserted.**
+  `ReportField<L extends DisclosureLayer>` carries the layer as a TYPE PARAMETER, with `structuralField` /
+  `narrativeField` / `verbatimField` as the only constructors, so the layer is never guessed.
+  **Proved by attempting the violation:** assigning `verbatimField(...)` to a `ReportField<"A">` produces
+  `error TS2322: Type 'ReportField<"C">' is not assignable to type 'ReportField<"A">'`. **"Privacy by
+  construction" now means something a compiler enforces** — if it were a runtime flag, one mistaken assignment
+  would put a verbatim excerpt into a structural report and the bug would be INVISIBLE in review, because the
+  data would simply be there.
+  **PER-ITEM consent, not a blanket level:** a field above the consented layer is included only if the user
+  approved THAT KEY. Everything else is `withheld` **with its reason** — silently dropping it would leave the
+  user believing they had seen the whole report.
+  **The disclosure distinguishes "nothing withheld" from "a layer was declined."** A reader who cannot tell those
+  apart reads an incomplete report as a complete one, which is exactly the wrong conclusion for a maintainer
+  deciding whether a pattern is absent or merely unreported.
+  `renderReviewPayload` returns the EXACT bytes per field as DATA, not rendered text, so a caller cannot show a
+  prettified version that differs from what is sent (P16.3's requirement, enforced at the boundary). 10 tests.
 - [ ] **P16.2 — GROUNDED generation with per-claim provenance (the keystone; do not ship P16 without it).** Every
   claim in a generated report carries a pointer to the source events that support it, and **any claim that cannot
   be grounded in recorded events is DROPPED, not softened.** An LLM-written bug report that hallucinates is worse
