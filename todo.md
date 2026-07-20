@@ -5419,10 +5419,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     recorder recomputes total inline from prompt+completion, and the ledger attempt event stores prompt+completion
     (total is trivially derivable). I started to "fix" it by deriving `total = prompt + completion` there, then
     reverted on finding nothing consumes the field — **a dead change dressed as a fix is the exact self-flattering
-    motion this whole item is about.** The comment at the site now documents why it's left null. The ONLY genuine
-    missing datum is `reasoningTokens`: `extractCompletionUsage` (F4.12) already parses it, but the SESSION path
-    `readSessionUsage` does not, and `RuntimeTaskSessionUsage` carries no reasoning field — so closing it is a
-    real API-contract change whose wire spelling must be verified against a reasoning model's usage, not guessed.
+    motion this whole item is about.** The comment at the site now documents why it's left null. ✅ **reasoningTokens CLOSED
+    2026-07-20 for the per-TURN observation** — without the API-contract change I'd feared. The raw usage object
+    is right there at `run-finished`, and `extractCompletionUsage` (F4.12) already knows the ESTABLISHED spelling
+    (`completion_tokens_details.reasoning_tokens`, top-level fallback), so the per-turn `model_usage` metadata now
+    stamps `reasoningTokens` — **null, not zero, when the server does not report it**, because "did not say" and
+    "did zero reasoning" are different facts a budget-tuner must separate.
+    🐛 **The test caught a bug in my OWN change before it shipped:** I called `extractCompletionUsage(result.usage)`
+    when the function reads `.usage` itself and wants `result` — one level too deep, a silent perpetual null
+    dressed as "no reasoning reported". Pinned by a test asserting a known count comes through AND that the wrong
+    (usage-object) shape reads empty. The `RuntimeTaskSessionUsage`/ledger path still carries no reasoning field —
+    that remains the API-contract change — but the per-turn stream, which is where "is this card slow" gets
+    answered, now has it.
   - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
     `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
     through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
