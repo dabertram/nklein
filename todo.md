@@ -5410,10 +5410,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   that CPU saturation cannot recreate — **the contended resource is a port, not a core.** ⚠️ NOT CONFIRMED: the
   failure timestamps were not correlated against the drain windows at the time, and that correlation can no
   longer be reconstructed.
-  NEXT: run `test:fast` in a loop WHILE a nightly drain occupies 4500+. If that reproduces it, the fix is
-  test-side port isolation (N4), not a retry.
-  **What this attempt is worth: it EXCLUDED the two obvious causes.** Recording exclusions matters as much as
-  recording the finding — otherwise the next person spends the same hour on CPU load.
+  **PORT HYPOTHESIS ALSO TESTED AND NOT SUPPORTED:** 4 runs with a live nightly drain holding 4500+ — all clean.
+  **FINAL TALLY: 27 CLEAN RUNS ACROSS FOUR DELIBERATELY ADVERSARIAL CONDITIONS** — 18 idle, 3 under CPU
+  saturation (17/18 cores), 2 concurrent suites, 4 against a running drain. Every hypothesis raised has been
+  excluded by experiment.
+  **STATE: OBSERVED TWICE, UNREPRODUCIBLE, OPEN. It is NOT closed as "not a bug."** It happened, in front of me,
+  with a count (`1 failed | 11401 passed`). Marking it resolved because 27 attempts missed it would be the exact
+  move this item was written to prevent — and would be a worse error than the original flake, because it would
+  come with the authority of having "investigated".
+  **WHAT IS ACTUALLY WORTH DOING NEXT IS NOT MORE CHASING — IT IS CAPTURE.** The failure has now occurred twice
+  and BOTH times the identity was lost: once inside a pre-commit hook that printed a summary and discarded the
+  detail, once in a loop that did not persist output. **The bug is not hard to hit; it is hard to hold onto.** So:
+  make the pre-commit hook persist full vitest output on failure, and the identity will be there the third time.
+  **The exclusions are the deliverable here.** Recording them matters as much as a finding would have — otherwise
+  the next person spends the same hour rediscovering that CPU load, process contention and port collision are all
+  innocent.
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
