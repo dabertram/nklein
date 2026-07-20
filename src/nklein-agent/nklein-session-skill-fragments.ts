@@ -21,6 +21,7 @@ import { resolveActiveSkills, type SkillDynamicsLevel } from "../core/skill-reso
 import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-guidance.js";
 import { readAllDistractorObservations } from "../state/distractor-observation-store";
 import { getCurrentProceduralSkills } from "../state/procedural-skill-store.js";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildNKleinRepoMap } from "./nklein-repo-map.js";
 
 export interface BuildSessionSkillFragmentsInput {
@@ -106,6 +107,27 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 					fragmentId === "repo_map" ? repoMapText : null,
 				),
 			);
+		}
+		// F4.8b: which skill fragments actually reached the system prompt was unrecorded, and unlike the PROCEDURAL
+		// consumer below there is no ledger equivalent — attempts carry `surfacedSkillIds` for procedures, but
+		// nothing for these. So "did enabling this change the prompt at all, and with what?" had no answer.
+		//
+		// Emitted even when `activeFragments` is EMPTY: the flag is on, a resolve ran, and nothing was selected —
+		// the outcome that looks identical to the flag being off, and the one worth seeing.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Skill prompt fragments for role ${input.role}: ${activeFragments.length} active [${activeFragments.join(", ") || "none"}].`,
+				metadata: {
+					category: "skill_prompt_fragments",
+					role: input.role,
+					fragments: activeFragments,
+					repoMapIncluded: activeFragments.includes("repo_map"),
+				},
+			});
+		} catch {
+			// Telemetry must never break prompt assembly.
 		}
 	}
 

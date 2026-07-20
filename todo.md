@@ -5312,6 +5312,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     `NKLEIN_TEST_DRIVEN_MODE` resolved to `review_effort_scaling`; `NKLEIN_N_EYES_REVIEW` and
     `NKLEIN_REVIEW_PANEL` both resolved to *the same* observation line. **Co-location is not attribution** — the
     same mistake that made `dev env-gated` right-for-the-wrong-reason on `drift_detection`.
+  🔎 **F12.29's trajectory data is DORMANT, found while checking the ledger.** `surfacedSkillIds` is in the
+  attempt schema and `skill-trajectory-projection.ts` reads it to split with-skill vs without-skill
+  trajectories — but the field is **absent from every real attempt record on disk** (checked: 226 attempts, 0
+  occurrences). It is only written when the procedural consumer surfaces something, which needs
+  `NKLEIN_PROCEDURAL_SKILLS`, which has never been on. **So the projection is correct, wired, and has no data —
+  and would silently report on an empty set rather than saying so.** Not a defect today (empty IS correct while
+  the flag is off), but it is the exact shape of P15.1b's `enabled_but_silent`, one layer down in a derived
+  projection rather than in a mechanism.
   🔬 **AND "UNREGISTERED" ≠ "UNOBSERVABLE" — a second refinement, found the same way.** The registry is indexed
   by `metadata.category`, so it can only see mechanisms that write a self-observation. `NKLEIN_EXPLORER_SUBAGENT`
   gates the presence of an `explore` TOOL, and the agent ledger records every tool call **by name and outcome** —

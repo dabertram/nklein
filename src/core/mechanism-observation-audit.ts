@@ -237,6 +237,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: which skill fragments reached the system prompt was unrecorded, and unlike the
+		// PROCEDURAL consumer there is no ledger equivalent — attempts carry `surfacedSkillIds` for procedures but
+		// nothing for these. So "did enabling this change the prompt at all, and with what?" had no answer.
+		category: "skill_prompt_fragments",
+		item: "§5.AE",
+		observes: "the skill fragments selected for a session's system prompt, including when none are",
+		enabledBy: "NKLEIN_SKILL_PROMPT_FRAGMENTS",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: `progress_stall` already fired, but it fires whether or not this ENFORCING half is
 		// enabled — so telemetry could not distinguish "we noticed the stall" from "we actually intervened". The
 		// flag's record-only and enforcing modes produced identical observations, making its effect invisible.
