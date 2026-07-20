@@ -2,6 +2,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { distillProceduralSkill, type ProcedureDistillationInput } from "../core/procedural-skill-distillation.js";
 import type { ProceduralSkill } from "../core/procedural-skill-record.js";
 import { upsertProceduralSkill } from "../state/procedural-skill-store.js";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 
 /**
  * F4.19 producer WIRE — distill a completed task into the ProceduralSkillBank (behind `NKLEIN_PROCEDURAL_SKILLS`, the
@@ -25,6 +26,25 @@ export async function maybeDistillAndStoreProcedure(
 		return null;
 	}
 	const skill = distillProceduralSkill(input);
+	// F4.8b: record the distillation OUTCOME, both ways.
+	//
+	// The skill store is the only prior evidence this ran, and a store records only its successes — so a distiller
+	// that silently produced nothing from every delivered card looked exactly like a distiller nobody had enabled.
+	// The produced/attempted RATIO is what says whether distillation works at all, and it is unobtainable from the
+	// store alone.
+	try {
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message: skill
+				? `Distilled a candidate procedure from ${input.taskId ?? "a delivered card"}.`
+				: `Distillation produced NO procedure from ${input.taskId ?? "a delivered card"}.`,
+			...(input.taskId ? { taskId: input.taskId } : {}),
+			metadata: { category: "procedural_skill_distillation", produced: skill !== null },
+		});
+	} catch {
+		// Telemetry must never break the caller's completion path.
+	}
 	if (!skill) {
 		return null;
 	}
