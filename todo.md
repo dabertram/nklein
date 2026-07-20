@@ -7873,8 +7873,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Mistral/DeepSeek/Phi `[TOOL_REQUEST]`/inline-`<think>`); (3) `parseToolValidatedNarration` catches a markerless
   `{"tool":…,"parameters":…}` object, validated against the offered set. So a model that emits its call as text
   instead of in `tool_calls` is RECOVERED, not read as "no tool used" — the exact failure P21.2 names is already
-  designed out. REMAINING (fleet-gated): the LIVE cross-check that these recovery dialects actually cover what our
-  target JSON/XML-emitting models emit on the wire — a fleet run, not a parser gap.
+  designed out.
+  **✅ LIVE CROSS-CHECK RUN 2026-07-20 (fleet access granted) — the primary path is confirmed for the coder
+  families.** Loaded `qwopus3.5-9b-coder-mlx@4bit` then `qwopus3.5-4b-coder-fable5-v1-mlx` (8k ctx, one at a time,
+  unloaded after — no residual load) and sent a single tool-offering completion each. BOTH returned the call in the
+  NATIVE OpenAI `tool_calls` channel (`finish_reason: tool_calls`, `get_weather{"city":"Berlin"}`, empty content) —
+  LM Studio normalizes tool calls server-side for these MLX models, so !Klein's tier-1 parse (`choice.message.
+  tool_calls`) is correct and sufficient for them; the narration-recovery tiers are the safety net for the
+  non-normalizing / reasoning-channel cases (reasoning models emitting into `reasoning_content` is already
+  established from the Ministral/DeepSeek work). So the Cline-class "JSON emitted, parser only knew XML → loop"
+  failure is confirmed absent on this fleet's coder models. REMAINING (optional, low value): the same one-shot
+  check against a REASONING model and an external MCP tool if a specific model ever looks suspect — no gap indicated.
 - [ ] **P21.3 — ASSERT the served context length; never assume it.** Ollama's 2k default *"silently discards
   context that exceeds the window"* — Aider calls this *"especially dangerous because many users don't even
   realize that most of their data is being discarded"*; OpenCode's own guidance is "start around 16k–32k"; an
