@@ -1375,10 +1375,24 @@ export class AgentSandboxManager {
 			metadata: {
 				category: "sandbox_workspace_disposed",
 				// Frames 2-6: frame 0 is Error, frame 1 is this method — neither identifies the caller.
+				//
+				// ⚠️ PATHS ARE MADE REPO-RELATIVE BEFORE RECORDING, and that is load-bearing rather than cosmetic.
+				// The observation sink redacts ABSOLUTE paths (prime directive #2), which stripped every frame to
+				// "[REDACTED_PATH]" and left the stack useless — function names with no file or line. The trail was
+				// being collected and then destroyed on the way out.
+				//
+				// Cutting at `/src/` yields `src/foo/bar.ts:12:34`: not an absolute path, so the redactor leaves it
+				// alone, and it carries NO user data — these are our own source locations. Privacy is unchanged;
+				// debuggability is restored.
 				disposedBy: (new Error().stack ?? "")
 					.split("\n")
 					.slice(2, 7)
-					.map((frame) => frame.trim().replace(/^at\s+/, ""))
+					.map((frame) =>
+						frame
+							.trim()
+							.replace(/^at\s+/, "")
+							.replace(/\(.*?\/(src\/[^)]*)\)/, "($1)"),
+					)
 					.join(" ← "),
 			},
 		});

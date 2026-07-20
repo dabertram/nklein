@@ -5728,6 +5728,37 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   still recorded: the trail describes what happened to the board, not what someone meant to happen.
   Telemetry failures are swallowed — letting an observation error abort a persist would trade a missing log line
   for a LOST BOARD MUTATION, which is the wrong way round.
+- [ ] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
+  *"one very annoying thing with claude and also with copilot is, that while reading the chat log it happens
+  regularly that the text 'jumps' when thinking blocks collapse after they finish or other activity is happening
+  … !Klein MUST be better at this … the user must never get distracted by 'lines moving' while user is reading."*
+  **THE RULE, AND ITS SCOPE IS THE PRECISE PART:**
+  - **Snapped to the very bottom** → the user is watching the latest output. Growth is EXPECTED and moving is
+    correct. Out of scope.
+  - **NOT at the bottom** → the user is READING. **Nothing above the viewport may change the layout.** Content
+    may still arrive and thinking blocks may still collapse — but the text under the reader's eyes must not move
+    by a single pixel.
+  **WHY THIS IS AN ANCHORING PROBLEM, NOT AN ANIMATION ONE.** The instinct is to animate collapses smoothly;
+  that makes the jump prettier and still loses the reader's place. The fix is to **preserve the scroll anchor**:
+  when content above the viewport changes height by Δ, adjust `scrollTop` by Δ in the same frame, so the visible
+  text is stationary in the reader's frame of reference. CSS `overflow-anchor` does some of this natively and is
+  worth trying FIRST, but it is unreliable across dynamic-height children — measure before trusting it.
+  **THE HARD CASES, which is where implementations usually fail:**
+  - a **thinking block collapsing** above the viewport (the specific case David named);
+  - **streaming text reflowing** and changing line count on a window resize;
+  - **images/diagrams loading late** and claiming height after layout;
+  - a **tool result expanding** on completion;
+  - **font loading** shifting metrics for everything at once.
+  Each changes height ABOVE the reader; each needs the same anchor correction; and any one of them left
+  unhandled reproduces the whole complaint, because a reader notices the one jump, not the ten that were avoided.
+  **ACCEPTANCE: measurable, not "feels smooth".** Instrument a scroll-anchor test that records the viewport-top
+  document offset of a chosen visible element across each of the hard cases, and assert **zero drift** while
+  detached from the bottom. **"It looks fine" is exactly how this ships broken** — the jumps are intermittent and
+  the developer is usually pinned to the bottom watching output, which is the one state where the bug cannot
+  occur.
+  Composes with the existing zoom-instead-of-truncate density rule (§4A) — both are about the reader's frame
+  staying still while content changes.
+
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
