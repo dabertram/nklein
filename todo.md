@@ -5561,7 +5561,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   lookup-table memorization. Most common failure is not malice but **feature isolation — each handler passes its
   own test while sharing no representation with the others; the parts pass and the whole does not exist.**
   Contamination-proof by construction, needs no external benchmark, and directly measures charter §5's
-  build-vs-intent gap. **NOTE the LOC-scaling result lands exactly on fleet-aware decomposition's territory
+  build-vs-intent gap.
+  **⚠️ DO NOT BUILD THE VERDICT CORE — IT ALREADY EXISTS (found 2026-07-20 by the orphan triage).**
+  `src/core/diagnostic-oracles.ts` (2026-07-08, tested, currently unwired) implements exactly this split:
+  `fail_to_pass` (must flip red→green — the requested behaviour) and `pass_to_pass` (must stay green —
+  regressions) **HIDDEN from the agent**, kept separate from the VISIBLE developer-ergonomics acceptance split,
+  with `evaluateHiddenSplits` folding both into one of four DIAGNOSTIC outcomes — *which* failure mode occurred,
+  not merely "red". That is P20.2's measurement, already written.
+  **So P20.2's remaining work is the FIXTURE SPLIT and the WIRE, not the verdict logic.** Building it fresh would
+  have been the third duplication caught this session (after F12.28 reimplementing F12.41's significance test, and
+  F12.82 nearly duplicating F12.28's optimizer). Wiring this core also UN-ORPHANS it — see
+  `docs/dev/orphan-core-triage.md`. **NOTE the LOC-scaling result lands exactly on fleet-aware decomposition's territory
   (F12.110): the gap is worst on large multi-card builds, which is what we are optimizing.**
 - [ ] **P20.3 — NO-OP ABLATION in card acceptance (cheap, devastating).** Stub out the artifact the agent claims
   to have built and re-run the tests. **If they still pass, the artifact is decorative.** "Building to the Test"
@@ -5584,6 +5594,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   oracle-assisted upper bound, not achievable performance. For a harness graded by the same tests it iterates
   against, pass@k is close to circular. τ-bench's pass^8 <25% vs pass^1 <50% is the shape that matters for a
   multi-card board.
+  **THE REPEAT-RUN HALF ALSO ALREADY EXISTS:** `summarizeRepeatRuns` in the same `diagnostic-oracles.ts` reports
+  `pass_all` / `pass_any` / pass-rate / flakiness / terminal states over 3–5 repeats — which is the pass^k shape
+  this item argues for, computed from the runs rather than estimated. Use it rather than writing a second
+  reliability summarizer.
 - [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
