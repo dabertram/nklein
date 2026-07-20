@@ -71,3 +71,34 @@ describe("assertHeadlineMetricAllowed", () => {
 		}
 	});
 });
+
+describe("P20.5b — the discipline has a LIVE consumer", () => {
+	it("the fitness table view carries the headline, so P20.5 is not a rule nobody is subject to", async () => {
+		// A correct core with no live consumer passes its own tests while changing nothing — the shape this
+		// session kept finding. This pins the wire: buildFitnessTableView is reached from runtime-api.ts.
+		const { buildFitnessTableView } = await import("../../src/core/fitness-table-view");
+		const rows = buildFitnessTableView([
+			{
+				modelKey: "qwen3-14b",
+				role: "worker",
+				difficultyTier: "medium",
+				sampleCount: 4,
+				successCount: 3,
+				retryBudget: 2,
+				failureModes: [],
+				meanWallTimeMs: null,
+				meanWallTimeSamples: 0,
+				tokensPerSec: null,
+				tokensPerSecSamples: 0,
+				knowledgeUseCount: 0,
+				knowledgeSkipCount: 0,
+				updatedAt: null,
+			},
+		]);
+		expect(rows[0]?.headline).toContain("pass^1");
+		expect(rows[0]?.headline).toContain("pass^4");
+		// 3/4 samples cannot support a directional claim, and the view now says so rather than showing 75%.
+		expect(rows[0]?.underpowered).toBe(true);
+		expect(rows[0]?.passPowerK).toBeLessThan(rows[0]?.successRate ?? 1);
+	});
+});

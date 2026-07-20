@@ -6174,14 +6174,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   local-fleet run counts is the COMMON case rather than an edge one. And zero runs renders as *"no result to
   report"*, never as 0% — an absent measurement and a measured zero are different claims.
   The wire is P20.5b.
-- [ ] **P20.5b — Route every eval report through `buildHeadline` *(split from P20.5 2026-07-20)*.** Call
-  `assertHeadlineMetricAllowed` at each report boundary and render headlines via `buildHeadline`, so the
-  discipline is enforced where numbers are PRODUCED rather than where they are reviewed.
-  **⚠️ UNTIL THIS LANDS, P20.5 IS A RULE NOBODY IS SUBJECT TO.** The guard throws — but only if something calls
-  it, and today nothing does. That makes P20.5 exactly the shape this session kept finding: a correct core with
-  no live consumer, passing its own tests while changing nothing. It is listed here so the gap is visible rather
-  than mistaken for enforcement, and `dev requirement-coverage` will report it as `built_but_unwired` once P20.5
-  is added to the tracked-requirement map (P15.7b).
+- [~] **P20.5b — Route every eval report through `buildHeadline` *(split from P20.5 2026-07-20)*.**
+  **FIRST LIVE CONSUMER WIRED 2026-07-20 (same session, deliberately):** `buildFitnessTableView` now carries
+  `headline`, `underpowered` and `passPowerK` per cell, and it is reached from `runtime-api.ts` — so P20.5 is
+  **no longer a rule nobody is subject to.** Closing this immediately was the point: the alternative was shipping
+  the exact `built_but_unwired` shape this session spent the day cataloguing, while having just written the tool
+  that names it.
+  **WHAT IT ADDS OVER F2.22, which already gave this view a Wilson LOWER bound and a coarse band.** That was
+  already more honest than a bare rate. What it could not say is the thing an operator most needs: **whether the
+  interval is too wide to support a claim at all.** A "low" band still renders as a number beside a model name,
+  and a number beside a model name gets acted on — `underpowered` says the quiet part out loud. Pinned by test:
+  a 3/4 cell reports UNDERPOWERED rather than "75%".
+  And `passPowerK` answers the question a multi-card board actually asks — not *"does it usually work?"* but
+  *"does it work FOUR TIMES RUNNING?"*, which is what finishing a card without intervention requires. It falls off
+  far faster than the success rate suggests.
+  REMAINING: `assertHeadlineMetricAllowed` still has NO caller — the throw-guard is armed but nothing hands it a
+  metric name. It fires only once a report path names its own metric, which no surface does yet. Recorded rather
+  than glossed: the FORMATTING half is wired, the NAMING half is not.
 - [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an

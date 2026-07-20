@@ -6,6 +6,7 @@
  * endpoint) stays a thin adapter over it.
  */
 
+import { buildHeadline } from "./eval-headline-metric";
 import type { BelowBarCriteria } from "./fitness-projections";
 import { projectFailingCells } from "./fitness-projections";
 import {
@@ -45,6 +46,23 @@ export interface FitnessTableViewRow {
 	updatedAt: number | null;
 	/** TRUE when this cell is in the failing-LLM projection (well-sampled AND under the success bar). */
 	belowBar: boolean;
+	/**
+	 * P20.5: the disciplined headline — pass^1 with a full interval AND the pass^k reliability figure, plus an
+	 * explicit underpowered verdict.
+	 *
+	 * F2.22 already gave this view a Wilson LOWER bound and a coarse band, which is more honest than a bare rate.
+	 * What it could not say is the thing an operator most needs: **whether the interval is too wide to support a
+	 * claim at all.** A "low" band still renders as a number next to a model name, and a number next to a model
+	 * name gets acted on. `underpowered` says the quiet part.
+	 *
+	 * And `passPowerK` answers the different question a multi-card board actually asks — not "does it usually
+	 * work?" but "does it work FOUR TIMES RUNNING?", which is what finishing a card without intervention requires.
+	 */
+	headline: string;
+	/** TRUE when the interval is too wide to support a directional claim about this cell. */
+	underpowered: boolean;
+	/** pass^k: the probability all k runs succeed. Falls off much faster than the success rate suggests. */
+	passPowerK: number;
 }
 
 /**
@@ -73,6 +91,14 @@ export function buildFitnessTableView(
 				tokensPerSec: row.tokensPerSec,
 				updatedAt: row.updatedAt,
 				belowBar: failingKeys.has(fitnessCellKey(row)),
+				...(() => {
+					const headline = buildHeadline({ successes: row.successCount, runs: row.sampleCount });
+					return {
+						headline: headline.text,
+						underpowered: headline.underpowered,
+						passPowerK: headline.passPowerK,
+					};
+				})(),
 			}),
 		)
 		.sort((a, b) => {
