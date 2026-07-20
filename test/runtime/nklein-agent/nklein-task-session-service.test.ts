@@ -598,7 +598,22 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				await service.dispose();
 			}),
 		);
-		rmSync(diagnosticStoreRoot, { recursive: true, force: true });
+		// Retry on ENOTEMPTY: dispose() does not await the FIRE-AND-FORGET ledger writes (`void
+		// appendAgentLedgerEvent(...)`), so a late attempt-event write can land in this dir DURING rmSync's
+		// recursive walk — a file appears between its readdir and its unlink and the walk fails. This was an
+		// intermittent ENOTEMPTY that named itself in a pre-commit run 2026-07-20 (N13). A second walk catches the
+		// straggler; anything still failing after a few attempts rethrows rather than hiding a real leak.
+		for (let attempt = 0; ; attempt += 1) {
+			try {
+				rmSync(diagnosticStoreRoot, { recursive: true, force: true });
+				break;
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === "ENOTEMPTY" && attempt < 5) {
+					continue;
+				}
+				throw error;
+			}
+		}
 		process.argv = [...originalArgv];
 		process.execArgv = [...originalExecArgv];
 		Object.defineProperty(process, "execPath", {

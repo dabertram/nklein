@@ -5323,6 +5323,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
   NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
   in isolation where it does not reproduce.
+  **🔴 A FLAKE NAMED ITSELF + WAS ROOT-CAUSED + FIXED 2026-07-20 — the exact workflow N13 exists to enable.** A
+  pre-commit run failed on `nklein-task-session-service.test.ts:601` with `ENOTEMPTY` during the `afterEach`
+  `rmSync(diagnosticStoreRoot, {recursive,force})`. Root cause: `dispose()` does NOT await the FIRE-AND-FORGET
+  ledger writes (`void appendAgentLedgerEvent(...)`), so a late attempt-event write lands in the temp dir DURING
+  rmSync's recursive walk — a file appears between its readdir and unlink and the walk throws. Passed in
+  isolation every time; only the full-suite timing exposed it. **Fixed at the test with a bounded ENOTEMPTY
+  retry** (a second walk catches the straggler; still-failing after 5 rethrows rather than hiding a real leak),
+  verified by running the file 3× green. **The deeper defect is noted, not chased here:** dispose() leaking
+  fire-and-forget writes past its own resolution is a production-adjacent smell — a caller that disposes and
+  then reads assumes writes are flushed. Recorded for whoever picks up the dispose-flush contract.
 - [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind
