@@ -168,6 +168,43 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  * — the observation counts that judge it are always read live, so the part that would rot is generated.
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
+	// F4.8b 2026-07-20: registering four opt-in mechanisms that the registry had never heard of.
+	//
+	// 5 of 40 default-OFF flags were registered, so for 35 nothing could report whether they run — the hole F4.8
+	// fell through. These four are added because their category is VERIFIED (the flag name derives a category
+	// that genuinely exists in the codebase and was read at its emission site), not inferred from co-location in
+	// the same file. The rest stay out until each is read: **registering a guessed category would make the
+	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
+	{
+		category: "baseline_probe",
+		item: "F12.60",
+		observes:
+			"the BASE tree already failing a card's acceptance check — a red acceptance at review may be pre-existing rather than the worker's",
+		enabledBy: "NKLEIN_BASELINE_PROBE",
+		expectation: "exceptional",
+	},
+	{
+		category: "repo_verify",
+		item: "F11.2",
+		observes:
+			"a repo verify check failing AFTER a green acceptance — the acceptance passed and the repo is still broken",
+		enabledBy: "NKLEIN_REPO_VERIFY",
+		expectation: "exceptional",
+	},
+	{
+		category: "tool_trust_decay",
+		item: "F12.24",
+		observes: "a tool demoted after consecutive failures in one session",
+		enabledBy: "NKLEIN_TOOL_TRUST_DECAY",
+		expectation: "exceptional",
+	},
+	{
+		category: "typecheck_first",
+		item: "F12.86",
+		observes: "the cheap type check failing before the expensive acceptance command ran",
+		enabledBy: "NKLEIN_TYPECHECK_FIRST",
+		expectation: "exceptional",
+	},
 	{
 		category: "quant_floor_breach",
 		item: "F12.27",
