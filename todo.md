@@ -5845,6 +5845,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   document offset across each hard case while detached. **"It looks fine" is how this ships broken**, because the
   jumps are intermittent and a developer is usually pinned to the bottom watching output, the one state where the
   bug cannot occur.
+  **U1b ACCEPTANCE SHIPPED 2026-07-20: `use-scroll-anchor.test.tsx`, 4 tests.**
+  **Verified by BREAKING it:** inverting the correction sign gives `expected 960 to be 1040` — the test catches a
+  wrong-direction correction, which is the defect that would reproduce the whole complaint.
+  🐛 **The first version of this test was TAUTOLOGICAL and I caught it before committing.** It asserted
+  `expect(drift).toBe(40)` — hand-computed arithmetic that **would have passed with the hook deleted.** Rewritten
+  to capture the hook's own `ResizeObserver` callback and drive it, then assert `scrollTop` actually moved to 1040.
+  The docblock warning against exactly this was already written above it, which is a fair illustration of how
+  easily the failure slips past.
+  ⚠️ **SCOPE STATED HONESTLY IN THE FILE: jsdom performs NO LAYOUT.** These tests prove the arithmetic and control
+  flow — which element is chosen, the sign and magnitude of the correction, inertness when pinned, graceful
+  degradation without `ResizeObserver`. They **cannot** prove the chat does not jump in a browser. Real reflow,
+  font swaps and late image loads need a browser-level test and are **not claimed**. *"It looks fine" is how this
+  ships broken, and so is "the unit test passes."*
+  REMAINING (U1c): the browser-level check across the five hard cases, ideally as a Playwright assertion on a
+  visible element's document offset. Composes with N14's UI release journeys.
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
