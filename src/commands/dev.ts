@@ -44,6 +44,7 @@ import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
+import { runDevEnvGatedCommand } from "./dev-env-gated-command";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
@@ -1011,6 +1012,12 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevTrackingCoverageCommand(options);
+		});
+	dev.command("env-gated")
+		.description("Which requirement deliverables may not run at all by default? (F4.8b — suspicion, not verdict.)")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevEnvGatedCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
