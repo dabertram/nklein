@@ -5264,11 +5264,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The same paper shows **query-aware contextualization** (repeating the query both before AND after the data)
   restores near-perfect key-value retrieval. !Klein assembles prompts with the task up front; appending a
   restatement after the payload is nearly free and is one of the few interventions with a measured fix attached.
-- [ ] **P18.3 — Prune distractors before compressing volume.** Chroma "Context Rot" (18 models): **even ONE
+- [~] **P18.3 — Prune distractors before compressing volume.** Chroma "Context Rot" (18 models): **even ONE
   distractor degrades performance** vs. needle-only, non-uniformly per distractor; and LongMemEval focused
   (~300-token) prompts beat full (~113k-token) prompts by a wide margin. **Implication: compaction that shortens
   the transcript but leaves stale failed attempts in place may not help at all.** Relevance density beats token
   count. Applies directly to the F5.2/compaction path.
+  **TRANSCRIPT PRUNER SHIPPED 2026-07-20:** `transcript-distractor-pruning.ts`.
+  **⚠️ NAME COLLISION WORTH KNOWING ABOUT — and I hit it the hard way.** `distractor-pruning.ts` ALREADY EXISTS
+  (§5.AD, commit `43e7ff659`): it prunes low-relevance RETRIEVAL RESULTS by score before they ENTER the context.
+  The new module prunes STALE MESSAGES already inside the transcript. Both are legitimately called "distractor
+  pruning" — the research term covers both — but they act on different things at different times, so they stay
+  separate modules with a cross-reference in each docblock and a test asserting the retrieval pruner still exists
+  with its own API, so the two are never merged by accident.
+  **CONSERVATIVE BY CONSTRUCTION.** Prunes ONLY on provable supersession: a tool result superseded by a later
+  result for the identical target, or a failure whose later retry SUCCEEDED. **An earlier SUCCESS followed by a
+  later FAILURE is deliberately NOT pruned** — the success may hold the only good state we ever had for that
+  target, and dropping it would send the model back into the wall with no record of what worked. Pinned messages,
+  untargeted calls, and all assistant/user reasoning are never touched. The asymmetry drives it: keeping a
+  distractor costs some retrieval quality; dropping a live constraint costs a wasted loop and gets blamed on the
+  model. 11 tests.
+  REMAINING (P18.3b): wire it AHEAD of `planCompaction` so pruning runs before compression, and populate the
+  `target` field from real tool-call arguments (file path / query / URL) — without a target, supersession cannot
+  be proven and the pruner correctly does nothing, so the target extraction IS the wire.
 - [ ] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
   commitment WITHOUT recovery. **Compacting a lost conversation preserves the wrong early commitment.** So the
   right intervention for a stuck card is RESTART WITH CLEAN RESTATEMENT, not summarize-and-continue. Reconcile
