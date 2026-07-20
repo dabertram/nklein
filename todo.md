@@ -5320,7 +5320,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   something truthful to subscribe to. **That single change is what converts today's `indeterminate`s into real
   assertions** — the packs, the collector, the judging and the reporting are all built and waiting on it.
 
-- [~] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.**
+- [x] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.**
   **TERMINAL LANES DONE 2026-07-20 — the keystone half.** `verify-simulated-flow.mts` now emits
   `NIGHTLY_TERMINAL_LANES=<finalCounts>`, the runner parses it, and N5's packs judge real board state. **The
   counts already existed in that script and were only ever asserted inline** — five built components sat idle for
@@ -5374,6 +5374,32 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   which would turn every `indeterminate` into a false pass while touching no core. A subscription is honest only
   when the drain genuinely emits that signal — **the emission comes first, the subscription second.**
 
+  **✅ N7c DONE 2026-07-20 — SIGNALS ARE NOW GENUINELY ASSERTED, IN BOTH DIRECTIONS.**
+  `nightly-signal-extraction.ts` parses the drain's own self-observation telemetry into real `DrainSignalEvent`s
+  with real timestamps, and the runner subscribes to `OBSERVABLE_DRAIN_SIGNALS`.
+  **THIS IS NOT THE SHORTCUT N7c FORBIDS.** The warning was *"do not close this by widening `subscriptions`"* —
+  registering listeners for signals nothing emits. The self-observation sink is a REAL always-on listener that
+  exists before the drain and appends unconditionally, and **all four pack signals were verified to reach it from
+  production code** (`nklein-second-opinion-review-runner.ts`, `nklein-sandbox-review-finalizer.ts`,
+  `runtime-server.ts` ×2). The standing rule: a signal joins a pack only once confirmed to reach this sink. A
+  signal a pack names but `OBSERVABLE_DRAIN_SIGNALS` omits stays `indeterminate` — the safe direction, and the
+  one that makes an omission visible rather than flattering.
+  🔴 **TWO DEFECTS FOUND IN THE EXISTING WIRE, both of which had been RUN and looked fine.**
+  1. **`mustStayQuiet` WAS UNASSERTABLE BY CONSTRUCTION — the keystone.** Subscriptions were derived from the
+     signals that FIRED, so a signal that stayed quiet was never watched, so **every "this must not happen"
+     assertion in every pack reported `indeterminate` forever.** The entire negative half of the invariant system
+     was incapable of passing. **Verified by reverting the scheme: the test fails with `expected 'indeterminate'
+     not to be 'indeterminate'`.** This is why `indeterminate` is a dangerous status to leave lying around — it
+     reads as caution, so nobody investigates it.
+  2. **A signal name could be MASKED by a category.** The old reader used `metadata?.category ?? signal`, so a
+     `runtime_error` record carrying any category **silently stopped being a `runtime_error`** — and
+     `mustStayQuiet: ["runtime_error"]` would then be satisfied by a run that errored. A missed violation
+     reported as a pass. Each record now contributes BOTH names, because the packs legitimately use both
+     vocabularies.
+  An undated record is DROPPED and COUNTED, never dated with a guess: the collector orders events against
+  `drainStartedAt`, so an invented timestamp would place an event inside or outside the drain window arbitrarily
+  and yield a confident, meaningless verdict. Unparseable lines are counted and the summary says the total is a
+  **floor**, not a complete count.
 - [ ] **N7d — `01 × perfect` LEAVES 14 OF 42 CARDS UNDRAINED — a real product finding, not a stale assertion.**
   **DIAGNOSED 2026-07-20 with the persisted evidence** (the `seed-monitor.log` fix from the same session worked —
   the full counts survived the failure this time):

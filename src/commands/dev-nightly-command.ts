@@ -15,6 +15,7 @@ import {
 } from "../core/nightly-manifest";
 import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
 import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
+import { extractDrainSignalEvents, OBSERVABLE_DRAIN_SIGNALS } from "../core/nightly-signal-extraction";
 import { extractOperatorHold } from "../core/operator-hold-extraction";
 
 const execFileAsync = promisify(execFile);
@@ -82,50 +83,11 @@ const LAST_RUN_PATH = join(tmpdir(), "nklein-nightly-last.json");
  * is the whole reason that check exists.
  */
 /**
- * N7c: read the signals the drain ACTUALLY fired, from the self-observation log inside the cell's isolated HOME.
+ * Read the cell's self-observation telemetry as one blob. Empty when absent — never throws.
  *
- * `watchedSignals` is the honest part. The sink is an UNCONDITIONAL append registered before the drain — it
- * records every category it is handed — so "watched" here means the whole vocabulary the run emitted, derived
- * from the log rather than from what a pack hoped for. N5b refuses to derive it from the pack precisely so this
- * has to come from evidence, and it does: an absent or unreadable log yields NOTHING watched, which N5 reports as
- * `indeterminate` rather than as a clean run.
+ * N7c: this is the drain's signal evidence. Parsing lives in `nightly-signal-extraction.ts`; an absent or
+ * unreadable log yields no events, which N5 reports as `indeterminate` rather than as a clean run.
  */
-async function readFiredSignals(home: string): Promise<Set<string>> {
-	const dir = join(home, ".nklein", "nklein", "telemetry");
-	const fired = new Set<string>();
-	let files: string[];
-	try {
-		files = await readdir(dir);
-	} catch {
-		return fired;
-	}
-	for (const file of files.filter((name) => name.endsWith(".jsonl"))) {
-		let text: string;
-		try {
-			text = await readFile(join(dir, file), "utf8");
-		} catch {
-			continue;
-		}
-		for (const line of text.split("\n")) {
-			if (line.trim().length === 0) {
-				continue;
-			}
-			try {
-				const event = JSON.parse(line) as { signal?: string; metadata?: { category?: string } | null };
-				const category = event.metadata?.category ?? event.signal;
-				if (typeof category === "string" && category.length > 0) {
-					fired.add(category);
-				}
-			} catch {
-				// A malformed line is skipped rather than failing the read: one bad record must not erase the
-				// evidence of every good one.
-			}
-		}
-	}
-	return fired;
-}
-
-/** Read the cell's self-observation telemetry as one blob. Empty when absent — never throws. */
 async function readTelemetryText(home: string): Promise<string> {
 	const dir = join(home, ".nklein", "nklein", "telemetry");
 	const files = await readdir(dir).catch(() => [] as string[]);
@@ -397,14 +359,26 @@ export async function runDevNightlyCommand(options: {
 				if (!pack) {
 					return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
 				}
-				// N7c: real fired signals, read from the drain's own self-observation log.
-				const fired = verdict.homePath ? await readFiredSignals(verdict.homePath) : new Set<string>();
+				// N7c: real signal events, read from the drain's own self-observation log.
+				const extraction = extractDrainSignalEvents(
+					verdict.homePath ? await readTelemetryText(verdict.homePath) : "",
+				);
 				const collected = collectDrainedState({
 					drainStartedAt: 0,
-					// The sink is an unconditional append registered before the drain, so every category it emitted was
-					// genuinely observed. Derived from the LOG, never from the pack — see N5b.
-					subscriptions: [...fired].map((signal) => ({ signal, registeredAt: 0 })),
-					events: [...fired].map((signal) => ({ signal, emittedAt: 1 })),
+					// SUBSCRIBE TO THE OBSERVABLE SET, NOT TO WHAT FIRED.
+					//
+					// Deriving subscriptions from fired signals made `mustStayQuiet` **unassertable by construction**:
+					// a signal that stays quiet never appears in the fired set, so it was never watched, so it reported
+					// `indeterminate` forever. Every "this must not happen" assertion in every pack was silently
+					// incapable of passing — and `indeterminate` reads as caution rather than as a bug, which is why it
+					// survived being run.
+					//
+					// This is still not the shortcut N7c forbids. `OBSERVABLE_DRAIN_SIGNALS` lists only signals
+					// confirmed to reach the self-observation sink, which is an unconditional listener established
+					// before the drain starts. A signal a pack names but this list omits stays `indeterminate` — the
+					// safe direction, and the one that makes an omission visible instead of flattering.
+					subscriptions: OBSERVABLE_DRAIN_SIGNALS.map((signal) => ({ signal, registeredAt: 0 })),
+					events: extraction.events,
 					// The drain's terminal lanes are not exposed to this runner yet, so no card state is claimed.
 					// N7b: real terminal lanes, parsed from the drain's own emission. The board reports COUNTS per lane,
 					// not per-card ids, so ids are synthesized (`completed#1`) and that is stated rather than disguised —
@@ -414,7 +388,7 @@ export async function runDevNightlyCommand(options: {
 					unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
 					teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
 				});
-				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary} [${fired.size} signal(s) observed]`;
+				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary} [${extraction.summary}]`;
 			}),
 	);
 	if (packVerdicts.length > 0 && !options.json) {
