@@ -5273,6 +5273,32 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
   NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
   in isolation where it does not reproduce.
+- [ ] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
+  **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
+  session runtime, every audit reported the requirement satisfied, and its injection site sat behind
+  `NKLEIN_GOAL_REANCHOR` — **default OFF, so nothing reached a prompt.** *"Imported"* and *"reaches a live
+  prompt"* are different claims, and `dev requirement-coverage` / `dev unwired-cores` only ever prove the weaker
+  one.
+  **THE NUMBER IS THE ITEM: 5 of 40 default-OFF flags are in `MECHANISM_REGISTRY`. 38 are not.** For those, no
+  tool can report whether they are on, or what they should be firing if they were. P15.1b's registry already
+  distinguishes *never enabled* from *enabled but silent* — and it is HAND-MAINTAINED, so **it can only report on
+  mechanisms someone remembered to add.** That is precisely how F4.8 stayed invisible.
+  So `dev env-gated` deliberately does NOT shadow the registry (the `card-trail`/`card-timeline` near-duplication
+  lesson): it answers the one question a hand-maintained list structurally cannot — *is there something the
+  registry has never heard of?* — and feeds it.
+  ⚠️ **IT REPORTS SUSPICION, NEVER A VERDICT, and says so in its own output.** It matches the
+  `isTruthyEnv(process.env.X)` idiom inside consumer files; it cannot prove a guard WRAPS a call, and a flag read
+  another way is invisible to it. **A clean result means nothing was found, not that every path runs.** Proof
+  that this caveat is not boilerplate: its one flagged deliverable (`drift_detection`) IS genuinely default-off —
+  but gated by an INJECTED CALLER, not by any of the four flags the scanner listed. **Right answer, wrong
+  reason**, and only reading it revealed that.
+  NEXT: triage the 38. Each is one of — (a) a live default-ON path the scanner mis-flagged, (b) a deliberate
+  opt-in that should be REGISTERED so its silence is explainable, or (c) another F4.8: a requirement believed
+  satisfied by code that never runs. **Only (c) is a defect, but (b) is what makes (c) findable**, and today
+  nothing distinguishes them.
+  ⚠️ **DO NOT "FIX" THIS BY FLIPPING DEFAULTS.** Each flag was defaulted off for a reason, and several change
+  every session's prompt. Registration is the fix; enabling is a per-flag decision with a measured A/B behind it.
+
 - [~] **N18 — TRACK EVERYTHING, as a product feature and not a debug tool *(David 2026-07-20)*.**
   *"i want that timeline to be inherent part of !Klein and not just a debug tool. !Klein shall always track every
   detail … a full picture of any activity, state change/transition, attempted activity, and all the results …
