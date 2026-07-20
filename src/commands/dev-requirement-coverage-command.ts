@@ -8,7 +8,8 @@
 
 import { sweepRequirementCoverage } from "../core/requirement-coverage-audit";
 import { TRACKED_REQUIREMENTS } from "../core/tracked-requirements";
-import { auditUnwiredCores } from "../core/unwired-core-audit";
+import { computeTransitiveOrphanClosure } from "../core/transitive-orphan-closure";
+import { isCommentMention } from "../core/unwired-core-audit";
 import { scanCoreSymbolReferences } from "./dev-unwired-cores-command";
 
 export async function runDevRequirementCoverageCommand(options: {
@@ -18,13 +19,18 @@ export async function runDevRequirementCoverageCommand(options: {
 	// EXCLUDE the tracked-requirement map: it names every symbol it audits, so counting its mentions would let the
 	// audit manufacture the evidence that it passes. The first live run did exactly that — both requirements known
 	// to be half-wired reported green, because the map itself was their only "consumer".
-	const { symbols, referenceLines } = scanCoreSymbolReferences({
+	const { symbols, referenceSites } = scanCoreSymbolReferences({
 		roots: options.roots,
 		excludeFiles: ["src/core/tracked-requirements.ts"],
 	});
-	const orphanKeys = new Set(
-		auditUnwiredCores({ symbols, referenceLines }).orphans.map((orphan) => `${orphan.module}::${orphan.name}`),
+	// P15.7c: use the TRANSITIVE closure, not the one-level scan. "Has a consumer" is not "reaches production" —
+	// a symbol whose only consumer is itself dead reaches nothing, and the one-level answer reported it satisfied.
+	// Comment-only sites are dropped first: a docblock mention is not consumption.
+	const codeSites = new Map(
+		[...referenceSites].map(([key, sites]) => [key, sites.filter((site) => !isCommentMention(site.line))]),
 	);
+	const closure = computeTransitiveOrphanClosure({ symbols, referenceSites: codeSites });
+	const orphanKeys = closure.orphanKeys;
 
 	const sweep = sweepRequirementCoverage(TRACKED_REQUIREMENTS, orphanKeys);
 
@@ -44,11 +50,15 @@ export async function runDevRequirementCoverageCommand(options: {
 		process.stdout.write("\n");
 	}
 
+	if (closure.newlyOrphanedByClosure.length > 0) {
+		process.stdout.write(`${closure.summary}\n\n`);
+	}
 	process.stdout.write(
 		"A FAIL here is compatible with a fully green test suite — that is the point of checking at this level.\n" +
 			"'built_but_unwired' means the fix is a WIRE, not a new core. '?' means no provider is recorded, which is\n" +
 			"absence of evidence (this map is hand-maintained), NOT proof the element is unbuilt.\n\n" +
-			"⚠️ ORPHAN-NESS IS NOT TRANSITIVE in this scan: a symbol whose only consumer is ITSELF an orphan still\n" +
-			"counts as wired. So a requirement can read green here while its chain dead-ends one level up.\n",
+			"Orphan-ness IS transitive here (P15.7c): a symbol consumed only by dead code counts as unwired.\n" +
+			"⚠️ REMAINING LIMIT: a CYCLE of dead modules keeps itself alive — reference counting cannot detect\n" +
+			"cycles, only mark-and-sweep from roots can. So this count is a FLOOR on the orphan set, never a ceiling.\n",
 	);
 }

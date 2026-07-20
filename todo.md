@@ -5421,11 +5421,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   symbol whose only consumer is ITSELF an orphan still counts as wired — which is why F3.8's `ladder_planning`
   (`planNextAttempt`, consumed only by the orphaned `adaptive-attempt-loop`) reads green. The chain dead-ends one
   level up and this scan cannot see it. Transitive closure is the obvious next increment.
-- [ ] **P15.7c — TRANSITIVE orphan closure *(split from P15.7b 2026-07-20)*.** Iterate the orphan set to a fixed
-  point: a symbol consumed only by symbols that are themselves orphaned is not wired. Live example already in the
-  map — `retry-policy::planNextAttempt` reads satisfied while its ONLY consumer, `adaptive-attempt-loop`, has zero
-  importers, so the requirement reads green on a chain that reaches no live path. Until this lands, every
-  `satisfied` from `dev requirement-coverage` means "has A consumer", NOT "reaches production".
+- [x] **P15.7c — TRANSITIVE orphan closure *(split from P15.7b 2026-07-20)*.**
+  **SHIPPED 2026-07-20: `transitive-orphan-closure.ts`, 8 tests, wired into `dev requirement-coverage`.**
+  **📊 THE MEASUREMENT — the one-level orphan count was understating the problem by ~24%.** Running the closure
+  over `src/core`: **43 symbols that P15.1's scan called WIRED are consumed only by dead code**, and dead modules
+  go **119 → 148**. It took **4 passes**, so the cascade is real and multi-level — killing one module orphaned the
+  symbols it was the last consumer of, which killed the next. A single extra pass would have missed it.
+  `retry-policy::planNextAttempt` now correctly reports unwired, matching the hand trace that motivated the split.
+  **⚠️ THE REMAINING LIMIT, ASSERTED BY TEST RATHER THAN HIDDEN: a CYCLE of dead modules keeps itself alive.**
+  If `a.ts` and `b.ts` reference each other and nothing else references either, both are unreachable and this
+  reports both WIRED. **That is not an oversight — reference counting provably cannot detect cycles**; only
+  mark-and-sweep from known roots can, and that needs an entry-point graph this module deliberately does not
+  model. A test asserts the limitation so a reader who assumes "this finds all dead code" is corrected by the
+  suite rather than by a bad deletion months later.
+  **CONSERVATIVE BY CONSTRUCTION:** only `src/core` modules may be judged dead; a reference from a command, the
+  runtime or the web UI always counts as live, because guessing the other way would report a genuinely-wired core
+  as orphaned and **invite someone to delete working code.** Under-reporting merely leaves an orphan hidden
+  longer, which is where the codebase already was. **The count is a FLOOR on the orphan set, never a ceiling.**
+  Feeds **P15.4b**: the keep/drop walk should use these 43 + 148, not the one-level numbers.
   Walk the source for the orphan set (as `dev unwired-cores` already does), feed it `sweepRequirementCoverage`,
   and print the failing requirements. The judging is built; **the curation is the actual work** — deciding which
   backlog items get element-level specs, and writing their elements honestly.

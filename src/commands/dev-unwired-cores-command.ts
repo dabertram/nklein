@@ -57,6 +57,8 @@ export function scanCoreSymbolReferences(options: {
 }): {
 	symbols: ExportedSymbol[];
 	referenceLines: Map<string, string[]>;
+	/** Same references, but carrying the FILE each came from — P15.7c needs the source to compute transitive reach. */
+	referenceSites: Map<string, { file: string; line: string }[]>;
 } {
 	const coreDir = "src/core";
 	const coreFiles = readdirSync(coreDir).filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"));
@@ -77,6 +79,7 @@ export function scanCoreSymbolReferences(options: {
 	const roots = options.roots ?? ["src", "web-ui/src", "packages"];
 	const excluded = new Set(options.excludeFiles ?? []);
 	const referenceLines = new Map<string, string[]>();
+	const referenceSites = new Map<string, { file: string; line: string }[]>();
 	for (const file of roots.flatMap((root) => walkSources(root))) {
 		if (excluded.has(file)) {
 			continue;
@@ -100,12 +103,15 @@ export function scanCoreSymbolReferences(options: {
 					const bucket = referenceLines.get(key) ?? [];
 					bucket.push(line);
 					referenceLines.set(key, bucket);
+					const sites = referenceSites.get(key) ?? [];
+					sites.push({ file, line });
+					referenceSites.set(key, sites);
 				}
 			}
 		}
 	}
 
-	return { symbols, referenceLines };
+	return { symbols, referenceLines, referenceSites };
 }
 
 export async function runDevUnwiredCoresCommand(options: {
