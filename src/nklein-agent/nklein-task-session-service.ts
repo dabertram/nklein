@@ -362,7 +362,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
 		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
+		sendTaskSessionInput: (taskId, prompt, admissionParentTaskId) =>
+			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 		runBudget: 2,
@@ -375,7 +376,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getHarness: () => this.secondarySessionHarness,
 		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
+		sendTaskSessionInput: (taskId, prompt, admissionParentTaskId) =>
+			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 		runBudget: 6,
@@ -1035,6 +1037,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private async withModelTurnAdmission<T>(
 		input: {
 			taskId: string;
+			admissionParentTaskId?: string | null;
 			providerId: string | null | undefined;
 			modelId: string | null | undefined;
 			endpoint: string | null | undefined;
@@ -1053,6 +1056,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return await gate(
 			{
 				taskId: input.taskId,
+				admissionParentTaskId: input.admissionParentTaskId ?? null,
 				providerId,
 				modelId,
 				endpoint: input.endpoint?.trim() || null,
@@ -1092,11 +1096,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskId: string,
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
 		run?: () => Promise<T>,
+		admissionParentTaskId?: string | null,
 	): Promise<T> {
 		const launchConfig = this.resolveRestartLaunchConfig({ taskId, launchConfigOverrides });
 		return await this.withModelTurnAdmission(
 			{
 				taskId,
+				admissionParentTaskId,
 				providerId: launchConfig?.providerId,
 				modelId: launchConfig?.modelId,
 				endpoint: launchConfig?.baseUrl ?? null,
@@ -1105,9 +1111,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		);
 	}
 
-	private async sendAuxiliaryTaskSessionInput(taskId: string, prompt: string): Promise<unknown> {
-		return await this.withModelTurnAdmissionForTask(taskId, undefined, () =>
-			this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+	private async sendAuxiliaryTaskSessionInput(
+		taskId: string,
+		prompt: string,
+		admissionParentTaskId?: string | null,
+	): Promise<unknown> {
+		return await this.withModelTurnAdmissionForTask(
+			taskId,
+			undefined,
+			() => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+			admissionParentTaskId,
 		);
 	}
 
@@ -1117,6 +1130,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return await this.withModelTurnAdmission(
 			{
 				taskId: input.taskId,
+				admissionParentTaskId: input.admissionParentTaskId ?? null,
 				providerId: input.launchConfig.providerId,
 				modelId: input.launchConfig.modelId,
 				endpoint: input.launchConfig.baseUrl ?? null,

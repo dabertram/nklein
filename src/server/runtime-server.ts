@@ -64,6 +64,7 @@ import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } fro
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideIdleEvictions } from "../core/model-load-policy";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
+import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
 	decideOpportunisticIdleWork,
 	findReviewCandidateTaskIds,
@@ -641,6 +642,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const MODEL_TURN_LMS_PS_TIMEOUT_MS = 15_000;
 	const activeModelTurnsByWorkspaceId = new Map<string, NKleinEndpointSessionSnapshot[]>();
 	const modelTurnAdmissionTailByWorkspaceId = new Map<string, Promise<void>>();
+	const modelTurnAdmissionGateByWorkspaceId = new Map<string, NKleinModelTurnAdmissionGate>();
 	let lastNonEmptyModelTurnPsModels: readonly LmsPsModel[] = [];
 	const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 	const emptyModelRegistrySnapshot = () => ({
@@ -861,17 +863,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			activeModelTurnsByWorkspaceId.delete(workspaceId);
 		}
 	};
-	const createModelTurnAdmissionGate =
-		(scope: RuntimeTrpcWorkspaceScope): NKleinModelTurnAdmissionGate =>
-		async (request, run) => {
-			const reservation = await waitForModelTurnAdmission(scope, request);
-			try {
-				return await run();
-			} finally {
-				releaseModelTurnAdmission(scope.workspaceId, reservation);
-				drainQueuedTaskStarts(scope, { force: true });
-			}
-		};
+	const createModelTurnAdmissionGate = (scope: RuntimeTrpcWorkspaceScope): NKleinModelTurnAdmissionGate => {
+		const existing = modelTurnAdmissionGateByWorkspaceId.get(scope.workspaceId);
+		if (existing) {
+			return existing;
+		}
+		const gate: NKleinModelTurnAdmissionGate = createNestedModelTurnAdmissionGate({
+			acquire: (request) => waitForModelTurnAdmission(scope, request),
+			release: (reservation) => releaseModelTurnAdmission(scope.workspaceId, reservation),
+			onCapacityFreed: () => drainQueuedTaskStarts(scope, { force: true }),
+		});
+		modelTurnAdmissionGateByWorkspaceId.set(scope.workspaceId, gate);
+		return gate;
+	};
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
 	// F1.31b: the background-eval rail wiring (service + control coordinator), built just before `createRuntimeApi` so
 	// its coordinator can be injected. Held here so `close()` can stop the service. Null until built.
@@ -3803,6 +3807,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		scopeByWorkspaceId.delete(workspaceId);
 		activeModelTurnsByWorkspaceId.delete(workspaceId);
 		modelTurnAdmissionTailByWorkspaceId.delete(workspaceId);
+		modelTurnAdmissionGateByWorkspaceId.delete(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
 		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);
@@ -4592,6 +4597,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			nkleinTaskSessionServiceByWorkspaceId.clear();
 			activeModelTurnsByWorkspaceId.clear();
 			modelTurnAdmissionTailByWorkspaceId.clear();
+			modelTurnAdmissionGateByWorkspaceId.clear();
 			lastNonEmptyModelTurnPsModels = [];
 			await stopAllChatSandboxManagers();
 			await nkleinWatcherRegistry.close();

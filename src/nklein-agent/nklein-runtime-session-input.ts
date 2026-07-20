@@ -17,6 +17,11 @@ import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
  */
 export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	taskId: string;
+	/**
+	 * Set only for an auxiliary session awaited from inside this active parent model turn. Admission transfers the
+	 * parent's reservation to the child and back, preserving cap=1 without deadlock or general bypass.
+	 */
+	admissionParentTaskId?: string | null;
 	cwd: string;
 	workspaceRoot?: string | null;
 	prompt: string;

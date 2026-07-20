@@ -103,6 +103,8 @@ export interface StartNKleinTaskSessionRequest {
 
 export interface NKleinModelTurnAdmissionRequest {
 	taskId: string;
+	/** Awaited auxiliary turn whose active parent may cooperatively yield its reservation while this turn runs. */
+	admissionParentTaskId?: string | null;
 	providerId: string;
 	modelId: string;
 	endpoint: string | null;

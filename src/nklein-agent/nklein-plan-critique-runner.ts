@@ -35,7 +35,7 @@ export interface PlanCritiqueRunnerDeps {
 	pickEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null>;
 	getBaseRef(taskId: string): string | null;
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
-	sendTaskSessionInput(taskId: string, prompt: string): Promise<unknown>;
+	sendTaskSessionInput(taskId: string, prompt: string, admissionParentTaskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
 	/** W4.3 per-run critique budget (deliberation is rare by design). */
@@ -161,6 +161,7 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 				await runBoundedTurn(
 					deps.startRuntimeSession({
 						taskId: critiqueTaskId,
+						admissionParentTaskId: input.taskId,
 						cwd: workspace.workdir,
 						workspaceRoot: input.projectRepoPath,
 						prompt: input.seedPrompt,
@@ -180,7 +181,9 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 					}),
 				);
 				for (let nudge = 0; verdict === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
-					await runBoundedTurn(deps.sendTaskSessionInput(critiqueTaskId, PLAN_CRITIQUE_NUDGE_PROMPT));
+					await runBoundedTurn(
+						deps.sendTaskSessionInput(critiqueTaskId, PLAN_CRITIQUE_NUDGE_PROMPT, input.taskId),
+					);
 				}
 				return verdict;
 			},

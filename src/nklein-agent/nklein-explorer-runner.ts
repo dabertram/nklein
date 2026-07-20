@@ -45,7 +45,7 @@ export interface ExplorerRunnerDeps {
 	getHarness(): SecondarySessionHarness;
 	getBaseRef(taskId: string): string | null;
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
-	sendTaskSessionInput(taskId: string, prompt: string): Promise<unknown>;
+	sendTaskSessionInput(taskId: string, prompt: string, admissionParentTaskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
 	/** Per-run explore-query budget (each query is one bounded read-only session on the task's endpoint). */
@@ -96,6 +96,7 @@ export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
 				await runBoundedTurn(
 					deps.startRuntimeSession({
 						taskId: explorerTaskId,
+						admissionParentTaskId: input.taskId,
 						cwd: workspace.workdir,
 						workspaceRoot: input.projectRepoPath,
 						prompt: buildExplorerSeedPrompt(input.question),
@@ -115,7 +116,7 @@ export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
 					}),
 				);
 				for (let nudge = 0; findings === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
-					await runBoundedTurn(deps.sendTaskSessionInput(explorerTaskId, EXPLORER_NUDGE_PROMPT));
+					await runBoundedTurn(deps.sendTaskSessionInput(explorerTaskId, EXPLORER_NUDGE_PROMPT, input.taskId));
 				}
 				return findings;
 			},

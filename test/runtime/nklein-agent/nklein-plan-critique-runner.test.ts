@@ -33,7 +33,7 @@ function harness() {
 		runBracketed: vi.fn(async (_config: unknown, drive: (ctx: unknown) => Promise<unknown>) =>
 			drive({
 				workspace: { workdir: "/wd" },
-				deadlineMs: 8_000,
+				deadlineMs: Date.now() + 8_000,
 				runBoundedTurn: async (p: Promise<unknown>) => {
 					await p;
 				},
@@ -98,6 +98,33 @@ describe("createPlanCritiqueRunner — runPlanCritiqueSession", () => {
 		expect(result).toEqual(PROCEED);
 		const launchArg = (d.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(launchArg.launchConfig.modelId).toBe("critic-m");
+		expect(launchArg).toMatchObject({ taskId: "t1::plan-critique", admissionParentTaskId: "t1" });
+	});
+
+	it("marks both the initial turn and nudges as awaited children of the worker turn", async () => {
+		let submit: ((result: typeof PROCEED) => void) | undefined;
+		const d = deps({
+			startRuntimeSession: vi.fn(async (launch) => {
+				submit = launch.onPlanCritiqueSubmitted as typeof submit;
+				return { result: {} };
+			}),
+			sendTaskSessionInput: vi.fn(async () => {
+				submit?.(PROCEED);
+			}),
+		});
+		await createPlanCritiqueRunner(d).runPlanCritiqueSession({
+			...input,
+			critic: { providerId: "lmstudio", modelId: "critic-m" },
+		});
+
+		expect(d.startRuntimeSession).toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "t1::plan-critique", admissionParentTaskId: "t1" }),
+		);
+		expect(d.sendTaskSessionInput).toHaveBeenCalledWith(
+			"t1::plan-critique",
+			expect.stringContaining("Submit your critique"),
+			"t1",
+		);
 	});
 });
 
