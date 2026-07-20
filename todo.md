@@ -5244,13 +5244,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   deciding whether a pattern is absent or merely unreported.
   `renderReviewPayload` returns the EXACT bytes per field as DATA, not rendered text, so a caller cannot show a
   prettified version that differs from what is sent (P16.3's requirement, enforced at the boundary). 10 tests.
-- [ ] **P16.2 — GROUNDED generation with per-claim provenance (the keystone; do not ship P16 without it).** Every
+- [~] **P16.2 — GROUNDED generation with per-claim provenance (the keystone; do not ship P16 without it).** Every
   claim in a generated report carries a pointer to the source events that support it, and **any claim that cannot
   be grounded in recorded events is DROPPED, not softened.** An LLM-written bug report that hallucinates is worse
   than no report at all: it wastes the maintainer's time and poisons the evidence base that Phase 15 depends on.
   This is the F12.91/grounding discipline applied to the feedback path. **Acceptance:** a report renders with an
   inspectable claim→evidence map, and a deliberately-hallucinating fixture model produces a report with those
   claims REMOVED and the removal counted.
+  **CORE SHIPPED 2026-07-20: `field-report-grounding.ts`.**
+  **DROPPED, NEVER SOFTENED — the design turns on this.** Softening ("possibly", "it appears that") is the
+  tempting middle path and it is wrong: **it keeps the fabrication and adds deniability**, and a hedged claim in a
+  bug report is still read as a lead worth chasing. Three drop reasons, all whole-claim: `no_citations` (an
+  uncited claim is a guess presented as an observation), `unknown_evidence` (every cited id matches no recorded
+  event — "the model invented its own provenance"), `insufficient_citations`.
+  **NO PARTIAL REPAIR, deliberately.** Keeping a claim while silently discarding its bad citations would leave a
+  claim that LOOKS cited while resting on less than it asserted — pinned by test.
+  **THE SECOND HALF IS REPORTING THE DROPS.** A generator that silently discards half its claims is as misleading
+  as one that keeps them: the reader sees a short, confident report and cannot tell it was heavily filtered. So
+  the result carries `dropRate` and the dropped claims, and above 50% the summary says **"the model was largely
+  inventing, so treat the surviving claims with MORE suspicion, not less"** — a high drop rate is itself a
+  finding, not merely a filter statistic.
+  `renderClaimWithProvenance` shows evidence **ids + kinds, never prose provenance**, since prose could itself be
+  fabricated. 10 tests.
+  REMAINING (P16.2b): the generation wire — feed real observation ids to the local model, parse its cited ids
+  back, and run the adversarial acceptance this item specifies (a deliberately-hallucinating fixture whose claims
+  must be REMOVED and the removal counted). The core is ready; the fixture and the model call are the wire.
 - [ ] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
   summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
   **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
