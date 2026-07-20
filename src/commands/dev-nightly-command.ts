@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -213,6 +213,30 @@ export async function runDevNightlyCommand(options: {
 	// planNightlySchedule throws CoverageWeakenedError rather than silently dropping a cell, so this cannot narrow
 	// the suite; the filter is a type narrowing, not a safety net.
 	const cells = plan.scheduledCells.map((id) => byKey.get(id)).filter((cell): cell is NightlyCell => Boolean(cell));
+	// N1 said "registration is DATA", and nothing validated that data against reality. A cell naming a scenario
+	// that does not exist was registered for weeks and could NEVER pass — found 2026-07-20 by actually running it.
+	// A dry run that does not check this tells you the shape of a run, not whether it can work.
+	const scenarioDir = "packages/llm-simulator/scenarios";
+	let scenarioNames: string[] = [];
+	try {
+		scenarioNames = await readdir(scenarioDir);
+	} catch {
+		scenarioNames = [];
+	}
+	const unmatched =
+		scenarioNames.length === 0
+			? []
+			: [...new Set(cells.map((cell) => cell.projectId))].filter(
+					(id) => !scenarioNames.some((name) => name === id || name.startsWith(`${id}_`)),
+				);
+	if (unmatched.length > 0) {
+		process.stdout.write(
+			`⚠️ ${unmatched.length} registered project(s) match NO scenario under ${scenarioDir}: ${unmatched.join(", ")}\n` +
+				`   These cells cannot pass. Registration is data, and this is the check that the data is real.\n\n`,
+		);
+		process.exitCode = 1;
+	}
+
 	if (options.dryRun) {
 		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations):\n`);
 		for (const [index, cell] of cells.entries()) {

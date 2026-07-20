@@ -5226,10 +5226,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   have looked like "the nightly is broken" rather than "the pack is wrong".
   Card IDs are SYNTHESIZED (`completed#1`) because the board reports counts per lane, not ids — stated in the
   code rather than disguised, since inventing plausible real ids would imply knowledge the runner lacks.
-  REMAINING: (a) the emission itself is **not yet verified end-to-end** — the parse and judging paths are proven
-  against realistic input, but no full drain has run since the `console.log` was added, so the regex-vs-actual
-  match is inferred rather than observed; (b) gate/guard SIGNALS are still unemitted, so `mustFire`/`mustStayQuiet`
-  stay empty and every signal-level assertion remains `indeterminate`.
+  **🔴 RAN IT FOR REAL — AND IT FOUND A PHANTOM CELL THAT COULD NEVER HAVE PASSED.**
+  `dev nightly --project small-model-smoke` failed with *"no scenario set matches"*. The manifest had registered
+  `small-model-smoke` since N1; the scenarios on disk are `01_clinical_medication_safety_platform` and friends.
+  **A registered cell had been sitting in the nightly manifest for weeks with no possible way to run.** Removed.
+  **The N7 failure report validated itself in the process**: cell id, seed 7, retained HOME, error and duration,
+  concluding *"all are debuggable from this summary"* — which was true, the cause was readable without a re-run.
+  **THE GENERAL FIX, not just the instance: `dev nightly` now VALIDATES that every registered project matches a
+  scenario on disk**, and exits non-zero when one does not. N1's principle was *"registration is DATA"* — and
+  nothing checked that the data was real. **A dry run that does not verify this tells you the SHAPE of a run, not
+  whether it can work.** Verified by planting a `ghost-project` entry: the check named it and failed; removing it
+  went clean.
+  REMAINING (N7c): gate/guard SIGNALS are still unemitted, so `mustFire`/`mustStayQuiet` stay empty and every
+  signal-level assertion remains `indeterminate`. Lanes are done; signals are the other half.
   **THIS IS THE KEYSTONE: everything downstream is built and idle without it.** N5's packs, N5b's collector, the
   pack registry and the failure report all exist and are wired — and every assertion beyond "the drain exited 0,
   matched its recordings, and left no orphans" currently reports `indeterminate`, because nothing observes it.

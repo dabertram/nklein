@@ -5,21 +5,20 @@
       "fixture": "ts-starter",
       "recordingSet": "sim-01",
       "invariantPack": "core-invariants",
-      "modelProfiles": ["perfect", "flaky"]
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
     },
     {
       "id": "02",
       "fixture": "ts-starter",
       "recordingSet": "sim-02",
       "invariantPack": "core-invariants",
-      "modelProfiles": ["perfect", "flaky"]
-    },
-    {
-      "id": "small-model-smoke",
-      "fixture": "smoke-ts-cli",
-      "recordingSet": "sim-smoke",
-      "invariantPack": "core-invariants",
-      "modelProfiles": ["perfect"]
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
     }
   ]
 }
