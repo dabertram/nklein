@@ -6145,7 +6145,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   moved scores **87.1% → 73.0%** (−14.1) and **74.7% → 54.0%** (−20.7). Notably an older model declined <1 point —
   **reward hacking is markedly MORE common in newer models.** !Klein already built this primitive (§10c egress
   proxy, closed); this item reuses it for evaluation and adds `.git` stripping with restore-at-scoring.
-- [ ] **P20.5 — Metric discipline: pass^1-with-CI as the headline, pass^4 for reliability; NEVER headline
+- [x] **P20.5 — Metric discipline: pass^1-with-CI as the headline, pass^4 for reliability; NEVER headline
   pass@k.** `pass@k = E[1−(1−p)^k]` is monotonically INCREASING in k and therefore **rewards variance** — anything
   that raises output diversity without raising competence (temperature bumps, more retries, more parallel samples)
   inflates it for free. It is only meaningful given a sound independent selector; without one it is an
@@ -6173,6 +6173,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   A wide interval reports **UNDERPOWERED — "report this as unresolved rather than as a result"**, which at
   local-fleet run counts is the COMMON case rather than an edge one. And zero runs renders as *"no result to
   report"*, never as 0% — an absent measurement and a measured zero are different claims.
+  The wire is P20.5b.
+- [ ] **P20.5b — Route every eval report through `buildHeadline` *(split from P20.5 2026-07-20)*.** Call
+  `assertHeadlineMetricAllowed` at each report boundary and render headlines via `buildHeadline`, so the
+  discipline is enforced where numbers are PRODUCED rather than where they are reviewed.
+  **⚠️ UNTIL THIS LANDS, P20.5 IS A RULE NOBODY IS SUBJECT TO.** The guard throws — but only if something calls
+  it, and today nothing does. That makes P20.5 exactly the shape this session kept finding: a correct core with
+  no live consumer, passing its own tests while changing nothing. It is listed here so the gap is visible rather
+  than mistaken for enforcement, and `dev requirement-coverage` will report it as `built_but_unwired` once P20.5
+  is added to the tracked-requirement map (P15.7b).
 - [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
