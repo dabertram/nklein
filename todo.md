@@ -5303,13 +5303,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   that varied between requests sat at the prompt head and produced repeated *"forcing full prompt re-processing
   due to lack of cache data"*; removing it restored cache hits. **If a clock is needed, it goes in the LAST user
   message.** F4.40 already stabilizes the prefix — this is the lint that proves it stays stable.
-- [ ] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
+- [~] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
   **tools → system → messages**: a change to tool definitions invalidates **everything**. Therefore tool lists MUST
   be deterministically sorted and their JSON schemas serialized with stable key ordering. A serializer that
   iterates a hash map produces different bytes run-to-run and the tools block never caches — an invisible,
   permanent tax. Also order tool RESULTS by call index, not completion time (parallel calls resolve
   nondeterministically). *Note: the key-ordering and result-ordering points are high-confidence INFERENCE from
   prefix semantics — no primary source names them — but they are free to implement and costly to get wrong.*
+  **MCP TOOL ORDER FIXED 2026-07-20 (audited, then fixed).** Audit first: the offered tool list is assembled by
+  array concatenation (deterministic) BUT the MCP contribution was pushed in whatever order
+  `result.tools` came back from each server — `tools.push(...capMcpToolOutputs(serverTools))` at BOTH registration
+  sites, with no sort anywhere in the path. **Nothing guarantees an MCP server returns its tools in a stable order
+  across restarts**, and per Anthropic's published hierarchy a tools-block change invalidates tools AND system AND
+  the whole message history. A server that reorders its tools would therefore destroy the ENTIRE prompt cache on
+  every session — a permanent, invisible tax visible only as "prefill is slower than it should be", which is
+  exactly the kind of cost nobody ever traces back to its cause.
+  Fixed with `sortToolsByNameForCacheStability` applied per server, which keeps the config-ordered server grouping
+  (already stable) while making each contribution byte-stable. Distinct from F12.31's `computeToolSurfaceHash`,
+  which sorts only to COMPARE surfaces for drift — this fixes the order actually SENT. Guarded by a test that
+  asserts every `tools.push` in the service goes through the stabilizer, so a new registration site cannot bypass
+  it silently. Suite green (11,107).
+  REMAINING (P19.2b): the two INFERRED halves — stable JSON key ordering in tool schemas (a serializer iterating
+  a hash map produces different bytes run-to-run) and ordering tool RESULTS by call index rather than completion
+  time (parallel calls resolve nondeterministically). Both need a serializer audit rather than a one-line sort.
 - [ ] **P19.3 — Compact the TAIL only, never mid-prefix.** Rewriting turn 3 of 40 forfeits turns 3–40; rewriting
   turns 30–40 forfeits only those. Prefer a rare full-miss at a natural boundary (amortized over 20+ later cached
   turns) over frequent partial rewrites, which is the pathological case — repeated full prefill that never

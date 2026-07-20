@@ -773,6 +773,23 @@ export function createNKleinMcpRuntimeService(
 			// description, and a rug-pull swaps a trusted tool after approval; both change this hash. Observe-first:
 			// a drift is recorded (and TOFU pins on first sight) but tools are NOT withheld yet — withholding is an
 			// approval-flow change that belongs with the S3 confirm queue.
+			/**
+			 * P19.2: sort one server's tools by name before they are offered.
+			 *
+			 * An MCP server returns its tool list in whatever order it likes, and nothing guarantees that order is stable
+			 * across restarts. Anthropic's published cache-invalidation hierarchy is **tools → system → messages**: a change
+			 * to the tools block invalidates the tools block AND the system prompt AND the whole message history. So a server
+			 * that reorders its tools between runs silently destroys the entire prompt cache on every session — a permanent,
+			 * invisible tax that shows up only as "prefill is slower than it should be".
+			 *
+			 * Sorting WITHIN each server preserves the server grouping (server order comes from config and is already
+			 * stable) while making each contribution byte-stable. Distinct from F12.31's `computeToolSurfaceHash`, which
+			 * sorts only to compare surfaces for drift — this fixes the order actually sent to the model.
+			 */
+			function sortToolsByNameForCacheStability<T extends { name: string }>(toolList: readonly T[]): T[] {
+				return [...toolList].sort((left, right) => left.name.localeCompare(right.name));
+			}
+
 			const recordToolSurface = async (serverId: string, serverTools: readonly SdkMcpTool[]): Promise<void> => {
 				try {
 					const currentSurfaceHash = computeToolSurfaceHash(
@@ -840,7 +857,7 @@ export function createNKleinMcpRuntimeService(
 						provider: manager,
 					});
 					await recordToolSurface(server.name, serverTools);
-					tools.push(...capMcpToolOutputs(serverTools));
+					tools.push(...sortToolsByNameForCacheStability(capMcpToolOutputs(serverTools)));
 				} catch (error) {
 					warnings.push(`Failed to load MCP server "${server.name}": ${toErrorMessage(error)}`);
 				}
@@ -862,7 +879,7 @@ export function createNKleinMcpRuntimeService(
 						);
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
 						await recordToolSurface(server.id, serverTools);
-						tools.push(...capMcpToolOutputs(serverTools));
+						tools.push(...sortToolsByNameForCacheStability(capMcpToolOutputs(serverTools)));
 					} catch (error) {
 						warnings.push(`Failed to load sandbox MCP server "${server.label}": ${toErrorMessage(error)}`);
 					}
