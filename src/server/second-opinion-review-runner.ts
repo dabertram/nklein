@@ -11,6 +11,7 @@
 
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import { REVIEW_PHASE_CATEGORY } from "../core/card-tracking-coverage";
 import { isTruthyEnv } from "../core/env-flag";
 import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
 import { buildHistoryBlindCorrectorPrompt } from "../core/history-blind-corrector";
@@ -392,7 +393,31 @@ export async function runSecondOpinionReviewForTask(
 	// an unavailable check (no sandbox / method absent on a fake) yields null and the reviewer is told so.
 	// Phase stamps (2026-07-10 review-hang autopsy): a silently-wedged review pinpoints its last-reached phase.
 	// Fire only via the injected `warn`, so they're diagnostic noise-free unless a caller wants them.
-	const stampPhase = (phase: string): void => input.warn?.(`[review-phase] ${input.taskId}: ${phase}`);
+	// N18: every review phase gets a TIMESTAMPED record, not only a log line.
+	//
+	// `stampPhase` is the single chokepoint every review-phase message already funnels through — verdicts, bounces,
+	// judge fan-out, corrector rounds — so emitting here covers all of them at once and cannot be forgotten by a
+	// new call site the way a per-site emission would be.
+	//
+	// **Why this matters beyond tidiness:** these messages previously existed ONLY in the runtime log, which
+	// carries no reliable timestamps, so review events could be ordered against each other but not against
+	// telemetry. The s03 investigation needed the bounce COUNT and the interleaving of a bounce with a capture
+	// failure, and both had to be reconstructed by counting log lines by hand. With a real `createdAt` they merge
+	// into the card timeline in true order.
+	const stampPhase = (phase: string): void => {
+		input.warn?.(`[review-phase] ${input.taskId}: ${phase}`);
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `[review-phase] ${input.taskId}: ${phase}`,
+				taskId: input.taskId,
+				metadata: { category: REVIEW_PHASE_CATEGORY, phase },
+			});
+		} catch {
+			// Telemetry must never break a review round.
+		}
+	};
 	stampPhase("acceptance-verify start");
 	// Same diff basis the review core fingerprints (getTaskDiff below) — a cheap git call vs a sandbox run.
 	const evidenceFingerprint = config.secondOpinionReviewEnabled

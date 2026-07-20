@@ -22,6 +22,9 @@
 /** Telemetry category for "acceptance ran, and this is what it concluded" — pass, fail or absent alike. */
 export const ACCEPTANCE_RUN_CATEGORY = "acceptance_run";
 
+/** Telemetry category for review-phase stamps: verdicts, bounces, judge fan-out, corrector rounds. */
+export const REVIEW_PHASE_CATEGORY = "review_phase";
+
 export type TrackingSource =
 	/** `.nklein/nklein/telemetry/*.jsonl` — the self-observation sink. */
 	| "self_observation"
@@ -115,17 +118,17 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		id: "review_verdict",
 		what: "A review round completes with approve / request_changes, by which reviewer.",
 		source: "runtime_log",
-		emitterToken: "[review-phase]",
-		status: "partial",
-		gap: "Present only in the runtime log, which carries no reliable timestamps — so verdicts order correctly relative to each other but not against telemetry events.",
+		emitterToken: "REVIEW_PHASE_CATEGORY",
+		status: "tracked",
+		gap: null,
 	},
 	{
 		id: "bounce_to_worker",
 		what: "A review bounces the card back for another worker round.",
 		source: "runtime_log",
-		emitterToken: "bounced",
-		status: "partial",
-		gap: "Same runtime-log limitation as review_verdict. The s03 investigation needed the bounce COUNT, which had to be derived by counting log lines.",
+		emitterToken: "REVIEW_PHASE_CATEGORY",
+		status: "tracked",
+		gap: null,
 	},
 	{
 		id: "sandbox_workspace_disposed",

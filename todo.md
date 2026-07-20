@@ -5268,7 +5268,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
   list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
   appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
-  **14 events declared — 9 tracked, 5 partial, 0 untracked**, every tracked claim verified against a real emitter.
+  **14 events declared — 11 tracked, 3 partial, 0 untracked**, every tracked claim verified against a real emitter.
   🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
   `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
   `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
@@ -5286,9 +5286,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     RETURN, so it fires for pass, fail and absent alike; `present` stays separate from `passed` so *"no criteria
     existed"* is never reported as a pass. Previously only failures emitted, which made **a card that was never
     verified look identical to one that passed** — silence reads as fine. Verified red by removing the emitter.
-  - `review_verdict` / `bounce_to_worker` — runtime-log only, so they carry no reliable timestamps and cannot be
-    ordered against telemetry. **The s03 investigation needed the bounce COUNT and had to get it by counting log
-    lines.**
+  - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
+    `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
+    through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
+    **cannot be forgotten by a new call site** the way per-site emission would be. They now carry a real
+    `createdAt` and merge into the card timeline in true order. **The s03 investigation needed the bounce COUNT
+    and the interleaving of a bounce with a capture failure, and had to reconstruct both by counting log lines
+    by hand.** Verified red by removing the emitter (2 claims break).
   - `attempt_started` — inferred from an attempt's first tool call, so **an attempt that died before calling
     anything is invisible** — precisely the failure worth seeing.
   - `operator_intervention` — only `nudge` is instrumented (P20.10).
