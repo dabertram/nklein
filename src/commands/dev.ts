@@ -42,6 +42,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
+import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
@@ -985,6 +986,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (cardId: string, options: { home?: string; json?: boolean; gapMs?: string }) => {
 			await runDevCardTimelineCommand(cardId, options);
+		});
+	dev.command("churn")
+		.description(
+			"How much of a commit's work is still in the tree? (P20.10 — the one signal an agent cannot influence.)",
+		)
+		.requiredOption("--commit <sha>", "The commit whose authored lines are measured.")
+		.option("--ref <ref>", "The later ref to measure survival at (default HEAD).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { commit: string; ref?: string; json?: boolean }) => {
+			await runDevChurnCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")

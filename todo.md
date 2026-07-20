@@ -7277,6 +7277,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `countAttributedLines("")` returns 0 rather than matching every line — a blank prefix would `startsWith`-match
   everything and report total survival, a silent and flattering lie.
   REMAINING: the scheduler that samples at 24h/7d and feeds `assessChurn`. Needs elapsed time, not code.
+  **WIRED SAME-SESSION: `dev churn --commit <sha> [--ref HEAD]`** — so the collector is not another core with no
+  consumer. It is useful IMMEDIATELY rather than only after a 24h window: *"how much of what this commit wrote is
+  still in the tree?"* is answerable against any later ref, and the scheduled sampling refines that question
+  rather than gating it.
+  **VALIDATED BY DISCRIMINATION, not just by running:**
+  - an untouched commit → **205/205 survive, 0% churn**
+  - the commit that created `nightly-pack-registry.ts` → **129/148 survive, 13% churned** — a file corrected TWICE
+  today (`done`→`completed`, then `parked`→`review`). Right magnitude, and it is churn I can independently
+  account for.
+  A tool that returned 0% for everything would have looked identical on the first test. **The second measurement is
+  the one that shows it measures anything.**
+  ⚠️ The command passes the SAME figure for both windows and says so in its output: a single point-in-time read
+  cannot separate *"wrong on arrival"* from *"changed later"*. The 24h/7d split needs TWO samples, and computing
+  an iteration gap from one would **manufacture a number that was never measured.**
 - [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
   (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
   ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
