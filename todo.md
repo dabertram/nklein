@@ -6204,11 +6204,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   routine path, and it is not a wire — it is a dependency on SDK capability.**
   **Do not close this by wiring `decideOffTrackRemedy` somewhere harmless and calling it done** — that would
   produce a green item, a tested core, and a system that still launders drift.
-- [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
+- [~] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
   an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
   own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
   Any threshold !Klein ships must be labelled an operational default and instrumented, not presented as measured.
   Phase 13 nightly + the eval harness are where the real number gets produced for OUR workload.
+  **PROVENANCE CORE SHIPPED 2026-07-20: `threshold-provenance.ts`, 10 tests.**
+  **THE FAILURE THIS PREVENTS IS NOT "WE PICKED A BAD NUMBER" — it is "nobody can tell which numbers were
+  measured."** `COMPACTION_THRESHOLD = 0.5` looks identical whether it came from an experiment on this workload,
+  a blog post, or an intuition on a Tuesday. Once shipped all three are equally authoritative to the next reader,
+  and **the intuition is the one most likely to be defended, because nobody remembers it was an intuition.**
+  So `provenance` and `basis` are REQUIRED fields — an unlabelled threshold is unconstructible. Four kinds:
+  `measured` (this workload, with sample size), `operational` (a deliberate default nobody has measured),
+  `borrowed` (a published result on a DIFFERENT workload), `folklore` (widely repeated, no traceable source).
+  **ONLY `measured` IS POLICED, and that asymmetry is the design.** The other three are already admitting they are
+  not evidence, so there is nothing to check. A `measured` claim with a thin or missing sample is DOWNGRADED with
+  *"treat as an operational default until the sample supports the claim"* — **only one label can flatter a number,
+  so only one needs enforcement.** Folklore is explicitly NOT banned: refusing to ship unmeasured numbers would
+  stop the project. What is banned is folklore being CITED as measured.
+  **📋 WRITING THE TABLE DOWN WAS ITSELF THE FINDING: NOTHING THIS PROJECT SHIPS IS CITABLE AS MEASURED TODAY.**
+  Five thresholds catalogued (compaction utilisation, CodeAct bar, residency bar, cold-load seconds, regression
+  ratio) and every one is an operational default. That is not a criticism of the numbers — it is the accurate
+  state, and stating it is what stops the next reader treating them as results. Pinned by test.
+  🐛 **And it caught an over-claim in its OWN table:** `cold_load.seconds = 65` was labelled `measured` on the
+  strength of a 40–90s field range with no recorded sample. The assessor downgrades it. **Kept as-is rather than
+  quietly relabelled — the mechanism catching its author is the demonstration that it works.**
 - [ ] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
   models performed BETTER on shuffled haystacks than on logically coherent ones.** If coherent structure is a
   liability for retrieval, then a well-written narrative summary — the standard compaction artifact, and what
