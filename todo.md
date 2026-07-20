@@ -5130,6 +5130,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N13 — Suite self-trust: double-run flake quarantine.** Pre-release runs each cell twice; any verdict flip
   ⇒ the cell is QUARANTINED (reported loudly, excluded from the gate) until root-caused — a suite that flakes
   gets ignored, which is worse than no suite (the smoke arc's false-green lesson).
+  **🔴 A LIVE INSTANCE OF EXACTLY THIS, OBSERVED 2026-07-20 — and it belongs here rather than in a new item.**
+  One run of `npm run test:fast` reported `1 failed | 11401 passed (11402)`. **27 subsequent runs across four
+  deliberately adversarial conditions could not reproduce it** — 18 idle, 3 under CPU saturation (17/18 cores),
+  2 concurrent suites, 4 against a live nightly drain holding ports 4500+. Every hypothesis raised was excluded by
+  experiment. The failing test's identity is UNKNOWN.
+  **It is recorded rather than dismissed.** "It passed on the retry" is how a real intermittent bug becomes
+  invisible, and this session already spent hours on a nondeterministic drain (N7d) that a green re-run would have
+  buried. A flake in `test:fast` matters more than one in a drain: **it is the gate every commit passes through**,
+  so it is both a false-red generator and proof something in the suite is not hermetic (N4 lists the candidates —
+  `Date.now` damping windows, watchdog tick timing, free-port probing).
+  **THE FIX WAS CAPTURE, NOT CHASING.** It occurred twice and BOTH times its identity was lost — once in a
+  pre-commit hook that printed a summary and discarded the detail, once in a loop that did not persist output.
+  **The bug is not hard to hit; it is hard to hold onto.** `.husky/pre-commit` now writes full output to a
+  timestamped log, deletes it on success (zero cost on the passing path), and on failure prints the tail plus the
+  log path. **The third occurrence will name its own test** — which is what N13's quarantine needs as input.
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
   round-trips, and the F2.16 stream→DAG→card→thread→BACK focus spec (folds in here). Today's plan is
@@ -5536,59 +5551,6 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   is stale relative to how lanes are now named — the same class of bug as the pack expecting `done` when the
   board says `completed`. **A stale assertion is the comfortable answer, so it is the one to check hardest.**
   The evidence is now retained: `seed-monitor.log` in the cell's kept HOME carries the full `finalCounts`.
-
-- [ ] **N12 — An INTERMITTENT failure in `test:fast` — observed, not yet identified *(found 2026-07-20)*.**
-  One run of `npm run test:fast` reported `1 failed | 11401 passed (11402)`. **Nine subsequent runs were clean**,
-  and repeated attempts to capture the failing test's identity did not reproduce it — so the rate is roughly
-  1-in-6 or rarer and the test is UNKNOWN.
-  **Recorded rather than dismissed, deliberately.** "It passed on the retry" is how a real intermittent bug
-  becomes invisible, and this session has already spent hours on a nondeterministic drain (N7d) that a green
-  re-run would have buried. A flake in the unit suite is also more alarming than one in a drain: **`test:fast`
-  is the gate every commit passes through**, so an intermittent failure there is both a false-red generator and
-  proof that something in the suite is not hermetic.
-  Possible relatives already known: N4 lists the non-hermetic sources (real gateway reads, `lms ps`, `Date.now`
-  damping windows, watchdog tick timing, free-port probing) — any of those in a unit test would produce exactly
-  this. **Do not close this by re-running until green.**
-  **CHASE ATTEMPTED 2026-07-20: 18 CONSECUTIVE CLEAN RUNS, no reproduction.** The loop the item asked for was
-  run with full output captured; the flake did not recur once on an otherwise idle machine.
-  **🔎 BUT THE TIMING OF THE TWO OBSERVED FAILURES NARROWS IT: both happened while OTHER WORK WAS RUNNING
-  CONCURRENTLY** (one inside a pre-commit hook, one during a batch loop). Eighteen runs on a quiet machine
-  produced nothing. **Working hypothesis: the flake is LOAD-DEPENDENT** — a timing-sensitive test that only loses
-  its race under contention.
-  That fits N4's list of non-hermetic sources exactly (`Date.now` damping windows — trigger 30s, dedup 12min —
-  watchdog tick timing, free-port probing): each is a test that passes when the machine is fast enough and fails
-  when it is not. **It also means "18 clean runs" is NOT evidence of absence** — it is evidence that the
-  reproduction conditions were absent, which is a different claim.
-  **LOAD HYPOTHESIS TESTED AND NOT SUPPORTED (2026-07-20).** Two variants tried, both clean:
-  - **CPU saturation** — 17 busy loops on 18 cores, 3 runs: clean.
-  - **Concurrent suites** — two `test:fast` runs in parallel, the condition both observed failures shared: clean.
-  **23 clean runs now across three conditions** (18 idle + 3 loaded + 2 concurrent) since the last failure. So it
-  is neither simple CPU contention nor test-process contention.
-  **REMAINING SPECIFIC HYPOTHESIS — PORT COLLISION WITH A RUNNING DRAIN.** The nightly cells bind ports 4500+
-  for ~8 minutes each, and several were running during this session. If a unit test probes for a free port while
-  a drain holds one, that is exactly N4's `free-port probing` entry and would produce a rare, load-shaped failure
-  that CPU saturation cannot recreate — **the contended resource is a port, not a core.** ⚠️ NOT CONFIRMED: the
-  failure timestamps were not correlated against the drain windows at the time, and that correlation can no
-  longer be reconstructed.
-  **PORT HYPOTHESIS ALSO TESTED AND NOT SUPPORTED:** 4 runs with a live nightly drain holding 4500+ — all clean.
-  **FINAL TALLY: 27 CLEAN RUNS ACROSS FOUR DELIBERATELY ADVERSARIAL CONDITIONS** — 18 idle, 3 under CPU
-  saturation (17/18 cores), 2 concurrent suites, 4 against a running drain. Every hypothesis raised has been
-  excluded by experiment.
-  **STATE: OBSERVED TWICE, UNREPRODUCIBLE, OPEN. It is NOT closed as "not a bug."** It happened, in front of me,
-  with a count (`1 failed | 11401 passed`). Marking it resolved because 27 attempts missed it would be the exact
-  move this item was written to prevent — and would be a worse error than the original flake, because it would
-  come with the authority of having "investigated".
-  **✅ CAPTURE SHIPPED 2026-07-20 — the actual fix for an unreproducible bug is not chasing, it is HOLDING ON.**
-  The failure occurred twice and BOTH times its identity was lost: once inside a pre-commit hook that printed a
-  summary and discarded the detail, once in a loop that did not persist output. **The bug is not hard to hit; it
-  is hard to hold onto.** So `.husky/pre-commit` now writes full typecheck + test output to a timestamped log,
-  **deletes it on success** (zero cost on the passing path) and on failure prints the last 40 lines plus the log
-  path, pointing at this item. The third occurrence will name its own test.
-  Verified by planting a deliberate type error: the hook printed the failing line, kept the log, and reported its
-  path. Restored afterwards.
-  **The exclusions are the deliverable here.** Recording them matters as much as a finding would have — otherwise
-  the next person spends the same hour rediscovering that CPU load, process contention and port collision are all
-  innocent.
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
