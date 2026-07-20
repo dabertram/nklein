@@ -5467,7 +5467,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   failure says *"not an empty card"*; an unreadable source warns that a gap **may be this, not silence**; a
   truncated list says *"most recent N of M"*; an unclocked event renders `—` instead of an invented time. Those
   are the renderings that would otherwise let a reader draw a confident wrong conclusion instead of going to look.
-  REMAINING (N18c): the 3 open partials — `attempt_started`, `model_usage`, `operator_intervention`.
+  REMAINING (N18c): TWO partials, both with the buildable parts done and only genuinely-gated remainders left.
+  `attempt_started` is now CLOSED (tracked). `model_usage` is tracked at three grains incl. reasoning; its only
+  gap is PER-REQUEST, a transport design limit (the SDK exposes no per-request hook), not a missing emitter.
+  `operator_intervention` has `nudge`+`abort` instrumented; `correction`+`takeover` need detecting that a human
+  EDITED or REPLACED agent output, which nothing observes yet — a detection-mechanism design question, not a
+  wire. **So N18's tracking is 12/14 with the 2 remainders each blocked on a design decision, not on code I can
+  write blind.**
 
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings

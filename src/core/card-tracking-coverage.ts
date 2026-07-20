@@ -111,16 +111,18 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 	},
 	{
 		id: "model_usage",
-		what: "Token usage for a turn: input and output tokens, and the model that served it.",
+		what: "Token usage — input, output, and reasoning tokens — with the model that served it.",
 		source: "self_observation",
 		emitterToken: "MODEL_USAGE_CATEGORY",
 		status: "partial",
 		gap:
-			"Now recorded per TURN with the serving model id, which makes 'slow card or slow model?' answerable. But " +
-			"PER-REQUEST is still unavailable: `run-finished` ends a turn and the SDK aggregates the individual model " +
-			"calls inside it, so **a retry storm within one turn still reads as one expensive call**. The metadata is " +
-			"stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock LATENCY is " +
-			"still not captured. Closing this needs an SDK-level per-request hook, which may not exist.",
+			"Recorded at THREE grains now — per-turn telemetry, session summary, and the per-attempt ledger — each " +
+			"carrying input/output AND reasoning tokens (reasoning null-not-zero when the server does not report it). " +
+			"The one remaining gap is PER-REQUEST: `run-finished` ends a turn and the SDK aggregates the individual " +
+			"model calls inside it, so a retry storm within one turn still reads as one expensive call. That is a " +
+			"design limit of the transport (the SDK exposes no per-request hook), not a missing emitter — the " +
+			"metadata is stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock " +
+			"LATENCY is also still uncaptured.",
 	},
 	{
 		id: "review_verdict",
