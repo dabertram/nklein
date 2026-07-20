@@ -126,6 +126,7 @@ import { findWorkPackageBoundaryViolations } from "../core/work-package-card-sha
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
+import { contextFloorRemedyHint, isContextWindowPolicyMessage } from "../nklein-agent/nklein-context-window-policy";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
 import {
 	resolveNKleinDevTestProjectScenario,
@@ -1063,18 +1064,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							continue;
 						}
 					}
+					// A context-floor refusal is OPERATOR-ACTIONABLE and otherwise invisible: the card just sits
+					// unstartable while the watchdog sweeps it, and the only trace is an "unknown_code" log line. Name it
+					// and say what to do (reload the model at ≥32k) so the board's needs-you path isn't a silent freeze.
+					const startFloorRefused = isContextWindowPolicyMessage(started.error);
+					const startErrorCode = started.errorCode ?? (startFloorRefused ? "context_floor_unmet" : "unknown_code");
+					const startRemedy = startFloorRefused ? ` ${contextFloorRemedyHint()}` : "";
 					deps.warn(
-						`Could not auto-start linked task ${task.id} for ${scope.workspacePath} (${started.errorCode ?? "unknown_code"}): ${started.error ?? "unknown error"}`,
+						`Could not auto-start linked task ${task.id} for ${scope.workspacePath} (${startErrorCode}): ${started.error ?? "unknown error"}${startRemedy}`,
 					);
 					recordSelfObservation({
 						signal: "runtime_error",
 						severity: "warning",
-						message: `Auto-start failed before a session was created for ${task.id}: ${started.error ?? "unknown error"}`,
+						message: `Auto-start failed before a session was created for ${task.id}: ${started.error ?? "unknown error"}${startRemedy}`,
 						taskId: task.id,
 						workspacePath: scope.workspacePath,
 						metadata: {
-							category: "auto_start_failed",
-							errorCode: started.errorCode ?? "unknown_code",
+							category: startFloorRefused ? "context_floor_unmet" : "auto_start_failed",
+							errorCode: startErrorCode,
 						},
 					});
 					continue;

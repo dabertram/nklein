@@ -91,3 +91,21 @@ export function assertNKleinContextWindowPolicy(input: NKleinContextWindowPolicy
 	}
 	return result.contextWindow;
 }
+
+/** The stable signature shared by both refusal messages ({@link evaluateNKleinContextWindowPolicy}). */
+const CONTEXT_WINDOW_POLICY_MESSAGE_SIGNATURE = "before this model can be activated";
+
+/**
+ * Whether a start-failure MESSAGE (a plain string — e.g. a `startResult.error`) is a context-window-floor refusal.
+ * A message-level check is needed because the failure crosses process/serialization boundaries as a string, where
+ * {@link isNKleinContextWindowPolicyError}'s `instanceof` no longer applies. Lets a caller turn an opaque
+ * "unknown_code" auto-start failure into an operator-actionable "reload the model at ≥Nk context" signal.
+ */
+export function isContextWindowPolicyMessage(message: string | null | undefined): boolean {
+	return typeof message === "string" && message.includes(CONTEXT_WINDOW_POLICY_MESSAGE_SIGNATURE);
+}
+
+/** The operator-actionable remedy appended when a card can't start because its model is below the floor. */
+export function contextFloorRemedyHint(): string {
+	return `Reload the model with at least ${formatNKleinContextWindowTokens(NKLEIN_MIN_CONTEXT_WINDOW_TOKENS)} context (e.g. \`lms load <model> --context-length 32768\`), then it will auto-start.`;
+}
