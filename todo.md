@@ -7469,8 +7469,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   assumed absent. **They should start failing the day acceptance evidence is required independently of the
   board** — which is exactly what P20.3's no-op ablation would provide, and is now the concrete reason to build
   it rather than a general good idea.
-  REMAINING (P20.1b): the null/random agents against the LIVE eval harness (this covered the classifier, not the
-  end-to-end grader). Needs a run.
+  **✅ P20.1b RUN 2026-07-20 — the forgery baseline now drives the REAL grader, wired into `dev evidence`.**
+  `dev-test-grader-baseline.ts` (`runDevTestGraderBaseline`) constructs the board/acceptance state each of the five
+  `FORGERY_VECTORS` would leave and grades each through the SAME `classifyDevTestRun` a real dev-test uses, scoring
+  100 iff the grader calls it a pass. Result, printed by `dev evidence` (verified live): `empty_output`,
+  `random_activity`, `trivial_validator_satisfaction`, `test_hook_override` all **survive (0)**; **`state_tampering`
+  FORGES (100)** — because the board's own counts are the grader's only truth, so writing `completed` reads as a
+  completion. This is the SAME finding as `null-agent-against-our-grader.test.ts`, now a RUNNABLE operator surface
+  (one shared core, not a test proving something no one can re-run) feeding real null/random scores into
+  `assessGraderIntegrity` — which flips the evidence report from "not run → allNumbersVoid" to the honest
+  "null correct → not trivially forgeable; discrimination pending a real-agent score." A new `FORGERY_VECTORS`
+  entry with no mapped board state now throws (fails loud, not silently skipped). 6 tests; 11666 fast tests green.
+  REMAINING (the genuinely fleet part): the REAL-AGENT score for the discriminating gap — a real dev-test drain on
+  a loaded model — plus, orthogonally, the state-tampering vector should start FAILING the day acceptance evidence
+  is required independently of the board (P20.3 shipped that gate for card acceptance; the dev-test board grader
+  still trusts its counts).
 - [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking

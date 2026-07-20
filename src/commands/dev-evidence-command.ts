@@ -16,19 +16,27 @@
  */
 
 import { assessBenchmarkFitness, BENCHMARK_CANDIDATES } from "../core/benchmark-fitness";
-import { assessGraderIntegrity, FORGERY_VECTORS } from "../core/null-agent-baseline";
+import { runDevTestGraderBaseline } from "../core/dev-test-grader-baseline";
+import { assessGraderIntegrity } from "../core/null-agent-baseline";
 import { assessThreshold, SHIPPED_THRESHOLDS } from "../core/threshold-provenance";
 
 export async function runDevEvidenceCommand(options: { json?: boolean }): Promise<void> {
-	// The null-agent baseline has NOT been run end-to-end (P20.1b). Passing nulls is the honest input: the core
-	// reports `indeterminate` and says no score means anything yet. Hard-coding a zero here to make the output
-	// look better would be the forgery this very check exists to detect.
-	const grader = assessGraderIntegrity({ nullAgent: null, randomAgent: null, realAgent: null });
+	// P20.1b: the forgery baseline is now RUN, not passed as nulls — every vector is driven through the real
+	// `classifyDevTestRun` grader. The null and random scores feed the null/random/real gap check; the full vector
+	// sweep (which `assessGraderIntegrity` does not model) carries the honest result: state-tampering forges,
+	// because the board's own counts are the grader's only source of truth. realAgent stays null — the discriminating
+	// gap needs a real fleet run — so the verdict is legitimately `indeterminate` on discrimination, NOT void on null.
+	const baseline = runDevTestGraderBaseline();
+	const grader = assessGraderIntegrity({
+		nullAgent: baseline.nullAgentScore,
+		randomAgent: baseline.randomAgentScore,
+		realAgent: null,
+	});
 	const thresholds = SHIPPED_THRESHOLDS.map(assessThreshold);
 	const benchmarks = BENCHMARK_CANDIDATES.map(assessBenchmarkFitness);
 
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ grader, thresholds, benchmarks }, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ grader, baseline, thresholds, benchmarks }, null, 2)}\n`);
 		return;
 	}
 
@@ -37,7 +45,18 @@ export async function runDevEvidenceCommand(options: { json?: boolean }): Promis
 	if (grader.allNumbersVoid) {
 		process.stdout.write("  ⚠️ Until this resolves, treat every number in this report as unverified.\n");
 	}
-	process.stdout.write(`  Forgery vectors to run: ${FORGERY_VECTORS.map((vector) => vector.id).join(", ")}\n\n`);
+	process.stdout.write("  Forgery vector baseline (0 = grader gave no pass; 100 = grader forged a pass):\n");
+	for (const vector of baseline.vectors) {
+		process.stdout.write(`    ${vector.forged ? "⚠️ FORGED" : "✓ survives"} [${vector.score}] ${vector.id}\n`);
+	}
+	if (baseline.anyForged) {
+		process.stdout.write(
+			"  ⚠️ State-tampering forges a pass: `classifyDevTestRun` reads the board's own counts, so writing\n" +
+				"     `completed` without doing the work reads as a completion. The board sits inside the trust\n" +
+				"     boundary — the fix is independent acceptance evidence (P20.3), not a smarter count.\n",
+		);
+	}
+	process.stdout.write("\n");
 
 	const citable = thresholds.filter((threshold) => threshold.citableAsMeasured).length;
 	process.stdout.write(`THRESHOLD PROVENANCE (P18.5) — ${citable}/${thresholds.length} citable as measured\n`);
