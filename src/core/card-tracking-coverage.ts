@@ -90,9 +90,13 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		id: "attempt_started",
 		what: "A worker or reviewer attempt begins on the card.",
 		source: "agent_ledger",
-		emitterToken: "attempt",
+		emitterToken: "buildTerminalAttemptEvent",
 		status: "partial",
-		gap: "The ledger records attempts, but the timeline reads them without a reliable per-attempt START marker — an attempt is inferred from its first tool call, so an attempt that died before calling anything is invisible.",
+		gap:
+			"Only the attempt's END is recorded, and it is recorded reliably — a terminal attempt event is written " +
+			"even when the attempt made no tool calls. What is missing is a START marker, so (a) an attempt still " +
+			"IN FLIGHT is invisible until it terminates, which is exactly the state a stalled card is in when someone " +
+			"goes looking, and (b) attempt DURATION cannot be derived from the ledger alone.",
 	},
 	{
 		id: "tool_call",

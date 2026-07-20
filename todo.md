@@ -359,6 +359,16 @@ source repo went private — so if it vanishes the buildable source still lives 
   - State the coverage boundary in the tool's own output. A checker that cannot see half the codebase must say
     so, or its negative answers carry false authority.
 
+- ⚠️ **A "GAP" CLAIM NEEDS THE SAME EVIDENCE AS A COVERAGE CLAIM — I got two wrong in a row (N18).**
+  Writing the tracking contract, I recorded `model_request` as **untracked** (it is recorded per attempt via
+  `applyModelStatsTrackingLevel`) and `attempt_started` as *"invisible if the attempt died before calling a
+  tool"* (a terminal attempt event is written regardless). **Both were plausible, both were reasoned rather than
+  checked, and both were wrong in the same direction: they invented missing work.**
+  A false gap is as corrosive as a false claim of coverage. It sends someone to build what already exists, and
+  it is *harder* to catch — nobody audits a backlog item for being unnecessary, whereas a false green at least
+  contradicts observed behaviour eventually. **Grep the emitter before writing the gap**, and prefer a real
+  symbol (`buildTerminalAttemptEvent`) over a generic word (`attempt`) as the token, because a generic token
+  matches something somewhere and verifies nothing.
 - ⚠️ **SELF-CONTAMINATION HAPPENED A FOURTH TIME (N18), IN A FILE WHOSE OWN DOCBLOCK WARNED AGAINST IT.**
   `dev tracking-coverage` verifies that each claimed `emitterToken` appears in the source — and it read all of
   `src/`, which includes the contract file declaring those tokens. Every token matched **its own declaration**.
@@ -5293,8 +5303,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     `createdAt` and merge into the card timeline in true order. **The s03 investigation needed the bounce COUNT
     and the interleaving of a bounce with a capture failure, and had to reconstruct both by counting log lines
     by hand.** Verified red by removing the emitter (2 claims break).
-  - `attempt_started` — inferred from an attempt's first tool call, so **an attempt that died before calling
-    anything is invisible** — precisely the failure worth seeing.
+  - `attempt_started` — **and this was my SECOND wrong gap claim.** A terminal attempt event IS written even when
+    the attempt made no tool calls, so a dead attempt is not invisible. The real gap is narrower: only the END is
+    recorded, so an attempt still **IN FLIGHT is invisible until it terminates** — exactly the state a stalled
+    card is in when someone goes looking — and attempt DURATION cannot be derived from the ledger alone.
   - `operator_intervention` — only `nudge` is instrumented (P20.10).
   **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
   mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
