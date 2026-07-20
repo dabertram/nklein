@@ -45,6 +45,7 @@ import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
+import { runDevGatesCommand } from "./dev-gates-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
@@ -973,6 +974,12 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { tasks?: string; repeats?: string; effect?: string; json?: boolean }) => {
 			await runDevExperimentDesignCommand(options);
+		});
+	dev.command("gates")
+		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevGatesCommand(options);
 		});
 	dev.command("evidence")
 		.description(

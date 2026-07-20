@@ -77,7 +77,11 @@ export function scanCoreSymbolReferences(options: {
 	}
 
 	const roots = options.roots ?? ["src", "web-ui/src", "packages"];
-	const excluded = new Set(options.excludeFiles ?? []);
+	// ALWAYS exclude the tracked-requirement map. It names core symbols as STRINGS to describe which module
+	// provides which requirement element — that is documentation, not consumption. Counting it inflates the wired
+	// count repo-wide, and it inflated an orphan audit of this very session's output by 2 before being caught.
+	// P15.7b's command already excluded it; the general scan did not, so the two reported different truths.
+	const excluded = new Set([...(options.excludeFiles ?? []), "src/core/tracked-requirements.ts"]);
 	const referenceLines = new Map<string, string[]>();
 	const referenceSites = new Map<string, { file: string; line: string }[]>();
 	for (const file of roots.flatMap((root) => walkSources(root))) {

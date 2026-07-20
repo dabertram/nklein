@@ -5663,6 +5663,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   rewritten). Live-smoked against the known case: `cache-stable-prefix-order.ts` → "4 of 4 exported core
   symbol(s) have NO non-test consumer", matching the hand audit exactly. Output always closes with the caveat
   that each entry is a QUESTION, not a verdict.
+  **🐛 THE SCAN WAS BEING FOOLED BY THE AUDIT'S OWN MAP (found + fixed 2026-07-20).** `tracked-requirements.ts`
+  names core symbols as STRINGS to record which module provides which requirement element — documentation, not
+  consumption. The general `dev unwired-cores` scan counted those mentions as real consumers, **inflating the
+  wired count repo-wide.**
+  P15.7b's `dev requirement-coverage` had already excluded the map after the same bug bit it there; the general
+  scan had not, **so the two commands reported different truths about the same codebase.** The exclusion is now
+  unconditional in `scanCoreSymbolReferences`, so both agree.
+  **Caught while auditing THIS session's own output:** the orphan count read 5 with the map counted and **7**
+  without it. Two of this session's cores were being reported as wired purely because an audit map mentioned their
+  names — and 5 is the flattering number, which is exactly why it needed checking rather than reporting.
 - [x] **P15.1b — Observation-count half of the mechanism registry (CORE; P15.1c carries the CLI + doc gen).** The
   complement to the unwired-core scan: list mechanisms that ARE wired but have recorded ZERO observations —
   shipped, reachable, and never actually exercised. Needs the telemetry store (`recordSelfObservation` categories:
