@@ -1162,6 +1162,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			input.taskId,
 			launchConfig.contextWindow,
 		);
+		// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
+		// (run9 2026-07-02): the first lean run showed a small coder model ping-ponging read_files/get_file_size
+		// for 14min with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as
+		// anti-loop rails for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the
+		// scoreboard proves lean safe (research: measure-first).
+		//
+		// Hoisted out of the prompt-parts call so the chosen level can also be RECORDED — see the observation
+		// below. It was previously computed inline and therefore unobservable.
+		const leanSyspromptLevel =
+			isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) && requestContextWindow && requestContextWindow <= 40_000
+				? "lean"
+				: "full";
 		const customSystemPrompt = input.systemPrompt?.trim() || null;
 		const sdkPromptParts = customSystemPrompt
 			? null
@@ -1191,20 +1203,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					contextWindow: requestContextWindow,
 					timeoutMode: input.timeoutMode ?? "normal",
 					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-					// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
-					// (run9 2026-07-02): the first lean run showed a small coder model ping-ponging read_files/get_file_size for 14min
-					// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
-					// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
-					// proves lean safe (research: measure-first).
-					level:
-						isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) &&
-						requestContextWindow &&
-						requestContextWindow <= 40_000
-							? "lean"
-							: "full",
+					level: leanSyspromptLevel,
 				}),
 			}),
 		);
+		// F4.8b: **the flag's own comment says "enable to measure" and "default full until the scoreboard proves
+		// lean safe (research: measure-first)" — and nothing recorded which level was used.** Turning it on
+		// therefore measured nothing: no telemetry could say whether a session ran lean or full, so the scoreboard
+		// the comment defers to could never be built. The whole justification for the flag existing was
+		// unreachable through the flag.
+		//
+		// Records the level on EVERY start, not only when lean wins, because the comparison is the entire point —
+		// a lean-only record has no baseline to compare against.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `System prompt level for ${input.taskId}: ${leanSyspromptLevel} (context ${requestContextWindow ?? "unknown"}).`,
+				taskId: input.taskId,
+				metadata: {
+					category: "sysprompt_level",
+					level: leanSyspromptLevel,
+					contextWindow: requestContextWindow ?? null,
+					flagOn: isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT),
+				},
+			});
+		} catch {
+			// Telemetry must never break session start.
+		}
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);

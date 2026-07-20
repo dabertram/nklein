@@ -237,6 +237,23 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: the flag's own comment said "enable to measure" and "default full until the scoreboard
+		// proves lean safe (research: measure-first)" — and NOTHING recorded which level was used. Turning it on
+		// therefore measured nothing, and the scoreboard the comment defers to could never be built. The entire
+		// justification for the flag was unreachable through the flag.
+		//
+		// `enabledBy: null` is deliberate: the level is now recorded on EVERY session start, flag on or off,
+		// because the comparison IS the measurement and a lean-only record has no baseline.
+		category: "sysprompt_level",
+		// §5.AQ, not the code comment's "W2.4a" — the ratchet correctly rejected that, and checking showed W2.4a
+		// appears nowhere in todo.md while §5.AQ (context economy) owns this and is cited by sysprompt-level.ts.
+		item: "§5.AQ",
+		observes: "which system-prompt level a session started with, and the context window that decided it",
+		enabledBy: null,
+		expectation: "every_run",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: only decomposition STALLS were observed — the failure modes — so the mechanism's
 		// normal operation was invisible and "did fleet-awareness change the breakdown at all?" had no answer.
 		// That is the question the feature exists to be judged on, and it alters decompose granularity.
