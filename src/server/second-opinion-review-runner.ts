@@ -551,6 +551,26 @@ export async function runSecondOpinionReviewForTask(
 			};
 			input.warn?.(`Test-driven gate: bouncing ${input.taskId} — ${gate.reason}`);
 		}
+		// F4.8b: record the DECISION, not only the bounce. Emitting on bounce alone makes the gate visible only
+		// when it acts, so "how often would this fire if I turned it on?" — the question you ask BEFORE enabling
+		// it — has no answer. F12.35 immediately below already works this way on purpose; this is the same rule.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: gate.allowReview ? "info" : "warning",
+				message: `Test-driven gate for ${input.taskId}: ${gate.allowReview ? "allowed" : "BOUNCED"} — ${gate.reason}`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "test_driven_gate",
+					allowReview: gate.allowReview,
+					changedFiles: changedFilePaths.length,
+					reason: gate.reason,
+				},
+			});
+		} catch {
+			// Telemetry must never break the gate.
+		}
 	}
 	// F12.36 verification-FIRST gate (OPT-IN via NKLEIN_VERIFICATION_FIRST; default OFF = byte-identical): a RED
 	// fresh acceptance run short-circuits the LLM review into a deterministic request_changes carrying the machine's
@@ -571,6 +591,25 @@ export async function runSecondOpinionReviewForTask(
 		if (verificationFirst.action === "deterministic_bounce") {
 			preReviewVerdict = verificationFirst.submission;
 			input.warn?.(`Verification-first gate: bouncing ${input.taskId} — ${verificationFirst.submission.summary}`);
+		}
+		// F4.8b: same reason as the test-driven gate above. This one saves reviewer TOKENS by short-circuiting a
+		// review the machine already rejected, so how often it fires is the entire argument for enabling it — and
+		// that number is unobtainable if only the bounces are recorded.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: verificationFirst.action === "deterministic_bounce" ? "warning" : "info",
+				message: `Verification-first gate for ${input.taskId}: ${verificationFirst.action}.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "verification_first_gate",
+					action: verificationFirst.action,
+					acceptancePassed: acceptance.passed ?? null,
+				},
+			});
+		} catch {
+			// Telemetry must never break the gate.
 		}
 	}
 	// F12.35 (RECORD-ONLY, deliberately): compare the effort this card WARRANTS against the depth it is about to

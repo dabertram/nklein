@@ -226,6 +226,28 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: emitted ONLY on a bounce, so "how often would this fire if I enabled it?" — the
+		// question asked BEFORE turning it on — had no answer. Now records the decision either way.
+		category: "test_driven_gate",
+		item: "F12.37",
+		observes: "the test-driven delivery gate's decision, allowed or bounced",
+		enabledBy: "NKLEIN_TEST_DRIVEN_MODE",
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
+		// F4.8b 2026-07-20: as above. This gate saves reviewer TOKENS by short-circuiting a review the machine
+		// already rejected, so its firing RATE is the entire argument for enabling it — unobtainable from bounces.
+		category: "verification_first_gate",
+		item: "F12.36",
+		observes: "the verification-first gate's decision on a card with a fresh acceptance result",
+		enabledBy: "NKLEIN_VERIFICATION_FIRST",
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: reported ONLY to the runtime log (weakly structured, no reliable timestamp, not
 		// countable), so "did the panel ever assemble, and with how many judges?" needed log archaeology — which
 		// is how it silently fell back to the single-reviewer path on the rig. Registered once measurable.
