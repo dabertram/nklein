@@ -5035,6 +5035,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   no-wallclock guard. **Verified by REINTRODUCING the bug — the guard fails, then passes again on the fix.**
   Note the retrieval TOOL above it correctly keeps `agentPerceivedCwd` (it operates in the agent's filesystem);
   only the control-plane KEY is host-scoped.
+  **HASH-IDENTIFICATION PASS 2026-07-20 — and the result is the actionable part.** Computed
+  `hashWorkspacePathForLedger` over every plausible current path and matched against the 76 ledger filenames:
+  · **The MAIN REPO path (`/Users/david/GIT/nklein`) matches NO ledger file.** So a consumer running from the
+    repo root — which is what the review runner does — calls `readAgentLedger` for a file that does not exist and
+    gets an EMPTY history. **That is a complete, sufficient explanation for F12.35 recording zero**, and it
+    applies identically to every other consumer on that seam.
+  · **One file IS the `"unknown"` sentinel hash**, meaning some events were written with a null/empty
+    `workspacePath` and silently bucketed under `"unknown"` rather than failing. Those events are unreachable by
+    any path-derived lookup.
+  · 75 hashes match none of: the main repo, any `dev-test-projects/*` path, any of the 25 `dev-runs/*` workspaces
+    (with `/workspace`, `/repo`, `/project` suffixes tried), and there are NO active git worktrees. **So the
+    write-time paths are not any current path** — most plausibly deleted worktrees, historical temp dirs, or
+    sandbox paths. Not chased further; the actionable finding above does not depend on identifying them.
   **NOT YET PROVEN:** that fragmentation is THE cause of F12.35's zero — that needs one instrumented review run
   comparing the reader's hash against the hash its task's attempts were written under. The fragmentation and the
   sandbox-path write site are defects independently of F12.35.
