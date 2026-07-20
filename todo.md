@@ -5331,7 +5331,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **STANDING RECOMMENDATION: nothing warrants deletion today.** The 119 figure is a real signal about
   build-ahead-of-wire PACE — which the charter accepts and Phase 15 tracks — not a pile of dead code.
   **SPLIT MATERIALIZED 2026-07-20 — the remainder is a DECISION, not code.**
-- [?] **P15.4b — Walk the 79 untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
+- [?] **P15.4b — Walk the untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
+  **📊 NUMBERS UPDATED 2026-07-20 BY P15.7c — the earlier figures were a one-level scan and UNDERSTATED the pile.**
+  Dead modules **125 → 146** under transitive closure; **43 symbols** the one-level scan called wired are consumed
+  only by dead code. **Walk the closure numbers, not the old ones.**
+  **THE 21 NEWLY-DEAD MODULES, with origin commits (git-blame walk, as asked):**
+  | module | first commit | era |
+  |---|---|---|
+  | `repair-kernel.ts` | 2026-06-27 | §5.B |
+  | `action-plan-ir.ts`, `inference-levers.ts` | 2026-06-29 | §5.O / §5.AQ |
+  | `cache-friendly-arch.ts`, `context-compaction.ts`, `task-context-estimate.ts` | 2026-06-30 | §5.AQ |
+  | `cache-prefix-reuse.ts`, `claim-corroboration-requirement.ts`, `durable-job-critical-path.ts`, `failure-signature.ts`, `temporal-claim-consistency.ts` | 2026-07-01 | §5.AQ/§5.AC/§5.AF/§5.AA |
+  | `failure-hopelessness.ts` | 2026-07-02 | W4.4 |
+  | `citation-conflict-recency.ts` | 2026-07-03 | §5.AC |
+  | `basic-memory-provenance.ts`, `memory-audit.ts`, `reasoning-control.ts` | 2026-07-05 | §5.AR/§5.AW/§5.AA |
+  | `local-messages-api-shape.ts`, `local-native-chat-shape.ts`, `retrieval-recall-eval.ts` | 2026-07-08 | §5.AB/§5.I |
+  | `field-report-content.ts`, `nightly-invariant-pack.ts` | **2026-07-20** | P16.1 / N5 |
+  **⚠️ THE LAST ROW IS A DIFFERENT CATEGORY AND MUST NOT BE WALKED AS DROP CANDIDATES.** Both were built TODAY
+  and are unwired *by schedule*, with their wires already tracked as visible lines (P16.7b, and N7/the N5b
+  adapter). They are correctly flagged — the tool caught its own author's output, which is a point in its favour —
+  but "shipped hours ago with a named wire" and "shipped three weeks ago with none" are different situations.
+  **THE REAL SIGNAL IS THE DATE CLUSTER: 19 of 21 land in a 12-day window (2026-06-27 → 2026-07-08)** and none
+  acquired a consumer since. That is not 19 independent oversights; it is one working pattern — a burst of pure
+  cores written ahead of their wires, where the wires never followed. Worth a decision about the PATTERN, not just
+  a keep/drop verdict on 19 files.
   Regenerate with `nklein dev mechanism-doc`, then decide per module. **This cannot be automated away:** the
   charter's standard is LEARNING value, not consumer count, so "nothing calls it" is not sufficient grounds to
   delete — only David knows which cores still carry a lesson worth keeping. Deletions land in BATCHES with their
