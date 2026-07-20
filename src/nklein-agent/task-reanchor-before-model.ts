@@ -24,6 +24,12 @@ export const TASK_REANCHOR_MESSAGE_KIND = "kanban_task_reanchor";
 
 /** Cap the goal text we echo back so an unusually long original prompt can't blow the re-anchor block's budget. */
 const GOAL_REANCHOR_MAX_CHARS = 2_000;
+/**
+ * Payload size (tokens) above which this turn re-anchors regardless of cadence. Set where a payload is big enough
+ * to push the goal out of the model's effective attention — deliberately well below any context limit, because
+ * the burial effect is about POSITION, not about running out of room.
+ */
+export const PAYLOAD_REANCHOR_TOKENS = 2_000;
 
 /** Read the concatenated text of an AgentMessage's content (string or typed-part array); "" when there is none. */
 function readMessageText(message: { role?: string; content?: unknown }): string {
@@ -91,6 +97,18 @@ export interface DecideTaskReanchorInput {
 	/** How many turns must elapse between re-anchors (clamped to ≥ 1 by the cadence gate). */
 	everyNTurns: number;
 	/**
+	 * P18.2: tokens of PAYLOAD this turn is adding (a large tool result, retrieved documents, a pasted file).
+	 *
+	 * The cadence gate alone is not enough, and the evidence says why: "Lost in the Middle" measured a gold
+	 * document buried mid-context scoring **57.2% against a 56.1% CLOSED-BOOK baseline** — a buried document
+	 * contributes almost nothing. The same paper found query-aware contextualization (restating the task AFTER
+	 * the data as well as before) restored near-perfect retrieval. That effect is about THIS turn's payload, not
+	 * about elapsed turns: on a 6-turn cadence, five of every six large-payload turns would bury the goal with no
+	 * restatement at all. So a payload above {@link PAYLOAD_REANCHOR_TOKENS} fires the re-anchor regardless of
+	 * cadence. Absent/zero ⇒ cadence-only, exactly as before.
+	 */
+	payloadTokensThisTurn?: number;
+	/**
 	 * The current step / sub-task, if known — echoed into the block to situate the model. Optional; the immutable GOAL
 	 * itself is derived from the messages and never overridden by this.
 	 */
@@ -129,7 +147,11 @@ export function decideTaskReanchorForRequest(input: DecideTaskReanchorInput): De
 		nextLastReanchorTurn: input.lastReanchorTurn,
 	};
 
+	// P18.2: a large payload buries the goal THIS turn, so it overrides the cadence. Turn 0 is still excluded —
+	// there is nothing to re-anchor to before the goal has been stated once.
+	const largePayload = input.turnCount > 0 && (input.payloadTokensThisTurn ?? 0) >= PAYLOAD_REANCHOR_TOKENS;
 	if (
+		!largePayload &&
 		!shouldReanchor({
 			turnCount: input.turnCount,
 			lastReanchorTurn: input.lastReanchorTurn,

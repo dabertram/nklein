@@ -5334,12 +5334,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   treating it as a per-slot allocation — allocate task-sized context, which frees the KV memory that F12.75 just
   proved is the binding constraint on Apple Silicon. **DAVID-DECIDES: this touches prime directive #3, so it is
   not changed unilaterally.**
-- [ ] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
+- [~] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
   ratio in this phase).** "Lost in the Middle" (arXiv 2307.03172): with 20 documents, gold-doc-in-middle accuracy
   is **57.2% vs a 56.1% CLOSED-BOOK baseline** — i.e. a document buried mid-context contributes **almost nothing**.
   The same paper shows **query-aware contextualization** (repeating the query both before AND after the data)
   restores near-perfect key-value retrieval. !Klein assembles prompts with the task up front; appending a
   restatement after the payload is nearly free and is one of the few interventions with a measured fix attached.
+  **AUDIT + FIX 2026-07-20 — the mechanism EXISTED but was triggered on the wrong axis.**
+  F12.21's goal re-anchor already appends a `GOAL: … / CARD: … / step` block at the END of the request (after the
+  payload) and is wired live in the context-focus extension. **So the restatement was built; what was wrong is
+  WHEN it fires.** It was purely CADENCE-gated — every 6 turns calm, 3 under distress — while the evidence is
+  about THIS TURN'S PAYLOAD burying the goal, not about elapsed turns. **On a 6-turn cadence, five of every six
+  large-payload turns bury the goal with no restatement at all**, which is precisely the case "Lost in the
+  Middle" measured: a gold document buried mid-context scored **57.2% against a 56.1% CLOSED-BOOK baseline** —
+  i.e. contributed almost nothing.
+  FIXED: `decideTaskReanchorForRequest` now takes `payloadTokensThisTurn` and fires regardless of cadence at
+  ≥2,000 payload tokens (`PAYLOAD_REANCHOR_TOKENS`). Threshold set on POSITION, not capacity — burial is about
+  where the goal sits relative to the payload, not about running out of room. Turn 0 still never fires (nothing
+  to re-anchor to yet), and an absent/zero payload is byte-identical to the old cadence-only behaviour, pinned by
+  test. 4 new tests (15 in the module).
+  **This is a good argument for auditing before building:** the naive read of P18.2 was "add a restatement", which
+  would have produced a SECOND restatement mechanism alongside the one already wired. The actual defect was one
+  parameter.
+  REMAINING (P18.2b): pass real payload size at the call site — the extension must measure the tokens THIS turn
+  is adding (tool results, retrieved docs) and thread them in. Until then the payload trigger is inert and the
+  cadence path is unchanged, which is the safe default but does NOT yet deliver the measured win.
 - [x] **P18.3 — Prune distractors before compressing volume (PRUNER; P18.3b carries the wire).** Chroma "Context Rot" (18 models): **even ONE
   distractor degrades performance** vs. needle-only, non-uniformly per distractor; and LongMemEval focused
   (~300-token) prompts beat full (~113k-token) prompts by a wide margin. **Implication: compaction that shortens

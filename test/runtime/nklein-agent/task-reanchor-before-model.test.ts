@@ -3,6 +3,7 @@ import type { AgentMessage } from "../../../src/nklein-agent/sdk-agent-types";
 import {
 	decideTaskReanchorForRequest,
 	firstUserGoalText,
+	PAYLOAD_REANCHOR_TOKENS,
 	TASK_REANCHOR_MESSAGE_KIND,
 } from "../../../src/nklein-agent/task-reanchor-before-model";
 
@@ -157,5 +158,71 @@ describe("decideTaskReanchorForRequest", () => {
 		expect(result.appended).toBe(false);
 		expect(result.messages).toBe(noGoal);
 		expect(result.block).toBeNull();
+	});
+});
+
+describe("P18.2 payload-triggered re-anchoring", () => {
+	const messages = [
+		{
+			id: "1",
+			role: "user" as const,
+			content: [{ type: "text" as const, text: "Fix the login 500" }],
+			createdAt: 1,
+		},
+		{ id: "2", role: "assistant" as const, content: [{ type: "text" as const, text: "ok" }], createdAt: 2 },
+	];
+
+	it("fires on a large payload even when the cadence says no", () => {
+		// Lost in the Middle: a buried document scores ~ the closed-book baseline. On a 6-turn cadence, five of
+		// every six large-payload turns would bury the goal with no restatement.
+		const result = decideTaskReanchorForRequest({
+			messages,
+			turnCount: 1,
+			lastReanchorTurn: 1,
+			everyNTurns: 6,
+			payloadTokensThisTurn: PAYLOAD_REANCHOR_TOKENS,
+		});
+		expect(result.appended).toBe(true);
+		expect(result.block).toContain("GOAL:");
+	});
+
+	it("does NOT fire on a small payload — cadence still governs the ordinary turn", () => {
+		const result = decideTaskReanchorForRequest({
+			messages,
+			turnCount: 1,
+			lastReanchorTurn: 1,
+			everyNTurns: 6,
+			payloadTokensThisTurn: 10,
+		});
+		expect(result.appended).toBe(false);
+	});
+
+	it("never fires on turn 0 — there is no goal to re-anchor to yet", () => {
+		const result = decideTaskReanchorForRequest({
+			messages,
+			turnCount: 0,
+			lastReanchorTurn: null,
+			everyNTurns: 6,
+			payloadTokensThisTurn: PAYLOAD_REANCHOR_TOKENS * 10,
+		});
+		expect(result.appended).toBe(false);
+	});
+
+	it("is byte-identical to cadence-only behaviour when payload is absent", () => {
+		const withField = decideTaskReanchorForRequest({
+			messages,
+			turnCount: 6,
+			lastReanchorTurn: 0,
+			everyNTurns: 6,
+			payloadTokensThisTurn: 0,
+		});
+		const without = decideTaskReanchorForRequest({
+			messages,
+			turnCount: 6,
+			lastReanchorTurn: 0,
+			everyNTurns: 6,
+		});
+		expect(withField.appended).toBe(without.appended);
+		expect(withField.block).toBe(without.block);
 	});
 });
