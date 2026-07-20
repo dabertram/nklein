@@ -334,6 +334,31 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
+
+- **AN AUDIT'S OWN ARTEFACTS CONTAMINATE ITS INPUT — check the flattering result, not the alarming one.**
+  Hit FOUR times on 2026-07-20, in four different tools, each time producing a *better* number than reality:
+  1. `dev requirement-coverage` reported both known-half-wired requirements as GREEN — the tracked-requirement
+     map NAMES the symbols it audits, so it was their only "consumer". **The audit manufactured its own pass.**
+  2. N5's `terminal_lanes` reported *"all 3 invariant(s) satisfied"* for a cell with **no card data at all** —
+     "all 0 cards ended in done" is vacuously true.
+  3. The orphan scan counted that same map's strings as consumers, so an orphan count read **5 when it was 7**.
+     Worse, `dev unwired-cores` and `dev requirement-coverage` then **reported different truths about the same
+     codebase**, because only one of them excluded the map.
+  4. `dev capability-index` searched `src/core` ONLY (615 modules) while `src/commands` (23) was invisible, so
+     "does something already do X?" returned a confident NO about a command that already existed.
+  **THE COMMON SHAPE:** the tool's own output, config or coverage boundary becomes part of what it measures, and
+  the error always points the same way — toward *everything is fine*. There is no alarm for this: a green result
+  is what you were hoping for. **The only reliable trigger is a number that looks BETTER than expected.**
+  **RULES THAT WOULD HAVE CAUGHT ALL FOUR:**
+  - Exclude the audit's own artefacts from its input, explicitly and by default (not per-caller — two commands
+    disagreed precisely because one remembered and one did not).
+  - Seed every audit with a case that MUST come out red, and assert the failure. A first run that passes cleanly
+    is evidence the harness is wrong, not that the code is clean.
+  - Treat "no data" as `indeterminate`, never as a pass — at BOTH levels: the empty container AND the empty
+    contents. Guarding `resolvePack` against an empty pack did not guard against an empty board state.
+  - State the coverage boundary in the tool's own output. A checker that cannot see half the codebase must say
+    so, or its negative answers carry false authority.
+
 - **New root CLI launch flags MUST also be added to `shouldAutoOpenBrowserTabForInvocation` (`src/cli-invocation-parsing.ts`).**
   That classifier doubles as "is this a server launch": an argv token it doesn't recognize makes `run()` (cli.ts) treat the
   invocation as a subcommand and `process.exit` right after the command resolves — the server boots, prints "running at …",
