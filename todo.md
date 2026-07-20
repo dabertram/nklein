@@ -5399,8 +5399,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   watchdog tick timing, free-port probing): each is a test that passes when the machine is fast enough and fails
   when it is not. **It also means "18 clean runs" is NOT evidence of absence** — it is evidence that the
   reproduction conditions were absent, which is a different claim.
-  NEXT: reproduce UNDER LOAD rather than at idle (run `test:fast` while a drain or a parallel build occupies the
-  machine). Chasing it at idle is looking for a race in the condition where races do not happen.
+  **LOAD HYPOTHESIS TESTED AND NOT SUPPORTED (2026-07-20).** Two variants tried, both clean:
+  - **CPU saturation** — 17 busy loops on 18 cores, 3 runs: clean.
+  - **Concurrent suites** — two `test:fast` runs in parallel, the condition both observed failures shared: clean.
+  **23 clean runs now across three conditions** (18 idle + 3 loaded + 2 concurrent) since the last failure. So it
+  is neither simple CPU contention nor test-process contention.
+  **REMAINING SPECIFIC HYPOTHESIS — PORT COLLISION WITH A RUNNING DRAIN.** The nightly cells bind ports 4500+
+  for ~8 minutes each, and several were running during this session. If a unit test probes for a free port while
+  a drain holds one, that is exactly N4's `free-port probing` entry and would produce a rare, load-shaped failure
+  that CPU saturation cannot recreate — **the contended resource is a port, not a core.** ⚠️ NOT CONFIRMED: the
+  failure timestamps were not correlated against the drain windows at the time, and that correlation can no
+  longer be reconstructed.
+  NEXT: run `test:fast` in a loop WHILE a nightly drain occupies 4500+. If that reproduces it, the fix is
+  test-side port isolation (N4), not a retry.
+  **What this attempt is worth: it EXCLUDED the two obvious causes.** Recording exclusions matters as much as
+  recording the finding — otherwise the next person spends the same hour on CPU load.
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
