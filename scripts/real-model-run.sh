@@ -103,7 +103,7 @@ DRAIN_START=$(date +%s)
 
 # ─────────────────────────────── watch + react ───────────────────────────────
 board_signature(){  # cheap board state from the persisted json (NO api call): "col=count|col=count", non-empty cols only
-  local f; f=$(ls -t "$RUN_HOME"/.nklein/dev-workspaces/*/.nklein/nklein/workspace/board.json 2>/dev/null | head -1)
+  local f; f=$(ls -t "$RUN_HOME"/.nklein/nklein/workspaces/*/board.json 2>/dev/null | head -1)
   [ -z "$f" ] && return
   python3 - "$f" <<'PY' 2>/dev/null
 import json,sys
