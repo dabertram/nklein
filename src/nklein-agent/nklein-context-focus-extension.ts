@@ -23,6 +23,7 @@ import {
 	recordFileRead,
 	recordFileWrite,
 } from "../core/read-before-write-guard";
+import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import { DEFAULT_TOOL_CAP, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
@@ -460,12 +461,25 @@ export function createKanbanContextFocusExtension(
 						}[];
 						if (gateOffered.length > DEFAULT_TOOL_CAP) {
 							const gateTask = firstUserGoalText(finalResult?.messages ?? baseMessages) ?? "";
+							// F12.18b(a): supply the real alwaysKeep set so the OBSERVATION measures the configuration that
+							// would actually be enforced. Until now it passed none — measuring a gate that would drop even
+							// the tool a turn needs to FINISH. That drop rate is systematically worse than the enforcing
+							// one, and F12.18b gates its observe→enforce flip on exactly that number. **An observation
+							// that does not observe the enforcing configuration cannot license enforcement**, however many
+							// samples it accumulates.
+							//
+							// The union across roles is used rather than the per-role set: this seam does not know the
+							// card's role, and over-keeping here makes the observation CONSERVATIVE (it under-reports
+							// drops) rather than optimistic. Erring toward "the gate drops less than we measured" is the
+							// safe direction for a decision about whether dropping is safe.
+							const alwaysKeep = allAlwaysKeepToolNames();
 							const gated = gateToolCatalog({
 								tools: gateOffered.map((tool) => ({
 									name: tool.name,
 									description: tool.description ?? null,
 								})),
 								taskText: gateTask,
+								alwaysKeep,
 							});
 							recordSelfObservation({
 								signal: "custom",
@@ -477,6 +491,12 @@ export function createKanbanContextFocusExtension(
 									wouldKeep: gated.selected.length,
 									wouldDrop: gated.dropped.length,
 									arbitrary: gated.arbitrary,
+									// Recorded so a later reader can tell WHICH configuration produced this drop rate —
+									// an observation whose configuration is unknown cannot be compared with a later one.
+									alwaysKeepCount: alwaysKeep.length,
+									alwaysKeepPresent: alwaysKeep.filter((name) =>
+										gateOffered.some((tool) => tool.name === name),
+									).length,
 								},
 							});
 						}

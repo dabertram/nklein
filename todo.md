@@ -3159,6 +3159,28 @@ output and NOT acted on. Captured as F12.12.)
   so its schemas never enter the context — the same retrieval decision one turn earlier and strictly cheaper than
   narrowing after load. Registration-time change in `nklein-mcp-runtime-service`, composing with F12.31's surface
   pinning already at both registration sites.
+  **🔴 THE OBSERVATION WAS NOT MEASURING THE ENFORCING CONFIGURATION (found + fixed 2026-07-20).** This item says
+  *"do not flip on intuition — wait for the drop rate"*. **But the observe-only gate passed NO `alwaysKeep` at
+  all**, so it measured a gate that would drop even the tool a turn needs to FINISH. That drop rate is
+  systematically worse than the one enforcement would produce, and **an observation that does not observe the
+  enforcing configuration cannot license enforcement, however many samples it accumulates.** The data this item
+  was waiting on described a gate nobody would ever ship.
+  **PREREQUISITE (a) SHIPPED: `role-always-keep-tools.ts`, 10 tests, wired into the observation.** Per-role
+  terminal tools (`submit_review` / `attempt_completion` / `decompose_project`) plus a read tool — because
+  *"a relevance gate that drops the tool the agent needs to FINISH does not degrade the turn, it DEADLOCKS it"*.
+  **THE SET IS DELIBERATELY TINY (≤4 per role, asserted).** The gate exists because 40+ offered tools cause 62% of
+  tool-use failures and the target is ~7. **An `alwaysKeep` set that grows to cover "probably useful" tools
+  reinstates the problem while looking like safety.** Only two kinds qualify: tools without which the turn cannot
+  END, and the minimum read capability. Everything else is a preference and belongs to the gate's scoring, where
+  it can be outranked. Roles do NOT share terminal tools — keeping the union per-role would inflate every floor.
+  `assertTerminalToolPresent` names the case `alwaysKeep` cannot save: a catalog offering NO terminal tool at all
+  is a **HARNESS misconfiguration**, and gating would proceed innocently while the resulting deadlock got blamed
+  on the gate.
+  The observation now records `alwaysKeepCount`/`alwaysKeepPresent` so a later reader can tell WHICH configuration
+  produced a drop rate — an observation whose configuration is unknown cannot be compared with a later one.
+  ⚠️ The union across roles is used at this seam (it does not know the card's role), which makes the observation
+  CONSERVATIVE — it under-reports drops. Erring toward *"the gate drops less than we measured"* is the safe
+  direction for a decision about whether dropping is safe.
 - [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
