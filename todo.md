@@ -5413,6 +5413,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     latency is still uncaptured. Closing it needs an SDK-level per-request hook that may not exist — **there is
     no single chokepoint through which every model request passes** (LocalLlmClient, KleinCoreClient and the
     agent's own SDK loop are separate transports), so this is a design question, not a missing line.
+    🔁 **AND I RE-CHECKED THE "hardcoded null totalTokens/reasoningTokens" SUB-CLAIM 2026-07-20 — it was HALF
+    wrong, caught by tracing the consumer instead of trusting the note.** `totalTokens` being null in the
+    `applyModelStatsTrackingLevel` input is NOT a gap: `gatedUsage.totalTokens` is never read — the run-summary
+    recorder recomputes total inline from prompt+completion, and the ledger attempt event stores prompt+completion
+    (total is trivially derivable). I started to "fix" it by deriving `total = prompt + completion` there, then
+    reverted on finding nothing consumes the field — **a dead change dressed as a fix is the exact self-flattering
+    motion this whole item is about.** The comment at the site now documents why it's left null. The ONLY genuine
+    missing datum is `reasoningTokens`: `extractCompletionUsage` (F4.12) already parses it, but the SESSION path
+    `readSessionUsage` does not, and `RuntimeTaskSessionUsage` carries no reasoning field — so closing it is a
+    real API-contract change whose wire spelling must be verified against a reasoning model's usage, not guessed.
   - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
     `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
     through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and

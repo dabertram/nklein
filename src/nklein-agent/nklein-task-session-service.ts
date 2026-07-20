@@ -3195,6 +3195,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// §5.AN decision-9: gate the recorded token telemetry by the configured level (full ⇒ as-is; basic ⇒ totals only;
 		// off ⇒ suppress token stats, the attempt OUTCOME is still recorded). Applied ONCE so both recorders below (the
 		// run-summary and the ledger attempt event) use the gated values.
+		// N18 note: `totalTokens`/`reasoningTokens` are null in THIS input, but that is not the gap it first looked
+		// like — checked 2026-07-20. `gatedUsage.totalTokens` is never READ: the run-summary recorder recomputes
+		// total inline from prompt+completion, and the ledger attempt event records prompt+completion (from which
+		// total is trivially derivable) and no separate total. Filling `totalTokens` here changes nothing
+		// observable, so it is left null rather than dressed up as a fix. `reasoningTokens` is the only genuinely
+		// missing datum, and it needs `readSessionUsage` to carry a reasoning field with the wire spelling
+		// verified against a real reasoning model — not guessed.
 		const gatedUsage = applyModelStatsTrackingLevel(this.modelStatsTrackingLevel, {
 			promptTokens: usage?.inputTokens ?? null,
 			completionTokens: usage?.outputTokens ?? null,
