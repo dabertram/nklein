@@ -37,7 +37,7 @@ research phase, not code abandoned years ago.
 
 | module | purpose | origin | verdict |
 |---|---|---|---|
-| `rounds-budget.ts` | Learned ROUNDS BUDGET: when to stop iterating an enforced-reasoning loop (self-consistency / debate) once marginal gain plateaus | 2026-07-05 `feat(reasoning-loop)` | **UN-ORPHAN** |
+| `rounds-budget.ts` | Learned ROUNDS BUDGET: when to stop iterating an enforced-reasoning loop (self-consistency / debate) once marginal gain plateaus | 2026-07-05 `feat(reasoning-loop)` | **✅ DE-ORPHANED 2026-07-20** via `dev rounds-budget` (production wire — per-round early-stop in the model-gated execution loop — remains) |
 | `diagnostic-oracles.ts` | Hidden-split + repeat-run verdict cores that upgrade the dev-test rail from pass/fail gates to *diagnoses* | 2026-07-08 `feat(oracles)` | **✅ DE-ORPHANED 2026-07-20** via `dev diagnose` |
 | `swarm-roster-load-plan.ts` | Resolves user roster names/ids to real LM-Link devices before `model-lab` performs a load | 2026-07-09 `feat(fleet)` | **UN-ORPHAN** |
 | `fleet-host-cap-config.ts` | Per-host verifier caps from LM-Link device state | 2026-07-09 `test(fleet)` | keep, low priority |
@@ -67,9 +67,10 @@ misleading; an unused 40-line pure helper with tests is not the maintenance burd
 ## Standing recommendation
 
 **Nothing here warrants deletion today.** The genuine orphan count (7) is small, three of them are worth wiring
-(**`diagnostic-oracles.ts` is now DONE — `dev diagnose` de-orphaned it 2026-07-20**, applying its hidden-split
-and repeat-run verdicts to captured test results; `rounds-budget.ts` and `swarm-roster-load-plan.ts` remain, both
-awaiting the reasoning-loop and second-runtime-adapter wires their docblocks name), and the other four are cheap. The 119-module figure is a real signal about *build-ahead-of-wire* pace — which the
+(**two of the three now have consumers — `dev diagnose` de-orphaned `diagnostic-oracles.ts` and `dev
+rounds-budget` de-orphaned `rounds-budget.ts` on 2026-07-20**; `rounds-budget`'s production per-round early-stop
+still needs the model-gated execution loop, and `swarm-roster-load-plan.ts` remains, awaiting the
+second-runtime-adapter wire its docblock names), and the other four are cheap. The 119-module figure is a real signal about *build-ahead-of-wire* pace — which the
 charter already accepts and Phase 15 already tracks — not a pile of dead code.
 
 Re-run `nklein dev mechanism-doc` for the current scan; re-run this triage when the untracked count grows.

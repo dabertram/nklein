@@ -62,6 +62,7 @@ import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
+import { runDevRoundsBudgetCommand } from "./dev-rounds-budget-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevServedContextCommand } from "./dev-served-context-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
@@ -1128,6 +1129,32 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { splits?: string; repeats?: string; json?: boolean }) => {
 			await runDevDiagnoseCommand(options);
 		});
+	dev.command("rounds-budget")
+		.description("How many reasoning rounds is a loop worth, and when should it stop? (rounds-budget core.)")
+		.option("--learn <csv>", "Per-round marginal improvements → the learned budget.")
+		.option("--decide", "Decide stop/continue for one round's state.")
+		.option("--rounds-done <n>", "Rounds already run (with --decide).")
+		.option("--max-rounds <n>", "Round budget/ceiling (with --decide).")
+		.option("--last-improvement <f>", "Marginal improvement of the most recent round (with --decide).")
+		.option("--min-improvement <f>", "Minimum improvement worth another round (default 0.02).")
+		.option("--converged", "A satisfactory result is already reached (with --decide).")
+		.option("--cap <n>", "Hard cap on the learned budget (with --learn, default 5).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			(options: {
+				learn?: string;
+				decide?: boolean;
+				roundsDone?: string;
+				maxRounds?: string;
+				lastImprovement?: string;
+				minImprovement?: string;
+				converged?: boolean;
+				cap?: string;
+				json?: boolean;
+			}) => {
+				runDevRoundsBudgetCommand(options);
+			},
+		);
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
 		.option("--json", "Print machine-readable JSON.")

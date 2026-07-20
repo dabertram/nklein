@@ -64,6 +64,7 @@ describe("dev command registration", () => {
 			"ledger-health",
 			"served-context",
 			"diagnose",
+			"rounds-budget",
 		]) {
 			expect(names.has(expected), `missing dev command: ${expected}`).toBe(true);
 		}
