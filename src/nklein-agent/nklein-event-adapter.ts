@@ -3,6 +3,7 @@
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { MODEL_USAGE_CATEGORY } from "../core/card-tracking-coverage";
+import { extractCompletionUsage } from "../core/completion-usage";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	readAgentEvent,
@@ -348,17 +349,30 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		// retry storm within one turn STILL reads as one expensive call. The metadata says `perTurn` so a reader
 		// cannot mistake this for request-level data.
 		if (latestUsage) {
+			// N18: reasoning tokens, when the server reports them. `readSessionUsage` (the RuntimeTaskSessionUsage
+			// path) carries no reasoning field, but the RAW usage object is right here, and `extractCompletionUsage`
+			// (F4.12) already knows where reasoning tokens live — `completion_tokens_details.reasoning_tokens` with a
+			// top-level fallback. That spelling is ESTABLISHED and tested, not guessed, so reusing it here fills the
+			// one genuinely-missing datum from the model_usage note without an API-contract change. Null when the
+			// server does not report it (most non-reasoning models), which is honest rather than a zero.
+			// `extractCompletionUsage` takes the RAW result (it reads `.usage` itself), NOT `result.usage` —
+			// `readSessionUsage` above takes the usage object directly, and passing the wrong one of the two here
+			// silently returns null forever. Caught by a test that asserted a known reasoning count comes through.
+			const reasoningTokens = extractCompletionUsage(result).reasoningTokens;
 			try {
 				recordSelfObservation({
 					signal: "custom",
 					severity: "info",
-					message: `Turn finished on ${taskId} (${status}): ${latestUsage.inputTokens} in / ${latestUsage.outputTokens} out.`,
+					message: `Turn finished on ${taskId} (${status}): ${latestUsage.inputTokens} in / ${latestUsage.outputTokens} out${reasoningTokens !== null ? ` (${reasoningTokens} reasoning)` : ""}.`,
 					taskId,
 					metadata: {
 						category: MODEL_USAGE_CATEGORY,
 						granularity: "perTurn",
 						inputTokens: latestUsage.inputTokens,
 						outputTokens: latestUsage.outputTokens,
+						// null, not omitted, when unreported: "the server did not say" is a different fact from
+						// "zero reasoning tokens", and a reader tuning reasoning budgets needs to tell them apart.
+						reasoningTokens,
 						modelId: entry.summary.modelId ?? null,
 						status,
 					},
