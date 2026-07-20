@@ -7109,6 +7109,18 @@ Each of the 15 is individually defensible: each has a named `b`-item, each was c
 index first, none duplicates an existing core. **That is precisely why this is worth recording — the failure
 does not announce itself at the level where the decisions are made.**
 
+**ACTED ON IMMEDIATELY, 15 → 12:** rather than write a 25th core, `dev evidence` was built and it wires THREE
+of the orphans (`threshold-provenance`, `null-agent-baseline`, `benchmark-fitness`). Verified by re-running the
+closure — all three now report WIRED.
+**It is a real surface, not a wire invented to clear an audit.** The three answer ONE operator question — *what
+does this project actually know?* — and grader integrity prints FIRST, because if the grader is forgeable the
+threshold table and benchmark list describe a measurement process that does not measure, and **a reader who sees
+the detail first has formed an impression before reaching the caveat.**
+The first run is itself a result: **`0/5 thresholds citable as measured`**, grader integrity `INDETERMINATE`
+("nothing has checked"), one benchmark rejected for two independent reasons. The command passes `null` for the
+unrun baseline deliberately — **hard-coding a zero to make the output look better would be the forgery the check
+exists to detect.**
+
 **Implications, not resolutions** (the fix is a David decision, not an agent's):
 - P15.4b's triage should treat today's 15 as their own cohort, distinguishable by date and by having named wires.
 - A rule worth considering: **no new pure core while more than N of one's own remain unwired.** It would have

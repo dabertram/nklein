@@ -42,6 +42,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
+import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
@@ -960,6 +961,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { module?: string; json?: boolean }) => {
 			await runDevUnwiredCoresCommand(options);
+		});
+	dev.command("evidence")
+		.description(
+			"What this project actually KNOWS: grader integrity (P20.1), threshold provenance (P18.5), benchmark fitness (P20.9).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevEvidenceCommand(options);
 		});
 	dev.command("requirement-coverage")
 		.description(
