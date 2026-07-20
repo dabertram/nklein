@@ -7219,8 +7219,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   cache costs prefill time, while being wrong about a working one costs an investigation that finds nothing.
   Per P18.5 the 2× bar and the 256-token floor are **OPERATIONAL DEFAULTS, not measurements**, and are labelled
   as such in the source.
-  REMAINING (P19.4b): the effectful probe — send the same prefix twice against a live endpoint and feed the two
-  timings in. Needs a running model; belongs with P17.1's adapter work.
+  **✅ DE-ORPHANED 2026-07-20 via `dev cache-check` — the detector no longer sits idle.** `--cold <log> --warm
+  <log>` reads llama.cpp output (the logs a run already produces — no live endpoint), takes the LAST prompt-eval
+  line in each, and prints the verdict. Live-exercised across all three: a 35.7× warm speed-up → **WORKING**; a
+  flag-set-but-1.04× case → **NOT_WORKING** (exit 1); a missing warm timing → **INDETERMINATE** (exit 0). **The
+  exit codes encode P19.4's whole principle: `not_working` fails a script, `indeterminate` does NOT** — a harness
+  gap must never fail a check that would then "fix" a cache never shown broken, which is #15082 in reverse. 4
+  wire tests pin the last-line reading and that a missing timing stays `indeterminate`.
+  REMAINING (P19.4b): the fully-effectful probe that ISSUES the two requests itself (rather than reading a
+  captured log) — send the same prefix twice against a live endpoint. Needs a running model; belongs with
+  P17.1's adapter. The detector and the log path are now consumed and exercised, so that probe feeds a proven
+  assessor.
 - [x] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
   server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
   **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion

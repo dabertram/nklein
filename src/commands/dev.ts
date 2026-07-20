@@ -40,6 +40,7 @@ import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
+import { runDevCacheCheckCommand } from "./dev-cache-check-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { runDevChurnCommand } from "./dev-churn-command";
@@ -1040,6 +1041,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { facts?: string; seed?: string; json?: boolean }) => {
 			await runDevCompactionFormatCommand(options);
+		});
+	dev.command("cache-check")
+		.description("Is this llama.cpp build actually reusing the prompt cache? (P19.4 — needs two real timings.)")
+		.option("--cold <log>", "llama.cpp output for the COLD run (first, uncached).")
+		.option("--warm <log>", "llama.cpp output for the WARM run (same prefix, should hit cache).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { cold?: string; warm?: string; json?: boolean }) => {
+			await runDevCacheCheckCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
