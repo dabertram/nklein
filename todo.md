@@ -1481,8 +1481,35 @@ These are known defects or incomplete migrations. Clear them before widening cap
   COMPLETE (core + router consult live, fail-open with the OVERRIDDEN label); live-profile skip validation +
   outcome-improvement measurement are FLEET runs (David's runtime also predates the wire — re-check after his
   next restart) → fleet queue. Crossed.
+- [x] **F3.8a — Measure the divergence BEFORE rewiring *(split from F3.8 2026-07-20)*.**
+  **SHIPPED: `retry-ladder-divergence.ts`, 9 tests.** `auditChatLadderAdoption()` compares the chat path's
+  live-tuned inline ladder against the engine's ladder per outcome and classifies every difference by direction.
+  **THE FINDING, AND IT INVERTS THE ITEM: adopting the engine on chat TODAY would be a REGRESSION, not a
+  refactor.** Chat's ladder encodes field observations the engine never learned:
+  - `raise_token_budget` — **MISSING_IN_ENGINE** for `no_tool_call`. Chat fires it FIRST there, because a
+    reasoning model can burn its whole budget on `reasoning_content` before emitting a call (qwen3-8b: 200
+    tokens on a trivial reply). The engine lists that rung only under `aborted`, so a literal adoption would,
+    **for the commonest failure mode, drop the cheapest live-validated recovery and reach for a costlier one.**
+  - `thinking_disable` — **INEXPRESSIBLE_IN_ENGINE.** Chat uses the model's own soft-switch to remove the ROOT
+    cause instead of paying for it (qwen3: reasoning 965 → 2 chars, call still landed). The engine's
+    `RetryStrategy` union has no name for this, so adoption would delete it **with nowhere to put it back.**
+  `aborted` is already clean — the engine covers chat and adds three rungs. **So the blocker is narrow and
+  precise: the `no_tool_call` ladder.**
+  Reorders count as blocking too, not cosmetically: chat's order is COST-RANKED (its truncation retry is
+  commented as *"the CHEAPEST first recovery"*), so a reorder spends more of a local model's time reaching the
+  same place.
+  ⚠️ `OBSERVED_CHAT_LADDERS` is **transcribed, not imported** — the adapter's ladder is imperative control flow,
+  so there is nothing to import and this table CAN drift from the code it describes. That drift is itself part of
+  what F3.8 should fix; it is recorded rather than left as a silent assumption.
 - [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
+  **RE-SCOPED 2026-07-20 BY F3.8a — this is NOT a wire yet, and treating it as one would delete field-earned
+  behaviour.** Two prerequisites, in order: (1) teach the engine `raise_token_budget` on the `no_tool_call`
+  ladder, ahead of `reduced_tool_set`; (2) add a `thinking_disable` rung to `RetryStrategy` (gated on
+  `supportsThinkingControl`) so the chat rung has somewhere to live. Only then does the rewire preserve behaviour.
+  **The gate is executable, not a reminder:** `auditChatLadderAdoption().safeToAdopt` must be true. The audit test
+  currently pins `false` and will FAIL when the engine catches up — that failure is the signal F3.8 became a wire.
+  Still needs the cross-model validation `retry-policy.ts` asks for, but the rewire is no longer blind.
   **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
 - [x] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
