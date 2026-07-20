@@ -2039,8 +2039,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   new fail-soft `buildSkillFragmentsNote` seam on ChatAgentTurnDeps (inserted as one system message after the
   target note; absent/empty/throwing resolver ⇒ byte-identical turn), plumbed through chat-service options, live
   binding in runtime-api via buildSessionSkillFragments(role "chat") + assemblePromptFragments (cache-stable
-  order preserved). 2 seam tests. REMAINING: jit-fragment-budget overflow capping still has zero consumers (wire
-  it in the same assembly calls board+chat now share).
+  order preserved). 2 seam tests.
+  **✅ THE "zero consumers" REMAINING NOTE WAS STALE — CORRECTED 2026-07-20 (verified against the code, not the
+  note).** `selectFragmentsWithinBudget` (the jit-fragment-budget capping) is imported AND called at
+  `nklein-session-skill-fragments.ts:182`, gated on `fragmentBudgetTokens !== undefined` — and BOTH assembly
+  callers now supply that budget: the chat path (`runtime-api.ts:393`, `1_500`) and the board/task path
+  (`nklein-task-session-service.ts:1864`, `min(2_000, contextWindow*0.08)`). So overflow capping is live on both
+  shared assembly calls; the residual audit line was mid-implementation residue that the wiring above it already
+  closed. A false gap sends someone to re-build what exists (N17/N18), so it is retired rather than left standing.
+  F4.17 is fully complete: one resolver, smart-zone order, overflow capping — all three clauses hold and are reached.
 - [x] **F4.18 — Add skill variation as a stuck-task rung.** Select a materially different validated procedure, track
   provenance/effect, and avoid retrying equivalent fragments.
 - [x] **F4.19 — Complete the `ProceduralSkillBank`.** Store validated procedures, applicability, version/hash, **RECORD+STORE DONE 2026-07-15:** procedural-skill-record.ts (ProceduralSkill model + pure ops) + procedural-skill-store.ts (snapshot-json CRUD + supersession + getCurrent, 4 tests). **RETRIEVAL-MATCHING CORE DONE 2026-07-16:** procedural-skill-retrieval.ts `matchProceduralSkills` (active+not-superseded only, tag-overlap ranked then helped-rate, minOverlap/limit) + `isRetrievableProceduralSkill`, 7 tests. **CONSUMER WIRE SHIPPED 2026-07-16:** `buildSessionSkillFragments` now surfaces matched ACTIVE procedures as prompt fragments behind `NKLEIN_PROCEDURAL_SKILLS` (default OFF = byte-identical) + empty-safe, via `deriveProceduralContextTags(role, taskText)` → `matchProceduralSkills` (injectable store loader for tests). 16 tests. **DISTILLATION PRODUCER SHIPPED 2026-07-16:** the bank is no longer write-empty. `procedural-skill-distillation.ts` (pure): `extractCompletedSteps` pulls a focus chain's `[x]` done steps; `distillProceduralSkill` turns a SUCCESSFUL task's completed steps into a ProceduralSkill — body = ordered steps, tags via `deriveProceduralContextTags(role, title+objective)`, stable id per (task, content) so re-distilling is idempotent, and it starts as `candidate` (NEVER active) so populating the bank can't push an unvalidated procedure into a live prompt. Conservative: distills only success + ≥2 done steps. 8 tests. `procedural-skill-producer.ts` `maybeDistillAndStoreProcedure` is the effectful bridge — gated on the SAME `NKLEIN_PROCEDURAL_SKILLS` flag as the consumer, distill→`upsertProceduralSkill`, best-effort. 4 tests. **PRODUCER CALL-SITE WIRED 2026-07-16:** `maybeDistillAndStoreProcedure` is now called in the terminal-attempt async
