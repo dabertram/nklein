@@ -226,6 +226,19 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: reported ONLY to the runtime log (weakly structured, no reliable timestamp, not
+		// countable), so "did the panel ever assemble, and with how many judges?" needed log archaeology — which
+		// is how it silently fell back to the single-reviewer path on the rig. Registered once measurable.
+		category: "review_panel_assembly",
+		item: "§5.AB",
+		observes:
+			"a review panel assembling, including when it comes out EMPTY — a thin panel is the failure worth catching",
+		enabledBy: "NKLEIN_REVIEW_PANEL",
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: this mechanism EMITTED NOTHING until an observation was added for it. Verified by
 		// reading the full guarded block — it spent an extra model round-trip per turn and left no trace, so
 		// enabling it produced no evidence it ran. Registered only after it became measurable.

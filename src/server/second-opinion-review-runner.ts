@@ -358,6 +358,31 @@ export async function runSecondOpinionReviewForTask(
 			input.warn?.(
 				`Review panel assembly for ${input.taskId}: ${panelJudges.length} judge(s) from ${descriptors.length} loaded descriptor(s) [${panelJudges.map((judge) => judge.judgeModelKey).join(", ") || "none"}]; nEyes=${isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW)}.`,
 			);
+			// F4.8b: the line above went only to the runtime log — weakly structured, no reliable timestamp, and
+			// impossible to COUNT. So "did the panel ever actually assemble, and with how many judges?" could only
+			// be answered by reading logs, which is how it silently fell back to the single-reviewer path on the rig
+			// in the first place. A structured observation makes the mechanism measurable and registerable.
+			//
+			// Recorded even when the panel comes out EMPTY: a thin or zero-judge panel is the failure worth
+			// catching, and emitting only on success would hide precisely that case.
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: panelJudges.length > 0 ? "info" : "warning",
+					message: `Review panel assembled for ${input.taskId}: ${panelJudges.length} judge(s) from ${descriptors.length} descriptor(s).`,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: {
+						category: "review_panel_assembly",
+						judges: panelJudges.length,
+						descriptors: descriptors.length,
+						judgeModelKeys: panelJudges.map((judge) => judge.judgeModelKey),
+						nEyes: isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW),
+					},
+				});
+			} catch {
+				// Telemetry must never break a review round.
+			}
 		} else {
 			input.warn?.(`Review panel assembly for ${input.taskId}: skipped (no descriptor fetch available).`);
 		}
