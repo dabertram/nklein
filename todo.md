@@ -5094,9 +5094,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   sandbox-path write site are defects independently of F12.35.
   **SCOPE IF CONFIRMED:** every ledger consumer shares this seam — F12.14 scaffold recommendation, F12.81
   exemplars, F3.7b behaviour profiles, the retry-note builder — and each degrades the same silent way.
-- [ ] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
+- [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
   `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
   generated document so the two failure modes appear side by side and neither can be mistaken for the other.
+  **SHIPPED 2026-07-20: `nklein dev mechanism-doc` → `docs/dev/mechanism-registry.md`, GENERATED, never
+  hand-maintained** (a hand-written registry rots the moment someone ships without updating it, which is exactly
+  when it would matter most). First generation, on live data:
+  · **44,623 observations across 27 categories**, exhaustive.
+  · **11 mechanisms**: 1 `enabled_but_silent` (`review_effort_scaling`, the real F12.35b defect), 5
+    `silent_but_exceptional` (breach/drift detectors — silence is evidence of HEALTH), 5 `never_enabled` (opt-in
+    flags off — zero is the CORRECT result). **Exactly one is actionable, and the document says which.**
+  · **894 orphaned exported symbols**, with the modules where EVERY export is orphaned listed, plus the
+    comment-only class called out separately (a plain `grep -c` reports those as wired).
+  The doc states in its own header that the two scans answer DIFFERENT questions — "is it wired?" vs "does it
+  fire?" — because mistaking one for the other sends the fix in the wrong direction, and closes by repeating that
+  an orphan is a QUESTION, not a verdict.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with
