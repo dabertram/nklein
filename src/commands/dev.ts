@@ -47,6 +47,7 @@ import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
+import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import {
@@ -959,6 +960,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { module?: string; json?: boolean }) => {
 			await runDevUnwiredCoresCommand(options);
+		});
+	dev.command("requirement-coverage")
+		.description(
+			"P15.7b: do ALL elements of a tracked requirement reach production? (a FAIL here is compatible with a green suite).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRequirementCoverageCommand(options);
 		});
 	dev.command("ai-bom")
 		.description("F12.100: render the AI Bill of Materials over the loaded fleet (licenses + verdicts).")

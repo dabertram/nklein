@@ -40,11 +40,24 @@ function walkSources(dir: string, out: string[] = []): string[] {
 	return out;
 }
 
-export async function runDevUnwiredCoresCommand(options: {
-	json?: boolean;
+/**
+ * Scan `src/core` exports and their non-test references. Extracted so P15.7b's `requirement-coverage` can reuse the
+ * SAME scan rather than growing a second one — two scanners would drift, and a requirement audit reading a
+ * slightly-different orphan set than the orphan report is worse than having neither.
+ */
+export function scanCoreSymbolReferences(options: {
 	module?: string;
 	roots?: readonly string[];
-}): Promise<void> {
+	/**
+	 * Files whose mentions must NOT count as consumption. Needed because P15.7b's tracked-requirement map NAMES the
+	 * symbols it audits, so without this the map manufactures the very evidence that the audit passes — a symbol
+	 * with no real consumer reads as wired purely because the audit declared it. Caught on the first live run.
+	 */
+	excludeFiles?: readonly string[];
+}): {
+	symbols: ExportedSymbol[];
+	referenceLines: Map<string, string[]>;
+} {
 	const coreDir = "src/core";
 	const coreFiles = readdirSync(coreDir).filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"));
 	const symbols: ExportedSymbol[] = [];
@@ -62,8 +75,12 @@ export async function runDevUnwiredCoresCommand(options: {
 	}
 
 	const roots = options.roots ?? ["src", "web-ui/src", "packages"];
+	const excluded = new Set(options.excludeFiles ?? []);
 	const referenceLines = new Map<string, string[]>();
 	for (const file of roots.flatMap((root) => walkSources(root))) {
+		if (excluded.has(file)) {
+			continue;
+		}
 		let text: string;
 		try {
 			text = readFileSync(file, "utf8");
@@ -87,6 +104,16 @@ export async function runDevUnwiredCoresCommand(options: {
 			}
 		}
 	}
+
+	return { symbols, referenceLines };
+}
+
+export async function runDevUnwiredCoresCommand(options: {
+	json?: boolean;
+	module?: string;
+	roots?: readonly string[];
+}): Promise<void> {
+	const { symbols, referenceLines } = scanCoreSymbolReferences(options);
 
 	const result = auditUnwiredCores({ symbols, referenceLines });
 	if (options.json) {

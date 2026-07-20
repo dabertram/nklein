@@ -5402,7 +5402,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   silently into a false pass the first time a caller was deleted — pinned by test.
   An EMPTY requirement spec FAILS rather than trivially passing (the `resolvePack` hazard from N5, again).
   The CLI + the tracked-requirement map are P15.7b.
-- [ ] **P15.7b — `dev requirement-coverage` + the tracked-requirement map *(split from P15.7 2026-07-20)*.**
+- [x] **P15.7b — `dev requirement-coverage` + the tracked-requirement map *(split from P15.7 2026-07-20)*.**
+  **SHIPPED 2026-07-20: `tracked-requirements.ts` + `dev-requirement-coverage-command.ts`; 10 tests.** Reuses
+  `dev unwired-cores`' scan via an extracted `scanCoreSymbolReferences` rather than growing a second one — two
+  scanners would drift, and an audit reading a slightly-different orphan set than the orphan report is worse than
+  having neither, because they would disagree with no way to tell which was right.
+  **🔴 THE FIRST LIVE RUN FAILED — the tool reported GREEN on both requirements already PROVEN half-wired.**
+  Root cause: **the tracked-requirement map NAMES every symbol it audits**, and the scan counts any non-test
+  mention as consumption. So `tracked-requirements.ts` was itself the only "consumer" of
+  `instruction-reanchor::buildReanchorReminder` and `adaptive-attempt-loop::runAdaptiveAttemptLoop` — **the audit
+  manufactured the evidence that it passes.** Fixed with an `excludeFiles` option; after it, both come out RED and
+  match the hand traces exactly (F4.8 `acceptance_criteria` and F3.8 `rung_selection`, both `built_but_unwired`).
+  **THIS IS WHY THE SEEDING RULE MATTERED.** The warning written into P15.7b BEFORE building it — *"seed the map
+  with requirements that must come out RED; a first run that passes cleanly is evidence the map is wrong"* — is
+  the only reason the bug was caught in minutes rather than shipping as a permanently-green audit. A map of
+  healthy requirements would have passed, proved nothing, and looked exactly the same. Pinned by a source guard.
+  ⚠️ **KNOWN LIMITATION, printed in the CLI output rather than buried: orphan-ness is NOT TRANSITIVE here.** A
+  symbol whose only consumer is ITSELF an orphan still counts as wired — which is why F3.8's `ladder_planning`
+  (`planNextAttempt`, consumed only by the orphaned `adaptive-attempt-loop`) reads green. The chain dead-ends one
+  level up and this scan cannot see it. Transitive closure is the obvious next increment.
+- [ ] **P15.7c — TRANSITIVE orphan closure *(split from P15.7b 2026-07-20)*.** Iterate the orphan set to a fixed
+  point: a symbol consumed only by symbols that are themselves orphaned is not wired. Live example already in the
+  map — `retry-policy::planNextAttempt` reads satisfied while its ONLY consumer, `adaptive-attempt-loop`, has zero
+  importers, so the requirement reads green on a chain that reaches no live path. Until this lands, every
+  `satisfied` from `dev requirement-coverage` means "has A consumer", NOT "reaches production".
   Walk the source for the orphan set (as `dev unwired-cores` already does), feed it `sweepRequirementCoverage`,
   and print the failing requirements. The judging is built; **the curation is the actual work** — deciding which
   backlog items get element-level specs, and writing their elements honestly.

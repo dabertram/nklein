@@ -91,3 +91,17 @@ describe("sweepRequirementCoverage", () => {
 		expect(sweep.summary).toContain("fully reach production");
 	});
 });
+
+describe("self-reference guard (P15.7b)", () => {
+	it("the CLI excludes the tracked-requirement map from the reference scan", async () => {
+		// THE BUG THIS PINS, caught on the first live run: the map NAMES every symbol it audits, so its own mentions
+		// counted as consumption. Both requirements known to be half-wired reported GREEN, because the map itself was
+		// their only "consumer" — the audit manufacturing the evidence that it passes.
+		// Seeding the map with requirements that MUST come out red is what surfaced it; a map of healthy
+		// requirements would have passed and proved nothing.
+		const { readFileSync } = await import("node:fs");
+		const source = readFileSync("src/commands/dev-requirement-coverage-command.ts", "utf8");
+		expect(source).toMatch(/excludeFiles/);
+		expect(source).toMatch(/tracked-requirements\.ts/);
+	});
+});
