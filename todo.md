@@ -5332,17 +5332,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     [clinical-medication-safety-platform-s00] handed to the controller and NOT started here
     (deferred set empty). If the controller does not dispatch them, nothing will.
   ```
-  **Startable cards are handed to the durable controller 41 times and the controller never dispatches them.**
-  22 cards end in `planning`. The rescue was handed over; nothing picked it up. **That is the bug, no longer a
-  theory.**
+  ⚠️ **CORRECTION, MADE WITHIN MINUTES OF THE CLAIM: "the controller never dispatches them" WAS WRONG.** The 41
+  warnings were read as 41 strandings; they are not. Counting properly:
+  ```
+  cards handed to the controller  : 33
+  of those, reached review-phase  : 19   ← the controller DID dispatch these
+  STRANDED (handed, never ran)    : 14
+  ```
+  **The controller dispatches MOST handed cards and strands a subset.** That is a different bug from "the
+  handover is a black hole", and a more interesting one: something distinguishes the 19 from the 14. A blanket
+  failure would have been easier to find and easier to fix.
+  The over-claim came from reading a warning COUNT as an outcome count — the warning fires when the sweep
+  declines, which is not the same as the controller failing. **Caught by checking one stranded card (`s00` turned
+  out to have progressed fine) rather than by accepting a conclusion that fitted.**
+  NEXT: diff the 19 dispatched against the 14 stranded — dependency depth, lane at handover, or lease state are
+  the obvious candidates. The evidence is retained and the trigger reproduces.
   It also resolves the ambiguity flagged earlier: `durable run owns discovery` means `hasRun` is TRUE, so the
   **"zero durable log lines" reading really was silence rather than absence** — treating it as disproof would
   have killed the correct hypothesis.
   **AND IT KILLS THE CONFOUND: run 5 FAILED, after the diagnostic commits.** The FAIL/FAIL/PASS/PASS pattern that
   looked like it might have been fixed is now FAIL/FAIL/PASS/PASS/FAIL — **the diagnostics changed nothing, as
   they should not have.** Not claiming a rate from 5 runs (P20.5/P20.6), but "possibly fixed" is now excluded.
-  NEXT: why the durable controller does not dispatch a card the sweep hands it. That is now a question about ONE
-  component with a reproducible trigger and 41 logged instances, rather than a hunt.
+  Still a question about ONE component with a reproducible trigger and a named cohort, rather than a hunt.
   **CONFIRMED 2026-07-20: TWO INDEPENDENT GUARDS BOTH DECLINE, so under a durable run the watchdog sweep CANNOT
   start a startable non-deferred card by any path.**
   1. `startRescueCandidates` (runtime-server.ts:1135) — under `hasRun`, restarts the deferred set only and
