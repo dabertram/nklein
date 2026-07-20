@@ -379,6 +379,15 @@ source repo went private — so if it vanishes the buildable source still lives 
   explicit §4A entry and a docblock restating it were all insufficient. **Treat "I am aware of this failure mode"
   as worth nothing; the only evidence is a planted failure that actually goes red.** Every audit added here must
   ship with its exclusion AND with a demonstrated red run, in the same commit.
+- **ALWAYS write commit messages with `git commit -F <file>`, never `-m "…"`.** Backticks and `$(…)` inside a
+  double-quoted `-m` are SHELL-SUBSTITUTED: zsh runs them and silently drops the text. Hit twice on 2026-07-20 —
+  once aborting the commit outright (`command not found: unknown`), once **silently deleting a word from a
+  pushed message** ("gates the presence of an ␣ TOOL"). The first failure is loud; the second is not, and it
+  corrupts the permanent record of WHY a change was made. Since these messages routinely quote identifiers, a
+  message file is the only safe form.
+  ⚠️ Related trap in the same session: `git commit … ; git push && echo PUSHED` printed **PUSHED after the commit
+  had FAILED**, because `;` ignores the exit status and the push succeeded at pushing nothing new. Chain with
+  `&&`, or verify with `git log -1` before believing it.
 - **A UI harness needs a CONTROL, and the control must be shown to FAIL.** U1c verified the scroll-anchor hook in
   a real browser. The first watched element was one of the collapsing blocks — whose own top cannot move — so the
   control reported a reassuring **0px of movement with anchoring switched OFF**, and would have certified a
