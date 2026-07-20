@@ -6253,7 +6253,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   deterministic handoff, and peer gossip at a **120 s default** with no assignment-specific fallback. **!Klein's
   multi-machine fleet routing has the same shape. Audit for double-claim before it bites.** Their fix: a central
   claim table with `INSERT … ON CONFLICT … WHERE <precondition>` plus epoch bumping.
-- [ ] **P21.6 — "One task = one context window = one PR" as a hard sizing invariant.** Backlog.md's framing is
+- [~] **P21.6 — "One task = one context window = one PR" as a hard sizing invariant.**
+  **CORE SHIPPED 2026-07-20: `task-sizing-invariant.ts`, 11 tests.** `decideTaskSizing` takes both ceilings and
+  reports which one BINDS; `requiredSplitCount` says how many pieces satisfy both.
+  **THE ASYMMETRY THAT MAKES THIS MORE THAN A `Math.min`.** Exceeding the model ceiling degrades output and the
+  system NOTICES — quality drops, retries fire, the ladder escalates. Exceeding the review ceiling degrades
+  *review*, and the system notices **nothing**: the diff still applies, the tests still pass, the PR still merges.
+  It fails silently, on the side where the consequences are least recoverable, because unreviewed code is how
+  defects reach main.
+  **So the binding constraint is reported BY NAME, not as a boolean** — the remedies are disjoint. A model-context
+  overrun answers to compaction, retrieval, or a larger-context model. A review-capacity overrun answers ONLY to
+  making the task smaller. A bare "too big" would let someone reach for the wrong lever, and **the wrong lever
+  here is the one that is always available.** Pinned: a 2M-token context does not rescue a 5,000-line diff.
+  **Review capacity is a property of the REVIEWER and is never derived from the model** — that substitution is
+  precisely what the invariant forbids, since a bigger model does not make a person able to read more code. This
+  is the half F12.110's depth-target work does not cover: every context-window increase loosens ceiling 1 and
+  **leaves ceiling 2 exactly where it was**, which is how a system ends up emitting 4,000-line changes nobody
+  reads, each individually justified.
+  An UNKNOWN ceiling reads as NO room, not infinite room; `requiredSplitCount` returns the honest minimum of 2
+  rather than fabricating a precise-looking number from it, and never returns 0 (which would read as "do not do
+  it" rather than "no split needed").
+  REMAINING (P21.6b): the wire — feed real diff-size estimates + a configured review capacity at decompose time,
+  and enforce the split. Needs a review-capacity SETTING, which is a product decision (DAVID BATCH).
+ Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
   review the SPEC, review the PLAN (before any code), review the CODE — are unenforced discipline; !Klein can
