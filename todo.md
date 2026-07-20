@@ -1212,10 +1212,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   approval can't apply). Control channel: `getPendingHostActionConfirms`/`resolveHostActionConfirm` tRPC; UI: a
   globally-mounted `HostActionConfirmDialog` polls + renders action/target + approve/deny (round-trip Playwright +
   bridge/classify unit tests). Broker-off path stays byte-identical (`resolveChatToolConfirmation` still `allow`-only).
-  REMAINING: five-field enrichment (thread `describeHostActionConfirmation`'s scope/consequence/duration through the
-  queue entry — today the dialog shows the two identity fields action+target), grant surfacing/revocation in the UI,
-  and the SWARM-side escalation park (a denied protected action parks the card with the explanation via the attention
-  path instead of burning retries).
+  **✅ FIVE-FIELD ENRICHMENT SHIPPED 2026-07-20.** `describeHostActionConfirmation`'s scope/consequence/duration/
+  headline now thread through the queue entry to the dialog — computed ACCURATELY from `tool.actionKind` (the
+  confirm callback already receives `(call, tool)`, so no name→kind re-derivation that could mislabel a security
+  prompt) at the park site in `chat-agent-tool-deps-resolver.ts`, carried as OPTIONAL fields on
+  `HostActionConfirmRequest`/`PendingHostActionConfirm`, admitted by `runtimeHostActionConfirmPendingSchema` (the
+  zod output gate — the load-bearing spot; unadmitted fields would be silently stripped), and rendered as
+  Where/Effect/Lasts rows in `host-action-confirm-dialog.tsx` (each guarded, so a describer-less/older entry
+  degrades to action+target unchanged). **The enrichment is DISPLAY-ONLY and deliberately excluded from the
+  confirm binding** — `resolve` still matches only (attemptId, sessionId, action, target), so a description that
+  differs or is absent between enqueue and resolve can never make an approval apply to the wrong action; a comment
+  at the bound check and a dedicated test both pin this (an approval carrying only identity fields still applies to
+  an entry parked WITH a description). 2 new queue tests (passthrough + binding-independence); backend+web-ui tsc
+  green; 11659 fast tests pass.
+  REMAINING: grant surfacing/revocation in the UI, and the SWARM-side escalation park (a denied protected action
+  parks the card with the explanation via the attention path instead of burning retries).
 - [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
   `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:
   resolutions BOUND to attempt+target+role (any mismatch applies to NOTHING — the pending attempt keeps waiting

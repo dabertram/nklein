@@ -11,6 +11,7 @@ import {
 } from "../../chat/chat-board-tools";
 import { createBrowserTools } from "../../chat/chat-browser-tool";
 import { createCommandRunTool } from "../../chat/chat-command-tool";
+import { describeHostActionConfirmation } from "../../chat/chat-confirmation-description";
 import { recordChatEgressAttempt } from "../../chat/chat-egress-attempt-audit-store";
 import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
@@ -241,7 +242,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
 			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —
 			// otherwise it's denied. Other confirm-gated actions stay denied for now (no web-ui confirm dialog yet).
-			confirm: async (call) => {
+			confirm: async (call, tool) => {
 				const verdict = classifyChatToolConfirmation({
 					name: call.name,
 					command: call.arguments.command,
@@ -260,11 +261,23 @@ export function buildChatAgentToolDepsResolver(input: {
 				// With the broker OFF it stays byte-identical (blocked), so the default path can never change behavior.
 				if (verdict === "confirm" && capabilityBrokerEnabled) {
 					const target = String(call.arguments.command ?? call.arguments.path ?? call.arguments.url ?? call.name);
+					// F2.12b: enrich the parked confirmation with WHAT approving does and for how long, computed from the
+					// tool's OWN actionKind (not re-derived from the name) so the operator's dialog is accurate. These are
+					// DISPLAY-ONLY — the confirm binding stays the four identity fields (see host-action-confirm-queue).
+					const description = describeHostActionConfirmation({
+						toolName: call.name,
+						actionKind: tool.actionKind,
+						args: call.arguments,
+					});
 					return await awaitHostActionConfirmation({
 						attemptId: `${session.id}:${call.id}`,
 						sessionId: session.id,
 						action: call.name,
 						target,
+						scope: description.scope,
+						consequence: description.consequence,
+						duration: description.duration,
+						headline: description.headline,
 					});
 				}
 				return false;

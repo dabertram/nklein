@@ -23,6 +23,18 @@ export interface HostActionConfirmRequest {
 	action: string;
 	/** The least-scope target the operator is approving (the exact command / path / host); never secrets. */
 	target: string;
+	/**
+	 * F2.12b DISPLAY-ONLY enrichment (scope / consequence / duration / headline, from describeHostActionConfirmation).
+	 * These let the operator's dialog say WHERE the action acts, WHAT approving does, and HOW LONG the approval sticks
+	 * — but they are DELIBERATELY excluded from the confirm binding: {@link HostActionConfirmQueue.resolve} matches
+	 * ONLY (attemptId, sessionId, action, target), so a description that differs (or is absent) between enqueue and
+	 * resolve can never make an approval apply to the wrong action, and it never weakens the fail-closed contract.
+	 * Optional so every existing caller/test stays valid and a describer-less path degrades to action+target.
+	 */
+	scope?: string;
+	consequence?: string;
+	duration?: string;
+	headline?: string;
 }
 
 export interface PendingHostActionConfirm extends HostActionConfirmRequest {
@@ -100,6 +112,9 @@ export function createHostActionConfirmQueue(): HostActionConfirmQueue {
 			if (isExpired(entry, now)) {
 				return "expired";
 			}
+			// The binding is EXACTLY the four identity fields — never the F2.12b display fields (scope/consequence/
+			// duration/headline). Folding a display field in here would let a stale description silently void an
+			// otherwise-valid approval; keeping them out is what makes the enrichment safe to add.
 			const bound =
 				entry.pending.sessionId === decision.sessionId &&
 				entry.pending.action === decision.action &&

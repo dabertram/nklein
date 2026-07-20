@@ -74,6 +74,26 @@ export function HostActionConfirmDialog(): React.ReactElement | null {
 						<span className="shrink-0 text-text-tertiary">Target</span>
 						<span className="min-w-0 break-all font-mono text-text-primary">{current.target}</span>
 					</div>
+					{/* F2.12b: the describeHostActionConfirmation enrichment — WHERE it acts, WHAT approving does, how
+					    LONG approval sticks. Render each only when present (older/describer-less entries omit them). */}
+					{current.scope ? (
+						<div className="mt-1 flex min-w-0 gap-2">
+							<span className="shrink-0 text-text-tertiary">Where</span>
+							<span className="min-w-0 break-words text-text-primary">{current.scope}</span>
+						</div>
+					) : null}
+					{current.consequence ? (
+						<div className="mt-1 flex min-w-0 gap-2">
+							<span className="shrink-0 text-text-tertiary">Effect</span>
+							<span className="min-w-0 break-words text-text-primary">{current.consequence}</span>
+						</div>
+					) : null}
+					{current.duration ? (
+						<div className="mt-1 flex min-w-0 gap-2">
+							<span className="shrink-0 text-text-tertiary">Lasts</span>
+							<span className="min-w-0 break-words text-text-primary">{current.duration}</span>
+						</div>
+					) : null}
 				</div>
 				<p className="mb-0 mt-2 text-[12px] text-text-tertiary">
 					Approve to let it run this once, or deny to block it. No response denies it automatically.

@@ -342,6 +342,14 @@ export const runtimeHostActionConfirmPendingSchema = z.object({
 	target: z.string(),
 	requestedAt: z.number(),
 	expiresAt: z.number(),
+	// F2.12b DISPLAY-ONLY enrichment (from describeHostActionConfirmation): what approving does and for how long.
+	// Optional because they are NOT part of the confirm binding — resolve matches only attemptId+sessionId+action+
+	// target, so a missing/differing description can never make an approval apply to the wrong action. Older entries
+	// (or callers that don't compute a description) simply omit them and the dialog falls back to action+target.
+	scope: z.string().optional(),
+	consequence: z.string().optional(),
+	duration: z.string().optional(),
+	headline: z.string().optional(),
 });
 export type RuntimeHostActionConfirmPending = z.infer<typeof runtimeHostActionConfirmPendingSchema>;
 
