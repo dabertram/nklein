@@ -5377,6 +5377,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   board says `completed`. **A stale assertion is the comfortable answer, so it is the one to check hardest.**
   The evidence is now retained: `seed-monitor.log` in the cell's kept HOME carries the full `finalCounts`.
 
+- [ ] **N12 — An INTERMITTENT failure in `test:fast` — observed, not yet identified *(found 2026-07-20)*.**
+  One run of `npm run test:fast` reported `1 failed | 11401 passed (11402)`. **Nine subsequent runs were clean**,
+  and repeated attempts to capture the failing test's identity did not reproduce it — so the rate is roughly
+  1-in-6 or rarer and the test is UNKNOWN.
+  **Recorded rather than dismissed, deliberately.** "It passed on the retry" is how a real intermittent bug
+  becomes invisible, and this session has already spent hours on a nondeterministic drain (N7d) that a green
+  re-run would have buried. A flake in the unit suite is also more alarming than one in a drain: **`test:fast`
+  is the gate every commit passes through**, so an intermittent failure there is both a false-red generator and
+  proof that something in the suite is not hermetic.
+  Possible relatives already known: N4 lists the non-hermetic sources (real gateway reads, `lms ps`, `Date.now`
+  damping windows, watchdog tick timing, free-port probing) — any of those in a unit test would produce exactly
+  this. **Do not close this by re-running until green.**
+  NEXT: run `test:fast` in a loop capturing full output to a file until it reproduces, then name the test.
+
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
@@ -6238,11 +6252,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   went green.
   REMAINING (P18.5b): produce a REAL measurement for at least one entry and flip it to `measured` with a genuine
   sample. Needs nightly/eval-harness runs — and per P20.6's arithmetic, enough TASKS rather than enough repeats.
-- [ ] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
+- [~] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
   models performed BETTER on shuffled haystacks than on logically coherent ones.** If coherent structure is a
   liability for retrieval, then a well-written narrative summary — the standard compaction artifact, and what
   !Klein produces — is not self-evidently the right format. Nobody has measured this. Cheap to A/B in the eval
   harness (narrative summary vs. bullet-list of facts vs. shuffled fact list) and potentially a free win.
+  **FORMAT CORE SHIPPED 2026-07-20: `compaction-format.ts`, 10 tests.** Renders one fact set three ways —
+  `narrative` (today's default, and the one under suspicion), `fact_list`, `shuffled_facts` (the Chroma
+  condition) — so the A/B is cheap rather than hypothetical.
+  **EVERY ARM PRESENTS THE SAME FACTS; ONLY ARRANGEMENT DIFFERS.** An arm that dropped or added a fact would
+  measure summarisation QUALITY while claiming to measure STRUCTURE — the one confound that would invalidate the
+  whole experiment. Pinned by test across all three arms.
+  **THE SHUFFLE IS SEEDED, AND THAT IS NOT A DETAIL.** An unseeded shuffle makes every run a different treatment,
+  so a difference between runs could not be attributed to the FORMAT rather than to the draw — **the comparison
+  would produce numbers and no knowledge.** Seeded, `shuffled_facts` is one stable condition that can be re-run,
+  and arms can be compared PAIRED (P20.6: ~5× sample-size saving, free). A separate test asserts the shuffle
+  actually de-coheres: a "shuffle" returning source order would silently make the Chroma arm a duplicate of
+  `fact_list`, and the A/B would report no difference for the most boring possible reason.
+  **IT SHIPS NO DEFAULT PREFERENCE, deliberately.** The entire content of this item is that **nobody has measured
+  this**, so a module quietly recommending `fact_list` on the strength of one surprising paper would be doing
+  what the item warns against, with an extra step. The arms are equals until the harness says otherwise — and
+  whatever it says is subject to P18.5's provenance rules.
+  The narrative arm is deliberately PLAIN prose: an elaborately-written arm would confound "coherent structure"
+  with "better writing", and the hypothesis under test is about the former.
+  REMAINING (P18.6b): run the A/B in the eval harness. Needs model time.
 
 ### Phase 19 — Prompt-cache discipline (prefill is the hidden cost on consumer hardware)
 
