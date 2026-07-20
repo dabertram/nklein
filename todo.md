@@ -7250,7 +7250,7 @@ This map preserves the old enumeration as a lookup aid; it is not a second queue
 
 ## 7. Backlog accounting and forecast
 
-### ⚠️ 15 OF 24 CORES SHIPPED ON 2026-07-20 ARE ORPHANED — measured, not estimated
+### ⚠️ CORES SHIPPED 2026-07-20: 25 written, 15 initially orphaned, **7 still orphaned after two wiring passes**
 
 Ran P15.7c's own transitive closure over this session's output. Of **24 cores written today, 15 are fully
 orphaned** — no live consumer, by the same measure that condemned the 19-module cluster P15.4b is triaging.
@@ -7278,7 +7278,21 @@ Each of the 15 is individually defensible: each has a named `b`-item, each was c
 index first, none duplicates an existing core. **That is precisely why this is worth recording — the failure
 does not announce itself at the level where the decisions are made.**
 
-**ACTED ON IMMEDIATELY, 15 → 9 (measured after each pass, not estimated):**
+**FINAL COUNT, RE-MEASURED AFTER EVERY PASS: 15 → 12 → 9 → 7.** Three wiring surfaces were built rather than a
+25th core: `dev evidence` (threshold provenance + grader integrity + benchmark fitness), `dev experiment-design`
+(power + comparability + ABBA ordering), and `dev gates` (F3.8's and F4.8's executable preconditions). Each
+answers ONE operator question that genuinely needed all of its cores — none is a wire invented to clear an audit.
+⚠️ **AND THE 5 I NEARLY REPORTED WAS WRONG.** `tracked-requirements.ts` names core symbols as STRINGS, and the
+general orphan scan counted those as consumers — so two cores read as wired because an audit map mentioned them.
+**5 was the flattering number; 7 is the true one.** Fixed by excluding the map unconditionally (P15.1), which
+also reconciled `dev unwired-cores` with `dev requirement-coverage` — until then **the two commands reported
+different truths about the same codebase.**
+The remaining 7 (`task-sizing-invariant`, `no-op-ablation`, `off-track-intervention`, `compaction-format`,
+`prompt-cache-verification`, `post-acceptance-churn`, `resident-set-recommendation`) each need what their
+`b`-item says: a live run, model time, or a David decision. **Inventing surfaces for those would be the
+audit-clearing wire this note exists to warn against.**
+
+**ACTED ON (superseded detail, kept for the trail): 15 → 9 (measured after each pass, not estimated):**
 `dev experiment-design` wires three more (`minimum-detectable-effect`, `harness-card`, `ab-trial-ordering`) —
 the three questions asked at ONE moment, when an experiment is designed. Each failure mode they catch **produces
 a result rather than an error**, which is what makes them expensive: an underpowered comparison returns
