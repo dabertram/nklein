@@ -5185,8 +5185,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (smoke 3s, 02 20s, 01 90s) reordered the run to smoke → 02 → 01 with unmeasured cells last, exactly as N6
   specifies. `planNightlySchedule` throws `CoverageWeakenedError` rather than dropping a cell, so this reordering
   cannot silently shrink the suite.
-  REMAINING: the `test:nightly` entry, and the N5b real-drain adapter (so invariant PACKS get evaluated per cell
-  rather than only the coarse pass/fail outcome — the packs exist and are still unread by the runner).
+  **PACK EVALUATION WIRED 2026-07-20 — and it immediately found a bug in N5 itself.**
+  `nightly-manifest.json` had named `core-invariants` since N1 shipped and **nothing defined it**; the name
+  resolved to nothing and the runner never looked it up, so every cell was judged on "did the drain exit
+  non-zero?" rather than on what finishing properly means. `nightly-pack-registry.ts` now defines it, and
+  `resolvePack` returning `null` for an unregistered name is what makes a typo visible instead of silently
+  asserting nothing. Four of today's cores now have live consumers.
+  **🐛 THE BUG THE WIRE EXPOSED, in code written this morning:** the first real evaluation reported *"all 3
+  invariant(s) satisfied"* for a cell with **no card data at all**. `terminal_lanes` was passing VACUOUSLY —
+  "all 0 cards ended in done" is trivially true. That is the exact empty-pack hazard `resolvePack` refuses,
+  **reappearing one level down: in the STATE rather than in the pack.** Guarding the pack and not the state left
+  the same hole open. Fixed: zero observed cards is now `indeterminate`, pinned by test.
+  **`subscriptions: []` IS THE HONEST WIRE, NOT A STUB.** The runner observes exactly one thing — the
+  unmatched-request count it greps from stdout. It subscribes to no board lanes and no gate/guard signals, so
+  N5b's refusal to derive `watchedSignals` from the pack makes that surface as `indeterminate` rather than as a
+  pass. **The nightly now reports how little it actually checks**, which is the correct starting state: signals
+  join a pack when the collector can genuinely observe them, never in advance of that.
+  The packs are deliberately near-empty for the same reason — a pack full of unobservable expectations and a pack
+  that asserts nothing do the same amount of real checking; the difference is that the first LOOKS thorough.
+  REMAINING: the `test:nightly` entry, and teaching the drain script to EMIT terminal lanes + signals so the
+  collector has something truthful to subscribe to (that is what turns the `indeterminate`s into real assertions).
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 

@@ -3,7 +3,9 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { collectDrainedState } from "../core/nightly-drain-collector";
 import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
+import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
 import {
 	type CellVerdict,
 	enumerateNightlyCells,
@@ -11,6 +13,7 @@ import {
 	type NightlyManifest,
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
+import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
 import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
 
 const execFileAsync = promisify(execFile);
@@ -215,6 +218,42 @@ export async function runDevNightlyCommand(options: {
 				durationMs: verdict.durationMs ?? null,
 			});
 		});
+	// N5/N5b/N7: resolve each cell's invariant pack and judge the drained state against it.
+	//
+	// ⚠️ `subscriptions` IS DELIBERATELY ALMOST EMPTY, and that is the honest wire rather than a stub. The runner
+	// observes exactly one thing today: the unmatched-request count it greps out of stdout. It does NOT subscribe
+	// to board lanes or to any gate/guard signal. N5b refuses to derive `watchedSignals` from the pack precisely so
+	// this shows up as `indeterminate` instead of as a pass — the alternative would report coverage the nightly does
+	// not have, which is the failure the whole design exists to prevent.
+	//
+	// So the packs currently assert little, and the output SAYS SO. That is the correct starting state: signals get
+	// added to a pack when the collector can genuinely observe them, never in advance of that.
+	const packVerdicts = verdicts
+		.filter((verdict) => verdict.outcome === "passed")
+		.map((verdict) => {
+			const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
+			if (!pack) {
+				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
+			}
+			const collected = collectDrainedState({
+				drainStartedAt: 0,
+				// Nothing is subscribed. Stated, not simulated.
+				subscriptions: [],
+				events: [],
+				// The drain's terminal lanes are not exposed to this runner yet, so no card state is claimed.
+				terminalCards: [],
+				unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
+				teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
+			});
+			return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary}`;
+		});
+	if (packVerdicts.length > 0 && !options.json) {
+		process.stdout.write(`\nInvariant packs:\n`);
+		for (const line of packVerdicts) {
+			process.stdout.write(`  ${line}\n`);
+		}
+	}
+
 	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
 	// "the nightly got slower" and is usually absorbed rather than investigated.
 	const regressions = detectDurationRegressions(
@@ -234,7 +273,9 @@ export async function runDevNightlyCommand(options: {
 		process.stdout.write(`\n${summarizeNightlyFailures(failureReports).text}\n`);
 	}
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ ...summary, verdicts, failureReports, regressions }, null, 2)}\n`);
+		process.stdout.write(
+			`${JSON.stringify({ ...summary, verdicts, failureReports, regressions, packVerdicts }, null, 2)}\n`,
+		);
 	} else {
 		process.stdout.write(`\n${summary.summary}\n`);
 	}

@@ -131,3 +131,16 @@ describe("evaluatePack", () => {
 		expect(result.summary).toContain("card-2→in_progress");
 	});
 });
+
+describe("the vacuous-pass bug (found 2026-07-20 by the N7 runner wire)", () => {
+	it("reports INDETERMINATE, not satisfied, when NO cards were observed", () => {
+		// 'All 0 cards ended in done' is vacuously true and reads as a pass. That is the same empty-pack hazard
+		// resolvePack refuses, reappearing one level down — in the STATE rather than in the pack. The runner found
+		// it immediately: a cell with no card data reported 'all 3 invariant(s) satisfied'.
+		const result = evaluatePack(BASE, healthyState({ terminalLanesByCard: new Map() }));
+		expect(result.passed).toBe(false);
+		const lanes = result.checks.find((c) => c.name === "terminal_lanes");
+		expect(lanes?.status).toBe("indeterminate");
+		expect(lanes?.detail).toContain("vacuously true");
+	});
+});

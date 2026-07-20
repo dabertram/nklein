@@ -112,14 +112,27 @@ export function evaluatePack(pack: InvariantPack, state: DrainedState): PackResu
 	const unexpectedLanes = [...state.terminalLanesByCard.entries()].filter(
 		([, lane]) => !pack.expectedTerminalLanes.includes(lane),
 	);
-	checks.push({
-		name: "terminal_lanes",
-		status: unexpectedLanes.length === 0 ? "satisfied" : "violated",
-		detail:
-			unexpectedLanes.length === 0
-				? `all ${state.terminalLanesByCard.size} card(s) ended in ${pack.expectedTerminalLanes.join("/")}`
-				: `card(s) ended elsewhere: ${unexpectedLanes.map(([card, lane]) => `${card}→${lane}`).join(", ")}`,
-	});
+	// ZERO observed cards is INDETERMINATE, not satisfied. "All 0 cards ended in done" is vacuously true and reads
+	// as a pass, which is the empty-pack hazard `resolvePack` refuses — reappearing one level down in the STATE
+	// rather than in the pack. Found 2026-07-20 when the nightly runner wired this up and a cell with no card
+	// data reported "all 3 invariant(s) satisfied".
+	checks.push(
+		state.terminalLanesByCard.size === 0
+			? {
+					name: "terminal_lanes",
+					status: "indeterminate" as const,
+					detail:
+						"NO cards were observed — 'all 0 cards ended correctly' is vacuously true and is not evidence that anything finished",
+				}
+			: {
+					name: "terminal_lanes",
+					status: unexpectedLanes.length === 0 ? ("satisfied" as const) : ("violated" as const),
+					detail:
+						unexpectedLanes.length === 0
+							? `all ${state.terminalLanesByCard.size} card(s) ended in ${pack.expectedTerminalLanes.join("/")}`
+							: `card(s) ended elsewhere: ${unexpectedLanes.map(([card, lane]) => `${card}→${lane}`).join(", ")}`,
+				},
+	);
 
 	checks.push({
 		name: "aimock_fully_matched",
