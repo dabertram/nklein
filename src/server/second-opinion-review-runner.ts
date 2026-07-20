@@ -557,6 +557,32 @@ export async function runSecondOpinionReviewForTask(
 				})()
 			: undefined;
 
+	// F4.8b: which lenses actually reached the seed prompt was unrecorded. The comment above notes that an EMPTY
+	// panel "still resolves to undefined so nothing is threaded" — so the feature can be enabled, plan a panel,
+	// find no eligible lens, and produce a byte-identical prompt. That outcome is indistinguishable from the flag
+	// being off, and it is the one that says the lens plan is not doing its job.
+	if (
+		config.secondOpinionReviewEnabled &&
+		(config.reviewLensesEnabled || isTruthyEnv(process.env.NKLEIN_REVIEW_LENSES))
+	) {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Review lenses for ${input.taskId}: ${reviewLenses?.length ?? 0} lens(es) threaded.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "review_lenses",
+					lenses: reviewLenses?.map((lens) => lens.id) ?? [],
+					count: reviewLenses?.length ?? 0,
+				},
+			});
+		} catch {
+			// Telemetry must never break a review round.
+		}
+	}
+
 	// §5.V test-driven gate, slice 1 (OPT-IN via NKLEIN_TEST_DRIVEN_MODE; default OFF = byte-identical): a change
 	// that touched NO test file gets a deterministic pre-review `request_changes` riding the STANDARD transition
 	// machinery — the normal onBounce re-drives the worker with the "add a test" reason, and a card that keeps

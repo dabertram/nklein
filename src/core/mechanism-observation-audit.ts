@@ -258,6 +258,19 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: the source comment notes an EMPTY panel "still resolves to undefined so nothing is
+		// threaded" — so the feature can be enabled, plan a panel, find no eligible lens, and produce a
+		// byte-identical prompt. Indistinguishable from the flag being off, and the outcome that says the lens
+		// plan is not doing its job.
+		category: "review_lenses",
+		item: "§5.AW",
+		observes: "which review lenses reached the seed prompt, including none",
+		enabledBy: "NKLEIN_REVIEW_LENSES",
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: this flag's whole effect is which models it EXCLUDES from fan-out, and that count was
 		// unrecorded — so "is the `lms ps` subprocess buying anything?" could not be answered. Zero is the
 		// informative case: flag on, subprocess paid for, nothing excluded.
