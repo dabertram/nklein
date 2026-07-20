@@ -7109,7 +7109,15 @@ Each of the 15 is individually defensible: each has a named `b`-item, each was c
 index first, none duplicates an existing core. **That is precisely why this is worth recording — the failure
 does not announce itself at the level where the decisions are made.**
 
-**ACTED ON IMMEDIATELY, 15 → 12:** rather than write a 25th core, `dev evidence` was built and it wires THREE
+**ACTED ON IMMEDIATELY, 15 → 9 (measured after each pass, not estimated):**
+`dev experiment-design` wires three more (`minimum-detectable-effect`, `harness-card`, `ab-trial-ordering`) —
+the three questions asked at ONE moment, when an experiment is designed. Each failure mode they catch **produces
+a result rather than an error**, which is what makes them expensive: an underpowered comparison returns
+`unresolved` after hours and reads like bad luck; a confounded pair returns a clean number measuring the
+scaffold; a sequential schedule returns a p-value on the thermal curve. **None is visible in the output.**
+Exercised live: `--tasks 20 --effect 3` returns `UNDERPOWERED_BY_CONSTRUCTION` and exits non-zero, telling the
+operator ~3,489 tasks would be needed — **before the hours are spent, not after.**
+ rather than write a 25th core, `dev evidence` was built and it wires THREE
 of the orphans (`threshold-provenance`, `null-agent-baseline`, `benchmark-fitness`). Verified by re-running the
 closure — all three now report WIRED.
 **It is a real surface, not a wire invented to clear an audit.** The three answer ONE operator question — *what

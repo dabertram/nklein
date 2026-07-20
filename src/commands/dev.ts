@@ -43,6 +43,7 @@ import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
+import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
@@ -961,6 +962,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { module?: string; json?: boolean }) => {
 			await runDevUnwiredCoresCommand(options);
+		});
+	dev.command("experiment-design")
+		.description(
+			"Can a proposed A/B answer its question BEFORE the fleet hours are spent? Power (P20.6), comparability (P20.8), ordering (P20.7).",
+		)
+		.option("--tasks <n>", "Task count in the comparison (default 50).")
+		.option("--repeats <n>", "Repeats per task (default 1).")
+		.option("--effect <pp>", "Effect size being looked for, in percentage points (default 10).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { tasks?: string; repeats?: string; effect?: string; json?: boolean }) => {
+			await runDevExperimentDesignCommand(options);
 		});
 	dev.command("evidence")
 		.description(
