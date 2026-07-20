@@ -6112,6 +6112,33 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   trigger suspicion, not celebration**; (b) the guardrail prompt telling the agent the oracle was "a development
   aid, not the goal" did **essentially nothing** — prompt-level instructions not to game the oracle FAILED. This
   composes with the existing F12.97 shortcut-behaviour monitor as its executable counterpart.
+  **DECISION CORE SHIPPED 2026-07-20: `no-op-ablation.ts`, 12 tests.** `assessNoOpAblation` compares a baseline
+  run against a stubbed-artifact run; `assessOracleScore` reads a score against an oracle the agent could iterate
+  on.
+  **BOTH OPERATIONAL FINDINGS ARE ENCODED, INCLUDING THE ONE THAT READS BACKWARDS.** A PERFECT score against an
+  in-loop oracle returns `suspicious` — **confidence goes DOWN, not up.** That has to invert, because the failure
+  mode being detected **produces a better-looking result than honest work does**, so treating 100% as reassurance
+  is exactly how it survives. Out of loop, a perfect score is merely a perfect score.
+  And because prompt-level guardrails were MEASURED to do essentially nothing, this is an executable check rather
+  than another instruction — **an instruction that has been measured not to work is not a control.** The suspicion
+  message says so, so a reader does not "fix" it by adding wording to the prompt.
+  **`inconclusive` IS NOT A SOFT FAIL, and it will be COMMON on a real board.** Three cases carry no signal in
+  either direction: the baseline was already red (stubbing cannot make anything newly fail), no tests ran at all
+  (*"nothing broke" is not evidence when nothing was watching*), and the two runs share no comparable test (a
+  HARNESS problem, attributed as one rather than reported as a finding about the artifact). Calling any of these
+  "not decorative" would convert missing evidence into a clean bill of health.
+  Even on a `load_bearing` verdict the result NAMES the tests that passed with AND without the artifact — each one
+  is a test that never measured it, which is worth knowing while the verdict is still good.
+  The effectful half is P20.3b.
+- [ ] **P20.3b — Run the ablation for real *(split from P20.3 2026-07-20)*.** Stub the artifact, re-run the suite
+  in the sandbox, and fold the verdict into card acceptance.
+  **⚠️ THE STUB MUST FAIL LOUDLY IF CALLED, NOT RETURN A PLAUSIBLE DEFAULT.** A stub returning `null`, `0`, `[]`
+  or an empty string can let tests pass for the WRONG reason — they would report `decorative` on an artifact that
+  is genuinely load-bearing but tolerant of empty input. That is a FALSE ACCUSATION, and it is the expensive
+  direction here: it sends someone to delete working code. Throw from every stubbed entry point.
+  Second: the ablated run must reuse the SAME test selection as the baseline. `assessNoOpAblation` already
+  attributes a non-overlapping run to the harness rather than to the artifact, so a mismatch surfaces as the
+  harness bug it is — but only if the runner does not silently narrow the suite between passes.
 - [ ] **P20.4 — Reuse the egress fence as the EVAL sandbox + strip `.git`.** Cursor audited 731 Opus 4.8 Max
   trajectories: **57% found the merged PR or fixed source on the public web** and reproduced it near-verbatim;
   **9% searched the bundled `.git` history for the future fix commit**. Sealing git history + restricting internet
