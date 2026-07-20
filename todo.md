@@ -4891,7 +4891,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   sweep needs an IDLE gateway — must be injectable/mocked for nightly), `lms ps`/loaded-model discovery, Date.now
   damping windows (trigger 30s, dedup 12min), watchdog tick timing, pmset power mode, filesystem mtimes (F12.19),
   and free-port probing. Nightly runs must be hermetic: a busy gateway or a slow disk must not flip a verdict.
-- [~] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
+- [x] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
   the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
   shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST
   fire fired (acceptance evidence, review verdicts, taint holds where scripted) and the guards that must NOT fire
@@ -4910,10 +4910,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **`resolvePack` returns `null` for an unknown or unresolvable pack rather than an empty one** — an empty pack
   asserts NOTHING while appearing to pass, which is the worst available failure here. Cycles are survived rather
   than fatal. Composition is what makes "new projects assert by reference" true. 12 tests; suite green.
-  REMAINING (N5b): the drained-state COLLECTOR — read terminal lanes, fired/watched signals, unmatched-request
-  count and orphan counts out of a real drain. The judging is done; gathering the evidence is the wire, and
-  `watchedSignals` must be populated HONESTLY (a collector that reports everything as watched would turn every
-  `indeterminate` into a false pass, defeating the status entirely).
+  Split 2026-07-20: the collector is N5b.
+- [x] **N5b — The drained-state COLLECTOR *(split from N5 2026-07-20)*.** Turn a finished drain into the
+  `DrainedState` N5 judges. **SHIPPED 2026-07-20: `nightly-drain-collector.ts`, 8 tests.**
+  **THE RISK THIS ITEM EXISTED TO CONTAIN: `watchedSignals` must be TRUE, or N5's third status is worthless.**
+  N5 reports an unwatched signal as `indeterminate`, never a pass. The easy, plausible, catastrophic collector
+  is `watchedSignals = new Set([...pack.mustFire, ...pack.mustStayQuiet])` — which reads as *"we watched
+  everything the pack cares about"* and means *"we asserted that we watched."* It turns every `indeterminate`
+  into a false pass and **un-builds N5 from the outside, without editing a line of N5 or failing any of its 12
+  tests.**
+  **THE FIX IS STRUCTURAL, NOT A TEST: the collector never receives the pack.** `collectDrainedState` has no
+  parameter a pack could arrive through, so the offending line is unwritable here — the collector reports what
+  happened, the pack decides what it means, and the collector cannot see the answer sheet. Prevention by
+  construction beats detection by test, because **a test only catches the version of the mistake it was written
+  for.** A source-level guard test pins the absence (verified by opening a `pack?:` channel: guard failed; closed
+  it: 8/8 green) so a later "convenience" parameter cannot silently reopen the hole.
+  Two further honesty details: a subscription registered AFTER the drain started is NOT counted as watched (it
+  was absent for the window it claims to cover — the same lie, later in the timeline), and signals that fired
+  with nothing watching are surfaced as a named coverage gap rather than dropped.
+  Remainder is the real-drain ADAPTER (read board/ledger/aimock report into `CollectorInput`) — owned by **N7**,
+  which wires the runner; it is not a separate item.
 - [ ] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
   scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
   proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
@@ -4957,7 +4973,9 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [ ] **N7 — Nightly/pre-release wiring + the growth loop.** A `test:nightly` CI/cron entry (local nightly run +
+- [ ] **N7 — Nightly/pre-release wiring + the growth loop.** *(Also owns the N5b real-drain adapter:
+  board/ledger/aimock report → `CollectorInput`. Its `subscriptions` must come from listeners the runner actually
+  registers — see N5b for why deriving them any other way silently voids every `indeterminate`.)* A `test:nightly` CI/cron entry (local nightly run +
   pre-release checklist step in docs/); failure output good enough to debug from the summary alone (cell id, seed,
   HOME path kept on failure). THE GROWTH LOOP: adding a new dev-test-project later = (1) record its aimock set per
   N2, (2) register the manifest cell per N1, (3) attach invariant packs per N5, (4) add model profiles per N3 —
