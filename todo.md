@@ -4307,6 +4307,16 @@ output and NOT acted on. Captured as F12.12.)
   `recommendResidentSet` real fitness/request counts, show the result somewhere an operator sees it, and evaluate
   llama-swap for finer TTL control. `lms load --ttl` is verified exposed (2026-07-19), so the TTL half is
   reachable today — but as GUIDANCE printed for the operator, never as a command !Klein runs.
+  **✅ DE-ORPHANED 2026-07-20 via `dev resident-set` — the recommender has a consumer, and it is print-only.**
+  `--candidates <file> --budget-gb <n>` reads observed per-model rows (the shape the fitness store holds) and
+  prints the set to keep loaded, in GB. Live-exercised on a 5-model fleet at 24 GB, and the result demonstrates
+  the core's whole point: `qwopus-27b` at fitness 0.91 is EXCLUDED while `coder-14b` at 0.82 is kept, because
+  residency ranks by TIME SAVED (120 requests × cold-load cost) not by fitness — a heavily-used good-enough model
+  beats a rarely-used excellent one for a scarce slot. All five exclusion reasons surfaced (unmeasured,
+  below_fitness_bar, never_requested, no_room, thin_evidence). **The command is print-only BY INHERITANCE — the
+  core has no `toLoad`/`toUnload` field, so there is nothing for the command to execute even accidentally**, which
+  is the type-level guard doing exactly what its docblock promises. REMAINING: feed it REAL fitness-store rows
+  (not a hand-made file) and surface it in the UI — where the risk below (an "apply" button) lives.
   **⚠️ THE WARM-POOL HALF OF F12.77 IS DECLINED, NOT DEFERRED.** Keeping models resident automatically, TTL-evicting
   cold ones, and preloading on idle are all auto-load/unload, which the standing constraint (David 2026-07-19)
   rules out for production on prompt-cache-thrash and MLX grounds. Recorded as declined so a future reader does

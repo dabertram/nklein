@@ -58,6 +58,7 @@ import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
+import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import { runDevSpecReviewCommand } from "./dev-spec-review-command";
@@ -1058,6 +1059,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { baseline?: string; ablated?: string; json?: boolean }) => {
 			await runDevAblationCommand(options);
+		});
+	dev.command("resident-set")
+		.description("Which models is it worth keeping loaded? (F12.77 — a recommendation; !Klein never auto-loads.)")
+		.option(
+			"--candidates <file>",
+			"One {modelId,sizeBytes,measuredFitness,observationCount,requestCount} JSON per line.",
+		)
+		.option("--budget-gb <n>", "Machine RAM/VRAM budget in GB.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { candidates?: string; budgetGb?: string; json?: boolean }) => {
+			await runDevResidentSetCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
