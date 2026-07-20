@@ -62,9 +62,18 @@ export async function runDevEnvGatedCommand(options: { json?: boolean }): Promis
 	// Cross-check against the hand-maintained registry rather than shadowing it. P15.1b already distinguishes
 	// "never enabled" from "enabled but silent"; what it cannot do is report on a mechanism nobody added — which
 	// is exactly how F4.8's goal re-anchor stayed invisible.
-	const registeredFlags = MECHANISM_REGISTRY.map((entry) => entry.enabledBy).filter(
-		(flag): flag is string => flag !== null,
-	);
+	// A flag counts as covered when some entry either is ENABLED BY it or explicitly COVERS it. The second case
+	// exists because a few mechanisms are recorded unconditionally — the comparison is the measurement — so their
+	// entry has enabledBy: null while being exactly what makes the flag observable. Counting only enabledBy made
+	// coverage understate itself, which hides work already done and invites someone to redo it.
+	const registeredFlags = [
+		...new Set(
+			MECHANISM_REGISTRY.flatMap((entry) => [
+				...(entry.enabledBy !== null ? [entry.enabledBy] : []),
+				...(entry.covers ?? []),
+			]),
+		),
+	];
 	const audit = auditEnvGatedDelivery(deliverables, registeredFlags);
 
 	// Every flag in the codebase, not just those reachable from a tracked requirement — the registry's blind spot
@@ -91,7 +100,11 @@ export async function runDevEnvGatedCommand(options: { json?: boolean }): Promis
 	}
 	process.stdout.write(`\n${audit.summary}\n`);
 	process.stdout.write(
-		`\nREGISTRY COVERAGE: ${registeredFlags.length} of ${mechanismFlags.length} product mechanism flag(s) are in MECHANISM_REGISTRY` +
+		// ⚠️ Numerator derived from the DENOMINATOR, not from the registry's own length. Those disagreed the moment
+		// a flag was EXEMPTED: it left `mechanismFlags` while remaining in the registry, so the count read 25 of 35
+		// when 35 − 11 unregistered = 24. A coverage number that overstates itself by one is the same defect as
+		// every other flattering count today, just small enough to miss.
+		`\nREGISTRY COVERAGE: ${mechanismFlags.length - unregisteredEverywhere.length} of ${mechanismFlags.length} product mechanism flag(s) are in MECHANISM_REGISTRY` +
 			`${exempt.length > 0 ? ` (${exempt.length} dev/eval flag(s) EXEMPT: ${exempt.join(", ")})` : ""}.\n` +
 			`${unregisteredEverywhere.length} are NOT, so nothing can report whether they are on or what they should be firing:\n` +
 			`  ${unregisteredEverywhere.join(", ")}\n` +

@@ -67,6 +67,18 @@ export interface MechanismEntry {
 	 * the mechanism had a chance.
 	 */
 	readonly firesWhen?: string;
+	/**
+	 * Flags whose EFFECT this entry observes, when that differs from `enabledBy`.
+	 *
+	 * Some mechanisms are best recorded unconditionally because the comparison is the measurement —
+	 * `sysprompt_level` records lean vs full on every start, so `enabledBy` is null even though it is precisely
+	 * what makes NKLEIN_LEAN_SYSPROMPT observable. Without this link, coverage counted by flag name UNDERSTATED
+	 * itself: the mechanism was covered and the flag still read as unregistered.
+	 *
+	 * An understated gap is as misleading as an inflated one — it hides work already done and invites someone to
+	 * redo it.
+	 */
+	readonly covers?: readonly string[];
 	readonly expectation: FiringExpectation;
 }
 
@@ -285,6 +297,7 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// F4.8b 2026-07-20: the flag only makes the block ELIGIBLE — `decideTemporalContextInjection` then
 		// relevance-gates it, so a turn can have the feature ON and render nothing. Observing the flag would have
 		// answered the wrong question; this records the DECISION, at the decision.
+		covers: ["NKLEIN_KNOWS_TODAY"],
 		category: "knows_today_injection",
 		item: "§5.AC",
 		observes: "whether the knows-today block was injected on a turn, distinct from whether it was enabled",
@@ -301,6 +314,7 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		//
 		// `enabledBy: null` and one category rather than one per flag: the interesting fact is which path WON,
 		// which is a single mutually-exclusive outcome recorded on every review regardless of flags.
+		covers: ["NKLEIN_N_EYES_REVIEW"],
 		category: "review_path",
 		item: "§5.AB",
 		observes: "which review path produced the verdict — n-eyes, panel, or a single reviewer after silent fallback",
@@ -354,6 +368,7 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// immediately flag this entry `enabled_but_silent` on the day it was added: exactly the false alarm the
 		// too_new_to_judge check exists to prevent, reproduced by its own author within the hour.
 		firesWhen: "attempt_started",
+		covers: ["NKLEIN_LEAN_SYSPROMPT"],
 		category: "sysprompt_level",
 		// §5.AQ, not the code comment's "W2.4a" — the ratchet correctly rejected that, and checking showed W2.4a
 		// appears nowhere in todo.md while §5.AQ (context economy) owns this and is cited by sysprompt-level.ts.

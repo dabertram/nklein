@@ -87,6 +87,8 @@ export const NON_MECHANISM_FLAGS: Readonly<Record<string, string>> = {
 	// transcript. A telemetry category would be a second source of truth for the same fact — the duplicate the
 	// ledger check already prevented twice (EXPLORER_SUBAGENT, the procedural consumer).
 	NKLEIN_REASONING_CAPTURE: "artifact-observable — persists a reasoning row per turn; the transcript IS the record",
+	NKLEIN_EXPLORER_SUBAGENT:
+		"ledger-observable — gates the presence of an `explore` TOOL, and the agent ledger records every tool call by name and outcome",
 };
 
 /** Matches the project's default-OFF idiom. A flag read any other way is invisible here — stated, not hidden. */
