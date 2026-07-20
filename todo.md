@@ -6175,11 +6175,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for
   belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing
   them on paper would compare a design against a memory of a design.
-  ⚠️ **THE FIRST THING TO CHECK IS WHETHER COMPACTION IS ALREADY REACHED BY A PATH THAT DOES NOT CONSULT DRIFT.**
-  If any compaction trigger fires on context pressure alone, P18.4's core is decorative: the harmful branch stays
-  live and the new decision only ever runs on cards that were going to be fine. **A remedy core that competes
-  with an existing unconditional trigger loses silently** — same shape as the retry ladder that had no consumer
-  acting on its choice.
+  **🔴 CHECKED IMMEDIATELY (2026-07-20), AND IT IS THE BAD CASE: COMPACTION ALREADY FIRES ON CONTEXT PRESSURE
+  ALONE, UNCONDITIONALLY, WHERE P18.4 CANNOT SEE IT.**
+  `buildNKleinContextCompactionConfig(contextWindow)` (nklein-session-runtime.ts:118) takes **only** the context
+  window and returns `{ enabled: true, strategy: "basic", maxInputTokens, … }` on every session start. It is
+  handed to the SDK, which compacts on token pressure. **No drift signal reaches it, and no harness code sits
+  between the trigger and the compaction.**
+  **So as things stand P18.4's core IS decorative** — precisely the risk written into this item before checking.
+  A derailed card gets its conversation compacted by the SDK on token pressure, laundering the bad commitment,
+  while `decideOffTrackRemedy` never runs on that path.
+  Two adjacent cores are ALSO not in the loop, which is why this was invisible: `context-compaction.ts`'s
+  `shouldCompact` has **no real consumer** (a docblock mention only — it is one of P15.7c's 21 newly-dead
+  modules), and `compactionTriggerRatio` is referenced **only from a test**. Three compaction deciders exist and
+  the live path consults none of them.
+  **THEREFORE P18.4b IS NOT "WIRE THE REMEDY" — it is: get a drift signal in front of an SDK-level compaction
+  that is `enabled: true` by construction.** Options, none free: gate `enabled` on the drift verdict at session
+  start (coarse — drift is discovered mid-run, not at start); intercept before the SDK compacts (needs a seam
+  that may not exist); or accept SDK compaction and make the harness restart the card afterwards (wasteful, and
+  the laundered summary has already been written).
+  **Do not close this by wiring `decideOffTrackRemedy` somewhere harmless and calling it done** — that would
+  produce a green item, a tested core, and a system that still launders drift.
 - [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
   an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
   own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
