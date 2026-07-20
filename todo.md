@@ -7490,10 +7490,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `assessGraderIntegrity` — which flips the evidence report from "not run → allNumbersVoid" to the honest
   "null correct → not trivially forgeable; discrimination pending a real-agent score." A new `FORGERY_VECTORS`
   entry with no mapped board state now throws (fails loud, not silently skipped). 6 tests; 11666 fast tests green.
-  REMAINING (the genuinely fleet part): the REAL-AGENT score for the discriminating gap — a real dev-test drain on
-  a loaded model — plus, orthogonally, the state-tampering vector should start FAILING the day acceptance evidence
-  is required independently of the board (P20.3 shipped that gate for card acceptance; the dev-test board grader
-  still trusts its counts).
+  **🧭 THE REAL-AGENT DRAIN WOULD NOT ANSWER THE INTEGRITY QUESTION — reasoned through 2026-07-20 before spending it.**
+  `assessGraderIntegrity` wants a real-agent score to check the real-vs-random gap (catching a grader that rewards
+  ACTIVITY over correctness). But that check already PASSES from the baseline without a live run: `random_activity`
+  (valid moves, no completion) scores 0, so the grader demonstrably does NOT reward activity. The only thing a live
+  real-agent completion adds is the positive control — a COMPLETED board — and the grader's response to a completed
+  board is already known and deterministic: 100 (that IS the `state_tampering` vector's board). So realAgent would
+  be 100, giving a "sound" verdict on the null/random/real gap — but that number measures agent CAPABILITY (can a
+  model complete a scenario), NOT grader INTEGRITY, which is what P20.1 gates. Worse, a "sound" headline would be
+  actively misleading here, because the SAME grader scores a real completion and a forged one identically (100 vs
+  100) — the exposure this item exists to surface. So the honest state is COMPLETE without the drain: the grader
+  discriminates completed-vs-not (100 vs 0) but is BLIND to real-vs-forged, and a capability drain cannot change
+  either fact. REMAINING (narrow, and NOT worth a heavy runtime drain): (1) a NULL-agent LIVE run would test the
+  end-to-end SETTLE/collection pipeline around the classifier — a real but small gap, worth doing only when a
+  runtime is already up for another reason (starting a background server just for it risks the leaked-process
+  overload the standing goal forbids); (2) the state-tampering vector should start FAILING the day the dev-test
+  board grader requires acceptance evidence independently of the board counts (P20.3 shipped that gate for CARD
+  acceptance; the dev-test board grader still trusts its own counts — that is the real fix, tracked, not a drain).
 - [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking
