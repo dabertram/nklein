@@ -4891,12 +4891,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   sweep needs an IDLE gateway — must be injectable/mocked for nightly), `lms ps`/loaded-model discovery, Date.now
   damping windows (trigger 30s, dedup 12min), watchdog tick timing, pmset power mode, filesystem mtimes (F12.19),
   and free-port probing. Nightly runs must be hermetic: a busy gateway or a slow disk must not flip a verdict.
-- [ ] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
+- [~] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
   the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
   shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST
   fire fired (acceptance evidence, review verdicts, taint holds where scripted) and the guards that must NOT fire
   stayed quiet (false-positive watch: runaway/stall/thrash on healthy runs); replay determinism (a second identical
   run reaches the same terminal board). Packs are shared composable helpers so new projects assert by reference.
+  **CORE SHIPPED 2026-07-20: `nightly-invariant-pack.ts`.**
+  **THE SYMMETRY IS THE DESIGN, and most suites only check one half.** `mustFire` catches a gate that did NOT
+  fire (acceptance evidence, review verdict, taint hold) — *"the run skipped a control and still looked green"*.
+  `mustStayQuiet` catches a guard that fired on a HEALTHY run — **a false positive, which is the failure mode
+  that teaches people to disable the guard.** Checking only the first yields a harness that is safe and unusable;
+  only the second, one that is pleasant and unsafe. Both are required and either violation fails the pack.
+  **`indeterminate` is a third status, and it is never a pass.** A signal that was never WATCHED cannot be judged:
+  a must-fire that was not watched is unknown, and a must-stay-quiet that was not watched has *"silence [that]
+  proves nothing"*. A pack passes only when nothing is violated AND nothing is indeterminate — "we could not
+  tell" and "it was fine" are different claims and only one is evidence.
+  **`resolvePack` returns `null` for an unknown or unresolvable pack rather than an empty one** — an empty pack
+  asserts NOTHING while appearing to pass, which is the worst available failure here. Cycles are survived rather
+  than fatal. Composition is what makes "new projects assert by reference" true. 12 tests; suite green.
+  REMAINING (N5b): the drained-state COLLECTOR — read terminal lanes, fired/watched signals, unmatched-request
+  count and orphan counts out of a real drain. The judging is done; gathering the evidence is the wire, and
+  `watchedSignals` must be populated HONESTLY (a collector that reports everything as watched would turn every
+  `indeterminate` into a false pass, defeating the status entirely).
 - [ ] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
   scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
   proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
