@@ -4143,7 +4143,31 @@ output and NOT acted on. Captured as F12.12.)
   stream + the model-role config UI. 10 tests (41 in the module).
   NOT DONE: no wire — this is the profile BUILDER; F12.70's runtime spec-decode toggle and the per-request backend
   switch are separate effectful changes against the provider layer.
-- [ ] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).** **`--ttl` IS exposed by `lms load` (verified 2026-07-19), so the TTL half is reachable today; the warm-pool half stays gated by the standing no-auto-load/unload production constraint — !Klein RECOMMENDS a resident set, the operator loads it.** Keep top-fitness models
+- [~] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).**
+  **RECOMMENDATION CORE SHIPPED 2026-07-20: `resident-set-recommendation.ts`, 10 tests.** This is the half the
+  standing constraint actually allows: !Klein says WHICH models are worth keeping loaded; the operator loads them.
+  **WHY THIS IS NOT `model-residency-planner.ts`, WHICH ALREADY EXISTED.** That core answers *"if X does not fit,
+  what do I UNLOAD?"* — an autonomous eviction planner, and a good one. It also has **zero consumers, and that is
+  not neglect**: the standing production constraint (David 2026-07-19, no auto-load/unload — prompt-cache thrash +
+  MLX) **removed its purpose in production by decision.** Production needs the opposite question, so this is a
+  genuinely different core rather than a duplicate. (Checked against `dev capability-index` first.)
+  **THE CONSTRAINT IS ENFORCED BY SHAPE, NOT DISCIPLINE.** `ResidentSetRecommendation` has no `toLoad`, no
+  `toUnload`, **no field a caller could execute** — so this cannot become an auto-loader by increments, which is
+  exactly how such things arrive (one convenience field, one "dev-only" flag, one default flip). The constraint
+  survives as a TYPE rather than as a comment someone has to remember. Pinned by a source guard.
+  **Ranked by TIME SAVED, not fitness.** A slightly-worse model requested 40× saves far more wall clock than an
+  excellent one requested twice; fitness is a GATE, not the ranking — *a bad model kept warm is a bad model
+  answering faster.* Unmeasured models are excluded outright: residency is EXCLUSIVE, so every recommendation
+  denies a slot to another model, and "we have no idea whether this is good" must not outrank measured evidence.
+  **REFUSES to over-recommend past the usable budget** (25% OS/KV reserve). Over-recommending is worse than
+  silence: the operator loads it, the machine swaps, and the slowdown gets blamed on the model rather than on the
+  advice that caused it.
+  🐛 A test caught a real off-by-one: a model requested EXACTLY ONCE was being recommended. Its single load had to
+  happen anyway, so residency buys zero seconds while consuming an exclusive slot — the gate is `<= 1`, not `<= 0`.
+  REMAINING (F12.77b): the `--ttl` half (`lms load --ttl` is verified exposed) + the surface that shows this
+  recommendation, and the llama-swap evaluation. The warm-POOL half stays permanently out of scope under the
+  standing constraint — it is not deferred, it is declined.
+ **`--ttl` IS exposed by `lms load` (verified 2026-07-19), so the TTL half is reachable today; the warm-pool half stays gated by the standing no-auto-load/unload production constraint — !Klein RECOMMENDS a resident set, the operator loads it.** Keep top-fitness models
   resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
   auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
   TTL defaults 60 min). Bounds resident VRAM while avoiding reloads + the m4mini swap-crash from manual `lms load`. New
