@@ -7840,6 +7840,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   flawlessly." **This is a harness format-contract bug being mistaken for model incapacity across the whole
   ecosystem.** Goose's `GOOSE_TOOLSHIM` (convert tool defs to text prompts, parse text calls back) is the general
   fix. Cross-check !Klein's own parser against JSON-emitting and XML-emitting models before blaming a model.
+  **✅ THE PARSER SIDE IS ALREADY ROBUST — verified 2026-07-20 (the local-model loop-to-exhaustion bug cannot
+  happen the way Cline's did).** `nklein-local-llm-client.ts` recovers a tool call in THREE tiers: (1) the native
+  OpenAI `tool_calls` JSON channel; (2) when that is empty but tools were offered, `parseNarratedToolCalls` scans
+  BOTH `content` AND `reasoning_content` for a call narrated as TEXT across the known dialects (Hermes/Qwen/Llama/
+  Mistral/DeepSeek/Phi `[TOOL_REQUEST]`/inline-`<think>`); (3) `parseToolValidatedNarration` catches a markerless
+  `{"tool":…,"parameters":…}` object, validated against the offered set. So a model that emits its call as text
+  instead of in `tool_calls` is RECOVERED, not read as "no tool used" — the exact failure P21.2 names is already
+  designed out. REMAINING (fleet-gated): the LIVE cross-check that these recovery dialects actually cover what our
+  target JSON/XML-emitting models emit on the wire — a fleet run, not a parser gap.
 - [ ] **P21.3 — ASSERT the served context length; never assume it.** Ollama's 2k default *"silently discards
   context that exceeds the window"* — Aider calls this *"especially dangerous because many users don't even
   realize that most of their data is being discarded"*; OpenCode's own guidance is "start around 16k–32k"; an
