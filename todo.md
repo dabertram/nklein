@@ -5445,8 +5445,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   So: **five hold sites, three with rungs, one deliberate manual hold, ONE missing rung.** There is no fifth
   sibling waiting to be found this way — **which is worth as much as finding the fourth**, because it converts
   "fix this and hope" into "fix this and the family is complete".
-  ⚠️ The enumeration covers `runtime-server.ts` only. `nklein-sandbox-review-finalizer.ts:283` logs a related
-  prior-round capture failure and was NOT audited here.
+  **🔍 FINALIZER AUDITED TOO — AND IT CHANGES THE RECOMMENDATION.** `nklein-sandbox-review-finalizer.ts` states
+  the intent outright: *"A failed capture is an EXPLICIT OPERATOR HOLD, not a live worker. Release its placement
+  for the rest of the swarm; the card warning + observations retain diagnostics, and **a manual redrive starts
+  cleanly**."*
+  **So the missing rung is not an oversight — the hold is DELIBERATE.** It even does the considerate thing:
+  releases the sandbox placement so the rest of the swarm keeps moving. I was one step from recommending a change
+  that would have overridden a documented design decision, on the strength of "the other three have rungs".
+  **THE REAL QUESTION IS BETTER AND IT IS DAVID'S: is an operator hold correct when there is NO OPERATOR?**
+  The design assumes someone reviews the held card and redrives manually. An unattended nightly run has nobody —
+  so a deliberate, well-implemented hold becomes an indefinite stall that takes 22 dependent cards with it. The
+  other three rungs exist precisely because unattended stalls were found live; each was a case where the same
+  assumption broke the same way.
+  Options, none obviously right: (a) an unattended-mode rung — one bounded re-drive on `capture_failed` only when
+  no operator is expected, keeping the attended behaviour exactly as designed; (b) leave the hold and make the
+  NIGHTLY treat "held for operator" as a distinct, expected terminal state rather than a failure — it is not a
+  bug in that framing, it is a run that legitimately needs a person; (c) accept the stall and rely on N5's
+  invariant packs to report it clearly. **(b) is the cheapest and may be the most honest**: the nightly currently
+  reports this as "left cards undrained", which reads as a defect when it is the system doing what it was told.
   **PREVIOUS HYPOTHESIS (demoted): the durable JOB GRAPH disagrees with the BOARD about
   dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
   while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
