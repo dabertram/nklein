@@ -45,8 +45,13 @@ impossible: the failure was intermittent and the state is gone. Undebuggable fai
 separately* — a run with 12 failures where 3 cannot be investigated has two problems, and the second one costs a
 morning every run.
 
-**⚠️ The drain seed is fixed at 7.** Repeat nightly runs re-walk one path, so they are excellent for
-reproducibility and **worthless for estimating variance**. Widening coverage means adding *cells*, not repeating
+**⚠️ The drain seed is fixed at 7 — but the run is NOT deterministic.** Measured 2026-07-20: two runs of the
+identical cell produced `completed: 30` and `completed: 28`. So repeat runs are **neither independent samples nor
+identical replays** — the worst of both. They cannot estimate variance (nothing is resampled deliberately) and
+they cannot confirm a fix (the same input gives different output).
+
+Until N7d explains what varies, **treat a single nightly verdict as weak evidence in both directions**: a pass may
+not reproduce, and a failure may not either. Widening coverage still means adding *cells* rather than repeating
 runs — see P20.6.
 
 ## 4. Web UI

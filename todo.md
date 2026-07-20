@@ -5263,7 +5263,27 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   which would turn every `indeterminate` into a false pass while touching no core. A subscription is honest only
   when the drain genuinely emits that signal — **the emission comes first, the subscription second.**
 
-- [ ] **N7d — Diagnose the failing `01 × perfect` cell *(found 2026-07-20 by the first real nightly run)*.**
+- [ ] **N7d — `01 × perfect` LEAVES 14 OF 42 CARDS UNDRAINED — a real product finding, not a stale assertion.**
+  **DIAGNOSED 2026-07-20 with the persisted evidence** (the `seed-monitor.log` fix from the same session worked —
+  the full counts survived the failure this time):
+  ```
+  completed: 28   planning: 13   ready: 1   review: 0   inProgress: 0   failed: 0   backlog: 0   trash: 0
+  ```
+  **The comfortable answer was checked FIRST and ruled out.** The hypothesis was a stale assertion — `lane()`
+  returns `-1` for a missing key, so a renamed lane would fire it spuriously. But all eight names in
+  `DevTestBoardCounts` (`completed/review/planning/ready/inProgress/backlog/failed/trash`) are present and the
+  assertion reads real values. **The drain genuinely does not finish the board: 13 cards sit in PLANNING and 1 in
+  READY after 8 minutes**, with nothing failed and nothing in review. Cards are not erroring — they are never
+  being picked up.
+  **⚠️ AND A SECOND, SHARPER FINDING: THE RUN IS NOT DETERMINISTIC.** Two runs of the identical cell gave
+  `completed: 30` and `completed: 28`. The seed is FIXED at 7 — so **a fixed seed does not make this drain
+  reproducible**, and the scheduling/concurrency path carries nondeterminism the seed does not reach.
+  **This corrects what `docs/dev/pre-release-checklist.md` claimed earlier the same day** ("excellent for
+  reproducibility"). It is worse than that: repeat runs are neither independent samples NOR identical replays.
+  Whatever varies between them is unmodelled.
+  NEXT: find why cards stall in `planning` (dependency-edge or admission gate, most likely), and separately why
+  two identical-seed runs differ. **Do not treat the second as noise to average over** — it is the more
+  interesting of the two, because it means every other nightly verdict is drawn from an unstable process.
   `verify-simulated-flow.mts` threw *"perfect-run left cards undrained"* after 489s with `completed: 30,
   review: 0`. The assertion demands `review/failed/planning/inProgress === 0`, `ready === 0` and `completed ≥ 1`.
   With 30 completed and review 0, the failure is in one of the lanes the truncated output did not show.
