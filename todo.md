@@ -6634,7 +6634,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   LATS got **88% at $134.50**. **Equalize retries before claiming a scaffold works — retries are the biggest
   silent cheat.** Expect our harness/model variance ratio to be WORSE than 7.8× because small models sit near a
   capability cliff that small scaffold changes push them across.
-- [ ] **P20.9 — Benchmark selection for a local fleet (most of the field is unusable for us).** Two filters
+- [x] **P20.9 — Benchmark selection for a local fleet (most of the field is unusable for us).** Two filters
   eliminate most candidates: **x86_64 Docker assumptions** (SWE-bench-family arm64 images are "best-effort,
   untested") and **no small-model signal** (SWE-bench Pro: Qwen-3 32B scores **3.4%** — a benchmark where our
   models score ~0% provides no gradient to optimize against). Recommended four: **Aider polyglot** (daily A/B
@@ -6645,6 +6645,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **SWE-bench-Live Lite** (quarterly reality check). Explicitly SKIP SWE-bench Pro — no gradient, and its task
   data is **deliberately GPL-sourced as a legal deterrent against training inclusion**, so keep it away from
   anything we redistribute.
+  **SELECTOR SHIPPED 2026-07-20: `benchmark-fitness.ts`, 11 tests.** All five candidates encoded as DATA and
+  the four recommendations reproduced by the core rather than restated in prose.
+  **THE FLOOR EFFECT IS THE FILTER PEOPLE SKIP, and it is the one that matters most here.** A benchmark our
+  models score ~3% on **provides no gradient**: every change reads as noise, improvement and regression look
+  identical, and months of work produce a flat line. **That says nothing against the benchmark — it is unusable
+  FOR US, and the two claims are compatible.** Conflating them is exactly how a team adopts a prestigious
+  benchmark that cannot answer its question. The reason string says so explicitly so the rejection is never
+  mistaken for a quality judgement.
+  **CONTAMINATION DOWNGRADES, IT DOES NOT DISQUALIFY** — `a_b_only`, not `reject`. *A paired comparison is
+  unaffected by a bias BOTH arms share*, so Aider polyglot stays the daily A/B driver despite being
+  contamination-inflated; what it cannot support is an ABSOLUTE claim. Blockers and caveats are kept as separate
+  lists because they demand different actions: a blocker means do not run it, a caveat means run it and never
+  quote it absolutely. **Collapsing them would make `a_b_only` indistinguishable from `reject` at a glance, and
+  the useful benchmark would be dropped alongside the useless one.**
+  **THE LICENCE HAZARD IS NOT A MEASUREMENT OBJECTION AND DOES NOT BECOME ONE.** SWE-bench Pro's task data is
+  deliberately GPL-sourced as a deterrent against training inclusion — a reason to keep it out of any retained
+  corpus, entirely separate from its score. It is rejected for **both** reasons independently, asserted by test,
+  so removing one does not silently readmit it.
+  An UNSCORED benchmark is `unknown`, not unusable — absence of evidence, not a floor effect.
+  Per P18.5, `GRADIENT_FLOOR_PERCENT = 5` is an **OPERATIONAL DEFAULT**, chosen above SWE-bench Pro's 3.4% and
+  below Aider's "low but rankable" ~8%. **The boundary between those two IS the judgement**, and it is labelled
+  as a judgement rather than a finding.
 - [ ] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
   disengagement data is the cautionary analogue — the DMV itself states it is not intended to compare companies,
   because the operator chooses the denominator and defines the numerator with no severity weighting. Design ours
