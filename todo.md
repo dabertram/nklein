@@ -6614,7 +6614,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Consumer status, stated plainly: the core has no caller yet. It belongs at the point a fleet A/B is DESIGNED,
   and no such surface exists — the sweeps are run by hand. That makes it `built_but_unwired`; it is queued for the
   P15.7b tracked-requirement map so `dev requirement-coverage` reports it rather than leaving it to be rediscovered.
-- [ ] **P20.7 — Control infrastructure noise (we are MORE exposed than a cloud lab, not less).** Anthropic
+- [~] **P20.7 — Control infrastructure noise (we are MORE exposed than a cloud lab, not less).** Anthropic
   measured a **6 pp score gap (p<0.01)** between most- and least-resourced container configs with model, harness
   and tasks held constant, and infra error rates of 5.8% / 2.1% / 0.5% across enforcement levels. **Their
   skepticism threshold: leaderboard differences below 3 pp deserve doubt until eval configuration is documented
@@ -6625,6 +6625,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   nondeterminism source (batch-invariance — Qwen3-235B at temperature 0 produced **80 unique completions from
   1000 identical requests** under load-varying batch size), but only if we also pin continuous batching,
   speculative decoding, prefix-cache hits and quantization-kernel dispatch.
+  **ORDERING + REPORTING CORE SHIPPED 2026-07-20: `ab-trial-ordering.ts`, 13 tests.**
+  **THE CONFOUND THE CLOUD LITERATURE NEVER NAMES, so borrowed methodology does not warn about it:** a cloud lab's
+  machines perform the same at minute 5 and minute 500. **A laptop does not.** Run all of A then all of B and a
+  thermal decline of a few percent is indistinguishable from B being a few percent worse — **the comparison
+  produces a number, a p-value, and a wrong conclusion.**
+  **ABBA cancels a LINEAR drift and that is the entire trick:** A takes positions 1 and 4, B takes 2 and 3, so
+  both arms carry the same average time-penalty. Sequential blocks give A the cool slots and B the hot ones,
+  which is precisely the arrangement that MANUFACTURES an effect. Pinned by a test on mean POSITION per arm —
+  the property that actually does the cancelling, rather than on the literal string "abba".
+  Two details that matter more than they look: the motif's PHASE alternates across blocks (otherwise A
+  permanently owns the coolest moment of every block — a small bias that survives any number of repetitions),
+  and the motif REPEATS rather than one ABBA spanning the run (a single ABBA over hundreds of trials leaves long
+  same-arm stretches in the middle, which is the block problem again at a smaller scale).
+  **THE INFRA-ERROR RATE IS PART OF A SCORE, NOT A FOOTNOTE.** Observed rates ran 5.8% / 2.1% / 0.5% across
+  enforcement levels. **A score reported without one is unfalsifiable** — a 3 pp difference means nothing if one
+  arm suffered twice the infrastructure failures, and the reader cannot tell because the number does not carry
+  it. So infra errors are EXCLUDED from pass rates (counting them blames an arm for the machine) AND reported as
+  their own rate (dropping them silently hides that the comparison rests on fewer trials than it appears to).
+  Both halves are required, which is why one number cannot carry this.
+  Drift is reported even when the schedule is balanced: ABBA makes drift harmless to the COMPARISON, but it still
+  **caps how long a session stays comparable**, and a balanced design that silently hides a 40% slowdown is
+  withholding something the operator needs. "Too few trials" reports as absence of a MEASUREMENT, not stability.
+  REMAINING (P20.7b): the container guarantee/kill-threshold split (equal values turn transient spikes into
+  spurious OOMs) and ~3× headroom calibration — those are sandbox-config work, not pure logic.
 - [ ] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
   (3 models × 3 harness configs on SWE-bench Verified): **harness variance was 7.80× MODEL variance** (18.48 pp²
   vs 2.37 pp²) and **model rankings REVERSED in 6 of 9 comparisons**; HAL reports up to **34 pp** cross-scaffold
