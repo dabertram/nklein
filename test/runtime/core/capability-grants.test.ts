@@ -48,6 +48,24 @@ describe("createCapabilityGrantStore", () => {
 		store.clear("s1");
 		expect(store.covers("s1", "host_command:npm test", now + 1)).toBe(false);
 	});
+
+	it("revoke removes EXACTLY one grant and reports whether one was present (the operator's undo)", () => {
+		const store = createCapabilityGrantStore();
+		const now = 2_000_000;
+		store.record("s1", "host_command:npm test", now);
+		store.record("s1", "host_command:npm build", now);
+		// Revoking one leaves the other standing, and returns true (a grant was removed).
+		expect(store.revoke("s1", "host_command:npm test")).toBe(true);
+		expect(store.covers("s1", "host_command:npm test", now + 1)).toBe(false);
+		expect(store.covers("s1", "host_command:npm build", now + 1)).toBe(true);
+		// Idempotent: a second revoke of the same (now-absent) key is an honest no-op, not a silent success.
+		expect(store.revoke("s1", "host_command:npm test")).toBe(false);
+		// Unknown session / unknown key ⇒ false, never a throw.
+		expect(store.revoke("s2", "host_command:npm build")).toBe(false);
+		// Revoking the last grant empties the session without leaving a stale entry that could resurface.
+		expect(store.revoke("s1", "host_command:npm build")).toBe(true);
+		expect(store.list("s1", now + 1)).toEqual([]);
+	});
 });
 
 function commandTool(ran: string[]): ChatTool {

@@ -374,3 +374,31 @@ export const runtimeHostActionConfirmResolveResponseSchema = z.object({
 	outcome: z.enum(["applied", "mismatch", "expired", "unknown", "already_resolved"]),
 });
 export type RuntimeHostActionConfirmResolveResponse = z.infer<typeof runtimeHostActionConfirmResolveResponseSchema>;
+
+// F2.2 capability-grant surfacing/revocation: when the broker is on, approving a confirm-tier action records a
+// least-scope grant (bounded TTL) that lets the SAME action re-run without re-prompting. This channel lets the
+// operator SEE those standing grants and revoke one before its TTL elapses — the missing "undo my approval".
+export const runtimeCapabilityGrantSchema = z.object({
+	/** The least-scope grant key (e.g. `host_command:npm test`) — the exact identity a covered retry reuses. */
+	key: z.string(),
+	grantedAt: z.number(),
+	expiresAt: z.number(),
+});
+export type RuntimeCapabilityGrant = z.infer<typeof runtimeCapabilityGrantSchema>;
+
+export const runtimeCapabilityGrantListRequestSchema = z.object({ sessionId: z.string() });
+export type RuntimeCapabilityGrantListRequest = z.infer<typeof runtimeCapabilityGrantListRequestSchema>;
+
+export const runtimeCapabilityGrantListResponseSchema = z.object({
+	grants: z.array(runtimeCapabilityGrantSchema),
+});
+export type RuntimeCapabilityGrantListResponse = z.infer<typeof runtimeCapabilityGrantListResponseSchema>;
+
+export const runtimeCapabilityGrantRevokeRequestSchema = z.object({ sessionId: z.string(), key: z.string() });
+export type RuntimeCapabilityGrantRevokeRequest = z.infer<typeof runtimeCapabilityGrantRevokeRequestSchema>;
+
+export const runtimeCapabilityGrantRevokeResponseSchema = z.object({
+	/** true when a standing grant was present and removed; false when there was nothing to revoke (already gone/expired). */
+	revoked: z.boolean(),
+});
+export type RuntimeCapabilityGrantRevokeResponse = z.infer<typeof runtimeCapabilityGrantRevokeResponseSchema>;

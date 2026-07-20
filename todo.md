@@ -1225,7 +1225,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   at the bound check and a dedicated test both pin this (an approval carrying only identity fields still applies to
   an entry parked WITH a description). 2 new queue tests (passthrough + binding-independence); backend+web-ui tsc
   green; 11659 fast tests pass.
-  REMAINING: grant surfacing/revocation in the UI, and the SWARM-side escalation park (a denied protected action
+  **✅ GRANT SURFACING + REVOCATION SHIPPED 2026-07-20 (full vertical slice).** Approving a confirm-tier host action
+  records a 15-min least-scope grant that lets the SAME action re-run without re-prompting — but there was NO way for
+  the operator to see or undo that standing permission mid-window. Now there is: `CapabilityGrantStore` gains a
+  per-key `revoke(sessionId, key)` returning whether a grant was actually removed (idempotent; empties the session
+  map so nothing stale resurfaces — 1 test pinning the exact-one-removed + honest-no-op behavior); tRPC
+  `getChatSessionCapabilityGrants` (active, expired-filtered) + `revokeChatSessionCapabilityGrant`, contract-schema'd
+  and wired through app-router + runtime-router; a client-side `ChatCapabilityGrantsPanel` ("Active permissions",
+  collapsible, mirrors the host-action audit panel) mounted in the chat sidebar under the SAME can-act scope gate,
+  showing each grant's least-scope key + expiry countdown with a per-row Revoke; the revoke is optimistic THEN
+  refetches the authoritative list (a failed revoke can never look like a success). 2 Playwright specs prove the
+  round-trip against a STATEFUL mock (revoke actually drops the key from the next list query, GRANT_B stays). Backend
+  typecheck + store test green; web-ui typecheck + full suite (1129) + both new Playwright tests green.
+  REMAINING: the SWARM-side escalation park (a denied protected action
   parks the card with the explanation via the attention path instead of burning retries).
 - [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
   `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:

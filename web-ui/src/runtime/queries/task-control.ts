@@ -69,6 +69,18 @@ export async function resolveHostActionConfirm(
 	return (await trpcClient.runtime.resolveHostActionConfirm.mutate({ ...confirm, approve })).outcome;
 }
 
+/** F2.2: the standing least-scope capability grants this chat session holds (active, expired-filtered, oldest first). */
+export async function fetchChatSessionCapabilityGrants(sessionId: string) {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.runtime.getChatSessionCapabilityGrants.query({ sessionId })).grants;
+}
+
+/** F2.2: revoke exactly one standing grant before its TTL elapses. Returns whether a grant was actually removed. */
+export async function revokeChatSessionCapabilityGrant(sessionId: string, key: string): Promise<boolean> {
+	const trpcClient = getRuntimeTrpcClient(null);
+	return (await trpcClient.runtime.revokeChatSessionCapabilityGrant.mutate({ sessionId, key })).revoked;
+}
+
 export async function collectTaskEvidence(
 	workspaceId: string | null,
 	taskId: string,

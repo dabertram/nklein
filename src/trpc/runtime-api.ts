@@ -17,6 +17,7 @@ import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
 import { buildUnifiedMemoryNote, projectUnifiedMemory, selectMemoryBand } from "../chat/chat-memory-projection";
 import { readChatMemories, recallChatMemories } from "../chat/chat-memory-store";
 import { createChatService } from "../chat/chat-service";
+import { chatSessionGrantStore } from "../chat/chat-session-grants";
 import { hostActionConfirmQueue } from "../chat/host-action-confirm-wait";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
@@ -1003,6 +1004,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				Date.now(),
 			);
 			return { outcome };
+		},
+		// F2.2: surface + revoke the least-scope capability grants a chat session holds (the standing approvals that
+		// let a confirmed action re-run without re-prompting). The store is a runtime singleton; list is now-filtered
+		// (expired grants never shown), and revoke removes EXACTLY one key so an operator can undo a single approval.
+		getChatSessionCapabilityGrants: async (input) => {
+			return { grants: chatSessionGrantStore.list(input.sessionId, Date.now()) };
+		},
+		revokeChatSessionCapabilityGrant: async (input) => {
+			return { revoked: chatSessionGrantStore.revoke(input.sessionId, input.key) };
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();

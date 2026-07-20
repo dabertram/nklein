@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
+import { ChatCapabilityGrantsPanel } from "@/components/chat/chat-capability-grants-panel";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
 import { ChatHostActionAuditPanel } from "@/components/chat/chat-host-action-audit-panel";
 import {
@@ -536,6 +537,8 @@ function SessionHeader({
 				</div>
 				{/* F2.12b: host actions only occur in can-act scopes, so the audit history shows there. */}
 				{showRiskToggle ? <ChatHostActionAuditPanel sessionId={session.id} /> : null}
+				{/* F2.2: the session's standing capability grants + the operator's per-grant revoke (same scope gate). */}
+				{showRiskToggle ? <ChatCapabilityGrantsPanel sessionId={session.id} /> : null}
 				{/* F2.9b: the session's unified memory view — see what the chat remembers + forget entries. */}
 				<SessionMemoryPanel sessionId={session.id} />
 			</div>

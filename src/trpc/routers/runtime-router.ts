@@ -13,6 +13,10 @@ import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from ".
 import {
 	runtimeAnswerPlanQuestionRequestSchema,
 	runtimeAnswerPlanQuestionResponseSchema,
+	runtimeCapabilityGrantListRequestSchema,
+	runtimeCapabilityGrantListResponseSchema,
+	runtimeCapabilityGrantRevokeRequestSchema,
+	runtimeCapabilityGrantRevokeResponseSchema,
 	runtimeCardEffortRequestSchema,
 	runtimeCardEffortResponseSchema,
 	runtimeCardMailboxCountsRequestSchema,
@@ -240,6 +244,15 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeHostActionConfirmResolveRequestSchema)
 			.output(runtimeHostActionConfirmResolveResponseSchema)
 			.mutation(async ({ ctx, input }) => ctx.runtimeApi.resolveHostActionConfirm(input)),
+		// F2.2: surface + revoke a chat session's standing capability grants.
+		getChatSessionCapabilityGrants: t.procedure
+			.input(runtimeCapabilityGrantListRequestSchema)
+			.output(runtimeCapabilityGrantListResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatSessionCapabilityGrants(input)),
+		revokeChatSessionCapabilityGrant: t.procedure
+			.input(runtimeCapabilityGrantRevokeRequestSchema)
+			.output(runtimeCapabilityGrantRevokeResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.revokeChatSessionCapabilityGrant(input)),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();

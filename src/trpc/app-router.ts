@@ -15,6 +15,10 @@ import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/
 import type {
 	RuntimeAnswerPlanQuestionRequest,
 	RuntimeAnswerPlanQuestionResponse,
+	RuntimeCapabilityGrantListRequest,
+	RuntimeCapabilityGrantListResponse,
+	RuntimeCapabilityGrantRevokeRequest,
+	RuntimeCapabilityGrantRevokeResponse,
 	RuntimeCardEffortRequest,
 	RuntimeCardEffortResponse,
 	RuntimeCardMailboxCountsRequest,
@@ -275,6 +279,14 @@ export interface RuntimeTrpcContext {
 		resolveHostActionConfirm: (
 			input: RuntimeHostActionConfirmResolveRequest,
 		) => Promise<RuntimeHostActionConfirmResolveResponse>;
+		/** F2.2: the standing least-scope capability grants a chat session holds (active, expired-filtered). */
+		getChatSessionCapabilityGrants: (
+			input: RuntimeCapabilityGrantListRequest,
+		) => Promise<RuntimeCapabilityGrantListResponse>;
+		/** F2.2: revoke exactly one standing grant before its TTL elapses (the "undo my approval"). */
+		revokeChatSessionCapabilityGrant: (
+			input: RuntimeCapabilityGrantRevokeRequest,
+		) => Promise<RuntimeCapabilityGrantRevokeResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

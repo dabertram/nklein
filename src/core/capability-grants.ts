@@ -23,6 +23,12 @@ export interface CapabilityGrantStore {
 	covers: (sessionId: string, key: string, now: number) => boolean;
 	/** Active (unexpired) grants for the session, oldest first. */
 	list: (sessionId: string, now: number) => CapabilityGrant[];
+	/**
+	 * Revoke EXACTLY one grant (by session + key). Returns true when a grant was present and removed, false when
+	 * there was none — so an operator revoking a standing permission mid-window gets an honest applied/no-op signal
+	 * rather than a silent success. Idempotent: a second revoke of the same key returns false.
+	 */
+	revoke: (sessionId: string, key: string) => boolean;
 	clear: (sessionId: string) => void;
 	clearAll: () => void;
 }
@@ -45,6 +51,17 @@ export function createCapabilityGrantStore(): CapabilityGrantStore {
 			return [...(grantsBySession.get(sessionId)?.values() ?? [])]
 				.filter((grant) => now < grant.expiresAt)
 				.sort((left, right) => left.grantedAt - right.grantedAt);
+		},
+		revoke(sessionId, key) {
+			const sessionGrants = grantsBySession.get(sessionId);
+			if (!sessionGrants?.has(key)) {
+				return false;
+			}
+			sessionGrants.delete(key);
+			if (sessionGrants.size === 0) {
+				grantsBySession.delete(sessionId); // don't leak an empty per-session map
+			}
+			return true;
 		},
 		clear(sessionId) {
 			grantsBySession.delete(sessionId);
