@@ -4819,7 +4819,7 @@ aimock-based e2e layer that drains real dev-test-projects through the REAL runti
 and every potentially-flaky internal information source mocked properly and extensively. Hours-long runs are
 acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGTH of coverage is the priority.
 
-- [ ] **N1 — Nightly runner + registration convention (the "nightly tests" entry point).** One command
+- [~] **N1 — Nightly runner + registration convention (the "nightly tests" entry point).** One command
   (`npm run test:nightly` + `nklein dev nightly [--project <id>] [--model <profile>] [--json]`) that discovers and
   drains every REGISTERED nightly project×model cell sequentially-by-default (gotcha: parallel batches false-timeout
   the largest projects — memory `aimock-devtest-projects-validated`), per-run ports + isolated HOMEs
@@ -4827,6 +4827,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   skipped/failed cell (no silent truncation). Registration = one manifest entry per project (id, fixture, recording
   set, invariant pack, model profiles) so ADDING coverage is data, not new plumbing. Seed from
   `scripts/verify-all-simulated-flows.sh` (253de3e1) — that script is the proto-runner.
+  **MANIFEST + VERDICT CORE SHIPPED 2026-07-20: `nightly-manifest.ts`.** This is the half that makes the item's
+  own design constraint true — **"adding coverage is DATA, not new plumbing."** `enumerateNightlyCells` expands
+  project × model from the manifest, so covering another dev-test project is one entry; a test pins that adding a
+  project changes no code path. Ordering is deterministic because **a nightly summary that shuffles cannot be
+  diffed against yesterday's, which is most of the value of running it nightly.**
+  **NO SILENT TRUNCATION, enforced:** every failed/skipped cell is NAMED in the summary, and a non-pass with no
+  recorded reason gets the placeholder *"a cell that is not a pass MUST say why"* rather than appearing as a bare
+  count.
+  **THE SHARPEST RULE — a PASS that leaves unmatched aimock requests does not make the run `ok`.** F11.4c says
+  unmatched requests mean the recording did not cover what the run actually did, so counting it green would let
+  **coverage rot silently while the suite reports success** — the same failure shape the mechanism audit found
+  elsewhere today. Also: an EMPTY run is not a green run.
+  9 tests; suite green.
+  REMAINING (N1b, effectful): the runner itself — sequential-by-default drain (parallel batches FALSE-TIMEOUT the
+  largest sets, live-hit 2026-07-11 and already documented in the proto-runner), per-run ports, isolated HOMEs
+  (`NKLEIN_AGENT_LEDGER_ROOT` + fresh `.nklein`), and the `npm run test:nightly` / `dev nightly` entry points.
+  `scripts/verify-all-simulated-flows.sh` is the proto-runner to grow from — it already encodes the sequential
+  lesson and the isolated-HOME pattern.
 - [ ] **N2 — Smallest-10 dev-test-projects fully covered (the first tranche).** Pick the 10 smallest of the 20
   dev-test scenario projects (by fixture size/steps at build time), and for each: record/curate the aimock set that
   drains it end-to-end (0 unmatched requests — the F11.4c invariant), covering EVERY !Klein codepath the project can
