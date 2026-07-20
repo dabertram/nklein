@@ -5064,6 +5064,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   HOME path kept on failure). THE GROWTH LOOP: adding a new dev-test-project later = (1) record its aimock set per
   N2, (2) register the manifest cell per N1, (3) attach invariant packs per N5, (4) add model profiles per N3 —
   and nothing else. That four-step recipe IS what "add nightly coverage for X" means from now on.
+  **FAILURE-REPORT CONTRACT SHIPPED 2026-07-20: `nightly-failure-report.ts`, 12 tests.** "Debuggable from the
+  summary alone" is now asserted rather than hoped for. The report carries cell id, seed, retained HOME path, the
+  pack verdict and duration — and `debuggable` is strict, because a soft "mostly debuggable" reads as "fine" at
+  9am to someone skimming, which defeats measuring it.
+  **THE CASE IT IS SHAPED AGAINST: "retained" that did not retain.** The worst report is not an absent one — it is
+  one that CLAIMS the HOME was kept and gives a blank path. An absent report sends someone to re-run; a false one
+  sends them to a directory that explains nothing, and they conclude the bug is **unreproducible** rather than that
+  the evidence was never saved. **A lie about evidence is worse than no evidence**, so `retained: true` with no
+  path is a `retention_contradiction`, NOT silently downgraded to "not retained" (pinned by test — the silent
+  downgrade would also hide that the runner's retention logic is broken).
+  Calibration that keeps the bar reachable: an HONESTLY unretained home is a defect but does NOT make a report
+  undebuggable — a seed plus a pack verdict is usually enough, and demanding retained state for every failure
+  would put the bar out of reach and get the whole check ignored.
+  `summarizeNightlyFailures` surfaces undebuggable cells FIRST and separately: a run with 12 failures where 3
+  cannot be investigated has two problems, and the second compounds — it costs a morning every run, while the 12
+  are merely today's work.
+  REMAINING: the runner itself (the `test:nightly` entry + the N5b real-drain adapter noted above).
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
