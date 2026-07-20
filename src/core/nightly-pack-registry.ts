@@ -32,8 +32,14 @@ export const CORE_INVARIANTS: InvariantPack = {
 	// which would have failed every cell spuriously — a pack whose vocabulary does not match the board's is worse
 	// than no pack, because it produces confident wrong verdicts rather than silence.
 	expectedTerminalLanes: ["completed"],
-	mustFire: [],
-	mustStayQuiet: [],
+	// N7c: signals the drain DEMONSTRABLY emits — taken from a real run's self-observation log (313 observations,
+	// 2026-07-20), not from a list of what would be nice to assert. A pack entry for a signal nothing emits
+	// produces `indeterminate` forever, which looks like rigour and adds no checking.
+	mustFire: ["second_opinion_review_session", "agent_sandbox_result_patch"],
+	// Guards that must stay quiet on a healthy run. `board_liveness_watchdog` (the frozen-board self-heal, as
+	// distinct from its routine `_tick`) firing means the board stalled — the exact N7d failure. Asserting it here
+	// means the nightly now CATCHES that class rather than only reporting a lane count.
+	mustStayQuiet: ["board_liveness_watchdog", "runtime_error"],
 };
 
 /**

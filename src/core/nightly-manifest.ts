@@ -87,6 +87,8 @@ export interface CellVerdict {
 	 * `indeterminate`, and defaulting it to an empty board would report a clean drain that never happened.
 	 */
 	readonly terminalLanesJson?: string | null;
+	/** N7c: the cell's isolated HOME, so its self-observation log can be read for fired signals. */
+	readonly homePath?: string | null;
 }
 
 export interface NightlySummary {

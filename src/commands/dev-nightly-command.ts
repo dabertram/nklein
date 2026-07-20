@@ -80,6 +80,50 @@ const LAST_RUN_PATH = join(tmpdir(), "nklein-nightly-last.json");
  * `indeterminate`, so an unreadable emission surfaces as "we could not tell" instead of as a clean board — which
  * is the whole reason that check exists.
  */
+/**
+ * N7c: read the signals the drain ACTUALLY fired, from the self-observation log inside the cell's isolated HOME.
+ *
+ * `watchedSignals` is the honest part. The sink is an UNCONDITIONAL append registered before the drain — it
+ * records every category it is handed — so "watched" here means the whole vocabulary the run emitted, derived
+ * from the log rather than from what a pack hoped for. N5b refuses to derive it from the pack precisely so this
+ * has to come from evidence, and it does: an absent or unreadable log yields NOTHING watched, which N5 reports as
+ * `indeterminate` rather than as a clean run.
+ */
+async function readFiredSignals(home: string): Promise<Set<string>> {
+	const dir = join(home, ".nklein", "nklein", "telemetry");
+	const fired = new Set<string>();
+	let files: string[];
+	try {
+		files = await readdir(dir);
+	} catch {
+		return fired;
+	}
+	for (const file of files.filter((name) => name.endsWith(".jsonl"))) {
+		let text: string;
+		try {
+			text = await readFile(join(dir, file), "utf8");
+		} catch {
+			continue;
+		}
+		for (const line of text.split("\n")) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			try {
+				const event = JSON.parse(line) as { signal?: string; metadata?: { category?: string } | null };
+				const category = event.metadata?.category ?? event.signal;
+				if (typeof category === "string" && category.length > 0) {
+					fired.add(category);
+				}
+			} catch {
+				// A malformed line is skipped rather than failing the read: one bad record must not erase the
+				// evidence of every good one.
+			}
+		}
+	}
+	return fired;
+}
+
 function parseTerminalLanes(json: string | null): { cardId: string; lane: string }[] {
 	if (!json) {
 		return [];
@@ -166,6 +210,7 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			// N7b: the drain now emits its terminal board lanes. Absent leaves this null, which N5 reports as
 			// `indeterminate` rather than as a pass.
 			terminalLanesJson: /NIGHTLY_TERMINAL_LANES=(\{[^\n]*\})/.exec(stdout)?.[1] ?? null,
+			homePath: home,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -284,29 +329,34 @@ export async function runDevNightlyCommand(options: {
 	//
 	// So the packs currently assert little, and the output SAYS SO. That is the correct starting state: signals get
 	// added to a pack when the collector can genuinely observe them, never in advance of that.
-	const packVerdicts = verdicts
-		.filter((verdict) => verdict.outcome === "passed")
-		.map((verdict) => {
-			const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
-			if (!pack) {
-				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
-			}
-			const collected = collectDrainedState({
-				drainStartedAt: 0,
-				// Nothing is subscribed. Stated, not simulated.
-				subscriptions: [],
-				events: [],
-				// The drain's terminal lanes are not exposed to this runner yet, so no card state is claimed.
-				// N7b: real terminal lanes, parsed from the drain's own emission. The board reports COUNTS per lane,
-				// not per-card ids, so ids are synthesized (`completed#1`) and that is stated rather than disguised —
-				// the lane assertion needs only the lane, and inventing plausible real ids would imply knowledge this
-				// runner does not have.
-				terminalCards: parseTerminalLanes(verdict.terminalLanesJson ?? null),
-				unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
-				teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
-			});
-			return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary}`;
-		});
+	const packVerdicts = await Promise.all(
+		verdicts
+			.filter((verdict) => verdict.outcome === "passed")
+			.map(async (verdict) => {
+				const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
+				if (!pack) {
+					return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
+				}
+				// N7c: real fired signals, read from the drain's own self-observation log.
+				const fired = verdict.homePath ? await readFiredSignals(verdict.homePath) : new Set<string>();
+				const collected = collectDrainedState({
+					drainStartedAt: 0,
+					// The sink is an unconditional append registered before the drain, so every category it emitted was
+					// genuinely observed. Derived from the LOG, never from the pack — see N5b.
+					subscriptions: [...fired].map((signal) => ({ signal, registeredAt: 0 })),
+					events: [...fired].map((signal) => ({ signal, emittedAt: 1 })),
+					// The drain's terminal lanes are not exposed to this runner yet, so no card state is claimed.
+					// N7b: real terminal lanes, parsed from the drain's own emission. The board reports COUNTS per lane,
+					// not per-card ids, so ids are synthesized (`completed#1`) and that is stated rather than disguised —
+					// the lane assertion needs only the lane, and inventing plausible real ids would imply knowledge this
+					// runner does not have.
+					terminalCards: parseTerminalLanes(verdict.terminalLanesJson ?? null),
+					unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
+					teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
+				});
+				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary} [${fired.size} signal(s) observed]`;
+			}),
+	);
 	if (packVerdicts.length > 0 && !options.json) {
 		process.stdout.write(`\nInvariant packs:\n`);
 		for (const line of packVerdicts) {

@@ -5324,6 +5324,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   created the gap.
   Two hypotheses were disproved on the way, and are recorded so they are not re-tried: the 5s sweep DEBOUNCE
   (the watchdog ticks every 30s, well outside it) and a stale lane-name assertion.
+  **🎯🎯 PROVEN BY INSTRUMENTATION 2026-07-20 — the hypothesis was RIGHT, and the armed warning caught it on the
+  next failure.** Run 5 of `01 × perfect` failed (`completed: 19, planning: 22, review: 1`) and the
+  `Rescue HANDOVER` warning fired **41 TIMES**:
+  ```
+  Rescue HANDOVER: durable run owns discovery; 1 candidate(s)
+    [clinical-medication-safety-platform-s00] handed to the controller and NOT started here
+    (deferred set empty). If the controller does not dispatch them, nothing will.
+  ```
+  **Startable cards are handed to the durable controller 41 times and the controller never dispatches them.**
+  22 cards end in `planning`. The rescue was handed over; nothing picked it up. **That is the bug, no longer a
+  theory.**
+  It also resolves the ambiguity flagged earlier: `durable run owns discovery` means `hasRun` is TRUE, so the
+  **"zero durable log lines" reading really was silence rather than absence** — treating it as disproof would
+  have killed the correct hypothesis.
+  **AND IT KILLS THE CONFOUND: run 5 FAILED, after the diagnostic commits.** The FAIL/FAIL/PASS/PASS pattern that
+  looked like it might have been fixed is now FAIL/FAIL/PASS/PASS/FAIL — **the diagnostics changed nothing, as
+  they should not have.** Not claiming a rate from 5 runs (P20.5/P20.6), but "possibly fixed" is now excluded.
+  NEXT: why the durable controller does not dispatch a card the sweep hands it. That is now a question about ONE
+  component with a reproducible trigger and 41 logged instances, rather than a hunt.
   **CONFIRMED 2026-07-20: TWO INDEPENDENT GUARDS BOTH DECLINE, so under a durable run the watchdog sweep CANNOT
   start a startable non-deferred card by any path.**
   1. `startRescueCandidates` (runtime-server.ts:1135) — under `hasRun`, restarts the deferred set only and
