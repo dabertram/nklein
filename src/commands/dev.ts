@@ -63,6 +63,7 @@ import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import { runDevSpecReviewCommand } from "./dev-spec-review-command";
+import { runDevSynthesisSavingCommand } from "./dev-synthesis-saving-command";
 import {
 	runDevAdviceCommand,
 	runDevAirGapStatusCommand,
@@ -1092,6 +1093,14 @@ export function registerDevCommand(program: Command): void {
 				runDevOffTrackCommand(options);
 			},
 		);
+	dev.command("synthesis-saving")
+		.description("How many tokens does the live evidence extraction save? (F4.6b — saving only, not quality.)")
+		.option("--evidence <file>", "One {id,text} JSON per line.")
+		.option("--task <text>", "The query the evidence is being trimmed for.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { evidence?: string; task?: string; json?: boolean }) => {
+			await runDevSynthesisSavingCommand(options);
+		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
 		.option("--json", "Print machine-readable JSON.")

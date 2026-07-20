@@ -1887,9 +1887,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   second-guess retrieval's selection. My core would have overridden that silently. Deleted it — the check
   "does this already exist / why does the existing one not do this" is exactly what this session keeps proving is
   worth more than the diff.
-  REMAINING (F4.6b): MEASURE the context saving (computable: full-evidence tokens vs excerpted tokens through
-  `evidenceExcerpt`) AND the answer-quality impact (needs the eval harness — a model). The extraction to be
-  measured is already the live one, so this instruments a real path, not a hypothetical.
+  **✅ THE SAVING-MEASUREMENT HALF SHIPPED 2026-07-20** — `measureSynthesisEvidenceSaving` (over the REAL
+  `evidenceExcerpt`, not a re-derivation, so the number describes production) + `dev synthesis-saving`. Live: a
+  padded evidence set trimmed **93% (1064→62 tokens on the long item, short item unchanged)**, per-evidence
+  attributed. It reports SAVING ONLY and says so — **a saving that drops a needed span is a REGRESSION the token
+  count cannot see.** 5 tests incl. that caveat and the empty/zero cases.
+  REMAINING (F4.6b): the ANSWER-QUALITY half — does the saving hurt the answer? That needs the eval harness (a
+  model), and it is the half that MATTERS: a 93% token saving is only good if the answer survived it. The saving
+  is now measurable in production; pairing it with quality in an eval run is the fleet step.
 - [ ] **F4.R1 — Complete retrieval-provider modes.** Support `none`, user-supplied SearXNG-compatible URL, and an
   explicitly managed local backend with start/stop/idle-TTL; keep it absent at rest and add direct providers only behind
   the same egress/SSRF/taint contract.

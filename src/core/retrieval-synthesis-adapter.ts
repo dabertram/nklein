@@ -12,6 +12,7 @@
 
 import { hasStaleCitedSource, stampSourceFreshness } from "./cited-source-freshness";
 import { assembleCitedAnswer, type SynthesisClaim, type SynthesisEvidenceRef } from "./cited-synthesis";
+import { estimateTextTokens } from "./eval-context-footprint";
 import { extractRelevantSpans } from "./extraction-span";
 import type { RetrievalEvidence } from "./retrieval-loop-driver";
 import { tokenizeQuery } from "./retrieval-rerank";
@@ -221,5 +222,50 @@ export function citedSynthesisAdapter(
 		}));
 		const cited = assembleCitedAnswer({ claims, evidence: refs });
 		return renderCitedAnswer(cited.answer, cited.sources, cited.uncitedClaims, options?.now);
+	};
+}
+
+/**
+ * F4.6b (the computable half) — measure the CONTEXT SAVING the live evidence extraction achieves, over the SAME
+ * `evidenceExcerpt` the synthesis prompt actually uses. Pure, so it needs no model — the answer-QUALITY half of
+ * F4.6b still does, but "how many tokens does the extraction save?" is answerable here, deterministically.
+ *
+ * Uses the real excerpt path rather than a re-derivation, so the number describes what production does, not what a
+ * parallel implementation might. A measurement of a different code path would be a confident number about nothing.
+ */
+export interface SynthesisSavingMeasurement {
+	readonly tokensBefore: number;
+	readonly tokensAfter: number;
+	readonly tokensSaved: number;
+	/** Per-evidence, so a saving concentrated in one huge document is distinguishable from an even trim. */
+	readonly perEvidence: readonly { readonly id: string; readonly before: number; readonly after: number }[];
+	readonly summary: string;
+}
+
+export function measureSynthesisEvidenceSaving(
+	task: string,
+	evidence: readonly RetrievalEvidence[],
+): SynthesisSavingMeasurement {
+	const queryTerms = tokenizeQuery(task);
+	let tokensBefore = 0;
+	let tokensAfter = 0;
+	const perEvidence: { id: string; before: number; after: number }[] = [];
+	for (const item of evidence) {
+		const before = estimateTextTokens(item.text);
+		const after = estimateTextTokens(evidenceExcerpt(item.text, queryTerms));
+		tokensBefore += before;
+		tokensAfter += after;
+		perEvidence.push({ id: item.id, before, after });
+	}
+	const tokensSaved = tokensBefore - tokensAfter;
+	return {
+		tokensBefore,
+		tokensAfter,
+		tokensSaved,
+		perEvidence,
+		summary:
+			tokensBefore === 0
+				? "no evidence to measure"
+				: `extraction saved ${tokensSaved} of ${tokensBefore} evidence token(s) (${Math.round((tokensSaved / tokensBefore) * 100)}%) across ${evidence.length} item(s). Answer-quality impact is NOT measured here — a saving that drops a needed span is a REGRESSION the token count cannot see (F4.6b's model half).`,
 	};
 }
