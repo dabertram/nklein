@@ -6487,9 +6487,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `FORGERY_VECTORS` lists the five specific attacks as DATA (BenchJack's conftest hook, trivial-validator
   satisfaction, state tampering, random activity, empty output) because **"we thought about grader forgery" and
   "we tested these five attacks" are different claims, and only the second is checkable.**
-  REMAINING (P20.1b): actually RUN the null/random/tampering agents against `dev-test` and the eval harness.
-  That is the afternoon this item asks for — the core decides, but it has no scores to decide on yet, and
-  `indeterminate` is what it correctly reports until then.
+  **🎯 FIRST REAL RESULT — the forgery vectors RUN against our own grader, `classifyDevTestRun`
+  (`null-agent-against-our-grader.test.ts`, 6 tests). It survives four of five.**
+  | vector | result |
+  |---|---|
+  | empty board (null agent) | **survives** — guarded; this was a real false green once, see the comment at `dev-test-outcome.ts:103` |
+  | everything trashed | **survives** — zero incomplete cards does not buy a pass |
+  | trivial validator satisfaction (acceptance green, no card done) | **survives** — reports `acceptance_green_workflow_incomplete`, not `completed` |
+  | runtime unreachable | **survives** — `runtime_down` |
+  | **STATE TAMPERING** | **⚠️ FORGES A PASS** |
+  **THE EXPOSURE, STATED PRECISELY: `classifyDevTestRun` reads the BOARD'S OWN COUNTS, so an agent that writes
+  `completed` into the board without doing any work scores a clean pass.** That is not a flaw in the function —
+  it has no other source of truth — but it means **the board sits INSIDE the trust boundary**, and P20.1's
+  state-tampering vector is live against us.
+  A second test pins the sharper form: **a real completion and a forged one are INDISTINGUISHABLE to this
+  grader.** The two calls differ only in whether work happened, and it cannot see that difference.
+  Both are asserted as CURRENT behaviour rather than filed as a warning, so the exposure is recorded instead of
+  assumed absent. **They should start failing the day acceptance evidence is required independently of the
+  board** — which is exactly what P20.3's no-op ablation would provide, and is now the concrete reason to build
+  it rather than a general good idea.
+  REMAINING (P20.1b): the null/random agents against the LIVE eval harness (this covered the classifier, not the
+  end-to-end grader). Needs a run.
 - [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking
