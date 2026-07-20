@@ -5152,6 +5152,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is LEARNING value rather than consumer count — a core that taught its lesson may be worth keeping even unwired.
   So the deliverable here is the ranked, regenerable list plus the tracked/untracked split; **the deletions are
   DAVID'S call.** Regenerate the list any time with `nklein dev mechanism-doc` rather than trusting this snapshot.
+  **⚠️ TRIAGE CORRECTED 2026-07-20 (David asked for purpose + git-blame origin): the "79 untracked" figure was
+  WRONG BY 10×. The real number is 7.** The first pass tested whether a module's FILENAME appears in the backlog.
+  It does not, for most — because these cores are tracked by their **`§5.x` section label** (or an `F12.x` id) in
+  the docblock, which is exactly the alias scheme this file documents. Re-triaged: **119 fully-orphaned → 113
+  tracked (40 by filename + 73 by label) → 7 genuinely untracked.** Reporting 79 would have proposed deleting
+  67 cores that are TRACKED WORK. The generator now checks labels, not just filenames.
+  **ORIGIN PROFILE (git blame over all 74 filename-untracked):** **every one has tests**, and **all originate
+  2026-06/07** (11 June, 63 July) — recent build-ahead-of-wire from the `§5.*` research sweeps, not historical
+  debt. That matches the charter's own account rather than contradicting it.
+  **FULL TRIAGE with purpose, origin commit and verdict: `docs/dev/orphan-core-triage.md`.** Three of the 7 are
+  **UN-ORPHAN candidates, not drops**: `diagnostic-oracles.ts` (hidden-split + repeat-run verdicts — **this IS
+  part of P20.2's visible/held-out gap measurement, the highest-leverage evaluation item; wiring it is cheaper
+  than building P20.2 from scratch**), `rounds-budget.ts` (when to stop iterating — the missing half of F12.35's
+  how-deep-to-go), and `swarm-roster-load-plan.ts` (resolves roster names to devices — the seam P17.1a needs when
+  a fleet spans two runtimes). The other four are small tested fleet/telemetry helpers: keep, low priority.
+  **STANDING RECOMMENDATION: nothing warrants deletion today.** The 119 figure is a real signal about
+  build-ahead-of-wire PACE — which the charter accepts and Phase 15 tracks — not a pile of dead code.
   **SPLIT MATERIALIZED 2026-07-20 — the remainder is a DECISION, not code.**
 - [?] **P15.4b — Walk the 79 untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
   Regenerate with `nklein dev mechanism-doc`, then decide per module. **This cannot be automated away:** the

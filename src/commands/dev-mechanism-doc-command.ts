@@ -145,7 +145,26 @@ export async function runDevMechanismDocCommand(options: { out?: string }): Prom
 	const trackedModules: string[] = [];
 	const untrackedModules: string[] = [];
 	for (const [module] of fullyOrphanedModules) {
-		(backlogText.includes(module) ? trackedModules : untrackedModules).push(module);
+		if (backlogText.includes(module)) {
+			trackedModules.push(module);
+			continue;
+		}
+		// ⚠️ A FILENAME match is the WRONG test on its own. These cores are tracked by their `§5.x` section label
+		// (or an `F12.x` item id) carried in the docblock — the alias scheme todo.md documents. Testing filenames
+		// alone reported 79 untracked when the real figure is 7, which would have proposed deleting 67 cores that
+		// are tracked work. Check the labels the codebase actually uses.
+		let labelTracked = false;
+		try {
+			const head = readFileSync(join(coreDir, module), "utf8").slice(0, 3000);
+			const labels = new Set([
+				...(head.match(/§5\.[A-Z]{1,2}\b/g) ?? []),
+				...(head.match(/\b[FP]\d+\.\d+[a-z]?\b/g) ?? []),
+			]);
+			labelTracked = [...labels].some((label) => backlogText.includes(label));
+		} catch {
+			labelTracked = false;
+		}
+		(labelTracked ? trackedModules : untrackedModules).push(module);
 	}
 
 	const doc = [
