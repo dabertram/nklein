@@ -5298,12 +5298,33 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   shredding the text. Acceptance seeds project name, author name, home/linux/deep paths, an internal URL, an
   email, an `sk-` key, a `ghp_` token and a JWT into realistic prose and asserts **none survive** — including
   partial fragments (`sk-proj`, `ghp_`, `eyJhbGci`). 10 tests.
-- [ ] **P16.5 — The intervention signal (highest-value content).** The single most informative event is not a
+- [~] **P16.5 — The intervention signal (highest-value content).** The single most informative event is not a
   crash — it is a card where the USER stepped in: overrode a routing decision, re-ran, rejected a review, or
   hand-edited the result. Those are precisely the harness's blind spots, and precisely the charter §5
   build-vs-intent gap made observable. Record interventions as first-class events and make them the report's
   headline section. This also supplies the "operator interventions per resolved task" metric the external review
   correctly named as a go/no-go measure.
+  **CORE SHIPPED 2026-07-20: `operator-intervention.ts` — ONE core serving BOTH P16.5 and P20.10.** Deliberate:
+  two definitions of "intervention" would make the Field Report and the go/no-go metric disagree about the same
+  event, and the report is meant to FEED the metric.
+  **SEVERITY-CLASSIFIED AT CAPTURE, never a bare count.** `nudge` (typed guidance, no code) → `correction` (user
+  edited the output) → `takeover` (user wrote the fix) → `abort` (user abandoned the card). The cautionary
+  analogue is on record: California's AV disengagement reports became a number everyone published and nobody
+  could interpret — the DMV states the data is not intended to compare companies, and Waymo said it "does not
+  provide relevant insights into the capabilities of the Waymo driver". **A bare interventions-per-task figure
+  would repeat that exactly**, so `completedTaskIdsInOrder` is a REQUIRED input and every summary restates that a
+  rate is meaningless without its denominator and severity mix.
+  **Human time is MEASURED or reported as absent — never estimated.** Unmeasured events are counted separately
+  and the summary says the total is *"a FLOOR, not the real cost"*; with nothing measured it returns `null`
+  rather than `0`, because 0 asserts the human spent no time, which is a different and false claim. (METR's RCT
+  is the reason: developers self-reported a 20% speedup while being 19% SLOWER — wrong in sign.)
+  **`autonomousStreak`** — consecutive newest tasks with zero interventions, a pass^k analogue for operator
+  effort. **`rankInterventionsForReport`** puts takeovers and aborts before nudges, because those are where the
+  harness was most confidently wrong. 10 tests.
+  REMAINING (P16.5b): the capture wire — emit an `InterventionEvent` at the four real seams (typed guidance,
+  user edit of agent output, human-authored fix, card abandon) with harness-measured wall-clock. **Until then the
+  metric has no input**, which is the `enabled_but_silent` shape P15.1b exists to catch — verify with
+  `dev mechanism-registry` after wiring, not by inspection.
 - [ ] **P16.6 — Local-model generation path + graceful degradation.** The report is written by whatever the user
   has connected. **A weak local model must degrade to the STRUCTURED report (Layer A is pure aggregation and needs
   no model at all), never to a hallucinated narrative.** Layer A must be generatable with zero models available.
