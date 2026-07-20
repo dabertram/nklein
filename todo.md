@@ -4917,7 +4917,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > the guidance will come from David's own hands-on testing — Phase 15 exists so that testing has something
 > systematic to land against instead of being the only mechanism.
 
-- [~] **P15.1 — Inventory every observe-only mechanism and its decision criteria.** Machine-readable registry of
+- [x] **P15.1 — Mechanism inventory: the UNWIRED-CORE scan + CLI (P15.1b carries the observation-count half).** Machine-readable registry of
   every `record-only` / env-gated / default-OFF mechanism currently in the tree: what it observes, which
   observation `category` it emits, what evidence would justify turning it ON, and what the default SHOULD become
   under each outcome. This is the ledger Phase 15 works from; without it "prove the mechanisms" is unbounded.
@@ -4946,8 +4946,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `prompt-evolution-gate`) — those are expected and already named; (c) an orphan is not automatically dead code —
   the charter's standard is LEARNING value, not consumer count. **The output is a ranked question list for a
   human, and the module deliberately never emits the word "delete".** 11 tests.
-  REMAINING: fold the scan into a `dev unwired-cores` command + generate `mechanism-registry.md` from it, and
-  run the observation-count half (mechanisms with zero recorded observations) which needs the telemetry store.
+  **CLI SHIPPED + LIVE-SMOKED 2026-07-20: `nklein dev unwired-cores [--module <file>] [--json]`.** Single-pass
+  file walk (a per-symbol grep is O(symbols × tree) and blew a 10-minute budget on this repo before being
+  rewritten). Live-smoked against the known case: `cache-stable-prefix-order.ts` → "4 of 4 exported core
+  symbol(s) have NO non-test consumer", matching the hand audit exactly. Output always closes with the caveat
+  that each entry is a QUESTION, not a verdict.
+- [ ] **P15.1b — Observation-count half of the mechanism registry *(split from P15.1 2026-07-20)*.** The
+  complement to the unwired-core scan: list mechanisms that ARE wired but have recorded ZERO observations —
+  shipped, reachable, and never actually exercised. Needs the telemetry store (`recordSelfObservation` categories:
+  `quant_floor_breach`, `language_floor_breach`, `adaptive_thinking_recommendation`,
+  `scaffold_profile_recommendation`, `review_effort_scaling`, `verifier_ensemble`, `mcp_tool_surface_drift`,
+  `history_blind_corrector_*`, `drift_critic_*`, `tool_catalog_gate_observation`). **A wired mechanism with zero
+  observations is a DIFFERENT and subtler failure than an unwired core**: the code is reachable, the tests pass,
+  and it still never fires — which is how the drift critic's `reasoning_content` trap would have looked from the
+  outside. Generate `docs/dev/mechanism-registry.md` from BOTH scans together.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with

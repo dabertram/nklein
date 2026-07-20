@@ -93,6 +93,7 @@ import {
 } from "./dev-telemetry-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
 import { runDevToolMenuCommand, runDevToolPickCommand } from "./dev-two-phase-tool-commands";
+import { runDevUnwiredCoresCommand } from "./dev-unwired-cores-command";
 
 interface DevSmokeEvalOptions {
 	json?: boolean;
@@ -908,6 +909,15 @@ export function registerDevCommand(program: Command): void {
 			await runDevSbomCommand(options);
 		});
 
+	dev.command("unwired-cores")
+		.description(
+			"P15.1: list exported src/core symbols with no non-test consumer (the shipped-but-never-wired smell).",
+		)
+		.option("--module <file>", "Scan a single core module (e.g. cache-stable-prefix-order.ts).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { module?: string; json?: boolean }) => {
+			await runDevUnwiredCoresCommand(options);
+		});
 	dev.command("ai-bom")
 		.description("F12.100: render the AI Bill of Materials over the loaded fleet (licenses + verdicts).")
 		.option("--commercial", "Assess for COMMERCIAL deployment.")
