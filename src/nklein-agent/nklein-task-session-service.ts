@@ -44,6 +44,7 @@ import type {
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
+import { ATTEMPT_STARTED_CATEGORY } from "../core/card-tracking-coverage";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -1492,6 +1493,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
+		// N18: mark the attempt's START.
+		//
+		// The ledger records only the attempt's END (`buildTerminalAttemptEvent`), and it does so reliably — even
+		// for an attempt that made no tool calls. But with only an end marker, **an attempt still IN FLIGHT is
+		// invisible until it terminates**, which is precisely the state a stalled card is in when someone goes
+		// looking at it. It also makes attempt DURATION underivable from the trail alone.
+		//
+		// Emitted before any of the setup below can throw, so a start that fails during initialisation still leaves
+		// a record — an attempt that died on the way up is otherwise the most invisible failure there is.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Attempt started on ${request.taskId}${request.modelId ? ` with ${request.modelId}` : ""}.`,
+				taskId: request.taskId,
+				metadata: {
+					category: ATTEMPT_STARTED_CATEGORY,
+					modelId: request.modelId ?? null,
+					providerId: request.providerId ?? null,
+					mode: request.mode ?? null,
+				},
+			});
+		} catch {
+			// Telemetry must never prevent an attempt from starting.
+		}
 		// F1.5 rehydration + seeding: the card's persisted focus chain survives restarts, but the LIVE store starts
 		// empty — reseed it (never clobbers a chain the session emits first). A fresh plan-born card with NO chain
 		// yet gets an initial one from its plan task's contract, applied through the normal path so it persists to

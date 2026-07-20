@@ -5278,7 +5278,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
   list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
   appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
-  **14 events declared — 11 tracked, 3 partial, 0 untracked**, every tracked claim verified against a real emitter.
+  **14 events declared — 12 tracked, 2 partial, 0 untracked**, every tracked claim verified against a real emitter.
   🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
   `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
   `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
@@ -5303,10 +5303,12 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     `createdAt` and merge into the card timeline in true order. **The s03 investigation needed the bounce COUNT
     and the interleaving of a bounce with a capture failure, and had to reconstruct both by counting log lines
     by hand.** Verified red by removing the emitter (2 claims break).
-  - `attempt_started` — **and this was my SECOND wrong gap claim.** A terminal attempt event IS written even when
-    the attempt made no tool calls, so a dead attempt is not invisible. The real gap is narrower: only the END is
-    recorded, so an attempt still **IN FLIGHT is invisible until it terminates** — exactly the state a stalled
-    card is in when someone goes looking — and attempt DURATION cannot be derived from the ledger alone.
+  - ~~`attempt_started`~~ — **CLOSED 2026-07-20**, after correcting my SECOND wrong gap claim. A terminal attempt
+    event IS written even when the attempt made no tool calls, so a dead attempt was never invisible; the real
+    gap was that only the END was recorded, leaving an attempt **IN FLIGHT invisible until it terminated** —
+    exactly the state a stalled card is in when someone goes looking — and duration underivable. `startTaskSession`
+    now emits a START marker with the model and mode, **before any setup that can throw**, so an attempt that dies
+    on the way up still leaves a record. Verified red by removing the emitter.
   - `operator_intervention` — only `nudge` is instrumented (P20.10).
   **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
   mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
