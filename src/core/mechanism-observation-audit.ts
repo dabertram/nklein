@@ -258,6 +258,25 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: NO code change needed — this was already instrumented and merely unregistered, which
+		// is the outcome the check-the-source-first procedure exists to find. Two of the remaining flags turned out
+		// this way; reaching for instrumentation without reading would have added a duplicate emission to a
+		// mechanism that already had one.
+		category: "adaptive_budget_retry",
+		item: "§5.AA",
+		observes: "an adaptive budget retry re-sending a turn with a raised token budget after a stall",
+		enabledBy: "NKLEIN_ADAPTIVE_RETRY",
+		expectation: "exceptional",
+	},
+	{
+		// F4.8b 2026-07-20: likewise already instrumented, only unregistered.
+		category: "model_lost_residency",
+		item: "§5.AL",
+		observes: "a model confirmed absent from its endpoint while a task was bound to it",
+		enabledBy: "NKLEIN_RESIDENCY_HEARTBEAT",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: `useNativeForce` fires when `forceToolCall` is set REGARDLESS of the flag, so the
 		// flag's marginal effect is only the `!forceToolCall` case. Recording "native force ran" alone would
 		// attribute the force-advance path's traffic to the flag and make it look far more active than it is —
