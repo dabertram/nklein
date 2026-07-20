@@ -1873,8 +1873,23 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. **DETECTION CORE DONE 2026-07-16:** citation-conflict-detection.ts `detectClaimConflicts` groups a flat list of keyed claims (claimKey/value/sourceId) into conflict clusters (≥2 distinct values per key), trim+casefold, order-stable, 6 tests — so synthesis can detect conflicts MECHANICALLY (no dependence on the model to cluster them) and feed the existing `resolveClaimConflictsByAuthorityBatch`. **ANNOTATION CORE DONE 2026-07-16:** citation-conflict-annotation.ts `annotateSynthesisWithConflicts(answer, conflicts)` — the last RENDERING step: takes the detected clusters + their resolutions and appends an operator-facing "## Source-conflict notes" block (per conflict: `using **<winner value>** (from <id>) · Superseded: <minority>` OR `UNRESOLVED — <both views> · Verify`); byte-identical when there are no conflicts. 5 tests. So detect→resolve→annotate is now a complete PURE pipeline. Remaining: ONLY the model-side EXTRACTION seam — pull keyed claims (claimKey/value/sourceId) from the model's cited answer (egress/synthesis-gated), then feed `detectClaimConflicts` → `resolveClaimConflictsByAuthorityBatch` → `annotateSynthesisWithConflicts` at the web-research synthesis render.
   retain minority evidence, and mark unresolved material claims.
   **FINALIZED 2026-07-19 (split):** the detect→resolve→annotate pipeline is complete + tested end-to-end. The ONE producer — model-side claim extraction from cited answers — is a bounded reviewer-tier secondary-session build that only runs where egress synthesis runs → fleet-adjacent queue (design mirrors the explorer/plan-critique harness). Crossed; the pipeline consumes the day the extractor lands.
-- [ ] **F4.6 — Trim synthesis evidence to relevant spans.** Apply extraction before the model call, preserve citation
+- [~] **F4.6 — Trim synthesis evidence to relevant spans.** Apply extraction before the model call, preserve citation
   addressability, and measure context saving/answer quality.
+  **✅ THE EXTRACTION IS ALREADY DONE AND LIVE — found 2026-07-20 by checking before building.** `extractRelevantSpans`
+  (`extraction-span.ts`, §5.AC) narrows each long evidence to query-relevant ~400-char windows, applied in
+  `buildSynthesisPrompt` (`retrieval-synthesis-adapter.ts`) BEFORE the model call, wired live through
+  `nklein-retrieval-tools-builder.ts`. Citation addressability is preserved by construction: the excerpt keeps the
+  evidence's stable id, so `assembleCitedAnswer` still resolves its `[n]` markers.
+  ⚠️ **AND I NEARLY SHIPPED A DUPLICATE THAT CONFLICTED WITH A DELIBERATE DESIGN.** I wrote an
+  `evidence-span-trim.ts` that DROPS whole clearly-unrelated evidence items — then found `buildSynthesisPrompt`
+  explicitly *"never drop the evidence entirely"* (it head-truncates a long no-term match instead). That is a
+  CHOICE: retrieval already selected these items as relevant, so synthesis trims for SIZE but does not
+  second-guess retrieval's selection. My core would have overridden that silently. Deleted it — the check
+  "does this already exist / why does the existing one not do this" is exactly what this session keeps proving is
+  worth more than the diff.
+  REMAINING (F4.6b): MEASURE the context saving (computable: full-evidence tokens vs excerpted tokens through
+  `evidenceExcerpt`) AND the answer-quality impact (needs the eval harness — a model). The extraction to be
+  measured is already the live one, so this instruments a real path, not a hypothetical.
 - [ ] **F4.R1 — Complete retrieval-provider modes.** Support `none`, user-supplied SearXNG-compatible URL, and an
   explicitly managed local backend with start/stop/idle-TTL; keep it absent at rest and add direct providers only behind
   the same egress/SSRF/taint contract.
