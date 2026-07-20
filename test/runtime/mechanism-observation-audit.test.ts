@@ -107,9 +107,19 @@ describe("MECHANISM_REGISTRY", () => {
 	});
 
 	it("every entry names the backlog item that owns it", () => {
+		// `§5.X` is as valid an owning reference as `F12.x` — 127 of them are used across todo.md, and §5.O owns
+		// the two-phase tool pick. The regex previously accepted only F/P items, which would have forced a
+		// §-owned mechanism to be mislabelled to pass. Widened to match the references the backlog actually uses,
+		// NOT to accommodate one entry: the point of this ratchet is traceability, and a § ref is traceable.
 		for (const entry of MECHANISM_REGISTRY) {
-			expect(entry.item).toMatch(/^[FP]\d/);
+			expect(entry.item, `${entry.category} must name its owning backlog item`).toMatch(/^([FP]\d|§\d)/);
 		}
+	});
+
+	it("still REJECTS an untraceable item label", () => {
+		// Widening the regex must not turn the ratchet off. Without this, "misc" or "" would now pass.
+		expect("misc").not.toMatch(/^([FP]\d|§\d)/);
+		expect("").not.toMatch(/^([FP]\d|§\d)/);
 	});
 });
 

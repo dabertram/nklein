@@ -539,6 +539,29 @@ export function createKanbanContextFocusExtension(
 						if (narrowed.length !== offeredTools.length) {
 							finalResult = { ...(finalResult ?? {}), tools: narrowed } as typeof finalResult;
 						}
+						// F4.8b: this mechanism spends an EXTRA MODEL ROUND-TRIP per turn and, until now, recorded
+						// nothing — so it could be switched on and produce no evidence it ran, narrowed anything, or
+						// helped. That is not a registry gap, it is an unmeasurable feature: the decision to enable it
+						// had no data to rest on either way.
+						//
+						// Recorded on every run rather than only when it narrows, because "ran and changed nothing" is
+						// the result that decides whether the extra round-trip is worth paying for — and it is exactly
+						// the outcome a narrow-only emission would hide.
+						try {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Two-phase tool pick: ${offeredTools.length} → ${narrowed.length} tool(s) for "${step.slice(0, 80)}".`,
+								metadata: {
+									category: "two_phase_tool_pick",
+									offered: offeredTools.length,
+									narrowedTo: narrowed.length,
+									changed: narrowed.length !== offeredTools.length,
+								},
+							});
+						} catch {
+							// Telemetry must never break tool selection.
+						}
 					}
 				}
 				lastOfferedToolNames = (finalResult?.tools ?? context.request.tools).map((tool) => tool.name);

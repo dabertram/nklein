@@ -226,6 +226,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: this mechanism EMITTED NOTHING until an observation was added for it. Verified by
+		// reading the full guarded block — it spent an extra model round-trip per turn and left no trace, so
+		// enabling it produced no evidence it ran. Registered only after it became measurable.
+		category: "two_phase_tool_pick",
+		item: "§5.O",
+		observes: "a two-phase pick narrowing the offered tools for the current step — including when it changes nothing",
+		enabledBy: "NKLEIN_TWO_PHASE_TOOL_PICK",
+		expectation: "every_run",
+	},
+	{
 		category: "baseline_probe",
 		item: "F12.60",
 		observes:
