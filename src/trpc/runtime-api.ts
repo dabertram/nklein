@@ -527,7 +527,33 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 										}
 									: {}),
 							});
-							return buildUnifiedMemoryNote(selectMemoryBand(records));
+							const band = selectMemoryBand(records);
+							const note = buildUnifiedMemoryNote(band);
+							// F4.8b: this mechanism reads chat memories, the focus chain, the whole agent ledger and the
+							// Basic-Memory corpus on EVERY turn, then projects and ranks them — and recorded nothing. So
+							// "is that work producing a note, and from how many sources?" had no answer, which is both
+							// the quality question and the cost question for the most expensive recall path here.
+							//
+							// Recorded even when the band comes out EMPTY: a turn that pays for all that retrieval and
+							// surfaces nothing is the outcome worth seeing, and it is indistinguishable from the flag
+							// being off without this.
+							try {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "info",
+									message: `Unified memory recall: ${band.length} record(s) banded from ${records.length} candidate(s).`,
+									metadata: {
+										category: "unified_memory_recall",
+										banded: band.length,
+										candidates: records.length,
+										basicMemoryNotes: basicMemoryNotes.length,
+										noteProduced: Boolean(note),
+									},
+								});
+							} catch {
+								// Telemetry must never break a chat turn.
+							}
+							return note;
 						},
 					}
 				: {}),

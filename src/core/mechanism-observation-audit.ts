@@ -258,6 +258,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: this reads chat memories, the focus chain, the WHOLE agent ledger and the Basic-Memory
+		// corpus on every turn, then projects and ranks them — and recorded nothing. "Is that work producing a
+		// note, and from how many sources?" is both the quality question and the cost question for the most
+		// expensive recall path in the chat turn, and it had no answer.
+		category: "unified_memory_recall",
+		item: "F2.9b",
+		observes: "how many memory records were banded into the recall note, including when none were",
+		enabledBy: "NKLEIN_UNIFIED_MEMORY",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: **this is the flag that started the whole item.** Its firing was entirely unobserved,
 		// which is exactly how F4.8 stayed hidden — every audit reported the requirement satisfied because the
 		// IMPORT CHAIN was complete, and nothing could contradict that because nothing recorded whether a block
