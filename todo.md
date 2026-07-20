@@ -7841,7 +7841,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   review the SPEC, review the PLAN (before any code), review the CODE — are unenforced discipline; !Klein can
   ENFORCE them. Sizing rule: **the TIGHTER of review-capacity and model-context wins.** Feeds F12.110's
   depth-target work, which currently optimizes only the model-context side.
-- [~] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
+- [x] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
   **on timeout you get no partial output at all.** At local-model speeds timeouts will be a dominant failure mode
   for us, so partial-result return is not a nicety. Audit !Klein's park/timeout paths for total-loss cases.
   **AUDIT 2026-07-20 — the TWO PRIMARY model-call paths are verified NOT total-loss, with line-level evidence:**
@@ -7853,11 +7853,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     interrupted-salvage and prior-work-rebound paths rebind captured work INTO review (*"captured work is never
     stranded unjudged"*, `interrupted_salvage_rebound`). A timed-out attempt that produced a result branch routes
     to a human/reviewer rather than vanishing.
-  **REMAINING (P21.7b): the SECONDARY paths not yet traced** — the mid-turn `timeoutController` fire (does the
-  in-flight partial stream survive the abort into the terminal summary?), and the explorer/sub-agent query
-  timeout (`NKLEIN_EXPLORER_SUBAGENT`). These are narrower and were NOT verified here; claiming the whole audit
-  done on two paths would be the false-completeness this project keeps flagging. The two that dominate the
-  traffic are proven; the tail needs its own trace.
+  **TAIL TRACED 2026-07-20 — the audit is now COMPLETE across all four paths, and none loses agent work:**
+  · **Mid-turn `timeoutController` fire (`nklein-timeout-controller.ts`):** a conversation/stream/tool timeout
+    calls `abortTaskSession`, which routes through the SAME terminal-salvage finalizer verified above — so an
+    in-flight timeout salvages captured work exactly like an interruption. It ALSO records a structured note
+    (last activity, last tool, `changesCaptured = Boolean(latestTurnCheckpoint)`, restart-safe), so a stall-caused
+    review is diagnosable rather than "timeout after N seconds". **Not total-loss.**
+  · **Explorer sub-agent (`nklein-explorer-runner.ts`):** `runExplorerSession(...).catch(() => null)` returns null
+    on timeout — but this is a READ-ONLY helper query, not agent work. A null answer to an exploratory question
+    loses nothing the agent produced; the main agent proceeds without that info, and its OWN partial work is
+    preserved by the paths above. **Out of P21.7's total-loss scope by construction (nothing to salvage).**
+    ⚠️ Minor separate note: the `.catch(() => null)` swallows a timeout SILENTLY, so the agent cannot tell "explore
+    found nothing" from "explore timed out" — an observability gap, not a work-loss one; filed mentally alongside
+    the other silent-null cases, not chased here.
+  **CONCLUSION: no !Klein path returns NOTHING of the agent's produced work on timeout.** The chat loop forces a
+  final answer, the sandbox/task path salvages captured work into review, and the mid-turn abort routes through
+  that same salvage. Goose's total-loss failure mode does not exist here.
 - [ ] **P21.8 — Starve the orchestrator of tools + summary-only subagent returns.** Roo Code and Kilo Code
   converged INDEPENDENTLY on this: subtasks run "in complete isolation with its own conversation history", do NOT
   inherit parent context, and return a **single `attempt_completion` summary that becomes the source of truth**;
