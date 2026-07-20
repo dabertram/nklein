@@ -5707,6 +5707,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   actually recorded.
   NEXT: why a second bounce moves the card to `in_progress` without dispatching a turn. `dev card-timeline` now
   makes that one command rather than an afternoon.
+  **🎯 THE RACE, NAMED: the #31 guard is TIME-OF-CHECK-TIME-OF-USE.**
+  `nklein-sandbox-review-finalizer.ts:242` disposes only when the session is not busy:
+  ```ts
+  const stateAfterCapture = deps.getTaskEntry(taskId)?.summary.state;
+  if (!isBusySessionState(stateAfterCapture)) { … await manager.disposeWorkspace(taskId); }
+  ```
+  Its comment describes **#31, the SAME bug from the opposite direction**: *"a fast bounce can RE-DRIVE the worker
+  (restore + running) while this fire-and-forget finalize is still capturing. Disposing then rips the workspace out
+  from under the live turn."* The guard was added so a re-drive already in flight is not disposed under.
+  **But the check is a POINT-IN-TIME read.** In the observed run the state was not busy at `796019`, disposal
+  proceeded correctly — and the re-drive arrived **2.3 seconds later** at `798340`. The guard cannot see a
+  re-drive that has not happened yet, so **#31's fix covers "re-drive before dispose" and leaves "re-drive shortly
+  after dispose" open.** Both produce the identical symptom: a live round with no workspace.
+  **THAT IS WHY IT NEEDS A DOUBLE BOUNCE.** The first bounce's re-drive wins the race (restore fires, round 2
+  runs); the second bounce loses it. Same code, same guard, different timing — which is exactly the intermittency
+  profile observed: FAIL/FAIL/PASS/PASS/FAIL across five runs, never varying in WHICH card, only in whether.
+  **THE SHAPE OF THE REAL FIX (David's call):** the dispose/re-drive pair needs to be serialised rather than
+  condition-checked — a lifecycle lease, or a re-drive that always restores rather than assuming a workspace, or a
+  disposal deferred until the card is genuinely terminal. **Not another state predicate: any point-in-time check
+  has this same window, and #31 already tried that.**
 - [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
