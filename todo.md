@@ -5292,10 +5292,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   that this caveat is not boilerplate: its one flagged deliverable (`drift_detection`) IS genuinely default-off —
   but gated by an INJECTED CALLER, not by any of the four flags the scanner listed. **Right answer, wrong
   reason**, and only reading it revealed that.
-  NEXT: triage the 38. Each is one of — (a) a live default-ON path the scanner mis-flagged, (b) a deliberate
-  opt-in that should be REGISTERED so its silence is explainable, or (c) another F4.8: a requirement believed
-  satisfied by code that never runs. **Only (c) is a defect, but (b) is what makes (c) findable**, and today
-  nothing distinguishes them.
+  **PROGRESS 2026-07-20: 5 → 9 of 40 registered.** Four were added on VERIFIED evidence — the flag name derives
+  a category that genuinely exists AND was read at its emission site (`baseline_probe`, `repo_verify`,
+  `tool_trust_decay`, `typecheck_first`). All four now report `never_enabled` — *"zero is the CORRECT result, not
+  a smell"* — which is the point of registering them.
+  🔬 **AND THE REMAINING 31 CANNOT BE AUTOMATED — established by trying, not assumed.** Two heuristics were run
+  against all 41 flags and both fail:
+  - **Name-derived category** (`NKLEIN_X_Y` → `x_y`, checked to exist): matched only **4 of 41**.
+  - **Proximity** (nearest `category:` within 80 lines of the guard): produces **confident nonsense**.
+    `NKLEIN_TEST_DRIVEN_MODE` resolved to `review_effort_scaling`; `NKLEIN_N_EYES_REVIEW` and
+    `NKLEIN_REVIEW_PANEL` both resolved to *the same* observation line. **Co-location is not attribution** — the
+    same mistake that made `dev env-gated` right-for-the-wrong-reason on `drift_detection`.
+  **So the 31 close only by READING each mechanism.** That is slow, and it is the honest cost. **Mass-registering
+  on proximity would fill the registry with entries pointing at categories those mechanisms never emit — a
+  registry that reports on the wrong thing is worse than one that admits it does not know**, and would be the
+  fourth false-claim-in-the-flattering-direction of the day.
+  ⚠️ **DO NOT infer "these mechanisms emit nothing" from the proximity scan either.** That was the tempting
+  second conclusion and it is equally unsupported: proximity failing to find a category proves nothing about
+  whether one exists. Establishing THAT also requires reading.
   ⚠️ **DO NOT "FIX" THIS BY FLIPPING DEFAULTS.** Each flag was defaulted off for a reason, and several change
   every session's prompt. Registration is the fix; enabling is a per-flag decision with a measured A/B behind it.
 
