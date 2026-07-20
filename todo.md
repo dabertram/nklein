@@ -6204,6 +6204,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   near **8.8 pp** — **repeats fix run noise; only more tasks fix task-sampling noise.** Protocol: fixed identical
   task set → per-task paired deltas → clustered BCa bootstrap → sign-flip permutation → require CI>0 AND p<0.05.
   **"Unresolved" as a first-class verdict is the difference between honest and motivated self-evaluation.**
+  **MDE CORE SHIPPED 2026-07-20: `minimum-detectable-effect.ts`, 15 tests.** F12.41 already decides significance
+  and F12.28 already reports `unresolved` — but **both act AFTER the fleet time is spent.** This answers the
+  question that must come first: given the task set we can afford, what is the smallest effect detectable even in
+  principle? An underpowered study produces an expensive `unresolved` that **reads like bad luck rather than like
+  arithmetic**, and the arithmetic was available before the run.
+  **`taskFloorMdePoints` IS REPORTED SEPARATELY, because "just run it a few more times" is the reflex.** Repeats
+  fix RUN noise; only more TASKS fix TASK-SAMPLING noise. When the achievable MDE has converged on the floor the
+  summary says outright that additional runs are *"wasted fleet hours"* — the instinct buys precision on the wrong
+  variance component **while feeling like rigour.**
+  `assessPreRegistration` returns `underpowered_by_construction` as a HARD verdict, not a caution: it is computed
+  before any data exists, so **there is nothing to weigh it against.** It also says how many tasks WOULD suffice,
+  and offers the honest alternatives (more tasks, or declare a larger effect and admit that is what is tested).
+  **⚠️ CALIBRATION CHECKED AGAINST THIS ITEM'S OWN FIGURES — AND IT ONLY PARTLY MATCHES, WHICH IS RECORDED
+  RATHER THAN TUNED AWAY.** The 89–225-task band reproduces well (18.8 → 11.8 pp vs the published ~10–18 pp). But
+  Miller's *"3 pp at n≈969"* comes out at **6.36 pp here even with pairing and clustering disabled** — ~2×
+  conservative — and the 100-task floor lands at ~12.5 pp against the published 8.8. The gap is almost certainly
+  the variance model (worst-case `2p(1−p)` at p=0.5 rather than a paired discordant-rate term).
+  **The constants were deliberately NOT fitted to reproduce the citation**, because a formula tuned to a number it
+  cannot derive is one nobody can reason about later. **The error direction is the safe one:** it OVER-states the
+  MDE, so it calls studies underpowered slightly too often — costing extra tasks — where the opposite error would
+  bless an underpowered study as adequate, which is the exact failure this core exists to prevent. Treat the
+  output as an UPPER BOUND, and see the pinning test before "fixing" it.
 - [ ] **P20.7 — Control infrastructure noise (we are MORE exposed than a cloud lab, not less).** Anthropic
   measured a **6 pp score gap (p<0.01)** between most- and least-resourced container configs with model, harness
   and tasks held constant, and infra error rates of 5.8% / 2.1% / 0.5% across enforcement levels. **Their
