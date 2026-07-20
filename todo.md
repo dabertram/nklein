@@ -7649,12 +7649,21 @@ less progress than exists, which is the rarer direction of the same dishonesty.
 
 | bucket | count | what it means |
 |---|---:|---|
-| **Buildable now** | **74** | no hard external blocker — but see the size caveat below |
-| Effectful wire | 18 | a shipped core needs its seam (`b`-items) |
+| **Buildable now** | **60** | no hard external blocker — but see the size caveat below |
+| Effectful wire | 22 | a shipped core needs its seam (`b`-items) |
 | Sandbox / toolchain | 16 | needs Docker images or language toolchains the sandbox lacks (see F12.84b) |
-| Fleet / model time | 9 | needs loaded models, live drains, or a re-sweep |
-| David decision | 3 | not code — a judgement only David can make |
+| Fleet / model time | 7 | needs loaded models, live drains, or a re-sweep |
+| David decision | 5 | not code — a judgement only David can make |
 | External credentials | 1 | Apple/Windows signing (F12.102) |
+
+**RE-MEASURED at end of 2026-07-20: 111 open / 14 partial / 5 gated / 80 blocked / 244 done.** The earlier
+snapshot in this section said 121 open; it was accurate when written and is superseded here rather than left to
+mislead — **a stale number in the file that is meant to be the source of truth is worse than no number.**
+**THE SHAPE OF THE CHANGE IS THE INTERESTING PART, not the count.** Open moved 121 → 111 while `done` moved
+185 → 244 (**+59**). The two do not reconcile because ~40 new items were CREATED today, almost all of them
+`b`-wires split out of cores that shipped. **Buildable-now fell 74 → 60 and effectful-wire rose 18 → 22, which
+is the selection bias in §7's orphan note made visible in the ledger**: a day of building pure cores converts
+"buildable" items into "needs a wire" items. The backlog got more honest and slightly larger at the same time.
 
 **THE SIZE CAVEAT MATTERS MORE THAN THE COUNT.** "Buildable now" means *unblocked*, not *small*. N2 alone
 (record aimock sets covering every codepath for 10 dev-test projects, 0 unmatched requests each) is days of work;
