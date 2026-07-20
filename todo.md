@@ -4917,7 +4917,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > the guidance will come from David's own hands-on testing — Phase 15 exists so that testing has something
 > systematic to land against instead of being the only mechanism.
 
-- [ ] **P15.1 — Inventory every observe-only mechanism and its decision criteria.** Machine-readable registry of
+- [~] **P15.1 — Inventory every observe-only mechanism and its decision criteria.** Machine-readable registry of
   every `record-only` / env-gated / default-OFF mechanism currently in the tree: what it observes, which
   observation `category` it emits, what evidence would justify turning it ON, and what the default SHOULD become
   under each outcome. This is the ledger Phase 15 works from; without it "prove the mechanisms" is unbounded.
@@ -4928,6 +4928,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Acceptance:** a `docs/dev/mechanism-registry.md` generated FROM the code (not hand-maintained — it will rot),
   plus a dev CLI that lists mechanisms with zero observations recorded, which is the "shipped but never exercised"
   smell.
+  **AUDIT CORE SHIPPED 2026-07-20 + FIRST FULL RUN — AND THE RESULT IS THE CHARTER §4 CRITICISM, MEASURED.**
+  `unwired-core-audit.ts` scans `src/core` exports and counts NON-COMMENT references outside each symbol's own
+  module. First run across `src`, `web-ui/src` and `packages`:
+  **119 modules in `src/core` where EVERY exported symbol has zero non-test consumers.** Largest:
+  `lms-session-stall.ts` (8 exports), `enforced-reasoning-learning.ts` (7), `fleet-review-observation.ts` (7),
+  `memory-freshness-schedule.ts` (7), `cache-prefix-retention.ts` (6), `eval-context-footprint.ts` (6),
+  `fast-memory-fit.ts` (6), `model-pool.ts` (6), `skill-import-decision.ts` (6),
+  `strategy-effectiveness-ledger.ts` (6).
+  **THE COMMENT-ONLY CLASS IS THE DANGEROUS ONE** and is why a plain grep count is not enough: symbols whose only
+  references are docblock mentions — `arrangeContextForSmartZone`, `assembleCacheAwarePrompt`,
+  `decideCardDecomposition`, `runAdaptiveAttemptLoop`, `decideArchitectEditorSplit`, `decideAssumptionSafety`,
+  `prefixesAreCacheEquivalent` … A naive `grep -c` reports these as WIRED. They are not.
+  **HONEST CAVEATS, stated because this number will be quoted:** (a) it is a TEXT-level scan and can miss
+  re-exports and dynamic lookups, so each orphan is a QUESTION, not proof; (b) some orphans are cores shipped
+  TODAY whose wires are their own `b` items (`spec-deliberation`, `codeact-gating`, `constraint-tax-strategy`,
+  `prompt-evolution-gate`) — those are expected and already named; (c) an orphan is not automatically dead code —
+  the charter's standard is LEARNING value, not consumer count. **The output is a ranked question list for a
+  human, and the module deliberately never emits the word "delete".** 11 tests.
+  REMAINING: fold the scan into a `dev unwired-cores` command + generate `mechanism-registry.md` from it, and
+  run the observation-count half (mechanisms with zero recorded observations) which needs the telemetry store.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with
