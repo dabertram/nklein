@@ -5662,6 +5662,27 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   PREVIOUS round's artifact."* **Option A — "don't hold when a result branch exists" — would have delivered round
   1's stale work as if it were round 2's.** The hold ignoring the branch is not an oversight; it is the guard
   against exactly that. **David's choice of B is right, and for a sharper reason than the one I gave.**
+  **✅✅ EXACT ROOT CAUSE, from `dev card-timeline` (the tool built for this, in ONE command):**
+  ```
+  796018  result branch updated          ← round 2 CAPTURED fine
+  796019  sandbox_workspace_disposed     ← finalizer disposes, 1ms later, CORRECTLY (round 2 is done)
+  798340  card_lane_change review → in_progress   ← BOUNCED A SECOND TIME, round 3 starts
+  802004  Could not capture … workspace unavailable   ← round 3 has no workspace
+  802005  transition failed
+  806276  final_lane: review             ← held, 21 dependents blocked
+  ```
+  **The restore fired for round 2 and NOT for round 3.** One `sandbox_workspace_redrive_restore` event, two
+  bounces. `restoreDisposedSandboxWorkspaceForRedrive` exists and works — it simply is not reached on the SECOND
+  re-drive.
+  **SO THE DISPOSE→RESTORE DESIGN IS SOUND AND OPTION B AS LITERALLY STATED DOES NOT APPLY.** Disposal happens
+  AFTER capture, not before — it is correct every time it fires. The defect is that the RESTORE is not repeated
+  for a second bounce, so round 3 runs against a workspace that was correctly disposed after round 2.
+  **This is a THIRD-ROUND bug**, which is exactly why it is intermittent: it needs a card the reviewer bounces
+  TWICE. Cards bounced once recover perfectly — which is why 19 of 33 handed cards completed normally in the same
+  run, and why the earlier hypotheses (scheduler, admission, dependencies) all found healthy machinery.
+  **THE FIX IS NARROW: make the re-drive restore fire on EVERY re-drive, not just the first.** Not "do not
+  dispose" — the disposal is right. **DAVID: this supersedes the option A/B/C choice; the question is no longer
+  where to stop disposing but why the restore is not repeated.**
 - [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
