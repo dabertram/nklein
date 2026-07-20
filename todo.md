@@ -5203,8 +5203,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   join a pack when the collector can genuinely observe them, never in advance of that.
   The packs are deliberately near-empty for the same reason — a pack full of unobservable expectations and a pack
   that asserts nothing do the same amount of real checking; the difference is that the first LOOKS thorough.
-  REMAINING: the `test:nightly` entry, and teaching the drain script to EMIT terminal lanes + signals so the
-  collector has something truthful to subscribe to (that is what turns the `indeterminate`s into real assertions).
+  **`test:nightly` + `test:nightly:dry` ADDED and the PRE-RELEASE CHECKLIST WRITTEN 2026-07-20**
+  (`docs/dev/pre-release-checklist.md`). The checklist states, per step, **what it does NOT prove** — a checklist
+  that only lists what to run teaches people to run it; one that states the limits teaches them to READ THE
+  OUTPUT. It records that `test:fast` does not typecheck, that the pre-commit hook covers backend `tsc` only, that
+  a `requirement-coverage` FAIL is compatible with a fully green suite, that the transitive orphan scan cannot see
+  cycles, and that the fixed seed makes repeat runs worthless for variance.
+  REMAINING (N7b): teach the drain script to EMIT terminal lanes + gate/guard signals so the collector has
+  something truthful to subscribe to. **That single change is what converts today's `indeterminate`s into real
+  assertions** — the packs, the collector, the judging and the reporting are all built and waiting on it.
+
+- [ ] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.** Have
+  `verify-simulated-flow.mts` emit terminal board lanes per card and the gate/guard signals it already fires, in a
+  machine-readable form, and have the runner register real subscriptions for them.
+  **THIS IS THE KEYSTONE: everything downstream is built and idle without it.** N5's packs, N5b's collector, the
+  pack registry and the failure report all exist and are wired — and every assertion beyond "the drain exited 0,
+  matched its recordings, and left no orphans" currently reports `indeterminate`, because nothing observes it.
+  **DO NOT CLOSE THIS BY WIDENING `subscriptions`.** N5b makes `watchedSignals` underivable from the pack on
+  purpose; the equivalent shortcut here is to register subscriptions for signals the drain does not actually emit,
+  which would turn every `indeterminate` into a false pass while touching no core. A subscription is honest only
+  when the drain genuinely emits that signal — **the emission comes first, the subscription second.**
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
