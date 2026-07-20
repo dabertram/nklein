@@ -5404,8 +5404,35 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *blocked*. Cards do not gain dependencies, so either a prerequisite BOUNCED out of `completed` (re-blocking its
   dependents), or the sweep's notion of "startable" and the board's notion of "blocked" disagree. **The stall may
   be in the prerequisite chain, not in the controller at all.**
-  NEXT: identify the prerequisites of the 14 and find what state THEY ended in. The earlier hypothesis below is
-  retained but demoted — it was built on the wrong premise.
+  **✅✅ ROOT CAUSE FOUND — ONE CARD HELD IN REVIEW BLOCKS 22 DEPENDENTS, AND IT IS A KNOWN CLASS WITH A MISSING
+  RUNG.**
+  Tracing the prerequisites: the 22 planning cards depend on **each other** (31 edges) and the chain roots at
+  **3 edges into `review`** — a single card, `s03` *"Unit-safe dose and quantity arithmetic"*. Its log:
+  ```
+  s03: core: review-session done (request_changes)
+  s03: review-resolution done (bounced)
+  Second-opinion review outcome for s03: bounced
+  Task result capture failed for s03; held in Review before reviewer/delivery.   ×2
+  ```
+  **The card bounced, its sandbox RESULT CAPTURE then failed, and the fail-closed hold has no recovery path.**
+  It sits in Review forever and its entire dependent subtree — 22 cards — stays correctly blocked behind it.
+  **THE SCHEDULER WAS NEVER THE BUG.** Every layer downstream behaved correctly: the cards really were blocked,
+  the sweep really should not have started them, the controller really had nothing to dispatch. **Four
+  investigative dead-ends (debounce, lane names, card attributes, admission) were all downstream of a single
+  stalled prerequisite.**
+  **AND IT IS THE FOURTH INSTANCE OF A CLASS THIS CODEBASE HAS ALREADY FIXED THREE TIMES.**
+  `runtime-server.ts:518-529` documents three re-drive rungs added for exactly this shape — W4.2a (empty patch),
+  **#28 (approved-but-acceptance-failed, whose comment reads *"the card sat held in Review forever with the whole
+  fleet idle"*)**, and F1.9b (boundary violation). Each was added after a live stall.
+  **`capture_failed` never got a rung.** The handler warns and returns, relying on *"a later capture marker
+  re-emits the summary and retries finalization"* — a marker that evidently does not arrive. **Three siblings of
+  this bug were found and fixed one at a time; the fourth was left because nobody enumerated the causes.**
+  Explains the nondeterminism too: whether a reviewer requests changes AND capture then fails varies per run —
+  hence FAIL/FAIL/PASS/PASS/FAIL — while the *consequence* is deterministic once it happens, which is why the
+  stranded counts were identical across failing runs (33/19/14 both times).
+  **THE FIX IS THE SAME SHAPE AS THE OTHER THREE: one bounded re-drive on `capture_failed`, then hold for the
+  operator.** Worth doing as a FAMILY rather than a fourth one-off — enumerate every `return` that leaves a card
+  held in Review and check each has a rung, or the fifth will be found the same way.
   **PREVIOUS HYPOTHESIS (demoted): the durable JOB GRAPH disagrees with the BOARD about
   dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
   while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
