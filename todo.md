@@ -5093,6 +5093,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   asserts NOTHING while appearing to pass, which is the worst available failure here. Cycles are survived rather
   than fatal. Composition is what makes "new projects assert by reference" true. 12 tests; suite green.
   Split 2026-07-20: the collector is N5b.
+  **🐛 INTEGRITY GUARDS ADDED 2026-07-20 — and they caught a bug in the pack registry on their FIRST RUN.**
+  `PARKED_TERMINAL` declared `expectedTerminalLanes: ["parked", "attention"]` and **neither is a board lane** — a
+  parked card sits in `review` awaiting an operator; "parked" is a SESSION STATE, not a column. The pack would
+  have failed every cell it judged, and the symptom would have read as *"the nightly is broken"* rather than
+  *"the pack names a lane that does not exist"* — a confident wrong verdict, which is worse than silence.
+  **This is the SECOND instance of the same bug in the same file within hours** (`done` vs `completed` was the
+  first). Found by hand then, by test now — which is exactly the difference a guard makes.
+  `nightly-registry-integrity.test.ts` now pins: every pack RESOLVES, every expected lane is a REAL board lane,
+  and every project in `nightly-manifest.json` names a pack that EXISTS (the manifest named `core-invariants` for
+  weeks with nothing defining it, so no cell was ever judged against anything — **a dangling name is invisible
+  until someone goes looking for the pack**).
+  It also guards the tracked-requirement map: every declared provider module exists and every declared SYMBOL is
+  actually exported. A renamed module leaves the map pointing at nothing, and the audit then reports that element
+  as `built_but_unwired` **forever — a permanent false finding that looks exactly like a real one.**
 - [x] **N5b — The drained-state COLLECTOR *(split from N5 2026-07-20)*.** Turn a finished drain into the
   `DrainedState` N5 judges. **SHIPPED 2026-07-20: `nightly-drain-collector.ts`, 8 tests.**
   **THE RISK THIS ITEM EXISTED TO CONTAIN: `watchedSignals` must be TRUE, or N5's third status is worthless.**

@@ -49,7 +49,14 @@ export const CORE_INVARIANTS: InvariantPack = {
  */
 export const PARKED_TERMINAL: InvariantPack = {
 	id: "parked-terminal",
-	expectedTerminalLanes: ["parked", "attention"],
+	// 🐛 CAUGHT BY `nightly-registry-integrity.test.ts` ON ITS FIRST RUN: this said `["parked", "attention"]`, and
+	// NEITHER is a board lane. A parked card sits in `review` awaiting an operator — "parked" is a session state,
+	// not a column. The pack would have failed every cell it judged, and the symptom would have read as "the
+	// nightly is broken" rather than "the pack names a lane that does not exist".
+	//
+	// Exactly the failure this pack's sibling had hours earlier (`done` vs `completed`), found by hand then and by
+	// test now — which is the difference the guard makes.
+	expectedTerminalLanes: ["review"],
 	mustFire: [],
 	mustStayQuiet: [],
 	includes: ["core-invariants"],
