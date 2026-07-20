@@ -2,6 +2,7 @@
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { MODEL_USAGE_CATEGORY } from "../core/card-tracking-coverage";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	readAgentEvent,
@@ -334,6 +335,39 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		}
 
 		const status = typeof result?.status === "string" ? result.status : "completed";
+
+		// N18: record this TURN's token usage against the card, with the model that served it.
+		//
+		// The ledger records usage once per ATTEMPT, at the attempt's end, reading whatever `latestUsage` happened
+		// to hold — so an attempt spanning several turns collapsed into one figure and the serving model was not
+		// recorded at all. Emitting here gives per-TURN attribution and names the model, which is what makes "is
+		// this card slow, or is this model slow?" answerable.
+		//
+		// ⚠️ **PER-REQUEST IS STILL NOT AVAILABLE, AND THIS DOES NOT PRETEND OTHERWISE.** `run-finished` is the end
+		// of a turn; the SDK aggregates the individual model calls inside it and does not expose them here. So a
+		// retry storm within one turn STILL reads as one expensive call. The metadata says `perTurn` so a reader
+		// cannot mistake this for request-level data.
+		if (latestUsage) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Turn finished on ${taskId} (${status}): ${latestUsage.inputTokens} in / ${latestUsage.outputTokens} out.`,
+					taskId,
+					metadata: {
+						category: MODEL_USAGE_CATEGORY,
+						granularity: "perTurn",
+						inputTokens: latestUsage.inputTokens,
+						outputTokens: latestUsage.outputTokens,
+						modelId: entry.summary.modelId ?? null,
+						status,
+					},
+				});
+			} catch {
+				// Telemetry must never break a finishing turn.
+			}
+		}
+
 		if (status === "aborted" && input.pendingTurnCancelTaskIds.has(taskId)) {
 			emitTurnCanceled(input);
 			return;

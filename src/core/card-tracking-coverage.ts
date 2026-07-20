@@ -28,6 +28,9 @@ export const REVIEW_PHASE_CATEGORY = "review_phase";
 /** Telemetry category marking an attempt's START — the ledger records only its end. */
 export const ATTEMPT_STARTED_CATEGORY = "attempt_started";
 
+/** Telemetry category for per-TURN token usage, with the model that served it. */
+export const MODEL_USAGE_CATEGORY = "model_usage";
+
 export type TrackingSource =
 	/** `.nklein/nklein/telemetry/*.jsonl` — the self-observation sink. */
 	| "self_observation"
@@ -108,15 +111,16 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 	},
 	{
 		id: "model_usage",
-		what: "Token usage for an attempt: prompt and completion tokens, gated by the configured tracking level.",
-		source: "agent_ledger",
-		emitterToken: "applyModelStatsTrackingLevel",
+		what: "Token usage for a turn: input and output tokens, and the model that served it.",
+		source: "self_observation",
+		emitterToken: "MODEL_USAGE_CATEGORY",
 		status: "partial",
 		gap:
-			"Recorded per ATTEMPT, not per model REQUEST — an attempt that makes many calls collapses into one figure, " +
-			"so a retry storm is indistinguishable from one expensive call. `totalTokens` and `reasoningTokens` are " +
-			"hardcoded null at the recording site, and neither LATENCY nor the model id that served the request is " +
-			"captured, so a slow card still cannot be told from a slow model. Suppressed entirely when the level is `off`.",
+			"Now recorded per TURN with the serving model id, which makes 'slow card or slow model?' answerable. But " +
+			"PER-REQUEST is still unavailable: `run-finished` ends a turn and the SDK aggregates the individual model " +
+			"calls inside it, so **a retry storm within one turn still reads as one expensive call**. The metadata is " +
+			"stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock LATENCY is " +
+			"still not captured. Closing this needs an SDK-level per-request hook, which may not exist.",
 	},
 	{
 		id: "review_verdict",

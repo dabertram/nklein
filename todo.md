@@ -5285,17 +5285,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   exit 0. **I had written a docblock in that very file warning against exactly this.** Fixed with an
   unconditional exclusion; re-verified BOTH ways — green when honest, red naming the broken claim when renamed.
   **THE KNOWN GAPS, now written down instead of implied** (this list IS the remaining backlog for N18):
-  - `model_usage` — **PARTIAL, and I first recorded this WRONGLY as untracked.** Token usage IS written per
-    attempt into the ledger (`applyModelStatsTrackingLevel`); I claimed it was invisible and had to correct the
-    entry after checking. **A false gap in the contract is as corrosive as a false claim of coverage** — it sends
-    someone to build what already exists. The REAL gap: it is per-ATTEMPT, not per REQUEST, so a retry storm and
-    one expensive call are indistinguishable; `totalTokens`/`reasoningTokens` are hardcoded null at the recording
-    site; and neither LATENCY nor the serving model id is captured, so a slow card still cannot be told from a
-    slow model. Suppressed entirely at tracking level `off`.
-  - ~~`acceptance_run`~~ — **CLOSED 2026-07-20.** Every acceptance run now emits its outcome at the handler's
-    RETURN, so it fires for pass, fail and absent alike; `present` stays separate from `passed` so *"no criteria
-    existed"* is never reported as a pass. Previously only failures emitted, which made **a card that was never
-    verified look identical to one that passed** — silence reads as fine. Verified red by removing the emitter.
+  - `model_usage` — **IMPROVED, still partial.** (I first recorded this WRONGLY as untracked; token usage was
+    always written per attempt via `applyModelStatsTrackingLevel`. **A false gap is as corrosive as a false claim
+    of coverage** — it sends someone to build what already exists.) Now ALSO emitted per TURN at `run-finished`
+    with the **serving model id**, which is what makes *"is this card slow, or is this model slow?"* answerable
+    at all. **RESIDUAL GAP, and the blocker is real:** `run-finished` ends a TURN and the SDK aggregates the
+    individual model calls inside it, so **a retry storm within one turn still reads as one expensive call**.
+    Metadata is stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock
+    latency is still uncaptured. Closing it needs an SDK-level per-request hook that may not exist — **there is
+    no single chokepoint through which every model request passes** (LocalLlmClient, KleinCoreClient and the
+    agent's own SDK loop are separate transports), so this is a design question, not a missing line.
   - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
     `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
     through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
