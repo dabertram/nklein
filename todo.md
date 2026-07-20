@@ -5300,7 +5300,27 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *"— sweeping (frozen-board self-heal)"* suffix. **It does act. That makes this worse, not better:** a mechanism
   that detects, acts, and achieves nothing is harder to notice than one that never fires, because the logs show
   it working.
-  NEXT: why `retryWaitingCardsAfterTerminal` does not start a card the watchdog has just classified as startable.
+  **🎯 LIKELY ROOT CAUSE — A RESPONSIBILITY GAP OPENED BY THE DURABLE-SCHEDULER DEFAULT-ON FLIP (2026-07-18).**
+  `runtime-server.ts:1312`:
+  ```js
+  // Under a durable run only the deferred set is ours to restart; sweep/redrive are the controller's
+  await startRescueCandidates(scope, deferredTaskIds, [...deferredTaskIds, ...sweepTaskIds, ...redriveTaskIds]);
+  ```
+  The second argument — the cards this path will actually restart — is **`deferredTaskIds` ONLY**. Our failure is
+  `deferred: 0, startable: 1`, so that set is **EMPTY**: the sweep hands the startable card to the durable
+  controller and restarts nothing itself. If the controller does not rescue it, **nobody does**, and the watchdog
+  re-detects the same card every 30s forever — which is exactly the 13 firings observed.
+  **The timeline fits: F1.18b flipped the durable scheduler DEFAULT-ON on 2026-07-18, and this is the first real
+  nightly run since.** The self-heal was written when this path owned the rescue; the flip moved ownership and
+  the watchdog kept reporting success-shaped logs.
+  ⚠️ **CONFIDENCE: strong hypothesis, NOT proven.** What is verified: the code path, the empty deferred set, the
+  default-on flag, the 13 fruitless firings. What is NOT: that the durable controller declines this card — that
+  needs reading `startRescueCandidates` and the controller's own admission. **Do not fix on this alone**; confirm
+  the controller's behaviour first, because "the other component owns it" is precisely the assumption that
+  created the gap.
+  Two hypotheses were disproved on the way, and are recorded so they are not re-tried: the 5s sweep DEBOUNCE
+  (the watchdog ticks every 30s, well outside it) and a stale lane-name assertion.
+  NEXT: confirm whether the durable controller ever starts a `startable` card the sweep hands it.
   And separately, why two identical-seed runs differ (28 vs 30) — **do not treat that as noise to average over**;
   it is the more consequential finding, because it means every other nightly verdict is drawn from an unstable
   process.
