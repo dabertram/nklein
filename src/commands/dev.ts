@@ -47,6 +47,7 @@ import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevCompactionFormatCommand } from "./dev-compaction-format-command";
+import { runDevDiagnoseCommand } from "./dev-diagnose-command";
 import { runDevEnvGatedCommand } from "./dev-env-gated-command";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
@@ -1118,6 +1119,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action((options: { advertised?: string; probed?: string; tolerance?: string; json?: boolean }) => {
 			runDevServedContextCommand(options);
+		});
+	dev.command("diagnose")
+		.description("Turn a task's test results into a diagnosis, not pass/fail (P20.2 / diagnostic-oracles).")
+		.option("--splits <file>", "{failToPass,passToPass} of {id,passed} — which failure mode occurred.")
+		.option("--repeats <file>", "One {passed,terminalState?} JSON per line — reliability/flakiness.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { splits?: string; repeats?: string; json?: boolean }) => {
+			await runDevDiagnoseCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")

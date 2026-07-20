@@ -38,7 +38,7 @@ research phase, not code abandoned years ago.
 | module | purpose | origin | verdict |
 |---|---|---|---|
 | `rounds-budget.ts` | Learned ROUNDS BUDGET: when to stop iterating an enforced-reasoning loop (self-consistency / debate) once marginal gain plateaus | 2026-07-05 `feat(reasoning-loop)` | **UN-ORPHAN** |
-| `diagnostic-oracles.ts` | Hidden-split + repeat-run verdict cores that upgrade the dev-test rail from pass/fail gates to *diagnoses* | 2026-07-08 `feat(oracles)` | **UN-ORPHAN** |
+| `diagnostic-oracles.ts` | Hidden-split + repeat-run verdict cores that upgrade the dev-test rail from pass/fail gates to *diagnoses* | 2026-07-08 `feat(oracles)` | **✅ DE-ORPHANED 2026-07-20** via `dev diagnose` |
 | `swarm-roster-load-plan.ts` | Resolves user roster names/ids to real LM-Link devices before `model-lab` performs a load | 2026-07-09 `feat(fleet)` | **UN-ORPHAN** |
 | `fleet-host-cap-config.ts` | Per-host verifier caps from LM-Link device state | 2026-07-09 `test(fleet)` | keep, low priority |
 | `fleet-host-observation.ts` | Which models were seen on which machine | 2026-07-09 `fix(dev)` | keep, low priority |
@@ -66,8 +66,10 @@ misleading; an unused 40-line pure helper with tests is not the maintenance burd
 
 ## Standing recommendation
 
-**Nothing here warrants deletion today.** The genuine orphan count (7) is small, three of them are worth wiring,
-and the other four are cheap. The 119-module figure is a real signal about *build-ahead-of-wire* pace — which the
+**Nothing here warrants deletion today.** The genuine orphan count (7) is small, three of them are worth wiring
+(**`diagnostic-oracles.ts` is now DONE — `dev diagnose` de-orphaned it 2026-07-20**, applying its hidden-split
+and repeat-run verdicts to captured test results; `rounds-budget.ts` and `swarm-roster-load-plan.ts` remain, both
+awaiting the reasoning-loop and second-runtime-adapter wires their docblocks name), and the other four are cheap. The 119-module figure is a real signal about *build-ahead-of-wire* pace — which the
 charter already accepts and Phase 15 already tracks — not a pile of dead code.
 
 Re-run `nklein dev mechanism-doc` for the current scan; re-run this triage when the untracked count grows.
