@@ -5348,13 +5348,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   | 1 | FAILED | 30 |
   | 2 | FAILED | 28 |
   | 3 | **PASSED** | full drain |
-  Same cell, same fixed seed 7, three different outcomes. This **confirms the nondeterminism as the primary
-  finding** and demotes "the drain leaves cards undrained" to a symptom of it.
+  | 4 | **PASSED** | full drain |
+  Same cell, same fixed seed 7, different outcomes. This **confirms the nondeterminism as the primary finding**
+  and demotes "the drain leaves cards undrained" to a symptom of it.
+  ⚠️ **CONFOUND, NAMED RATHER THAN IGNORED: the two failures came BEFORE two commits, and the two passes AFTER.**
+  Between run 2 and run 3 the drain script gained an earlier lane emission and a `seed-monitor.log` write, and
+  the server gained the handover warning. All three are diagnostics and none should touch scheduling — **but
+  "should not" is exactly the reasoning that produced this bug**, and FAIL/FAIL/PASS/PASS is equally consistent
+  with a coin flip and with a change of behaviour. **Do not conclude it is fixed.**
   ⚠️ **AND BY THIS PROJECT'S OWN RULES (P20.5/P20.6), 3 RUNS IS NOT A RATE.** It is tempting to write "fails ~2/3
   of the time"; that would be a point estimate with an interval spanning nearly everything. **No failure rate is
   claimed here**, and one should not be quoted until the run count supports it — the same discipline that was
   written into `buildHeadline` this morning applies to its author.
-  The instrumentation has NOT yet fired: run 3 passed, so no rescue was needed. It is armed for the next failure.
+  The instrumentation has NOT fired across runs 3–4: both passed, so no rescue was needed. It stays armed.
+  **STOPPING THE RUN-AND-SEE LOOP HERE, deliberately.** Four 8-minute runs is ~35 minutes for a 2/4 split that
+  resolves nothing — and P20.6's own arithmetic says so: at this sample the interval spans nearly everything, and
+  **repeats cannot fix task-sampling noise.** Chasing a 5th run would be the exact reflex `taskFloorMdePoints`
+  exists to refuse. This needs a batch of runs as a FLEET-TIME item, not more one-offs inside a session.
   And separately, why two identical-seed runs differ (28 vs 30) — **do not treat that as noise to average over**;
   it is the more consequential finding, because it means every other nightly verdict is drawn from an unstable
   process.
