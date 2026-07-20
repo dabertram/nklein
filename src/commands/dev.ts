@@ -57,6 +57,7 @@ import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
+import { runDevSpecReviewCommand } from "./dev-spec-review-command";
 import {
 	runDevAdviceCommand,
 	runDevAirGapStatusCommand,
@@ -1018,6 +1019,18 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevEnvGatedCommand(options);
+		});
+	dev.command("spec-review")
+		.description("Run the spec-first pipeline (F12.8 EARS + F12.9 lint) on a real spec, no model needed.")
+		.option("--spec <file>", "Spec text file to lint + sequence clarifications for.")
+		.option(
+			"--answered <topics>",
+			"Comma-separated topics the caller has confirmed (problem,core_actions,out_of_scope,success_criteria).",
+		)
+		.option("--criteria <file>", "One EarsCriterionInput JSON per line; renders each as an EARS sentence.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { spec?: string; answered?: string; criteria?: string; json?: boolean }) => {
+			await runDevSpecReviewCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")

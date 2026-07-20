@@ -3069,8 +3069,19 @@ output and NOT acted on. Captured as F12.12.)
   UNANSWERED ones returned and ONE handed back at a time (the discipline that stops a wall of questions being
   answered with one vague paragraph); no implementation-steering questions. 6 tests. Pairs with F12.9's spec-lint
   — that finds the gaps, this renders the well-formed criterion and sequences the questions.
-  REMAINING (the wire): F11.1's guided initializer is where these emit + the versioned spec artifact lands —
-  that surface is unbuilt and David-plan-coupled, so the core is ready and waits for it.
+  **✅ DE-ORPHANED 2026-07-20 via `dev spec-review` — the core no longer waits idle for F11.1.** The renderer and
+  the clarification sequencer had NO consumer, which is the built-but-unwired shape this session opened by
+  auditing; a `dev` command is a real one that needs no model and no initializer. `--spec <file>` lints (F12.9)
+  and sequences the next clarifying question; `--criteria <file>` renders one `EarsCriterionInput` JSON per line
+  as EARS. Live-exercised: a gappy spec surfaces 3 lint gaps and asks "what problem?"; a complete spec passes
+  clean; all five EARS patterns render. The composition lives in a pure `spec-review-pipeline.ts` (7 tests) whose
+  one real inference is guarded: **`success_criteria` is derived from the lint's own missing-acceptance judgement
+  (so the two cores cannot contradict each other), and `problem`/`core_actions`/`out_of_scope` are reported
+  `undetermined`, NEVER guessed from keyword presence** — inferring them from the text would drop a real question,
+  the confident-nonsense heuristic in miniature.
+  REMAINING (the initializer surface, unchanged): F11.1's guided flow is where these emit into a versioned spec
+  ARTIFACT; that surface is unbuilt and David-plan-coupled. The cores are now consumed and tested against real
+  input, so F11.1 wires an exercised pipeline rather than a cold one.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
 - [x] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"
