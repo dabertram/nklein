@@ -138,7 +138,18 @@ export interface ModelFloorRecommendation {
 	/** max(languageFloorB, taskTypeFloorB) — the minimum model size the router should require. */
 	readonly recommendedFloorB: number;
 	readonly reason: string;
+	/**
+	 * P22.1: this floor is a WEAK, size-based prior, not a capability verdict. A model whose MEASURED fitness
+	 * clears the task should not be floored out purely on parameter count, and size does NOT predict long-context
+	 * or multi-turn behaviour — only correlates with it. Always true here; carried explicitly so a consumer treats
+	 * the floor as an input the measured-fitness store can override, never as a hard gate.
+	 */
+	readonly weakSizePrior: true;
 }
+
+/** P22.1: the standing caveat every size-based floor must carry — measured fitness is the authority, size the fallback. */
+export const SIZE_PRIOR_CAVEAT =
+	"WEAK SIZE PRIOR (P22.1): measured fitness overrides this — a model measured capable at the task must not be floored out on parameter count, and size does not predict long-context/multi-turn behaviour.";
 
 /**
  * Recommend a minimum model size for a card. The floor is the MAX of (a) the strongest language requirement among all
@@ -165,7 +176,21 @@ export function recommendModelFloor(input: ModelFloorInput): ModelFloorRecommend
 				? `${taskType} task shape (small-model tool-calling collapses after 2–3 steps)`
 				: `${dominantLanguage} language capability floor`;
 	const langLabel = languages.length === 0 ? "no source files detected" : languages.map((l) => l.language).join("+");
-	const reason = `≥${recommendedFloorB}B: ${driver} [languages: ${langLabel}; task: ${taskType}].`;
+	// The caveat rides IN the reason so it reaches the ledger/UI surfaces that render it — the floor must never be
+	// read there as a hard capability verdict (P22.1). `recommendedFloorB === 0` needs no caveat: no floor, nothing
+	// to over-read.
+	const reason =
+		recommendedFloorB === 0
+			? `≥${recommendedFloorB}B: ${driver} [languages: ${langLabel}; task: ${taskType}].`
+			: `≥${recommendedFloorB}B: ${driver} [languages: ${langLabel}; task: ${taskType}]. ${SIZE_PRIOR_CAVEAT}`;
 
-	return { languages, dominantLanguage, languageFloorB, taskTypeFloorB, recommendedFloorB, reason };
+	return {
+		languages,
+		dominantLanguage,
+		languageFloorB,
+		taskTypeFloorB,
+		recommendedFloorB,
+		reason,
+		weakSizePrior: true,
+	};
 }

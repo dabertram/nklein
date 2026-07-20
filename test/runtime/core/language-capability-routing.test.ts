@@ -76,3 +76,25 @@ describe("recommendModelFloor", () => {
 		expect(rec.recommendedFloorB).toBe(7);
 	});
 });
+
+describe("P22.1 — the size floor is labelled a weak prior, not a capability verdict", () => {
+	it("carries the measured-fitness-overrides caveat in the reason of any real floor", () => {
+		const rec = recommendModelFloor({ filePaths: ["src/main.rs"], taskType: "single-file-edit" });
+		expect(rec.recommendedFloorB).toBeGreaterThan(0);
+		expect(rec.reason).toContain("WEAK SIZE PRIOR");
+		expect(rec.reason).toContain("measured fitness overrides");
+		expect(rec.weakSizePrior).toBe(true);
+	});
+
+	it("carries the caveat across every floor tier — there is always a floor to over-read", () => {
+		// Finding 2026-07-20: no language floor is below 7 (Python/JS/TS) and the unknown/no-file fallback is 14, so
+		// `recommendedFloorB` is ALWAYS ≥ 7 — the `=== 0` "no floor" branch is unreachable (noted in P22.1). The
+		// caveat is therefore always present, which is correct: a size floor is always a size prior.
+		for (const paths of [["a.py"], ["a.rs"], [], ["a.java"]]) {
+			const rec = recommendModelFloor({ filePaths: paths, taskType: "single-file-edit" });
+			expect(rec.recommendedFloorB).toBeGreaterThan(0);
+			expect(rec.reason).toContain("WEAK SIZE PRIOR");
+			expect(rec.weakSizePrior).toBe(true);
+		}
+	});
+});

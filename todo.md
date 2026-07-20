@@ -7926,11 +7926,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > **Qwen3-8B scores 41.75 on Multi-Turn while Qwen3-14B scores 34.75** — the smaller model wins by 7 points.
 > Any architectural or size signal smaller than that gap is noise.
 
-- [ ] **P22.1 — Audit every use of `paramB` as a capability proxy and add a depth caveat.** Sites include the
+- [~] **P22.1 — Audit every use of `paramB` as a capability proxy and add a depth caveat.** Sites include the
   F12.83 language-size floor (`recommendModelFloor`), the fitness prior, and F12.110's depth-target class. The
   floor is probably still defensible as a WEAK prior for *task complexity*, but it must not be read as a
   predictor of long-context or multi-turn behaviour. **The measured fitness store is the right authority; paramB
   is the fallback, and the fallback should say so.**
+  **AUDIT DONE 2026-07-20 — four proxy sites, and the one that needed the caveat now carries it:**
+  · `codeact-gating.ts` — ✅ ALREADY compliant: *"WEAK BASIS: parameter count predicts agent-depth composition
+    poorly; replace with measured fitness once observations accrue"*, and its unmeasured branch defers to size
+    ONLY as a fallback.
+  · `fleet-aware-decomposition.ts` — ✅ ALREADY compliant: measured capability first, *"paramB as a weak prior on
+    a lower band so measured classes outrank same-size unknowns."*
+  · `recommendModelFloor` (`language-capability-routing.ts`) — **FIXED.** It emitted a size floor with NO caveat
+    in its `reason` (which reaches the ledger/UI), so a reader could take *"≥32B: rust language capability floor"*
+    as a hard capability verdict. Now every floor's reason carries `SIZE_PRIOR_CAVEAT` — *"measured fitness
+    overrides this … size does not predict long-context/multi-turn behaviour"* — plus a programmatic
+    `weakSizePrior: true` so a consumer treats it as an overridable input, not a gate. +2 tests.
+  🐛 **DEAD-BRANCH FINDING (caught by a test that assumed otherwise):** no language floor is below 7 and the
+    unknown/no-file fallback is 14, so `recommendedFloorB` is ALWAYS ≥ 7 — the `=== 0` *"no floor — a capable
+    small model suffices"* branch is UNREACHABLE. Recorded, not deleted (harmless defensive code); a genuine
+    "no floor" would need a language floor of 0, which the table does not have.
+  REMAINING (P22.1b): F12.110's depth-target class — verify it reads paramB as a weak prior too (the same
+  measured-first discipline); it was not re-read in this pass, so it is named rather than claimed clean.
 - [ ] **P22.2 — Measure fitness AT DEPTH, not at depth 0 (highest-value change to the fitness store).** Every
   fitness number we hold is effectively a shallow-context measurement. Given (1) above, a model that ranks well
   on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
