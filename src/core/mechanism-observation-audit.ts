@@ -237,6 +237,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: `progress_stall` already fired, but it fires whether or not this ENFORCING half is
+		// enabled — so telemetry could not distinguish "we noticed the stall" from "we actually intervened". The
+		// flag's record-only and enforcing modes produced identical observations, making its effect invisible.
+		category: "stall_replan_injected",
+		item: "F12.22",
+		observes:
+			"a forced replan actually injected after a progress stall, as opposed to the stall merely being noticed",
+		enabledBy: "NKLEIN_STALL_REPLAN",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: the skill STORE was the only evidence this ran, and a store records only successes —
 		// so a distiller that silently produced nothing from every delivered card looked exactly like one nobody
 		// had enabled. The produced/attempted ratio is what says whether distillation works, and it was

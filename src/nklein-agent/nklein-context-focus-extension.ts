@@ -430,6 +430,24 @@ export function createKanbanContextFocusExtension(
 							}),
 						] as typeof replanBase,
 					};
+					// F4.8b: the STALL is already recorded (`progress_stall`) — but that fires whether or not this
+					// enforcing half is enabled, so telemetry could not distinguish "we noticed the stall" from "we
+					// actually intervened". The flag's entire effect was invisible: its record-only and enforcing
+					// modes produced identical observations.
+					try {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Forced replan injected for ${sessionId} after a progress stall.`,
+							taskId: sessionId,
+							metadata: {
+								category: "stall_replan_injected",
+								focusStep: getCurrentFocusStepForSession(sessionId),
+							},
+						});
+					} catch {
+						// Telemetry must never break the injection.
+					}
 				}
 				// F12.24 enforcement (opt-in via NKLEIN_TOOL_TRUST_DECAY; default OFF = record-only): surface queued
 				// demote/drop guidance once, and withhold dropped tools from the offer (never below one tool).
