@@ -93,6 +93,13 @@ export interface DurableRunWiringDeps {
 	hashWorkspacePath: (workspacePath: string) => string;
 	/** A STABLE per-workspace durable-run/workflow id (groups the run's ledger events + scopes resume). */
 	workflowIdFor: (workspaceId: string) => string;
+	/**
+	 * N7d: record an admission EXCLUSION. Optional so the wiring stays inert without it, but its absence is why a
+	 * whole class of stall was invisible — `planDurableAdmission` can exclude a job and, before this, the decision
+	 * was returned and never written down. A component that declines work without recording the decision leaves a
+	 * card whose ONLY trace in the log is the sweep declining to start it.
+	 */
+	warn?: (message: string) => void;
 	now?: () => number;
 	mintWorkerId?: () => string;
 	config?: Partial<DurableRunConfig>;
@@ -228,6 +235,13 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 					pools,
 					now,
 				});
+				// N7d: the silent drop, made loud. 14 cards in a real run had exactly ONE log line each — the sweep's
+				// handover — because the exclusion that followed was never recorded anywhere.
+				if (plan.excludedJobIds.length > 0) {
+					deps.warn?.(
+						`Durable admission EXCLUDED ${plan.excludedJobIds.length} ready job(s) [${plan.excludedJobIds.slice(0, 5).join(", ")}${plan.excludedJobIds.length > 5 ? ", …" : ""}] for ${workspaceId}. Excluded jobs are not dispatched this tick; if they are never re-admitted they strand with no further trace.`,
+					);
+				}
 				return { readyOrder: plan.readyOrder, excludedJobIds: plan.excludedJobIds };
 			};
 		}

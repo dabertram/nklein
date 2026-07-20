@@ -5375,9 +5375,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Everything else is now ruled out by evidence: not dependencies (`dependsOn: none`), not stream or write-scope
   (identical to the completed cards), not the sweep debounce (30s tick vs 5s window), not lane naming, not a dead
   session (one log line each), not the diagnostics (run 5 failed after them).
-  NEXT: the durable controller's admission/dispatch path is the only remaining place this can happen — find why
-  it accepts 19 and silently drops 14 with no log line of its own. **That silence is itself the bug's best
-  fingerprint: a component that declines work without recording the decision.**
+  **ADMISSION INSTRUMENTED AND RULED OUT (2026-07-20).** `planDurableAdmission` returns `excludedJobIds` and the
+  wiring discarded it — a genuine silent-decision seam, now logged (`Durable admission EXCLUDED …`). Ran a cell
+  with it armed: **ZERO exclusions logged, and 14 cards stranded anyway.** So the admission planner is not
+  dropping them; **the stranded cards never reach admission at all.** The instrumentation stays — it closed a
+  real blind spot even though it was not this bug.
+  **🔁 AND THE FAILURE IS EXACTLY REPRODUCIBLE WHEN IT HAPPENS: `handed=33, progressed=19, stranded=14` —
+  IDENTICAL to the previous failing run.** That is a significant narrowing: **the nondeterminism is in WHETHER it
+  fails, not in HOW.** A timing-dependent bug that lands on different cards each time would look nothing like
+  this; a deterministic structural fault that only triggers under some starting condition looks exactly like it.
+  **NEXT HYPOTHESIS, and it fits every fact so far: the durable JOB GRAPH disagrees with the BOARD about
+  dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
+  while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
+  every layer downstream behaves correctly on a wrong input. That would explain the board/controller disagreement,
+  the silence (nothing declines them; they are simply never considered), and the reproducibility.
+  Check first: dump the controller's job states for the 14 and compare against the board's `dependencies` array.
   It also resolves the ambiguity flagged earlier: `durable run owns discovery` means `hasRun` is TRUE, so the
   **"zero durable log lines" reading really was silence rather than absence** — treating it as disproof would
   have killed the correct hypothesis.

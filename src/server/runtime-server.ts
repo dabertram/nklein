@@ -1403,6 +1403,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	});
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,
+		// N7d: surface admission exclusions. Without this a declined job leaves no trace at all — 14 cards in a
+		// real run had exactly one log line each, the sweep's handover, and nothing after it.
+		warn: (message: string) => deps.warn(message),
 		appendEvent: (event) => appendAgentLedgerEvent(event),
 		startCard: (workspaceId, taskId) => {
 			const startScope = scopeByWorkspaceId.get(workspaceId);
