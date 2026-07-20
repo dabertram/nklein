@@ -70,6 +70,7 @@ npx tsx src/cli.ts dev unwired-cores          # shipped-but-never-wired
 npx tsx src/cli.ts dev env-gated              # deliverables that may not RUN by default
 npx tsx src/cli.ts dev mechanism-registry     # do shipped mechanisms actually fire?
 npx tsx src/cli.ts dev tracking-coverage      # what does !Klein record about a card?
+npx tsx src/cli.ts dev ledger-health          # is the ledger fragmented / does this path read a real file?
 ```
 
 A **FAIL from `requirement-coverage` is compatible with a fully green test suite** — that is the point of

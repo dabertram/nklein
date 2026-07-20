@@ -6456,6 +6456,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   to the item that motivated the mechanism audit: a silent early return made a defect look like an unused
   feature; making the decline observable is what turns "not yet proven" into "proven on the next run".**
   The fragmentation and the sandbox-path write site remain defects independently of F12.35.
+  **✅ AND THE MANUAL INVESTIGATION IS NOW A ONE-COMMAND DIAGNOSTIC: `dev ledger-health` (`ledger-health.ts`, 5
+  tests).** It computes what the investigation did by hand — file count, single-event fragmentation, the
+  `unknown` sentinel, and the load-bearing check: does the CURRENT path's hash match any ledger file? Run live
+  from the repo root it reproduces the finding exactly — *"76 file(s), 1193 event(s), the current path's hash
+  matches NO ledger file, 37/76 single-event, unknown sentinel present"* — and **exits 1 on the empty-read
+  defect** so a pre-release run (it is now in the checklist) catches a regression of this seam without anyone
+  re-deriving hashes by hand. The one boolean that is a defect (`currentPathMatchesNoFile`) is separated from the
+  context, in the output and in the exit code.
   **SCOPE IF CONFIRMED:** every ledger consumer shares this seam — F12.14 scaffold recommendation, F12.81
   exemplars, F3.7b behaviour profiles, the retry-note builder — and each degrades the same silent way.
 - [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine

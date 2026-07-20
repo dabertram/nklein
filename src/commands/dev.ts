@@ -53,6 +53,7 @@ import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevGatesCommand } from "./dev-gates-command";
 import { runDevInterventionsCommand } from "./dev-interventions-command";
+import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
@@ -1100,6 +1101,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { evidence?: string; task?: string; json?: boolean }) => {
 			await runDevSynthesisSavingCommand(options);
+		});
+	dev.command("ledger-health")
+		.description("Is the agent ledger fragmented, and does THIS path read a real file? (F12.35b.)")
+		.option("--path <dir>", "Workspace path to hash as the reader (default: cwd).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { path?: string; json?: boolean }) => {
+			await runDevLedgerHealthCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
