@@ -59,6 +59,7 @@ import type {
 import { useTrpcQuery } from "@/runtime/use-trpc-query";
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import type { TaskImage } from "@/types";
+import { useScrollAnchor } from "../../hooks/use-scroll-anchor";
 
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
 const NKLEIN_BUY_CREDITS_URL = "https://app.nklein.bot/";
@@ -925,6 +926,11 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			);
 		}, [isPinnedToBottom]);
 
+		// U1: while the reader is DETACHED from the bottom, hold the visible text still even as content above it
+		// changes height (a thinking block collapsing, an image loading, a stream reflowing). Inert while pinned —
+		// there the scroll-to-bottom below is correct and anchoring would fight it.
+		useScrollAnchor({ containerRef: scrollContainerRef, pinnedToBottom: isAutoScrollEnabled });
+
 		useLayoutEffect(() => {
 			const container = scrollContainerRef.current;
 			if (!container || !isAutoScrollEnabled) {
@@ -1196,6 +1202,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				<div
 					ref={scrollContainerRef}
+					data-scroll-anchored="true"
 					className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-2 py-3"
 					onScroll={handleMessageListScroll}
 				>

@@ -5793,7 +5793,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   still recorded: the trail describes what happened to the board, not what someone meant to happen.
   Telemetry failures are swallowed — letting an observation error abort a persist would trade a missing log line
   for a LOST BOARD MUTATION, which is the wrong way round.
-- [ ] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
+- [~] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
   *"one very annoying thing with claude and also with copilot is, that while reading the chat log it happens
   regularly that the text 'jumps' when thinking blocks collapse after they finish or other activity is happening
   … !Klein MUST be better at this … the user must never get distracted by 'lines moving' while user is reading."*
@@ -5824,6 +5824,27 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Composes with the existing zoom-instead-of-truncate density rule (§4A) — both are about the reader's frame
   staying still while content changes.
 
+  **ANCHORING SHIPPED 2026-07-20: `web-ui/src/hooks/use-scroll-anchor.ts`, wired into the chat panel.**
+  The panel already tracked pinned-to-bottom and scrolled down when pinned — **but nothing held the view still
+  when DETACHED**, which is exactly the reported complaint. The hook is inert while pinned (there the
+  scroll-to-bottom is correct and anchoring would fight it) and active while reading.
+  **IT ANCHORS TO AN ELEMENT, NOT TO A DISTANCE.** The obvious implementation preserves `scrollHeight − scrollTop`
+  — but that anchors the reader to the BOTTOM, so anything appended below yanks the view: **the same bug, moved.**
+  Anchoring to a real element's viewport position is the only formulation where "content arrived somewhere else"
+  is a genuine no-op.
+  Watches with BOTH `ResizeObserver` and `MutationObserver`: a scroll listener alone misses every case David named
+  (a block collapsing, an image claiming height late, a font swap re-measuring every line) because none of them
+  emits a scroll event. New children are observed as they arrive, or a block added after mount would be unwatched.
+  The anchor is the first element intersecting the viewport TOP, not the first fully-visible one — otherwise a
+  single tall message filling the screen loses the anchor entirely, which is the case where jumping is worst. A
+  removed anchor re-selects rather than correcting against a detached node, since a correction computed from a
+  stale element moves the view somewhere arbitrary — worse than the jump it was preventing.
+  CSS `overflow-anchor: auto` is declared as a second layer, explicitly NOT relied on: it silently does nothing
+  when it cannot pick an anchor, and **silently doing nothing is indistinguishable from working.**
+  REMAINING (U1b): the measurable acceptance this item specifies — assert ZERO drift in a visible element's
+  document offset across each hard case while detached. **"It looks fine" is how this ships broken**, because the
+  jumps are intermittent and a developer is usually pinned to the bottom watching output, the one state where the
+  bug cannot occur.
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.

@@ -1281,3 +1281,18 @@ body.kb-dependency-link-mode {
 		app-region: no-drag;
 	}
 }
+
+/*
+ * U1 — the browser's NATIVE scroll anchoring, as a belt-and-braces layer under `useScrollAnchor`.
+ *
+ * `overflow-anchor: auto` is the default, but it is disabled on any ancestor that sets `overflow-anchor: none`
+ * and it is worth stating the intent explicitly on scrollers. It handles the easy cases for free.
+ *
+ * It is NOT sufficient on its own: it silently does nothing when it cannot pick an anchor — collapsing a
+ * details block, a late-loading image, a streamed reflow — and **silently doing nothing is indistinguishable
+ * from working**. The hook is the layer that actually holds the line; this just means the browser helps where
+ * it can.
+ */
+[data-scroll-anchored="true"] {
+	overflow-anchor: auto;
+}
