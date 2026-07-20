@@ -5027,6 +5027,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   · **PRIOR ART IN THIS CODEBASE:** the context-focus extension's docblock records the same sandbox-vs-host
     confusion biting once already — *"It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does
     not exist on the host), which left the repo map silently empty under isolation."* **This is its sibling.**
+  **WRONG-PATH WRITE FIXED 2026-07-20.** `nklein-session-runtime.ts:274` now hashes `hostWorkspaceRoot`, which
+  was already defined three lines above it — and the comment there literally says the two path concepts are
+  *"named so a future surface can't silently pick the wrong one."* The surface picked the wrong one anyway, which
+  is why this is now guarded rather than commented: `test/runtime/ledger-key-host-path-guard.test.ts` greps `src`
+  for `hashWorkspacePathForLedger(agentPerceivedCwd|sandboxCwd|agentCwd)` in the style of the existing
+  no-wallclock guard. **Verified by REINTRODUCING the bug — the guard fails, then passes again on the fix.**
+  Note the retrieval TOOL above it correctly keeps `agentPerceivedCwd` (it operates in the agent's filesystem);
+  only the control-plane KEY is host-scoped.
   **NOT YET PROVEN:** that fragmentation is THE cause of F12.35's zero — that needs one instrumented review run
   comparing the reader's hash against the hash its task's attempts were written under. The fragmentation and the
   sandbox-path write site are defects independently of F12.35.

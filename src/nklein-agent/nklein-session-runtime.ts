@@ -271,7 +271,16 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							buildRetrievalEvent({
 								taskId: request.taskId,
 								workflowId: request.taskId,
-								workspacePathHash: hashWorkspacePathForLedger(agentPerceivedCwd),
+								// FIX 2026-07-20: this is a LEDGER KEY, so it must hash the HOST path — every reader
+								// (readAgentLedger callers in the review runner, start-task-session, runtime-server,
+								// the dev CLIs) derives its hash from a host path. Hashing `agentPerceivedCwd` wrote
+								// retrieval events under `/workspaces/<taskId>`, a key nothing ever computes, so they
+								// were invisible to every consumer — the ledger held ZERO retrieval events across all
+								// 76 workspace hashes despite this call site being wired. The retrieval TOOL above
+								// correctly uses `agentPerceivedCwd` (it operates in the agent's filesystem); only the
+								// control-plane key is host-scoped. Same class as the repo-map bug the extension
+								// docblock records.
+								workspacePathHash: hashWorkspacePathForLedger(hostWorkspaceRoot),
 								query: retrieval.query,
 								hitsConsidered: retrieval.hitsConsidered,
 								// F11.2e: tool-side distractor prunes (ego_graph hub names today) reach the ledger so
