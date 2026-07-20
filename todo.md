@@ -5552,6 +5552,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   board says `completed`. **A stale assertion is the comfortable answer, so it is the one to check hardest.**
   The evidence is now retained: `seed-monitor.log` in the cell's kept HOME carries the full `finalCounts`.
 
+  **🎯 REPRODUCIBILITY CONFIRMED 2026-07-20 — IT IS ALWAYS `s03`.** Three separate failing runs of `01 × perfect`
+  all stalled on the SAME card, `clinical-medication-safety-platform-s03` *("Unit-safe dose and quantity
+  arithmetic")*, with the same reason code `workspace_disposed_before_capture` and 21–22 blocked dependents.
+  **So the bug is card-specific and deterministic in its target, while only its OCCURRENCE is nondeterministic.**
+  That is a much better handle than "the scheduler is flaky": there is one card, one review verdict
+  (`request_changes` → bounced), and one race, and a fix can be tested against that exact scenario rather than
+  against a statistical tendency.
+  It also explains the earlier identical stranded counts (33/19/14 twice): the same root card blocks the same
+  subtree every time it happens.
+  **N16's collector reproduces this automatically now** — reason code, 21 blocked dependents, the surviving result
+  branch and the seed, without anyone reading a log by hand.
 - [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
