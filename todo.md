@@ -5627,6 +5627,34 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **First concrete instance is recorded under N7d** — `s03`, `workspace_disposed_before_capture`, 22 dependents
   blocked, work intact on a result branch. Use it as the acceptance fixture for this item.
 
+- [~] **N17 — COMPLETE per-card tracking: every trail collected, ready for debugging *(David 2026-07-20)*.**
+  *"we need to implement complete tracking for every thing that happens to/on a card/task … rather over covered
+  than missing any detail … future debugging as easy as possible."*
+  **`dev card-timeline <cardId> --home <path>` SHIPPED** (`card-lifecycle-trail.ts` + command). Merges every
+  per-card source that already exists — self-observations, the agent ledger, the runtime log, the board lane +
+  dependency edges — into ONE ordered timeline. Verified on the real stalled card: **61 events, 4/4 sources.**
+  **IT AGGREGATES RATHER THAN ADDING A STORE, deliberately.** A parallel "card events" store would be a second
+  source of truth that DRIFTS: every emission site would have to remember to write to both, and **the day one
+  forgets is the day the trail lies — worse than no trail, because a gap reads as "nothing happened".**
+  **`sourcesRead` IS REQUIRED, not derived.** "This source had no events" and "this source could not be read"
+  are different facts and only one means the trail is trustworthy. Without it a deleted log looks like a quiet
+  card. `partial` is set when any source was unreadable and the summary says so.
+  Rendering is plain and CHRONOLOGICAL because **adjacency carries the answer** — the decisive fact in the N7d
+  investigation was that a bounce and a capture failure were six lines apart, which no grouping preserves.
+  `findTrailGaps` reports quiet periods as *where to look*, explicitly not as a verdict: a gap is normal on a
+  blocked card and pathological on a running one, and the trail does not know which.
+  🐛 **Two defects found by RUNNING it, not by reasoning:** ledger events were unclocked (the field is
+  `recordedAt`, not `at`) — which in a chronological tool is not cosmetic, it puts events in the WRONG ORDER;
+  and `toISOString` threw on the synthetic ordinals used for the timestamp-less runtime log — **a forensic tool
+  must never die on the malformed record it exists to show you.**
+  ⚠️ **NAME COLLISION FOUND BY FAILURE, NOT BY SEARCH:** `dev card-trail` already existed (F12.55, a
+  plain-language artifact-anchored ACTION trail over the ledger). `dev capability-index` did not find it because
+  **the index covers `src/core` ONLY, not `src/commands`.** Renamed to `card-timeline`; the two are genuinely
+  different (audience-facing narrative vs forensic merge) and both are kept.
+  REMAINING (N17b): index `src/commands` in P15.6 so a command cannot be duplicated the way this nearly was; and
+  emit explicit LANE-CHANGE events (today only the final lane is recoverable, so the trail shows where a card
+  ENDED, not every lane it passed through).
+
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.

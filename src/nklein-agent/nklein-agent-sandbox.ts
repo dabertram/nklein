@@ -14,6 +14,7 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	buildEgressProxyExecEnvArgs,
 	type EgressProxyAvailability,
@@ -1358,6 +1359,29 @@ export class AgentSandboxManager {
 		if (!placement) {
 			return;
 		}
+		// RAIL (David 2026-07-20): every sandbox disposal is recorded HERE, at the chokepoint, rather than at each
+		// call site. Instrumenting call sites was tried first and missed the one that mattered — a card whose
+		// workspace vanished had NO disposal record, because it was disposed through a path nobody had
+		// instrumented. There are eight call sites; there is one chokepoint. A rail that can be bypassed by adding
+		// a caller is not a rail.
+		//
+		// The stack is captured because WHICH path disposed is the question a stall raises, and it is the one thing
+		// a message cannot carry. Cheap: disposal is rare and already does container I/O.
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message: `Sandbox workspace disposed for ${taskId}.`,
+			taskId,
+			metadata: {
+				category: "sandbox_workspace_disposed",
+				// Frames 2-6: frame 0 is Error, frame 1 is this method — neither identifies the caller.
+				disposedBy: (new Error().stack ?? "")
+					.split("\n")
+					.slice(2, 7)
+					.map((frame) => frame.trim().replace(/^at\s+/, ""))
+					.join(" ← "),
+			},
+		});
 		// run19 ROOT CAUSE: the exec used to be awaited OUTSIDE this try — a throwing docker exec (timeout,
 		// dead container) skipped releaseSlot and LEAKED the slot, deadlocking the pool forever (every later
 		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be

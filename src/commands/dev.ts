@@ -41,6 +41,7 @@ import { readModelPerformanceStats } from "../telemetry/model-performance-stats"
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
+import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
@@ -974,6 +975,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { tasks?: string; repeats?: string; effect?: string; json?: boolean }) => {
 			await runDevExperimentDesignCommand(options);
+		});
+	dev.command("card-timeline <cardId>")
+		.description(
+			"FORENSIC: everything that happened to one card, every source merged (vs `card-trail`, which is F12.55's plain-language action trail).",
+		)
+		.option("--home <path>", "The isolated HOME a nightly cell retained (the failure report prints it).")
+		.option("--gap-ms <ms>", "Report quiet periods longer than this (default 60000).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (cardId: string, options: { home?: string; json?: boolean; gapMs?: string }) => {
+			await runDevCardTimelineCommand(cardId, options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
