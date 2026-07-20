@@ -3892,6 +3892,9 @@ output and NOT acted on. Captured as F12.12.)
 - [>] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
   (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
   the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)
+  **POSSIBLE UNBLOCK 2026-07-20 (David): `mlx-serve` exposes the flag this item needs — see P17.1a.** Still
+  blocked *today* (it is not our runtime yet, and it is Apple-Silicon-only so it cannot cover the Linux node),
+  but the path is now concrete rather than hypothetical.
   **EVIDENCE CONFIRMED + FOLKLORE CORRECTED 2026-07-19 (primary source: llama.cpp PR #7412 comment tables,
   JohannesGaessler).** This item's flag order is CORRECT and worth defending, because the widely-circulated blog
   advice says the opposite. Measured, isolating one tensor at a time: **K is far more quantization-sensitive than
@@ -3920,6 +3923,9 @@ output and NOT acted on. Captured as F12.12.)
 - [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
   PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse 256` is on (KV-shifting) —
   a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
+  **POSSIBLE UNBLOCK 2026-07-20 (David): `mlx-serve` exposes the flag this item needs — see P17.1a.** Still
+  blocked *today* (it is not our runtime yet, and it is Apple-Silicon-only so it cannot cover the Linux node),
+  but the path is now concrete rather than hypothetical.
   **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
   exposes NO cache/batch flags. The COMPLETE load-time lever set is `--gpu --context-length --parallel --ttl
   --identifier --estimate-only` plus the speculative-draft family — no `--cache-type-k/-v`, no `--cache-reuse`,
@@ -4968,6 +4974,36 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > runtime-adapter boundary is no longer an architectural nicety — it is what unblocks measured wins. (b) Protocol
 > research (below) shows exactly one interop protocol whose transport model MATCHES a local-only product.
 
+- [ ] **P17.1a — Evaluate `mlx-serve` as the SECOND runtime adapter (David 2026-07-20; https://github.com/ddalcu/mlx-serve).**
+  **This is the strongest candidate found so far, and it directly unblocks levers LM Studio hides.** Zig-native
+  MLX server for Apple Silicon, MIT, active (v26.7.9, July 2026), single ~7 MB signed binary, **no Python**.
+  Serves OpenAI-compatible `/v1/chat/completions` + `/v1/embeddings`, **plus the Anthropic Messages API** and
+  Ollama-compatible endpoints. Native MLX path for Qwen 3/3.5/3.6, Gemma 3/4, Llama 3.x, Mistral, Nemotron-H —
+  **and embeds llama.cpp for the GGUF universe**, so ONE adapter could cover both of our model formats.
+  **THE FLAGS THAT MATTER — each maps onto an item currently blocked on LM Studio:**
+  · `--kv-quant {off,4,8,turbo2,turbo4}` → **unblocks F12.72** (KV-cache quantization), which was `[>]` solely
+    because `lms load` exposes no cache flags. ⚠️ **OPEN QUESTION:** this looks like a SINGLE symmetric value,
+    but today's primary-source finding (PR #7412) is that K and V are NOT symmetric — `q8_0 K / q4_0 V` beats the
+    reverse by ~7.7× at equal memory. Check whether separate K/V control exists; if not, `--kv-quant 8` is the
+    safe setting and `4` should be measured, not assumed.
+  · `--prefix-cache-entries N` and `--prefix-cache-disk` → **addresses F12.73** (cache reuse), and the SSD tier is
+    more than llama.cpp's `--cache-reuse` offers. Pairs directly with P19.1's cache-hostile-prefix audit.
+  · `--pld/--no-pld` (prompt-lookup decoding, ON by default), `--drafter DIR`, `--no-mtp` → **covers F12.69**
+    (MTP/n-gram self-speculation) and gives F12.70 a real per-server speculative surface. ⚠️ Re-check the F12.76
+    correctness gate here: our finding is that llama.cpp/mlx-lm accept drafts on ARGMAX EQUALITY, lossless only at
+    temperature 0. **Determine which acceptance rule mlx-serve implements before enabling speculation above t=0.**
+  · `--max-concurrent N` (continuous batching), `--ctx-size N` (auto-computed from GPU memory), `--model-dir PATH`
+    with an **LRU resident set** → relevant to F12.77's warm-pool, though the LRU eviction must be reconciled with
+    the standing no-auto-load/unload production constraint.
+  **CONSTRAINTS TO RECORD HONESTLY:** (a) **macOS 26+ / Apple Silicon ONLY** — this does NOT cover `legion5pro`
+  (Linux), so it is a PER-NODE adapter for the Macs, not a fleet-wide LM Studio replacement; the adapter boundary
+  must therefore support a heterogeneous fleet rather than one runtime. (b) The **"+48% faster decode geomean vs
+  LM Studio on identical 4-bit weights"** claim is the project's OWN benchmark — today's research repeatedly found
+  vendor numbers unreproduced (vLLM's spec-decode blog, the 5.73× llama.cpp figure inflated by prompt-cache
+  reuse), so **measure it on our hardware before quoting it**. (c) Binds `127.0.0.1` by default and is
+  single-machine — fine, since our fleet is already per-machine gateways.
+  **ACCEPTANCE:** stand it up on one Mac beside LM Studio, run the same cards through both, and compare
+  wall-clock + tool-call reliability. If it holds up, it becomes the adapter that makes F12.72/73/69 buildable.
 - [ ] **P17.1 — Runtime-adapter boundary (LM Studio becomes one adapter, not an assumption).** Extract the
   provider/runtime seam so a second engine can be added. **This is the unblock for F12.72/73/74.** Candidate
   second adapter: llama.cpp server (exposes every flag LM Studio hides) or Ollama. Guard rails: the existing
