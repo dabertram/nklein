@@ -6649,7 +6649,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   withholding something the operator needs. "Too few trials" reports as absence of a MEASUREMENT, not stability.
   REMAINING (P20.7b): the container guarantee/kill-threshold split (equal values turn transient spikes into
   spurious OOMs) and ~3× headroom calibration — those are sandbox-config work, not pure logic.
-- [ ] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
+- [~] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
   (3 models × 3 harness configs on SWE-bench Verified): **harness variance was 7.80× MODEL variance** (18.48 pp²
   vs 2.37 pp²) and **model rankings REVERSED in 6 of 9 comparisons**; HAL reports up to **34 pp** cross-scaffold
   spread for one model. Publish an ETCSOVG Harness Card (Execution, Tool, Context, Scheduling, Observability,
@@ -6658,6 +6658,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   LATS got **88% at $134.50**. **Equalize retries before claiming a scaffold works — retries are the biggest
   silent cheat.** Expect our harness/model variance ratio to be WORSE than 7.8× because small models sit near a
   capability cliff that small scaffold changes push them across.
+  **CARD + COMPARABILITY CORE SHIPPED 2026-07-20: `harness-card.ts`, 11 tests.**
+  **THE UNCOMFORTABLE CONSEQUENCE, STATED PLAINLY: for most published agent results the HARNESS is the dominant
+  variable, and it is the one nobody describes.** With harness variance at 7.80× model variance and rankings
+  reversed in 6 of 9 comparisons, a claim of the form *"model X beats model Y"* is more often than not a claim
+  about two scaffolds that were never specified.
+  **UNEQUAL RETRY BUDGETS ARE `invalid`, NOT `confounded` — the one dimension promoted above the other seven.**
+  Retries buy score DIRECTLY and the purchase is invisible in the result: a plain retry-with-temperature-ramp
+  baseline reached **93.2% at $2.45** where LATS reached **88% at $134.50**. So `retryBudget` sits outside
+  `scheduling` as its own field, comparable at a glance rather than buried in prose, and a mismatch invalidates
+  the comparison even when every other dimension matches. Asserted to outrank other differences.
+  **THREE VERDICTS, NOT TWO. `confounded` is NOT a soft `invalid`** — a confounded comparison is worth running
+  when the differing dimension IS the thing being tested, provided it is REPORTED. **What is unacceptable is a
+  difference nobody names**, which is the state most published comparisons are in.
+  An empty dimension is a DEFECT, never "not applicable": *"we did not write it down"* and *"it does not apply"*
+  are different claims and **only the second is ever true** — every harness has an execution model and a
+  verification method whether or not anyone described them.
+  ⚠️ Expect this project's ratio to be WORSE than 7.8×: small models sit near a capability cliff, so the same
+  scaffold change that moves a frontier model two points can move a 14B model twenty.
+  REMAINING (P20.8b): publish a filled card per compared configuration, and run the trivial retry baseline before
+  any scaffold claim. Both need real runs.
 - [x] **P20.9 — Benchmark selection for a local fleet (most of the field is unusable for us).** Two filters
   eliminate most candidates: **x86_64 Docker assumptions** (SWE-bench-family arm64 images are "best-effort,
   untested") and **no small-model signal** (SWE-bench Pro: Qwen-3 32B scores **3.4%** — a benchmark where our
