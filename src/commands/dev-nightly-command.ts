@@ -45,6 +45,19 @@ function portForCell(index: number): number {
 	return PORT_BASE + index * 2;
 }
 
+/**
+ * Profiles the drain script actually understands, mapped onto the env var it reads.
+ *
+ * ⚠️ THIS MAP IS THE POINT. The first cut of this runner passed `NKLEIN_NIGHTLY_MODEL_PROFILE`, which
+ * `verify-simulated-flow.mts` does not read — so every cell silently drained the DEFAULT profile while the
+ * summary reported N profiles covered. Invisible from outside: all cells pass, coverage is a fraction of what it
+ * claims. An unknown profile is therefore SKIPPED WITH A REASON rather than quietly falling back.
+ */
+const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
+	perfect: "perfect",
+	flaky: "flaky",
+};
+
 async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 	const started = Date.now();
 	let home: string;
@@ -54,6 +67,14 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 		return { cell, outcome: "skipped", reason: `could not create an isolated HOME: ${String(error)}` };
 	}
 	const port = portForCell(index);
+	const simflowRun = PROFILE_TO_SIMFLOW_RUN[cell.modelProfile];
+	if (simflowRun === undefined) {
+		return {
+			cell,
+			outcome: "skipped",
+			reason: `model profile "${cell.modelProfile}" is not one the drain script understands (${Object.keys(PROFILE_TO_SIMFLOW_RUN).join(", ")}) — SKIPPED rather than silently draining the default profile, which would report coverage this run did not have`,
+		};
+	}
 	try {
 		const { stdout } = await execFileAsync("npx", ["tsx", "scripts/verify-simulated-flow.mts"], {
 			timeout: CELL_TIMEOUT_MS,
@@ -64,7 +85,8 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 				NKLEIN_AGENT_LEDGER_ROOT: join(home, "ledger"),
 				NKLEIN_SIMFLOW_SCENARIO: cell.projectId,
 				NKLEIN_SIMFLOW_RUNTIME_PORT: String(port),
-				NKLEIN_NIGHTLY_MODEL_PROFILE: cell.modelProfile,
+				// The profile must reach the variable the script READS, not a name only this runner knows.
+				NKLEIN_SIMFLOW_RUN: simflowRun,
 				NKLEIN_NIGHTLY_RECORDING_SET: cell.recordingSet,
 			},
 		});
