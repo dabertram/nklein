@@ -5014,10 +5014,31 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   with nothing watching are surfaced as a named coverage gap rather than dropped.
   Remainder is the real-drain ADAPTER (read board/ledger/aimock report into `CollectorInput`) — owned by **N7**,
   which wires the runner; it is not a separate item.
-- [ ] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
+- [~] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
   scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
   proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
   regressions (a cell suddenly 3× slower) are visible. Runtime target: hours is fine; waste is not.
+  **SCHEDULING + REGRESSION CORE SHIPPED 2026-07-20: `nightly-schedule.ts`, 13 tests.**
+  **THE FRAMING THAT MATTERS: every speed-up available here is also a way to quietly test less**, and the two are
+  hard to tell apart from a green run. Reordering, batching and parallelism all preserve the APPEARANCE of a full
+  suite while changing what executed. So `planNightlySchedule` **throws `CoverageWeakenedError`** rather than
+  returning a degraded plan — a scheduler that silently drops a cell produces a green run over a smaller suite,
+  the most misleading outcome available, and **no downstream check would catch it because every cell that DID run
+  passed.** Coverage-exactly-once is asserted at every parallelism level.
+  **HEAVY CELLS ARE PINNED SEQUENTIAL AS A CORRECTNESS CONSTRAINT, not a tuning preference.** The field fact:
+  parallel batches make the two largest dev-test projects **false-timeout** — they pass sequentially and fail
+  under contention. A false red is the worst shape available: it looks exactly like a real regression, burns a
+  morning, and **trains people to re-run rather than investigate — which is how a real red gets ignored later.**
+  **Fastest-first is for SIGNAL, not throughput** — the total work is identical; what changes is learning at
+  minute 4 instead of hour 3, which is the whole point for a suite read the next morning. An UNMEASURED cell sorts
+  LAST, not first: an unknown duration could be the longest in the suite, and scheduling it early would defeat the
+  purpose it was meant to serve.
+  `detectDurationRegressions` requires BOTH a ratio and a MINIMUM ABSOLUTE delta. Ratio alone floods the report
+  with sub-second cells (0.2s→0.7s reads as 3.5×) and **a report nobody reads is how a real 5× gets missed**;
+  absolute alone misses a fast cell degrading badly. A cell with no baseline reports nothing — a first observation
+  is not a comparison, and treating it as one would manufacture a regression on every newly-added cell.
+  REMAINING (N6b): the effectful half — scaffold reuse where hermetically safe, aimock fixture-parse caching, and
+  emitting per-cell wall/cost from a real run to feed `detectDurationRegressions` a baseline. Rides N7's runner.
 - [ ] **N8 — SWE-bench tranche: 10 suitable cases as nightly cells (David 2026-07-19 addition).** The dev-test
   projects cover FROM-SCRATCH flows; nightly must ALSO freeze the two other entry shapes — BUG-FIXING and
   continue/extend an EXISTING pre-seeded codebase. Pick 10 SUITABLE instances from the SWE-bench palette
