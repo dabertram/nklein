@@ -5272,11 +5272,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **a deliberately-hallucinating fixture whose claims must be REMOVED and the removal COUNTED.** That fixture is
   not optional colour — a grounding filter that has never been shown to reject anything is an assumption, the
   same reason every guard written today was verified by reintroducing its bug.
-- [ ] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
+- [x] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
   summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
   **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
   payloads invisible in an approval UI but present in model context) applies directly: what the user approves must
   be byte-identical to what is sent, with no rendering layer that can hide content.
+  **SHIPPED 2026-07-20 (with P16.7): `field-report-transport.ts`.** The consent projection and the markdown
+  renderer live in ONE module deliberately — **if the review surface and the transport can drift, review is
+  theatre.** A reviewer verifies they agree by reading one file rather than trusting two to stay in sync.
+  `projectReviewState` recomputes the running "what this reveals" list on every toggle, so exposure shown is
+  always exposure current.
+  **⚠️ THE APPROVAL-VIEW HAZARD DEMONSTRATED ITSELF DURING IMPLEMENTATION.** `detectHiddenCharacters` guards
+  against invisible/control/bidi/TAG-block characters — content that renders harmlessly in a review pane but
+  travels into a PUBLIC issue (the arXiv 2607.05744 class). While writing it, **the authoring tool rejected the
+  command outright: "command contains control characters that would be hidden in the approval dialog"** — because
+  the character class had been written with literal invisibles. The hazard fired on its own detector, mid-build.
+  **It then blocked itself TWICE MORE:** rewritten with `\u` escapes, the LINTER refused it
+  (`noControlCharactersInRegex` — "control characters are unusual and potentially incorrect inputs, so they are
+  disallowed"); only a numeric CODE-POINT PREDICATE expresses the intent without embedding the characters at all.
+  **Three independent tools objecting to the same construct is a strong signal the regex was the wrong shape** —
+  and the predicate is plainly readable, which a dense escape class is not. All three incidents are recorded in
+  the docblock so nobody "simplifies" it back into a regex.
+  Findings report CODE POINTS (`U+200B`), not "found something" — a user cannot judge what they cannot see named.
 - [x] **P16.4 — Redaction engine + adversarial self-test.** Path/identifier/secret scrubbing with stable
   placeholders. **Acceptance is adversarial:** a test corpus seeds project names, absolute paths, API-key-shaped
   strings, author names and private URLs into ledger fixtures, and the emitted Layer-A/B report must contain NONE
@@ -5327,7 +5344,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (takeover), and card abandon (abort) — each with **harness-MEASURED wall-clock**, never a later estimate.
   **Until this lands the metric has no input**, which is exactly the `enabled_but_silent` shape P15.1b exists to
   catch: verify with `dev mechanism-registry` after wiring, not by inspection.
-- [~] **P16.6 — Local-model generation path + graceful degradation.** The report is written by whatever the user
+- [x] **P16.6 — Generation path + degradation LADDER (P16.6b carries the model call).** The report is written by whatever the user
   has connected. **A weak local model must degrade to the STRUCTURED report (Layer A is pure aggregation and needs
   no model at all), never to a hallucinated narrative.** Layer A must be generatable with zero models available.
   **CORE SHIPPED 2026-07-20: `field-report-generation.ts`.**
@@ -5343,11 +5360,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **TELEMETRY defect, not a model problem** — aggregation cannot fail for lack of a model, so an empty Layer A
   means the observations were never read. Misattributing that to "the model was weak" would send the fix to the
   wrong subsystem entirely. 10 tests; suite green (11,193).
-  REMAINING (P16.6b): the effectful generation call itself (local model, `reasoning_content` fallback per the
-  F12.92 contract) plus feeding the observed grounded-rate back so the ladder has real input.
-- [ ] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
+  **SPLIT MATERIALIZED 2026-07-20.**
+- [ ] **P16.6b — The effectful generation call *(split from P16.6 2026-07-20)*.** Call the local model for the
+  narrative pass and feed the observed grounded-rate back so the ladder has real input. **Honour the
+  `reasoning_content` contract** (F12.92): a reasoning model returns empty `message.content`, and a caller reading
+  only `.content` would make the narrative pass silently produce nothing while looking healthy.
+- [~] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
+  **RENDERER SHIPPED 2026-07-20** (same module as P16.3). `renderIssueDraft` returns markdown and nothing else —
+  there is no submit path to disable, because none was written. The draft states plainly: *"Generated by !Klein on
+  the reporter's own machine, from their own telemetry, and reviewed by them before submission. !Klein did not
+  send this — a person did."* It **REFUSES to render** when included content carries unacknowledged hidden
+  characters, and the caller must surface that refusal rather than swallow it. 12 tests.
+  REMAINING (P16.7b): the UI that hosts the toggles and opens the prefilled draft. Pure-core side is complete.
 - [ ] **P16.8 — Nightly coverage (Phase 13 recipe).** Field-report generation joins the N1 cells with aimock
   fixtures, including the adversarial redaction corpus and the hallucination-drop fixture, so the privacy and
   grounding invariants are regression-protected rather than reviewed once.
