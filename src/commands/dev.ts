@@ -40,6 +40,7 @@ import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
+import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
@@ -909,6 +910,17 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Emit the CycloneDX document instead of the summary.")
 		.action(async (options: { lockfile?: string; name?: string; version?: string; json?: boolean }) => {
 			await runDevSbomCommand(options);
+		});
+
+	dev.command("capability-index")
+		.description(
+			"Answer 'does a core already do X?' before writing X. --search <q> to query, else regenerate the doc.",
+		)
+		.option("--search <query>", "Search core purposes/exports for a term.")
+		.option("--out <path>", "Output path (default docs/dev/core-capability-index.md).")
+		.option("--json", "Machine-readable output.")
+		.action(async (options: { search?: string; out?: string; json?: boolean }) => {
+			await runDevCapabilityIndexCommand(options);
 		});
 
 	dev.command("mechanism-doc")

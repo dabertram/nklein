@@ -5179,6 +5179,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 - [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
   setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
 
+- [x] **P15.6 — Capability INDEX: make built capability findable *(filed + shipped 2026-07-20)*.**
+  **Filed because the orphan triage found the real problem was not dead code.** One session produced THREE
+  near-duplications: F12.28 reimplemented F12.41's significance test (with a WEAKER method), F12.82 was about to
+  duplicate F12.28's optimizer, and P20.2/P20.5 were specified from scratch when `diagnostic-oracles.ts` had
+  implemented their verdict cores two weeks earlier. **A 119-module orphan list reads as "too much unused code";
+  the accurate reading is "a lot of built capability nobody can find."** Deleting it destroys value; indexing it
+  recovers value — so P15.4's answer was a triage, and THIS is the prevention.
+  **SHIPPED: `nklein dev capability-index [--search <q>]` → `docs/dev/core-capability-index.md` (581 cores),
+  generated from docblocks** (a hand-written index goes stale exactly when a new module lands — the moment it
+  would have prevented a duplication).
+  **VERIFIED AGAINST BOTH REAL DUPLICATIONS:** `--search significance` returns `ab-significance-gate.ts [F12.41]`
+  with `decideDefaultFlip`; `--search hidden` returns `diagnostic-oracles.ts` with `evaluateHiddenSplits`. Both
+  would have been caught before the duplicate work started.
+  Deliberately DUMB substring matching, and it says so when it finds nothing: *"weak evidence of absence, not
+  proof — the index reads docblocks only, so a module whose purpose is phrased differently will not match."*
+  A fuzzy matcher that silently misses is worse than a literal one that over-returns. 8 tests.
+  **USE IT BEFORE WRITING A NEW CORE.** That is the whole point.
+
 ### Phase 16 — Field Reports: user-commanded, fully transparent feedback generation (David 2026-07-19)
 
 > **The problem, stated honestly.** One maintainer cannot personally encounter enough situations to tune a system
