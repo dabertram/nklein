@@ -5246,7 +5246,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [~] **N7 — Nightly/pre-release wiring + the growth loop.** *(Also owns the N5b real-drain adapter:
+- [x] **N7 — Nightly/pre-release wiring + the growth loop.** *(Also owns the N5b real-drain adapter:
   board/ledger/aimock report → `CollectorInput`. Its `subscriptions` must come from listeners the runner actually
   registers — see N5b for why deriving them any other way silently voids every `indeterminate`.)* A `test:nightly` CI/cron entry (local nightly run +
   pre-release checklist step in docs/); failure output good enough to debug from the summary alone (cell id, seed,
@@ -5316,9 +5316,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   OUTPUT. It records that `test:fast` does not typecheck, that the pre-commit hook covers backend `tsc` only, that
   a `requirement-coverage` FAIL is compatible with a fully green suite, that the transitive orphan scan cannot see
   cycles, and that the fixed seed makes repeat runs worthless for variance.
-  REMAINING (N7b): teach the drain script to EMIT terminal lanes + gate/guard signals so the collector has
-  something truthful to subscribe to. **That single change is what converts today's `indeterminate`s into real
-  assertions** — the packs, the collector, the judging and the reporting are all built and waiting on it.
+  **✅ RESOLVED 2026-07-20 — N7b/N7c both done, so this remainder is closed.** Terminal lanes are emitted and
+  parsed, and signals are extracted from the drain's own self-observation telemetry with real timestamps. The
+  `indeterminate`s that were placeholders for "nothing observes this yet" are now genuine assertions in **both**
+  directions — including the negative half, which N7c found had been **unassertable by construction**.
 
 - [x] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.**
   **TERMINAL LANES DONE 2026-07-20 — the keystone half.** `verify-simulated-flow.mts` now emits
