@@ -211,3 +211,53 @@ describe("too_new_to_judge — silence before the mechanism existed", () => {
 		expect(result.findings[0]?.status).toBe("too_new_to_judge");
 	});
 });
+
+describe("a trigger that has NEVER fired is proof of no chance, not evidence of silence", () => {
+	it("does not accuse a mechanism whose trigger category was never observed at all", () => {
+		// Exposed by adding sysprompt_level with firesWhen: attempt_started, where the TRIGGER was itself brand
+		// new. The first version of the window check required a non-null trigger timestamp, so an unfired trigger
+		// skipped the check and fell straight through to an accusation — the audit declaring a mechanism silent
+		// using a trigger that proved it could not have run.
+		const result = auditMechanismObservations({
+			registry: [
+				{
+					category: "sysprompt_level",
+					item: "§5.AQ",
+					observes: "which system-prompt level a session started with",
+					enabledBy: null,
+					expectation: "every_run",
+					addedOn: Date.UTC(2026, 6, 20),
+					firesWhen: "attempt_started",
+				},
+			],
+			countsByCategory: new Map(),
+			// Telemetry exists and is NEWER than addedOn — but contains no attempt_started at all.
+			newestObservationAt: Date.UTC(2026, 6, 21),
+			newestByCategory: new Map([["something_unrelated", Date.UTC(2026, 6, 21)]]),
+			knownEnabledFlags: new Set<string>(),
+		});
+		expect(result.findings[0]?.status).toBe("too_new_to_judge");
+		expect(result.actionable).toHaveLength(0);
+	});
+
+	it("STILL accuses once the trigger has fired after the mechanism landed", () => {
+		// Guards the amnesty: without this, "trigger never observed" could be widened into "never accuse".
+		const result = auditMechanismObservations({
+			registry: [
+				{
+					category: "sysprompt_level",
+					item: "§5.AQ",
+					observes: "which system-prompt level a session started with",
+					enabledBy: null,
+					expectation: "every_run",
+					addedOn: Date.UTC(2026, 6, 20),
+					firesWhen: "attempt_started",
+				},
+			],
+			countsByCategory: new Map(),
+			newestByCategory: new Map([["attempt_started", Date.UTC(2026, 6, 21)]]),
+			knownEnabledFlags: new Set<string>(),
+		});
+		expect(result.findings[0]?.status).toBe("enabled_but_silent");
+	});
+});

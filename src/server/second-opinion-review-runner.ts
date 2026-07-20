@@ -392,6 +392,37 @@ export async function runSecondOpinionReviewForTask(
 	// candidate must destroy its ::spec branch — otherwise the next round's getSpeculativeDiff re-arms the A/B
 	// seed with a candidate that predates this round's feedback (deliverable stale work), and the ref leaks in
 	// the user's repo forever. Deliver-path cleanup (loser pruning) happens at the merge seam in runtime-server.
+	/**
+	 * F4.8b: record WHICH review path actually produced the verdict.
+	 *
+	 * The n-eyes panel silently falls through to the plain panel when no eye returns a verdict, and the plain
+	 * panel silently falls through to a single reviewer. **Two levels of degradation, each invisible** — so a run
+	 * with `NKLEIN_N_EYES_REVIEW` on that quietly decided by one reviewer looked exactly like a run with the flag
+	 * off, and "did n-eyes ever actually decide anything?" — the whole payoff question — had no answer.
+	 *
+	 * One category rather than one per flag, because the interesting fact is which path WON, and that is a single
+	 * mutually-exclusive outcome. Recording it per-flag would need a join to answer the same question.
+	 */
+	const recordReviewPath = (path: "n_eyes" | "panel" | "single_reviewer", detail: Record<string, unknown>): void => {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Review verdict for ${input.taskId} was produced by the ${path} path.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "review_path",
+					path,
+					nEyesEnabled: isTruthyEnv(process.env.NKLEIN_N_EYES_REVIEW),
+					...detail,
+				},
+			});
+		} catch {
+			// Telemetry must never break a review round.
+		}
+	};
+
 	const discardSpeculativeCandidate = async (): Promise<void> => {
 		await deleteTaskResultBranch({ repoPath: input.workspacePath, taskId: `${input.taskId}::spec` }).catch(
 			() => false,
@@ -791,6 +822,7 @@ export async function runSecondOpinionReviewForTask(
 								input.warn?.(
 									`N-eyes panel for ${input.taskId}: ${nEyesResult.decision.reason} — ${nEyesResult.eyesRun.length} eye(s), ${nEyesResult.conferred.filter((finding) => finding.status !== "dropped").length} finding(s) survived confer.`,
 								);
+								recordReviewPath("n_eyes", { eyes: nEyesResult.eyesRun.length });
 								return nEyesResult.submission;
 							}
 						}
@@ -808,9 +840,11 @@ export async function runSecondOpinionReviewForTask(
 						});
 						if (panelResult) {
 							input.warn?.(`Review panel for ${input.taskId}: ${panelResult.decision.reason}`);
+							recordReviewPath("panel", { judges: panelJudges.length });
 							return panelResult.submission;
 						}
 					}
+					recordReviewPath("single_reviewer", { judges: panelJudges.length });
 					return input.service.runSecondOpinionReviewSession({
 						taskId: input.taskId,
 						projectRepoPath: input.workspacePath,

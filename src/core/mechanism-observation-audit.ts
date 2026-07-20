@@ -148,7 +148,16 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
 			entry.firesWhen !== undefined
 				? (input.newestByCategory?.get(entry.firesWhen) ?? null)
 				: (input.newestObservationAt ?? null);
-		if (entry.addedOn !== undefined && windowNewest !== null && windowNewest < entry.addedOn) {
+		// A trigger that has NEVER been observed is the strongest possible evidence the mechanism had no chance —
+		// stronger than a stale timestamp. The first version required `windowNewest !== null`, so an unfired
+		// trigger skipped the check entirely and fell through to an ACCUSATION. Exposed within the hour by adding
+		// `sysprompt_level` with `firesWhen: attempt_started`, where the trigger was itself brand new: the audit
+		// declared a mechanism silent using a trigger that proved it could not have run.
+		const triggerNeverObserved = entry.firesWhen !== undefined && !input.newestByCategory?.has(entry.firesWhen);
+		if (
+			entry.addedOn !== undefined &&
+			(triggerNeverObserved || (windowNewest !== null && windowNewest < entry.addedOn))
+		) {
 			findings.push({
 				...entry,
 				observations,
@@ -237,6 +246,22 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: the n-eyes panel silently falls through to the plain panel when no eye returns a
+		// verdict, and the plain panel silently falls through to a single reviewer. Two levels of degradation,
+		// each invisible — so a run with NKLEIN_N_EYES_REVIEW on that quietly decided by ONE reviewer looked
+		// exactly like a run with the flag off.
+		//
+		// `enabledBy: null` and one category rather than one per flag: the interesting fact is which path WON,
+		// which is a single mutually-exclusive outcome recorded on every review regardless of flags.
+		category: "review_path",
+		item: "§5.AB",
+		observes: "which review path produced the verdict — n-eyes, panel, or a single reviewer after silent fallback",
+		enabledBy: null,
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: which skill fragments reached the system prompt was unrecorded, and unlike the
 		// PROCEDURAL consumer there is no ledger equivalent — attempts carry `surfacedSkillIds` for procedures but
 		// nothing for these. So "did enabling this change the prompt at all, and with what?" had no answer.
@@ -276,6 +301,11 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		//
 		// `enabledBy: null` is deliberate: the level is now recorded on EVERY session start, flag on or off,
 		// because the comparison IS the measurement and a lean-only record has no baseline.
+		// `firesWhen: attempt_started` — this records at SESSION START, so the proof it had a chance is that a
+		// session started since it landed, not that any telemetry at all was written. Omitting it made the audit
+		// immediately flag this entry `enabled_but_silent` on the day it was added: exactly the false alarm the
+		// too_new_to_judge check exists to prevent, reproduced by its own author within the hour.
+		firesWhen: "attempt_started",
 		category: "sysprompt_level",
 		// §5.AQ, not the code comment's "W2.4a" — the ratchet correctly rejected that, and checking showed W2.4a
 		// appears nowhere in todo.md while §5.AQ (context economy) owns this and is cited by sysprompt-level.ts.
