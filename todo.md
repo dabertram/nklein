@@ -5013,6 +5013,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   silently returns nothing, which would also quietly weaken F12.14's scaffold recommendation and F12.81's
   exemplars (both read the ledger from the same seam). **This is exactly the class of defect the mechanism audit
   was built to surface: no error, no orphan, tests green, and the feature simply never happens.**
+  **EVIDENCE GATHERED 2026-07-20 — the ledger is FRAGMENTED, and one write site hashes the WRONG PATH.**
+  · **76 distinct workspace-path hashes = 76 ledger files, and 37 contain exactly ONE event.** `readAgentLedger`
+    reads ONE file by hash, so a consumer deriving its hash from a different path than the writer used sees a
+    fraction of the history — or nothing. Half the ledger is single-event fragments.
+  · **CONFIRMED INCONSISTENCY:** every hash site in the tree derives from a HOST path (`workspacePath`,
+    `scope.workspacePath`, `repoPath`, `process.cwd()`) EXCEPT `nklein-session-runtime.ts:274`, which uses
+    **`agentPerceivedCwd`** — the SANDBOX path (`/workspaces/<taskId>` under isolation). Retrieval events are
+    written under a hash no reader ever computes.
+  · **CORROBORATION FROM THE DATA:** across all 76 files the kinds are `{transition: 967, attempt: 226}` —
+    **ZERO `retrieval` events exist anywhere**, despite `buildRetrievalEvent` being wired at that line. Either
+    that path never runs or its events go where nothing reads; both are bugs.
+  · **PRIOR ART IN THIS CODEBASE:** the context-focus extension's docblock records the same sandbox-vs-host
+    confusion biting once already — *"It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does
+    not exist on the host), which left the repo map silently empty under isolation."* **This is its sibling.**
+  **NOT YET PROVEN:** that fragmentation is THE cause of F12.35's zero — that needs one instrumented review run
+  comparing the reader's hash against the hash its task's attempts were written under. The fragmentation and the
+  sandbox-path write site are defects independently of F12.35.
+  **SCOPE IF CONFIRMED:** every ledger consumer shares this seam — F12.14 scaffold recommendation, F12.81
+  exemplars, F3.7b behaviour profiles, the retry-note builder — and each degrades the same silent way.
 - [ ] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
   `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
   generated document so the two failure modes appear side by side and neither can be mistaken for the other.
