@@ -5014,7 +5014,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   with nothing watching are surfaced as a named coverage gap rather than dropped.
   Remainder is the real-drain ADAPTER (read board/ledger/aimock report into `CollectorInput`) — owned by **N7**,
   which wires the runner; it is not a separate item.
-- [~] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
+- [x] **N6 — Efficiency pass WITHOUT weakening coverage.** Order cells fastest-first for early signal, reuse
   scaffolds where hermetically safe, cache aimock fixture parsing, allow bounded parallelism ONLY for the
   proven-safe small projects (the 2 largest stay sequential), and emit per-cell wall/cost so the suite's own
   regressions (a cell suddenly 3× slower) are visible. Runtime target: hours is fine; waste is not.
@@ -5037,8 +5037,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   with sub-second cells (0.2s→0.7s reads as 3.5×) and **a report nobody reads is how a real 5× gets missed**;
   absolute alone misses a fast cell degrading badly. A cell with no baseline reports nothing — a first observation
   is not a comparison, and treating it as one would manufacture a regression on every newly-added cell.
-  REMAINING (N6b): the effectful half — scaffold reuse where hermetically safe, aimock fixture-parse caching, and
-  emitting per-cell wall/cost from a real run to feed `detectDurationRegressions` a baseline. Rides N7's runner.
+  The effectful half is N6b.
+- [ ] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
+  Reuse scaffolds where hermetically safe, cache aimock fixture parsing, and emit per-cell wall/cost from a real
+  run so `detectDurationRegressions` has a baseline to compare against. Rides N7's runner.
+  **⚠️ "WHERE HERMETICALLY SAFE" IS THE WHOLE ITEM, and it is the one phrase that can silently undo N6.** A reused
+  scaffold that carries ANY state between cells — a warm store, a leftover worktree, a cached fitness row — makes
+  cell B pass because cell A ran first. That is not a faster suite, it is **a suite with hidden ordering
+  dependencies that only surface when someone reorders or parallelises**, at which point the failure looks like a
+  flake rather than the coupling it is. N6's scheduler is explicitly allowed to reorder, so this coupling would be
+  introduced by one item and detonated by another.
+  So each reuse needs a stated reason it cannot carry state, and the honest default is **not to reuse**: the time
+  saved is bounded and known, while the cost of a hidden dependency is unbounded and arrives disguised.
 - [ ] **N8 — SWE-bench tranche: 10 suitable cases as nightly cells (David 2026-07-19 addition).** The dev-test
   projects cover FROM-SCRATCH flows; nightly must ALSO freeze the two other entry shapes — BUG-FIXING and
   continue/extend an EXISTING pre-seeded codebase. Pick 10 SUITABLE instances from the SWE-bench palette
