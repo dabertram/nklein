@@ -112,3 +112,41 @@ describe("MECHANISM_REGISTRY", () => {
 		}
 	});
 });
+
+describe("window saturation (live-found 2026-07-20 — it produced a FALSE finding)", () => {
+	it("REFUSES to conclude silence when the read window was saturated", () => {
+		// The real case: 500 events read, all 500 a single high-frequency category, so every other mechanism
+		// counted zero purely because it had been truncated out of the window.
+		const result = auditMechanismObservations({
+			registry: [flagged],
+			countsByCategory: new Map(),
+			knownEnabledFlags: new Set(["SOME_FLAG"]),
+			windowSaturated: true,
+		});
+		expect(result.findings[0]?.status).toBe("unknown_enablement");
+		expect(result.findings[0]?.note).toContain("truncation artifact");
+		expect(result.actionable).toHaveLength(0);
+	});
+
+	it("still reports enabled_but_silent when the window was NOT saturated", () => {
+		const result = auditMechanismObservations({
+			registry: [flagged],
+			countsByCategory: new Map(),
+			knownEnabledFlags: new Set(["SOME_FLAG"]),
+			windowSaturated: false,
+		});
+		expect(result.findings[0]?.status).toBe("enabled_but_silent");
+		expect(result.actionable).toHaveLength(1);
+	});
+
+	it("warns in the summary so a saturated run cannot be quoted as clean", () => {
+		const result = auditMechanismObservations({
+			registry: [flagged],
+			countsByCategory: new Map(),
+			knownEnabledFlags: new Set(["SOME_FLAG"]),
+			windowSaturated: true,
+		});
+		expect(result.summary).toContain("SATURATED");
+		expect(result.summary).toContain("inconclusive");
+	});
+});

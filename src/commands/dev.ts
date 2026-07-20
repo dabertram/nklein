@@ -42,6 +42,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
+import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
@@ -907,6 +908,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Emit the CycloneDX document instead of the summary.")
 		.action(async (options: { lockfile?: string; name?: string; version?: string; json?: boolean }) => {
 			await runDevSbomCommand(options);
+		});
+
+	dev.command("mechanism-registry")
+		.description("P15.1c: which shipped mechanisms are demonstrably firing (vs enabled-but-silent)?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevMechanismRegistryCommand(options);
 		});
 
 	dev.command("unwired-cores")

@@ -4972,12 +4972,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Plus **`unknown_enablement`**: when flag history cannot be shown, the audit says INCONCLUSIVE rather than
   accusing — claiming "never enabled" without evidence would excuse a real silence just as wrongly as blaming an
   innocent one. 10 tests; suite green.
-- [ ] **P15.1c — Wire the mechanism audit to live telemetry + generate the registry doc *(split 2026-07-20)*.**
+- [~] **P15.1c — Wire the mechanism audit to live telemetry + generate the registry doc *(split 2026-07-20)*.**
   Read counts via `readSelfObservationEvents`, add `nklein dev mechanism-registry`, and generate
   `docs/dev/mechanism-registry.md` from BOTH scans (unwired-core + observation-count) so the two failure modes
   appear side by side. **Flag history is the hard part and must not be faked:** the honest input for
   `knownEnabledFlags` is the CURRENT process env, which only proves what is on NOW — so anything older than this
   process must report `unknown_enablement` rather than being back-dated from a guess.
+  **CLI SHIPPED + LIVE-RUN 2026-07-20: `nklein dev mechanism-registry [--json]`.**
+  **⚠️ THE FIRST LIVE RUN PRODUCED A FALSE FINDING, AND CATCHING IT IS THE REAL RESULT.** It reported
+  `review_effort_scaling` (F12.35) as **ENABLED_BUT_SILENT** — the actionable class. Investigating the window
+  before believing it: `readSelfObservationEvents` caps at **500**, and all **500 events were a SINGLE category**
+  (`board_liveness_watchdog_tick`). One chatty mechanism had pushed every other category out of the window
+  entirely, so every other count was zero **by truncation, not by silence**. **A zero from a saturated window is
+  not evidence of anything**, and an audit built to detect "shipped but never fires" had just been about to
+  report exactly that, wrongly, about a mechanism that may well be working.
+  FIXED: the core now takes `windowSaturated` and, when set, downgrades every zero to `unknown_enablement` with
+  "this is a truncation artifact, not evidence of silence", and the summary carries a ⚠️ so a saturated run cannot
+  be quoted as a clean bill of health. 3 regression tests pin it. **Generalisable lesson for §4A: a
+  high-frequency observation category silently destroys the evidentiary value of every low-frequency one sharing
+  the same capped read.**
+  REMAINING: (a) make the read category-aware (per-category tail reads, or exclude the dominant category) so the
+  window stops being saturated and zeros become meaningful again — until then this command can prove a mechanism
+  IS firing but cannot prove one is not; (b) generate `docs/dev/mechanism-registry.md` from both scans.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with

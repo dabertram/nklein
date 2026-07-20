@@ -62,6 +62,17 @@ export interface MechanismAuditInput {
 	 * would excuse a real silence.
 	 */
 	readonly knownEnabledFlags?: ReadonlySet<string>;
+	/**
+	 * True when the observation read hit its cap, so older events were TRUNCATED away.
+	 *
+	 * ⚠️ LIVE-FOUND 2026-07-20, and it nearly produced a false finding: the first real run read 500 events and
+	 * **all 500 were a single high-frequency category** (`board_liveness_watchdog_tick`). Every other mechanism
+	 * therefore counted zero — not because they never fired, but because one chatty mechanism had pushed them out
+	 * of the window entirely. The audit reported `review_effort_scaling` as ENABLED_BUT_SILENT on that basis.
+	 * **A zero from a saturated window is not evidence of silence**, so when this is set the audit refuses to
+	 * conclude silence and reports the truncation instead.
+	 */
+	readonly windowSaturated?: boolean;
 }
 
 export interface MechanismAuditResult {
@@ -112,6 +123,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
 			});
 			continue;
 		}
+		if (input.windowSaturated === true) {
+			findings.push({
+				...entry,
+				observations,
+				status: "unknown_enablement",
+				note: "zero observations, but the read window was SATURATED (it hit its cap, so older events were truncated) — this is a truncation artifact, not evidence of silence",
+			});
+			continue;
+		}
 		if (entry.expectation === "exceptional") {
 			findings.push({
 				...entry,
@@ -130,11 +150,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
 	}
 
 	const actionable = findings.filter((finding) => finding.status === "enabled_but_silent");
+	const saturationNote =
+		input.windowSaturated === true
+			? " ⚠️ The observation window was SATURATED, so every zero here is inconclusive — widen the window or filter the dominant category before drawing conclusions."
+			: "";
 	const healthy = findings.filter((finding) => finding.status === "healthy").length;
 	const summary =
 		actionable.length > 0
-			? `${actionable.length} mechanism(s) are ENABLED, expected to fire, and recorded nothing. ${healthy} of ${findings.length} are demonstrably firing.`
-			: `No enabled-but-silent mechanisms. ${healthy} of ${findings.length} are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.`;
+			? `${actionable.length} mechanism(s) are ENABLED, expected to fire, and recorded nothing. ${healthy} of ${findings.length} are demonstrably firing.${saturationNote}`
+			: `No enabled-but-silent mechanisms. ${healthy} of ${findings.length} are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.${saturationNote}`;
 
 	return { findings, actionable, summary };
 }
