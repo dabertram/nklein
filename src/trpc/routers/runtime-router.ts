@@ -19,6 +19,8 @@ import {
 	runtimeCardMailboxCountsResponseSchema,
 	runtimeCardMailboxSendRequestSchema,
 	runtimeCardMailboxSendResponseSchema,
+	runtimeCardTimelineRequestSchema,
+	runtimeCardTimelineResponseSchema,
 	runtimeChatHostActionAuditRequestSchema,
 	runtimeChatHostActionAuditResponseSchema,
 	runtimeCommandRunResponseSchema,
@@ -333,6 +335,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskActionTrailResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskActionTrail(ctx.workspaceScope, input);
+			}),
+		getCardTimeline: workspaceProcedure
+			.input(runtimeCardTimelineRequestSchema)
+			.output(runtimeCardTimelineResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getCardTimeline(input);
 			}),
 		getCardEffort: workspaceProcedure
 			.input(runtimeCardEffortRequestSchema)

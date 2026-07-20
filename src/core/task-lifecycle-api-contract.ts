@@ -60,6 +60,48 @@ export const runtimeTaskActionTrailResponseSchema = z.object({
 });
 export type RuntimeTaskActionTrailResponse = z.infer<typeof runtimeTaskActionTrailResponseSchema>;
 
+// N18 — the FORENSIC timeline, as a product surface rather than a CLI-only debug tool (David 2026-07-20:
+// *"i want that timeline to be inherent part of !Klein"*).
+//
+// Distinct from the action trail above, deliberately: that one is a plain-language story for a person deciding
+// what a card DID. This is every source merged verbatim, with each source's availability carried alongside, for
+// a person working out what WENT WRONG. Neither replaces the other.
+export const runtimeCardTimelineRequestSchema = z.object({
+	taskId: z.string().min(1),
+	limit: z.number().int().positive().max(2000).optional(),
+});
+export type RuntimeCardTimelineRequest = z.infer<typeof runtimeCardTimelineRequestSchema>;
+
+export const runtimeCardTimelineEventSchema = z.object({
+	at: z.number(),
+	source: z.enum(["observation", "ledger", "board", "workflow", "log"]),
+	kind: z.string(),
+	detail: z.string(),
+	metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+// `sourcesRead` is REQUIRED, not optional. "This source had no events" and "this source could not be read" are
+// different facts and only one means the trail is trustworthy; a UI that cannot tell them apart will render a
+// deleted log as a quiet card, which is worse than showing nothing.
+export const runtimeCardTimelineSourceSchema = z.object({
+	source: z.enum(["observation", "ledger", "board", "workflow", "log"]),
+	available: z.boolean(),
+	eventCount: z.number().int().nonnegative(),
+	note: z.string(),
+});
+
+export const runtimeCardTimelineResponseSchema = z.object({
+	cardId: z.string(),
+	events: z.array(runtimeCardTimelineEventSchema),
+	sourcesRead: z.array(runtimeCardTimelineSourceSchema),
+	/** True when ANY source was unreadable — the panel must say so rather than implying completeness. */
+	partial: z.boolean(),
+	summary: z.string(),
+	/** Total before the tail cap, so a truncated view is honest about being truncated. */
+	totalEvents: z.number().int().nonnegative(),
+});
+export type RuntimeCardTimelineResponse = z.infer<typeof runtimeCardTimelineResponseSchema>;
+
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
 	timeoutMs: z.number().int().positive().optional(),

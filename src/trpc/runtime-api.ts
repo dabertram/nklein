@@ -147,6 +147,7 @@ import { handleGetAdwRunStatus, handleListAdwWorkflows, handleStartAdwRun } from
 import { handleAnswerPlanQuestion, handleListPlanQuestions } from "./runtime-api/answer-plan-question.js";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { handleGetCardEffort } from "./runtime-api/card-effort.js";
+import { handleGetCardTimeline } from "./runtime-api/card-timeline.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
@@ -1085,6 +1086,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		listNKleinPlanQuestions: async (workspaceScope, input) => handleListPlanQuestions(workspaceScope, input),
 		getTaskFocusChainHistory: async (workspaceScope, input) => handleGetFocusChainHistory(workspaceScope, input),
 		getTaskActionTrail: async (workspaceScope, input) => handleGetTaskActionTrail(workspaceScope, input),
+		getCardTimeline: async (input) => handleGetCardTimeline(input),
 		// F12.58: the per-card cost/effort meter over the persisted run summaries.
 		getCardEffort: async (workspaceScope, input) => handleGetCardEffort(workspaceScope, input),
 		// F12.107: the ADW runner surface — list definitions, start a run, poll status.

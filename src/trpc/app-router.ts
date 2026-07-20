@@ -21,6 +21,8 @@ import type {
 	RuntimeCardMailboxCountsResponse,
 	RuntimeCardMailboxSendRequest,
 	RuntimeCardMailboxSendResponse,
+	RuntimeCardTimelineRequest,
+	RuntimeCardTimelineResponse,
 	RuntimeChatHostActionAuditRequest,
 	RuntimeChatHostActionAuditResponse,
 	RuntimeCommandRunResponse,
@@ -342,6 +344,8 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskActionTrailRequest,
 		) => Promise<RuntimeTaskActionTrailResponse>;
+		/** N18: the forensic per-card timeline — every source merged, with each source's availability carried. */
+		getCardTimeline: (input: RuntimeCardTimelineRequest) => Promise<RuntimeCardTimelineResponse>;
 		/** F12.58: the per-card cost/effort meter (tokens + wall time; board totals alongside). */
 		getCardEffort: (
 			scope: RuntimeTrpcWorkspaceScope,

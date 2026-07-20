@@ -5296,8 +5296,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   - `attempt_started` — inferred from an attempt's first tool call, so **an attempt that died before calling
     anything is invisible** — precisely the failure worth seeing.
   - `operator_intervention` — only `nudge` is instrumented (P20.10).
-  REMAINING (N18b): close those five gaps, then surface the timeline as a PRODUCT view (tRPC + UI panel), since
-  `dev card-timeline` is still CLI-only and David asked for this to be inherent, not a debug tool.
+  **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
+  mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
+  (`state/card-trail-sources.ts`), so CLI and UI share one reader — N17's anti-drift rule applies to readers as
+  much as writers, and the day two "what happened to this card" implementations disagree is the day neither can
+  be trusted.
+  The panel renders the things that make a forensic view honest rather than pretty, each pinned by a test: a load
+  failure says *"not an empty card"*; an unreadable source warns that a gap **may be this, not silence**; a
+  truncated list says *"most recent N of M"*; an unclocked event renders `—` instead of an invented time. Those
+  are the renderings that would otherwise let a reader draw a confident wrong conclusion instead of going to look.
+  REMAINING (N18c): the 3 open partials — `attempt_started`, `model_usage`, `operator_intervention`.
 
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings

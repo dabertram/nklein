@@ -2,6 +2,7 @@
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeCardEffortResponse,
+	RuntimeCardTimelineResponse,
 	RuntimeFocusChainHistoryResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskActionTrailResponse,
@@ -118,6 +119,20 @@ export async function fetchTaskActionTrail(
 ): Promise<RuntimeTaskActionTrailResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getTaskActionTrail.query({ taskId });
+}
+
+/**
+ * N18: the forensic per-card timeline — every source merged, each source's availability carried alongside.
+ *
+ * Distinct from `fetchTaskActionTrail`, which is the plain-language story of what the agent DID. This one is for
+ * working out what WENT WRONG, so it keeps metadata verbatim and reports which sources could not be read.
+ */
+export async function fetchCardTimeline(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeCardTimelineResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getCardTimeline.query({ taskId });
 }
 
 /** F12.58: the per-card cost/effort meter (tokens + wall time; board totals alongside). */
