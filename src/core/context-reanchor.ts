@@ -31,6 +31,17 @@ export interface ContextReanchorInput {
 	 * model situate itself in the action stream and avoid repeating work.
 	 */
 	recentToolNames?: readonly string[];
+	/**
+	 * F4.8: the card's hard CONSTRAINTS — what the agent must not do. Re-anchoring the goal without them lets a
+	 * long run drift into a solution that satisfies the objective by violating a boundary, which reads as success
+	 * until someone looks.
+	 */
+	constraints?: string | null;
+	/**
+	 * F4.8: the ACCEPTANCE CRITERIA — what "done" means. This is the element long runs lose most damagingly: an
+	 * agent that has forgotten the definition of done will confidently declare it.
+	 */
+	acceptanceCriteria?: string | null;
 }
 
 /**
@@ -56,6 +67,19 @@ export function buildContextReanchor(input: ContextReanchorInput): string {
 	const currentStep = input.currentStep?.trim();
 	if (currentStep) {
 		lines.push(`CURRENT STEP: ${currentStep}`);
+	}
+
+	// F4.8's two missing elements. Placed BEFORE recent tools so that, if anything is ever truncated, the boundary
+	// conditions survive and the action log is what gets lost — the reverse ordering would drop the constraints a
+	// long run is most likely to have forgotten.
+	const constraints = input.constraints?.trim();
+	if (constraints) {
+		lines.push(`CONSTRAINTS: ${constraints}`);
+	}
+
+	const acceptanceCriteria = input.acceptanceCriteria?.trim();
+	if (acceptanceCriteria) {
+		lines.push(`DONE MEANS: ${acceptanceCriteria}`);
 	}
 
 	const recentTools = input.recentToolNames?.filter((t) => t.trim().length > 0);

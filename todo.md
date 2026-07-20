@@ -1905,6 +1905,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   in the card"* — the rendered block therefore CONTAINS the phrase "acceptance criteria" while carrying none. A
   string-matching checker would call that covered and **report the gap below as satisfied**, turning this module
   into the thing it exists to detect.
+  **🔴 F4.8 IS ENTIRELY UNMET, NOT PARTLY MET — corrected 2026-07-20, and the correction is the finding.**
+  The re-anchor injection site is guarded by `isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)` and is **DEFAULT
+  OFF** (`nklein-context-focus-extension.ts`: *"default OFF = byte-identical"*). So in the shipped configuration
+  **no re-anchor block reaches any prompt at all** — the audit had been reporting `objective, current_focus` as
+  live purely because the IMPORT CHAIN was complete.
+  ⚠️ **AND I NEARLY MADE IT WORSE IN THE MOST DANGEROUS WAY.** I extended `buildContextReanchor` to carry
+  `constraints` + `acceptanceCriteria` and threaded them through the adapter and the session store — which, with
+  the path still marked `wired: true`, would have flipped the gate to **COMPLETE while nothing whatsoever ran by
+  default.** An audit certifying a requirement as satisfied by code that does not execute is worse than an audit
+  that says nothing. **"Imported" and "reaches a live prompt" are different claims, and tracing an import chain
+  only ever proves the weaker one.** Pinned by a test asserting the path is NOT counted as live while env-gated.
+  DONE: the block now carries all four elements when it fires, the card contract is PUSHED per session (never
+  looked up — `beforeModel` is the model hot path and board I/O there is invisible in tests and expensive in a
+  long run), and the current step is passed at last (it was already available and simply never handed over).
+  REMAINING (F4.8b): **a decision, not code** — whether `NKLEIN_GOAL_REANCHOR` should default ON. That is a
+  live-behaviour change to every session's prompt, so it wants a measured A/B rather than a flipped constant.
 - [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
   constraints, and acceptance criteria without duplicating large context.
   **⚠️ F4.8a RAN THE VERIFICATION AND IT FAILS TODAY — precisely, and the reason is a wiring gap, not a bug.**

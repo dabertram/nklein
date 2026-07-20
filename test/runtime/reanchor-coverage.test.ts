@@ -93,20 +93,32 @@ describe("assessReanchorCoverage", () => {
 });
 
 describe("auditReanchorPaths", () => {
-	it("reports the CURRENT live state: F4.8 is not satisfied today", () => {
+	it("reports the CURRENT live state: NOTHING reaches a live prompt today", () => {
+		// ⚠️ Corrected 2026-07-20. This previously asserted `["objective", "current_focus"]` were live, which was
+		// WRONG: the injection site is guarded by NKLEIN_GOAL_REANCHOR and is DEFAULT OFF, so in the shipped
+		// configuration no re-anchor block reaches any prompt at all. F4.8 is not partly met, it is entirely unmet.
 		const audit = auditReanchorPaths(OBSERVED_REANCHOR_PATHS);
 		expect(audit.passed).toBe(false);
-		expect(audit.liveElements).toEqual(["objective", "current_focus"]);
-		expect(audit.missingFromLive).toContain("acceptance_criteria");
+		expect(audit.liveElements).toEqual([]);
+		expect(audit.missingFromLive).toEqual([...REQUIRED_REANCHOR_ELEMENTS]);
+	});
+
+	it("does NOT count an env-gated, default-OFF path as live — the trap this nearly fell into", () => {
+		// The block was extended to carry all four elements the same day. Had the path stayed marked `wired: true`,
+		// the gate would have flipped to COMPLETE while nothing whatsoever ran by default — an audit reporting a
+		// requirement satisfied by code that does not execute. "Imported" and "reaches a live prompt" are different
+		// claims; tracing the import chain only ever proves the weaker one.
+		const contextReanchor = OBSERVED_REANCHOR_PATHS.find((path) => path.module === "context-reanchor.ts");
+		expect(contextReanchor?.provides).toEqual([...REQUIRED_REANCHOR_ELEMENTS]);
+		expect(contextReanchor?.wired).toBe(false);
 	});
 
 	it("distinguishes ALREADY BUILT BUT UNWIRED from never built — different fixes", () => {
-		// acceptance_criteria exists in instruction-reanchor.ts (F12.21) with zero importers; constraints exist
-		// nowhere. Merging these would send someone to rebuild a core that already exists.
+		// Every element is now built somewhere and none is live, so all four are "available but unwired": the fix
+		// is flipping a default, not writing a core. Merging these categories would send someone to rebuild code
+		// that already exists.
 		const audit = auditReanchorPaths(OBSERVED_REANCHOR_PATHS);
-		expect(audit.availableButUnwired).toEqual(["acceptance_criteria"]);
-		expect(audit.missingFromLive).toContain("constraints");
-		expect(audit.availableButUnwired).not.toContain("constraints");
+		expect(audit.availableButUnwired).toEqual([...REQUIRED_REANCHOR_ELEMENTS]);
 		expect(audit.summary).toContain("the fix is a wire, not a new core");
 	});
 

@@ -115,6 +115,15 @@ export interface DecideTaskReanchorInput {
 	currentStep?: string | null;
 	/** The Kanban card title, if the context is card-scoped. Optional. */
 	cardTitle?: string | null;
+	/**
+	 * F4.8: the card's hard CONSTRAINTS and ACCEPTANCE CRITERIA.
+	 *
+	 * Re-anchoring the goal alone was only half of F4.8's requirement, and the missing half is the damaging one: an
+	 * agent that has forgotten what "done" means will confidently declare it, and one that has forgotten the
+	 * boundaries will satisfy the objective by crossing one. Both read as success until a person looks.
+	 */
+	constraints?: string | null;
+	acceptanceCriteria?: string | null;
 }
 
 /** Outcome of the re-anchor decision. `messages` is the (possibly) rewritten list; identical reference when no-op. */
@@ -170,6 +179,8 @@ export function decideTaskReanchorForRequest(input: DecideTaskReanchorInput): De
 		goal,
 		currentStep: input.currentStep ?? null,
 		cardTitle: input.cardTitle ?? null,
+		constraints: input.constraints ?? null,
+		acceptanceCriteria: input.acceptanceCriteria ?? null,
 	});
 
 	return {

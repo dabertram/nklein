@@ -190,12 +190,24 @@ export function auditReanchorPaths(contributions: readonly ReanchorPathContribut
 export const OBSERVED_REANCHOR_PATHS: readonly ReanchorPathContribution[] = [
 	{
 		// core -> task-reanchor-before-model -> nklein-context-focus-extension -> nklein-session-runtime
+		//
+		// ⚠️ **`wired: false` DESPITE THE IMPORT CHAIN BEING COMPLETE, and this is the whole finding.** The
+		// injection site is guarded by `isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)` and is **DEFAULT OFF**
+		// (`nklein-context-focus-extension.ts`: "default OFF = byte-identical"). So in the shipped configuration
+		// NO re-anchor block reaches any prompt, and F4.8 is not partially met — it is **entirely unmet**.
+		//
+		// This was nearly missed in the worst possible way. 2026-07-20 I extended this block to carry constraints
+		// and acceptance criteria, which would have flipped the gate to COMPLETE while **nothing whatsoever
+		// reaches a live prompt by default** — an audit reporting a requirement satisfied by code that does not
+		// run. "Imported" and "reaches a live prompt" are different claims, and only tracing the import chain
+		// proves the weaker one.
 		module: "context-reanchor.ts",
-		wired: true,
-		provides: ["objective", "current_focus"],
+		wired: false,
+		provides: ["objective", "current_focus", "constraints", "acceptance_criteria"],
 	},
 	{
-		// F12.21. Zero importers outside its own test.
+		// F12.21. Zero importers outside its own test. A SECOND, event-driven mechanism (loop / tool-error
+		// triggers) rather than a piece of the cadence path — so wiring it is F12.21's item, not F4.8's.
 		module: "instruction-reanchor.ts",
 		wired: false,
 		provides: ["acceptance_criteria"],

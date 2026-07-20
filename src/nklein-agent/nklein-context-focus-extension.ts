@@ -113,6 +113,16 @@ const editThrashFlaggedBySessionId = new Map<string, Set<string>>();
  */
 const goalReanchorLastTurnBySessionId = new Map<string, number>();
 
+/**
+ * F4.8: the card's CONSTRAINTS and ACCEPTANCE CRITERIA, pushed in per session.
+ *
+ * PUSHED, not looked up. `beforeModel` runs on the model hot path, and reading the board there would put file
+ * I/O between the agent and every single turn — the kind of change that is invisible in tests and expensive in
+ * a long run. The session service already holds the card when it starts a session, so it hands the contract over
+ * once and this reads it synchronously, exactly as the focus chain already works.
+ */
+const cardContractBySessionId = new Map<string, { constraints: string | null; acceptanceCriteria: string | null }>();
+
 /** Env-gated (NKLEIN_GOAL_REANCHOR) turn cadence for the opt-in immutable-goal re-anchor; sane default when unset. */
 const GOAL_REANCHOR_EVERY_N_TURNS = 6;
 // F12.21: under DISTRESS (edit-thrash or progress-stall flagged this session) the goal re-anchor tightens — a
@@ -302,6 +312,14 @@ export function createKanbanContextFocusExtension(
 						lastReanchorTurn: goalReanchorLastTurnBySessionId.get(sessionId) ?? null,
 						everyNTurns: inDistress ? GOAL_REANCHOR_DISTRESS_EVERY_N_TURNS : GOAL_REANCHOR_EVERY_N_TURNS,
 						payloadTokensThisTurn,
+						// F4.8: the block carried the objective alone. The current step was already available here and
+						// simply never passed; constraints and acceptance criteria are the two elements the requirement
+						// names that reached no live prompt at all. An agent that has forgotten what "done" means will
+						// confidently declare it, and one that has forgotten the boundaries will satisfy the objective by
+						// crossing one — both read as success until a person looks.
+						currentStep: getCurrentFocusStepForSession(sessionId),
+						constraints: cardContractBySessionId.get(sessionId)?.constraints ?? null,
+						acceptanceCriteria: cardContractBySessionId.get(sessionId)?.acceptanceCriteria ?? null,
 					});
 					if (reanchor.appended) {
 						goalReanchorLastTurnBySessionId.set(
@@ -796,7 +814,21 @@ function getCurrentFocusStepForSession(sessionId: string): string | null {
 	return current?.text ?? null;
 }
 
+/**
+ * F4.8: hand this session the card's constraints + acceptance criteria so the re-anchor can carry them.
+ *
+ * Either may be null — a card without acceptance criteria is a real state, and the block omits the line rather
+ * than emitting an empty "DONE MEANS:", which would read as "done means nothing".
+ */
+export function recordSessionCardContract(
+	sessionId: string,
+	contract: { constraints: string | null; acceptanceCriteria: string | null },
+): void {
+	cardContractBySessionId.set(sessionId, contract);
+}
+
 export function forgetSessionFocusState(sessionId: string): void {
+	cardContractBySessionId.delete(sessionId);
 	editHistoryBySessionId.delete(sessionId);
 	editThrashFlaggedBySessionId.delete(sessionId);
 	progressRecordsBySessionId.delete(sessionId);
