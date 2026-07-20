@@ -1510,6 +1510,23 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **The gate is executable, not a reminder:** `auditChatLadderAdoption().safeToAdopt` must be true. The audit test
   currently pins `false` and will FAIL when the engine catches up — that failure is the signal F3.8 became a wire.
   Still needs the cross-model validation `retry-policy.ts` asks for, but the rewire is no longer blind.
+  **🔎 TRACED 2026-07-20 — AND IT RAISES THE BAR RATHER THAN LOWERING IT. The engine's rung SELECTION has no live
+  consumer anywhere.** Following the callers:
+  - `planNextAttempt` (the "unified §5.AA retry brain") is called by exactly one module, `adaptive-attempt-loop.ts`
+    — and **that module has ZERO importers**: only its own test file, plus two docblock mentions. Nothing in
+    production runs it.
+  - `decideNextRetryStrategy`'s only production caller is `nklein-adaptive-retry-policy.ts`, which **pins
+    `lastOutcome: "aborted"` and `triedStrategies: []` and reads only `!== "park"`.** With those inputs fixed, the
+    call is arithmetically `attempt < budget` — its own docblock says so: *"this is exactly `attempt < budget`"*.
+  So the per-outcome table (8 outcomes, ~30 rung entries) currently functions as a **retry COUNTER**. No code
+  anywhere dispatches on WHICH rung came back. The chat path does not call the engine at all; the swarm path calls
+  it and discards the answer.
+  **THEREFORE F3.8 IS NOT "CATCH CHAT UP WITH THE SWARM" — it would make chat the engine's FIRST REAL CONSUMER.**
+  The item reads like harmonising two adopters; there is only ever one, and it would be new. That is a larger and
+  riskier change than the wording implies, and it means the ladder's ordering has **never been validated by
+  anything** — it has been correct-looking, not correct-tested. Validate the table itself, not just the swap.
+  Related: `adaptive-attempt-loop.ts` is a genuine orphan — add it to **P15.4b**'s keep/drop walk. It is the
+  keep-shaped kind (it is what F3.8 would wire), so the honest label is "unwired", not "dead".
   **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
 - [x] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
