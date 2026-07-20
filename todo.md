@@ -5727,7 +5727,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   condition-checked — a lifecycle lease, or a re-drive that always restores rather than assuming a workspace, or a
   disposal deferred until the card is genuinely terminal. **Not another state predicate: any point-in-time check
   has this same window, and #31 already tried that.**
-- [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
+- [x] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
   — so a fix can be *decided*, implemented, and covered by a test set. **The remedy is per-case; the DETECTION
@@ -5753,6 +5753,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **First concrete instance is recorded under N7d** — `s03`, `workspace_disposed_before_capture`, 22 dependents
   blocked, work intact on a result branch. Use it as the acceptance fixture for this item.
 
+  **✅ ACCEPTANCE FIXTURE SHIPPED 2026-07-20 — N16 IS COMPLETE (detection + evidence; the REMEDY stays open, per case).**
+  `operator-hold-extraction.ts` + `test/runtime/operator-hold-extraction.test.ts` replay the real `s03` hold and
+  assert all FIVE required evidence items: reason code, processing chain, the 21-card blocked subtree, the
+  surviving result branch, and seed+cell. The retained HOME has since been cleaned up, so **this fixture is now
+  the only surviving copy of that run.**
+  **THE EXTRACTION WAS SPLIT OUT OF THE COMMAND BECAUSE IT IS THE HALF THAT BREAKS.** Assembly is arithmetic over
+  values a test can hand it; extraction is regexes over logs other subsystems write — and **when a regex reads
+  the wrong source it does not throw, it returns a confident, well-formed report with the two decisive fields
+  quietly wrong.** Both real defects had exactly that shape, and both survived the assembly half's fifteen
+  passing tests. The parsing is now pure; `operatorHoldNote` is a file reader with no logic left in it.
+  Both defects are pinned as named REGRESSIONS:
+  1. the reason code lives in self-observation telemetry, **not** `runtime.log` — reading the log alone still
+     yields `unknown`, asserted as a PAIR so that a broken source order cannot pass;
+  2. the telemetry blob writes **s00's branch BEFORE s03's**, so an unscoped match passes every other assertion
+     in this file and still sends a reader to inspect a healthy card's intact work.
+  **Verified by reintroducing the unscoped regex: 2 tests fail and it returns s00's branch.** A malformed board
+  now reads as UNKNOWN dependents rather than an empty set — **zero is the number that makes a run which stalled
+  21 cards look harmless.**
 - [~] **N17 — COMPLETE per-card tracking: every trail collected, ready for debugging *(David 2026-07-20)*.**
   *"we need to implement complete tracking for every thing that happens to/on a card/task … rather over covered
   than missing any detail … future debugging as easy as possible."*
