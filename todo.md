@@ -5119,9 +5119,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   rollback. Mechanisms whose evidence says "this never fired / never disagreed" get DELETED, not defaulted —
   removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the
   review correctly flagged.
-- [ ] **P15.4 — Kill-list pass: remove abandoned cores.** Cores with no consumer and no path to one. The charter
+- [~] **P15.4 — Kill-list pass: remove abandoned cores.** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
+  **TRIAGE SHIPPED 2026-07-20 — the 894 orphaned symbols are now a DECISION-READY list, generated not hand-made.**
+  `dev mechanism-doc` cross-references every fully-orphaned module against `todo.md`/`done.md`:
+  · **119 fully-orphaned modules** (every export unused).
+  · **40 TRACKED** — named in the backlog, so a wire or decision already exists. **Not kill candidates**; several
+    are cores shipped TODAY whose wires are their own `b` items.
+  · **79 UNTRACKED** — built, tested, unwired, and mentioned in **NO backlog item at all**. This is the strongest
+    kill-list input: **the only group where "why does this exist?" has no recorded answer anywhere in the
+    project.** Examples: `repair-validation-gates.ts`, `skill-execution-gate.ts`, `richer-card-schema.ts`,
+    `spectrum-fault-localization.ts`, `work-package-merge-readiness.ts`.
+  **NOTHING DELETED, DELIBERATELY.** 79 modules is a large, hard-to-reverse decision, and the charter's standard
+  is LEARNING value rather than consumer count — a core that taught its lesson may be worth keeping even unwired.
+  So the deliverable here is the ranked, regenerable list plus the tracked/untracked split; **the deletions are
+  DAVID'S call.** Regenerate the list any time with `nklein dev mechanism-doc` rather than trusting this snapshot.
+  REMAINING (P15.4b): David walks the 79 and marks keep/delete; deletions then land in batches with the test
+  files, and each batch re-runs the scan to confirm nothing it removed was actually reachable via a re-export
+  (the scan is text-level and can miss those).
 - [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
   setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
 

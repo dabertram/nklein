@@ -13,7 +13,7 @@ direction, so they are kept side by side:
 
 ## 1. Mechanism firing status
 
-Tallied **44623** observation(s) across **27** categories — exhaustive, not a capped window.
+Tallied **44643** observation(s) across **27** categories — exhaustive, not a capped window.
 
 | category | item | enabled by | expectation | observations | status |
 | --- | --- | --- | --- | ---: | --- |
@@ -163,6 +163,94 @@ Status meanings — note that only ONE of these is actionable:
 - `topic-aware-freshness.ts` (1 export(s))
 - `transcript-distractor-pruning.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
+
+### Orphan triage — tracked vs untracked (119 fully-orphaned modules)
+
+- **40 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **79 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
+
+The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
+"why does this exist?" has no recorded answer anywhere in the project.
+
+- `action-plan-ir-gbnf.ts`
+- `adaptive-attempt-loop.ts`
+- `adaptive-decomposition-decision.ts`
+- `admissible-cited-synthesis.ts`
+- `answer-budget-prior.ts`
+- `audio-vst-rubric.ts`
+- `background-eval-runner-signals.ts`
+- `cache-aware-prompt-layout.ts`
+- `cache-friendly-route.ts`
+- `cache-health.ts`
+- `cache-warmup-amortization.ts`
+- `citation-conflict-batch.ts`
+- `claim-admissibility.ts`
+- `clarification-count.ts`
+- `codeact-gating.ts`
+- `confidence-scorer.ts`
+- `context-budget-knee.ts`
+- `context-occupancy-pressure.ts`
+- `context-position-salience-risk.ts`
+- `deliberation-loop.ts`
+- `diagnostic-oracles.ts`
+- `diversity-reachability.ts`
+- `durable-job-depth-priority.ts`
+- `durable-lease-renewal.ts`
+- `durable-scheduler-backpressure.ts`
+- `egress-task-identity.ts`
+- `endpoint-iteration-loop.ts`
+- `enforced-reasoning-round-stop.ts`
+- `failure-hopelessness-from-errors.ts`
+- `flake-quarantine.ts`
+- `fleet-host-cap-config.ts`
+- `fleet-host-observation.ts`
+- `focus-chain-diff.ts`
+- `hard-stuck-escalation.ts`
+- `llmfit-roster.ts`
+- `lmstudio-keep-alive-ttl.ts`
+- `lmstudio-log-anomalies.ts`
+- `lmstudio-max-tokens-clamp.ts`
+- `local-endpoint-clients.ts`
+- `localization-provider.ts`
+- `long-memory-live-eval.ts`
+- `machine-concurrency-gate.ts`
+- `memory-governance.ts`
+- `model-online-lookup.ts`
+- `model-residency-planner.ts`
+- `narration-dialect.ts`
+- `patch-candidate-parser.ts`
+- `persisted-prompt-session-models.ts`
+- `portable-continuation-selector.ts`
+- `procedural-skill-lifecycle.ts`
+- `reason-then-act.ts`
+- `relative-date-resolver.ts`
+- `repair-controller-decision.ts`
+- `repair-kernel-ledger.ts`
+- `repair-validation-gates.ts`
+- `request-economy-plan.ts`
+- `result-handle.ts`
+- `retrieved-evidence.ts`
+- `richer-card-schema.ts`
+- `rounds-budget.ts`
+- `skill-api-profile-apply.ts`
+- `skill-bundled-file-manifest.ts`
+- `skill-capability-grant-reconcile.ts`
+- `skill-compat.ts`
+- `skill-execution-gate.ts`
+- `skill-md-parse.ts`
+- `skill-source-trust.ts`
+- `skill-variation-rung.ts`
+- `spectrum-fault-localization.ts`
+- `structured-output-request-plan.ts`
+- `swarm-roster-load-plan.ts`
+- `sweep-resource-governance.ts`
+- `test-regression-verdict.ts`
+- `test-selection-priority.ts`
+- `topic-aware-freshness.ts`
+- `turn-thinking-directive.ts`
+- `work-package-conflict-resolution.ts`
+- `work-package-merge-readiness.ts`
+- `workflow-board-bridge.ts`
 
 ### Referenced ONLY from comments
 

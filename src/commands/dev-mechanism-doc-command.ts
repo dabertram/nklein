@@ -126,6 +126,28 @@ export async function runDevMechanismDocCommand(options: { out?: string }): Prom
 			.sort((left, right) => right[1] - left[1]);
 	})();
 
+	// TRIAGE the orphans against the backlog: a module named in todo.md/done.md has a tracked wire or decision;
+	// one named NOWHERE is built, tested, unwired and unmentioned — the strongest kill candidate, and the only
+	// group where "why does this exist?" has no recorded answer.
+	const backlogText = (() => {
+		try {
+			return `${readFileSync("todo.md", "utf8")}\n${(() => {
+				try {
+					return readFileSync("done.md", "utf8");
+				} catch {
+					return "";
+				}
+			})()}`;
+		} catch {
+			return "";
+		}
+	})();
+	const trackedModules: string[] = [];
+	const untrackedModules: string[] = [];
+	for (const [module] of fullyOrphanedModules) {
+		(backlogText.includes(module) ? trackedModules : untrackedModules).push(module);
+	}
+
 	const doc = [
 		"# Mechanism registry",
 		"",
@@ -166,6 +188,18 @@ export async function runDevMechanismDocCommand(options: { out?: string }): Prom
 		...(fullyOrphanedModules.length === 0
 			? ["_None._"]
 			: fullyOrphanedModules.map(([module, count]) => `- \`${module}\` (${count} export(s))`)),
+		"",
+		`### Orphan triage — tracked vs untracked (${fullyOrphanedModules.length} fully-orphaned modules)`,
+		"",
+		`- **${trackedModules.length} TRACKED** — named in \`todo.md\`/\`done.md\`, so a wire or decision exists.`,
+		`- **${untrackedModules.length} UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.`,
+		"",
+		"The untracked group is the strongest kill-list input (P15.4): it is the only group where the question",
+		'"why does this exist?" has no recorded answer anywhere in the project.',
+		"",
+		...(untrackedModules.length === 0
+			? ["_None untracked._"]
+			: untrackedModules.sort().map((module) => `- \`${module}\``)),
 		"",
 		"### Referenced ONLY from comments",
 		"",
