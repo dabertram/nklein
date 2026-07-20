@@ -5309,7 +5309,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     exactly the state a stalled card is in when someone goes looking — and duration underivable. `startTaskSession`
     now emits a START marker with the model and mode, **before any setup that can throw**, so an attempt that dies
     on the way up still leaves a record. Verified red by removing the emitter.
-  - `operator_intervention` — only `nudge` is instrumented (P20.10).
+  - `operator_intervention` — **`nudge` AND `abort` now instrumented** (abort = the user stopped a running
+    session, recorded only when one was actually running; a no-op abort is a click on a dead button, not an
+    intervention). `correction` and `takeover` remain unmeasured — both need detection that a human EDITED or
+    REPLACED the agent's output, which nothing observes.
+    ⚠️ **Cancelling a TURN is deliberately NOT instrumented**, though it looks like abort's sibling: the nudge
+    path performs cancel-then-send, so recording it would log an intervention for **every nudge** and inflate the
+    single number P20.10 exists to keep honest.
   **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
   mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
   (`state/card-trail-sources.ts`), so CLI and UI share one reader — N17's anti-drift rule applies to readers as

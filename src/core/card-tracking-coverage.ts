@@ -164,7 +164,10 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		source: "self_observation",
 		emitterToken: "operator_intervention",
 		status: "partial",
-		gap: "Only `nudge` has an emission site. correction, takeover and abort are unmeasured — see INSTRUMENTED_SEVERITIES.",
+		gap:
+			"`nudge` and `abort` have emission sites. `correction` and `takeover` do not — both require detecting that a " +
+			"HUMAN edited or replaced the agent's output, which nothing currently observes, so their zero counts mean " +
+			"unmeasured. See INSTRUMENTED_SEVERITIES.",
 	},
 	{
 		id: "held_for_operator",

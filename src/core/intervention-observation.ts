@@ -5,8 +5,13 @@
  * emitted an intervention. The metric was built; the observation was not. This is the observation half.
  *
  * ── COVERAGE IS PART OF THE RESULT, NOT A FOOTNOTE ──
- * Only ONE severity is currently instrumented: `nudge`, emitted when a human types into a session that is
- * already running. `correction`, `takeover` and `abort` have no emission site yet.
+ * TWO severities are instrumented: `nudge`, when a human types into a session that is already running, and
+ * `abort`, when a human stops a running session outright. `correction` and `takeover` have no emission site —
+ * both would require detecting that a human EDITED or REPLACED the agent's output, which nothing observes.
+ *
+ * ⚠️ Cancelling a TURN is deliberately NOT recorded, though it looks like a sibling of abort: the nudge path
+ * performs cancel-then-send, so instrumenting it would log an intervention for **every nudge** and inflate the
+ * one number this exists to keep honest.
  *
  * That makes the honest report *"0 takeovers were OBSERVED, and takeovers are not observable"* — which is a
  * completely different statement from *"0 takeovers happened"*, and the difference is the whole point of
@@ -30,7 +35,7 @@ export const INTERVENTION_CATEGORY = "operator_intervention";
  * **Add to this list only when an emission site exists** — the same rule as `OBSERVABLE_DRAIN_SIGNALS`. Listing
  * a severity here without an emitter turns "not measured" into a confident zero.
  */
-export const INSTRUMENTED_SEVERITIES: readonly InterventionSeverity[] = ["nudge"];
+export const INSTRUMENTED_SEVERITIES: readonly InterventionSeverity[] = ["nudge", "abort"];
 
 export interface InterventionExtractionResult {
 	readonly events: readonly InterventionEvent[];
@@ -104,6 +109,6 @@ export function extractInterventionEvents(telemetryJsonl: string): InterventionE
 		coverageNote:
 			uninstrumented.length === 0
 				? "All four severities have an emission site."
-				: `⚠️ ONLY ${INSTRUMENTED_SEVERITIES.join(", ")} is instrumented. ${uninstrumented.join(", ")} have NO emission site, so their counts read 0 because nothing measures them — NOT because they did not happen. Do not quote a total or a per-task ratio as if it covered all four.`,
+				: `⚠️ ONLY ${INSTRUMENTED_SEVERITIES.join(" and ")} ${INSTRUMENTED_SEVERITIES.length === 1 ? "is" : "are"} instrumented. ${uninstrumented.join(" and ")} ${uninstrumented.length === 1 ? "has" : "have"} NO emission site, so ${uninstrumented.length === 1 ? "its count reads" : "their counts read"} 0 because nothing measures ${uninstrumented.length === 1 ? "it" : "them"} — NOT because ${uninstrumented.length === 1 ? "it did" : "they did"} not happen. Do not quote a total or a per-task ratio as if it covered all four.`,
 	};
 }

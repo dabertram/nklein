@@ -5,7 +5,9 @@ import type {
 	RuntimeTaskChatCancelResponse,
 } from "../../core/api-contract";
 import { parseTaskChatAbortRequest, parseTaskChatCancelRequest } from "../../core/api-validation";
+import { INTERVENTION_CATEGORY } from "../../core/intervention-observation";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
+import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 interface TaskChatTurnControlDeps {
@@ -28,6 +30,25 @@ export async function handleAbortTaskChatTurn(
 		const summary = await nkleinTaskSessionService.abortTaskSession(body.taskId);
 		if (!summary) {
 			return { ok: false, summary: null, error: "Task chat session is not running." };
+		}
+		// P20.10 / N18: an ABORT — the user stopped the whole session. The strongest negative signal in the
+		// intervention taxonomy, and recorded only when a session was actually running (a no-op abort is not an
+		// intervention, it is a click on a dead button).
+		//
+		// ⚠️ **`handleCancelTaskChatTurn` below is deliberately NOT instrumented.** Cancelling a turn looks like a
+		// sibling of this, but the nudge path performs cancel-then-send — so recording an intervention there would
+		// log an abort for **every nudge**, inflating the metric with normal steering and corrupting the one number
+		// P20.10 exists to keep honest. The nudge is already recorded at the send path.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "warning",
+				message: `Operator aborted the running session on ${body.taskId}.`,
+				taskId: body.taskId,
+				metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "abort" },
+			});
+		} catch {
+			// Telemetry must never break the abort a user asked for.
 		}
 		return { ok: true, summary };
 	} catch (error) {
