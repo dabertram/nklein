@@ -5353,7 +5353,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   | `agentId` | `nklein` | **`nklein`** |
   | `startInPlanMode` | false | **false** |
   | `filesLikelyTouched` | 0–3 | **1–2** |
-  | `dependsOn` | — | **none — they are NOT dependency-blocked** |
+  | `dependsOn` | — | ~~none~~ **← THIS WAS WRONG, see the correction below** |
   **The stranded cards are structurally INDISTINGUISHABLE from the completed ones.** So it is not "some cards are
   special": nothing about a card predicts whether it strands, which fits the run-to-run nondeterminism (the same
   card completes in one run and strands in the next) and rules out the dependency/stream/scope explanations that
@@ -5384,7 +5384,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   IDENTICAL to the previous failing run.** That is a significant narrowing: **the nondeterminism is in WHETHER it
   fails, not in HOW.** A timing-dependent bug that lands on different cards each time would look nothing like
   this; a deterministic structural fault that only triggers under some starting condition looks exactly like it.
-  **NEXT HYPOTHESIS, and it fits every fact so far: the durable JOB GRAPH disagrees with the BOARD about
+  **🔴 CORRECTION — "NOT DEPENDENCY-BLOCKED" WAS WRONG, AND IT WAS LOAD-BEARING FOR THREE EARLIER CONCLUSIONS.**
+  Dependencies do NOT live on the card; they live in the board's separate `dependencies` array. Reading
+  `card.dependsOn` returned `None` because **that field does not exist**, not because the card was unblocked.
+  Checking the real array:
+  ```
+  dependency edges on the board          : 34
+  cards in planning                      : 22
+  planning cards WITH an unmet dependency: 22   ← ALL of them
+  genuinely startable                    : 0
+  ```
+  **Every stranded card is dependency-blocked.** So "the controller silently drops cards" is not established —
+  the cards may simply be waiting, correctly, on prerequisites that never completed.
+  **HOW THE MISTAKE HAPPENED, because the shape matters:** `card.get("dependsOn")` returned a falsy value and I
+  read that as evidence of absence. **A missing FIELD and an empty VALUE are indistinguishable to that call** —
+  the same not-knowing-vs-knowing-it's-fine confusion this session has catalogued a dozen times in other people's
+  code, committed here in my own analysis, twice in one thread.
+  **THE REFRAMED QUESTION, and it is a better one:** 14 cards were handed over as *startable* yet ended
+  *blocked*. Cards do not gain dependencies, so either a prerequisite BOUNCED out of `completed` (re-blocking its
+  dependents), or the sweep's notion of "startable" and the board's notion of "blocked" disagree. **The stall may
+  be in the prerequisite chain, not in the controller at all.**
+  NEXT: identify the prerequisites of the 14 and find what state THEY ended in. The earlier hypothesis below is
+  retained but demoted — it was built on the wrong premise.
+  **PREVIOUS HYPOTHESIS (demoted): the durable JOB GRAPH disagrees with the BOARD about
   dependencies.** `buildDurableJobGraph` projects board edges into jobs. If those 14 are `blocked` in the graph
   while the board reports `dependsOn: none`, then they are never `ready`, never admitted, never dispatched — and
   every layer downstream behaves correctly on a wrong input. That would explain the board/controller disagreement,
