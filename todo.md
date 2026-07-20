@@ -6462,13 +6462,34 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > define an implementation-agnostic standard.** Plan accordingly — hand-authored tasks are a different quality
 > class, not a marginally better one.
 
-- [ ] **P20.1 — NULL-AGENT BASELINE against our own eval harness (do this FIRST; one afternoon).** Run an agent
+- [~] **P20.1 — NULL-AGENT BASELINE against our own eval harness (do this FIRST; one afternoon).** Run an agent
   that does NOTHING against `dev-test`/the eval harness. **If it scores above zero, our grader is forgeable and
   every other number is meaningless.** BenchJack (arXiv 2605.12673) achieved ~100% on Terminal-Bench, SWE-bench
   Verified, SWE-bench Pro and WebArena **without solving any task** — e.g. a 10-line `conftest.py` pytest hook
   forcing all outcomes to "passed", and one validator that checked only *that the last message came from the
   assistant* (so `{}` scored perfectly on all 890 tasks). Also run random-agent and state-tampering agents.
   **This gates every other item in Phase 20 and every claim in Phase 13.**
+  **GATE CORE SHIPPED 2026-07-20: `null-agent-baseline.ts`, 10 tests.**
+  **THE ASSERTION, AT FULL STRENGTH: if an agent that does NOTHING scores above zero, every other number that
+  grader produced is MEANINGLESS — including the good ones.** Not "suspect", not "worth a caveat". A forgeable
+  grader does not fail loudly; it emits plausible numbers that measure nothing, and those are indistinguishable
+  from real ones by inspection. `allNumbersVoid` is a separate field from the verdict precisely so a caller
+  cannot render the score alongside a soft warning.
+  **THE NULL CHECK RUNS FIRST AND RETURNS IMMEDIATELY.** Continuing would produce sub-verdicts about numbers
+  already known void — and **any real-looking analysis invites a reader past the headline.**
+  **A RANDOM AGENT IS RUN TOO, for the SUBTLER failure.** A null agent catches a grader that rewards *nothing*; a
+  random agent catches one that rewards *activity*. A grader can pass the first and fail the second, and the
+  second is worse to have: **the scores move, they look responsive, and they track EFFORT rather than
+  correctness.** `undiscriminating` also voids every number.
+  An UNRUN baseline voids the numbers as well — *"not because the grader is known to be broken, but because
+  nothing has checked."* That is the honest reading of P20.1 gating Phase 20: effort spent improving a score
+  before this passes may be improving a metric that was never measuring anything.
+  `FORGERY_VECTORS` lists the five specific attacks as DATA (BenchJack's conftest hook, trivial-validator
+  satisfaction, state tampering, random activity, empty output) because **"we thought about grader forgery" and
+  "we tested these five attacks" are different claims, and only the second is checkable.**
+  REMAINING (P20.1b): actually RUN the null/random/tampering agents against `dev-test` and the eval harness.
+  That is the afternoon this item asks for — the core decides, but it has no scores to decide on yet, and
+  `indeterminate` is what it correctly reports until then.
 - [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking
