@@ -7081,6 +7081,41 @@ This map preserves the old enumeration as a lookup aid; it is not a second queue
 
 ## 7. Backlog accounting and forecast
 
+### ⚠️ 15 OF 24 CORES SHIPPED ON 2026-07-20 ARE ORPHANED — measured, not estimated
+
+Ran P15.7c's own transitive closure over this session's output. Of **24 cores written today, 15 are fully
+orphaned** — no live consumer, by the same measure that condemned the 19-module cluster P15.4b is triaging.
+
+**WIRED (9):** the nightly chain (`nightly-invariant-pack`, `-drain-collector`, `-schedule`, `-failure-report`,
+`-pack-registry`), the audit tooling (`requirement-coverage-audit`, `transitive-orphan-closure`,
+`tracked-requirements`), and `eval-headline-metric`.
+**ORPHANED (15):** `reanchor-coverage`, `retry-ladder-divergence`, `task-sizing-invariant`, `no-op-ablation`,
+`minimum-detectable-effect`, `off-track-intervention`, `threshold-provenance`, `compaction-format`,
+`prompt-cache-verification`, `benchmark-fitness`, `ab-trial-ordering`, `harness-card`, `null-agent-baseline`,
+`post-acceptance-churn`, `resident-set-recommendation`.
+
+**THE UNCOMFORTABLE COMPARISON: the cluster P15.4b is triaging took 12 DAYS to accumulate 19 unwired cores. This
+session produced 15 in ONE.** Higher rate, same shape, by an author who spent the day building instruments to
+detect exactly this.
+
+**AND THE STRUCTURAL CAUSE IS WORTH MORE THAN THE MEA CULPA: "work the backlog by what is buildable now"
+SELECTS FOR unwired cores.** Pure decision logic has no external dependency, so it is always available; its wire
+needs a live model, a real run, a sandbox toolchain, or a David decision, so it is usually not. **An agent
+draining a backlog by availability will therefore produce cores faster than wires, indefinitely, and every
+individual choice along the way will look correct.** That is not a lapse in discipline — it is what the
+selection rule does, and it will do it again to the next agent unless the rule changes.
+
+Each of the 15 is individually defensible: each has a named `b`-item, each was checked against the capability
+index first, none duplicates an existing core. **That is precisely why this is worth recording — the failure
+does not announce itself at the level where the decisions are made.**
+
+**Implications, not resolutions** (the fix is a David decision, not an agent's):
+- P15.4b's triage should treat today's 15 as their own cohort, distinguishable by date and by having named wires.
+- A rule worth considering: **no new pure core while more than N of one's own remain unwired.** It would have
+  stopped this session around item 9.
+- Or accept it deliberately: pure cores ARE the cheap half, and stockpiling them against a future wiring session
+  is a legitimate strategy — but only if it is chosen rather than fallen into.
+
 ### Marker drift — a real slip, found by scan, fixed by hand (2026-07-20)
 
 Three items this session got a "SHIPPED" annotation while their checkbox stayed `[ ]` — P20.5, P20.6 and P20.3.
