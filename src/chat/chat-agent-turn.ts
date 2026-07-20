@@ -7,6 +7,7 @@ import { buildSafeReasoningCapture } from "../core/reasoning-capture";
 import { detectRunawayGeneration, type RunawayVerdict } from "../core/runaway-generation-detector";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
 import {
 	type ChatAgentModelResponse,
@@ -170,10 +171,30 @@ export async function runChatAgentTurn(
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;
 	// §5.M/§5.N focus-chain NUDGE (OFF BY DEFAULT via NKLEIN_FOCUS_CHAIN_NUDGE / deps override): when there's no chain
 	// yet AND this is a multi-tool turn, lead with a note to draft one first. Off ⇒ nudge=false ⇒ byte-identical.
+	const focusChainNudgeOn = deps.focusChainNudgeEnabled ?? isTruthyEnv(process.env.NKLEIN_FOCUS_CHAIN_NUDGE);
 	const focusChainNudge =
-		(deps.focusChainNudgeEnabled ?? isTruthyEnv(process.env.NKLEIN_FOCUS_CHAIN_NUDGE)) && !focusChain
+		focusChainNudgeOn && !focusChain
 			? decideFocusChainNudge({ hasFocusChain: false, toolsOffered: deps.offeredToolNames?.length ?? 0 })
 			: { nudge: false, reason: "" };
+	// F4.8b: the nudge injects only when there is NO chain AND it is a multi-tool turn, so "flag on, condition not
+	// met, nothing injected" was invisible — indistinguishable from the flag being off. Recorded only when the
+	// flag is on (an off flag genuinely does nothing worth a record every turn).
+	if (focusChainNudgeOn) {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Focus-chain nudge ${focusChainNudge.nudge ? "injected" : "withheld"}: ${focusChainNudge.reason || (focusChain ? "chain already present" : "conditions not met")}.`,
+				metadata: {
+					category: "focus_chain_nudge",
+					injected: focusChainNudge.nudge,
+					hadChain: Boolean(focusChain),
+				},
+			});
+		} catch {
+			// Telemetry must never break a chat turn.
+		}
+	}
 	// F4.17: the chat path composes the SAME skill fragments as board sessions (one resolver) — fail-soft.
 	const skillFragmentsNote = deps.buildSkillFragmentsNote
 		? await deps.buildSkillFragmentsNote({ userMessage: input.userMessage }).catch(() => null)

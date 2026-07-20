@@ -258,6 +258,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: the nudge injects only when there is NO chain AND it is a multi-tool turn, so "flag on,
+		// condition not met, nothing injected" was indistinguishable from the flag being off.
+		category: "focus_chain_nudge",
+		item: "§5.N",
+		observes: "the focus-chain nudge decision on a chat turn, injected or withheld and why",
+		enabledBy: "NKLEIN_FOCUS_CHAIN_NUDGE",
+		expectation: "every_run",
+		firesWhen: "attempt_started",
+		addedOn: Date.UTC(2026, 6, 20),
+	},
+	{
 		// F4.8b 2026-07-20: `isSandboxMcpEnabled()` is a PREDICATE called four times per session, not an event —
 		// so it has no category of its own. Its decision is FOLDED into the once-per-session `attempt_started`
 		// record (a `sandboxMcpEnabled` field), and this entry maps the flag to that category. `covers` links the

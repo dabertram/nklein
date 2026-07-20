@@ -82,6 +82,8 @@ export const NON_MECHANISM_FLAGS: Readonly<Record<string, string>> = {
 	NKLEIN_DEBUG_STREAM_EVENTS: "debug tracer — prints SDK stream events with timings; the printout is the observation",
 	NKLEIN_EVAL_RAIL: "eval harness — runs throwaway dev-test evals whose results are the artifact",
 	NKLEIN_EVAL_DISTRACTOR_PROBE: "eval harness — produces the degradation data `dev distractor-sensitivity` reads",
+	NKLEIN_ENFORCED_REASONING:
+		"eval harness — doubles each eval cell so `dev reasoning-benefit` learns whether forcing reasoning helps",
 	// Not a dev/eval instrument, but exempt for the stronger reason: its ARTIFACT is the record. Enabling it
 	// persists a `reasoning` row per turn into the transcript, so "did it capture?" is answered by reading the
 	// transcript. A telemetry category would be a second source of truth for the same fact — the duplicate the
