@@ -7768,6 +7768,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   OUTPUT limit, not input). **Add a startup assertion that probes actual served context AND output cap per
   endpoint, and refuse to route on unverified values.** Directly protects prime directive #3, which currently
   trusts what the endpoint advertises.
+  **DECISION CORE SHIPPED 2026-07-20: `served-context-assertion.ts` + `dev served-context`, 6 tests.**
+  `assessServedContext({advertised, probedServed})` → `verified` / `silently_truncated` / `unverified`, plus
+  `routable` and the `safeContextTokens` it is safe to actually USE. **The safety default IS the feature:
+  UNPROBED resolves to `unverified` + `routable:false` + `safeContextTokens:0` — never the advertised guess —
+  because the failure is SILENT (a routed model discarding half its prompt errors nowhere). Same
+  absent-evidence-resolves-to-no direction as the CodeAct gate and the residency recommender.** The tolerance is
+  one-sided BELOW (serving more is fine; serving materially less is the lie), so the Ollama-2k-default trap
+  (advertise 32k, serve 2k) reads `silently_truncated` and refuses to route at 32k while still reporting 2k as
+  the usable length. The `dev` command's exit code gates: verified=0, unverified/truncated=1.
+  REMAINING (P21.3b): the effectful PROBE — send a needle-bearing prompt of known length to each endpoint at
+  startup, read back how much the model actually saw, and feed the served length + output cap into this core.
+  Needs a live endpoint; the decision it feeds is now built and refuses to route on what it cannot verify.
 - [ ] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
   published postmortem (2026-05-23, 14 tasks marked complete but absent from main): **(a)** reject sibling
   branches as merge targets — theirs squashed onto a sibling `fusion/fn-*` branch inherited from a parent;

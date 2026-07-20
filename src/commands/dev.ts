@@ -62,6 +62,7 @@ import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
+import { runDevServedContextCommand } from "./dev-served-context-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import { runDevSpecReviewCommand } from "./dev-spec-review-command";
 import { runDevSynthesisSavingCommand } from "./dev-synthesis-saving-command";
@@ -1108,6 +1109,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { path?: string; json?: boolean }) => {
 			await runDevLedgerHealthCommand(options);
+		});
+	dev.command("served-context")
+		.description("Is an endpoint's advertised context real, or does it silently truncate? (P21.3.)")
+		.requiredOption("--advertised <tokens>", "The context window the endpoint advertises.")
+		.option("--probed <tokens>", "The context actually served in a probe (omit = unverified).")
+		.option("--tolerance <frac>", "Fraction below advertised still counted verified (default 0.1).")
+		.option("--json", "Print machine-readable JSON.")
+		.action((options: { advertised?: string; probed?: string; tolerance?: string; json?: boolean }) => {
+			runDevServedContextCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
