@@ -335,6 +335,17 @@ source repo went private — so if it vanishes the buildable source still lives 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
 
+- **RULE (David 2026-07-21): EVERY real-model run goes through `scripts/real-model-run.sh`, never ad-hoc commands.**
+  Sitting and hand-watching a run while a card silently stalls is unprofessional and wastes compute. The harness owns
+  the whole lifecycle: pin m5max → load the resident fleet at ≥32k → start `lms log stream` (LM Studio dev logs) →
+  start the !Klein runtime → launch the drain → **actively watch from CHEAP sources only (`lms ps`, the persisted
+  `board.json`, the runtime log, the dev-log stream) — NEVER polling the inference endpoint** → **REACT to
+  stall/crash/floor-refusal** (snapshot + abort) → report every log into `.real-runs/<stamp>/` → always teardown
+  (fleet kept resident unless `--unload`). Usage: `scripts/real-model-run.sh [preset] [--plan|--act] [--worker <id>]
+  [--max-min N] [--unload]`. Resident fleet default (small + fast, all on m5max): `qwen/qwen3.6-35b-a3b` +
+  `google/gemma-4-31b-qat` + `qwopus3.5-9b-coder-mlx@8bit` + `qwen/qwen2.5-coder-14b` (override via `NKLEIN_FLEET`).
+  Fundamentals-first: get a clean end-to-end through this harness BEFORE trusting any drain result. (Live 2026-07-21:
+  the 4-model fleet loaded on m5max at 32k in ~26s and the runtime came up in 4s.)
 - **RUNNING A REAL-MODEL `dev test-project` DRAIN END-TO-END (live-validated 2026-07-20, gotchas found the hard way).** `dev test-project` connects over HTTP to a SEPARATELY-RUNNING **!Klein runtime** server (the code carries legacy `kanban`/`KANBAN_RUNTIME_PORT` names + a live rename-transition header shim — same thing, call it the !Klein runtime) — it is NOT in-process. The working recipe: (1) `lms load <model> --context-length 32768` — **the context MUST be ≥32,000 or the session NEVER starts**: the runtime refuses activation with *"Selected model … reports 16,384 context tokens. !Klein requires at least 32,000 before this model can be activated"* (the ≥32k prime-directive floor, enforced at session-start, silent except in the server log — the board just shows a "startable card lacks an active task session" watchdog sweep forever). (2) Start the server backgrounded sharing three envs with the client: `NKLEIN_RUNTIME_PORT=3484`, `NKLEIN_INTERNAL_AUTH_TOKEN=<any-fixed-token>` (the CLI client needs the SAME token to call the server), `HOME=<isolated dir>`, plus `NODE_ENV=development`. (3) Run `dev test-project --preset <p> --model-id <m> --provider-id lmstudio --max-wait-ms <bound>` with the same envs. (4) **TEARDOWN is on you**: `pkill -f 'tsx src/cli.ts --port 3484'`, `lms unload --all`, `docker rm -f $(docker ps -aq --filter name=nklein-agent-sandbox)` — a leaked server+model+container is the overload to avoid.
   - **STALE MODEL-CONTEXT DISCOVERY CACHE:** a long-running server caches the model's advertised context at first discovery. If you reload the model at a NEW context (e.g. 16k→32k), the server keeps using the OLD value and still refuses activation — you must RESTART the server (it re-discovers), not just reload the model.
   - **HOST SELECTION — do NOT let LM Studio auto-route (David 2026-07-20).** `lms load` auto-placed a 14B on the
