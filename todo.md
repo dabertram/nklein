@@ -5281,9 +5281,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **This corrects what `docs/dev/pre-release-checklist.md` claimed earlier the same day** ("excellent for
   reproducibility"). It is worse than that: repeat runs are neither independent samples NOR identical replays.
   Whatever varies between them is unmodelled.
-  NEXT: find why cards stall in `planning` (dependency-edge or admission gate, most likely), and separately why
-  two identical-seed runs differ. **Do not treat the second as noise to average over** — it is the more
-  interesting of the two, because it means every other nightly verdict is drawn from an unstable process.
+  **🎯 ROOT CAUSE NARROWED TO ONE FUNCTION 2026-07-20 — the frozen-board SELF-HEAL detects the freeze and does
+  not heal it.** From the retained `runtime.log`:
+  ```
+  Board-liveness watchdog: 1 startable + 0 deferred card(s) lack an active task session
+    ... — sweeping (frozen-board self-heal).        ×13
+  ```
+  **It fired THIRTEEN times and the board stayed frozen.** The watchdog's detection is correct — it sees exactly
+  the 1 startable card that the final counts report as `ready: 1`. It then calls
+  `retryWaitingCardsAfterTerminal(scope, trackedService)` (runtime-server.ts:3281) and the card is still unstarted
+  on the next tick, forever. **The 13 cards in `planning` are downstream of that one card**: a single unstarted
+  card blocks its dependents, so one failed self-heal costs a third of the board.
+  Hypotheses ruled out along the way, each by evidence rather than argument: the concurrency-limit deferral path
+  (**only 1 deferral in the whole run**, and `deferred: 0` at the end), a stale lane-name assertion (**all 8
+  `DevTestBoardCounts` names present**), and cards erroring out (**`failed: 0`, `review: 0` — they never start at
+  all**).
+  ⚠️ I also initially misread the watchdog as observe-only, because a 190-char log truncation hid the
+  *"— sweeping (frozen-board self-heal)"* suffix. **It does act. That makes this worse, not better:** a mechanism
+  that detects, acts, and achieves nothing is harder to notice than one that never fires, because the logs show
+  it working.
+  NEXT: why `retryWaitingCardsAfterTerminal` does not start a card the watchdog has just classified as startable.
+  And separately, why two identical-seed runs differ (28 vs 30) — **do not treat that as noise to average over**;
+  it is the more consequential finding, because it means every other nightly verdict is drawn from an unstable
+  process.
   `verify-simulated-flow.mts` threw *"perfect-run left cards undrained"* after 489s with `completed: 30,
   review: 0`. The assertion demands `review/failed/planning/inProgress === 0`, `ready === 0` and `completed ≥ 1`.
   With 30 completed and review 0, the failure is in one of the lanes the truncated output did not show.
