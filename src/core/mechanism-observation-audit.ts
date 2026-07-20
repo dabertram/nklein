@@ -18,6 +18,17 @@
  * A third case matters too: a mechanism that only fires on an EXCEPTIONAL condition (a breach, a drift, an
  * override) is legitimately silent on a healthy run. Silence there is evidence of health, not of breakage — so
  * the registry records that expectation instead of letting the audit misread good news as a defect.
+ *
+ * ── ⚠️ WHAT THIS REGISTRY STRUCTURALLY CANNOT COVER (F4.8b, 2026-07-20) ──
+ * It is indexed by `metadata.category`, so it can only ever see mechanisms that write a self-observation. Some
+ * are observable through a DIFFERENT channel and need no category at all: `NKLEIN_EXPLORER_SUBAGENT` gates the
+ * presence of an `explore` TOOL, and the agent ledger records every tool call by name and outcome — so "did the
+ * explorer ever run?" is already answerable, from the ledger.
+ *
+ * **So "absent from this registry" does NOT mean "unobservable", and adding a telemetry category for a mechanism
+ * the ledger already covers would be duplicate instrumentation** — a second source of truth that drifts, which
+ * N17 spells out at length. Check the ledger before instrumenting: the question is whether the mechanism is
+ * observable AT ALL, not whether it is observable *here*.
  */
 
 /** Why a mechanism might legitimately record nothing. */
@@ -225,6 +236,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// that genuinely exists in the codebase and was read at its emission site), not inferred from co-location in
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
+	{
+		// F4.8b 2026-07-20: the architect phase's failure was swallowed by `.catch(() => null)`, after which the
+		// session falls back to the plain prompt and looks IDENTICAL to one where the feature was never enabled.
+		// A silent degradation to the default path is indistinguishable from the feature being off.
+		category: "architect_editor_phase",
+		item: "§5.AV",
+		observes: "the architect phase's outcome, including when it produced no brief and silently fell back",
+		enabledBy: "NKLEIN_ARCHITECT_EDITOR",
+		expectation: "every_run",
+	},
 	{
 		// F4.8b 2026-07-20: emitted nothing, so "does the spec lint ever catch anything?" — the question deciding
 		// whether this advisory earns its place in the prompt — had no answer. Records the clean case too, because

@@ -1257,6 +1257,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			if (architectBrief) {
 				effectiveStartPrompt = buildEditorPrompt({ taskPrompt: input.prompt, architectBrief });
 			}
+			// F4.8b: the architect phase runs an extra model pass, and `.catch(() => null)` above swallows its
+			// failure COMPLETELY — the session then falls back to the plain prompt and looks identical to one where
+			// architect/editor was never enabled. **A silent degradation to the default path is indistinguishable
+			// from the feature being off**, so a card that quietly lost its architect brief was unfindable.
+			//
+			// Recorded on both outcomes: "ran and produced nothing" is the failure worth catching, and a
+			// success-only emission would hide exactly it.
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: architectBrief ? "info" : "warning",
+					message: architectBrief
+						? `Architect phase produced a brief for ${input.taskId}; the editor prompt was used.`
+						: `Architect phase produced NO brief for ${input.taskId} — silently fell back to the plain prompt.`,
+					taskId: input.taskId,
+					metadata: { category: "architect_editor_phase", producedBrief: architectBrief !== null },
+				});
+			} catch {
+				// Telemetry must never break session start.
+			}
 		}
 		const startResult = await this.sessionRuntime
 			.startTaskSession({

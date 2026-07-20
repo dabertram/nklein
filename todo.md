@@ -5303,6 +5303,12 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     `NKLEIN_TEST_DRIVEN_MODE` resolved to `review_effort_scaling`; `NKLEIN_N_EYES_REVIEW` and
     `NKLEIN_REVIEW_PANEL` both resolved to *the same* observation line. **Co-location is not attribution** — the
     same mistake that made `dev env-gated` right-for-the-wrong-reason on `drift_detection`.
+  🔬 **AND "UNREGISTERED" ≠ "UNOBSERVABLE" — a second refinement, found the same way.** The registry is indexed
+  by `metadata.category`, so it can only see mechanisms that write a self-observation. `NKLEIN_EXPLORER_SUBAGENT`
+  gates the presence of an `explore` TOOL, and the agent ledger records every tool call **by name and outcome** —
+  so *"did the explorer ever run?"* is already answerable, just not from here. **Adding a category for it would
+  be duplicate instrumentation, a second source of truth that drifts** (N17). Check the ledger before
+  instrumenting anything.
   **So the 31 close only by READING each mechanism.** That is slow, and it is the honest cost. **Mass-registering
   on proximity would fill the registry with entries pointing at categories those mechanisms never emit — a
   registry that reports on the wrong thing is worse than one that admits it does not know**, and would be the
