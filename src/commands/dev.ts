@@ -56,6 +56,7 @@ import { runDevInterventionsCommand } from "./dev-interventions-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
+import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
@@ -1071,6 +1072,26 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { candidates?: string; budgetGb?: string; json?: boolean }) => {
 			await runDevResidentSetCommand(options);
 		});
+	dev.command("off-track")
+		.description("Compact, restart, park or continue a possibly-derailed card? (P18.4 — try --matrix.)")
+		.option("--on-track <bool>", "Is the card still pursuing its task? (default true)")
+		.option("--context <frac>", "Context utilisation 0..1.")
+		.option("--restarts <n>", "Restarts already spent.")
+		.option("--captured-work <bool>", "Has the card produced reviewable artefacts? (default false)")
+		.option("--matrix", "Print the full decision matrix.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			(options: {
+				onTrack?: string;
+				context?: string;
+				restarts?: string;
+				capturedWork?: string;
+				matrix?: boolean;
+				json?: boolean;
+			}) => {
+				runDevOffTrackCommand(options);
+			},
+		);
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
 		.option("--json", "Print machine-readable JSON.")

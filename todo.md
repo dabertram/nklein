@@ -7020,6 +7020,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for
   belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing
   them on paper would compare a design against a memory of a design.
+  ℹ️ **DECISION CORE DE-ORPHANED 2026-07-20 via `dev off-track` — but this does NOT close the finding below.**
+  The command exercises `decideOffTrackRemedy` and its `--matrix` mode makes the asymmetry visible: OFF-track
+  rows at 90% context restart or park, NEVER compact, while ON-track rows at 90% compact — "compaction launders
+  drift" as a printable table (3 wire tests pin it). **But a `dev` command is not the production wire, and the
+  real defect is that the LIVE path never calls this at all.** So the core is no longer STRUCTURALLY orphaned and
+  is now exercised, while P18.4b's actual work — getting a drift signal in front of the SDK's unconditional
+  compaction — is untouched. Recorded so the de-orphaning is not mistaken for the fix.
   **🔴 CHECKED IMMEDIATELY (2026-07-20), AND IT IS THE BAD CASE: COMPACTION ALREADY FIRES ON CONTEXT PRESSURE
   ALONE, UNCONDITIONALLY, WHERE P18.4 CANNOT SEE IT.**
   `buildNKleinContextCompactionConfig(contextWindow)` (nklein-session-runtime.ts:118) takes **only** the context
