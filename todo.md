@@ -6405,11 +6405,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   ~113k-token ones, and that **even ONE distractor degrades performance**. Pruning stale failed attempts before
   compressing volume is worth more than any rearrangement of what compaction rewrites — and unlike cache
   placement, it improves quality as well as cost. Closed here so the effort lands there instead.
-- [ ] **P19.4 — Verify prompt caching EMPIRICALLY per runtime build, not by flag.** llama.cpp issue #15082 is an
+- [~] **P19.4 — Verify prompt caching EMPIRICALLY per runtime build, not by flag.** llama.cpp issue #15082 is an
   **unresolved regression** where `--cache-reuse` stopped caching prefixes (identical first ~1000 chars fully
   reprocessed; bisected to a first-bad commit; an attempted fix did not resolve it). **Do not assume caching works
   because the flag is set.** Verify via `prompt eval time = … / N tokens` in logs or `/slots` with
   `LLAMA_SERVER_SLOTS_DEBUG=1`. Belongs with P17.1's second runtime adapter.
+  **DETECTOR SHIPPED 2026-07-20: `prompt-cache-verification.ts`, 11 tests.** `parsePromptEvalTiming` reads
+  llama.cpp's own `prompt eval time = … ms / N tokens` line; `assessCacheEffectiveness` compares a cold and warm
+  prefill over an IDENTICAL prefix and returns `working` / `not_working` / `indeterminate`. **No instrumentation
+  of the model server is needed — the runtime already reports what is required.**
+  **WHY THIS MATTERS MORE HERE THAN ELSEWHERE:** prefill is 24–36× generation cost on Apple Silicon, so
+  silently-absent caching **breaks nothing** — it just makes every turn several times more expensive,
+  indefinitely, while the configuration looks correct. That is a failure with no symptom other than the bill.
+  **`indeterminate` IS THE COMMON ANSWER AND IS NEVER A PASS.** A missing timing, a prefix below ~256 tokens, a
+  non-positive duration, or two runs that did NOT share a prefix all return "we could not tell". Reporting any of
+  them as "caching works" would **recreate #15082 exactly: a system that believes it is caching because nothing
+  contradicted it.** A parse failure returns `null` rather than a zero-filled record, because a parse failure and
+  a genuine zero must not look alike — the first is a harness problem, the second a finding.
+  Two calibration choices, both deliberate: a ZERO warm prefill is the strongest possible hit rather than a
+  division error; and a MARGINAL speed-up reports `not_working` rather than `working` — being wrong about a broken
+  cache costs prefill time, while being wrong about a working one costs an investigation that finds nothing.
+  Per P18.5 the 2× bar and the 256-token floor are **OPERATIONAL DEFAULTS, not measurements**, and are labelled
+  as such in the source.
+  REMAINING (P19.4b): the effectful probe — send the same prefix twice against a live endpoint and feed the two
+  timings in. Needs a running model; belongs with P17.1's adapter work.
 - [x] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
   server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
   **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion
