@@ -5267,11 +5267,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `renderClaimWithProvenance` shows evidence **ids + kinds, never prose provenance**, since prose could itself be
   fabricated. 10 tests.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [ ] **P16.2b — Wire grounded generation + the ADVERSARIAL acceptance *(split from P16.2 2026-07-20)*.** Feed
+- [~] **P16.2b — Wire grounded generation + the ADVERSARIAL acceptance *(split from P16.2 2026-07-20)*.** Feed
   real observation ids to the local model, parse its cited ids back, and run the acceptance this item specifies:
   **a deliberately-hallucinating fixture whose claims must be REMOVED and the removal COUNTED.** That fixture is
   not optional colour — a grounding filter that has never been shown to reject anything is an assumption, the
   same reason every guard written today was verified by reintroducing its bug.
+  **ADVERSARIAL ACCEPTANCE SHIPPED 2026-07-20 — and it needed NO real model.** `field-report-pipeline.test.ts`
+  drives the whole chain with a deterministic fixture that lies predictably: one grounded claim, one with
+  invented ids, one with no citation at all, and one HALF-invented (a real id plus a fabricated one). Asserted end
+  to end: **all three invented claims are removed, the one real claim survives, the drop rate is 75%, the summary
+  warns that survivors deserve MORE suspicion, and each removal is attributed to the right reason**
+  (`unknown_evidence` / `no_citations` / `insufficient_citations`).
+  A second case runs the FULL pipeline with secrets present — grounding → redaction → layer consent → transport —
+  and asserts the draft contains the grounded claim, **none of the invented ones, and neither the absolute path
+  nor the project name**, while still stating "!Klein did not send this". Plus: with NO model available the
+  Layer-A report is still complete, because the arithmetic path is not optional.
+  **The fixture's job is to lie predictably**, which is exactly why a real model was unnecessary — a hostile
+  fixture tests the filter better than a cooperative model would. 7 tests.
+  REMAINING: only the live model call (shares P16.6b's seam and its `reasoning_content` contract). The behaviour
+  this item exists to prove is now proven.
 - [x] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
   summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
   **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
@@ -5374,9 +5388,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   send this — a person did."* It **REFUSES to render** when included content carries unacknowledged hidden
   characters, and the caller must surface that refusal rather than swallow it. 12 tests.
   REMAINING (P16.7b): the UI that hosts the toggles and opens the prefilled draft. Pure-core side is complete.
-- [ ] **P16.8 — Nightly coverage (Phase 13 recipe).** Field-report generation joins the N1 cells with aimock
+- [>] **P16.8 — Nightly coverage (Phase 13 recipe)** *(waits on N1 — the nightly runner does not exist yet).* Field-report generation joins the N1 cells with aimock
   fixtures, including the adversarial redaction corpus and the hallucination-drop fixture, so the privacy and
   grounding invariants are regression-protected rather than reviewed once.
+  **BLOCKED ON N1 (2026-07-20):** the nightly runner + registration convention is itself still open, so there are
+  no cells to join. Re-scoped `[ ]` → `[>]` rather than left looking actionable.
+  **WHAT IS ALREADY IN PLACE, so this becomes small when N1 lands:** the two fixtures this item needs mostly
+  exist as unit acceptances — P16.4's adversarial redaction corpus (seeded project/author names, home/linux/deep
+  paths, an internal URL, an email, `sk-`/`ghp_` keys and a JWT, asserting none survive INCLUDING fragments) and
+  P16.2's grounding drop behaviour. **The genuinely missing piece is the HALLUCINATION fixture** — a fixture
+  model that cites ids which do not exist, so the drop path is exercised end-to-end rather than unit-tested. That
+  fixture belongs with P16.2b and is named there.
 
 ### Phase 17 — Interoperability: the runtime-adapter boundary and ACP (research-backed 2026-07-19)
 
