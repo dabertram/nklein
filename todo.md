@@ -7629,10 +7629,16 @@ general orphan scan counted those as consumers — so two cores read as wired be
 **5 was the flattering number; 7 is the true one.** Fixed by excluding the map unconditionally (P15.1), which
 also reconciled `dev unwired-cores` with `dev requirement-coverage` — until then **the two commands reported
 different truths about the same codebase.**
-The remaining 7 (`task-sizing-invariant`, `no-op-ablation`, `off-track-intervention`, `compaction-format`,
-`prompt-cache-verification`, `post-acceptance-churn`, `resident-set-recommendation`) each need what their
-`b`-item says: a live run, model time, or a David decision. **Inventing surfaces for those would be the
-audit-clearing wire this note exists to warn against.**
+**FINAL: 6 of 28.** A fourth surface — `dev churn` (P20.10b) — landed after the count above, so the remaining 6
+are `task-sizing-invariant`, `no-op-ablation`, `off-track-intervention`, `compaction-format`,
+`prompt-cache-verification`, `resident-set-recommendation`. Each needs what its `b`-item says: a live run, model
+time, or a David decision. **Inventing surfaces for those would be the audit-clearing wire this note exists to
+warn against.**
+⚠️ **THE AUDIT TRACKED ITS OWN AUTHOR, which is the real test of it.** After `dev churn` shipped,
+`dev requirement-coverage` moved P20.10's `post_acceptance_churn` from `built_but_unwired` to satisfied **on its
+own**, while still reporting `intervention_metrics` as unwired in the same requirement. A tool that only ever
+reports problems is as useless as one that never does — this one moved in both directions, on evidence, about
+work written by the person reading it.
 
 **ACTED ON (superseded detail, kept for the trail): 15 → 9 (measured after each pass, not estimated):**
 `dev experiment-design` wires three more (`minimum-detectable-effect`, `harness-card`, `ab-trial-ordering`) —
