@@ -7,7 +7,7 @@
 #   run    — launch the dev-test drain (background)
 #   watch  — ACTIVELY monitor from cheap sources (lms ps, the persisted board.json, the runtime log, the dev-log
 #            stream) — NEVER polling the inference endpoint — and REACT to stall / crash / floor-refusal / success
-#   report — assemble every log + the classification into one run directory
+#   report — assemble raw logs plus exact tool_use→tool_result pairs, errors, pending calls, board state, and transitions
 #   teardown — always: kill the runtime + sandboxes; keep the fleet resident unless --unload
 #
 # Usage:  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--unload] [--max-min N]
@@ -40,27 +40,55 @@ WORKER="${WORKER:-qwen/qwen3.6-35b-a3b}"
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN_HOME="${NKLEIN_RUN_HOME:-$REPO/.real-runs/home}"
-RUN_DIR="$REPO/.real-runs/$STAMP"; mkdir -p "$RUN_DIR" "$RUN_HOME"
+RUN_DIR="$REPO/.real-runs/$STAMP"
+# A shared HOME contaminates one run's evidence with prior sessions and ledgers. Each run owns a fresh HOME by default;
+# an explicit NKLEIN_RUN_HOME remains available for a deliberate resume/reproduction.
+RUN_HOME="${NKLEIN_RUN_HOME:-$RUN_DIR/home}"
+mkdir -p "$RUN_DIR" "$RUN_HOME"
 RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR="$RUN_DIR/drain.err"
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
+EVIDENCE_DIR="$RUN_DIR/evidence"
 
 log(){ printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
-REAL_HOME="$HOME"; DEVLOG_PID=""; RUNTIME_PID=""; DRAIN_PID=""
+REAL_HOME="$HOME"; DEVLOG_PID=""; RUNTIME_PID=""; DRAIN_PID=""; TEARDOWN_DONE=0
+
+terminate_process_tree(){
+  local parent="$1" child
+  [ -n "$parent" ] || return
+  for child in $(pgrep -P "$parent" 2>/dev/null); do terminate_process_tree "$child"; done
+  kill -TERM "$parent" 2>/dev/null || true
+}
+
+stop_process_tree(){
+  local parent="$1" i
+  [ -n "$parent" ] || return
+  kill -0 "$parent" 2>/dev/null || return
+  terminate_process_tree "$parent"
+  for i in $(seq 1 20); do kill -0 "$parent" 2>/dev/null || return; sleep 0.25; done
+  kill -KILL "$parent" 2>/dev/null || true
+}
 
 # ─────────────────────────────── teardown (always) ───────────────────────────────
 teardown(){
+  [ "$TEARDOWN_DONE" = 1 ] && return
+  TEARDOWN_DONE=1
   log "TEARDOWN"
-  [ -n "$DRAIN_PID" ] && kill "$DRAIN_PID" 2>/dev/null; pkill -f "test-project --preset $PRESET" 2>/dev/null
-  pkill -f "tsx src/cli.ts --port $PORT" 2>/dev/null
+  stop_process_tree "$DRAIN_PID"
+  stop_process_tree "$RUNTIME_PID"
   [ -n "$DEVLOG_PID" ] && kill "$DEVLOG_PID" 2>/dev/null
-  HOME="$REAL_HOME" docker rm -f $(HOME="$REAL_HOME" docker ps -aq --filter 'name=nklein-agent-sandbox' 2>/dev/null) 2>/dev/null | grep -c . | xargs -I{} log "removed {} sandbox container(s)"
+  SANDBOX_COUNT=0
+  for container_id in $(HOME="$REAL_HOME" docker ps -aq --filter 'name=nklein-agent-sandbox' 2>/dev/null); do
+    HOME="$REAL_HOME" docker rm -f "$container_id" >/dev/null 2>&1 && SANDBOX_COUNT=$((SANDBOX_COUNT + 1))
+  done
+  [ "$SANDBOX_COUNT" -gt 0 ] && log "removed $SANDBOX_COUNT sandbox container(s)"
   if [ "$UNLOAD" = 1 ]; then HOME="$REAL_HOME" lms unload --all 2>/dev/null | tail -1 | xargs log; else log "fleet kept resident (use --unload to free)"; fi
   sleep 1
   HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && log "⚠ port $PORT still busy" || log "port $PORT free"
   log "run dir: $RUN_DIR"
 }
-trap teardown EXIT INT TERM
+trap teardown EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # ─────────────────────────────── setup ───────────────────────────────
 log "=== REAL-MODEL RUN $STAMP  preset=$PRESET mode=${MODE:-plan} worker=$WORKER fleet=[${FLEET[*]}] ==="
@@ -85,7 +113,6 @@ log "starting LM Studio dev-log stream → $(basename "$DEVLOG")"
 ( HOME="$REAL_HOME" lms log stream >"$DEVLOG" 2>&1 ) & DEVLOG_PID=$!
 
 log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
-rm -rf "$RUN_HOME"/.nklein/dev-workspaces/* 2>/dev/null
 ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
     npx tsx src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
 for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
@@ -114,26 +141,34 @@ cols=board.get("columns",[]) if isinstance(board,dict) else []
 print("|".join(f"{c.get('id')}={len(c.get('cards',[]))}" for c in cols if c.get('cards')))
 PY
 }
-tool_activity(){    # total tool_use blocks across session transcripts (NO api call)
-  local n=0 c
+tool_activity(){    # exact use/result/error/pending counts across persisted transcripts (NO api call)
+  local uses=0 results=0 errors=0 counts file_uses file_results file_errors
   for f in "$RUN_HOME"/.nklein/data/sessions/*/*.messages.json; do
     [ -f "$f" ] || continue
-    c=$(grep -oc '"tool_use"' "$f" 2>/dev/null); n=$((n + ${c:-0}))
+    counts=$(jq -r '[
+      ([.messages[]?.content[]? | select(.type == "tool_use")] | length),
+      ([.messages[]?.content[]? | select(.type == "tool_result")] | length),
+      ([.messages[]?.content[]? | select(.type == "tool_result" and .is_error == true)] | length)
+    ] | @tsv' "$f" 2>/dev/null) || continue
+    IFS=$'\t' read -r file_uses file_results file_errors <<< "$counts"
+    uses=$((uses + ${file_uses:-0})); results=$((results + ${file_results:-0})); errors=$((errors + ${file_errors:-0}))
   done
-  echo "$n"
+  echo "uses=$uses,results=$results,errors=$errors,pending=$((uses-results))"
 }
-LAST_SIG=""; LAST_CHANGE=$(date +%s)
+LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
   NOW=$(date +%s); ELAPSED=$((NOW-DRAIN_START))
   MSTAT=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep -iE 'GENERAT|PROCESS' | awk '{print $1}' | tr '\n' ',' )
   SIG=$(board_signature); TOOLS=$(tool_activity)
-  printf '%s elapsed=%ss board=[%s] tools=%s active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "${TOOLS:-0}" "${MSTAT:-idle}" | tee -a "$SNAP"
+  printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${MSTAT:-idle}" | tee -a "$SNAP"
   # REACT: floor refusal (config error — abort, it will never start)
   if HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
+    ABORT_REASON="context_floor_refusal"
     log "REACT: context-floor refusal in runtime log — a model is loaded below ${CTX}. Aborting (fix the load)."; break; fi
   # REACT: sandbox/docker conflict repeatedly failing
   if [ "$(HOME="$REAL_HOME" grep -c 'is already in use by container' "$RUNTIME_LOG" 2>/dev/null)" -gt 3 ]; then
+    ABORT_REASON="sandbox_container_conflict"
     log "REACT: repeated sandbox container-name conflict — stale containers. Aborting; teardown will clear them."; break; fi
   # progress tracking
   CURSIG="$SIG|$TOOLS"
@@ -141,14 +176,36 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   IDLE_FOR=$((NOW-LAST_CHANGE))
   # REACT: stall — no board/tool change AND no model generating for STALL_SECS
   if [ "$IDLE_FOR" -ge "$STALL_SECS" ] && [ -z "$MSTAT" ]; then
+    ABORT_REASON="stalled"
     log "REACT: STALL — no board/tool progress and no model active for ${IDLE_FOR}s. Snapshotting + aborting."
     { echo "=== STALL SNAPSHOT ==="; echo "board: $SIG"; echo "runtime log tail:"; tail -20 "$RUNTIME_LOG"; } >>"$SNAP"; break; fi
 done
 
 # ─────────────────────────────── report ───────────────────────────────
-wait "$DRAIN_PID" 2>/dev/null; DRAIN_END=$(date +%s)
+if [ -n "$ABORT_REASON" ] && kill -0 "$DRAIN_PID" 2>/dev/null; then
+  log "stopping drain immediately after reactive abort ($ABORT_REASON)"
+  stop_process_tree "$DRAIN_PID"
+fi
+wait "$DRAIN_PID" 2>/dev/null; DRAIN_STATUS=$?; DRAIN_END=$(date +%s)
 log "=== RESULT (real wall time $((DRAIN_END-DRAIN_START))s) ==="
 HOME="$REAL_HOME" python3 -c "import json;d=json.load(open('$DRAIN_JSON'));c=d.get('classification',{});print('outcome:',c.get('outcome'),'| success:',c.get('success'),'| counts:',d.get('finalCounts'))" 2>/dev/null | tee -a "$RUNLOG" \
   || { log "no classification (see drain.json/err)"; tail -3 "$DRAIN_JSON" 2>/dev/null; tail -3 "$DRAIN_ERR" 2>/dev/null; }
-log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json in $RUN_DIR"
+
+jq -n \
+  --arg abortReason "$ABORT_REASON" \
+  --argjson drainExitCode "$DRAIN_STATUS" \
+  --argjson durationSeconds "$((DRAIN_END-DRAIN_START))" \
+  '{abortReason: (if $abortReason == "" then null else $abortReason end), drainExitCode: $drainExitCode, durationSeconds: $durationSeconds}' \
+  >"$RUN_DIR/controller-result.json"
+
+log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"
+EVIDENCE_SUMMARY=$("$REPO/node_modules/.bin/tsx" "$REPO/src/commands/real-model-evidence-cli.ts" \
+  --home "$RUN_HOME" --out "$EVIDENCE_DIR" --runtime-log "$RUNTIME_LOG" 2>"$RUN_DIR/evidence-collector.err")
+EVIDENCE_STATUS=$?
+if [ "$EVIDENCE_STATUS" -eq 0 ]; then
+  log "evidence: $EVIDENCE_SUMMARY"
+else
+  log "⚠ evidence collection reported errors (exit $EVIDENCE_STATUS); see evidence/summary.json + evidence-collector.err"
+fi
+log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
 # teardown runs on EXIT
