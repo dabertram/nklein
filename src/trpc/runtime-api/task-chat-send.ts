@@ -1,10 +1,12 @@
 import type { RuntimeTaskChatSendRequest, RuntimeTaskChatSendResponse } from "../../core/api-contract";
 import { parseTaskChatSendRequest } from "../../core/api-validation";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { INTERVENTION_CATEGORY } from "../../core/intervention-observation";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import type { createNKleinProviderService } from "../../nklein-agent/nklein-provider-service";
 import { isNKleinClearSlashCommand } from "../../nklein-agent/nklein-slash-commands";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
+import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 /**
@@ -74,6 +76,27 @@ export async function handleSendTaskChatMessage(
 					sessionLaunchConfigOverrides,
 				)
 			: await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, body.text, requestedMode, body.images);
+		// P20.10: a NUDGE — a human typed into a session that was ALREADY RUNNING.
+		//
+		// A truthy summary here is exactly that condition: `sendTaskSessionInput` returns null when no live session
+		// accepted the input, and every path below STARTS or rebinds one. Starting a session is not an intervention;
+		// steering a running one is. Recording it at this branch is what keeps the two apart — doing it any earlier
+		// would count every task kickoff as an operator correction and inflate the metric with normal use.
+		//
+		// Best-effort: telemetry must never fail a user's message.
+		if (summary) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Operator sent guidance to running task ${body.taskId}.`,
+					taskId: body.taskId,
+					metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "nudge" },
+				});
+			} catch {
+				// Swallowed deliberately — see above.
+			}
+		}
 		if (!summary) {
 			if (!isHomeAgentSessionId(body.taskId)) {
 				const reboundSummary = await nkleinTaskSessionService.rebindPersistedTaskSession(body.taskId);

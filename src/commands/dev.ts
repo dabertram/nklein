@@ -48,6 +48,7 @@ import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevGatesCommand } from "./dev-gates-command";
+import { runDevInterventionsCommand } from "./dev-interventions-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
@@ -996,6 +997,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { commit: string; ref?: string; json?: boolean }) => {
 			await runDevChurnCommand(options);
+		});
+	dev.command("interventions")
+		.description("How often did a human have to step in, and how bad was it? (P20.10 — prints its own coverage.)")
+		.option("--home <path>", "HOME whose telemetry to read (default: the current user's).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { home?: string; json?: boolean }) => {
+			await runDevInterventionsCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
