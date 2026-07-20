@@ -5145,6 +5145,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **The bug is not hard to hit; it is hard to hold onto.** `.husky/pre-commit` now writes full output to a
   timestamped log, deletes it on success (zero cost on the passing path), and on failure prints the tail plus the
   log path. **The third occurrence will name its own test** — which is what N13's quarantine needs as input.
+  **🎯 AN INTERMITTENT FAILURE CAUGHT WITH A NAME 2026-07-20:**
+  `test/runtime/nklein-agent/nklein-task-session-service.test.ts > InMemoryNKleinTaskSessionService > "keeps the
+  task resumable when native NKlein startup throws"` — `1 failed | 11492 passed`.
+  **Two subsequent `test:fast` runs were clean, and the file passes 129/129 in ISOLATION.** So it fails only in the
+  full-suite context: a cross-file ordering or shared-state effect, not a bug in the test's own logic.
+  ⚠️ **NOT ASSERTED to be the same flake as the earlier unidentified one** — that one was never named, so the two
+  cannot be equated. What IS established: an intermittent `test:fast` failure exists, it is now NAMED, and
+  "passes in isolation but fails in the suite" is a much smaller search space than "something somewhere is not
+  hermetic".
+  **This is precisely the input this item's quarantine needs.** A cell that flips verdict between runs is exactly
+  what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
+  NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
+  in isolation where it does not reproduce.
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
   round-trips, and the F2.16 stream→DAG→card→thread→BACK focus spec (folds in here). Today's plan is

@@ -115,6 +115,14 @@ export type NKleinModelTurnAdmissionGate = <T>(
 ) => Promise<T>;
 
 export interface NKleinTaskSessionService {
+	/**
+	 * N7d option B: declare that a FURTHER sandbox capture is owed for this task, so a stop does not dispose the
+	 * workspace the next round needs. Optional so existing implementations (tests, fakes) stay valid without it —
+	 * absent, the pre-N7d behaviour applies rather than a crash.
+	 */
+	markSandboxRecaptureExpected?: (taskId: string, reason: string) => void;
+	/** Clear the recapture marker once the owed capture has settled. */
+	clearSandboxRecaptureExpected?: (taskId: string) => void;
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
 	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void;

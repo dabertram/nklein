@@ -2023,14 +2023,54 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// with no captured result, no failure marker, and no prior-work rebound. When the finalizer can still salvage
 		// (a sandbox placement without a captured result branch, or a capture already in flight), leave teardown to
 		// it — it captures or fail-closes, rebounds prior-round work into review, and disposes the workspace itself.
+		// N7d (David 2026-07-20, option B — "do not dispose before capture"): a THIRD salvage case.
+		//
+		// The two clauses below describe the PAST: is a capture running, and did one already happen? A bounce is
+		// neither — round 1 captured (so `getResultBranch` is truthy) and round 2 has not started. Reading "a
+		// result branch exists" as "nothing left to salvage" then disposed the workspace the NEXT capture needs,
+		// which is how a bounced card reached `workspace_disposed_before_capture` and held in Review with 22
+		// dependents behind it. `recaptureExpectedReason` describes what is still OWED rather than what happened.
+		const recaptureReason = this.sandboxState.recaptureExpectedReason(taskId);
 		const finalizerOwnsSandboxTeardown =
 			entry.summary.state !== "idle" &&
 			Boolean(this.agentSandboxManager) &&
 			this.sandboxState.hasSandbox(taskId) &&
-			(this.sandboxState.isFinalizing(taskId) || !this.sandboxState.getResultBranch(taskId));
+			(this.sandboxState.isFinalizing(taskId) ||
+				!this.sandboxState.getResultBranch(taskId) ||
+				recaptureReason !== null);
 		if (!finalizerOwnsSandboxTeardown) {
+			// RAIL (David 2026-07-20): a disposal must be explainable. Record WHY the workspace went, linked to the
+			// task, so "where did my sandbox go?" is answerable from the card's own trail rather than by reasoning
+			// backwards from a guard. Disposals that are correct still deserve a reason; the ones that are wrong are
+			// only findable if the correct ones are recorded too.
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Sandbox workspace disposed for ${taskId} on stop: ${
+					entry.summary.state === "idle"
+						? "session was idle"
+						: !this.sandboxState.hasSandbox(taskId)
+							? "no sandbox placement was tracked"
+							: "a result branch was already captured and no further capture is owed"
+				}.`,
+				taskId,
+				metadata: {
+					category: "sandbox_workspace_disposed",
+					state: entry.summary.state,
+					hadResultBranch: Boolean(this.sandboxState.getResultBranch(taskId)),
+					recaptureExpected: false,
+				},
+			});
 			await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 			this.forgetSandboxTask(taskId);
+		} else if (recaptureReason !== null) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Sandbox workspace RETAINED for ${taskId} on stop: ${recaptureReason}. Disposing here would break the next capture (N7d).`,
+				taskId,
+				metadata: { category: "sandbox_workspace_retained", reason: recaptureReason },
+			});
 		}
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
@@ -2091,6 +2131,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		});
 		this.emitSummary(summary);
 		return summary;
+	}
+
+	/**
+	 * N7d option B: declare that a FURTHER sandbox capture is owed for this task, so `stopTaskSession` does not
+	 * dispose the workspace the next round needs. Called on a review BOUNCE — the one case where a result branch
+	 * exists (round 1) and another capture is still coming (round 2).
+	 *
+	 * Idempotent, and cleared by `deleteSandbox`/`forgetSandboxTask` so a marker cannot outlive its task and pin a
+	 * workspace forever.
+	 */
+	markSandboxRecaptureExpected(taskId: string, reason: string): void {
+		this.sandboxState.markRecaptureExpected(taskId, reason);
+	}
+
+	/** Clear the recapture marker once the owed capture has settled. */
+	clearSandboxRecaptureExpected(taskId: string): void {
+		this.sandboxState.clearRecaptureExpected(taskId);
 	}
 
 	async abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {

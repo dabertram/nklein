@@ -20,6 +20,17 @@ export class TaskSandboxStateStore {
 	private readonly finalizingReviewTaskIds = new Set<string>();
 	private readonly finalizationWaitersByTaskId = new Map<string, Set<() => void>>();
 	private readonly resultBranchByTaskId = new Map<string, TaskResultBranch>();
+	/**
+	 * N7d (David 2026-07-20, option B): tasks whose workspace must NOT be disposed because a FURTHER capture is
+	 * still expected — the bounce case. Carries the reason so a disposal decision can be explained rather than
+	 * inferred.
+	 *
+	 * Why a marker rather than reading the result branch: `stopTaskSession` treated "a result branch exists" as
+	 * "nothing left to salvage, safe to dispose". That is true for a FINISHED card and false after a bounce,
+	 * where the branch holds ROUND 1 and round 2 has yet to run. The existing signals describe the PAST; this one
+	 * describes what is still owed.
+	 */
+	private readonly recaptureExpectedByTaskId = new Map<string, string>();
 
 	/** Records the repo path and (already-resolved) base ref a task's sandbox was prepared against. */
 	setSandbox(taskId: string, repoPath: string, baseRef: string): void {
@@ -44,6 +55,21 @@ export class TaskSandboxStateStore {
 	deleteSandbox(taskId: string): void {
 		this.repoPathByTaskId.delete(taskId);
 		this.baseRefByTaskId.delete(taskId);
+		this.recaptureExpectedByTaskId.delete(taskId);
+	}
+
+	/** Mark that a further capture is owed for this task (a bounce), with the reason it is owed. */
+	markRecaptureExpected(taskId: string, reason: string): void {
+		this.recaptureExpectedByTaskId.set(taskId, reason);
+	}
+
+	/** The reason a further capture is owed, or null when none is. */
+	recaptureExpectedReason(taskId: string): string | null {
+		return this.recaptureExpectedByTaskId.get(taskId) ?? null;
+	}
+
+	clearRecaptureExpected(taskId: string): void {
+		this.recaptureExpectedByTaskId.delete(taskId);
 	}
 
 	markFinalizing(taskId: string): void {
@@ -91,6 +117,7 @@ export class TaskSandboxStateStore {
 
 	/** Drops all per-task sandbox state (used on full service disposal). */
 	clear(): void {
+		this.recaptureExpectedByTaskId.clear();
 		this.repoPathByTaskId.clear();
 		this.baseRefByTaskId.clear();
 		this.finalizingReviewTaskIds.clear();

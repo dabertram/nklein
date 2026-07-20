@@ -1693,6 +1693,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						reviewOutcome.type === "blocked"
 					) {
 						if (reviewOutcome.type === "bounced") {
+							// N7d (David 2026-07-20, option B): a bounce means ANOTHER capture is owed. Declare it before
+							// anything can stop the session, so the workspace the next round captures into is not disposed
+							// on the strength of round 1's result branch already existing.
+							service.markSandboxRecaptureExpected?.(
+								taskId,
+								"review bounced (request_changes) — a further worker round will capture again",
+							);
 							// F1.27b (leaf 5): a bounce IS review_changes_requested — the kernel routes the card back
 							// to implementing (the acceptance step is implicit in reaching review; holds keep order safe).
 							dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
