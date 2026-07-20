@@ -768,6 +768,57 @@ export interface RuntimeWorkspaceAtomicMutationResponse<T> {
 	saved: boolean;
 }
 
+/**
+ * Emit a `card_lane_change` observation for every card whose lane differs between two board states.
+ *
+ * Best-effort by construction: a telemetry failure must never break a board write, so everything is swallowed.
+ * The alternative — letting an observation error abort a persist — would trade a missing log line for a lost
+ * board mutation, which is the wrong way round.
+ */
+function recordLaneChanges(previous: RuntimeBoardData, next: RuntimeBoardData): void {
+	try {
+		const laneOf = (board: RuntimeBoardData): Map<string, string> => {
+			const lanes = new Map<string, string>();
+			for (const column of board.columns) {
+				for (const card of column.cards) {
+					lanes.set(card.id, column.id);
+				}
+			}
+			return lanes;
+		};
+		const before = laneOf(previous);
+		const after = laneOf(next);
+		for (const [taskId, lane] of after) {
+			const from = before.get(taskId);
+			if (from === lane) {
+				continue;
+			}
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				// A card APPEARING is a distinct event from a card MOVING, and conflating them would make a newly
+				// created card look like it arrived from nowhere mid-run.
+				message: from ? `Card ${taskId} moved ${from} → ${lane}.` : `Card ${taskId} entered the board in ${lane}.`,
+				taskId,
+				metadata: { category: "card_lane_change", fromLane: from ?? null, toLane: lane },
+			});
+		}
+		for (const [taskId, lane] of before) {
+			if (!after.has(taskId)) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Card ${taskId} left the board (was in ${lane}).`,
+					taskId,
+					metadata: { category: "card_lane_change", fromLane: lane, toLane: null },
+				});
+			}
+		}
+	} catch {
+		// Telemetry must never break a board write.
+	}
+}
+
 export async function mutateWorkspaceState<T>(
 	cwd: string,
 	mutate: (state: RuntimeWorkspaceStateResponse) => RuntimeWorkspaceAtomicMutationResult<T>,
@@ -795,6 +846,18 @@ export async function mutateWorkspaceState<T>(
 			revision: nextRevision,
 			updatedAt: Date.now(),
 		};
+
+		// N17b (David 2026-07-20, "complete tracking for every thing that happens to/on a card"): record every LANE
+		// CHANGE here, at the persistence chokepoint.
+		//
+		// Not at `moveTaskToColumn` — that is a PURE core and must stay so. Not at its 18 call sites either: a rail
+		// that must be added to each caller is one a new caller silently skips, which is exactly how the sandbox
+		// disposal that cost hours today had no record. Every board write passes through THIS function with both
+		// the previous and next state in hand, so a lane change cannot happen without being seen.
+		//
+		// Diffing rather than trusting an intent parameter is deliberate: a caller that moves a card WITHOUT
+		// declaring it still gets recorded. The trail describes what happened to the board, not what someone meant.
+		recordLaneChanges(currentBoard, nextBoard);
 
 		await writeWorkspaceStateFiles(context, nextBoard, nextSessions, nextMeta);
 

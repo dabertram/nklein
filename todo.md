@@ -5655,6 +5655,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   emit explicit LANE-CHANGE events (today only the final lane is recoverable, so the trail shows where a card
   ENDED, not every lane it passed through).
 
+  **✅ LANE-CHANGE EVENTS SHIPPED 2026-07-20 — the second half of N17b.** Every board write now emits a
+  `card_lane_change` observation. Verified on a real run: **129 lane events recorded**, including board ENTRY
+  (`entered the board in planning`) and board EXIT as distinct from a move — conflating them would make a
+  newly-created card look like it arrived from nowhere mid-run.
+  **PLACED AT THE PERSISTENCE CHOKEPOINT (`mutateWorkspaceState`), not at the 18 `moveTaskToColumn` call sites.**
+  `moveTaskToColumn` is a PURE core and must stay so; and **a rail that must be added to each caller is one a new
+  caller silently skips** — which is precisely how the sandbox disposal that cost hours today had no record. Every
+  board write passes through this one function with both states in hand, so a lane change cannot happen unseen.
+  **It DIFFS rather than trusting an intent parameter**, so a caller that moves a card without declaring it is
+  still recorded: the trail describes what happened to the board, not what someone meant to happen.
+  Telemetry failures are swallowed — letting an observation error abort a persist would trade a missing log line
+  for a LOST BOARD MUTATION, which is the wrong way round.
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
