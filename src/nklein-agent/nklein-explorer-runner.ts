@@ -9,6 +9,7 @@
 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import {
@@ -27,6 +28,15 @@ import { createSessionId } from "./nklein-session-state";
 
 const EXPLORER_NUDGE_PROMPT =
 	"Submit your findings now by calling the submit_citations tool with your answer and citations. Do not reply in prose.";
+
+/**
+ * Classify an explore-query failure as a timeout vs a generic error. Pure, so the distinction the observation
+ * carries is testable without spinning a real explorer session. A timeout is worth telling apart because "explore
+ * keeps timing out" is an actionable pattern (budget/model too slow), where a one-off error is noise.
+ */
+export function classifyExploreFailure(message: string): "timeout" | "error" {
+	return /timeout|timed out|aborted/i.test(message) ? "timeout" : "error";
+}
 
 export interface ExplorerRunnerDeps {
 	getAgentSandboxManager(): AgentSandboxManager | null;
@@ -129,7 +139,27 @@ export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
 				projectRepoPath,
 				baseRef: deps.getBaseRef(taskId) ?? "HEAD",
 				question,
-			}).catch(() => null);
+			}).catch((error: unknown) => {
+				// P21.7 follow-up: the return stays null (the tool renders an honest fallback — nothing to salvage
+				// from a read-only helper query), but the FAILURE was previously swallowed silently, so a timed-out
+				// explore looked identical to one that legitimately found nothing. Record the classified reason so
+				// "explore keeps timing out" is visible instead of invisible — the record-the-decline rule applied
+				// to a helper path.
+				const message = error instanceof Error ? error.message : String(error);
+				const reason = classifyExploreFailure(message);
+				try {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Explore query for ${taskId} failed: ${reason === "timeout" ? "timed out" : "errored"}.`,
+						taskId,
+						metadata: { category: "explore_query_failed", reason },
+					});
+				} catch {
+					// Telemetry must never break the explore fallback.
+				}
+				return null;
+			});
 		};
 	}
 
