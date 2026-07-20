@@ -5048,6 +5048,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     (with `/workspace`, `/repo`, `/project` suffixes tried), and there are NO active git worktrees. **So the
     write-time paths are not any current path** — most plausibly deleted worktrees, historical temp dirs, or
     sandbox paths. Not chased further; the actionable finding above does not depend on identifying them.
+  **ROOT-DIR RULED OUT 2026-07-20 (checked because it looked like the likelier culprit):** the attempt WRITE and
+  the service's own read both pass `{ rootDir: this.diagnosticStoreRoot }`, and `diagnosticStoreRoot` is supplied
+  **only in tests** (a `mkdtemp` dir) — in production `options.diagnosticStoreRoot` is undefined and everything
+  falls back to the same default root. So writer and reader agree on the DIRECTORY; they disagree on the
+  **workspace-path HASH**, which is the finding above.
+  **RECOMMENDED FIX — and it carries a tradeoff that is DAVID'S call, not mine.** `readAllAgentLedger({rootDir})`
+  already exists (used at `nklein-task-session-service.ts:1029`) and reads EVERY ledger file. A task-scoped
+  consumer could use it and filter by `taskId` instead of guessing which workspace hash its task was written
+  under — that makes F12.35, F12.14, F12.81 and F3.7b work regardless of which path the writer saw.
+  **THE TRADEOFF:** the per-workspace hash exists to keep one project's history out of another's decisions, and
+  `readAllAgentLedger` deliberately crosses that boundary. Filtering by `taskId` narrows it in practice, but the
+  read still touches other projects' files. **That is a privacy/isolation decision, so it is recorded rather than
+  applied** — the alternative (make every writer derive the hash from one canonical host path) preserves the
+  boundary but cannot recover the 76 files already written under other keys.
   **NOT YET PROVEN:** that fragmentation is THE cause of F12.35's zero — that needs one instrumented review run
   comparing the reader's hash against the hash its task's attempts were written under. The fragmentation and the
   sandbox-path write site are defects independently of F12.35.
