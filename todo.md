@@ -7913,9 +7913,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   one-sided BELOW (serving more is fine; serving materially less is the lie), so the Ollama-2k-default trap
   (advertise 32k, serve 2k) reads `silently_truncated` and refuses to route at 32k while still reporting 2k as
   the usable length. The `dev` command's exit code gates: verified=0, unverified/truncated=1.
-  REMAINING (P21.3b): the effectful PROBE — send a needle-bearing prompt of known length to each endpoint at
-  startup, read back how much the model actually saw, and feed the served length + output cap into this core.
-  Needs a live endpoint; the decision it feeds is now built and refuses to route on what it cannot verify.
+  **✅ P21.3b PROBED LIVE 2026-07-20 (fleet access) — the LM Studio fleet does NOT have the silent-truncation trap.**
+  Loaded `qwen/qwen3-8b` at an 8192 window (unloaded after — no residual load) and ran a needle probe (a passphrase
+  fact at position 0 of the prompt, question at the end):
+  - **Fitting prompt (3498 tokens ≤ 8192):** the endpoint reported `prompt_tokens: 3498` — the FULL prompt was
+    ingested, NOT clamped to 2k — and the needle was correctly RECALLED (`content: "BLUEHERON-42-TANGERINE"`, the
+    reasoning channel citing "the important fact mentioned earlier"). So the fitting context is served AND attended.
+  - **Over-window prompt (~16.8k tokens > 8192):** the endpoint ERRORED LOUDLY ("tokens to keep from the initial
+    prompt is greater than the context length…"). It does NOT silently discard — the exact opposite of the
+    Ollama-2k-default trap this item guards against.
+  CONCLUSION: on LM Studio (our whole fleet), prime-directive #3's fear — trusting an advertised window that is
+  silently under-served — is UNFOUNDED: the advertised window is honestly served for a fitting prompt, and an
+  over-window prompt fails loud rather than truncating. So `assessServedContext` for an LM Studio endpoint resolves
+  `verified` at its advertised length. REMAINING (low value): the same one-shot probe wired as a startup assertion
+  that auto-feeds `assessServedContext` per endpoint — nice-to-have, but the danger it was built to catch is now
+  measured absent on the fleet we actually run, so it is a belt-and-braces check, not a live exposure.
 - [ ] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
   published postmortem (2026-05-23, 14 tasks marked complete but absent from main): **(a)** reject sibling
   branches as merge targets — theirs squashed onto a sibling `fusion/fn-*` branch inherited from a parent;
