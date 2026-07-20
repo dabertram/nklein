@@ -25,10 +25,19 @@ export function readSessionUsage(value: unknown): RuntimeTaskSessionUsage | null
 	if (inputTokens === null || outputTokens === null) {
 		return null;
 	}
+	// N18: reasoning tokens, using the SAME established spelling as F4.12's `extractCompletionUsage`
+	// (`completion_tokens_details.reasoning_tokens`, top-level `reasoning_tokens` fallback) — not a guess. This
+	// parser takes the usage OBJECT directly (not the raw response wrapper), so the details live one level in.
+	// Left undefined when the server reports no breakdown: "did not say" is not "did zero", and a nullable field
+	// that is absent carries that honestly.
+	const details = asRecord(usage.completion_tokens_details);
+	const reasoningTokens =
+		normalizeNonNegativeInteger(details?.reasoning_tokens) ?? normalizeNonNegativeInteger(usage.reasoning_tokens);
 	return {
 		inputTokens,
 		outputTokens,
 		cacheReadTokens: normalizeNonNegativeInteger(usage.cacheReadTokens) ?? 0,
 		cacheWriteTokens: normalizeNonNegativeInteger(usage.cacheWriteTokens) ?? 0,
+		...(reasoningTokens !== null ? { reasoningTokens } : {}),
 	};
 }

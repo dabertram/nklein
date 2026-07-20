@@ -56,6 +56,12 @@ export const runtimeTaskSessionUsageSchema = z.object({
 	outputTokens: z.number().int().nonnegative(),
 	cacheReadTokens: z.number().int().nonnegative().optional(),
 	cacheWriteTokens: z.number().int().nonnegative().optional(),
+	/**
+	 * N18: reasoning-only tokens, when the server reports them. OPTIONAL and additive — an old record simply lacks
+	 * it, so this is backward-compatible without a schema-version bump. Absent (undefined) means "the server did
+	 * not report a reasoning breakdown", which a reader tuning reasoning budgets must not read as zero.
+	 */
+	reasoningTokens: z.number().int().nonnegative().optional(),
 });
 export type RuntimeTaskSessionUsage = z.infer<typeof runtimeTaskSessionUsageSchema>;
 
