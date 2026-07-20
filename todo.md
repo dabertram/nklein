@@ -5563,6 +5563,31 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   subtree every time it happens.
   **N16's collector reproduces this automatically now** — reason code, 21 blocked dependents, the surviving result
   branch and the seed, without anyone reading a log by hand.
+  **🔬 DEEP DISPOSAL ANALYSIS (David 2026-07-20: "why would it dispose existing work at all?").**
+  **FIRST, THE REASSURING PART: IT DOES NOT DISPOSE THE WORK.** Round 1's work is on a git branch and survives —
+  verified: `nklein/tasks/…-s03-0c79713502`, commit `d0a5727`, 7 files, +76/−143, intact in the retained
+  workspace. What is disposed is the **sandbox WORKSPACE** (the container/placement), not the artefact.
+  **WHY IT DISPOSES — `nklein-task-session-service.ts:2026` (`stopTaskSession`):**
+  ```ts
+  const finalizerOwnsSandboxTeardown =
+    entry.summary.state !== "idle" && Boolean(this.agentSandboxManager) &&
+    this.sandboxState.hasSandbox(taskId) &&
+    (this.sandboxState.isFinalizing(taskId) || !this.sandboxState.getResultBranch(taskId));
+  if (!finalizerOwnsSandboxTeardown) { await …disposeWorkspace(taskId); }
+  ```
+  Read the last clause: the finalizer keeps the workspace only when there is **NO result branch** (nothing captured
+  yet) or a capture is in flight. **So "a result branch exists" is taken as "nothing left to salvage — safe to
+  dispose."** That is correct for a card that is DONE. It is wrong after a **BOUNCE**, because a bounce means a
+  NEW worker round is coming and that round will need to capture again — into a workspace that is now gone.
+  The guard came from P0.8, which fixed the opposite bug (stop disposing BEFORE the finalizer could salvage). It
+  enumerated two salvage cases and **bounce-then-recapture is a third nobody listed.**
+  **⚠️ AND THIS IS WHY OPTION A WOULD HAVE BEEN WRONG — I was going to recommend it.** `review-sandbox-result.ts`
+  returns `capture_failed` at line 97 **BEFORE** ever calling `resolveResultCommit`, and the comment below explains
+  why that ordering is deliberate: *"A bounced worker reuses the same result-branch ref. On its NEXT handoff that
+  ref already resolves while the new sandbox capture is still running; accepting it immediately reviews the
+  PREVIOUS round's artifact."* **Option A — "don't hold when a result branch exists" — would have delivered round
+  1's stale work as if it were round 2's.** The hold ignoring the branch is not an oversight; it is the guard
+  against exactly that. **David's choice of B is right, and for a sharper reason than the one I gave.**
 - [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
   A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
   nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
