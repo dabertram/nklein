@@ -351,15 +351,18 @@ source repo went private — so if it vanishes the buildable source still lives 
   - **`lms unload` MUST run with the REAL `$HOME`, not the isolated drain HOME** — otherwise it ENOENTs on
     `.lmstudio/.internal/lms-key-2` and SILENTLY leaves the model loaded. Always `export HOME=/Users/david` before the
     final `lms unload --all`, then verify `lms ps` shows nothing. (Caught the 27B still resident after a "successful" unload.)
-  - **REAL-AGENT CAPABILITY + SPEED (two honest data points):** (a) CAPABILITY — `qwen2.5-coder-14b` on m4mini, ACT
-    mode, `mid_task`: re-drove 3× with EMPTY output (the weak-worker/empty-patch limit) — a 14B is not enough. (b) With
-    the stronger `qwopus3.6-27b-v2-mlx` on m5max, ACT mode, the agent did REAL work — `read_files`/`list_files`
-    exploration — a clear capability step up. BUT (c) SPEED — even the 27B on the fast m5max made only ~5 tool calls in
-    ~13 min (large 32k-context prefills + per-turn session/sandbox/review overhead dominate), and never reached the
-    EDIT phase inside a 12-min bound. **A full mid_task completion (explore→edit→deliver→review) needs ~30–60+ min of
-    wall clock, not 10–15.** This is why real drains are genuinely "heavy" and are run offline — and why a real-agent
-    P20.1b discriminating-gap score is impractical to capture interactively (and would still measure CAPABILITY, not
-    grader INTEGRITY, exactly as reasoned). To actually get a completion: strong model on m5max + a 45–60 min bound.
+  - **REAL-AGENT CAPABILITY (honest) — and a RETRACTED speed claim.** (a) CAPABILITY: `qwen2.5-coder-14b` on m4mini,
+    ACT, `mid_task` re-drove 3× with EMPTY output (weak-worker/empty-patch limit — a 14B is not enough); the stronger
+    `qwopus3.6-27b-v2-mlx` on m5max did REAL work (`read_files`/`list_files` exploration) — a clear capability step up.
+    (b) ⚠️ **SPEED CLAIM RETRACTED 2026-07-20 (David caught it):** I earlier wrote "~5 tool calls in ~13 min / a
+    completion needs 30–60 min." **That timing was a MEASUREMENT ARTEFACT, not data.** My monitoring used
+    `curl --max-time 6 http://localhost:1234/v1/models` in `for` loops AS A SLEEP SUBSTITUTE — but a healthy
+    `/v1/models` returns in milliseconds, so the loops (i) did NOT consume the minutes I attributed to them (inflating
+    every wall-clock estimate by ~100×) and (ii) SPAMMED the LM Studio API with dozens of rapid calls. So the real
+    per-turn speed and the "fleet is slow / completions need 30–60 min" conclusion are UNKNOWN — do not cite them.
+    **NEVER poll a live endpoint in a tight loop to pass time.** To wait: use the background-task completion
+    notification, the Monitor tool, or a single spaced check — and read the drain's OWN reported duration for timing,
+    never a hand-counted loop. Real speed/completion numbers must come from a clean run instrumented properly.
 
 - **AN AUDIT'S OWN ARTEFACTS CONTAMINATE ITS INPUT — check the flattering result, not the alarming one.**
   Hit FOUR times on 2026-07-20, in four different tools, each time producing a *better* number than reality:
