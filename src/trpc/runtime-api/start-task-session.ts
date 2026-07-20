@@ -1657,6 +1657,41 @@ export async function handleStartTaskSession(
 					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
 				)
 			: null;
+		// F4.8b: both exemplar mechanisms say "Fleet A/B decides the default" in their own comments, and neither
+		// recorded anything for an A/B to read — the same shape as NKLEIN_LEAN_SYSPROMPT, whose comment said
+		// "enable to measure" while measuring nothing. Counts are recorded including ZERO, because "the flag was
+		// on and retrieval found nothing" is the outcome that decides whether the scan cost is worth paying, and
+		// it is indistinguishable from the flag being off without this.
+		if (isTruthyEnv(process.env.NKLEIN_LEDGER_EXEMPLARS)) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Ledger exemplars for ${body.taskId}: ${ledgerExemplarMessages.length} message(s) injected.`,
+					taskId: body.taskId,
+					metadata: { category: "ledger_exemplars", injected: ledgerExemplarMessages.length },
+				});
+			} catch {
+				// Telemetry must never block a task start.
+			}
+		}
+		if (isTruthyEnv(process.env.NKLEIN_FEWSHOT_EXEMPLARS)) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Few-shot style exemplars for ${body.taskId}: ${exemplarBlock ? "block rendered" : "none found"}.`,
+					taskId: body.taskId,
+					metadata: {
+						category: "fewshot_exemplars",
+						rendered: exemplarBlock !== null,
+						writeScoped: (body.filesLikelyTouched?.length ?? 0) > 0,
+					},
+				});
+			} catch {
+				// Telemetry must never block a task start.
+			}
+		}
 		// F4.8b: record what fleet-aware decomposition actually DECIDED. Only decomposition STALLS were observed
 		// (`decomposition_*_stall`) — the failure modes — so the mechanism's normal operation was invisible and
 		// "did fleet-awareness change the breakdown at all?" had no answer. That is the question the whole feature

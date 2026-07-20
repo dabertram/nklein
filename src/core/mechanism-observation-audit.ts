@@ -246,6 +246,23 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: its own comment says "Fleet A/B decides the default" — and it recorded nothing an A/B
+		// could read. Same shape as NKLEIN_LEAN_SYSPROMPT, whose comment said "enable to measure".
+		category: "ledger_exemplars",
+		item: "F12.81",
+		observes: "how many behavioural exemplar turns were injected at task start, including zero",
+		enabledBy: "NKLEIN_LEDGER_EXEMPLARS",
+		expectation: "every_run",
+	},
+	{
+		// F4.8b 2026-07-20: as above — "Fleet A/B decides the default", with nothing recorded to decide from.
+		category: "fewshot_exemplars",
+		item: "F11.2h",
+		observes: "whether a style-exemplar block was rendered for a write-scoped card, including when none was found",
+		enabledBy: "NKLEIN_FEWSHOT_EXEMPLARS",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: the flag only makes the block ELIGIBLE — `decideTemporalContextInjection` then
 		// relevance-gates it, so a turn can have the feature ON and render nothing. Observing the flag would have
 		// answered the wrong question; this records the DECISION, at the decision.
