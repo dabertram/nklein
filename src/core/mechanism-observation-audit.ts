@@ -246,6 +246,25 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: this flag's whole effect is which models it EXCLUDES from fan-out, and that count was
+		// unrecorded — so "is the `lms ps` subprocess buying anything?" could not be answered. Zero is the
+		// informative case: flag on, subprocess paid for, nothing excluded.
+		category: "queue_aware_free_first",
+		item: "§5.AB",
+		observes: "how many models were excluded as server-busy, including none",
+		enabledBy: "NKLEIN_QUEUE_AWARE_FREE_FIRST",
+		expectation: "every_run",
+	},
+	{
+		// F4.8b 2026-07-20: recorded at the DISPATCH, not per interval tick — this runs on a timer, so a per-tick
+		// or per-budget-denial record would be a steady stream of "nothing happened". The dispatch is the event.
+		category: "opportunistic_idle_dispatch",
+		item: "F1.36",
+		observes: "idle work actually dispatched while the swarm was idle",
+		enabledBy: "NKLEIN_OPPORTUNISTIC_IDLE_WORK",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: its own comment says "Fleet A/B decides the default" — and it recorded nothing an A/B
 		// could read. Same shape as NKLEIN_LEAN_SYSPROMPT, whose comment said "enable to measure".
 		category: "ledger_exemplars",

@@ -742,6 +742,22 @@ export async function handleStartTaskSession(
 						.map((model) => model.identifier),
 				)
 			: null;
+		// F4.8b: the whole effect of this flag is which models it EXCLUDES from fan-out, and that count was
+		// unrecorded — so "is the `lms ps` subprocess buying anything?" could not be answered. Zero is the
+		// informative case: the flag on, the subprocess paid for, and nothing excluded.
+		if (busyModelIds !== null) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Queue-aware free-first: ${busyModelIds.size} model(s) excluded as server-busy.`,
+					taskId: body.taskId,
+					metadata: { category: "queue_aware_free_first", excluded: busyModelIds.size },
+				});
+			} catch {
+				// Telemetry must never block a task start.
+			}
+		}
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
 		// W2.5 role/task auto-assignment (auto is the DEFAULT): a role's primary model is a USER PIN only when that role

@@ -3606,6 +3606,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Opportunistic idle review: swarm idle, dispatching a review for ${decision.reviewTaskId}.`,
 								);
+								// F4.8b: recorded at the DISPATCH, not on every interval tick. This runs on a timer, so
+								// emitting per tick — or per budget denial, which is evaluated whether or not any work
+								// exists — would add a steady stream of records saying nothing happened. The dispatch is
+								// the event; the ticks are the clock.
+								try {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Opportunistic idle review dispatched for ${decision.reviewTaskId} while the swarm was idle.`,
+										taskId: decision.reviewTaskId,
+										workspacePath: scope.workspacePath,
+										metadata: { category: "opportunistic_idle_dispatch", kind: "review" },
+									});
+								} catch {
+									// Telemetry must never block idle work.
+								}
 								const idleReviewTaskId = decision.reviewTaskId;
 								recordOpportunisticDispatch(scope.workspaceId, Date.now());
 								bumpOpportunisticActive(scope.workspaceId, 1);
