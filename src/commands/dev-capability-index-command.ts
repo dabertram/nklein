@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type CapabilityEntry, extractCapability, searchCapabilities } from "../core/capability-index";
+import { type CapabilityEntry, extractCapability, searchCapabilitiesTiered } from "../core/capability-index";
 
 /**
  * `nklein dev capability-index [--search <q>] [--out <path>]`.
@@ -25,25 +25,39 @@ export async function runDevCapabilityIndexCommand(options: {
 	const entries = collectEntries();
 
 	if (options.search) {
-		const hits = searchCapabilities(entries, options.search);
+		const { byPurpose, byBody } = searchCapabilitiesTiered(entries, options.search);
 		if (options.json) {
-			process.stdout.write(`${JSON.stringify(hits, null, 2)}\n`);
+			process.stdout.write(`${JSON.stringify({ byPurpose, byBody }, null, 2)}\n`);
 			return;
 		}
-		if (hits.length === 0) {
-			process.stdout.write(
-				`No core matches "${options.search}". That is weak evidence of absence, not proof — the index reads docblocks only, so a module whose purpose is phrased differently will not match.\n`,
-			);
-			return;
-		}
-		process.stdout.write(`${hits.length} core(s) match "${options.search}":\n\n`);
-		for (const entry of hits) {
+		const render = (entry: CapabilityEntry) => {
 			process.stdout.write(`  ${entry.module}${entry.labels.length > 0 ? `  [${entry.labels.join(" ")}]` : ""}\n`);
 			process.stdout.write(`      ${entry.purpose}\n`);
 			if (entry.exports.length > 0) {
 				process.stdout.write(`      exports: ${entry.exports.slice(0, 6).join(", ")}\n`);
 			}
 			process.stdout.write("\n");
+		};
+
+		if (byPurpose.length > 0) {
+			process.stdout.write(`${byPurpose.length} core(s) match "${options.search}" BY PURPOSE:\n\n`);
+			for (const entry of byPurpose) {
+				render(entry);
+			}
+		}
+		if (byBody.length > 0) {
+			// The tier that exists because purpose-only search missed a real implementation (see capability-index.ts).
+			process.stdout.write(
+				`${byBody.length} core(s) MENTION "${options.search}" in the body but not in their stated purpose —\nthe capability may be there without being what the module is "for". CHECK THESE before building:\n\n`,
+			);
+			for (const entry of byBody) {
+				render(entry);
+			}
+		}
+		if (byPurpose.length === 0 && byBody.length === 0) {
+			process.stdout.write(
+				`No core matches "${options.search}", in purpose OR body. That is weak evidence of absence, not proof — this is a literal substring search, so a capability phrased differently will not match.\n`,
+			);
 		}
 		return;
 	}

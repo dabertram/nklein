@@ -3977,7 +3977,24 @@ output and NOT acted on. Captured as F12.12.)
 - [ ] **F12.69 — MTP + n-gram self-speculation as the zero-cost fast path.** Prefer Unsloth MTP GGUFs in LM Studio (toggle
   MTP in load params — ~50% throughput, NO draft model in VRAM) + `--spec-type ngram-mod` for llama.cpp coder roles (zero
   VRAM, shines on the templated/JSON output agents emit). ~1.5× free speedup, no draft-pair bookkeeping. (localllm MTP; llama.cpp ngram)
-- [ ] **F12.70 — Per-request speculative-decoding gate (batch-1, non-MoE only).** Draft-model speculation gives ~2–2.6×
+- [x] **F12.70 — Per-request speculative-decoding gate (batch-1, non-MoE only).**
+  **ALREADY SHIPPED — found 2026-07-20, not newly built.** `inference-lever-planning.ts:428`:
+  `speculativeDecoding = samplingSafe && concurrency === 1 && !input.isMoe` — exactly this item's gate, plus the
+  temperature-0 correctness finding below already folded in (`samplingSafe` = engine rejection sampling OR greedy).
+  🔎 **HOW IT WAS NEARLY REBUILT, and what that says about P15.6.** `dev capability-index --search "speculative
+  decoding"` returned **"No core matches"** — so the next step would have been to write it again. The index reads
+  only a module's LEADING 40 lines and its exported FUNCTION names; this gate lives ~300 lines down, documented in
+  a mid-file docblock, exposed as an interface FIELD. It was **structurally invisible to the tool built to prevent
+  exactly this duplication.**
+  **FIXED (same session): `searchCapabilitiesTiered` adds a BODY tier**, reported separately from purpose matches —
+  merging would flood high-confidence answers with incidental mentions and make the index annoying enough to stop
+  using, while dropping the tier keeps the blind spot. Two honestly-labelled tiers is the only version that is
+  both usable and not lying about coverage. The failing search now returns `inference-lever-planning.ts`. 3 tests.
+  ⚠️ **A SECOND LIMIT SURFACED AND IS NOW ASSERTED: the search is HYPHEN-SENSITIVE.** "speculative decoding" does
+  not match text reading "speculative-decoding". Normalising punctuation would fix this case while introducing a
+  fuzzy matcher whose misses are harder to reason about — so it is recorded rather than papered over. Practical
+  consequence: **a no-match result is even weaker evidence of absence than the CLI already warns.**
+ Draft-model speculation gives ~2–2.6×
   single-stream (Qwen2.5-Coder-0.5B drafting a 7B, ~62% accept) but CUTS throughput 30–40% above ~8–16 concurrency and is
   bad for MoE. Enable it only when live concurrency==1 and the target isn't MoE — keyed off the concurrency signal !Klein
   already tracks. (ML-SpecQD 2503.13565; spheron speculative-guide)

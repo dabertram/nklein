@@ -18,6 +18,11 @@ export interface CapabilityEntry {
 	readonly module: string;
 	/** First substantive docblock sentence — what this module is FOR. */
 	readonly purpose: string;
+	/**
+	 * The module's FULL text, lowercased, for the second-tier body search. Kept because purpose-only matching
+	 * demonstrably misses capabilities documented below the leading docblock — see `searchCapabilities`.
+	 */
+	readonly body?: string;
 	/** Backlog labels found in the docblock (`§5.AQ`, `F12.35`), for tracing back to the deciding item. */
 	readonly labels: readonly string[];
 	readonly exports: readonly string[];
@@ -80,23 +85,60 @@ export function extractCapability(module: string, source: string): CapabilityEnt
 	return {
 		module,
 		purpose: firstSentence.slice(0, 220),
+		body: source.toLowerCase(),
 		labels: [...labels].sort(),
 		exports,
 	};
 }
 
+export interface CapabilitySearchResult {
+	/** Matched on module name, leading-docblock purpose, or an exported function name. High confidence. */
+	readonly byPurpose: readonly CapabilityEntry[];
+	/**
+	 * Matched only somewhere in the module BODY. Weaker — the capability may be incidental — but this tier is not
+	 * optional: see the docblock for the miss that forced it.
+	 */
+	readonly byBody: readonly CapabilityEntry[];
+}
+
 /**
- * Find entries whose purpose or exports match a query. Substring, case-insensitive, deliberately dumb — the
- * point is to answer "does something already do X?" before writing X, and a fuzzy matcher that misses is worse
- * than a literal one that over-returns.
+ * Find entries matching a query. Substring, case-insensitive, deliberately dumb — the point is to answer "does
+ * something already do X?" before writing X, and a fuzzy matcher that misses is worse than a literal one that
+ * over-returns.
+ *
+ * ── WHY THERE IS A SECOND TIER (a real miss, 2026-07-20) ──
+ * Searching "speculative decoding" returned NOTHING while `inference-lever-planning.ts` had implemented exactly
+ * that gate — the logic sits ~300 lines down, documented in a mid-file docblock, exposed as an interface FIELD
+ * rather than an exported function. The index reads only the leading 40 lines and exported function names, so it
+ * was structurally blind to it, and **the tool built to prevent duplication came one step from causing it.**
+ *
+ * ⚠️ It is also HYPHEN-SENSITIVE: "speculative decoding" does not match text reading "speculative-decoding".
+ * That is the cost of a deliberately literal search, and it means a NO-MATCH result is even weaker evidence of
+ * absence than the CLI already warns. Normalising punctuation would fix this case and introduce a fuzzy matcher
+ * whose misses are harder to reason about — so the limit is recorded and asserted rather than papered over.
+ *
+ * So a body match is reported SEPARATELY rather than merged: merging would flood high-confidence answers with
+ * incidental mentions and make the index annoying enough to stop using, while dropping the tier keeps the blind
+ * spot. Two tiers, honestly labelled, is the only version that is both usable and not lying about coverage.
  */
-export function searchCapabilities(entries: readonly CapabilityEntry[], query: string): CapabilityEntry[] {
+export function searchCapabilities(entries: readonly CapabilityEntry[], query: string): readonly CapabilityEntry[] {
+	return searchCapabilitiesTiered(entries, query).byPurpose;
+}
+
+export function searchCapabilitiesTiered(entries: readonly CapabilityEntry[], query: string): CapabilitySearchResult {
 	const needle = query.trim().toLowerCase();
 	if (needle.length === 0) {
-		return [];
+		return { byPurpose: [], byBody: [] };
 	}
-	return entries.filter((entry) => {
+	const byPurpose: CapabilityEntry[] = [];
+	const byBody: CapabilityEntry[] = [];
+	for (const entry of entries) {
 		const haystack = `${entry.module} ${entry.purpose} ${entry.exports.join(" ")}`.toLowerCase();
-		return haystack.includes(needle);
-	});
+		if (haystack.includes(needle)) {
+			byPurpose.push(entry);
+		} else if (entry.body?.includes(needle)) {
+			byBody.push(entry);
+		}
+	}
+	return { byPurpose, byBody };
 }
