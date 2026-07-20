@@ -5296,13 +5296,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > overhead) independently measured that prefix caching is nearly free when it MISSES — so there is no measured
 > case for leaving it off, only for structuring prompts so it hits.
 
-- [ ] **P19.1 — Cache-hostile-prefix audit of the assembled prompt (F4.40 hardening).** llama.cpp reuse **"stops
+- [x] **P19.1 — Cache-hostile-prefix audit + an ongoing GUARD (F4.40 hardening).** llama.cpp reuse **"stops
   reusing at the first unmatched token"** — a single varying byte near position 0 forfeits the entire downstream
   context. Known killers to audit for and forbid at the head of the prompt: **timestamps/clocks**, session ids,
   per-request counters, and anything else volatile. Documented real-world case: a Claude Code attribution header
   that varied between requests sat at the prompt head and produced repeated *"forcing full prompt re-processing
   due to lack of cache data"*; removing it restored cache hits. **If a clock is needed, it goes in the LAST user
   message.** F4.40 already stabilizes the prefix — this is the lint that proves it stays stable.
+  **AUDITED + GUARDED 2026-07-20.** Audit result: **no prompt builder embeds a volatile value in prompt bytes
+  today** — the single grep hit across `src/core/*prompt*.ts` is a docblock in `prompt-shell-restructure.ts`
+  DISCUSSING the hazard (the vendored SDK substitutes `new Date().toLocaleDateString()` internally), not code.
+  F4.40's sweep holds.
+  **THE GAP F4.40 LEAVES, and why this item still earned code:** its 12 regression tests lock prefix identity for
+  the builders that existed THEN. **A NEW prompt module embedding `Date.now()` would pass every existing test**
+  and quietly halve throughput. So the deliverable is an ongoing guard, not another one-time sweep:
+  `test/runtime/prompt-prefix-volatility-guard.test.ts` scans every `src/core/*prompt*.ts` for `Date.now()`,
+  `new Date()`, `toISOString()`, `Math.random()` in CODE lines (docblocks excluded, since one legitimately
+  discusses the hazard), and carries a second assertion that the glob matched something — **a guard that scans no
+  files is not a guard, it is a green tick.**
+  **VERIFIED BY REGRESSION:** injected `const stamp = Date.now()` into `patch-generation-prompt.ts`, watched the
+  guard fail naming the file and line, then restored. Third guard written this way today (ledger host-path, MCP
+  tool order, this one) — the pattern is now: fix the class, then prove the guard fails on it.
+  WHY IT MATTERS IN NUMBERS: llama.cpp reuse "stops at the first unmatched token", and prefill runs **24–36×
+  slower per token than generation** on Apple Silicon — a 32k full-miss is ~35 s on an M4 Max, the wall-clock of
+  generating ~1,100 tokens, for a turn that may emit a few hundred. A volatile byte near the head is therefore
+  invisible in every functional test and expensive in every real run.
 - [x] **P19.2 — Deterministic tool-definition serialization.** Anthropic's published invalidation hierarchy is
   **tools → system → messages**: a change to tool definitions invalidates **everything**. Therefore tool lists MUST
   be deterministically sorted and their JSON schemas serialized with stable key ordering. A serializer that
