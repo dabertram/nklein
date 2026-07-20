@@ -97,12 +97,16 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		gap: null,
 	},
 	{
-		id: "model_request",
-		what: "A model request: which model, how many tokens, how long, and whether it succeeded.",
-		source: "none",
-		emitterToken: null,
-		status: "untracked",
-		gap: "Per-card model requests are not recorded to any per-card source. Cost and latency attribution per card is therefore impossible, and a slow card cannot be distinguished from a slow model.",
+		id: "model_usage",
+		what: "Token usage for an attempt: prompt and completion tokens, gated by the configured tracking level.",
+		source: "agent_ledger",
+		emitterToken: "applyModelStatsTrackingLevel",
+		status: "partial",
+		gap:
+			"Recorded per ATTEMPT, not per model REQUEST — an attempt that makes many calls collapses into one figure, " +
+			"so a retry storm is indistinguishable from one expensive call. `totalTokens` and `reasoningTokens` are " +
+			"hardcoded null at the recording site, and neither LATENCY nor the model id that served the request is " +
+			"captured, so a slow card still cannot be told from a slow model. Suppressed entirely when the level is `off`.",
 	},
 	{
 		id: "review_verdict",

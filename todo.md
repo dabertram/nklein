@@ -5268,15 +5268,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
   list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
   appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
-  **14 events declared — 8 tracked, 5 partial, 1 untracked**, every tracked claim verified against a real emitter.
+  **14 events declared — 8 tracked, 6 partial, 0 untracked**, every tracked claim verified against a real emitter.
   🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
   `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
   `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
   exit 0. **I had written a docblock in that very file warning against exactly this.** Fixed with an
   unconditional exclusion; re-verified BOTH ways — green when honest, red naming the broken claim when renamed.
   **THE KNOWN GAPS, now written down instead of implied** (this list IS the remaining backlog for N18):
-  - `model_request` — **UNTRACKED.** No per-card record of which model, how many tokens, how long. Cost and
-    latency cannot be attributed to a card, and a slow card cannot be told from a slow model.
+  - `model_usage` — **PARTIAL, and I first recorded this WRONGLY as untracked.** Token usage IS written per
+    attempt into the ledger (`applyModelStatsTrackingLevel`); I claimed it was invisible and had to correct the
+    entry after checking. **A false gap in the contract is as corrosive as a false claim of coverage** — it sends
+    someone to build what already exists. The REAL gap: it is per-ATTEMPT, not per REQUEST, so a retry storm and
+    one expensive call are indistinguishable; `totalTokens`/`reasoningTokens` are hardcoded null at the recording
+    site; and neither LATENCY nor the serving model id is captured, so a slow card still cannot be told from a
+    slow model. Suppressed entirely at tracking level `off`.
   - `acceptance_run` — only the FAILURE path emits, so the trail answers *"did verification break?"* but never
     *"was this verified?"*
   - `review_verdict` / `bounce_to_worker` — runtime-log only, so they carry no reliable timestamps and cannot be
