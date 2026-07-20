@@ -6189,10 +6189,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   modules), and `compactionTriggerRatio` is referenced **only from a test**. Three compaction deciders exist and
   the live path consults none of them.
   **THEREFORE P18.4b IS NOT "WIRE THE REMEDY" — it is: get a drift signal in front of an SDK-level compaction
-  that is `enabled: true` by construction.** Options, none free: gate `enabled` on the drift verdict at session
-  start (coarse — drift is discovered mid-run, not at start); intercept before the SDK compacts (needs a seam
-  that may not exist); or accept SDK compaction and make the harness restart the card afterwards (wasteful, and
-  the laundered summary has already been written).
+  that is `enabled: true` by construction.**
+  **SEAM SURVEY DONE 2026-07-20 — there are TWO live compaction paths and only one is ours:**
+  | path | trigger | seam !Klein controls? |
+  |---|---|---|
+  | SDK compaction (`buildNKleinContextCompactionConfig`) | token pressure, `enabled: true` always | **NO** |
+  | harness overflow fallback (`nklein-context-overflow-compaction` → `-controller`) | an overflow ERROR | **YES** |
+  The harness path even carries its own admission of the gap: *"Temporary !Klein-side fallback … TODO: remove
+  this once SDK-side pluggable compaction policies are available and wired through !Klein."* **The seam we own is
+  the EMERGENCY path; the routine path — the one that will compact most derailed cards — has none.**
+  So the options narrow to: gate `enabled` at session start (coarse: drift is discovered mid-run, not at start),
+  pursue the pluggable-policy work that TODO already anticipates, or accept SDK compaction and restart afterwards
+  (wasteful, and the laundered summary is already written). **The middle option is the only one that fixes the
+  routine path, and it is not a wire — it is a dependency on SDK capability.**
   **Do not close this by wiring `decideOffTrackRemedy` somewhere harmless and calling it done** — that would
   produce a green item, a tested core, and a system that still launders drift.
 - [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
