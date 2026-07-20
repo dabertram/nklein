@@ -3950,7 +3950,7 @@ output and NOT acted on. Captured as F12.12.)
   "ready" to "waits on the runtime-adapter boundary" (see the interop phase). Do NOT attempt to pass these flags
   through LM Studio; they are silently ignored, which is the same failure class as the GBNF-grammar lesson in §4A.
 - [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
-  PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse 256` is on (KV-shifting) —
+  PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse N` is on (KV-shifting; **the frequently-cited `256` has NO primary-source basis — the flag is a MINIMUM CHUNK SIZE and its optimum is workload-dependent and publicly unmeasured, so treat any specific value as a starting point to measure, not a recommendation**) —
   a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
   **POSSIBLE UNBLOCK 2026-07-20 (David): `mlx-serve` exposes the flag this item needs — see P17.1a.** Still
   blocked *today* (it is not our runtime yet, and it is Apple-Silicon-only so it cannot cover the Linux node),
@@ -5364,12 +5364,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   reprocessed; bisected to a first-bad commit; an attempted fix did not resolve it). **Do not assume caching works
   because the flag is set.** Verify via `prompt eval time = … / N tokens` in logs or `/slots` with
   `LLAMA_SERVER_SLOTS_DEBUG=1`. Belongs with P17.1's second runtime adapter.
-- [ ] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
+- [x] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
   server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
   **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion
   thread). Also note `--cache-ram` defaults to **8192 MiB** — host-RAM prompt caching is ON out of the box. The
   frequently-cited "use `--cache-reuse 256`" has **no primary-source basis**; the flag is a minimum chunk size and
   the optimum is workload-dependent and publicly unmeasured.
+  **AUDITED 2026-07-20 — our docs were mostly ALREADY RIGHT, which is worth recording.**
+  · `--slot-prompt-similarity`: `docs/dev/prompt-cache-research-2026-07-02.md` already states **0.10** and quotes
+    the README verbatim. The stale "0.5 / 50% match" figure never entered our notes — it lives in a GitHub
+    discussion thread that predates the change. **No correction needed.**
+  · `--context-shift` and `--cache-ram`: neither is asserted anywhere in our docs, so there was nothing to
+    mis-state. Recorded in P19.5's own text so a future reader does not re-derive them from a blog.
+  · **ONE REAL CORRECTION APPLIED:** F12.73 cited **`--cache-reuse 256`** as though the value were authoritative.
+    It is not — the flag is a MINIMUM CHUNK SIZE, the `256` has no primary-source basis, and the optimum is
+    workload-dependent and publicly unmeasured. F12.73 now says `--cache-reuse N` and states that any specific
+    value is a starting point to MEASURE, not a recommendation to adopt.
+  **The useful lesson is the ratio:** four folklore items checked, three already correct in our notes, one wrong —
+  and the wrong one entered via a backlog item written from a blog rather than from the README. Primary sources
+  were consulted for the docs and skipped for the task description.
 
 
 ### Phase 20 — Evaluation INTEGRITY (research-backed 2026-07-19; do this BEFORE trusting any number we produce)
