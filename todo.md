@@ -5389,7 +5389,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Possible relatives already known: N4 lists the non-hermetic sources (real gateway reads, `lms ps`, `Date.now`
   damping windows, watchdog tick timing, free-port probing) — any of those in a unit test would produce exactly
   this. **Do not close this by re-running until green.**
-  NEXT: run `test:fast` in a loop capturing full output to a file until it reproduces, then name the test.
+  **CHASE ATTEMPTED 2026-07-20: 18 CONSECUTIVE CLEAN RUNS, no reproduction.** The loop the item asked for was
+  run with full output captured; the flake did not recur once on an otherwise idle machine.
+  **🔎 BUT THE TIMING OF THE TWO OBSERVED FAILURES NARROWS IT: both happened while OTHER WORK WAS RUNNING
+  CONCURRENTLY** (one inside a pre-commit hook, one during a batch loop). Eighteen runs on a quiet machine
+  produced nothing. **Working hypothesis: the flake is LOAD-DEPENDENT** — a timing-sensitive test that only loses
+  its race under contention.
+  That fits N4's list of non-hermetic sources exactly (`Date.now` damping windows — trigger 30s, dedup 12min —
+  watchdog tick timing, free-port probing): each is a test that passes when the machine is fast enough and fails
+  when it is not. **It also means "18 clean runs" is NOT evidence of absence** — it is evidence that the
+  reproduction conditions were absent, which is a different claim.
+  NEXT: reproduce UNDER LOAD rather than at idle (run `test:fast` while a drain or a parallel build occupies the
+  machine). Chasing it at idle is looking for a race in the condition where races do not happen.
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
