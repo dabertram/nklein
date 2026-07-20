@@ -9,12 +9,27 @@ import { type CapabilityEntry, extractCapability, searchCapabilitiesTiered } fro
  * (F12.28/F12.41, F12.82/F12.28, P20.2/diagnostic-oracles) all traced to built capability nobody could find.
  */
 
+/**
+ * Indexed directories.
+ *
+ * `src/commands` was added 2026-07-20 after a near-duplication the index could not have prevented: a search for
+ * "card trail" returned nothing while `dev card-trail` already existed, because the index read `src/core` ONLY.
+ * The collision surfaced at registration time — *"cannot add command 'card-trail' as already have command
+ * 'card-trail'"* — which is a late and lucky place to find out. **A duplication check that cannot see half the
+ * codebase answers "does something already do X?" with false confidence**, and false confidence is worse than
+ * no index, because it is trusted.
+ */
+const INDEXED_DIRS = ["src/core", "src/commands"] as const;
+
 function collectEntries(): CapabilityEntry[] {
-	const coreDir = "src/core";
-	return readdirSync(coreDir)
-		.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
-		.sort()
-		.map((file) => extractCapability(file, readFileSync(join(coreDir, file), "utf8")));
+	return INDEXED_DIRS.flatMap((dir) =>
+		readdirSync(dir)
+			.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+			.sort()
+			// Prefix the module with its directory so two files of the same name in different dirs stay distinct,
+			// and so a reader can tell a core from a command without guessing.
+			.map((file) => extractCapability(`${dir.replace("src/", "")}/${file}`, readFileSync(join(dir, file), "utf8"))),
+	);
 }
 
 export async function runDevCapabilityIndexCommand(options: {

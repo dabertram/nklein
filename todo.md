@@ -5981,6 +5981,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   A fuzzy matcher that silently misses is worse than a literal one that over-returns. 8 tests.
   **USE IT BEFORE WRITING A NEW CORE.** That is the whole point.
 
+  **🔧 THE INDEX COVERED ONLY HALF THE CODEBASE (found + fixed 2026-07-20).** `collectEntries` read `src/core`
+  ONLY — 615 modules — while `src/commands` (23 modules) was invisible. A search for "card trail" returned
+  nothing while `dev card-trail` already existed, and the collision surfaced only at REGISTRATION time
+  (*"cannot add command 'card-trail' as already have command 'card-trail'"*).
+  **That is a late and lucky place to find out.** A duplication check that cannot see half the codebase answers
+  *"does something already do X?"* with **false confidence — which is worse than no index, because it is
+  trusted.** The whole value of P15.6 is that a negative answer means something.
+  Fixed: `INDEXED_DIRS = ["src/core", "src/commands"]`, with the directory prefixed onto the module name so two
+  files of the same name stay distinct and a reader can tell a core from a command. Verified: `card-trail` now
+  returns command-file matches it previously could not see.
+  ⚠️ Still unindexed: `src/nklein-agent`, `src/server`, `src/trpc`, `src/telemetry`. **This fix narrowed the blind
+  spot; it did not close it**, and the same false-confidence failure remains available in those directories.
 ### Phase 16 — Field Reports: user-commanded, fully transparent feedback generation (David 2026-07-19)
 
 > **The problem, stated honestly.** One maintainer cannot personally encounter enough situations to tune a system
