@@ -30,6 +30,56 @@ export interface ModelFitnessFingerprint {
 	contextWindow: number;
 	/** Quantization label (e.g. `q4_k_m`, `q8_0`) if known; compared case-insensitively. `undefined` ⇒ ignored. */
 	quant?: string;
+	/**
+	 * P22.2: the CONTEXT DEPTH the measurement was actually taken at — distinct from the loaded `contextWindow`.
+	 * A model with a 32k window measured on a card that only USED 2k of context is a SHALLOW measurement, and a
+	 * shallow fitness number does not predict deep-card behaviour (where failures are expensive). Optional and
+	 * additive, so existing store cells (which lack it) parse unchanged and read as `undefined` = depth-unknown.
+	 */
+	contextDepthBucket?: ContextDepthBucket;
+}
+
+/** Coarse context-depth bands. Fitness measured in one band is only weak evidence for another. */
+export type ContextDepthBucket = "shallow" | "medium" | "deep";
+
+/** Below this many context tokens a measurement is SHALLOW — small-model tool-calling is still coherent here. */
+export const SHALLOW_DEPTH_MAX_TOKENS = 4_000;
+/** At/above this, DEEP — the zone where long-context attention and multi-turn coherence degrade (P22.2 / the §5.AC lost-in-the-middle work). */
+export const DEEP_DEPTH_MIN_TOKENS = 16_000;
+
+/**
+ * Classify the context depth a measurement was taken at. The bands are OPERATIONAL defaults (P18.5), not measured
+ * thresholds, and are labelled as such — the point of P22.2 is that depth matters, not that these exact cutoffs do.
+ */
+export function classifyContextDepth(usedContextTokens: number): ContextDepthBucket {
+	const tokens = Number.isFinite(usedContextTokens) ? Math.max(0, usedContextTokens) : 0;
+	if (tokens >= DEEP_DEPTH_MIN_TOKENS) {
+		return "deep";
+	}
+	if (tokens < SHALLOW_DEPTH_MAX_TOKENS) {
+		return "shallow";
+	}
+	return "medium";
+}
+
+/**
+ * Whether a cell measured at `measured` depth is a DEPTH MISMATCH for a card that needs `needed` depth.
+ *
+ * A shallow measurement applied to a deep card is the expensive error P22.2 names — so an UNKNOWN measured depth
+ * (an old cell, or one recorded before depth tracking) counts as a mismatch for a deep card: absent evidence of
+ * deep capability must not be read as deep capability, exactly the CodeAct-gate direction. For shallow/medium
+ * cards an unknown-depth cell is allowed (the conservative shallow measurement, if that is what it is, does not
+ * over-promise there).
+ */
+export function fitnessDepthMismatch(measured: ContextDepthBucket | undefined, needed: ContextDepthBucket): boolean {
+	if (needed === "deep") {
+		// Only a deep-measured cell is trustworthy for a deep card; unknown or shallower is a mismatch.
+		return measured !== "deep";
+	}
+	if (needed === "medium") {
+		return measured === "shallow"; // a shallow measurement under-covers a medium card; deep/medium/unknown are fine
+	}
+	return false; // a shallow card is covered by any measurement
 }
 
 /** One fitness-store cell: a distilled {@link ModelFitnessRecord} plus WHEN + at WHAT fingerprint it was measured. */
