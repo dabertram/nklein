@@ -6152,6 +6152,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   this against the existing bounce/re-work/park ladder and the F12.92 drift-critic — !Klein's park/re-work
   behaviour may already be closer to correct than compaction-first designs, and if so that should be stated and
   defended rather than left implicit.
+  **DECISION CORE SHIPPED 2026-07-20: `off-track-intervention.ts`, 10 tests.** `drift-critic.ts` (F12.92) already
+  DETECTS drift; nothing decided what to DO about it. This does, and keeping the two separate means the detector
+  can improve without renegotiating every remedy.
+  **THE INSIGHT, SHARPENED: compaction does not merely fail to fix drift — IT LAUNDERS IT.** A summary of a
+  derailed conversation is a faithful, well-written record of the derailment. It carries the bad commitment
+  forward in a form that is **shorter, cleaner and more authoritative-looking** than the original, and strips the
+  meandering that was the only visible evidence anything had gone wrong.
+  **THE ASYMMETRY THAT MAKES THIS MORE THAN A PREFERENCE: a full window and a derailed card present the SAME
+  symptom — a large unwieldy conversation — and demand OPPOSITE remedies.** On-track and long → compact (the
+  content is good, there is just too much of it). Off-track and long → restart with restatement. **A design that
+  reaches for compaction whenever the context is large is right about half the time and confidently wrong the
+  rest, in the direction hardest to notice afterwards.** So off-track is checked BEFORE context pressure, and a
+  test pins that a derailed card never lands in the compaction branch at ANY utilisation — ordering it the other
+  way would make compaction the default for exactly the cards it harms most, since derailed cards are usually
+  long ones.
+  Two bounds, both about not destroying what exists: restarts are capped (unbounded restarting is **a loop that
+  discards work while looking like progress**), and a card with CAPTURED WORK parks instead of restarting —
+  a human can often salvage a half-right diff that no fresh attempt recovers.
+  REMAINING (P18.4b): the wire — feed `decideDriftCheck`'s verdict + live context utilisation in, and act on the
+  remedy. Reconciling against the existing bounce/re-work/park ladder happens there, where both are visible.
 - [ ] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
   an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
   own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
