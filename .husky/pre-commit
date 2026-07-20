@@ -42,10 +42,19 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+# N12: PERSIST the full output on failure. An intermittent test:fast failure has been observed twice, and BOTH
+# times its identity was lost — the hook printed a summary and discarded the detail, so 27 subsequent runs across
+# four adversarial conditions could not name the test. The bug is not hard to hit; it is hard to HOLD ONTO.
+# Capturing costs nothing on the passing path (the log is only kept when something fails).
 echo "Running type checking and fast tests..."
-npm run typecheck && npm run test:precommit
-if [ $? -ne 0 ]; then
-	echo "Checks failed."
+CHECK_LOG="${TMPDIR:-/tmp}/nklein-precommit-$(date +%Y%m%d-%H%M%S).log"
+if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1; then
+	rm -f "$CHECK_LOG"
+else
+	tail -40 "$CHECK_LOG"
+	echo ""
+	echo "Checks failed. FULL output kept at: $CHECK_LOG"
+	echo "  (If this was an INTERMITTENT failure, that file names the test — see N12 in todo.md.)"
 	exit 1
 fi
 

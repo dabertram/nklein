@@ -5418,10 +5418,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   with a count (`1 failed | 11401 passed`). Marking it resolved because 27 attempts missed it would be the exact
   move this item was written to prevent — and would be a worse error than the original flake, because it would
   come with the authority of having "investigated".
-  **WHAT IS ACTUALLY WORTH DOING NEXT IS NOT MORE CHASING — IT IS CAPTURE.** The failure has now occurred twice
-  and BOTH times the identity was lost: once inside a pre-commit hook that printed a summary and discarded the
-  detail, once in a loop that did not persist output. **The bug is not hard to hit; it is hard to hold onto.** So:
-  make the pre-commit hook persist full vitest output on failure, and the identity will be there the third time.
+  **✅ CAPTURE SHIPPED 2026-07-20 — the actual fix for an unreproducible bug is not chasing, it is HOLDING ON.**
+  The failure occurred twice and BOTH times its identity was lost: once inside a pre-commit hook that printed a
+  summary and discarded the detail, once in a loop that did not persist output. **The bug is not hard to hit; it
+  is hard to hold onto.** So `.husky/pre-commit` now writes full typecheck + test output to a timestamped log,
+  **deletes it on success** (zero cost on the passing path) and on failure prints the last 40 lines plus the log
+  path, pointing at this item. The third occurrence will name its own test.
+  Verified by planting a deliberate type error: the hook printed the failing line, kept the log, and reported its
+  path. Restored afterwards.
   **The exclusions are the deliverable here.** Recording them matters as much as a finding would have — otherwise
   the next person spends the same hour rediscovering that CPU load, process contention and port collision are all
   innocent.
