@@ -359,6 +359,16 @@ source repo went private — so if it vanishes the buildable source still lives 
   - State the coverage boundary in the tool's own output. A checker that cannot see half the codebase must say
     so, or its negative answers carry false authority.
 
+- ⚠️ **SELF-CONTAMINATION HAPPENED A FOURTH TIME (N18), IN A FILE WHOSE OWN DOCBLOCK WARNED AGAINST IT.**
+  `dev tracking-coverage` verifies that each claimed `emitterToken` appears in the source — and it read all of
+  `src/`, which includes the contract file declaring those tokens. Every token matched **its own declaration**.
+  Planting `card_lane_change_RENAMED_BY_SOMEONE` still produced *"Every tracked claim was verified against a real
+  emitter"* and exit 0. I had written *"an audit that checks a hand-written list against another hand-written
+  list checks nothing"* in that same file, ten lines above the bug.
+  **KNOWING THE RULE DOES NOT PREVENT THE BUG — only running the red case does.** Three prior instances, an
+  explicit §4A entry and a docblock restating it were all insufficient. **Treat "I am aware of this failure mode"
+  as worth nothing; the only evidence is a planted failure that actually goes red.** Every audit added here must
+  ship with its exclusion AND with a demonstrated red run, in the same commit.
 - **A UI harness needs a CONTROL, and the control must be shown to FAIL.** U1c verified the scroll-anchor hook in
   a real browser. The first watched element was one of the collapsing blocks — whose own top cannot move — so the
   control reported a reassuring **0px of movement with anchoring switched OFF**, and would have certified a
@@ -5237,6 +5247,47 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
   NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
   in isolation where it does not reproduce.
+- [~] **N18 — TRACK EVERYTHING, as a product feature and not a debug tool *(David 2026-07-20)*.**
+  *"i want that timeline to be inherent part of !Klein and not just a debug tool. !Klein shall always track every
+  detail … a full picture of any activity, state change/transition, attempted activity, and all the results …
+  everything that happens on a project shall be tracked precisely."* Opt-out is permitted ONLY if the volume
+  turns out to be genuinely excessive — measured, not assumed.
+  **📊 THE VOLUME QUESTION IS ANSWERED, AND THE ANSWER IS: NOT A PROBLEM.** Measured against David's own
+  `~/.nklein` telemetry — a month of heavy, fleet-driven development, not a synthetic estimate:
+  | | |
+  |---|---|
+  | total, ~1 month | **24 MB / 49,380 events** |
+  | busiest day (2026-07-15, multi-agent sweep) | **9.0 MB / 18,666 events** |
+  | typical heavy dev day | 1.6–2.7 MB / 3.5–5.8k events |
+  | per event | ~500 bytes |
+  **So full tracking costs single-digit MB/day at the observed ceiling**, against a 30-day retention default
+  (`DEFAULT_RETENTION_DAYS`) that already bounds the total. **No opt-out is warranted on volume grounds** — the
+  condition David set for allowing one is not met, so it is not being built. Revisit only if a real run exceeds
+  roughly an order of magnitude more than the busiest day here.
+  **✅ SHIPPED: `dev tracking-coverage` — the coverage CONTRACT (`card-tracking-coverage.ts`).**
+  *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
+  list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
+  appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
+  **14 events declared — 8 tracked, 5 partial, 1 untracked**, every tracked claim verified against a real emitter.
+  🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
+  `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
+  `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
+  exit 0. **I had written a docblock in that very file warning against exactly this.** Fixed with an
+  unconditional exclusion; re-verified BOTH ways — green when honest, red naming the broken claim when renamed.
+  **THE KNOWN GAPS, now written down instead of implied** (this list IS the remaining backlog for N18):
+  - `model_request` — **UNTRACKED.** No per-card record of which model, how many tokens, how long. Cost and
+    latency cannot be attributed to a card, and a slow card cannot be told from a slow model.
+  - `acceptance_run` — only the FAILURE path emits, so the trail answers *"did verification break?"* but never
+    *"was this verified?"*
+  - `review_verdict` / `bounce_to_worker` — runtime-log only, so they carry no reliable timestamps and cannot be
+    ordered against telemetry. **The s03 investigation needed the bounce COUNT and had to get it by counting log
+    lines.**
+  - `attempt_started` — inferred from an attempt's first tool call, so **an attempt that died before calling
+    anything is invisible** — precisely the failure worth seeing.
+  - `operator_intervention` — only `nudge` is instrumented (P20.10).
+  REMAINING (N18b): close those five gaps, then surface the timeline as a PRODUCT view (tRPC + UI panel), since
+  `dev card-timeline` is still CLI-only and David asked for this to be inherent, not a debug tool.
+
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
   round-trips, and the F2.16 stream→DAG→card→thread→BACK focus spec (folds in here). Today's plan is

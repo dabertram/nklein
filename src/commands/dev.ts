@@ -103,6 +103,7 @@ import {
 	runDevTruncationDiagnosticsCommand,
 } from "./dev-telemetry-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
+import { runDevTrackingCoverageCommand } from "./dev-tracking-coverage-command";
 import { runDevToolMenuCommand, runDevToolPickCommand } from "./dev-two-phase-tool-commands";
 import { runDevUnwiredCoresCommand } from "./dev-unwired-cores-command";
 
@@ -1004,6 +1005,12 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { home?: string; json?: boolean }) => {
 			await runDevInterventionsCommand(options);
+		});
+	dev.command("tracking-coverage")
+		.description("What does !Klein actually record about a card? (N18 — verified against real emitters.)")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevTrackingCoverageCommand(options);
 		});
 	dev.command("gates")
 		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
