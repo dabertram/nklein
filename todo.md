@@ -6446,9 +6446,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   read still touches other projects' files. **That is a privacy/isolation decision, so it is recorded rather than
   applied** — the alternative (make every writer derive the hash from one canonical host path) preserves the
   boundary but cannot recover the 76 files already written under other keys.
-  **NOT YET PROVEN:** that fragmentation is THE cause of F12.35's zero — that needs one instrumented review run
-  comparing the reader's hash against the hash its task's attempts were written under. The fragmentation and the
-  sandbox-path write site are defects independently of F12.35.
+  **NOT YET PROVEN → NOW SELF-PROVING 2026-07-20.** The "one instrumented review run" is no longer needed: the
+  silent `if (difficultyTier === null) return;` in `review_effort_scaling` — the exact line that recorded zero —
+  now emits a `review_effort_scaling_skipped` observation with the reason distinguished: `no_ledger_records` (no
+  attempt records for this task in the read → the wrong-hash/fragmentation cause) vs `no_difficulty_tier` (an
+  attempt found but carrying no difficulty). So EVERY future review confirms or refutes the fragmentation
+  hypothesis on its own — if the skips are all `no_ledger_records`, the empty-read cause is proven; the metadata
+  carries `ledgerEventsRead`/`taskAttemptsFound` for the exact counts. **This is the session's own lesson applied
+  to the item that motivated the mechanism audit: a silent early return made a defect look like an unused
+  feature; making the decline observable is what turns "not yet proven" into "proven on the next run".**
+  The fragmentation and the sandbox-path write site remain defects independently of F12.35.
   **SCOPE IF CONFIRMED:** every ledger consumer shares this seam — F12.14 scaffold recommendation, F12.81
   exemplars, F3.7b behaviour profiles, the retry-note builder — and each degrades the same silent way.
 - [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine

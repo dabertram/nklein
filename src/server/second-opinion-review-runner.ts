@@ -679,12 +679,34 @@ export async function runSecondOpinionReviewForTask(
 			const ledgerEvents = await readAgentLedger({
 				workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
 			});
-			const latestAttempt = ledgerEvents
-				.filter((event) => event.kind === "attempt" && event.taskId === input.taskId)
-				.at(-1);
+			const taskAttempts = ledgerEvents.filter((event) => event.kind === "attempt" && event.taskId === input.taskId);
+			const latestAttempt = taskAttempts.at(-1);
 			const difficultyTier =
 				latestAttempt && "difficulty" in latestAttempt ? (latestAttempt.difficulty ?? null) : null;
 			if (difficultyTier === null) {
+				// F12.35b: this early return is why `review_effort_scaling` recorded ZERO across 44,421 observations —
+				// and it was SILENT, so the zero looked like "the feature is off" rather than "the ledger read came
+				// back empty". Record the SKIP with its reason so every review confirms or refutes the fragmentation
+				// hypothesis on its own, without the "one instrumented run" the item said it needed. The two reasons
+				// are distinct: NO attempt records for this task in the read (the wrong-hash/fragmentation cause) vs an
+				// attempt present but carrying no difficulty tier.
+				try {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Review-effort scaling SKIPPED for ${input.taskId}: ${taskAttempts.length === 0 ? "no attempt records found in the ledger read (F12.35b: reader hash may not match the writer's)" : "latest attempt has no difficulty tier"}.`,
+						taskId: input.taskId,
+						workspacePath: input.workspacePath,
+						metadata: {
+							category: "review_effort_scaling_skipped",
+							reason: taskAttempts.length === 0 ? "no_ledger_records" : "no_difficulty_tier",
+							ledgerEventsRead: ledgerEvents.length,
+							taskAttemptsFound: taskAttempts.length,
+						},
+					});
+				} catch {
+					// Observation only — a failed record must never disturb the review.
+				}
 				return;
 			}
 			const difficulty =
