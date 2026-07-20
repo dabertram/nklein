@@ -5380,6 +5380,38 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > 5. **Transport is the user's choice, decided last.** A GitHub issue draft the user submits themselves is the
 >    first target precisely because it needs no infrastructure and is fully inspectable.
 
+- [x] **P15.7 — REQUIREMENT-level coverage: the gap the other three instruments cannot see.**
+  **SHIPPED 2026-07-20: `requirement-coverage-audit.ts`, 9 tests.**
+  **WHY A FOURTH INSTRUMENT.** The existing three each answer a different question — P15.1 *does this MODULE have
+  a consumer?*, P15.1b *does this MECHANISM ever fire?*, P15.6 *does a core already do X?* — and **none of them
+  can see a requirement that is half-connected**, because the failure is invisible at module granularity. It
+  surfaced three separate times on 2026-07-20: F4.8 (two re-anchor cores split the requirement; the one carrying
+  acceptance criteria has zero importers), F3.8 (the retry ladder has no consumer that acts on which rung it
+  returns), P15.1 (119 orphans, several the second half of something shipped).
+  **The shape is identical every time: every module passes its own tests, every module is individually
+  defensible, and the REQUIREMENT is still unmet.** A fully green suite is compatible with a half-connected
+  feature — which is precisely the verification gap the project charter names, expressed mechanically.
+  **THE CLASSIFICATION IS THE VALUE, not the pass/fail.** `built_but_unwired` and `no_provider_recorded` stay
+  separate because they need different people doing different work, and merging them **sends someone to rebuild a
+  core that already exists** — the most expensive available way to be wrong.
+  **An unmapped element is NEVER reported as "unbuilt."** The element→provider map is hand-maintained, so absence
+  from it is absence of evidence; the tool says `no_provider_recorded` and says why. Same discipline as P15.6's
+  *"weak evidence of absence, not proof"* and N5's `indeterminate`.
+  **Wired-ness is COMPUTED, not declared.** It comes from `auditUnwiredCores`' orphan set, so connecting a core
+  makes the audit pass with nobody remembering to flip a boolean. A hand-maintained `wired: true` would rot
+  silently into a false pass the first time a caller was deleted — pinned by test.
+  An EMPTY requirement spec FAILS rather than trivially passing (the `resolvePack` hazard from N5, again).
+  The CLI + the tracked-requirement map are P15.7b.
+- [ ] **P15.7b — `dev requirement-coverage` + the tracked-requirement map *(split from P15.7 2026-07-20)*.**
+  Walk the source for the orphan set (as `dev unwired-cores` already does), feed it `sweepRequirementCoverage`,
+  and print the failing requirements. The judging is built; **the curation is the actual work** — deciding which
+  backlog items get element-level specs, and writing their elements honestly.
+  **THE MAP IS THE FAILURE POINT, and it fails QUIETLY.** Two ways to make this tool useless while it reports
+  green: declare a requirement with elements it does not really have (it passes and proves nothing), or omit the
+  requirements most likely to be half-wired (nothing fails because nothing was asked). **Both look identical to a
+  passing run.** So the map should be seeded from requirements ALREADY KNOWN to be split — F4.8 and F3.8 are
+  documented failures with named elements and belong in the first commit, precisely because they must come out
+  RED. A first run that passes cleanly is evidence the map is wrong, not that the codebase is well-wired.
 - [x] **P16.1 — Field-report content model (PURE core).** Three layers with independent consent:
   **A — structural/behavioural (default ON):** what the harness DID — card counts, outcome distribution, model
   CLASS and size band, which mechanisms fired, where cards stalled, retry/park/bounce rates, wall-clock, hardware
