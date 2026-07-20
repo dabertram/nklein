@@ -53,4 +53,55 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 			{ element: "ladder_planning", providedBy: { module: "retry-policy.ts", symbol: "planNextAttempt" } },
 		],
 	},
+	{
+		// P20.5 — metric discipline. The formatting half is wired into the fitness table; the naming guard is
+		// enforced as a repo ratchet rather than a caller, so it has no symbol-level consumer by design.
+		id: "P20.5",
+		elements: [
+			{ element: "headline_formatting", providedBy: { module: "eval-headline-metric.ts", symbol: "buildHeadline" } },
+			{
+				element: "forbidden_metric_guard",
+				providedBy: { module: "eval-headline-metric.ts", symbol: "assertHeadlineMetricAllowed" },
+			},
+		],
+	},
+	{
+		// P18.4 — recovery over compaction. Recorded because the audit should SHOW this gap: the remedy core has no
+		// consumer, and the live compaction path does not consult drift at all (see P18.4b).
+		id: "P18.4",
+		elements: [
+			{
+				element: "remedy_decision",
+				providedBy: { module: "off-track-intervention.ts", symbol: "decideOffTrackRemedy" },
+			},
+			// The drift DETECTION half is wired (F12.92); the remedy half is not. Listing both makes the asymmetry
+			// visible rather than leaving the item looking uniformly unbuilt.
+			{ element: "drift_detection", providedBy: { module: "drift-critic.ts", symbol: "decideDriftCheck" } },
+		],
+	},
+	{
+		// P20.1 — grader integrity. Wired via `dev evidence`; the live null-agent RUN is still outstanding (P20.1b),
+		// which the core itself reports as `indeterminate`.
+		id: "P20.1",
+		elements: [
+			{
+				element: "grader_integrity_verdict",
+				providedBy: { module: "null-agent-baseline.ts", symbol: "assessGraderIntegrity" },
+			},
+		],
+	},
+	{
+		// P20.10 — intervention metrics. The taxonomy and streak are wired; churn is not.
+		id: "P20.10",
+		elements: [
+			{
+				element: "intervention_metrics",
+				providedBy: { module: "operator-intervention.ts", symbol: "computeInterventionMetrics" },
+			},
+			{
+				element: "post_acceptance_churn",
+				providedBy: { module: "post-acceptance-churn.ts", symbol: "assessChurn" },
+			},
+		],
+	},
 ];
