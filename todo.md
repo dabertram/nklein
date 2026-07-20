@@ -1237,8 +1237,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   refetches the authoritative list (a failed revoke can never look like a success). 2 Playwright specs prove the
   round-trip against a STATEFUL mock (revoke actually drops the key from the next list query, GRANT_B stays). Backend
   typecheck + store test green; web-ui typecheck + full suite (1129) + both new Playwright tests green.
-  REMAINING: the SWARM-side escalation park (a denied protected action
-  parks the card with the explanation via the attention path instead of burning retries).
+  REMAINING (RE-SCOPED 2026-07-20 after tracing the actual paths — it is NOT a missing safety net):
+  the SWARM-side escalation park was framed as "a denied protected action burns retries unless we park it," but
+  the generic net ALREADY exists — `turn-loop-guard.ts` runs the full ladder (nudge → escalate → **park with
+  reviewReason `attention`** via `parkTaskForAutonomyBudget`) whenever a worker loops without progress, which is
+  exactly what a worker re-attempting a permanently-denied (taint-based) tool does. So a denied action does NOT
+  silently burn unbounded retries today; it trips the loop guard and parks. What is genuinely missing is only
+  ATTRIBUTION: the park message says "stuck in a loop" rather than naming the SPECIFIC capability-broker wall
+  (`swarm-tool-broker.ts`'s `deniedToolResult` returns the reason as a tool-result STRING; the loop guard never
+  sees WHY the loop happened). The clean fix is to thread the broker's hard-denial reason into the loop-guard
+  verdict so the `attention` message reads "parked: capability broker permanently refused <tool> — <reason>"
+  instead of the generic text — refining the ONE existing park path, NOT adding a second parallel one (which would
+  risk double-parking / conflicting reasons). The seam: broker state is already per-task in
+  `swarmBrokerStateByTaskId` (exposed like `getSessionTaintLabels`); add a hard-denial reason readout alongside it
+  and let the guard prefer it when present. Modest observability polish, not a correctness gap — deprioritized
+  accordingly, and now honestly scoped so no one rebuilds a safety net that exists.
 - [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
   `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:
   resolutions BOUND to attempt+target+role (any mismatch applies to NOTHING — the pending attempt keeps waiting
