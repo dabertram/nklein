@@ -19,6 +19,9 @@
  * place that is checked automatically.
  */
 
+/** Telemetry category for "acceptance ran, and this is what it concluded" — pass, fail or absent alike. */
+export const ACCEPTANCE_RUN_CATEGORY = "acceptance_run";
+
 export type TrackingSource =
 	/** `.nklein/nklein/telemetry/*.jsonl` — the self-observation sink. */
 	| "self_observation"
@@ -144,9 +147,9 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		id: "acceptance_run",
 		what: "Acceptance/verification runs for the card, and its result.",
 		source: "self_observation",
-		emitterToken: "acceptance_setup_error",
-		status: "partial",
-		gap: "Only the FAILURE path emits. A passing acceptance run leaves no per-card record, so 'was this verified?' cannot be answered from the trail — only 'did verification break?'.",
+		emitterToken: "ACCEPTANCE_RUN_CATEGORY",
+		status: "tracked",
+		gap: null,
 	},
 	{
 		id: "operator_intervention",

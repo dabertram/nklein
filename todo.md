@@ -5268,7 +5268,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
   list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
   appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
-  **14 events declared — 8 tracked, 6 partial, 0 untracked**, every tracked claim verified against a real emitter.
+  **14 events declared — 9 tracked, 5 partial, 0 untracked**, every tracked claim verified against a real emitter.
   🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
   `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
   `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
@@ -5282,8 +5282,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     one expensive call are indistinguishable; `totalTokens`/`reasoningTokens` are hardcoded null at the recording
     site; and neither LATENCY nor the serving model id is captured, so a slow card still cannot be told from a
     slow model. Suppressed entirely at tracking level `off`.
-  - `acceptance_run` — only the FAILURE path emits, so the trail answers *"did verification break?"* but never
-    *"was this verified?"*
+  - ~~`acceptance_run`~~ — **CLOSED 2026-07-20.** Every acceptance run now emits its outcome at the handler's
+    RETURN, so it fires for pass, fail and absent alike; `present` stays separate from `passed` so *"no criteria
+    existed"* is never reported as a pass. Previously only failures emitted, which made **a card that was never
+    verified look identical to one that passed** — silence reads as fine. Verified red by removing the emitter.
   - `review_verdict` / `bounce_to_worker` — runtime-log only, so they carry no reliable timestamps and cannot be
     ordered against telemetry. **The s03 investigation needed the bounce COUNT and had to get it by counting log
     lines.**
