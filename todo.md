@@ -5237,6 +5237,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   nothing checked that the data was real. **A dry run that does not verify this tells you the SHAPE of a run, not
   whether it can work.** Verified by planting a `ghost-project` entry: the check named it and failed; removing it
   went clean.
+  **🔴 RAN A REAL 8-MINUTE CELL (01 × perfect) AND IT FOUND THREE MORE THINGS — none of which any test caught.**
+  1. **The emission was placed AFTER the assertions, so it never fired on a FAILING run** — precisely when lane
+     data is most wanted. *A diagnostic that only appears when nothing is wrong is not a diagnostic.* Moved to
+     immediately after `seedOut` exists.
+  2. **The kept HOME did not contain what explains the failure.** `finalCounts` lives in the seed monitor's
+     stdout, which was never written into the isolated HOME — so the report said *"HOME kept for inspection"*
+     while the HOME held nothing that diagnosed it. **"Debuggable" must mean the EVIDENCE is there, not that a
+     PATH exists** — a distinction N7's own contract did not draw, and the weaker reading is the one that wastes
+     a morning. Now persisted as `seed-monitor.log`.
+  3. **The failure reason was truncated at 300 chars, cutting off mid-`finalCounts`** and hiding the counts that
+     explained the failure. The report is the artifact that survives; it should not economise on the diagnosing
+     part. Raised to 1200.
+  ⚠️ **The 01 × perfect cell itself FAILED** (*"perfect-run left cards undrained"*, `completed: 30, review: 0`,
+  489s). Not caused by these changes — the assertion is pre-existing and fires before any of this code. Whether
+  that is a real regression or a stale assertion is **N7d**, and it is exactly the kind of thing the nightly
+  exists to surface; it had simply never been run.
   REMAINING (N7c): gate/guard SIGNALS are still unemitted, so `mustFire`/`mustStayQuiet` stay empty and every
   signal-level assertion remains `indeterminate`. Lanes are done; signals are the other half.
   **THIS IS THE KEYSTONE: everything downstream is built and idle without it.** N5's packs, N5b's collector, the
@@ -5246,6 +5262,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   purpose; the equivalent shortcut here is to register subscriptions for signals the drain does not actually emit,
   which would turn every `indeterminate` into a false pass while touching no core. A subscription is honest only
   when the drain genuinely emits that signal — **the emission comes first, the subscription second.**
+
+- [ ] **N7d — Diagnose the failing `01 × perfect` cell *(found 2026-07-20 by the first real nightly run)*.**
+  `verify-simulated-flow.mts` threw *"perfect-run left cards undrained"* after 489s with `completed: 30,
+  review: 0`. The assertion demands `review/failed/planning/inProgress === 0`, `ready === 0` and `completed ≥ 1`.
+  With 30 completed and review 0, the failure is in one of the lanes the truncated output did not show.
+  **Decide which of two things is true, and do not assume the flattering one:** either the drain genuinely leaves
+  cards undrained (a real product regression that has been invisible because nobody ran this), or the assertion
+  is stale relative to how lanes are now named — the same class of bug as the pack expecting `done` when the
+  board says `completed`. **A stale assertion is the comfortable answer, so it is the one to check hardest.**
+  The evidence is now retained: `seed-monitor.log` in the cell's kept HOME carries the full `finalCounts`.
 
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 

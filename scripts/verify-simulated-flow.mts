@@ -416,6 +416,24 @@ async function main(): Promise<void> {
 		console.log(`\nSeed monitor exited ${seedExit}.`);
 		// Definitive matcher debugging: what did the simulator actually receive per request?
 		const journal = simulator.mock.getRequests();
+		// N7b: emit the terminal board lanes in a machine-readable form so the nightly runner can hand them to N5's
+		// invariant packs. The counts already existed in this script and were only ever asserted inline — every
+		// consumer downstream (packs, collector, failure report) sat idle for want of this one line.
+		//
+		// ⚠️ EMITTED HERE, BEFORE THE ASSERTIONS, DELIBERATELY. An earlier placement put it after them, so it never
+		// fired on a FAILING run — precisely when the lane data is most wanted. A diagnostic that only appears when
+		// nothing is wrong is not a diagnostic.
+		//
+		// Counts, not per-card ids: the board summary carries how many cards ended in each lane, not which. The
+		// runner synthesizes placeholder ids and SAYS so, rather than implying per-card knowledge this script lacks.
+		const finalCounts = /"finalCounts":\s*({[^}]*})/.exec(seedOut)?.[1] ?? null;
+		if (finalCounts) {
+			console.log(`NIGHTLY_TERMINAL_LANES=${finalCounts.replaceAll(/\s+/g, " ")}`);
+		}
+		// The seed monitor's stdout is where finalCounts lives, and it was NOT being written into the kept HOME —
+		// so a failure said "HOME kept for inspection" while the HOME did not contain what explains the failure.
+		// "Debuggable" must mean the evidence is there, not merely that a path exists.
+		await writeFile(join(home, "seed-monitor.log"), seedOut).catch(() => undefined);
 		console.log(`\nSimulator journal: ${journal.length} request(s)`);
 		for (const [index, entry] of journal.entries()) {
 			const body = (entry as { body?: unknown }).body ?? (entry as { request?: unknown }).request ?? entry;
@@ -557,17 +575,6 @@ async function main(): Promise<void> {
 				// throw (not fail/process.exit) so the finally block still tears children down + dumps runtime.log.
 				throw new Error(`perfect-run left cards undrained (${counts})`);
 			}
-		}
-		// N7b: emit the terminal board lanes in a machine-readable form so the nightly runner can hand them to N5's
-		// invariant packs. The counts already existed here and were only ever asserted inline — every consumer
-		// downstream (packs, collector, failure report) sat idle for want of this one line.
-		//
-		// Counts, not per-card ids: the board summary carries how many cards ended in each lane, not which. The
-		// runner synthesizes placeholder ids and SAYS it does, rather than pretending to per-card knowledge this
-		// script does not have.
-		const finalCounts = /"finalCounts":\s*({[^}]*})/.exec(seedOut)?.[1] ?? null;
-		if (finalCounts) {
-			console.log(`NIGHTLY_TERMINAL_LANES=${finalCounts}`);
 		}
 		console.log("PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.");
 	} finally {

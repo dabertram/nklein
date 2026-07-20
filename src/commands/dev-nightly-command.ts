@@ -173,7 +173,9 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			cell,
 			outcome: "failed",
 			durationMs: Date.now() - started,
-			reason: `${message.slice(0, 300)} (isolated HOME kept for inspection: ${home})`,
+			reason: // 300 chars cut the failure mid-`finalCounts` on the first real run, hiding the lane data that explained it.
+				// The report is the artifact that survives, so it should not economise on the part that diagnoses.
+				`${message.slice(0, 1200)} (isolated HOME kept for inspection: ${home}; seed monitor output at ${join(home, "seed-monitor.log")})`,
 		};
 	}
 }
