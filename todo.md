@@ -5552,6 +5552,32 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   board says `completed`. **A stale assertion is the comfortable answer, so it is the one to check hardest.**
   The evidence is now retained: `seed-monitor.log` in the cell's kept HOME carries the full `finalCounts`.
 
+- [ ] **N16 — Nightly must DETECT operator-holds and emit REPRODUCIBLE evidence *(David 2026-07-20)*.**
+  A card held for the operator stalls an unattended run indefinitely and blocks its whole dependent subtree. The
+  nightly must **detect the class, collect enough evidence to reproduce it deterministically, and tell the user**
+  — so a fix can be *decided*, implemented, and covered by a test set. **The remedy is per-case; the DETECTION
+  and the EVIDENCE are general and belong here.**
+  **WHAT "REPRODUCIBLE" HAS TO MEAN, concretely** — the 2026-07-20 investigation needed all of this, and
+  assembling it by hand took hours:
+  1. **The held card + the hold REASON code** (not just "held in Review" — the classification, e.g.
+     `workspace_disposed_before_capture`).
+  2. **The full processing chain for that card**: every `[review-phase]` line, the review verdict and round, the
+     reviewer model + seed, and the bounce/delivery resolution.
+  3. **The DEPENDENT SUBTREE** — which cards are blocked behind it, and how many. One held card cost 22 here, and
+     that number is the actual severity; the hold alone reads as one card.
+  4. **The artefacts that survived**: result-branch name + commit + diffstat, so "was the work lost?" is
+     answerable from the report rather than by cloning the retained HOME.
+  5. **The seed and cell identity** already carried by N7's failure report, so the run can be repeated.
+  **WHY DETECTION IS THE HARD HALF: the hold is DELIBERATE and correct when attended** (see
+  `nklein-sandbox-review-finalizer.ts` — *"an explicit operator hold … a manual redrive starts cleanly"*). So the
+  nightly must NOT simply treat it as a defect, and must not "fix" it by adding a blanket re-drive. It must say:
+  **this run stopped because it needed a person, here is exactly which person-decision it needed, and here is
+  everything required to reproduce and test the fix.**
+  Composes with N5's invariant packs (a `held_for_operator` terminal state is a distinct verdict, not a pass and
+  not a violation) and with N7's failure report (which already retains HOME, seed and the drain's own log).
+  **First concrete instance is recorded under N7d** — `s03`, `workspace_disposed_before_capture`, 22 dependents
+  blocked, work intact on a result branch. Use it as the acceptance fixture for this item.
+
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.
