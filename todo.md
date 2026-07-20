@@ -5109,17 +5109,34 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The doc states in its own header that the two scans answer DIFFERENT questions — "is it wired?" vs "does it
   fire?" — because mistaking one for the other sends the fix in the wrong direction, and closes by repeating that
   an orphan is a QUESTION, not a verdict.
-- [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
+- [x] **P15.2 — Observation → decision report (CORE; the per-mechanism data arrives with P15.3).** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with
   too few observations reports INSUFFICIENT DATA, never a weak recommendation — that is the same
   absence-of-evidence rule the cores already follow, applied to the meta-level.
+  **CORE SHIPPED 2026-07-20:** `mechanism-decision-report.ts`. P15.1 answers "does it fire?"; this answers the
+  question that actually gates a flip — **"now that it fires, is it right often enough to ENFORCE?"**
+  **THIS CORE IS MOSTLY ABOUT REFUSING TO ANSWER, and that is the design.** Every Phase-12 mechanism was shipped
+  observe-first precisely because flipping on intuition would be guessing. A report that produces a confident
+  verdict from twelve observations reintroduces exactly that guess **with a number attached — more persuasive and
+  no more true.** So there are two floors (30 observations before any verdict; 12 EVALUABLE disagreements before
+  the counterfactual) and `insufficient_data` is a first-class verdict, deliberately DISTINCT from
+  `do_not_enforce`: the first says we cannot tell, the second says we checked and the answer was no. Collapsing
+  them would let a mechanism be quietly abandoned for lack of evidence nobody ever gathered.
+  Two further verdicts earn their place: **`no_op`** — the mechanism never disagreed with current behaviour, so
+  enforcing changes NOTHING and the honest options are delete or keep observing ("do not flip it and claim a
+  win"); and **`do_not_enforce`** — it disagreed, but the path actually taken succeeded on exactly the cards it
+  objected to. **A disagreement with an UNKNOWN outcome is never counted as a failure** — an unrecorded result is
+  not evidence.
+  Statistics delegated to F12.41's `decideDefaultFlip` (McNemar exact), not reimplemented — the same
+  one-implementation-per-lever rule F12.28 violated and had to be corrected for. Even the `enforce` verdict
+  defers the real decision to a paired A/B rather than claiming its own rate suffices. 9 tests; suite green.
 - [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** Flip defaults ONLY
   where P15.2 produced a verdict. Each flip carries: the evidence, the expected behaviour delta, and a named
   rollback. Mechanisms whose evidence says "this never fired / never disagreed" get DELETED, not defaulted —
   removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the
   review correctly flagged.
-- [~] **P15.4 — Kill-list pass: remove abandoned cores.** Cores with no consumer and no path to one. The charter
+- [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
   **TRIAGE SHIPPED 2026-07-20 — the 894 orphaned symbols are now a DECISION-READY list, generated not hand-made.**
@@ -5135,9 +5152,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is LEARNING value rather than consumer count — a core that taught its lesson may be worth keeping even unwired.
   So the deliverable here is the ranked, regenerable list plus the tracked/untracked split; **the deletions are
   DAVID'S call.** Regenerate the list any time with `nklein dev mechanism-doc` rather than trusting this snapshot.
-  REMAINING (P15.4b): David walks the 79 and marks keep/delete; deletions then land in batches with the test
-  files, and each batch re-runs the scan to confirm nothing it removed was actually reachable via a re-export
-  (the scan is text-level and can miss those).
+  **SPLIT MATERIALIZED 2026-07-20 — the remainder is a DECISION, not code.**
+- [?] **P15.4b — Walk the 79 untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
+  Regenerate with `nklein dev mechanism-doc`, then decide per module. **This cannot be automated away:** the
+  charter's standard is LEARNING value, not consumer count, so "nothing calls it" is not sufficient grounds to
+  delete — only David knows which cores still carry a lesson worth keeping. Deletions land in BATCHES with their
+  test files, and **each batch re-runs the scan** to confirm nothing removed was reachable via a re-export (the
+  scan is text-level and can miss those).
 - [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
   setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
 
