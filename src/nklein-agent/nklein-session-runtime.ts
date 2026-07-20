@@ -531,10 +531,30 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// the §5.AA attempt ladder instead of replaying garbage. Activation stays telemetry-gated.
 							isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
 								? createRunawayInterruptModel(base, {
-										onInterrupt: (verdict) =>
+										onInterrupt: (verdict) => {
 											process.stderr.write(
 												`[nklein] Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}\n`,
-											),
+											);
+											// F4.8b: an ABORTED TURN was reported only to stderr — not countable, not
+											// attributable to a card, gone the moment the process exits. This mechanism kills
+											// a generation mid-flight; how often it does so is both the argument for enabling
+											// it and the first thing you would want after a card behaved oddly.
+											try {
+												recordSelfObservation({
+													signal: "custom",
+													severity: "warning",
+													message: `Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}`,
+													taskId: request.taskId,
+													metadata: {
+														category: "runaway_generation_interrupted",
+														reason: verdict.reason ?? null,
+														detail: verdict.detail ?? null,
+													},
+												});
+											} catch {
+												// Telemetry must never break an interrupt.
+											}
+										},
 									})
 								: base,
 							{

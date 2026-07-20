@@ -226,6 +226,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	// the same file. The rest stay out until each is read: **registering a guessed category would make the
 	// registry report on a mechanism that does not emit it**, which is worse than the silence it replaces.
 	{
+		// F4.8b 2026-07-20: an ABORTED TURN reported only to stderr — not countable, not attributable to a card,
+		// and gone when the process exits. This mechanism kills a generation mid-flight; how often it fires is
+		// both the argument for enabling it and the first thing wanted after a card behaved oddly.
+		category: "runaway_generation_interrupted",
+		item: "§5.AA",
+		observes: "a degenerate generation interrupted mid-flight",
+		enabledBy: "NKLEIN_RUNAWAY_ABORT",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: emitted ONLY on a bounce, so "how often would this fire if I enabled it?" — the
 		// question asked BEFORE turning it on — had no answer. Now records the decision either way.
 		category: "test_driven_gate",
