@@ -1858,9 +1858,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `auditReanchorPaths` keeps `availableButUnwired` SEPARATE from `missingFromLive` on purpose: "never built" and
   "built and never connected" are different problems with different fixes, and merging them sends someone to
   rebuild a core that already exists — the exact duplication P15.6's capability index was added to prevent.
-  **THE WORK: (1) wire F12.21's `instruction-reanchor` (acceptance criteria — a wire, the core is done);
-  (2) `constraints` is carried by NEITHER core and needs building.** `auditReanchorPaths(OBSERVED_REANCHOR_PATHS)`
-  is the executable gate; its test pins `passed: false` and will fail when the wire lands.
+  **THE WORK — and ⚠️ CORRECTING AN OVERCLAIM MADE EARLIER IN THIS SAME ENTRY: this is NOT "just a wire".**
+  Reading `task-reanchor-before-model.ts` after writing that: the adapter is **deliberately state-free** — *"Pure
+  over its inputs (no I/O, no model, no session state)"* — and derives the goal from the FIRST USER MESSAGE of the
+  request. It has no access to card state, so **acceptance criteria are not reachable at that seam at all.**
+  That leaves a genuine design choice, and it is a DAVID-BATCH question rather than an agent's to settle:
+  - **(a) Accept that acceptance criteria ride inside the goal text.** If the card prompt already states them, the
+    first-user-message echo carries them implicitly — but only up to `GOAL_REANCHOR_MAX_CHARS` (2,000), and
+    *implicitly* means unverifiable: `auditReanchorPaths` cannot distinguish "carried inside the goal" from "not
+    carried", which is exactly the string-matching weakness F4.8a refused to accept.
+  - **(b) Wire F12.21 on its own channel** (the F12.56 steer channel it was designed for), leaving the state-free
+    adapter untouched. Costs a second injection point; keeps both modules honest.
+  - **(c) Plumb card state into the adapter** — simplest to read, but it **destroys the property that makes the
+    adapter testable**, and that property is why this seam has never been a source of bugs.
+  **(2) `constraints` is carried by NEITHER core** and needs building regardless of which option wins.
+  `auditReanchorPaths(OBSERVED_REANCHOR_PATHS)` is the executable gate; its test pins `passed: false` today.
 - [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [x] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than **ACTIVATED 2026-07-15:** answer-budget-projection.ts + `dev answer-budgets` runs learnAnswerBudget over real model-perf observations (verified live). **AUDIT 2026-07-19: THE CAP WIRE IS LIVE (W2.3a)** — `resolveKnownContextWindowForTask` derates the effective window by `learnedQualityEffectiveBudget` (0.9× below the first observed degradation, ≥32k floor) and feeds ALL seven session-start/restart consumers in the service, so compaction budgets, fragment budgets, and the pre-send guard all derive from the learned knee, never the advertised window. Item complete.
