@@ -4972,7 +4972,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Plus **`unknown_enablement`**: when flag history cannot be shown, the audit says INCONCLUSIVE rather than
   accusing — claiming "never enabled" without evidence would excuse a real silence just as wrongly as blaming an
   innocent one. 10 tests; suite green.
-- [~] **P15.1c — Wire the mechanism audit to live telemetry + generate the registry doc *(split 2026-07-20)*.**
+- [x] **P15.1c — Mechanism audit on live telemetry, UNCAPPED (P15.1d carries the registry doc).**
   Read counts via `readSelfObservationEvents`, add `nklein dev mechanism-registry`, and generate
   `docs/dev/mechanism-registry.md` from BOTH scans (unwired-core + observation-count) so the two failure modes
   appear side by side. **Flag history is the hard part and must not be faked:** the honest input for
@@ -4991,9 +4991,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   be quoted as a clean bill of health. 3 regression tests pin it. **Generalisable lesson for §4A: a
   high-frequency observation category silently destroys the evidentiary value of every low-frequency one sharing
   the same capped read.**
-  REMAINING: (a) make the read category-aware (per-category tail reads, or exclude the dominant category) so the
-  window stops being saturated and zeros become meaningful again — until then this command can prove a mechanism
-  IS firing but cannot prove one is not; (b) generate `docs/dev/mechanism-registry.md` from both scans.
+  **SATURATION FIXED 2026-07-20 — `countSelfObservationsByCategory` (new, UNCAPPED).** Counting needs only the
+  tally, not the event objects, so it streams every log file and never truncates. The capped read had been seeing
+  **500 of 44,421 observations — 1.1%**. A zero from the new tally genuinely means never-recorded.
+  **AND THE FINDING SURVIVED THE FIX, so it is REAL:** `review_effort_scaling` (F12.35) has **0 observations out
+  of 44,421 across 27 categories**, is NOT behind a flag, has a live call site
+  (`second-opinion-review-runner.ts:561`), and is expected to fire on every review.
+  **Investigated, and the obvious explanation is RULED OUT:** the guard is `if (difficultyTier === null) return`,
+  and the ledger DOES carry difficulty — 151 of 226 attempt events have it, and **62 tasks have it on their LAST
+  attempt** (the one `.at(-1)` selects). So the data exists for the guard to pass. No early return on
+  `secondOpinionReviewEnabled` precedes the block either.
+  **REMAINING CANDIDATES (both checkable, neither guessed):** (a) `hashWorkspacePathForLedger(input.workspacePath)`
+  in the review runner does not match the hash the ATTEMPT writer used, so `readAgentLedger` returns events that
+  the `taskId` filter then finds nothing in — **that would be a reader/writer hash mismatch, a real bug affecting
+  every ledger consumer in this path, not just F12.35**; or (b) the second-opinion review path simply has not run
+  on this machine in the logged period. Filed as F12.35b.
+- [ ] **F12.35b — Root-cause `review_effort_scaling` recording ZERO of 44,421 observations *(filed 2026-07-20 by
+  P15.1c)*.** See the investigation above: not flag-gated, live call site, guard data present for 62 tasks, still
+  never fires. **Check the reader/writer workspace-hash agreement FIRST** — if `hashWorkspacePathForLedger` in
+  `second-opinion-review-runner` disagrees with the hash the attempt writer uses, every ledger read in that path
+  silently returns nothing, which would also quietly weaken F12.14's scaffold recommendation and F12.81's
+  exemplars (both read the ledger from the same seam). **This is exactly the class of defect the mechanism audit
+  was built to surface: no error, no orphan, tests green, and the feature simply never happens.**
+- [ ] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
+  `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
+  generated document so the two failure modes appear side by side and neither can be mistaken for the other.
 - [ ] **P15.2 — Observation → decision report.** For each mechanism in the registry, aggregate its observation
   stream into a verdict: fire rate, agreement/disagreement rate with the current behaviour, and the counterfactual
   ("had this been enforcing, N cards would have routed differently"). **Honesty requirement:** a mechanism with

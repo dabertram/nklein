@@ -234,6 +234,47 @@ function parseSelfObservationEventRecord(line: string): SelfObservationEventReco
 	};
 }
 
+/**
+ * Count observations per `metadata.category` across ALL log files — UNCAPPED by design.
+ *
+ * P15.1c live-found 2026-07-20: `readSelfObservationEvents` clamps to 500 events, and a single high-frequency
+ * category (`board_liveness_watchdog_tick`) saturated that window completely — pushing every other category out
+ * and making their counts read as zero. An audit asking "did this mechanism ever fire?" got the wrong answer for
+ * every low-frequency mechanism in the system.
+ *
+ * Counting does not need the event objects, only the tally, so this streams the files and never truncates. That
+ * is what makes a ZERO here mean "never recorded" rather than "pushed out of the window by something chattier".
+ */
+export async function countSelfObservationsByCategory(
+	options: { rootDir?: string } = {},
+): Promise<Map<string, number>> {
+	const rootDir = resolveRootDir(options.rootDir);
+	const counts = new Map<string, number>();
+	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+	const logFiles = entries
+		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+		.map((entry) => entry.name);
+	for (const file of logFiles) {
+		const raw = await readFile(join(rootDir, file), "utf8").catch(() => "");
+		for (const line of raw.split("\n")) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			try {
+				const parsed = JSON.parse(line) as { metadata?: { category?: unknown } };
+				const category = parsed.metadata?.category;
+				if (typeof category === "string") {
+					counts.set(category, (counts.get(category) ?? 0) + 1);
+				}
+			} catch {
+				// A malformed line is skipped rather than aborting the tally — a truncated write at the tail of a
+				// log must not make every count unavailable.
+			}
+		}
+	}
+	return counts;
+}
+
 export async function readSelfObservationEvents(
 	options: ReadSelfObservationEventsOptions = {},
 ): Promise<SelfObservationEventRecord[]> {

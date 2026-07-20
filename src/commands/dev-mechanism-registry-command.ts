@@ -3,7 +3,7 @@ import {
 	MECHANISM_REGISTRY,
 	type MechanismFinding,
 } from "../core/mechanism-observation-audit";
-import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
+import { countSelfObservationsByCategory } from "../telemetry/self-observation-sink";
 
 /**
  * P15.1c — `nklein dev mechanism-registry`: which shipped mechanisms are demonstrably firing?
@@ -18,8 +18,6 @@ import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
  *     is weaker evidence than a zero from an exhaustive one, so the cap is printed alongside the result instead
  *     of being quietly absorbed.
  */
-
-const READ_LIMIT = 500;
 
 function flagsOnNow(): Set<string> {
 	const on = new Set<string>();
@@ -36,28 +34,24 @@ function line(finding: MechanismFinding): string {
 }
 
 export async function runDevMechanismRegistryCommand(options: { json?: boolean }): Promise<void> {
-	const events = await readSelfObservationEvents({ limit: READ_LIMIT }).catch(() => []);
-	const countsByCategory = new Map<string, number>();
-	for (const event of events) {
-		const category = (event.metadata as { category?: unknown } | undefined)?.category;
-		if (typeof category === "string") {
-			countsByCategory.set(category, (countsByCategory.get(category) ?? 0) + 1);
-		}
-	}
+	// UNCAPPED per-category tally. The capped event read that this replaced was saturated by a single
+	// high-frequency category, which made every other mechanism's count read as zero by truncation — see the
+	// counter's docblock. Counting needs only the tally, so there is no reason to truncate it.
+	const countsByCategory = await countSelfObservationsByCategory().catch(() => new Map<string, number>());
+	const totalObservations = [...countsByCategory.values()].reduce((sum, n) => sum + n, 0);
 
 	// Only flags we can SEE are passed as known-enabled; everything else stays unknown by construction.
 	const result = auditMechanismObservations({
 		registry: MECHANISM_REGISTRY,
 		countsByCategory,
 		knownEnabledFlags: flagsOnNow(),
-		// A full read means older events were truncated — see the core's docblock for the live case where this
-		// alone produced a false ENABLED_BUT_SILENT finding.
-		windowSaturated: events.length >= READ_LIMIT,
+		// No longer saturated: the tally is exhaustive, so a zero now genuinely means "never recorded".
+		windowSaturated: false,
 	});
 
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...result, observationsRead: events.length, readLimit: READ_LIMIT }, null, 2)}\n`,
+			`${JSON.stringify({ ...result, totalObservations, categoriesSeen: countsByCategory.size }, null, 2)}\n`,
 		);
 		return;
 	}
@@ -82,7 +76,7 @@ export async function runDevMechanismRegistryCommand(options: { json?: boolean }
 		process.stdout.write("\n");
 	}
 	process.stdout.write(
-		`Read ${events.length} observation(s) (cap ${READ_LIMIT}). A zero from a capped window is weaker evidence than an exhaustive one.\n`,
+		`Tallied ${totalObservations} observation(s) across ${countsByCategory.size} category(ies) — EXHAUSTIVE, not a capped window, so a zero here means never-recorded.\n`,
 	);
 	process.stdout.write(
 		"Flag state reflects THIS process only — a mechanism whose flag is off now may have been on when the log was written, which is why those read as unknown rather than never-enabled.\n",
