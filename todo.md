@@ -76,6 +76,33 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ "ACP" NAMES THREE UNRELATED PROTOCOLS — disambiguate before importing any conclusion (P17.5, 2026-07-20).**
+> · **Agent Client Protocol** (agentclientprotocol.com, Zed + JetBrains) — the editor↔agent protocol we actually
+>   want. JSON-RPC 2.0 over **stdio**, `protocolVersion` is the bare integer `1`. This is the one P17.2 targets.
+> · **Agent Communication Protocol** (IBM Research / BeeAI) — **DEAD.** Merged into A2A under the Linux
+>   Foundation, Aug 2025; development wound down.
+> · **Agentic Commerce Protocol** (OpenAI/Stripe) — unrelated, checkout semantics.
+> **Most "ACP vs MCP vs A2A" comparison articles online are about the IBM one and are therefore OBSOLETE.** Any
+> future research on this topic must disambiguate FIRST or it will import stale conclusions and present them as
+> current. This cost real confusion once; it is recorded so it does not cost it twice.
+
+> **⚠️ A HIGH-FREQUENCY TELEMETRY CATEGORY DESTROYS THE EVIDENCE VALUE OF EVERY LOW-FREQUENCY ONE SHARING A
+> CAPPED READ (live-found 2026-07-20).** `readSelfObservationEvents` clamps to 500 events. The first live run of
+> the mechanism audit read 500 and **all 500 were a single category** (`board_liveness_watchdog_tick`), so every
+> other mechanism counted zero — by TRUNCATION, not silence — and the audit was about to report a working
+> mechanism as never-firing. **A zero from a capped window is not evidence of absence.** Fix pattern: count with
+> an UNCAPPED per-category tally (`countSelfObservationsByCategory`) rather than tallying a capped event read.
+> Generalises to any telemetry query with a tail limit.
+
+> **⚠️ SANDBOX PATH vs HOST PATH: this distinction has now bitten TWICE (2026-07-20).** (1) The repo map was
+> silently empty under isolation because it read the agent-perceived cwd; (2) retrieval ledger events were
+> written under `hashWorkspacePathForLedger(agentPerceivedCwd)` — a key **no reader ever computes** — so the
+> ledger held ZERO retrieval events across all 76 workspace hashes with no error anywhere. **Rule: a
+> control-plane KEY (ledger hash, cache key, store scope) is always HOST-scoped; only the TOOL's own filesystem
+> view is agent-perceived.** Guarded by `test/runtime/ledger-key-host-path-guard.test.ts`, because a comment
+> warning about it was already present three lines above the bug and did not prevent it.
+
+
 > **FLAKY-UNDER-LOAD (FIXED 2026-07-19): `nklein-task-session-service.test.ts` (129 timing-sensitive tests).**
 > THREE independent false-reds in one session under LOW POWER MODE (suite 17s → 84s) — "parks a running task as
 > paused…", "does not dispatch queued input…", "emits awaiting_review before asynchronous result capture
@@ -5221,7 +5248,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   on our own machines, A2A buys a serialization format and a task state machine we already have, in exchange for
   3–6 weeks and a network attack surface. **Revisit only if a user concretely needs !Klein to federate with a
   third-party enterprise agent — and then implement the CLIENT half only.**
-- [ ] **P17.5 — Naming hazard note (§4A candidate).** "ACP" denotes THREE unrelated protocols: Zed/JetBrains'
+- [x] **P17.5 — Naming hazard note — RECORDED IN §4A 2026-07-20 (with two further live-found hazards).** "ACP" denotes THREE unrelated protocols: Zed/JetBrains'
   **Agent Client Protocol** (the one we want), IBM/BeeAI's **Agent Communication Protocol** (DEAD — merged into
   A2A under the Linux Foundation, Aug 2025), and OpenAI/Stripe's **Agentic Commerce Protocol** (unrelated). Most
   "ACP vs MCP vs A2A" comparison articles online are about the IBM one and are OBSOLETE. Any future research on
@@ -5264,7 +5291,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The same paper shows **query-aware contextualization** (repeating the query both before AND after the data)
   restores near-perfect key-value retrieval. !Klein assembles prompts with the task up front; appending a
   restatement after the payload is nearly free and is one of the few interventions with a measured fix attached.
-- [~] **P18.3 — Prune distractors before compressing volume.** Chroma "Context Rot" (18 models): **even ONE
+- [x] **P18.3 — Prune distractors before compressing volume (PRUNER; P18.3b carries the wire).** Chroma "Context Rot" (18 models): **even ONE
   distractor degrades performance** vs. needle-only, non-uniformly per distractor; and LongMemEval focused
   (~300-token) prompts beat full (~113k-token) prompts by a wide margin. **Implication: compaction that shortens
   the transcript but leaves stale failed attempts in place may not help at all.** Relevance density beats token
@@ -5283,9 +5310,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   untargeted calls, and all assistant/user reasoning are never touched. The asymmetry drives it: keeping a
   distractor costs some retrieval quality; dropping a live constraint costs a wasted loop and gets blamed on the
   model. 11 tests.
-  REMAINING (P18.3b): wire it AHEAD of `planCompaction` so pruning runs before compression, and populate the
-  `target` field from real tool-call arguments (file path / query / URL) — without a target, supersession cannot
-  be proven and the pruner correctly does nothing, so the target extraction IS the wire.
+  **SPLIT MATERIALIZED 2026-07-20.**
+- [ ] **P18.3b — Wire the transcript pruner ahead of compaction *(split from P18.3 2026-07-20)*.** Run
+  `pruneTranscriptDistractors` BEFORE `planCompaction` so stale content is removed rather than summarized, and
+  **populate `target` from real tool-call arguments** (file path / query / URL). **The target extraction IS the
+  wire:** without a target supersession cannot be proven, so an unwired pruner correctly does nothing — it will
+  look installed and change nothing, which is precisely the `enabled_but_silent` shape P15.1b was built to catch.
+  Verify with `dev mechanism-registry` after wiring, not by inspection.
 - [ ] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
   commitment WITHOUT recovery. **Compacting a lost conversation preserves the wrong early commitment.** So the
   right intervention for a stuck card is RESTART WITH CLEAN RESTATEMENT, not summarize-and-continue. Reconcile
