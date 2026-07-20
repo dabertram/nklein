@@ -7841,9 +7841,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   review the SPEC, review the PLAN (before any code), review the CODE — are unenforced discipline; !Klein can
   ENFORCE them. Sizing rule: **the TIGHTER of review-capacity and model-context wins.** Feeds F12.110's
   depth-target work, which currently optimizes only the model-context side.
-- [ ] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
+- [~] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
   **on timeout you get no partial output at all.** At local-model speeds timeouts will be a dominant failure mode
   for us, so partial-result return is not a nicety. Audit !Klein's park/timeout paths for total-loss cases.
+  **AUDIT 2026-07-20 — the TWO PRIMARY model-call paths are verified NOT total-loss, with line-level evidence:**
+  · **Chat agent loop (`chat-agent-loop.ts`):** at the `maxIterations` cap the loop does NOT throw or return
+    empty — it falls through (line ~272) to *"force one final (streamed) answer turn with tools disabled so it
+    must conclude"* and returns `finalText` with `hitIterationLimit: true`. Every early exit also returns the text
+    it has. **Confirmed: the model always returns whatever it produced, even when cut off.**
+  · **Sandbox/task path (`nklein-sandbox-review-finalizer.ts`):** captured work is salvaged, not lost — the
+    interrupted-salvage and prior-work-rebound paths rebind captured work INTO review (*"captured work is never
+    stranded unjudged"*, `interrupted_salvage_rebound`). A timed-out attempt that produced a result branch routes
+    to a human/reviewer rather than vanishing.
+  **REMAINING (P21.7b): the SECONDARY paths not yet traced** — the mid-turn `timeoutController` fire (does the
+  in-flight partial stream survive the abort into the terminal summary?), and the explorer/sub-agent query
+  timeout (`NKLEIN_EXPLORER_SUBAGENT`). These are narrower and were NOT verified here; claiming the whole audit
+  done on two paths would be the false-completeness this project keeps flagging. The two that dominate the
+  traffic are proven; the tail needs its own trace.
 - [ ] **P21.8 — Starve the orchestrator of tools + summary-only subagent returns.** Roo Code and Kilo Code
   converged INDEPENDENTLY on this: subtasks run "in complete isolation with its own conversation history", do NOT
   inherit parent context, and return a **single `attempt_completion` summary that becomes the source of truth**;
