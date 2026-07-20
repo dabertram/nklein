@@ -6197,7 +6197,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   nothing now and refuses the metric the day someone reaches for it, which per P20.5 is precisely the day it
   would flatter a change. **Verified by planting `pass@k` in an unrelated core: the test named that file and
   failed; removing it went green again.**
-- [ ] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
+- [x] **P20.6 — Pre-register the minimum detectable effect and report "UNRESOLVED" when we do not clear it.**
   Miller (arXiv 2411.00640): detecting 3 pp at 80% power needs **n ≈ 969**; clustered SEs run up to **3× larger**
   than naive; **paired** question-level differences are roughly a 5× sample-size saving and are free. On an
   89–225-task suite the honest MDE is **~10–18 pp**, and on a 100-task suite even infinite repeats floor the MDE
@@ -6226,6 +6226,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   MDE, so it calls studies underpowered slightly too often — costing extra tasks — where the opposite error would
   bless an underpowered study as adequate, which is the exact failure this core exists to prevent. Treat the
   output as an UPPER BOUND, and see the pinning test before "fixing" it.
+  Consumer status, stated plainly: the core has no caller yet. It belongs at the point a fleet A/B is DESIGNED,
+  and no such surface exists — the sweeps are run by hand. That makes it `built_but_unwired`; it is queued for the
+  P15.7b tracked-requirement map so `dev requirement-coverage` reports it rather than leaving it to be rediscovered.
 - [ ] **P20.7 — Control infrastructure noise (we are MORE exposed than a cloud lab, not less).** Anthropic
   measured a **6 pp score gap (p<0.01)** between most- and least-resourced container configs with model, harness
   and tasks held constant, and infra error rates of 5.8% / 2.1% / 0.5% across enforcement levels. **Their
