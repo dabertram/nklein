@@ -5244,7 +5244,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   deciding whether a pattern is absent or merely unreported.
   `renderReviewPayload` returns the EXACT bytes per field as DATA, not rendered text, so a caller cannot show a
   prettified version that differs from what is sent (P16.3's requirement, enforced at the boundary). 10 tests.
-- [~] **P16.2 — GROUNDED generation with per-claim provenance (the keystone; do not ship P16 without it).** Every
+- [x] **P16.2 — GROUNDED generation: the CORE (P16.2b carries the generation wire).** Every
   claim in a generated report carries a pointer to the source events that support it, and **any claim that cannot
   be grounded in recorded events is DROPPED, not softened.** An LLM-written bug report that hallucinates is worse
   than no report at all: it wastes the maintainer's time and poisons the evidence base that Phase 15 depends on.
@@ -5266,18 +5266,38 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   finding, not merely a filter statistic.
   `renderClaimWithProvenance` shows evidence **ids + kinds, never prose provenance**, since prose could itself be
   fabricated. 10 tests.
-  REMAINING (P16.2b): the generation wire — feed real observation ids to the local model, parse its cited ids
-  back, and run the adversarial acceptance this item specifies (a deliberately-hallucinating fixture whose claims
-  must be REMOVED and the removal counted). The core is ready; the fixture and the model call are the wire.
+  **SPLIT MATERIALIZED 2026-07-20.**
+- [ ] **P16.2b — Wire grounded generation + the ADVERSARIAL acceptance *(split from P16.2 2026-07-20)*.** Feed
+  real observation ids to the local model, parse its cited ids back, and run the acceptance this item specifies:
+  **a deliberately-hallucinating fixture whose claims must be REMOVED and the removal COUNTED.** That fixture is
+  not optional colour — a grounding filter that has never been shown to reject anything is an assumption, the
+  same reason every guard written today was verified by reintroducing its bug.
 - [ ] **P16.3 — Byte-exact review surface.** The user reviews the EXACT bytes that would leave the machine — not a
   summary of them, not a description. Per-section and per-claim toggles; a running "what this reveals" indicator.
   **Rationale:** the MCP tool-poisoning literature's approval-view lesson (arXiv 2607.05744 — Unicode TAG-block
   payloads invisible in an approval UI but present in model context) applies directly: what the user approves must
   be byte-identical to what is sent, with no rendering layer that can hide content.
-- [ ] **P16.4 — Redaction engine + adversarial self-test.** Path/identifier/secret scrubbing with stable
+- [x] **P16.4 — Redaction engine + adversarial self-test.** Path/identifier/secret scrubbing with stable
   placeholders. **Acceptance is adversarial:** a test corpus seeds project names, absolute paths, API-key-shaped
   strings, author names and private URLs into ledger fixtures, and the emitted Layer-A/B report must contain NONE
   of them. Redaction that is only unit-tested on its own happy path is not redaction.
+  **SHIPPED 2026-07-20: `field-report-redaction.ts` — and the adversarial acceptance EARNED ITS KEEP IMMEDIATELY
+  by finding a real bug.** `abs_path` and `home_path` deliberately share the label `PATH` (the distinction is
+  noise to a reader), but the counter was keyed by KIND — so a home path and an absolute path **both became
+  `<PATH_1>`**. Two DIFFERENT files would have read as the same one, and a report would have described a
+  repetition that never happened — a fabricated pattern produced by the privacy layer itself. Fixed by keying the
+  counter on LABEL; pinned by its own regression test.
+  **STABLE PLACEHOLDERS, NOT DELETION.** Deletion destroys the very pattern the report exists to convey: "the
+  agent re-read the same file 3×" is only legible if that file is consistently `<PATH_1>`. Verified — three
+  references collapse to one placeholder appearing three times, and the surrounding prose still reads as a report.
+  **NOT `redactArgsSummary`** (outward-action-queue), which SUMMARIZES tool args for display. Different job,
+  different failure cost: an over-truncating summarizer is annoying, a missing redactor is a disclosure. Named in
+  both docblocks so they are never merged.
+  **HONEST ABOUT ITS LIMITS:** with no matches it says *"NOT proof the text is clean — pass project/author/machine
+  names as customTerms, since no pattern can infer them"*, and it refuses a <3-char custom term rather than
+  shredding the text. Acceptance seeds project name, author name, home/linux/deep paths, an internal URL, an
+  email, an `sk-` key, a `ghp_` token and a JWT into realistic prose and asserts **none survive** — including
+  partial fragments (`sk-proj`, `ghp_`, `eyJhbGci`). 10 tests.
 - [ ] **P16.5 — The intervention signal (highest-value content).** The single most informative event is not a
   crash — it is a card where the USER stepped in: overrode a routing decision, re-ran, rejected a review, or
   hand-edited the result. Those are precisely the harness's blind spots, and precisely the charter §5
