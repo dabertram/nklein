@@ -11,7 +11,12 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { auditEnvGatedDelivery, type DeliverableConsumers, findEnvGuardFlags } from "../core/env-gated-delivery";
+import {
+	auditEnvGatedDelivery,
+	type DeliverableConsumers,
+	findEnvGuardFlags,
+	NON_MECHANISM_FLAGS,
+} from "../core/env-gated-delivery";
 import { MECHANISM_REGISTRY } from "../core/mechanism-observation-audit";
 import { TRACKED_REQUIREMENTS } from "../core/tracked-requirements";
 
@@ -65,7 +70,11 @@ export async function runDevEnvGatedCommand(options: { json?: boolean }): Promis
 	// Every flag in the codebase, not just those reachable from a tracked requirement — the registry's blind spot
 	// is wider than the requirement map.
 	const allFlags = [...new Set(files.flatMap((file) => findEnvGuardFlags(file.text)))].sort();
-	const unregisteredEverywhere = allFlags.filter((flag) => !registeredFlags.includes(flag));
+	// Exempt dev/eval instruments from the denominator: counting a debug tracer as an un-instrumented mechanism
+	// inflates the gap, and a number that overstates the problem gets ignored exactly like one that understates it.
+	const exempt = allFlags.filter((flag) => flag in NON_MECHANISM_FLAGS);
+	const mechanismFlags = allFlags.filter((flag) => !(flag in NON_MECHANISM_FLAGS));
+	const unregisteredEverywhere = mechanismFlags.filter((flag) => !registeredFlags.includes(flag));
 
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify(audit, null, 2)}\n`);
@@ -82,7 +91,8 @@ export async function runDevEnvGatedCommand(options: { json?: boolean }): Promis
 	}
 	process.stdout.write(`\n${audit.summary}\n`);
 	process.stdout.write(
-		`\nREGISTRY COVERAGE: ${registeredFlags.length} of ${allFlags.length} default-OFF flag(s) are in MECHANISM_REGISTRY.\n` +
+		`\nREGISTRY COVERAGE: ${registeredFlags.length} of ${mechanismFlags.length} product mechanism flag(s) are in MECHANISM_REGISTRY` +
+			`${exempt.length > 0 ? ` (${exempt.length} dev/eval flag(s) EXEMPT: ${exempt.join(", ")})` : ""}.\n` +
 			`${unregisteredEverywhere.length} are NOT, so nothing can report whether they are on or what they should be firing:\n` +
 			`  ${unregisteredEverywhere.join(", ")}\n` +
 			"A hand-maintained registry cannot report on what nobody added — that is exactly how F4.8's goal\n" +

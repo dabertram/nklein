@@ -68,6 +68,22 @@ export interface EnvGateAudit {
 	readonly summary: string;
 }
 
+/**
+ * Flags that are NOT product mechanisms, with the reason each is exempt.
+ *
+ * ⚠️ **AN HONEST DENOMINATOR MATTERS AS MUCH AS AN HONEST NUMERATOR.** Counting a debug tracer as an
+ * un-instrumented mechanism inflates the gap and makes the report look worse than the truth — which is the same
+ * class of error as a flattering count, just pointed the other way. Both make the number ignorable.
+ *
+ * The bar for exemption is narrow: the flag must gate a DEV or EVAL instrument whose own output IS the
+ * observation. A production behaviour never qualifies, however small.
+ */
+export const NON_MECHANISM_FLAGS: Readonly<Record<string, string>> = {
+	NKLEIN_DEBUG_STREAM_EVENTS: "debug tracer — prints SDK stream events with timings; the printout is the observation",
+	NKLEIN_EVAL_RAIL: "eval harness — runs throwaway dev-test evals whose results are the artifact",
+	NKLEIN_EVAL_DISTRACTOR_PROBE: "eval harness — produces the degradation data `dev distractor-sensitivity` reads",
+};
+
 /** Matches the project's default-OFF idiom. A flag read any other way is invisible here — stated, not hidden. */
 const ENV_GUARD_PATTERN = /isTruthyEnv\(\s*process\.env\.([A-Z0-9_]+)\s*\)/g;
 
