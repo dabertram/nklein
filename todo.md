@@ -5793,6 +5793,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   still recorded: the trail describes what happened to the board, not what someone meant to happen.
   Telemetry failures are swallowed — letting an observation error abort a persist would trade a missing log line
   for a LOST BOARD MUTATION, which is the wrong way round.
+  **TOOL CALLS NOW INTERLEAVED 2026-07-20.** An `attempt` ledger record carries its tool calls in a nested array;
+  left there they were effectively **invisible** — a reader scanning the timeline saw `attempt: success` and had
+  to open a blob to learn what the agent actually DID. The trail now emits one `tool_call` event per call:
+  ```
+  10:02:25.629  [ledger] tool_call: read_files → success (src/core/types.ts)
+  10:02:25.629  [ledger] tool_call: write_files → success
+  10:02:25.629  [ledger] tool_call: run_commands → success
+  ```
+  **"Which tool ran just before this went wrong" is among the commonest questions a stalled card raises**, and it
+  was previously answerable only by reading JSON. This is the difference between a trail that RECORDS tool use and
+  one that SHOWS it.
+  They share the attempt's timestamp (the ledger does not stamp each call), so a fractional offset preserves their
+  ORDER within the attempt **without inventing precision the record does not have** — the same discipline the
+  timestamp-less runtime log gets.
 - [~] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
   *"one very annoying thing with claude and also with copilot is, that while reading the chat log it happens
   regularly that the text 'jumps' when thinking blocks collapse after they finish or other activity is happening

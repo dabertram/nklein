@@ -85,12 +85,35 @@ async function readLedger(home: string, cardId: string): Promise<[TrailEvent[], 
 				// sorted to the front — found by running this against a real card, where 61 events rendered with
 				// "(no timestamp)". An unclocked event in a CHRONOLOGICAL tool is not a cosmetic defect: it puts
 				// the events in the wrong order, which is the one thing the tool is for.
+				const at = Number(record.recordedAt ?? record.at ?? record.createdAt ?? 0);
 				events.push({
-					at: Number(record.recordedAt ?? record.at ?? record.createdAt ?? 0),
+					at,
 					source: "ledger",
 					kind: String(record.event ?? record.kind ?? "ledger"),
 					detail: String(record.outcome ?? record.reason ?? record.strategy ?? record.kind ?? ""),
 					metadata: record,
+				});
+
+				// An `attempt` record carries its TOOL CALLS in an array. Left inside metadata they are effectively
+				// invisible: a reader scanning a timeline sees "attempt: success" and has to open a nested blob to
+				// learn what the agent actually DID. Interleaving them is the difference between a trail that records
+				// tool use and one that shows it — and "which tool ran just before this went wrong" is among the
+				// commonest questions a stalled card raises.
+				//
+				// They share the attempt's timestamp (the ledger does not stamp each call), so a fractional offset
+				// preserves their ORDER within the attempt without inventing precision the record does not have.
+				const toolCalls = Array.isArray(record.toolCalls) ? record.toolCalls : [];
+				toolCalls.forEach((call, index) => {
+					const toolCall = call as { name?: string; outcome?: string; filePaths?: string[] };
+					events.push({
+						at: at + (index + 1) / 1000,
+						source: "ledger",
+						kind: "tool_call",
+						detail: `${toolCall.name ?? "<unnamed>"} → ${toolCall.outcome ?? "<no outcome>"}${
+							toolCall.filePaths?.length ? ` (${toolCall.filePaths.slice(0, 3).join(", ")})` : ""
+						}`,
+						metadata: toolCall as Record<string, unknown>,
+					});
 				});
 			} catch {
 				// skip
