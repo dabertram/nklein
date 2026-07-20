@@ -45,6 +45,7 @@ import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
+import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
@@ -922,6 +923,19 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { search?: string; out?: string; json?: boolean }) => {
 			await runDevCapabilityIndexCommand(options);
 		});
+
+	dev.command("nightly")
+		.description("N1b: drain every registered nightly project x model cell SEQUENTIALLY with isolated HOMEs.")
+		.option("--project <id>", "Only this project.")
+		.option("--model <profile>", "Only this model profile.")
+		.option("--manifest <path>", "Manifest path (default nightly-manifest.json).")
+		.option("--dry-run", "List the cells that would run, with their ports.")
+		.option("--json", "Machine-readable verdicts.")
+		.action(
+			async (options: { project?: string; model?: string; manifest?: string; dryRun?: boolean; json?: boolean }) => {
+				await runDevNightlyCommand(options);
+			},
+		);
 
 	dev.command("mechanism-doc")
 		.description("P15.1d: generate docs/dev/mechanism-registry.md from BOTH scans (unwired + silent).")

@@ -4819,7 +4819,7 @@ aimock-based e2e layer that drains real dev-test-projects through the REAL runti
 and every potentially-flaky internal information source mocked properly and extensively. Hours-long runs are
 acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGTH of coverage is the priority.
 
-- [~] **N1 — Nightly runner + registration convention (the "nightly tests" entry point).** One command
+- [x] **N1 — Nightly MANIFEST + verdict core (N1b carries the runner).** One command
   (`npm run test:nightly` + `nklein dev nightly [--project <id>] [--model <profile>] [--json]`) that discovers and
   drains every REGISTERED nightly project×model cell sequentially-by-default (gotcha: parallel batches false-timeout
   the largest projects — memory `aimock-devtest-projects-validated`), per-run ports + isolated HOMEs
@@ -4845,6 +4845,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (`NKLEIN_AGENT_LEDGER_ROOT` + fresh `.nklein`), and the `npm run test:nightly` / `dev nightly` entry points.
   `scripts/verify-all-simulated-flows.sh` is the proto-runner to grow from — it already encodes the sequential
   lesson and the isolated-HOME pattern.
+- [~] **N1b — The nightly RUNNER *(split from N1 2026-07-20)*.**
+  **SHIPPED + DRY-RUN VERIFIED 2026-07-20: `nklein dev nightly [--project] [--model] [--manifest] [--dry-run]
+  [--json]`** plus a seed `nightly-manifest.json` (3 projects → 5 cells).
+  Manifest-driven successor to `scripts/verify-all-simulated-flows.sh`, carrying over its three hard-won
+  properties DELIBERATELY: **sequential by default** (parallel drains starve each other's in-scenario `npm test`
+  and FALSE-TIMEOUT — live-hit 2026-07-11; a nightly suite that reports flaky failures trains people to ignore
+  it), **per-run ports** (the fixed default port is a stale-server trap: a lingering runtime from the previous
+  cell is "already running"-reused and reads as unreachable), and **isolated HOME per cell** (fresh `.nklein` +
+  `NKLEIN_AGENT_LEDGER_ROOT`, so one cell's ledger cannot make the next cell's failure look like its own problem).
+  Verified live via `--dry-run`: 5 cells enumerated in manifest order on ports 4500/4502/4504/4506/4508, filtering
+  works, and a MISSING manifest prints the registration contract rather than a stack trace.
+  A failed cell KEEPS its isolated HOME and names the path, so the drain log survives for inspection.
+  REMAINING: `npm run test:nightly` alias, and the per-cell `NKLEIN_NIGHTLY_MODEL_PROFILE` /
+  `NKLEIN_NIGHTLY_RECORDING_SET` env vars need consuming inside `verify-simulated-flow.mts` — today they are
+  passed and ignored, so a model-profile cell drains the DEFAULT profile. **That gap is invisible from the
+  outside** (every cell passes, apparently covering N model profiles) and is exactly the `enabled_but_silent`
+  shape — do not mark N1b done until a profile mismatch can be shown to FAIL.
 - [ ] **N2 — Smallest-10 dev-test-projects fully covered (the first tranche).** Pick the 10 smallest of the 20
   dev-test scenario projects (by fixture size/steps at build time), and for each: record/curate the aimock set that
   drains it end-to-end (0 unmatched requests — the F11.4c invariant), covering EVERY !Klein codepath the project can
