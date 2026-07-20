@@ -133,6 +133,34 @@ describe("useScrollAnchor", () => {
 		expect(scrollTop).toBe(1040);
 	});
 
+	it("does not RE-APPLY a correction when the observer fires again for the same shift", () => {
+		// U1c found that the anchor is refreshed only by a `scroll` event, and that a programmatic `scrollTop`
+		// write does not reliably dispatch one — leaving a stale offset that the next callback corrects against a
+		// second time. Re-measuring after each correction is what makes a repeat callback a no-op; without it this
+		// doubles to 1080 and, on a large collapse, drives the reader to the top of the chat.
+		const container = mount(false);
+		simulateLayout(container, { containerTop: 100, childTops: [50, 400, 800], childHeights: [300, 380, 200] });
+		container.dispatchEvent(new Event("scroll"));
+		let scrollTop = 1000;
+		Object.defineProperty(container, "scrollTop", {
+			get: () => scrollTop,
+			set: (value: number) => {
+				scrollTop = value;
+			},
+			configurable: true,
+		});
+		simulateLayout(container, { containerTop: 100, childTops: [90, 440, 840], childHeights: [300, 380, 200] });
+		for (const callback of resizeCallbacks) {
+			callback([], {} as ResizeObserver);
+		}
+		expect(scrollTop).toBe(1040);
+		// Same layout, observer fires again — nothing further moved, so nothing further may be corrected.
+		for (const callback of resizeCallbacks) {
+			callback([], {} as ResizeObserver);
+		}
+		expect(scrollTop).toBe(1040);
+	});
+
 	it("mounts and unmounts without throwing when observers are unavailable", () => {
 		// Older environments and SSR have no ResizeObserver; the hook must degrade rather than crash a panel.
 		const original = globalThis.ResizeObserver;

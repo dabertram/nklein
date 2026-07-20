@@ -359,6 +359,24 @@ source repo went private — so if it vanishes the buildable source still lives 
   - State the coverage boundary in the tool's own output. A checker that cannot see half the codebase must say
     so, or its negative answers carry false authority.
 
+- **A UI harness needs a CONTROL, and the control must be shown to FAIL.** U1c verified the scroll-anchor hook in
+  a real browser. The first watched element was one of the collapsing blocks — whose own top cannot move — so the
+  control reported a reassuring **0px of movement with anchoring switched OFF**, and would have certified a
+  broken hook as working. A harness that cannot make the bug appear cannot detect its absence. Run the control
+  first, confirm it is red, and only then trust the green. This is the browser-level twin of the audit rule
+  above: **the first run that passes cleanly is evidence about the harness, not about the code.**
+- **A programmatic `scrollTop` write does not reliably dispatch a `scroll` event** (measured in-browser 2026-07-20:
+  zero fired). Anything that refreshes state on scroll — anchor selection, virtualisation windows, read receipts,
+  lazy loading — silently keeps stale state after code moves the viewport. Refresh on the write itself; do not
+  wait for the event. `scrollTop` also CLAMPS at 0 and at the maximum, so **re-read the achieved position rather
+  than assuming the write landed.**
+- ⚠️ **INSTRUMENT THE MECHANISM BEFORE BELIEVING THE STORY — a plausible diagnosis is the expensive kind of wrong.**
+  U1c's first symptom (`scrollTop` driven to 0) had a compelling explanation: several children resize, several
+  observer callbacks queue, each re-applies a correction against a stale offset. It was wrong. Wrapping the
+  `scrollTop` setter showed **exactly one write**, which killed the theory in one run and pointed at the real
+  cause (the anchor was never re-selected, because no scroll event fired). The fix written for the wrong reason
+  happened to be sound — **which is precisely the trap**: it would have shipped with a confident, false comment
+  explaining it, and the next reader would have inherited the wrong model. Cheap instrumentation beats a good story.
 - **New root CLI launch flags MUST also be added to `shouldAutoOpenBrowserTabForInvocation` (`src/cli-invocation-parsing.ts`).**
   That classifier doubles as "is this a server launch": an argv token it doesn't recognize makes `run()` (cli.ts) treat the
   invocation as a subcommand and `process.exit` right after the command resolves — the server boots, prints "running at …",
@@ -5844,7 +5862,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   persisted boards cannot be forgotten by a caller. The honest cost: it sees the RESULT, not the reason, so two
   moves between one persist collapse into one event and it cannot say who moved the card. **Complete-but-coarse
   beats detailed-but-holed** for a trail whose whole value is that a gap means something.
-- [~] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
+- [x] **U1 — THE CHAT MUST NEVER JUMP WHILE THE USER IS READING *(David 2026-07-20)*.**
   *"one very annoying thing with claude and also with copilot is, that while reading the chat log it happens
   regularly that the text 'jumps' when thinking blocks collapse after they finish or other activity is happening
   … !Klein MUST be better at this … the user must never get distracted by 'lines moving' while user is reading."*
@@ -5923,6 +5941,31 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   NEXT for U1c: drive a card to a state with scrollable history first (a drained dev-test cell leaves one), then
   detach from the bottom and assert a visible element's document offset across a collapse. That is a browser-level
   test with a setup cost, not a quick check.
+  **✅ U1c DONE 2026-07-20 — VERIFIED IN A REAL BROWSER, WITH A CONTROL. U1 IS COMPLETE.**
+  `web-ui/dev-harness/scroll-anchor.html` mounts the SHIPPING hook (not a copy — a reimplementation would be the
+  tautology U1b already tripped over once) under real layout, real reflow and a real ResizeObserver. Excluded
+  from the production build; verified absent from `dist/`.
+  **PAIRED RESULT, identical procedure, same 13,888px collapse above the fold:**
+  | mode | content shrank | watched text moved | scrollTop |
+  |---|---|---|---|
+  | `?anchor=off` (control) | 13,888px | **−13,888px** | 15,000 → 15,000 |
+  | `?anchor=on` (real hook) | 13,888px | **0px** | 15,000 → 1,112 |
+  **THE CONTROL IS THE POINT, not a formality.** Without it "the text did not move" is unfalsifiable — a harness
+  that cannot make the bug appear cannot claim to have detected its absence. The first watcher chosen was one of
+  the COLLAPSING blocks, whose own top cannot move; it reported a reassuring 0px in the control and would have
+  certified a broken hook as working.
+  🐛 **A REAL HAZARD FOUND HERE, AND A WRONG DIAGNOSIS CORRECTED BEFORE IT WAS BELIEVED.** The first run showed
+  the hook driving `scrollTop` from 15,000 to **0** — throwing the reader to the very top, far worse than the
+  jump it prevents. I diagnosed compounding ResizeObserver callbacks, wrote the fix, and **instrumented the
+  setter rather than trusting the story: there was exactly ONE write, so the diagnosis was wrong.** The true
+  cause is that **a programmatic `scrollTop` write does not reliably dispatch a `scroll` event** — measured, zero
+  fired — so the anchor stayed on the element chosen at MOUNT and drift was computed against a stale offset.
+  That path reached the hook through the harness, not the chat, so it is recorded as a **hazard, not an observed
+  product bug**: the chat's own programmatic scrolls happen while pinned, where the hook is inert. But "the only
+  caller happens to be safe" is not a property worth resting on, and `scrollTop` also CLAMPS at 0 and at the
+  maximum, so a correction near either end lands partially on the normal path too. The hook now re-measures the
+  ACHIEVED position after each correction. Pinned by a unit test that drives the observer twice — **verified to
+  fail without the fix (1080 vs 1040), i.e. it doubles the correction.**
 ### Phase 14 — Cloud-model mixes (VISION ONLY — HARD-GATED: nothing here starts until David's explicit go)
 
 **Gate (read this first).** This phase is a deliberate, David-gated exception to the local-only prime directive.

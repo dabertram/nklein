@@ -80,6 +80,22 @@ export function useScrollAnchor({ containerRef, pinnedToBottom, itemSelector }: 
 			const drift = currentOffset - anchorViewportOffset;
 			if (Math.abs(drift) >= MIN_CORRECTION_PX) {
 				container.scrollTop += drift;
+				// RE-MEASURE THE ACHIEVED POSITION rather than assuming the correction landed.
+				//
+				// The anchor is otherwise refreshed only by a `scroll` event — and **a programmatic `scrollTop`
+				// write does not reliably dispatch one.** Measured in a real browser (U1c): after setting
+				// `scrollTop` directly, zero scroll events fired, the anchor stayed on the element chosen at mount,
+				// and the next collapse computed drift against that stale offset and drove `scrollTop` to 0 —
+				// throwing the reader to the very top, far worse than the jump this hook exists to prevent.
+				//
+				// That scenario reached the hook through a test harness, not through the chat, so it is a HAZARD
+				// rather than an observed product bug: the chat panel's own programmatic scrolls happen while
+				// pinned, where this hook is inert, and un-pinning re-runs the effect and re-selects. But "the only
+				// caller happens to be safe" is not a property worth relying on, and `scrollTop` also CLAMPS at 0
+				// and at the maximum, so a correction near either end lands partially even on the normal path.
+				// Re-reading makes the next callback a no-op when the correction worked, and correct for what
+				// actually happened when it did not.
+				anchorViewportOffset = anchorElement.getBoundingClientRect().top - container.getBoundingClientRect().top;
 			}
 		};
 
