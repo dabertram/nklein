@@ -67,6 +67,9 @@ The pre-commit hook covers backend `tsc` only. Web UI and desktop type errors sl
 ```sh
 npx tsx src/cli.ts dev requirement-coverage   # do requirements reach production?
 npx tsx src/cli.ts dev unwired-cores          # shipped-but-never-wired
+npx tsx src/cli.ts dev env-gated              # deliverables that may not RUN by default
+npx tsx src/cli.ts dev mechanism-registry     # do shipped mechanisms actually fire?
+npx tsx src/cli.ts dev tracking-coverage      # what does !Klein record about a card?
 ```
 
 A **FAIL from `requirement-coverage` is compatible with a fully green test suite** — that is the point of
@@ -76,6 +79,23 @@ Note the known limits rather than reading a clean run as proof: orphan-ness is t
 modules keeps itself alive** (reference counting cannot detect cycles), and the element→provider map is
 hand-maintained, so an unmapped element reports `no_provider_recorded` — absence of evidence, not evidence of
 absence.
+
+**The three added 2026-07-20 each answer a question the first two structurally cannot, and each states its own
+blind spot in its output:**
+
+- **`env-gated`** — `requirement-coverage` proves a module is *imported*; F4.8 proved that is the weaker claim. A
+  complete import chain to the session runtime meant nothing because the injection site was behind a default-OFF
+  flag, and every audit still read "satisfied." This finds deliverables whose consumers are all env-gated. It
+  reports **suspicion, never a verdict** — it matches the `isTruthyEnv(process.env.X)` idiom and cannot prove a
+  guard *wraps* a call, so a clean result means "nothing found," not "every path runs."
+- **`mechanism-registry`** — distinguishes a mechanism that was *never enabled* (zero is correct) from one that
+  was *enabled and silent* (the real smell). It cannot report on a mechanism nobody added to the registry —
+  which is precisely how the goal re-anchor stayed invisible — so pair it with `env-gated`, whose registry-coverage
+  line names the flags the registry has never heard of. `too_new_to_judge` means a mechanism's emission site
+  postdates the telemetry; never read it as a pass.
+- **`tracking-coverage`** — verifies every claimed card-lifecycle emitter against a real symbol in the source, so
+  a renamed emitter turns the table red rather than letting it keep promising coverage. A `partial` entry names
+  its own remaining gap; read those, don't just count the greens.
 
 ## 6. Release integrity
 

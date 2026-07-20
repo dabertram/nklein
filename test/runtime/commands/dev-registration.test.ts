@@ -51,6 +51,7 @@ describe("dev command registration", () => {
 		const names = new Set(devSubcommands().map((command) => command.name()));
 		for (const expected of [
 			"tracking-coverage",
+			"mechanism-registry",
 			"env-gated",
 			"interventions",
 			"spec-review",
