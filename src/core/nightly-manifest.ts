@@ -81,6 +81,12 @@ export interface CellVerdict {
 	readonly durationMs?: number;
 	/** Unmatched aimock requests — the F11.4c invariant is that this is ZERO. */
 	readonly unmatchedRequests?: number;
+	/**
+	 * N7b: the drain's emitted `finalCounts` as raw JSON, or absent when the drain did not emit it (an older
+	 * script, or a run that died first). Absent must stay absent — N5 turns "no cards observed" into
+	 * `indeterminate`, and defaulting it to an empty board would report a clean drain that never happened.
+	 */
+	readonly terminalLanesJson?: string | null;
 }
 
 export interface NightlySummary {

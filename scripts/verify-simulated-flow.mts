@@ -558,6 +558,17 @@ async function main(): Promise<void> {
 				throw new Error(`perfect-run left cards undrained (${counts})`);
 			}
 		}
+		// N7b: emit the terminal board lanes in a machine-readable form so the nightly runner can hand them to N5's
+		// invariant packs. The counts already existed here and were only ever asserted inline — every consumer
+		// downstream (packs, collector, failure report) sat idle for want of this one line.
+		//
+		// Counts, not per-card ids: the board summary carries how many cards ended in each lane, not which. The
+		// runner synthesizes placeholder ids and SAYS it does, rather than pretending to per-card knowledge this
+		// script does not have.
+		const finalCounts = /"finalCounts":\s*({[^}]*})/.exec(seedOut)?.[1] ?? null;
+		if (finalCounts) {
+			console.log(`NIGHTLY_TERMINAL_LANES=${finalCounts}`);
+		}
 		console.log("PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.");
 	} finally {
 		await writeFile(join(home, "runtime.log"), runtimeLogs.join("")).catch(() => undefined);

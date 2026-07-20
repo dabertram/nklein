@@ -5213,9 +5213,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   something truthful to subscribe to. **That single change is what converts today's `indeterminate`s into real
   assertions** — the packs, the collector, the judging and the reporting are all built and waiting on it.
 
-- [ ] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.** Have
-  `verify-simulated-flow.mts` emit terminal board lanes per card and the gate/guard signals it already fires, in a
-  machine-readable form, and have the runner register real subscriptions for them.
+- [~] **N7b — Make the drain EMIT what the packs need *(split from N7 2026-07-20)*.**
+  **TERMINAL LANES DONE 2026-07-20 — the keystone half.** `verify-simulated-flow.mts` now emits
+  `NIGHTLY_TERMINAL_LANES=<finalCounts>`, the runner parses it, and N5's packs judge real board state. **The
+  counts already existed in that script and were only ever asserted inline** — five built components sat idle for
+  want of one `console.log`.
+  Proven across all three paths: a clean drain (3 completed) → **satisfied**; a card stuck in review →
+  **VIOLATED, naming `review#1→review`**; no emission at all → **INDETERMINATE**, never a pass.
+  🐛 **Caught before it shipped: the pack said `expectedTerminalLanes: ["done"]` while the board's lane is
+  `completed`.** That would have failed every cell spuriously. **A pack whose vocabulary does not match the
+  board's is worse than no pack** — it produces confident wrong verdicts instead of silence, and the fix would
+  have looked like "the nightly is broken" rather than "the pack is wrong".
+  Card IDs are SYNTHESIZED (`completed#1`) because the board reports counts per lane, not ids — stated in the
+  code rather than disguised, since inventing plausible real ids would imply knowledge the runner lacks.
+  REMAINING: (a) the emission itself is **not yet verified end-to-end** — the parse and judging paths are proven
+  against realistic input, but no full drain has run since the `console.log` was added, so the regex-vs-actual
+  match is inferred rather than observed; (b) gate/guard SIGNALS are still unemitted, so `mustFire`/`mustStayQuiet`
+  stay empty and every signal-level assertion remains `indeterminate`.
   **THIS IS THE KEYSTONE: everything downstream is built and idle without it.** N5's packs, N5b's collector, the
   pack registry and the failure report all exist and are wired — and every assertion beyond "the drain exited 0,
   matched its recordings, and left no orphans" currently reports `indeterminate`, because nothing observes it.

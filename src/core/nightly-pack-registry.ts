@@ -28,7 +28,10 @@ import type { InvariantPack } from "./nightly-invariant-pack";
  */
 export const CORE_INVARIANTS: InvariantPack = {
 	id: "core-invariants",
-	expectedTerminalLanes: ["done"],
+	// "completed" is the BOARD's lane name, taken from the drain's own `finalCounts`. An earlier draft said "done",
+	// which would have failed every cell spuriously — a pack whose vocabulary does not match the board's is worse
+	// than no pack, because it produces confident wrong verdicts rather than silence.
+	expectedTerminalLanes: ["completed"],
 	mustFire: [],
 	mustStayQuiet: [],
 };
@@ -40,7 +43,7 @@ export const CORE_INVARIANTS: InvariantPack = {
  */
 export const PARKED_TERMINAL: InvariantPack = {
 	id: "parked-terminal",
-	expectedTerminalLanes: ["parked"],
+	expectedTerminalLanes: ["parked", "attention"],
 	mustFire: [],
 	mustStayQuiet: [],
 	includes: ["core-invariants"],

@@ -73,6 +73,33 @@ const NIGHTLY_FIXED_SEED = "7";
 const LAST_RUN_PATH = join(tmpdir(), "nklein-nightly-last.json");
 
 /** Read prior per-cell wall times, keyed `project × profile`. Absent/corrupt file = no history, not an error. */
+/**
+ * Turn the drain's `finalCounts` emission into per-card terminal lanes.
+ *
+ * Returns EMPTY on absent or unparseable input rather than guessing. N5 treats zero observed cards as
+ * `indeterminate`, so an unreadable emission surfaces as "we could not tell" instead of as a clean board — which
+ * is the whole reason that check exists.
+ */
+function parseTerminalLanes(json: string | null): { cardId: string; lane: string }[] {
+	if (!json) {
+		return [];
+	}
+	let counts: Record<string, unknown>;
+	try {
+		counts = JSON.parse(json) as Record<string, unknown>;
+	} catch {
+		return [];
+	}
+	const cards: { cardId: string; lane: string }[] = [];
+	for (const [lane, value] of Object.entries(counts)) {
+		const total = typeof value === "number" ? Math.max(0, Math.trunc(value)) : 0;
+		for (let index = 1; index <= total; index += 1) {
+			cards.push({ cardId: `${lane}#${index}`, lane });
+		}
+	}
+	return cards;
+}
+
 async function readPriorDurations(): Promise<Map<string, number>> {
 	try {
 		const raw = JSON.parse(await readFile(LAST_RUN_PATH, "utf8")) as {
@@ -136,6 +163,9 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			outcome: "passed",
 			durationMs: Date.now() - started,
 			unmatchedRequests: Number.isFinite(unmatched) ? unmatched : 0,
+			// N7b: the drain now emits its terminal board lanes. Absent leaves this null, which N5 reports as
+			// `indeterminate` rather than as a pass.
+			terminalLanesJson: /NIGHTLY_TERMINAL_LANES=(\{[^\n]*\})/.exec(stdout)?.[1] ?? null,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -241,7 +271,11 @@ export async function runDevNightlyCommand(options: {
 				subscriptions: [],
 				events: [],
 				// The drain's terminal lanes are not exposed to this runner yet, so no card state is claimed.
-				terminalCards: [],
+				// N7b: real terminal lanes, parsed from the drain's own emission. The board reports COUNTS per lane,
+				// not per-card ids, so ids are synthesized (`completed#1`) and that is stated rather than disguised —
+				// the lane assertion needs only the lane, and inventing plausible real ids would imply knowledge this
+				// runner does not have.
+				terminalCards: parseTerminalLanes(verdict.terminalLanesJson ?? null),
 				unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
 				teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
 			});
