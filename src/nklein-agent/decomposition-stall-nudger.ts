@@ -193,8 +193,8 @@ export class DecompositionStallNudger {
 			taskId,
 			[
 				"The previous turn started writing a chat-only decomposition report. Do not continue that prose.",
-				'Your next assistant output must be one `add_task` tool call, with no preamble such as "let me call" or "I will".',
-				"Build the graph one card at a time with `add_task`, add each edge with `add_dependency`, then call `decompose_project` WITHOUT tasks to submit it.",
+				"If any `add_task` calls already succeeded, those cards are still stored: do NOT add them again. Add only missing cards/edges, or call `decompose_project` WITHOUT tasks now when the graph is complete.",
+				'If no card has been added yet, your next output must be one `add_task` tool call, with no preamble such as "let me call" or "I will".',
 				"If a read/list/size request was blocked as duplicate or already available, do not retry it.",
 			].join(" "),
 			canceled.mode ?? "act",
@@ -288,8 +288,8 @@ export class DecompositionStallNudger {
 						].join(" ")
 					: [
 							"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
-							"Your next assistant output must be one `add_task` tool call — not prose, not a plan written as text, not more reasoning.",
-							"Build the candidate one card at a time with `add_task`, then add every edge with `add_dependency`. Afterward call `decompose_project` WITHOUT tasks using slug, title, spec, plan, and summary.",
+							"If any `add_task` calls already succeeded, the incremental graph is still stored. Do NOT re-add those ids. Add only missing cards/edges, or call `decompose_project` WITHOUT tasks using slug, title, spec, plan, and summary when it is complete.",
+							"If no card has been added yet, your next assistant output must be one `add_task` tool call — not prose, not a plan written as text, not more reasoning.",
 							"If a previous full `decompose_project` call was malformed or empty, do not retry that nested payload. The incremental calls are the required recovery path.",
 						].join(" "),
 				"act",

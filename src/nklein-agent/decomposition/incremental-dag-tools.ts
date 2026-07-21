@@ -18,9 +18,9 @@ import { DECOMPOSE_DEPENDENCY_GUIDANCE } from "./plan-task-schemas";
  *
  * The protocol composes with the existing flow instead of replacing it: the model finishes by calling
  * `decompose_project` WITHOUT `tasks`, and the accumulated construction is assembled into the task list (dependsOn
- * derived from the accepted edges — the construction is the single source of dependency truth). One-shot mode
- * (passing `tasks` directly) stays fully supported — it is the default path and the evaluator's comparison baseline;
- * an explicit `tasks` array simply bypasses (and afterwards clears) the construction.
+ * derived from the accepted edges — the construction is the single source of dependency truth). Once construction
+ * has begun, it remains authoritative even if the model redundantly passes `tasks` to `decompose_project`. One-shot
+ * mode (passing `tasks` directly) stays fully supported when no incremental nodes were accepted.
  *
  * State is PER PLANNING SESSION (one mutable holder shared by the tool closures), never persisted: a decomposition
  * that ends the session abandons its partial construction by design.
@@ -75,18 +75,16 @@ export function assembleIncrementalTasks(state: IncrementalDagSessionState): NKl
 }
 
 /**
- * If a decompose_project call omitted `tasks` but the session accumulated an incremental construction, inject the
- * assembled tasks (the completion route of the incremental protocol). An explicit usable `tasks` value wins — that
- * is one-shot mode, unchanged.
+ * If the session accumulated an incremental construction, inject its assembled tasks into decompose_project. Once the
+ * model starts incremental mode, that validated state is authoritative even if a weak model redundantly embeds a full
+ * tasks array in the final call (live run 20260721-140808). One-shot mode remains unchanged when no incremental node
+ * exists.
  */
 export function injectIncrementalTasksIntoDecomposeInput(input: unknown, state: IncrementalDagSessionState): unknown {
 	if (typeof input !== "object" || input === null) {
 		return input;
 	}
 	const record = input as Record<string, unknown>;
-	if (Array.isArray(record.tasks) || (typeof record.tasks === "string" && record.tasks.trim().length > 0)) {
-		return input;
-	}
 	const assembled = assembleIncrementalTasks(state);
 	if (!assembled) {
 		return input;

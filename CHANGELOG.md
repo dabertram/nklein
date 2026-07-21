@@ -5,7 +5,9 @@
 - **Small local models now build decomposition graphs without fragile nested JSON.** Planning defaults to adding one
   validated card and dependency at a time, then submits the accumulated candidate for full validation and independent
   critique before board materialization. A malformed or empty one-shot payload now switches to that incremental path
-  instead of inviting the same failure again. Dead planning cards also honor their promised single fresh restart;
+  instead of inviting the same failure again. Once incremental construction starts, its validated state wins over a
+  redundant full task array; successful card ids are not re-added after a stall, and an omitted default acceptance
+  command is recovered from the trusted originating card. Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code
   context, and critic feedback to the next ranked loaded architect before asking a human.

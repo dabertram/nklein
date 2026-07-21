@@ -13,6 +13,7 @@ import {
 	updateNKleinPlanArtifactApplicationStatus,
 	writeNKleinPlanArtifacts,
 } from "./nklein-plan-artifacts";
+import { parseAcceptanceCommand } from "./nklein-task-prompt-parsing";
 import type { NKleinTaskRoutingCandidate } from "./nklein-task-router";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
 import type { AgentTool } from "./sdk-agent-types";
@@ -222,6 +223,10 @@ function createDecomposeProjectTool(
 	requestClarifyTurn?: NKleinClarifyTurnHandler,
 	incrementalState?: IncrementalDagSessionState,
 ): AgentTool {
+	// The originating card is trusted control-plane input and already carries its objective acceptance command. Small
+	// models often understand it yet omit defaultAcceptanceCommand from the final tool payload; recover that exact
+	// declared command instead of bouncing a complete incremental graph back to the model.
+	const sourceAcceptanceCommand = parseAcceptanceCommand(sourcePrompt ?? "");
 	// W4.3: each plan slug gets AT MOST one diverse-critic round (revisions apply the feedback, never re-debate);
 	// the per-run count budget lives in the service handler (it spans sessions).
 	const acceptedCritiqueFingerprintBySlug = new Map<string, string>();
@@ -306,11 +311,24 @@ function createDecomposeProjectTool(
 			additionalProperties: false,
 		}),
 		async execute(input) {
+			let inputWithSourceAcceptance = input;
+			if (sourceAcceptanceCommand && typeof input === "object" && input !== null) {
+				const inputRecord = input as Record<string, unknown>;
+				const suppliedAcceptance =
+					typeof inputRecord.defaultAcceptanceCommand === "string"
+						? inputRecord.defaultAcceptanceCommand.trim()
+						: "";
+				inputWithSourceAcceptance = {
+					...inputRecord,
+					defaultAcceptanceCommand: suppliedAcceptance || sourceAcceptanceCommand,
+				};
+			}
 			// F1.7 incremental completion route: a call WITHOUT `tasks` submits the add_task/add_dependency
-			// construction accumulated this session; an explicit `tasks` array is one-shot mode, unchanged.
+			// construction accumulated this session. Once incremental construction has started, it remains the
+			// authoritative graph even if the model redundantly sends a full tasks array in this final call.
 			const effectiveInput = incrementalState
-				? injectIncrementalTasksIntoDecomposeInput(input, incrementalState)
-				: input;
+				? injectIncrementalTasksIntoDecomposeInput(inputWithSourceAcceptance, incrementalState)
+				: inputWithSourceAcceptance;
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(effectiveInput);
 			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;

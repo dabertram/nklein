@@ -95,7 +95,10 @@ gap remains.
 > leading with another full nested call; mentioning `add_task` as an alternative did not change its behavior. Planning
 > now defaults to validated `add_task`/`add_dependency` operations and submits `decompose_project` without `tasks`.
 > After any empty/schema-invalid one-shot call, recovery must say STOP and route exclusively to the incremental path.
-> The accumulated graph is still ephemeral: full validation and independent critique happen before materialization.
+> Once one incremental card exists, that validated graph is authoritative: ignore any redundant full `tasks` array,
+> never tell a stalled model to re-add successful ids, and recover the exact `Acceptance command:` declared by the
+> trusted originating card when the model omits `defaultAcceptanceCommand`. The accumulated graph is still ephemeral:
+> full validation and independent critique happen before materialization.
 
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no

@@ -18,7 +18,8 @@ vi.mock("../../../../src/telemetry/self-observation-sink.js", () => ({
 /**
  * F1.7 (§5.AV live wiring) — add_task/add_dependency run the pure applyDagOp state machine, so the accumulated
  * graph is valid-by-construction and every rejection carries the precise reason. decompose_project WITHOUT tasks
- * consumes the construction (the completion route); an explicit tasks array stays one-shot mode.
+ * consumes the construction (the completion route); one-shot mode remains available until incremental construction
+ * starts, after which the validated construction is authoritative.
  */
 
 function getTools(state = createIncrementalDagSessionState()) {
@@ -132,9 +133,13 @@ describe("assembly + injection", () => {
 		};
 		expect(injected.tasks).toHaveLength(3);
 
-		// An explicit tasks array is one-shot mode — the construction must NOT override it.
+		// Once incremental mode has started, a redundant full tasks array cannot override validated construction.
 		const oneShot = { slug: "s", spec: "sp", plan: "pl", tasks: [{ id: "z", title: "Z", prompt: "Do z." }] };
-		expect(injectIncrementalTasksIntoDecomposeInput(oneShot, state)).toBe(oneShot);
+		expect(
+			(injectIncrementalTasksIntoDecomposeInput(oneShot, state) as { tasks: Array<{ id: string }> }).tasks.map(
+				(task) => task.id,
+			),
+		).toEqual(["a", "b", "c"]);
 
 		resetIncrementalDagSessionState(state);
 		expect(assembleIncrementalTasks(state)).toBeNull();
@@ -143,6 +148,33 @@ describe("assembly + injection", () => {
 });
 
 describe("decompose_project completion route (shared session state)", () => {
+	it("recovers the originating card's acceptance command when the model omits it", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-source-acceptance-"));
+		const tools = createNKleinDecompositionTools({
+			workspacePath,
+			sourcePrompt: "Create the graph.\nAcceptance command: npm test",
+		});
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+		const addTask = byName.get("add_task");
+		const decompose = byName.get("decompose_project");
+		if (!addTask || !decompose) {
+			throw new Error("expected add_task and decompose_project in the toolset");
+		}
+
+		await addTask.execute({ id: "implementation", title: "Implement feature", prompt: "Implement it." }, ctx);
+		const result = (await decompose.execute(
+			{
+				slug: "source-acceptance",
+				title: "Source acceptance",
+				spec: "Implement one feature.",
+				plan: "Implement it.",
+				// Intentionally omit defaultAcceptanceCommand: the trusted source card supplies it.
+			},
+			ctx,
+		)) as { ok: boolean; taskCount: number };
+		expect(result).toMatchObject({ ok: true, taskCount: 1 });
+	});
+
 	it("a tasks-less decompose_project submits the incremental construction, then the state resets", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-dag-"));
 		const tools = createNKleinDecompositionTools({ workspacePath });

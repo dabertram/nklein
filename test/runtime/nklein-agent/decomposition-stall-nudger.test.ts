@@ -155,6 +155,7 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		await new Promise((resolve) => setImmediate(resolve));
 		expect(sent).toHaveLength(1);
 		expect(sent[0]).toContain("add_task");
+		expect(sent[0]).toContain("Do NOT re-add those ids");
 		expect(sent[0]).toContain("decompose_project` WITHOUT tasks");
 		expect(sent[0]).not.toContain("exactly that JSON");
 	});

@@ -3186,7 +3186,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 			expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("must be one `add_task` tool call"),
+					prompt: expect.stringContaining("do NOT add them again"),
 				}),
 			);
 			expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
