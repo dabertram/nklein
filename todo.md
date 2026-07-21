@@ -346,6 +346,31 @@ source repo went private — so if it vanishes the buildable source still lives 
   `google/gemma-4-31b-qat` + `qwopus3.5-9b-coder-mlx@8bit` + `qwen/qwen2.5-coder-14b` (override via `NKLEIN_FLEET`).
   Fundamentals-first: get a clean end-to-end through this harness BEFORE trusting any drain result. (Live 2026-07-21:
   the 4-model fleet loaded on m5max at 32k in ~26s and the runtime came up in 4s.)
+  - **EVIDENCE CONTRACT (fixed + live-proven 2026-07-21): counts are not evidence.** The controller snapshots every
+    live transcript (including short-lived auxiliary critic/reviewer sessions) and the collector emits exact
+    `tool_use`→`tool_result` pairs, `is_error`, error bodies, pending/orphan calls, board transitions, durable-ledger
+    events, runtime signals, runtime log, and `lms log stream`. A reactive abort kills the drain immediately; JSON mode
+    stays machine-parseable; controller success follows the drain classification and returns non-zero otherwise. Never
+    call a run "progressing" from tool-call counts without reading the corresponding results.
+  - **ISOLATED HOME ONBOARDING:** `modelRoles` alone does not configure cascade children. Auto-start first resolves the
+    global native-provider selection, then applies the role/model override. Every fresh run HOME therefore needs
+    `.nklein/nklein/nklein-provider-selection.json` with `{"providerId":"lmstudio"}` as well as global `config.json`;
+    otherwise decomposition succeeds but every root card fails with `No native !Klein provider is configured`.
+  - **DECOMPOSE/CAP-ONE FINDING CORRECTED + FIXED (2026-07-21):** the historical `mid_task` transcript did NOT show
+    three identical dependency-coherence failures. Attempts 1–2 returned actionable, specific test→implementation
+    dependency errors; attempt 3 produced a validator-valid graph, then its awaited plan critic deadlocked because the
+    parent retained the only LM Studio host slot. Awaited plan-critique/explorer children now receive an explicit
+    cooperative reservation handoff while unrelated sessions remain capped. Dependency guidance is nevertheless now a
+    hard prompt/schema rule, diagnostics enumerate current classifications plus cycle-safe implementation IDs, and a
+    critic `revise` clears the incremental graph so stable IDs can be rebuilt instead of resubmitting stale state.
+    Isolated live proof: Qwen yielded cap 1 to Gemma, rebuilt after a real critic rejection, materialized five cards,
+    auto-started roots, and completed four cards before the controller's 20-minute deadline.
+  - **DIVERSITY WAIVER MUST NOT BECOME SELF-REVIEW (live-found/fixed 2026-07-21):** with the four-model resident fleet,
+    reviewer ranking preferred Qwen 3.6; Gemma was lineage-diverse but 21 fit points lower, outside the 15-point margin.
+    The selector correctly waived diversity but incorrectly returned `null`, so the caller fell back to the original
+    Qwen 2.5 worker and made it review itself. A waiver now selects the strongest ranked *non-worker* model; `null` is
+    reserved for an empty/failed model probe or no other candidate. This preserves model-capability policy and keeps
+    human parking as the last resort rather than manufacturing reviewer monoculture.
 - **RUNNING A REAL-MODEL `dev test-project` DRAIN END-TO-END (live-validated 2026-07-20, gotchas found the hard way).** `dev test-project` connects over HTTP to a SEPARATELY-RUNNING **!Klein runtime** server (the code carries legacy `kanban`/`KANBAN_RUNTIME_PORT` names + a live rename-transition header shim — same thing, call it the !Klein runtime) — it is NOT in-process. The working recipe: (1) `lms load <model> --context-length 32768` — **the context MUST be ≥32,000 or the session NEVER starts**: the runtime refuses activation with *"Selected model … reports 16,384 context tokens. !Klein requires at least 32,000 before this model can be activated"* (the ≥32k prime-directive floor, enforced at session-start, silent except in the server log — the board just shows a "startable card lacks an active task session" watchdog sweep forever). (2) Start the server backgrounded sharing three envs with the client: `NKLEIN_RUNTIME_PORT=3484`, `NKLEIN_INTERNAL_AUTH_TOKEN=<any-fixed-token>` (the CLI client needs the SAME token to call the server), `HOME=<isolated dir>`, plus `NODE_ENV=development`. (3) Run `dev test-project --preset <p> --model-id <m> --provider-id lmstudio --max-wait-ms <bound>` with the same envs. (4) **TEARDOWN is on you**: `pkill -f 'tsx src/cli.ts --port 3484'`, `lms unload --all`, `docker rm -f $(docker ps -aq --filter name=nklein-agent-sandbox)` — a leaked server+model+container is the overload to avoid.
   - **STALE MODEL-CONTEXT DISCOVERY CACHE:** a long-running server caches the model's advertised context at first discovery. If you reload the model at a NEW context (e.g. 16k→32k), the server keeps using the OLD value and still refuses activation — you must RESTART the server (it re-discovers), not just reload the model.
   - **HOST SELECTION — do NOT let LM Studio auto-route (David 2026-07-20).** `lms load` auto-placed a 14B on the
