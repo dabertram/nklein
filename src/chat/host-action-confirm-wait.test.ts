@@ -24,6 +24,7 @@ describe("awaitHostActionConfirmation — the fail-closed operator-confirm bridg
 		expect(queue.listPending(Date.now())).toHaveLength(1);
 		expect(queue.resolve({ ...REQUEST, approve: true }, Date.now())).toBe("applied");
 		await expect(promise).resolves.toBe(true);
+		expect(queue.status(REQUEST.attemptId, Date.now())).toBe("unknown");
 	});
 
 	it("resolves FALSE on an explicit denial", async () => {
@@ -31,6 +32,7 @@ describe("awaitHostActionConfirmation — the fail-closed operator-confirm bridg
 		const promise = awaitHostActionConfirmation(REQUEST, { queue, timeoutMs: 60_000 });
 		expect(queue.resolve({ ...REQUEST, approve: false }, Date.now())).toBe("applied");
 		await expect(promise).resolves.toBe(false);
+		expect(queue.status(REQUEST.attemptId, Date.now())).toBe("unknown");
 	});
 
 	it("fails closed (FALSE) on timeout when nothing resolves, consuming the entry", async () => {

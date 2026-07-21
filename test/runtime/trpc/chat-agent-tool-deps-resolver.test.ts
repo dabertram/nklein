@@ -7,6 +7,7 @@ import type { ChatToolSet } from "../../../src/chat/chat-board-tools";
 import { recordChatEgressAttempt } from "../../../src/chat/chat-egress-attempt-audit-store";
 import type { ChatActionKind } from "../../../src/chat/chat-execution-mode";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
+import { hostActionConfirmQueue } from "../../../src/chat/host-action-confirm-wait";
 import { type RunPhase, runPhasePolicy } from "../../../src/core/run-state-machine";
 import { buildChatAgentToolDepsResolver } from "../../../src/trpc/runtime-api/chat-agent-tool-deps-resolver";
 
@@ -68,6 +69,7 @@ function makeResolver(input: {
 	workspacePath: string;
 	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	getCapabilityBrokerEnabled?: () => Promise<boolean>;
 	resolveRunPhase?: (session: ChatSession) => RunPhase | null;
 }) {
 	return buildChatAgentToolDepsResolver({
@@ -81,6 +83,7 @@ function makeResolver(input: {
 			? { getSandboxWorkspaceWriteTools: input.getSandboxWorkspaceWriteTools }
 			: {}),
 		...(input.resolveRunPhase ? { resolveRunPhase: input.resolveRunPhase } : {}),
+		...(input.getCapabilityBrokerEnabled ? { getCapabilityBrokerEnabled: input.getCapabilityBrokerEnabled } : {}),
 	});
 }
 
@@ -249,6 +252,33 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 		const result = await deps?.executeTool(call("read_file", { path: "README.md" }));
 
 		expect(result?.content).toBe("# Host README");
+	});
+
+	it("parks all five typed fields using the exact least-scope target, then consumes the denial", async () => {
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getCapabilityBrokerEnabled: async () => true,
+		});
+		const session = makeSession("project_sandboxed");
+		const deps = await resolver(session);
+		if (!deps) throw new Error("expected chat agent tool deps");
+		const resultPromise = deps.executeTool(call("run_command", { command: "rm -rf build" }));
+
+		await vi.waitFor(() => expect(hostActionConfirmQueue.listPending(Date.now())).toHaveLength(1));
+		const [pending] = hostActionConfirmQueue.listPending(Date.now());
+		if (!pending) throw new Error("expected pending host-action confirmation");
+		expect(pending).toMatchObject({
+			action: "run_command",
+			actionLabel: "Host command",
+			target: "rm -rf build",
+			scope: "your host machine",
+			consequence: "Runs a shell command on YOUR machine.",
+			duration: "15 minutes for this exact target",
+			headline: "Host command: rm -rf build",
+		});
+		expect(hostActionConfirmQueue.resolve({ ...pending, approve: false }, Date.now())).toBe("applied");
+		await expect(resultPromise).resolves.toMatchObject({ content: expect.stringContaining("Not run") });
+		expect(hostActionConfirmQueue.status(pending.attemptId, Date.now())).toBe("unknown");
 	});
 
 	it("wires egress_read tool decisions to the dedicated network-attempt audit sink", async () => {

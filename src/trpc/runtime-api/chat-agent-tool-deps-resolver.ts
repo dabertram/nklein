@@ -260,7 +260,6 @@ export function buildChatAgentToolDepsResolver(input: {
 				// broker is on — park it on the host-action queue and await an approve/deny (fail-closed on timeout).
 				// With the broker OFF it stays byte-identical (blocked), so the default path can never change behavior.
 				if (verdict === "confirm" && capabilityBrokerEnabled) {
-					const target = String(call.arguments.command ?? call.arguments.path ?? call.arguments.url ?? call.name);
 					// F2.12b: enrich the parked confirmation with WHAT approving does and for how long, computed from the
 					// tool's OWN actionKind (not re-derived from the name) so the operator's dialog is accurate. These are
 					// DISPLAY-ONLY — the confirm binding stays the four identity fields (see host-action-confirm-queue).
@@ -273,7 +272,8 @@ export function buildChatAgentToolDepsResolver(input: {
 						attemptId: `${session.id}:${call.id}`,
 						sessionId: session.id,
 						action: call.name,
-						target,
+						target: description.target,
+						actionLabel: description.action,
 						scope: description.scope,
 						consequence: description.consequence,
 						duration: description.duration,

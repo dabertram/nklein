@@ -1566,20 +1566,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   selection reset is a small UX nicety worth a later fix); (4) shared-renderer consistency — VERIFIED 2026-07-14: the
   sidebar chat, its main-chat transcript row, AND the card-detail chat all render through `NKleinChatMessageItem`. (1)
   attachments UI — DONE via the F2.7b composer attach control (2026-07-14). ALL residue closed.
-- [ ] **F2.12b — Render the typed confirmation dialog + audit history view (cores SHIPPED 2026-07-13).**
-  `src/chat/chat-confirmation-description.ts`: `describeHostActionConfirmation` names all five F2.12 fields —
-  ACTION (kind phrasing), TARGET (the F2.2 least-scope identity: exact command/path/host, byte-identical to what
-  a covered grant reuses), SCOPE (sandbox/host/network from the capability manifest), CONSEQUENCE, DURATION (the
-  grant TTL, human-phrased) — and `filterChatHostActionAudit` gives the filterable history (by action/decision/
-  time/text/executed, newest first) over the already-secret-safe records (`chat-audit-detail.ts` masks secrets
-  before persistence — the secret-safety half is done). The AUDIT HISTORY view shipped 2026-07-14: a collapsible
-  `ChatHostActionAuditPanel` in the chat session header (can-act scopes) over a new read-only `getChatHostActionAudit`
-  tRPC, with decision + executed-only filters (2 Playwright tests). CONFIRM DIALOG + ROUND-TRIP SHIPPED 2026-07-14
-  (see F2.2b): the session-flag `confirm` resolve is replaced by a real async round-trip — a `confirm`-tier action
-  parks on the host-action confirm queue and the globally-mounted `HostActionConfirmDialog` prompts the operator
-  (approve/deny → `resolveHostActionConfirm`), fail-closed by construction. REMAINING (ties F2.2b): render all five
-  fields (today action+target only — the scope/consequence/duration from `describeHostActionConfirmation` still need
-  threading through the queue entry).
 - [x] **F2.13 — auto-clarification wiring finished (the restart-dedup bug fixed 2026-07-13).** The bind
   questions↔plan-state + resume-the-correct-card machinery was already complete (`resolvePlanQuestion` projects
   the answer, releases the parked `blockedTaskId`, records a `clarification_resolved` revision; `answer-plan-

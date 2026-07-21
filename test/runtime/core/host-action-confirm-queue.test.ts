@@ -35,10 +35,11 @@ describe("createHostActionConfirmQueue (F2.2b/F2.12b)", () => {
 		expect(q.status("att-1", 100)).toBe("pending"); // still waiting
 	});
 
-	it("carries the F2.12b display enrichment (scope/consequence/duration/headline) through to listPending", () => {
+	it("carries the F2.12b display enrichment through to listPending", () => {
 		const q = createHostActionConfirmQueue();
 		q.enqueue(
 			req({
+				actionLabel: "Host command",
 				scope: "your host machine",
 				consequence: "Runs a shell command on YOUR machine.",
 				duration: "5 minutes",
@@ -47,6 +48,7 @@ describe("createHostActionConfirmQueue (F2.2b/F2.12b)", () => {
 			1000,
 		);
 		const [pending] = q.listPending(0);
+		expect(pending?.actionLabel).toBe("Host command");
 		expect(pending?.scope).toBe("your host machine");
 		expect(pending?.consequence).toBe("Runs a shell command on YOUR machine.");
 		expect(pending?.duration).toBe("5 minutes");
@@ -55,9 +57,14 @@ describe("createHostActionConfirmQueue (F2.2b/F2.12b)", () => {
 	it("the display enrichment is NOT part of the binding — an approval with a differing/absent description still applies", () => {
 		const q = createHostActionConfirmQueue();
 		// Parked WITH a description; the resolver approves with only the identity fields (no description). The four
-		// identity fields match, so it applies — proving scope/consequence/duration/headline never gate the decision.
+		// identity fields match, so it applies — proving the display description never gates the decision.
 		q.enqueue(
-			req({ scope: "your host machine", consequence: "Runs a shell command.", headline: "Host command: npm test" }),
+			req({
+				actionLabel: "Host command",
+				scope: "your host machine",
+				consequence: "Runs a shell command.",
+				headline: "Host command: npm test",
+			}),
 			0,
 			1000,
 		);

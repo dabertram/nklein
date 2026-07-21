@@ -21,6 +21,7 @@ describe("awaitHostActionConfirmation (F2.2b/F2.12b)", () => {
 		const pending = awaitHostActionConfirmation(REQUEST, { queue, now: () => Date.now(), timeoutMs: 1000 });
 		queue.resolve({ ...REQUEST, approve: true }, Date.now());
 		await expect(pending).resolves.toBe(true);
+		expect(queue.status(REQUEST.attemptId, Date.now())).toBe("unknown");
 	});
 
 	it("resolves FALSE on an explicit denial", async () => {
@@ -28,6 +29,17 @@ describe("awaitHostActionConfirmation (F2.2b/F2.12b)", () => {
 		const pending = awaitHostActionConfirmation(REQUEST, { queue, now: () => Date.now(), timeoutMs: 1000 });
 		queue.resolve({ ...REQUEST, approve: false }, Date.now());
 		await expect(pending).resolves.toBe(false);
+		expect(queue.status(REQUEST.attemptId, Date.now())).toBe("unknown");
+	});
+
+	it("safely consumes an already-settled idempotent entry without arming a timeout", async () => {
+		const queue = createHostActionConfirmQueue();
+		queue.enqueue(REQUEST, Date.now(), 1000);
+		expect(queue.resolve({ ...REQUEST, approve: true }, Date.now())).toBe("applied");
+		await expect(
+			awaitHostActionConfirmation(REQUEST, { queue, now: () => Date.now(), timeoutMs: 1000 }),
+		).resolves.toBe(true);
+		expect(queue.status(REQUEST.attemptId, Date.now())).toBe("unknown");
 	});
 
 	it("FAILS CLOSED (false) when no answer arrives before the timeout", async () => {

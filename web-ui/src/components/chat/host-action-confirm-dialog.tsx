@@ -57,7 +57,7 @@ export function HostActionConfirmDialog(): React.ReactElement | null {
 
 	return (
 		<Dialog open onOpenChange={() => {}}>
-			<DialogHeader title="Approve host action?" />
+			<DialogHeader title={current.headline ?? "Approve host action?"} />
 			<DialogBody>
 				<p className="m-0 text-[13px] text-text-secondary">
 					An agent wants to run a host action that isn&apos;t pre-authorized. It&apos;s waiting for your OK:
@@ -68,7 +68,7 @@ export function HostActionConfirmDialog(): React.ReactElement | null {
 				>
 					<div className="flex gap-2">
 						<span className="text-text-tertiary">Action</span>
-						<span className="font-mono text-text-primary">{current.action}</span>
+						<span className="text-text-primary">{current.actionLabel ?? current.action}</span>
 					</div>
 					<div className="mt-1 flex min-w-0 gap-2">
 						<span className="shrink-0 text-text-tertiary">Target</span>

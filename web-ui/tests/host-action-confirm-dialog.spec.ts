@@ -2,7 +2,7 @@
  * Suite: Host-action confirm dialog (F2.2b/F2.12b)
  *
  * When a chat turn parks a `confirm`-tier host action, the operator is prompted to approve or deny it:
- *  1. A pending confirmation surfaces the dialog with the action + target.
+ *  1. A pending confirmation surfaces the dialog with action, target, scope, consequence, and duration.
  *  2. Approving calls resolveHostActionConfirm with approve:true (bound to the pending entry's identity).
  *
  * Backend: fully mocked via Playwright route-intercept + WebSocket mock (same pattern as chat-browser-toggle.spec.ts).
@@ -50,6 +50,11 @@ const PENDING = {
 	sessionId: "sess-1",
 	action: "host_command",
 	target: "rm -rf build",
+	actionLabel: "Host command",
+	scope: "your host machine",
+	consequence: "Runs a shell command on YOUR machine.",
+	duration: "15 minutes for this exact target",
+	headline: "Host command: rm -rf build",
 	requestedAt: 1,
 	expiresAt: 999_999_999_999,
 };
@@ -116,12 +121,17 @@ async function setupMocks(page: Page): Promise<Handles> {
 }
 
 test.describe("Host-action confirm dialog", () => {
-	test("a pending confirmation surfaces the dialog with the action + target", async ({ page }) => {
+	test("a pending confirmation surfaces all five typed confirmation fields", async ({ page }) => {
 		await setupMocks(page);
 		await page.goto("/");
 		await expect(page.getByTestId("host-action-confirm-detail")).toBeVisible({ timeout: 15_000 });
-		await expect(page.getByTestId("host-action-confirm-detail")).toContainText("host_command");
-		await expect(page.getByTestId("host-action-confirm-detail")).toContainText("rm -rf build");
+		const detail = page.getByTestId("host-action-confirm-detail");
+		await expect(detail).toContainText("Host command");
+		await expect(detail).toContainText("rm -rf build");
+		await expect(detail).toContainText("your host machine");
+		await expect(detail).toContainText("Runs a shell command on YOUR machine.");
+		await expect(detail).toContainText("15 minutes for this exact target");
+		await expect(page.getByRole("heading", { name: "Host command: rm -rf build" })).toBeVisible();
 	});
 
 	test("approving calls resolveHostActionConfirm with approve:true bound to the entry", async ({ page }) => {

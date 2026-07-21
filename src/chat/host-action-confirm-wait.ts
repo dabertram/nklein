@@ -36,21 +36,28 @@ export function awaitHostActionConfirmation(
 	queue.enqueue(request, now(), timeoutMs);
 	return new Promise<boolean>((resolve) => {
 		let settled = false;
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		let unsubscribe = (): void => {};
 		const settle = (approved: boolean): void => {
 			if (settled) {
 				return;
 			}
 			settled = true;
-			clearTimeout(timer);
+			if (timer) clearTimeout(timer);
 			unsubscribe();
+			// Resolutions are one-shot. Consume approved/denied entries here as well as on timeout so the runtime-wide
+			// queue cannot retain one settled record per host action for the lifetime of the process.
+			queue.take(request.attemptId, now());
 			resolve(approved);
 		};
-		const unsubscribe = queue.subscribe(request.attemptId, (status) => settle(status === "approved"));
+		unsubscribe = queue.subscribe(request.attemptId, (status) => settle(status === "approved"));
 		// A little past the queue's own deadline: consume the (now-expired) entry so a late approval can't apply,
 		// then fail closed. `subscribe` may already have fired on an approve/deny before this runs (settle no-ops).
-		const timer = setTimeout(() => {
-			queue.take(request.attemptId, now());
-			settle(false);
-		}, timeoutMs + 50);
+		if (!settled) {
+			timer = setTimeout(() => {
+				queue.take(request.attemptId, now());
+				settle(false);
+			}, timeoutMs + 50);
+		}
 	});
 }

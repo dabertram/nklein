@@ -1047,7 +1047,7 @@
   downloaded, unloaded, or replaced. Typecheck + full suite green (1,261 files passed/1 skipped; 12,304 tests
   passed/1 skipped).
 - [x] **F2.12a — typed host-action confirmation descriptor + filterable audit projection** *(delivered
-  2026-07-13; the dialog + history UI are F2.12b in todo).* `src/chat/chat-confirmation-description.ts`:
+  2026-07-13; the dialog + history UI shipped in F2.12b).* `src/chat/chat-confirmation-description.ts`:
   `describeHostActionConfirmation` produces the five F2.12 fields a confirmation must name — action, target
   (the F2.2 least-scope identity, so the prompt shows byte-for-byte what a later covered retry reuses), scope
   (sandbox/host/network from the capability manifest), consequence, and duration (the grant TTL) — plus a
@@ -1055,6 +1055,16 @@
   substring / executed, newest first). Secret-safety was already enforced upstream (`chat-audit-detail.ts`
   masks secret-bearing values before persistence), so the history is safe to surface by construction. 3 tests.
   tsc 0, fast 9560 green.
+- [x] **F2.12b — typed host-action confirmation dialog + audit history** *(delivered 2026-07-21).* The existing
+  secret-safe, filterable history panel and async approve/deny round-trip were live; the final audit found ACTION was
+  still rendered as the raw tool name and the queue target was independently reconstructed instead of using the
+  descriptor's F2.2 least-scope identity. Pending confirmations now carry the human action label and exact descriptor
+  target alongside scope, consequence, duration, and headline; the dialog renders all five fields and uses the typed
+  headline. Display fields remain outside the four-field approval binding, so they cannot weaken or void a decision.
+  Approved/denied waits now consume their settled singleton-queue entry, closing an unbounded process-lifetime leak.
+  Resolver and queue regressions plus the two-case Playwright dialog spec pass; backend and web typechecks green.
+  Full backend suite: 1,261 files passed/1 skipped, 12,306 tests passed/1 skipped. Full web unit suite: 155 files,
+  1,129 tests passed.
 - [x] **F2.13 — auto-clarification wiring finished; duplicate-prompt-after-restart bug fixed** *(delivered
   2026-07-13).* The answer→plan-state binding + resume-the-parked-card path was already complete
   (`resolvePlanQuestion` releases `blockedTaskId` + records a `clarification_resolved` revision). The real gap
