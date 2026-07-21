@@ -33,6 +33,23 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
+**Live status clarification (2026-07-21, after F4.20):** `[ ]` means executable now, not merely “not started”; `[~]`
+means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited gate
+below is green. The current 206-package remainder is **102 ready + 16 partial + 77 dependency-blocked + 6 external/user-
+gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
+
+Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
+
+- Phase 6 waits for every ready package in Phases 0–5.
+- Phase 7 waits for the Phase 6 proof gates; individual campaigns that name one G6 gate may start when that gate and
+  their underlying feature packages are green.
+- Phase 7S `[>]` leaves wait for stable Phase 0–5 ingestion/action seams plus G6.2–G6.5 coverage, so the final security
+  adoption/audit pass hardens the actual surface rather than a moving target.
+- Phase 8 waits for G6.3–G6.5 and the relevant completed product/security surfaces; P8.5 additionally waits for P8.1–P8.4.
+- Phase 9 waits for Phases 0–8; its release order is R9.1 → R9.2/R9.3 → R9.4–R9.6 → R9.7.
+- Phase 14 waits for David's explicit cloud go and is incompatible with the current local-only prime directive until then.
+
 ## 1. Prime directives
 
 1. **Local models only.** `CLOUD_ENABLED = false`. Cloud escalation remains a future, explicitly user-enabled phase;
@@ -2136,7 +2153,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   draining), so wiring the executor there would duplicate it. The remaining idea — a model-side PRODUCER emitting
   per-card bounded tool plans — is split to F3.T3b below (fleet-eval-gated: json_schema plan emission by weak
   local models is unproven; GBNF is ignored by LM Studio).
-- [>] **F3.T3b — ActionPlan producer seam** *(fleet-eval-gated; split from F3.T3 2026-07-19).* Evaluate whether a
+- [ ] **F3.T3b — ActionPlan producer seam** *(fleet is available; split from F3.T3 2026-07-19).* Evaluate whether a
   weak local model can emit a valid bounded ActionPlan under response_format json_schema at plan time; if the eval
   clears, wire the emission → validateActionPlan → executeActionPlan (dispatch through the tool manifest) as an
   opt-in per-card execution mode.
@@ -2192,7 +2209,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
   **FINALIZED 2026-07-19 (split):** multi-pool routing unit-proven AND the 2026-07-15 live run validated multi-machine fan-out + cap-3 concurrency across the real 3-machine fleet (recorded in the fleet-live session evidence). The remaining ENDPOINT-LOSS survival leg + a committed proof artifact = F3.24b below.
-- [>] **F3.24b — Committed fan-out proof artifact** *(fleet-gated; split from F3.24 2026-07-19).* On the next
+- [ ] **F3.24b — Committed fan-out proof artifact** *(fleet is available; split from F3.24 2026-07-19).* On the next
   multi-machine fleet window: run a wide DAG across ≥2 pools, kill one endpoint mid-run, verify re-route +
   merge, and commit the run artifact (simflow probe log) as the durable proof.
 - [x] **F3.25 — Complete the model-evaluation runtime.** Run the role×difficulty matrix repeatedly, capture quality,
@@ -2394,9 +2411,9 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
   SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
-- [>] **F4.19b — NL-description semantic skill index** *(embed-path-gated; split from F12.29 2026-07-19).* Index
-  procedures by natural-language description for semantic retrieval — needs a local embed path; design with the
-  retrieval stack when an embedding model joins the fleet.
+- [ ] **F4.19b — NL-description semantic skill index** *(local embedding stack exists; split from F12.29 2026-07-19).* Index
+  procedures by natural-language description for semantic retrieval through the existing local embedding/index stack;
+  validate against lexical retrieval and keep lexical fallback when the embedder is unavailable.
 - [ ] **F4.21 — Implement gated discovery.** Search trusted origins by default; require an explicit untrusted-discovery
   opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
   **AUDIT 2026-07-18: OPEN** — only the trust classifier exists (classifySkillSourceTrust); no discovery/search mechanism, no trusted-origin search, no untrusted opt-in.
@@ -2508,9 +2525,9 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   module embeds Date.now/toISOString/random in prompt bytes (runner uses are deadline control flow only).
 - [x] **F4.45 — Use stateful LM Studio responses where verified.** *(finalized 2026-07-19 — the verification
   gate is complete + fail-closed; the session-path adoption is split to F4.45b.)*
-- [>] **F4.45b — Stateful-responses session adoption** *(design-gated; split from F4.45 2026-07-19).* Thread
+- [ ] **F4.45b — Stateful-responses session adoption** *(design is part of this package; split from F4.45 2026-07-19).* Thread
   previous_response_id through the model call while the transcript store REMAINS owner (replay/compaction
-  correctness) with per-turn stateless fallback — design before build, David conversation.
+  correctness) with per-turn stateless fallback. The package owns the design proof; there is no separate user gate.
   *(original F4.45 detail follows.)* Adopt `previous_response_id`/native sessions behind a
   capability gate, with stateless fallback and replay-safe transcript ownership.
   **VERIFICATION GATE SHIPPED 2026-07-19:** `stateful-responses-gate.ts` — probeStatefulResponses (one minimal
@@ -2640,6 +2657,8 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 ### Phase 7 — deep hardening, campaigns, and performance sweeps
 
 These are valuable after the product paths exist. They are not allowed to block implementation-first progress above.
+Every `[>]` here without a narrower inline dependency waits on the Phase 6 proof gates G6.1–G6.13; measurement-only
+campaigns may begin once the specific G6 gate covering their surface is green.
 
 - [>] **H7.1 — Add a real mid-stream SSE-stall simulator behavior** *(after G6.2).* Emit partial deltas then stall,
   distinct from TTFT/dead-stream stall; cover continuation, timeout, cancel, and replay.
@@ -2732,6 +2751,10 @@ is far more expensive than building to it. !Klein ALREADY has partial defenses t
 proxy (§10c), delivery-taint gate (F1.21b), skill-bundle screening + injection-prescreen (F4.24), per-task sandbox
 credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Docker isolation. Phase 7S makes the story
 **comprehensive and adversarially proven** rather than point defenses.
+
+The remaining `[>]` leaves in this phase inherit the explicit gate “Phases 0–5 complete and G6.2–G6.5 green”; their
+already-shipped foundations remain in force now, but the final all-ingestion/action adoption sweep waits for stable live
+surfaces and their diagnostic e2e harness.
 
 - [x] **S1 —  *(finalized 2026-07-19: the living threat-model doc is shipped + linked; keeping it in sync as S-items land is an ongoing doc duty, same class as F12.103.)* Threat model & trust-boundary map.** Enumerate EVERY untrusted-content ingestion point (web-research/fetch
   results, repo file contents + filenames, GitHub/issue/PR/comment text, community skill `SKILL.md` + bundles, MCP tool
@@ -2934,6 +2957,8 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
 
 ### Phase 8 — visual polish and UX refinement
 
+Gate: G6.3–G6.5 must be green and the product/security surface being polished must be complete. P8.5 waits for P8.1–P8.4.
+
 - [>] **P8.1 — Finish the token-based visual system across Board/Chat/Settings** *(legacy §5.AX).* Apply approved color,
   typography, spacing, elevation, motion, and state tokens component-by-component; retain information density and a11y.
 - [>] **P8.2 — Polish egress, MCP, capability, memory, and resource controls.** Make safety posture/effective scope clear
@@ -2946,6 +2971,8 @@ credentials (F2.5b), the confirm-dialog for host actions (F2.12b), and strict Do
   concrete findings, and capture an accessibility/responsive/no-console-error acceptance pass.
 
 ### Phase 9 — release hardening and public preparation
+
+Gate: Phases 0–8 complete. Within this phase: R9.1 first; R9.2/R9.3 next; R9.4–R9.6 consume those outputs; R9.7 is last.
 
 - [>] **R9.1 — Curate public repository content.** Remove stale/private/handoff artifacts, secrets/placeholders, dead
   links, obsolete architecture claims, and generated clutter while preserving licenses/provenance.
@@ -3407,7 +3434,7 @@ output and NOT acted on. Captured as F12.12.)
   queue. Audit core + CI invariant + live-builder nets are the complete code scope. Crossed.
 
 **Onboarding & spec (feeds F11.1):**
-- [~] **F12.8 — EARS-notation acceptance criteria in the initializer.** Kiro/Spec-Kit converge on EARS ("WHEN <condition>
+- [>] **F12.8 — EARS-notation acceptance criteria in the initializer** *(waits on F11.1's guided initializer surface).* Kiro/Spec-Kit converge on EARS ("WHEN <condition>
   THE SYSTEM SHALL <behavior>") to produce clear, TESTABLE acceptance criteria, and on 3–5 clarifying questions asked
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
@@ -4340,7 +4367,7 @@ output and NOT acted on. Captured as F12.12.)
   change"), plus a ledger observation on a red baseline. Cost is the flag's to pay (one extra sandbox acceptance
   run per start), exactly as David scoped. 5 formatter tests. (b)/(c) remain design work as scoped above.
   cost/policy decision. All three are effectful runtime changes; none is a quick mount.
-- [>] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
+- [>] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench)** *(waits on F11.3a–F11.3b).* SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
   Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
@@ -4528,7 +4555,7 @@ output and NOT acted on. Captured as F12.12.)
   Tests: 15 policy/compounding + 6 projection. Runtime suite green (10,932).
   NEXT (fleet-gated, NOT a blocker for this item): once real drains accrue, compare `buildQuantErrorRates` against
   the published per-step constants and swap `PER_STEP_ERROR` for measured values.
-- [>] **F12.72 — KV-cache quantization to hold the 32k floor for every slot.** `--cache-type-k q8_0 --cache-type-v q4_0`
+- [>] **F12.72 — KV-cache quantization to hold the 32k floor for every slot** *(waits on P17.1a runtime adapter + H7.26 Flash Attention proof).* `--cache-type-k q8_0 --cache-type-v q4_0`
   (+flash-attn): Q8 K near-lossless, q4_0 KV ≈ 72% KV reduction (V degrades only at very long ctx). Frees the VRAM to keep
   the full 32k floor GPU-resident across all concurrent slots. (llama.cpp KV-quant discussion; smcleod)
   **POSSIBLE UNBLOCK 2026-07-20 (David): `mlx-serve` exposes the flag this item needs — see P17.1a.** Still
@@ -4559,7 +4586,7 @@ output and NOT acted on. Captured as F12.12.)
   blocked on a second runtime adapter (llama.cpp server / Ollama / vLLM), not on !Klein code. Re-scoped from
   "ready" to "waits on the runtime-adapter boundary" (see the interop phase). Do NOT attempt to pass these flags
   through LM Studio; they are silently ignored, which is the same failure class as the GBNF-grammar lesson in §4A.
-- [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The live prompt-fragment assembler and F4.40's
+- [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops** *(waits on P17.1a runtime adapter + H7.19 cache-health probe).* The live prompt-fragment assembler and F4.40's
   regression net preserve a stable PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless
   `--cache-reuse N` is on (KV-shifting; **the frequently-cited `256` has NO primary-source basis — the flag is a MINIMUM CHUNK SIZE and its optimum is workload-dependent and publicly unmeasured, so treat any specific value as a starting point to measure, not a recommendation**) —
   a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
@@ -4573,7 +4600,7 @@ output and NOT acted on. Captured as F12.12.)
   (llama.cpp server / Ollama / vLLM), not on !Klein code. Do NOT try to pass these through LM Studio — they are
   silently ignored, the same failure class as the GBNF-grammar lesson in §4A. This is now a concrete argument FOR
   the runtime-adapter boundary: three real performance levers are unreachable until it exists.
-- [>] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep.** Agents are PREFILL-bound (up to ~94% of time at
+- [>] **F12.74 — Per-machine prefill (`-b`/`-ub`) tuning in the sweep** *(waits on P17.1a runtime adapter + H7.14 cache/concurrency campaign).* Agents are PREFILL-bound (up to ~94% of time at
   long injected context); `--ubatch-size` is non-monotonic (one bench 59→582→collapse-to-15 tok/s; Apple Silicon likes
   ub 1024/2048). Extend the sweep with a llama-bench pp/tg micro-sweep storing each machine's ubatch sweet spot. (marvin-42 ubatch; apple-silicon-tuning)
   **RUNTIME-REACHABILITY VERDICT 2026-07-19 (verified against `lms load --help` on David's machine):** LM Studio
@@ -4770,7 +4797,7 @@ verify-before-build caveat: confirm each against current code before implementin
   `NKLEIN_LEDGER_EXEMPLARS` (default OFF = byte-identical, zero ledger read); an unreadable ledger/board or a
   card with no similar history yields [] and the field is omitted entirely. +3 wire tests (9 total).
   NEXT (validation, not build): A/B through the F12.41 flip-gate before any default-on.
-- [>] **F12.82 — Eval-harness prompt-learning loop for per-role rules** *(SUBSTANTIALLY COVERED — see routing note).* Use the existing §5.AB eval harness to auto-refine
+- [>] **F12.82 — Eval-harness prompt-learning loop for per-role rules** *(waits on F12.28b; substantially covered — see routing note).* Use the existing §5.AB eval harness to auto-refine
   decompose/worker/reviewer rule sets: generate rich English feedback on failures → meta-prompt to revise the rules → A/B on
   held-out cards through the **F12.41 significance gate** → keep only significant wins. Rationale: Arize prompt-learning gave
   +10–15% from rules alone; DSPy MIPROv2 jointly optimizes instructions+exemplars; !Klein already has the eval substrate +
@@ -5176,7 +5203,7 @@ into the existing F12.31. Same verify-before-build caveat.**
   class is closed." **ATTESTATION SHIPPED — F12.101 COMPLETE:** `dev air-gap-status --attest` chains the current EFFECTIVE posture into
   the tamper-evident egress-receipt log (category air_gap_attestation). LIVE-PROVEN end-to-end: profile ON ⇒ all
   classes closed ⇒ attestation appended ⇒ `dev egress-receipts` independently verifies the chain INTACT. (EU AI Act; air-gapped LLM demand)
-- [~] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance.** Reproducible builds, a Software Bill of Materials, and
+- [?] **F12.102 — Signed, reproducible releases + SBOM/SLSA provenance** *(external release credentials + F5.7/R9.3 pipeline required).* Reproducible builds, a Software Bill of Materials, and
   SLSA build-provenance attestation for every !Klein release, verifiable by the user before install. Rationale: the supply
   chain into the tool itself is part of the trust boundary (validates S7 pin-drift for the app, not just skills). (SLSA; SBOM)
   **SBOM HALF SHIPPED 2026-07-19:** `sbom-generation.ts` — `buildSbomFromLockfile` (npm v2/v3 `packages` map →
@@ -8659,7 +8686,7 @@ periodic manual check rather than shipped as a guard that would be disabled with
 Also corrected: **N7 → `[~]`**, since its failure-report contract shipped while the runner did not. `[ ]` claimed
 less progress than exists, which is the rarer direction of the same dishonesty.
 
-### Composition snapshot — 2026-07-20 (generated by inspection, not estimated)
+### Historical composition snapshots — 2026-07-20 (superseded; do not use for dispatch)
 
 **121 open / 6 partial / 4 gated / 80 blocked / 225 done.** What the 121 open items are actually waiting on:
 
@@ -8697,7 +8724,7 @@ grew because it got more honest, not because less was done.**
 The checkbox count is an implementation-package count, not a raw Markdown-marker count. Recalculate with:
 
 ```sh
-rg -c '^\s*- \[( |>|\?|-)\]' todo.md
+rg -c '^\s*- \[[ >~?\-]\]' todo.md
 ```
 
 The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers with **229 remaining packages**:
@@ -8707,7 +8734,8 @@ The 2026-07-13 reconciliation replaces 310 unresolved-looking legacy markers wit
 - **47** deep-hardening, visual-polish, and release packages in phases 7–9;
 - **14** research/decision/manual/deferred-tail packages in phase 10.
 
-Status totals are **155 ready**, **67 dependency-blocked**, **3 user/hardware-blocked**, and **4 deliberately deferred**.
+The historical status totals at that reconciliation were **155 ready**, **67 dependency-blocked**, **3
+user/hardware-blocked**, and **4 deliberately deferred**; the live marker scan at the top of this file supersedes them.
 The larger package count than the prior ~154 estimate reflects finer, top-down-executable slicing plus tasks recovered
 from secondary Markdown files; it does not represent a proportional scope increase.
 
