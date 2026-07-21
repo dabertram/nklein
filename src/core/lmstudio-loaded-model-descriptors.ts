@@ -36,6 +36,10 @@ export interface LoadedModelDescriptor {
 	architecture?: string;
 	/** The model's advertised max context length, when present. */
 	maxContextLength?: number;
+	/** Context length of this loaded runtime instance, when LM Studio reports its instance config. */
+	loadedContextLength?: number;
+	/** On-disk/resident model bytes reported by LM Studio, when present; useful for relative loaded-fleet cost. */
+	sizeBytes?: number;
 }
 
 interface RawV1Capabilities {
@@ -45,6 +49,7 @@ interface RawV1Capabilities {
 }
 interface RawV1Instance {
 	id?: unknown;
+	config?: unknown;
 }
 interface RawV1Model {
 	id?: unknown;
@@ -53,6 +58,7 @@ interface RawV1Model {
 	key?: unknown;
 	architecture?: unknown;
 	max_context_length?: unknown;
+	size_bytes?: unknown;
 	capabilities?: unknown;
 	loaded_instances?: unknown;
 }
@@ -83,6 +89,10 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 			continue;
 		}
 		const model = entry as RawV1Model;
+		const sizeBytes =
+			typeof model.size_bytes === "number" && Number.isFinite(model.size_bytes) && model.size_bytes > 0
+				? model.size_bytes
+				: undefined;
 		const instances = Array.isArray(model.loaded_instances) ? model.loaded_instances : [];
 		if (instances.length === 0) {
 			const runtimeId = asString(model.id);
@@ -105,6 +115,7 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 					...(reasoning !== undefined ? { reasoning } : {}),
 					...(architecture !== undefined ? { architecture } : {}),
 					...(maxContextLength !== undefined ? { maxContextLength } : {}),
+					...(sizeBytes !== undefined ? { sizeBytes } : {}),
 				});
 			}
 			continue; // not loaded — skip (residency-only entry)
@@ -121,10 +132,19 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 				? model.max_context_length
 				: undefined;
 		for (const rawInstance of instances) {
-			const runtimeId = asString((rawInstance as RawV1Instance)?.id);
+			const instance = rawInstance as RawV1Instance;
+			const runtimeId = asString(instance?.id);
 			if (!runtimeId) {
 				continue;
 			}
+			const config =
+				instance.config && typeof instance.config === "object"
+					? (instance.config as { context_length?: unknown })
+					: null;
+			const loadedContextLength =
+				typeof config?.context_length === "number" && Number.isFinite(config.context_length)
+					? config.context_length
+					: undefined;
 			descriptors.push({
 				runtimeId,
 				modelKey: modelKey ?? runtimeId,
@@ -134,6 +154,8 @@ export function parseLoadedModelDescriptors(payload: unknown): LoadedModelDescri
 				...(reasoning !== undefined ? { reasoning } : {}),
 				...(architecture !== undefined ? { architecture } : {}),
 				...(maxContextLength !== undefined ? { maxContextLength } : {}),
+				...(loadedContextLength !== undefined ? { loadedContextLength } : {}),
+				...(sizeBytes !== undefined ? { sizeBytes } : {}),
 			});
 		}
 	}
@@ -147,6 +169,7 @@ export function loadedModelDescriptorFromLmsPsModel(model: LmsPsModel): LoadedMo
 		isEmbedding: model.isEmbedding,
 		...(model.trainedForToolUse !== null ? { toolUse: model.trainedForToolUse } : {}),
 		...(model.contextLength !== null ? { maxContextLength: model.contextLength } : {}),
+		...(model.contextLength !== null ? { loadedContextLength: model.contextLength } : {}),
 	};
 }
 

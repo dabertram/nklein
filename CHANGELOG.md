@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The read-only explorer now has a fleet-proven citation handoff and safe specialist routing.** A permanent three-host
+  gate localized 8/8 held-out repository questions; compact handoffs passed 18/18 worker checks versus 16/18 direct
+  exploration while removing 93.1% of main-context prompt tokens. Resident-only routing uses the role-validated
+  Qwopus3.5-9B specialist only when it is already loaded, has at least 32k context, and is strictly cheaper than the
+  worker; unvalidated models and endpoint failures safely keep the worker. Explorer query budgets are now per worker
+  session instead of accidentally accumulating across the service lifetime.
+
 - **In-repo code exemplars now retrieve more relevant functions, while remaining opt-in after a powered fleet gate.**
   Retrieval scores function-name/path identity instead of incidental body words and no longer loses matches merely
   because a task has a precise behavioral contract. A 60-pair held-out code-edit run across five resident models and

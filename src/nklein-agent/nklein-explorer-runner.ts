@@ -1,9 +1,9 @@
 /**
  * F11.2j explorer-subagent runner — the bounded `::explore` session (§5.U sibling of the plan-critique runner).
  *
- * One worker `explore` call = one bounded, read-only session on the SAME model with a FRESH context window (the
- * FastContext win is the offloaded window, not a different model — a smaller dedicated explorer model is a later
- * routing optimization). Owns the per-run query budget; every degraded path resolves to null so exploration never
+ * One worker `explore` call = one bounded, read-only session with a FRESH context window. A resident-only selector may
+ * route it to a smaller empirically tool-capable model; otherwise it uses the worker unchanged. Owns the per-session
+ * query budget; every degraded path resolves to null so exploration never
  * blocks the worker (the tool tells it to fall back to its own retrieval).
  */
 
@@ -41,6 +41,7 @@ export function classifyExploreFailure(message: string): "timeout" | "error" {
 export interface ExplorerRunnerDeps {
 	getAgentSandboxManager(): AgentSandboxManager | null;
 	getLaunchConfig(taskId: string): NKleinTaskRestartLaunchConfig | null;
+	resolveExplorerLaunchConfig(workerLaunch: NKleinTaskRestartLaunchConfig): Promise<NKleinTaskRestartLaunchConfig>;
 	getPauseController(): NKleinPauseController;
 	getHarness(): SecondarySessionHarness;
 	getBaseRef(taskId: string): string | null;
@@ -62,8 +63,6 @@ export interface ExplorerRunner {
 }
 
 export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
-	let exploreQueriesUsed = 0;
-
 	async function runExplorerSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -78,10 +77,24 @@ export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
 		if (!workerLaunch?.providerId || !workerLaunch.modelId) {
 			return null;
 		}
+		const selectedLaunch = await deps.resolveExplorerLaunchConfig(workerLaunch).catch(() => workerLaunch);
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
-			...workerLaunch,
+			...selectedLaunch,
 			workspaceRoot: input.projectRepoPath,
 		};
+		if (launchConfig.modelId !== workerLaunch.modelId) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Explorer for ${input.taskId} routed from ${workerLaunch.modelId} to smaller loaded model ${launchConfig.modelId}.`,
+				taskId: input.taskId,
+				metadata: {
+					category: "explorer_smaller_model_routed",
+					workerModel: workerLaunch.modelId,
+					explorerModel: launchConfig.modelId,
+				},
+			});
+		}
 		const explorerTaskId = `${input.taskId}::explore`;
 		return deps.getHarness().runBracketed(
 			{
@@ -127,6 +140,9 @@ export function createExplorerRunner(deps: ExplorerRunnerDeps): ExplorerRunner {
 		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
 			return undefined;
 		}
+		// One closure belongs to one worker session. Keeping this counter on the runner made six historical calls disable
+		// exploration globally for every later task in the service lifetime.
+		let exploreQueriesUsed = 0;
 		return async (question) => {
 			if (exploreQueriesUsed >= deps.runBudget) {
 				return null;

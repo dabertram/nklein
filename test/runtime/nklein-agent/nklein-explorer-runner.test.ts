@@ -20,6 +20,7 @@ function deps(over: Partial<ExplorerRunnerDeps> = {}): ExplorerRunnerDeps {
 	return {
 		getAgentSandboxManager: () => ({}) as never,
 		getLaunchConfig: () => ({ providerId: "lmstudio", modelId: "worker-m" }) as never,
+		resolveExplorerLaunchConfig: async (launch) => launch,
 		getPauseController: () => ({}) as never,
 		getHarness: () =>
 			({
@@ -73,5 +74,30 @@ describe("createExplorerRunner", () => {
 			expect.stringContaining("Submit your findings"),
 			"t1",
 		);
+	});
+
+	it("routes through the selected smaller launch config without changing the parent handoff", async () => {
+		const d = deps({
+			resolveExplorerLaunchConfig: async (launch) => ({ ...launch, modelId: "small-explorer" }),
+		});
+		await createExplorerRunner(d).buildExploreHandler("t1", "/repo")?.("Where is the rule?");
+
+		expect(d.startRuntimeSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				admissionParentTaskId: "t1",
+				launchConfig: expect.objectContaining({ modelId: "small-explorer" }),
+			}),
+		);
+	});
+
+	it("enforces the query budget per worker session rather than globally across later tasks", async () => {
+		const d = deps({ runBudget: 1 });
+		const runner = createExplorerRunner(d);
+		const first = runner.buildExploreHandler("t1", "/repo");
+		const second = runner.buildExploreHandler("t2", "/repo");
+
+		await expect(first?.("first")).resolves.toEqual(FINDINGS);
+		await expect(first?.("over budget")).resolves.toBeNull();
+		await expect(second?.("fresh task budget")).resolves.toEqual(FINDINGS);
 	});
 });

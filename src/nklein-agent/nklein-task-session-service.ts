@@ -105,6 +105,7 @@ import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./n
 import { createContextOverflowController } from "./nklein-context-overflow-controller";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
+import { resolveExplorerLaunchConfig } from "./nklein-explorer-model-selection";
 import { createExplorerRunner } from "./nklein-explorer-runner";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { createFocusChainStore } from "./nklein-focus-chain-store";
@@ -412,6 +413,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly explorerRunner = createExplorerRunner({
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		resolveExplorerLaunchConfig: (workerLaunch) => resolveExplorerLaunchConfig(workerLaunch),
 		getPauseController: () => this.pauseController,
 		getHarness: () => this.secondarySessionHarness,
 		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,

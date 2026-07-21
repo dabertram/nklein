@@ -2257,3 +2257,19 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   costs 316 prompt tokens on average, and is not significant, so the feature deliberately remains opt-in; unknown or
   irrelevant tasks may still abstain. F12.81 remains the distinct ledger-sourced message-shot extension. Evidence:
   `docs/dev/f11.2h-few-shot-code-edit-ab-2026-07-21.json`.
+
+- [x] **F11.2j — dedicated read-only explorer subagent returning citations** *(delivered opt-in 2026-07-17; fleet
+  validation and resident specialist routing closed 2026-07-21).* The bounded `::explore` session uses repository
+  map, graph/AST, lexical search, and focused reads in a fresh context, then returns only a compact answer with cited
+  paths through `submit_citations`. Its six-query budget is now scoped to each worker handler; the old runner-level
+  counter silently disabled exploration for every later task after six historical calls. Loaded descriptors now retain
+  model footprint and actual loaded-instance context, allowing a no-load/no-unload selector to route to a distinct
+  resident only when it meets the 32k floor and is strictly cheaper. Role fitness is exact-model evidence, not generic
+  tool metadata: Phi failed the production-shaped citation chain, while `qwopus3.5-9b-coder-mtp` passed all 8 held-out
+  tasks and is the sole current specialist allowlist entry; every unknown or failed selection keeps the worker.
+  The adequately-powered permanent fleet gate ran 18 paired tasks over qwen2.5-coder-14B on m5max, qwen3.5-9B on
+  m4mini, and Qwopus3.5-9B on legion5pro. Compact cited handoffs passed 18/18 versus 16/18 direct exploration and cut
+  main-context prompt tokens by 93.1%; the explorer itself localized 8/8. The feature remains opt-in through
+  `NKLEIN_EXPLORER_SUBAGENT`: quality did not regress, but exact McNemar p=0.500 did not justify a quality default flip
+  and the extra specialist round trips add latency/capacity cost; Phase 15 owns that separate default decision.
+  Evidence: `docs/dev/f11.2j-explorer-ab-2026-07-21.json`.

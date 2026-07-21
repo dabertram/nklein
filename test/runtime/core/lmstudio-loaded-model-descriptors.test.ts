@@ -15,6 +15,7 @@ const PAYLOAD = {
 		{
 			type: "llm",
 			key: "qwen3.5-9b-mtp",
+			size_bytes: 6_000_000_000,
 			architecture: "qwen35",
 			capabilities: { vision: false, trained_for_tool_use: true },
 			max_context_length: 262144,
@@ -64,6 +65,8 @@ describe("parseLoadedModelDescriptors", () => {
 			isEmbedding: false,
 			toolUse: true,
 			architecture: "qwen35",
+			loadedContextLength: 40000,
+			sizeBytes: 6_000_000_000,
 		});
 	});
 
@@ -164,6 +167,7 @@ describe("mergeLoadedModelDescriptors", () => {
 			isEmbedding: false,
 			toolUse: false,
 			maxContextLength: 32768,
+			loadedContextLength: 32768,
 		});
 		expect(descriptors.filter((d) => d.runtimeId === "qwen/qwen3.6-27b")).toHaveLength(1);
 	});
