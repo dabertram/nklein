@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Planner injection defense now has a resolved authority boundary.** Repository context remains available to the
+  decomposer so cards fit the codebase; model routing stays deterministic, and generated task prose cannot grant network,
+  host, write-scope, or outward-action authority. Those capabilities continue to be decided at the actual sandbox,
+  egress, scoped-write, and approval seams instead of trusting a planner's self-reported capability list.
+
 - **Monorepo context scoping now has an explicit architecture-policy boundary.** !Klein scopes cards to the deepest
   package, loads the nearest repository instructions, and exposes import impact, while repository-owned lint and
   acceptance commands remain authoritative for cross-layer rules. It does not invent a layer order from folder names

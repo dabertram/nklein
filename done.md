@@ -2285,3 +2285,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   repository's own lint/acceptance commands, which already execute explicitly configured dependency-cruiser, Nx,
   restricted-import, or equivalent fitness rules. When no project-owned policy exists, abstention avoids false failures
   and duplicate sources of truth. Existing focused tests (4) and the full repository gates remain green.
+
+- [x] **F12.11 — CaMeL-style dual-context planner evaluation** *(design delivered 2026-07-19; architecture decision
+  closed 2026-07-21).* The deterministic router and scheduler are already trusted-context clean; no model or untrusted
+  repository bytes choose model/device admission. The decomposer deliberately retains fenced, screened repository
+  context because removing it would make plans generic and discard F11.2's existing-codebase quality gains. The full
+  trusted/untrusted LLM split is therefore rejected. The proposed planner-output capability check is also rejected in
+  its self-reported form after tracing the real authority path: an `NKleinPlanTaskGraph` creates cards and dependencies
+  but cannot grant host execution, network egress, out-of-scope writes, protected changes, or outward actions. Those
+  powers are decided later by deterministic sandbox, egress-broker, scoped-write, and approval policies, which already
+  queue or deny the actual attempt. Asking the same untrusted planner to label `requestedCapabilities` and then checking
+  its label would be bypassable by omission and weaker than the execution boundary. A future graph-level check is
+  warranted only if it consumes an independently trusted workspace policy and controls a real grant; there is no open
+  engineering remainder today.
