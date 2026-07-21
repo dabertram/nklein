@@ -2199,3 +2199,19 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   in Phi-4 Mini and the two weaker 9B routes; Qwen3.6-35B-A3B was 28/28 pull and 27/28 push, establishing the adaptive
   capability ceiling. The evidence artifact records raw outcomes, tokens, latency, response channel, confidence
   intervals, harness card, and pre-registration. Focused implementation/eval tests (67) and TypeScript pass.
+
+- [x] **F11.2e — retrieval rerank/prune precision gate** *(delivered 2026-07-21).* The default bounded `search_code`
+  result can now pass through a one-shot same-resident-model discriminator before the coding turn. It receives the
+  originating card context plus actual search query and at most eight path/line/snippet candidates, returns a strict
+  ranked/keep decision, retains at least two and at most four hits, and records exact considered/kept/pruned counts and
+  kept citations in the existing retrieval ledger. Malformed, foreign-only, duplicate-id, timeout, endpoint, wide-result,
+  or unmeasured-model cases fail open to every original hit; ordinary search truncation remains separately labeled.
+  A pre-registered 140-pair run across five resident models and all three hosts rejected unconditional adoption: lexical
+  top-1 was 115/140 and the discriminator 117/137 valid (+2.2 points over paired valid cases; three schema failures),
+  with 92.7% aggregate target retention. The model split justified a measured identity gate instead: Qwen2.5-Coder-14B
+  retained 28/28, improved two misses with zero regressions/schema failures at 3.49 s mean, while Qwen3.6-35B-A3B retained
+  28/28 and corrected all five lexical misses with zero regressions/schema failures at 2.13 s mean. Phi-4 Mini and both
+  9B lanes remain lexical because they regressed, exceeded the latency budget, or failed schema output. A live production-
+  shaped probe also exposed and fixed `.venv`/`venv` dependency trees exhausting the shared 1,000-file source cap; the
+  centralized exclusion now covers code search/index/AST/ego and repo-map scanning. The repeated probe kept only the new
+  retrieval discriminator implementation and pruned five real distractors. Focused suites pass 107 tests and TypeScript.

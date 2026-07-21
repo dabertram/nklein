@@ -261,14 +261,23 @@ export class LocalLlmClient {
 					);
 				}
 				const json = (await response.json()) as {
-					choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }>;
+					choices?: Array<{
+						message?: { content?: string; reasoning_content?: string };
+						finish_reason?: string | null;
+					}>;
 				};
 				const choice = json.choices?.[0];
 				if (choice?.finish_reason === "aborted") {
 					throw modelRuntimeAbortError();
 				}
 				return {
-					content: choice?.message?.content ?? "",
+					// Some current LM Studio reasoning-model templates place schema-constrained JSON exclusively in
+					// `reasoning_content`. Treat it as the completion only when the normal channel is empty; callers still
+					// receive one stable `content` field and ordinary answers retain precedence.
+					content:
+						choice?.message?.content?.trim() ||
+						(request.format ? choice?.message?.reasoning_content?.trim() : "") ||
+						"",
 					finishReason: choice?.finish_reason ?? null,
 					raw: json,
 				};

@@ -4,6 +4,7 @@ import { fnv1aContentHash } from "../core/merkle-file-tree";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { createSymbol, extractAstSourceFacts } from "./nklein-repo-map-ast";
 import { addWeightedEdge, buildPersonalizationVector, calculatePageRank } from "./pagerank";
+import { SKIPPED_DIRS } from "./source-file-scan";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_TOKEN_BUDGET = 1_200;
@@ -27,19 +28,6 @@ const SOURCE_EXTENSIONS = new Set([
 	".cs",
 	".css",
 ]);
-const SKIPPED_DIRS = new Set([
-	".git",
-	".next",
-	".turbo",
-	".vite",
-	"coverage",
-	"dist",
-	"node_modules",
-	"out",
-	"target",
-	"tmp",
-]);
-
 export interface NKleinRepoMapSymbol {
 	name: string;
 	kind: string;

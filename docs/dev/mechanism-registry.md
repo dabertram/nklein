@@ -13,7 +13,7 @@ direction, so they are kept side by side:
 
 ## 1. Mechanism firing status
 
-Tallied **48990** observation(s) across **28** categories — exhaustive, not a capped window.
+Tallied **49062** observation(s) across **28** categories — exhaustive, not a capped window.
 
 | category | item | enabled by | expectation | observations | status |
 | --- | --- | --- | --- | ---: | --- |
@@ -70,9 +70,9 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-942 of 2357 exported core symbol(s) have NO non-test consumer. 56 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+947 of 2366 exported core symbol(s) have NO non-test consumer. 56 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
-### Modules where EVERY export is orphaned (108)
+### Modules where EVERY export is orphaned (109)
 
 - `lms-session-stall.ts` (8 export(s))
 - `enforced-reasoning-learning.ts` (7 export(s))
@@ -90,6 +90,7 @@ Status meanings — note that only ONE of these is actionable:
 - `cache-stable-prefix-order.ts` (4 export(s))
 - `codeact-gating.ts` (4 export(s))
 - `constraint-tax-strategy.ts` (4 export(s))
+- `decompose-span-ab-eval.ts` (4 export(s))
 - `discriminative-tiebreak.ts` (4 export(s))
 - `model-online-lookup.ts` (4 export(s))
 - `prompt-evolution-gate.ts` (4 export(s))
@@ -183,9 +184,9 @@ Status meanings — note that only ONE of these is actionable:
 - `transcript-distractor-pruning.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
 
-### Orphan triage — tracked vs untracked (108 fully-orphaned modules)
+### Orphan triage — tracked vs untracked (109 fully-orphaned modules)
 
-- **104 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **105 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
 - **4 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question

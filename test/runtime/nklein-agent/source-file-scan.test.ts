@@ -29,6 +29,8 @@ describe("scan constants", () => {
 	it("includes the expected source extensions and skipped dirs", () => {
 		expect(SOURCE_EXTENSIONS.has(".tsx")).toBe(true);
 		expect(SKIPPED_DIRS.has("node_modules")).toBe(true);
+		expect(SKIPPED_DIRS.has(".venv")).toBe(true);
+		expect(SKIPPED_DIRS.has("venv")).toBe(true);
 		expect(MAX_FILE_BYTES).toBe(512_000);
 	});
 });
@@ -48,6 +50,10 @@ describe("listSourceFiles", () => {
 		await writeFile(join(root, "huge.ts"), "x".repeat(MAX_FILE_BYTES + 1));
 		await mkdir(join(root, "node_modules"));
 		await writeFile(join(root, "node_modules", "dep.ts"), "export const dep = 1;");
+		await mkdir(join(root, ".venv"));
+		await writeFile(join(root, ".venv", "dependency.py"), "def dependency(): pass");
+		await mkdir(join(root, "venv"));
+		await writeFile(join(root, "venv", "dependency.py"), "def dependency(): pass");
 		await mkdir(join(root, "src"));
 		await writeFile(join(root, "src", "nested.ts"), "export const b = 2;");
 

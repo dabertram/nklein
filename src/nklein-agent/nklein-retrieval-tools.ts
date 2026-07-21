@@ -1,3 +1,8 @@
+import {
+	applyRetrievalDiscriminator,
+	type RetrievalDiscriminatorCandidate,
+	type RetrievalDiscriminatorDecision,
+} from "../core/retrieval-discriminator";
 import { searchAstShapes } from "./nklein-ast-search";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCode } from "./nklein-code-search";
@@ -19,6 +24,12 @@ export interface RetrievalRecord {
  * caller (which owns the task/workflow identity) decides whether/how to persist it. Best-effort: must never throw.
  */
 export type RetrievalRecorder = (record: RetrievalRecord) => void;
+
+export type RetrievalDiscriminator = (input: {
+	readonly taskContext: string;
+	readonly searchQuery: string;
+	readonly candidates: readonly RetrievalDiscriminatorCandidate[];
+}) => Promise<RetrievalDiscriminatorDecision | null>;
 
 const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1_200;
 const MAX_REPO_MAP_TOKEN_BUDGET = 12_000;
@@ -95,6 +106,8 @@ function createCodeSearchTool(
 	workspacePath: string,
 	embeddingProvider?: NKleinCodeEmbeddingProvider,
 	recordRetrieval?: RetrievalRecorder,
+	discriminateRetrieval?: RetrievalDiscriminator,
+	taskContext = "",
 ): AgentTool {
 	return {
 		name: "search_code",
@@ -139,18 +152,56 @@ function createCodeSearchTool(
 				contextLines: asBoundedInteger(record.contextLines, 3, 0, 12),
 				embeddingProvider,
 			});
+			const discriminatedCandidates = search.matches.map((match, index) => ({
+				id: `hit-${index}`,
+				text: `PATH: ${match.path}:${match.lineStart}-${match.lineEnd}\n${match.snippet}`,
+				match,
+			}));
+			let displayedMatches = search.matches;
+			let discriminatorApplied = false;
+			let discriminatorPruned = 0;
+			// The measured production shape is the default bounded search result (up to eight candidates). A caller
+			// explicitly asking for a wider diagnostic dump gets the unmodified result instead of a partial cross-batch
+			// ranking that would falsely compare candidates from different model calls.
+			if (discriminateRetrieval && discriminatedCandidates.length >= 3 && discriminatedCandidates.length <= 8) {
+				try {
+					const decision = await discriminateRetrieval({
+						taskContext,
+						searchQuery: search.query,
+						candidates: discriminatedCandidates,
+					});
+					const applied = applyRetrievalDiscriminator(discriminatedCandidates, decision, {
+						minKeep: 2,
+						maxKeep: 4,
+					});
+					if (applied.applied) {
+						displayedMatches = applied.kept.map((candidate) => candidate.match);
+						discriminatorApplied = true;
+						discriminatorPruned = applied.pruned.length;
+					}
+				} catch {
+					// A relevance helper is advisory. Any endpoint, parse, or timeout failure returns every original hit.
+				}
+			}
 			// §5.AC retrieval telemetry (record-only): the model considered these matches and their source files. The
 			// helped/hurt `signal` is left to the caller/ledger (unknown here) — this seam only knows what was retrieved.
 			recordRetrieval?.({
 				query: search.query,
 				hitsConsidered: search.matches.length,
-				citations: search.matches.map((match) => match.path),
+				citations: displayedMatches.map((match) => match.path),
+				pruned: discriminatorPruned,
 			});
 			return {
 				query: search.query,
 				filesScanned: search.filesScanned,
-				matches: search.matches,
+				matches: displayedMatches,
 				truncated: search.truncated,
+				rerank: {
+					applied: discriminatorApplied,
+					considered: search.matches.length,
+					kept: displayedMatches.length,
+					pruned: discriminatorPruned,
+				},
 				instruction:
 					"Pick the smallest relevant file excerpts from these snippets. Prefer read_files with focused ranges before reading whole files.",
 			};
@@ -269,12 +320,20 @@ function createEgoGraphTool(workspacePath: string, recordRetrieval?: RetrievalRe
 export function createNKleinRetrievalTools(options: {
 	workspacePath: string;
 	embeddingProvider?: NKleinCodeEmbeddingProvider;
+	taskContext?: string;
+	discriminateRetrieval?: RetrievalDiscriminator;
 	/** Optional sink for §5.AC retrieval telemetry; omit (e.g. sandbox tool sets with no task identity) to skip recording. */
 	recordRetrieval?: RetrievalRecorder;
 }): AgentTool[] {
 	return [
 		createRepoMapTool(options.workspacePath),
-		createCodeSearchTool(options.workspacePath, options.embeddingProvider, options.recordRetrieval),
+		createCodeSearchTool(
+			options.workspacePath,
+			options.embeddingProvider,
+			options.recordRetrieval,
+			options.discriminateRetrieval,
+			options.taskContext,
+		),
 		createAstSearchTool(options.workspacePath, options.recordRetrieval),
 		createEgoGraphTool(options.workspacePath, options.recordRetrieval),
 	];

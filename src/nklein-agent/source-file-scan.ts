@@ -29,16 +29,25 @@ export const SOURCE_EXTENSIONS = new Set([
 
 /** Directories the repo scanners never descend into. */
 export const SKIPPED_DIRS = new Set([
+	".cache",
 	".git",
+	".mypy_cache",
 	".next",
+	".pytest_cache",
+	".ruff_cache",
 	".turbo",
 	".vite",
+	".venv",
+	"__pycache__",
+	"build",
 	"coverage",
 	"dist",
+	"env",
 	"node_modules",
 	"out",
 	"target",
 	"tmp",
+	"venv",
 ]);
 
 /** Largest file (bytes) the scanners will include. */

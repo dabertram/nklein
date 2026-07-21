@@ -35,6 +35,57 @@ describe("LocalLlmClient local-only enforcement", () => {
 });
 
 describe("LocalLlmClient.complete", () => {
+	it("recovers a schema-constrained reply emitted only in reasoning_content", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: { content: "", reasoning_content: '{"ranked_ids":["c0"],"keep_ids":["c0"]}' },
+								finish_reason: "stop",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({
+				messages: [{ role: "user", content: "rank" }],
+				format: { jsonSchema: { name: "rank", schema: { type: "object" } } },
+			}),
+		).resolves.toMatchObject({ content: '{"ranked_ids":["c0"],"keep_ids":["c0"]}' });
+	});
+
+	it("does not expose reasoning-only prose as an ordinary completion", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{ message: { content: "", reasoning_content: "internal analysis" }, finish_reason: "stop" },
+						],
+					}),
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(client.complete({ messages: [{ role: "user", content: "answer" }] })).resolves.toMatchObject({
+			content: "",
+		});
+	});
+
 	it("retries an abort-shaped provider/runtime failure then succeeds", async () => {
 		const caller = new AbortController();
 		const fetchImpl = vi.fn().mockRejectedValueOnce(abortError()).mockResolvedValueOnce(jsonResponse("recovered"));

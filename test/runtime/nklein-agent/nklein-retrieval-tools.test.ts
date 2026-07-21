@@ -116,6 +116,68 @@ describe("nklein retrieval tools", () => {
 		expect(records[0]?.citations).toEqual(result.matches.map((match) => match.path));
 	});
 
+	it("reranks and prunes bounded code hits before returning them, with honest telemetry", async () => {
+		const workspacePath = await createWorkspace();
+		const records: Array<{ hitsConsidered: number; citations: readonly string[]; pruned?: number }> = [];
+		const seen: Array<{ taskContext: string; searchQuery: string; count: number }> = [];
+		const searchTool = createNKleinRetrievalTools({
+			workspacePath,
+			taskContext: "Implement the relevant feature, not a parallel adapter.",
+			discriminateRetrieval: async (input) => {
+				seen.push({
+					taskContext: input.taskContext,
+					searchQuery: input.searchQuery,
+					count: input.candidates.length,
+				});
+				const rankedIds = input.candidates.map((candidate) => candidate.id).reverse();
+				return { rankedIds, keepIds: rankedIds.slice(0, 1) };
+			},
+			recordRetrieval: (record) => records.push(record),
+		}).find((candidate) => candidate.name === "search_code");
+		if (!searchTool) throw new Error("Missing search_code tool");
+
+		const result = (await searchTool.execute({ query: "function", maxResults: 8 }, undefined as never)) as {
+			matches: Array<{ path: string }>;
+			rerank: { applied: boolean; considered: number; kept: number; pruned: number };
+		};
+
+		expect(seen).toEqual([
+			{
+				taskContext: "Implement the relevant feature, not a parallel adapter.",
+				searchQuery: "function",
+				count: result.rerank.considered,
+			},
+		]);
+		expect(result.rerank.applied).toBe(true);
+		expect(result.rerank.kept).toBe(2);
+		expect(result.rerank.pruned).toBeGreaterThan(0);
+		expect(records[0]?.hitsConsidered).toBe(result.rerank.considered);
+		expect(records[0]?.pruned).toBe(result.rerank.pruned);
+		expect(records[0]?.citations).toEqual(result.matches.map((match) => match.path));
+	});
+
+	it("fails open to every original hit when the discriminator throws", async () => {
+		const workspacePath = await createWorkspace();
+		const searchTool = createNKleinRetrievalTools({
+			workspacePath,
+			discriminateRetrieval: async () => {
+				throw new Error("model endpoint unavailable");
+			},
+		}).find((candidate) => candidate.name === "search_code");
+		if (!searchTool) throw new Error("Missing search_code tool");
+
+		const result = (await searchTool.execute({ query: "function", maxResults: 8 }, undefined as never)) as {
+			matches: unknown[];
+			rerank: { applied: boolean; considered: number; kept: number; pruned: number };
+		};
+		expect(result.rerank).toEqual({
+			applied: false,
+			considered: result.matches.length,
+			kept: result.matches.length,
+			pruned: 0,
+		});
+	});
+
 	it("omitting recordRetrieval is safe (no sink, no throw)", async () => {
 		const workspacePath = await createWorkspace();
 		const searchTool = getTool("search_code", workspacePath);

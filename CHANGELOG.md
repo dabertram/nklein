@@ -64,6 +64,13 @@
   to 77.1% (+15.7 points, McNemar p=0.00068) with zero infrastructure failures. Stale, unsafe, binary, oversized, or
   irrelevant candidates fail soft to the existing structural retrieval ladder.
 
+- **Measured code-search reranking now removes distractors only where it is proven safe.** Bounded `search_code` results
+  can be ranked and pruned by the task's already-resident local model using the full card context, with exact kept/dropped
+  ledger telemetry and fail-open behavior. A 140-pair, five-model, three-host run rejected a fleet-wide default and enabled
+  only Qwen2.5-Coder-14B and Qwen3.6-35B-A3B, which each retained 28/28 targets with zero regressions or schema failures;
+  unmeasured and regressing lanes keep the lexical/hybrid ranker. The production probe also fixed Python `.venv`/`venv`
+  dependency trees consuming the source-file budget before repository code could be searched.
+
 - **Unexpectedly large tool results no longer flood a small model's next turn.** Successful read, search, and command
   outputs above a context-scaled threshold now leave a bounded head-and-tail preview plus a session-local `result://`
   handle. The model can page exact slices through a stable `resolve_result` tool when needed. Failure bodies and

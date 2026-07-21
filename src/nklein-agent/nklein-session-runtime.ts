@@ -32,6 +32,7 @@ import {
 } from "../core/api-contract";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { preferredEndpointKind } from "../core/model-behavior-profile";
+import { isMeasuredRetrievalDiscriminatorModel } from "../core/retrieval-discriminator";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
@@ -67,6 +68,7 @@ import { createPredictOutputTool } from "./nklein-predict-output-tool";
 import { createNKleinPromotionTool } from "./nklein-promotion-tool";
 import { createRequestCompactionTool } from "./nklein-request-compaction-tool";
 import { createSessionResultHandles } from "./nklein-result-handle-tool";
+import { createLocalModelRetrievalDiscriminator } from "./nklein-retrieval-discriminator";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
@@ -288,12 +290,28 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
 		const useHostWorkspaceTools = !request.extraTools;
 		const sessionResultHandles = createSessionResultHandles();
+		const retrievalDiscriminator =
+			request.baseUrl?.trim() && isMeasuredRetrievalDiscriminatorModel(request.modelId)
+				? createLocalModelRetrievalDiscriminator(
+						new LocalLlmClient({
+							providerId: request.providerId,
+							modelId: request.modelId,
+							baseUrl: request.baseUrl,
+							apiKey: request.apiKey,
+							...(request.apiTimeoutMs
+								? { timeoutMs: Math.min(request.apiTimeoutMs, 15_000) }
+								: { timeoutMs: 15_000 }),
+						}),
+					)
+				: undefined;
 		const workspaceExtraTools =
 			request.extraTools ??
 			([
 				...createNKleinRetrievalTools({
 					workspacePath: agentPerceivedCwd,
 					embeddingProvider: request.codeEmbeddingProvider ?? createNKleinCodeEmbeddingProvider(),
+					taskContext: request.sourcePrompt ?? request.prompt,
+					...(retrievalDiscriminator ? { discriminateRetrieval: retrievalDiscriminator } : {}),
 					// §5.AC: record each search_code turn to the agent ledger (workflowId = taskId; signal stays "unknown"
 					// — this seam knows what was retrieved, not whether it helped). Best-effort; never breaks the tool.
 					recordRetrieval: (retrieval) => {
