@@ -28,6 +28,8 @@ export interface ChatMemory {
 	text: string;
 	/** The embedding vector, or null when stored under the lexical fallback (recall degrades accordingly). */
 	embedding: number[] | null;
+	/** Identity of the model that produced `embedding`; absent on legacy rows, which therefore recall lexically. */
+	embeddingModelId?: string | null;
 	createdAt: number;
 }
 
@@ -38,6 +40,7 @@ export const chatMemorySchema = z.object({
 	shared: z.boolean(),
 	text: z.string(),
 	embedding: z.array(z.number()).nullable(),
+	embeddingModelId: z.string().nullable().optional(),
 	createdAt: z.number(),
 }) satisfies z.ZodType<ChatMemory>;
 
@@ -53,7 +56,14 @@ function resolveLogPath(rootDir?: string): string {
 }
 
 export async function appendChatMemory(
-	input: { sessionId: string; text: string; shared?: boolean; embedding?: number[] | null; id?: string },
+	input: {
+		sessionId: string;
+		text: string;
+		shared?: boolean;
+		embedding?: number[] | null;
+		embeddingModelId?: string | null;
+		id?: string;
+	},
 	options: ChatMemoryStoreOptions = {},
 ): Promise<ChatMemory> {
 	const memory: ChatMemory = {
@@ -63,6 +73,7 @@ export async function appendChatMemory(
 		shared: input.shared ?? false,
 		text: input.text,
 		embedding: input.embedding ?? null,
+		embeddingModelId: input.embeddingModelId ?? null,
 		createdAt: (options.now ?? Date.now)(),
 	};
 	const root = options.rootDir ?? DEFAULT_ROOT;
@@ -163,11 +174,26 @@ export function lexicalSimilarity(a: string, b: string): number {
 }
 
 /** Similarity between two memory texts: cosine when both have embeddings, else lexical token overlap. */
+function haveCompatibleEmbeddings(
+	a: { embedding: number[] | null; embeddingModelId?: string | null },
+	b: { embedding: number[] | null; embeddingModelId?: string | null },
+): a is { embedding: number[]; embeddingModelId: string } {
+	return Boolean(
+		a.embedding &&
+			b.embedding &&
+			a.embeddingModelId &&
+			b.embeddingModelId &&
+			a.embeddingModelId === b.embeddingModelId,
+	);
+}
+
 function memorySimilarity(
-	a: { text: string; embedding: number[] | null },
-	b: { text: string; embedding: number[] | null },
+	a: { text: string; embedding: number[] | null; embeddingModelId?: string | null },
+	b: { text: string; embedding: number[] | null; embeddingModelId?: string | null },
 ): number {
-	return a.embedding && b.embedding ? cosineSimilarity(a.embedding, b.embedding) : lexicalSimilarity(a.text, b.text);
+	return haveCompatibleEmbeddings(a, b)
+		? cosineSimilarity(a.embedding, b.embedding ?? [])
+		: lexicalSimilarity(a.text, b.text);
 }
 
 export interface ConsolidateChatMemoriesDeps {
@@ -175,6 +201,8 @@ export interface ConsolidateChatMemoriesDeps {
 	extract: (summary: string) => Promise<string[]>;
 	/** The in-process embedder; when present, dedup uses embedding similarity. */
 	embed?: (text: string) => Promise<number[] | null>;
+	/** Stable identity for persisted vectors; without it vectors are never compared across records. */
+	embeddingModelId?: string;
 	/** Near-duplicate threshold (default 0.85) — a candidate at/above this to any kept/existing memory is dropped. */
 	similarityThreshold?: number;
 }
@@ -182,6 +210,7 @@ export interface ConsolidateChatMemoriesDeps {
 export interface ConsolidatedChatMemory {
 	text: string;
 	embedding: number[] | null;
+	embeddingModelId: string | null;
 }
 
 /**
@@ -199,7 +228,7 @@ export async function proposeConsolidatedMemories(
 	const kept: ConsolidatedChatMemory[] = [];
 	for (const text of candidates) {
 		const embedding = deps.embed ? await deps.embed(text) : null;
-		const candidate = { text, embedding };
+		const candidate = { text, embedding, embeddingModelId: embedding ? (deps.embeddingModelId ?? null) : null };
 		const isDuplicate = [...existing, ...kept].some((other) => memorySimilarity(candidate, other) >= threshold);
 		if (!isDuplicate) {
 			kept.push(candidate);
@@ -227,6 +256,7 @@ export async function writeConsolidatedMemories(
 	const proposed = await proposeConsolidatedMemories(input, {
 		extract: deps.extract,
 		...(deps.embed ? { embed: deps.embed } : {}),
+		...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
 		...(deps.similarityThreshold !== undefined ? { similarityThreshold: deps.similarityThreshold } : {}),
 	});
 	for (const memory of proposed) {
@@ -238,6 +268,15 @@ export async function writeConsolidatedMemories(
 export interface ChatMemoryRecallDeps {
 	/** The in-process embedder; returns null when unavailable so recall falls back to lexical overlap. */
 	embed?: (text: string) => Promise<number[] | null>;
+	/** The query-vector model identity; only same-model stored vectors are eligible for cosine ranking. */
+	embeddingModelId?: string;
+	/**
+	 * Fail closed instead of changing retrieval semantics when an embedding-backed cross-project profile is in use.
+	 * A missing query vector or a legacy/different-model memory is then ineligible rather than lexically ranked.
+	 */
+	requireEmbedding?: boolean;
+	/** Precomputed query vector used by the unified composer so one strict preflight governs every widened source. */
+	queryEmbedding?: readonly number[] | null;
 }
 
 export interface ChatMemoryRecall extends ChatMemory {
@@ -256,11 +295,25 @@ export async function recallChatMemories(
 	const accessible = accessibleChatMemories(input.memories, input.sessionId, {
 		...(input.allProjects ? { allProjects: true } : {}),
 	});
-	const queryEmbedding = deps.embed ? await deps.embed(input.query) : null;
+	const queryEmbedding = Object.hasOwn(deps, "queryEmbedding")
+		? (deps.queryEmbedding ?? null)
+		: deps.embed
+			? await deps.embed(input.query)
+			: null;
+	if (deps.requireEmbedding && (!queryEmbedding || !deps.embeddingModelId)) {
+		return [];
+	}
 	const scored: ChatMemoryRecall[] = accessible.map((memory) => {
-		const score =
-			queryEmbedding && memory.embedding
-				? cosineSimilarity(queryEmbedding, memory.embedding)
+		const compatibleEmbedding = Boolean(
+			queryEmbedding &&
+				memory.embedding &&
+				deps.embeddingModelId &&
+				memory.embeddingModelId === deps.embeddingModelId,
+		);
+		const score = compatibleEmbedding
+			? cosineSimilarity(queryEmbedding ?? [], memory.embedding ?? [])
+			: deps.requireEmbedding
+				? 0
 				: lexicalSimilarity(input.query, memory.text);
 		return { ...memory, score };
 	});

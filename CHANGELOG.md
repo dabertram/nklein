@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Cross-project chat memory now opens only for a measured reader/retrieval pair.** The live LongMemEval harness
+  invokes the same unified recall composer as production, scores retrieval separately from the model reading the
+  returned evidence, and retains the result for the exact resident reader plus versioned lexical/embedding store.
+  Missing or failed evidence keeps recall scoped; an embedding outage cannot silently switch an approved semantic
+  profile to lexical ranking. The first real lexical run exposed stale and wrong-workspace retrieval, so it was
+  retained as a failure and cross-project recall remains closed until the retrieval layer actually passes.
+
 - **A worker that gets stuck against a capability rule now reports the exact blocked tool and reason.** !Klein keeps
   using its existing bounded recovery ladder and only parks after automatic resolution and model escalation cannot
   get through; the needs-you entry then identifies the active broker refusal instead of describing a generic loop.

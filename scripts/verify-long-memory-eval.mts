@@ -1,18 +1,27 @@
 /**
  * Live LongMemEval verifier for todo §5.M.
  *
- * This script does not wire memory-scope broadening into runtime. It only validates that the already-authored benchmark
- * discriminates a real model-backed recall loop before that runtime wiring is allowed.
+ * It exercises the exact production recall composer, asks the selected resident reader model to answer only from that
+ * returned context, proves the controls still discriminate, and retains the pair verdict consumed by runtime scope.
  */
 
+import { resolveLoadedChatMemoryEmbedder, type ChatMemoryEmbedder } from "../src/chat/chat-memory-embedding.js";
+import type { ChatMemory } from "../src/chat/chat-memory-store.js";
+import { recallUnifiedMemoryBand } from "../src/chat/unified-memory-recall.js";
 import {
+	buildLongMemoryEvalRetainedVerdict,
+	buildLongMemoryEvalRetentionEvent,
+	buildLongMemoryStoreProfile,
 	buildInternalLongMemoryEvalFixture,
 	evaluateLongMemoryBenchmark,
 	type LongMemoryEvalCase,
+	type LongMemoryEvalPrompt,
 } from "../src/core/long-memory-eval.js";
 import { fetchLoadedModelIds } from "../src/core/lmstudio-loaded-models.js";
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../src/core/lms-ps-json.js";
-import { parseLongMemorySelection, scoreLongMemoryModelAnswer } from "../src/core/long-memory-live-eval.js";
+import { scoreLongMemoryModelAnswer } from "../src/core/long-memory-live-eval.js";
+import { hashWorkspacePathForLedger } from "../src/nklein-agent/nklein-ledger-attempt.js";
+import { appendAgentLedgerEvent } from "../src/state/agent-attempt-ledger-store.js";
 
 const RAW_BASE = (process.env.NKLEIN_VERIFY_BASE_URL ?? "http://127.0.0.1:1234/v1").trim().replace(/\/+$/u, "");
 const CHAT_URL = `${RAW_BASE.endsWith("/v1") ? RAW_BASE : `${RAW_BASE}/v1`}/chat/completions`;
@@ -34,21 +43,6 @@ interface JsonResponseSchema {
 	schema: Record<string, unknown>;
 }
 
-const SELECTION_RESPONSE_SCHEMA: JsonResponseSchema = {
-	name: "long_memory_selection",
-	schema: {
-		type: "object",
-		additionalProperties: false,
-		properties: {
-			memoryIds: {
-				type: "array",
-				items: { type: "string" },
-			},
-		},
-		required: ["memoryIds"],
-	},
-};
-
 const ANSWER_RESPONSE_SCHEMA: JsonResponseSchema = {
 	name: "long_memory_answer",
 	schema: {
@@ -65,14 +59,25 @@ const ANSWER_RESPONSE_SCHEMA: JsonResponseSchema = {
 async function main(): Promise<void> {
 	const model = await resolveModel();
 	await assertResident(model);
+	const preferredEmbeddingModel = process.env.NKLEIN_LONG_MEMORY_EMBEDDING_MODEL?.trim() || null;
+	const embedder = await resolveLoadedChatMemoryEmbedder({
+		baseUrl: RAW_BASE,
+		preferredModelId: preferredEmbeddingModel,
+		failSoft: false,
+	});
+	if (preferredEmbeddingModel && !embedder) {
+		throw new Error(`Embedding model "${preferredEmbeddingModel}" is not confirmed resident.`);
+	}
+	const storeProfile = buildLongMemoryStoreProfile(embedder?.modelId ?? null);
 	const fixture = buildInternalLongMemoryEvalFixture();
 	const selections = new Map<string, string[]>();
 	const answerPassed: boolean[] = [];
 
-	console.log(`long-memory-eval: model=${model} base=${CHAT_URL} cases=${fixture.length}`);
+	console.log(`long-memory-eval: model=${model} store=${storeProfile} base=${CHAT_URL} cases=${fixture.length}`);
 	for (const case_ of fixture) {
+		const storedMemories = await buildStoredMemories(case_, embedder);
 		for (const prompt of case_.prompts) {
-			const selectedIds = await selectMemories(model, case_, prompt.id);
+			const selectedIds = await retrieveWithProductionStack(case_, prompt, storedMemories, embedder);
 			selections.set(key(case_.id, prompt.id), selectedIds);
 			const selectedMemories = case_.memories.filter((memory) => selectedIds.includes(memory.id));
 			const rawAnswer = await answerFromMemories(model, prompt.query, selectedMemories);
@@ -94,10 +99,24 @@ async function main(): Promise<void> {
 	const noisyControl = evaluateLongMemoryBenchmark(fixture, ({ case_ }) => case_.memories.map((memory) => memory.id), { k: 2 });
 	const answersPassed = answerPassed.every(Boolean);
 	const controlsDiscriminate = !narrowControl.passed && !noisyControl.passed;
-	console.log(
-		`result: recall=${liveReport.recallAtK.toFixed(3)} abstain=${liveReport.abstainAccuracy.toFixed(3)} benchmark=${liveReport.passed ? "PASS" : "FAIL"} answers=${answersPassed ? "PASS" : "FAIL"} controls=${controlsDiscriminate ? "PASS" : "FAIL"}`,
+	const verdict = buildLongMemoryEvalRetainedVerdict({
+		modelId: model,
+		storeProfile,
+		report: liveReport,
+		answersPassed,
+		controlsDiscriminate,
+		evaluatedAt: Date.now(),
+	});
+	await appendAgentLedgerEvent(
+		buildLongMemoryEvalRetentionEvent({
+			workspacePathHash: hashWorkspacePathForLedger(process.cwd()),
+			verdict,
+		}),
 	);
-	process.exit(liveReport.passed && answersPassed && controlsDiscriminate ? 0 : 3);
+	console.log(
+		`result: recall=${liveReport.recallAtK.toFixed(3)} abstain=${liveReport.abstainAccuracy.toFixed(3)} dimensions=${JSON.stringify(liveReport.dimensionPassRate)} benchmark=${liveReport.passed ? "PASS" : "FAIL"} answers=${answersPassed ? "PASS" : "FAIL"} controls=${controlsDiscriminate ? "PASS" : "FAIL"} retained=${verdict.passed ? "PASS" : "FAIL"}`,
+	);
+	process.exit(verdict.passed ? 0 : 3);
 }
 
 async function resolveModel(): Promise<string> {
@@ -130,29 +149,46 @@ async function assertResident(model: string): Promise<void> {
 	);
 }
 
-async function selectMemories(model: string, case_: LongMemoryEvalCase, promptId: string): Promise<string[]> {
-	const prompt = case_.prompts.find((entry) => entry.id === promptId);
-	if (!prompt) {
-		throw new Error(`Unknown prompt ${promptId}`);
+async function buildStoredMemories(
+	case_: LongMemoryEvalCase,
+	embedder: ChatMemoryEmbedder | null,
+): Promise<ChatMemory[]> {
+	const memories: ChatMemory[] = [];
+	for (const memory of case_.memories) {
+		const embedding = embedder ? await embedder.embed(memory.text) : null;
+		if (embedder && !embedding) throw new Error(`Embedding failed for fixture memory ${memory.id}.`);
+		memories.push({
+			schemaVersion: 1,
+			id: memory.id,
+			sessionId: `${memory.namespace}:${memory.sessionId}`,
+			shared: false,
+			text: memory.text,
+			embedding,
+			embeddingModelId: embedding ? embedder?.modelId ?? null : null,
+			createdAt: memory.recordedAt,
+		});
 	}
-	const raw = await chatText(
-		model,
-		[
-			{
-				role: "system",
-				content:
-					'Select only memory IDs that directly answer the query. Use no outside knowledge. Return only JSON: {"memoryIds":["id"]}. Return {"memoryIds":[]} when none apply.',
-			},
-			{
-				role: "user",
-				content: `Query: ${prompt.query}\n\nMemories:\n${case_.memories
-					.map((memory) => `- ${memory.id}: ${memory.text}`)
-					.join("\n")}`,
-			},
-		],
-		SELECTION_RESPONSE_SCHEMA,
+	return memories;
+}
+
+async function retrieveWithProductionStack(
+	case_: LongMemoryEvalCase,
+	prompt: LongMemoryEvalPrompt,
+	memories: readonly ChatMemory[],
+	embedder: ChatMemoryEmbedder | null,
+): Promise<string[]> {
+	const recalled = await recallUnifiedMemoryBand(
+		{
+			query: prompt.query,
+			sessionId: `${case_.id}:eval-driver`,
+			chatMemories: memories,
+			allProjects: true,
+			chatMemoryLimit: 2,
+			bandOptions: { maxRecords: 2, perSourceFloor: 0 },
+		},
+		embedder ? { embed: embedder.embed, embeddingModelId: embedder.modelId, requireEmbedding: true } : {},
 	);
-	return parseLongMemorySelection(raw, case_.memories.map((memory) => memory.id));
+	return recalled.band.flatMap((record) => (record.source === "session" ? [record.id.replace(/^session:/u, "")] : []));
 }
 
 async function answerFromMemories(

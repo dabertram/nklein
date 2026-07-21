@@ -8,6 +8,7 @@ import type {
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
 import type { ChatImageAttachment } from "../core/chat-multimodal";
+import type { MemoryScopeBroadeningDecision } from "../core/long-memory-eval";
 import { buildTargetPickerPrompt, parseTargetPickerChoice } from "../core/message-target-picker";
 import {
 	type MessageTargetIndex,
@@ -26,6 +27,7 @@ import { maybeEnforceReasoning } from "./chat-enforced-reasoning";
 import { deleteSessionImages, readChatMessageImages, writeChatMessageImages } from "./chat-image-store";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { executeMemoryDeleteControl, type MemoryDeleteOutcome } from "./chat-memory-delete";
+import type { ChatMemoryEmbedder } from "./chat-memory-embedding";
 import { projectUnifiedMemory, type UnifiedMemoryRecord } from "./chat-memory-projection";
 import {
 	accessibleChatMemories,
@@ -135,7 +137,22 @@ export interface ChatServiceOptions {
 	buildKleinSelfCorpusNote?: (session: ChatSession, question: string) => Promise<string | null>;
 	/** F2.9b: build the flag-gated unified-memory recall note (projection across sources → provenance-carrying band) to
 	 *  lead the turn. Injected by the runtime BEHIND its opt-in flag; omitted/null ⇒ today's solo recall (byte-identical). */
-	buildUnifiedMemoryNote?: (session: ChatSession, query: string) => Promise<string | null>;
+	buildUnifiedMemoryNote?: (
+		session: ChatSession,
+		query: string,
+		memoryAccess: {
+			allProjects: boolean;
+			embedder: ChatMemoryEmbedder | null;
+		},
+	) => Promise<string | null>;
+	/** Resolve an already-resident local embedder; null keeps the honest lexical store profile. */
+	resolveMemoryEmbedder?: () => Promise<ChatMemoryEmbedder | null>;
+	/** F2.10b: authorize cross-project MEMORY recall from retained evidence for this exact model/store pair. */
+	resolveMemoryScopeBroadening?: (input: {
+		session: ChatSession;
+		modelId: string | null;
+		embeddingModelId: string | null;
+	}) => Promise<MemoryScopeBroadeningDecision>;
 	/** F2.23: opt-in — capture each turn's model reasoning-channel text as a display-only `reasoning` transcript row
 	 *  (secret-redacted + length-bounded first). Injected by the runtime BEHIND its opt-in flag; omitted/false ⇒ no
 	 *  reasoning rows (byte-identical to today's transcript). */
@@ -324,6 +341,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		sessionId: string,
 		summary: string | null,
 		modelDeps: ChatModelDeps,
+		embedder: ChatMemoryEmbedder | null,
 	): Promise<void> => {
 		if (!summary || !modelDeps.extractMemories || process.env.NKLEIN_CHAT_MEMORY_WRITE !== "1") {
 			return;
@@ -335,14 +353,39 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				{
 					extract: modelDeps.extractMemories,
 					persist: async (memory) => {
-						await appendChatMemory({ sessionId, text: memory.text, embedding: memory.embedding }, memoryOptions);
+						await appendChatMemory(
+							{
+								sessionId,
+								text: memory.text,
+								embedding: memory.embedding,
+								embeddingModelId: memory.embeddingModelId,
+							},
+							memoryOptions,
+						);
 					},
+					...(embedder ? { embed: embedder.embed, embeddingModelId: embedder.modelId } : {}),
 				},
 			);
 		} catch {
 			// Best-effort — memory consolidation must never break or delay a chat turn.
 		}
 	};
+
+	async function resolveTurnMemoryScope(
+		session: ChatSession,
+		modelId: string | null,
+		embedder: ChatMemoryEmbedder | null,
+	): Promise<MemoryScopeBroadeningDecision> {
+		if (session.scope !== "all_projects") {
+			return { accessAllOptIn: false, reason: "Scope broadening was not requested." };
+		}
+		if (!options.resolveMemoryScopeBroadening) {
+			return { accessAllOptIn: false, reason: "No retained LongMemEval evidence resolver is configured." };
+		}
+		return options
+			.resolveMemoryScopeBroadening({ session, modelId, embeddingModelId: embedder?.modelId ?? null })
+			.catch(() => ({ accessAllOptIn: false, reason: "LongMemEval evidence could not be read." }));
+	}
 
 	// Bug-hunt fix (2026-07-05): serialize whole TURNS per session id. sendMessage/runAutonomous each append a user
 	// message, run the (potentially long) model+tool loop, then append the assistant reply — two separate awaited
@@ -495,6 +538,14 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						return null;
 					}
 					const modelDeps = await options.resolveModelDeps();
+					const memoryEmbedder = options.resolveMemoryEmbedder
+						? await options.resolveMemoryEmbedder().catch(() => null)
+						: null;
+					const memoryScope = await resolveTurnMemoryScope(session, modelDeps.modelId ?? null, memoryEmbedder);
+					const memoryScopeNotice =
+						session.scope === "all_projects" && !memoryScope.accessAllOptIn
+							? `Cross-project memory recall was withheld: ${memoryScope.reason}`
+							: null;
 					const tokenBudget = input.tokenBudget ?? resolveChatTokenBudget(options.resolveContextWindowTokens?.());
 					const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
 					// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
@@ -508,6 +559,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							message: { role: ChatMessage["role"]; content: string; meta?: ChatMessage["meta"] },
 						) => appendChatMessage(sessionId, message, transcriptOptions),
 						estimateTokens,
+						...(memoryEmbedder ? { embed: memoryEmbedder.embed, embeddingModelId: memoryEmbedder.modelId } : {}),
+						...(memoryScope.accessAllOptIn && memoryEmbedder ? { requireEmbedding: true } : {}),
 						...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
 					};
 
@@ -686,7 +739,12 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								: null;
 						// F2.9b: the flag-gated unified-memory recall note (runtime provides it only behind its opt-in flag).
 						const unifiedMemoryNote = options.buildUnifiedMemoryNote
-							? await options.buildUnifiedMemoryNote(session, input.message).catch(() => null)
+							? await options
+									.buildUnifiedMemoryNote(session, input.message, {
+										allProjects: memoryScope.accessAllOptIn,
+										embedder: memoryEmbedder,
+									})
+									.catch(() => null)
 							: null;
 						// F2.7b: resolve the selected model's vision capability at the send seam (fail-closed to [] — a model
 						// not known vision-capable refuses images rather than sending bytes it can't read).
@@ -706,6 +764,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								userMessage: input.message,
 								tokenBudget,
 								memoryLimit,
+								allProjectsMemoryAccess: memoryScope.accessAllOptIn,
 								...(typeof agentToolDeps.maxIterations === "number"
 									? { maxIterations: agentToolDeps.maxIterations }
 									: {}),
@@ -792,13 +851,16 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
 						}
 						// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
-						await maybeConsolidateSessionMemories(session.id, agentResult.context.summary, modelDeps);
+						await maybeConsolidateSessionMemories(
+							session.id,
+							agentResult.context.summary,
+							modelDeps,
+							memoryEmbedder,
+						);
 						// F2.7b: a refused attachment (non-vision model / over-budget) surfaces alongside any model-gate notice.
-						const combinedNotice = agentResult.attachmentNotice
-							? capabilityNotice
-								? `${capabilityNotice}\n${agentResult.attachmentNotice}`
-								: agentResult.attachmentNotice
-							: capabilityNotice;
+						const combinedNotice = [capabilityNotice, agentResult.attachmentNotice, memoryScopeNotice]
+							.filter((notice): notice is string => Boolean(notice))
+							.join("\n");
 						return {
 							userMessage: toRuntimeChatMessage(agentResult.userMessage),
 							assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
@@ -815,6 +877,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							userMessage: input.message,
 							tokenBudget,
 							memoryLimit,
+							allProjectsMemoryAccess: memoryScope.accessAllOptIn,
 							...(onToken ? { onToken } : {}),
 						},
 						{
@@ -825,10 +888,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						},
 					);
 					// §5.M: same best-effort memory consolidation for the plain (non-tool) turn path.
-					await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps);
+					await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps, memoryEmbedder);
 					return {
 						userMessage: toRuntimeChatMessage(result.userMessage),
 						assistantMessage: toRuntimeChatMessage(result.assistantMessage),
+						...(memoryScopeNotice ? { capabilityNotice: memoryScopeNotice } : {}),
 					};
 				} finally {
 					activeTurn.close();
@@ -899,6 +963,10 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					return null;
 				}
 				const modelDeps = await options.resolveModelDeps();
+				const memoryEmbedder = options.resolveMemoryEmbedder
+					? await options.resolveMemoryEmbedder().catch(() => null)
+					: null;
+				const memoryScope = await resolveTurnMemoryScope(session, modelDeps.modelId ?? null, memoryEmbedder);
 				const tokenBudget = resolveChatTokenBudget(options.resolveContextWindowTokens?.());
 				const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
 				// §5.AC: same per-turn "knows today" resolution as the interactive path (config || env, off by default).
@@ -909,6 +977,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
 						appendChatMessage(sessionId, message, transcriptOptions),
 					estimateTokens,
+					...(memoryEmbedder ? { embed: memoryEmbedder.embed, embeddingModelId: memoryEmbedder.modelId } : {}),
+					...(memoryScope.accessAllOptIn && memoryEmbedder ? { requireEmbedding: true } : {}),
 					...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
 				};
 				const resolveAgentToolDeps = options.resolveAgentToolDeps;
@@ -929,6 +999,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								userMessage,
 								tokenBudget,
 								memoryLimit,
+								allProjectsMemoryAccess: memoryScope.accessAllOptIn,
 								...(typeof turnMaxIterations === "number" ? { maxIterations: turnMaxIterations } : {}),
 							},
 							{
@@ -956,7 +1027,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
 						}
 						// §5.M: consolidate each autonomous turn's rolled-up summary into durable memory (best-effort, flag-gated).
-						await maybeConsolidateSessionMemories(session.id, turn.context.summary, modelDeps);
+						await maybeConsolidateSessionMemories(session.id, turn.context.summary, modelDeps, memoryEmbedder);
 						return { finalText: turn.assistantMessage.content, steps: turn.steps };
 					},
 					readPlanProgress: () => readAutonomousChatPlanProgress(session.id),

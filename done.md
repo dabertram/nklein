@@ -1017,6 +1017,20 @@
   now strictly harder to satisfy — any dimension failure refuses broadening. Existing tests updated (the clean
   ranker now legitimately avoids forbidden ids) + a stale-first-ranker test proving each dimension fails with
   its violation named. 10 tests green. tsc 0, fast 9557 green.
+- [x] **F2.10b — live LongMemEval runs now exercise and gate the exact production recall stack** *(delivered
+  2026-07-21).* `scripts/verify-long-memory-eval.mts` no longer asks the reader model to select memories: it
+  inserts fixture records into the real chat-memory shape, calls the shared `recallUnifiedMemoryBand` production
+  composer, then gives the selected compact evidence to a fixed reader and scores retrieval and answer quality
+  separately. The harness uses only resident LM Studio chat/embedding models, records the embedding model identity
+  with every vector, and retains latest-wins verdicts in the F1.26 agent ledger for the exact reader + versioned
+  store profile. Runtime `all_projects` recall now consults that exact pair and fails closed for missing/failed
+  evidence; session scope alone cannot grant cross-project memory. The shared composer now reads !Klein's actual
+  workspace/global Basic Memory roots (not the operator's unrelated `~/basic-memory` store), and embedding-backed
+  approved profiles cannot silently degrade to lexical ranking after an embedding failure. The first real run on
+  `qwen/qwen3.6-35b-a3b` + `unified-chat-memory-v1:lexical` deliberately retained FAIL: recall@2 `1.0`, reader
+  answers/controls PASS, but abstention `0`, relevance `0.667`, contradiction/privacy/recency `0`; broadening
+  therefore remains closed and the retrieval defect continues as F2.10c. Typecheck + full suite green
+  (1,259 files passed/1 skipped; 12,295 tests passed/1 skipped).
 - [x] **F2.12a — typed host-action confirmation descriptor + filterable audit projection** *(delivered
   2026-07-13; the dialog + history UI are F2.12b in todo).* `src/chat/chat-confirmation-description.ts`:
   `describeHostActionConfirmation` produces the five F2.12 fields a confirmation must name — action, target

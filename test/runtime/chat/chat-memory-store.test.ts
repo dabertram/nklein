@@ -37,11 +37,19 @@ describe("chat-memory-store", () => {
 	});
 
 	it("appends and reads back memories", async () => {
-		await appendChatMemory({ sessionId: "s1", text: "uses zustand", embedding: [1, 0] }, { rootDir, now: () => 1 });
+		await appendChatMemory(
+			{ sessionId: "s1", text: "uses zustand", embedding: [1, 0], embeddingModelId: "embed-v1" },
+			{ rootDir, now: () => 1 },
+		);
 		await appendChatMemory({ sessionId: "s1", text: "prefers tabs", shared: true }, { rootDir, now: () => 2 });
 		const all = await readChatMemories({ rootDir });
 		expect(all).toHaveLength(2);
-		expect(all[0]).toMatchObject({ text: "uses zustand", embedding: [1, 0], shared: false });
+		expect(all[0]).toMatchObject({
+			text: "uses zustand",
+			embedding: [1, 0],
+			embeddingModelId: "embed-v1",
+			shared: false,
+		});
 		expect(all[1]).toMatchObject({ text: "prefers tabs", shared: true });
 	});
 
@@ -63,12 +71,12 @@ describe("chat-memory-store", () => {
 
 	it("recalls by embedding similarity when an embedder is available", async () => {
 		const memories = [
-			memory({ id: "near", embedding: [1, 0, 0], text: "near" }),
-			memory({ id: "far", embedding: [0, 0, 1], text: "far" }),
+			memory({ id: "near", embedding: [1, 0, 0], embeddingModelId: "embed-v1", text: "near" }),
+			memory({ id: "far", embedding: [0, 0, 1], embeddingModelId: "embed-v1", text: "far" }),
 		];
 		const recalled = await recallChatMemories(
 			{ query: "q", sessionId: "s1", memories, limit: 1 },
-			{ embed: async () => [1, 0, 0] },
+			{ embed: async () => [1, 0, 0], embeddingModelId: "embed-v1" },
 		);
 		expect(recalled).toHaveLength(1);
 		expect(recalled[0]?.id).toBe("near");
@@ -82,6 +90,35 @@ describe("chat-memory-store", () => {
 		];
 		const recalled = await recallChatMemories({ query: "merge conflict", sessionId: "s1", memories }, {});
 		expect(recalled.map((m) => m.id)).toEqual(["hit"]);
+	});
+
+	it("never compares vectors produced by different or unknown embedding models", async () => {
+		const memories = [
+			memory({ id: "wrong-model", text: "unrelated", embedding: [1, 0], embeddingModelId: "embed-v0" }),
+			memory({ id: "legacy", text: "also unrelated", embedding: [1, 0] }),
+		];
+		const recalled = await recallChatMemories(
+			{ query: "target", sessionId: "s1", memories },
+			{ embed: async () => [1, 0], embeddingModelId: "embed-v1" },
+		);
+		expect(recalled).toEqual([]);
+	});
+
+	it("fails closed instead of falling back to lexical recall for an evidence-bound embedding profile", async () => {
+		const memories = [
+			memory({ id: "same-model", text: "target", embedding: [1, 0], embeddingModelId: "embed-v1" }),
+			memory({ id: "legacy", text: "target", embedding: null }),
+		];
+		const failedQuery = await recallChatMemories(
+			{ query: "target", sessionId: "s1", memories },
+			{ embed: async () => null, embeddingModelId: "embed-v1", requireEmbedding: true },
+		);
+		const incompatibleOnly = await recallChatMemories(
+			{ query: "target", sessionId: "s1", memories: [memories[1] as ChatMemory] },
+			{ embed: async () => [1, 0], embeddingModelId: "embed-v1", requireEmbedding: true },
+		);
+		expect(failedQuery).toEqual([]);
+		expect(incompatibleOnly).toEqual([]);
 	});
 
 	it("consolidates short→long: extracts candidates, dropping near-duplicates of existing + within the batch", async () => {
@@ -103,13 +140,14 @@ describe("chat-memory-store", () => {
 	});
 
 	it("uses embedding similarity for dedup when an embedder is supplied", async () => {
-		const existing = [memory({ id: "e", text: "alpha", embedding: [1, 0] })];
+		const existing = [memory({ id: "e", text: "alpha", embedding: [1, 0], embeddingModelId: "embed-v1" })];
 		const kept = await proposeConsolidatedMemories(
 			{ sessionId: "s1", summary: "...", existingMemories: existing },
 			{
 				extract: async () => ["alpha-restated", "beta-distinct"],
 				// alpha-restated embeds identical to existing → dropped; beta-distinct is orthogonal → kept.
 				embed: async (text) => (text === "beta-distinct" ? [0, 1] : [1, 0]),
+				embeddingModelId: "embed-v1",
 				similarityThreshold: 0.9,
 			},
 		);
@@ -118,7 +156,7 @@ describe("chat-memory-store", () => {
 	});
 
 	it("writeConsolidatedMemories persists each kept memory via the injected sink", async () => {
-		const persisted: { text: string; embedding: number[] | null }[] = [];
+		const persisted: { text: string; embedding: number[] | null; embeddingModelId: string | null }[] = [];
 		const kept = await writeConsolidatedMemories(
 			{
 				sessionId: "s1",
@@ -127,15 +165,21 @@ describe("chat-memory-store", () => {
 			},
 			{
 				extract: async () => ["prefers Vitest", "shipping on Friday"], // first is a near-dup of existing → dropped
+				embed: async () => [1, 0],
+				embeddingModelId: "embed-v1",
 				similarityThreshold: 0.7,
 				persist: async (m) => {
-					persisted.push({ text: m.text, embedding: m.embedding });
+					persisted.push({
+						text: m.text,
+						embedding: m.embedding,
+						embeddingModelId: m.embeddingModelId,
+					});
 				},
 			},
 		);
 		// Only the genuinely-new memory is kept AND persisted (the dup never reaches the sink).
 		expect(kept.map((m) => m.text)).toEqual(["shipping on Friday"]);
-		expect(persisted).toEqual([{ text: "shipping on Friday", embedding: null }]);
+		expect(persisted).toEqual([{ text: "shipping on Friday", embedding: [1, 0], embeddingModelId: "embed-v1" }]);
 	});
 
 	it("accessibleChatMemories: own + shared by default, but ALL sessions under the all_projects scope (§5.M)", () => {

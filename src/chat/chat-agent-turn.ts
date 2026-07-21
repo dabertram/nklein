@@ -62,6 +62,9 @@ export interface ChatAgentTurnDeps {
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	estimateTokens: (text: string) => number;
 	embed?: (text: string) => Promise<number[] | null>;
+	embeddingModelId?: string;
+	/** Retained embedding-backed cross-project evidence is invalid if recall falls back to lexical ranking. */
+	requireEmbedding?: boolean;
 	/** The agent model: prompt + whether tools are offered → text + requested tool calls. `onToken` is passed only on
 	 *  the final (no-tool) answer call (hybrid streaming, todo §5.M G3a) — the model streams the reply when it can. */
 	model: (
@@ -122,6 +125,8 @@ export async function runChatAgentTurn(
 		userMessage: string;
 		tokenBudget: number;
 		memoryLimit?: number;
+		/** F2.10b: explicit retained-evidence result; session scope alone never grants cross-project memory. */
+		allProjectsMemoryAccess?: boolean;
 		maxIterations?: number;
 		/** Streams the final reply token-by-token (hybrid streaming, todo §5.M G3a); server-side only — callbacks
 		 *  can't cross the tRPC wire. Persisted reply is still the cleaned/stripped text. */
@@ -157,9 +162,14 @@ export async function runChatAgentTurn(
 			estimateTokens: deps.estimateTokens,
 			...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
 			// §5.M: an all_projects-scoped session recalls memory across all sessions (durable working memory).
-			...(input.session.scope === "all_projects" ? { allProjects: true } : {}),
+			...(input.allProjectsMemoryAccess ? { allProjects: true } : {}),
 		},
-		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
+		{
+			summarize: deps.summarize,
+			...(deps.embed ? { embed: deps.embed } : {}),
+			...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
+			...(deps.requireEmbedding ? { requireEmbedding: true } : {}),
+		},
 	);
 	// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY; deps override for tests), relevance-gated
 	// + end-placed by the renderer's decision core (§5.AE / §5.AQ). We always hand it the clock and let the core decide.

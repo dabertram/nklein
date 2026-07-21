@@ -73,10 +73,13 @@ describe("composeChatTurnContext", () => {
 
 	it("ranks recall by embedding similarity when an embedder is supplied", async () => {
 		const transcript = [message("1", "hello")];
-		const memories = [memory("near", "near", { embedding: [1, 0] }), memory("far", "far", { embedding: [0, 1] })];
+		const memories = [
+			memory("near", "near", { embedding: [1, 0], embeddingModelId: "embed-v1" }),
+			memory("far", "far", { embedding: [0, 1], embeddingModelId: "embed-v1" }),
+		];
 		const context = await composeChatTurnContext(
 			{ sessionId: "s1", query: "q", transcript, memories, tokenBudget: 100, estimateTokens, memoryLimit: 1 },
-			{ embed: async () => [1, 0], summarize: async () => "" },
+			{ embed: async () => [1, 0], embeddingModelId: "embed-v1", summarize: async () => "" },
 		);
 		expect(context.recalledMemories.map((m) => m.id)).toEqual(["near"]);
 	});

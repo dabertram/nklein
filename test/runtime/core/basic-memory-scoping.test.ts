@@ -6,6 +6,7 @@ import {
 	basicMemorySeedProjectArgs,
 	planBasicMemorySandboxWiring,
 	planBasicMemoryScoping,
+	resolveBasicMemoryRecallRoots,
 } from "../../../src/core/basic-memory-scoping";
 
 describe("basicMemoryHardeningEnv", () => {
@@ -22,6 +23,28 @@ describe("basicMemoryProjectName", () => {
 	it("derives a stable per-workspace project name from the hash (never a host path)", () => {
 		expect(basicMemoryProjectName("abc123")).toBe("ws-abc123");
 		expect(basicMemoryProjectName("abc123")).not.toContain("/");
+	});
+});
+
+describe("resolveBasicMemoryRecallRoots", () => {
+	it("keeps ordinary recall to the active project plus the deliberate global store", () => {
+		expect(
+			resolveBasicMemoryRecallRoots({
+				runtimeHome: "/home/u/.nklein/nklein/",
+				workspaceHash: "abc",
+				accessAllProjects: false,
+			}),
+		).toEqual(["/home/u/.nklein/nklein/basic-memory/abc/notes", "/home/u/.nklein/nklein/basic-memory/global/notes"]);
+	});
+
+	it("widens only to the runtime-owned Basic Memory root after the caller authorizes all projects", () => {
+		expect(
+			resolveBasicMemoryRecallRoots({
+				runtimeHome: "/home/u/.nklein/nklein",
+				workspaceHash: "abc",
+				accessAllProjects: true,
+			}),
+		).toEqual(["/home/u/.nklein/nklein/basic-memory"]);
 	});
 });
 

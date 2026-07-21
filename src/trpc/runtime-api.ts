@@ -10,20 +10,22 @@ import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { rankBasicMemoryNotesForRecall } from "../chat/basic-memory-recall";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
-import { buildUnifiedMemoryNote, projectUnifiedMemory, selectMemoryBand } from "../chat/chat-memory-projection";
-import { readChatMemories, recallChatMemories } from "../chat/chat-memory-store";
+import { resolveLoadedChatMemoryEmbedder } from "../chat/chat-memory-embedding";
+import { buildUnifiedMemoryNote } from "../chat/chat-memory-projection";
+import { readChatMemories } from "../chat/chat-memory-store";
 import { createChatService } from "../chat/chat-service";
 import { chatSessionGrantStore } from "../chat/chat-session-grants";
 import { hostActionConfirmQueue } from "../chat/host-action-confirm-wait";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
+import { recallUnifiedMemoryBand } from "../chat/unified-memory-recall";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import {
 	selectAttempts,
 	summarizeKnowledgeDebtOutcomes,
@@ -55,6 +57,7 @@ import {
 	readBasicMemoryNotes,
 	readBasicMemoryRecallSources,
 } from "../core/basic-memory-note-reader";
+import { resolveBasicMemoryRecallRoots } from "../core/basic-memory-scoping";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
@@ -76,9 +79,14 @@ import {
 } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import {
+	buildLongMemoryStoreProfile,
+	decideMemoryScopeBroadening,
+	readLongMemoryEvalRetainedVerdict,
+} from "../core/long-memory-eval";
 import { mastRemedyHint, rollupMastDistribution } from "../core/mast-failure-modes";
 import { auditMemoryFreshness } from "../core/memory-freshness-audit";
-import { buildMemoryLayers } from "../core/memory-layers";
+import { buildMemoryLayers, scopeMemoryLayerEvents } from "../core/memory-layers";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import {
 	dominantFailureMode,
@@ -114,6 +122,7 @@ import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
 import { NKLEIN_DEV_TEST_PROJECT_MARKER_PATH } from "../nklein-agent/nklein-dev-test-project";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
+import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
 import { resolveModelCapabilityIdsWithCatalog } from "../nklein-agent/nklein-llmfit-routing-prior";
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
@@ -416,6 +425,36 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					// Env-first knob; the existing pin path asserts the model is actually loaded (fail-closed).
 					modelId: process.env.NKLEIN_CHAT_MODEL?.trim() || undefined,
 				}),
+			// F2.10b: use only an ALREADY-RESIDENT local embedding model. No resident embedder means the real store
+			// profile is lexical; discovery never loads or downloads a model.
+			resolveMemoryEmbedder: () =>
+				resolveLoadedChatMemoryEmbedder({
+					baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL,
+					preferredModelId: process.env.NKLEIN_CHAT_MEMORY_EMBEDDING_MODEL,
+				}),
+			// Cross-project MEMORY recall is independent from the all-projects tool posture: it opens only when the exact
+			// reader model + current recall-store profile has a retained passing live benchmark.
+			resolveMemoryScopeBroadening: async ({ session, modelId, embeddingModelId }) => {
+				if (session.scope !== "all_projects") {
+					return decideMemoryScopeBroadening({ requestedAccessAllOptIn: false, benchmark: null });
+				}
+				const storeProfile = buildLongMemoryStoreProfile(embeddingModelId);
+				if (!modelId) {
+					return {
+						accessAllOptIn: false,
+						reason: `No reader model is resolved for the ${storeProfile} memory benchmark.`,
+					};
+				}
+				const events = await readAllAgentLedger().catch(() => []);
+				const verdict = readLongMemoryEvalRetainedVerdict(events, modelId, storeProfile);
+				if (!verdict) {
+					return {
+						accessAllOptIn: false,
+						reason: `No retained passing LongMemEval run exists for model ${modelId} with store ${storeProfile}.`,
+					};
+				}
+				return decideMemoryScopeBroadening({ requestedAccessAllOptIn: true, benchmark: verdict });
+			},
 			// G3a: when a project is active, route the chat through the tool-using agent loop with READ-ONLY tools
 			// (read_file/list_dir/get_board); without an active workspace this returns null and the chat stays plain.
 			resolveAgentToolDeps: buildChatAgentToolDepsResolver({
@@ -476,60 +515,69 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// F2.7b hardening: the active chat provider id → its image-format quirks. The chat path runs on the local
 			// default provider (`lmstudio`), which rejects WebP, so this refuses it up front with actionable guidance.
 			resolveChatProviderId: () => DEFAULT_LOCAL_CHAT_PROVIDER_ID,
-			// F2.9b: the OPT-IN unified-memory recall note (NKLEIN_UNIFIED_MEMORY). Off by default = byte-identical;
-			// when on, query-relevant chat-memory recall + the focus chain project into one provenance-tagged band that
-			// leads the turn. (§5.M four-layer + Basic-Memory sources compose in later; recall quality tuned then.)
+			// F2.9b/F2.10b: the opt-in unified-memory note now uses the SAME composer as the live benchmark. Its Basic
+			// Memory roots are the runtime's project/global stores, never the operator's unrelated ~/basic-memory tree.
 			...(isTruthyEnv(process.env.NKLEIN_UNIFIED_MEMORY)
 				? {
-						buildUnifiedMemoryNote: async (session, query) => {
+						buildUnifiedMemoryNote: async (session, query, memoryAccess) => {
 							const memories = await readChatMemories();
-							const recalled = await recallChatMemories({
-								query,
-								sessionId: session.id,
-								memories,
-								limit: 12,
-								...(session.scope === "all_projects" ? { allProjects: true } : {}),
-							});
 							const focusChain = await readChatFocusChain(session.id).catch(() => null);
-							// F2.9b: also compose the §5.M four-layer projection (episodic/semantic from the ledger, procedural
-							// from the session's selected skills). Working-memory + Basic-Memory sources still compose later (the
-							// audit reader carries no note bodies; that needs a content-carrying reader + query ranking — deferred).
 							const ledgerEvents = await readAllAgentLedger().catch(() => []);
 							const knownSkillIds = new Set<string>(SELECTABLE_CHAT_SKILL_IDS);
 							const skillIds = session.selectedSkillIds.filter((id): id is SkillId => knownSkillIds.has(id));
+							const activeWorkspacePath = deps.getActiveWorkspacePath();
+							const activeWorkspaceHash = activeWorkspacePath
+								? hashWorkspacePathForLedger(activeWorkspacePath)
+								: null;
+							const scopedLedgerEvents = scopeMemoryLayerEvents(
+								ledgerEvents,
+								activeWorkspaceHash,
+								memoryAccess.allProjects,
+							);
 							const currentStep = focusChain?.steps.find((step) => step.status === "in_progress")?.text ?? null;
 							const memoryLayers = buildMemoryLayers({
-								events: ledgerEvents,
+								events: scopedLedgerEvents,
 								skillIds,
 								snapshot: { activeGoal: session.goal, currentStep },
 							});
-							const { homedir } = await import("node:os");
-							const { join } = await import("node:path");
-							const basicMemorySources = await readBasicMemoryRecallSources(
-								join(homedir(), "basic-memory"),
-								nodeBasicMemoryFsDeps(),
-							).catch(() => []);
-							const basicMemoryNotes = rankBasicMemoryNotesForRecall(basicMemorySources, query, 6);
-							const records = projectUnifiedMemory({
-								sessionMemories: recalled.map((entry) => ({
-									id: entry.id,
-									text: entry.text,
-									score: entry.score,
-									shared: entry.shared,
-								})),
-								layerRecords: memoryLayers.all,
-								basicMemoryNotes,
-								...(focusChain
-									? {
-											focusChainSteps: focusChain.steps.map((step) => ({
-												step: step.text,
-												status: step.status === "skipped" ? ("done" as const) : step.status,
-											})),
-										}
-									: {}),
+							const basicMemoryRoots = resolveBasicMemoryRecallRoots({
+								runtimeHome: resolveNkleinRuntimeHomePath(homedir()),
+								workspaceHash: activeWorkspaceHash,
+								accessAllProjects: memoryAccess.allProjects,
 							});
-							const band = selectMemoryBand(records);
-							const note = buildUnifiedMemoryNote(band);
+							const basicMemorySources = (
+								await Promise.all(
+									basicMemoryRoots.map((root) =>
+										readBasicMemoryRecallSources(root, nodeBasicMemoryFsDeps()).catch(() => []),
+									),
+								)
+							).flat();
+							const recalled = await recallUnifiedMemoryBand(
+								{
+									query,
+									sessionId: session.id,
+									chatMemories: memories,
+									layerRecords: memoryLayers.all,
+									basicMemorySources,
+									allProjects: memoryAccess.allProjects,
+									...(focusChain
+										? {
+												focusChainSteps: focusChain.steps.map((step) => ({
+													step: step.text,
+													status: step.status === "skipped" ? ("done" as const) : step.status,
+												})),
+											}
+										: {}),
+								},
+								memoryAccess.embedder
+									? {
+											embed: memoryAccess.embedder.embed,
+											embeddingModelId: memoryAccess.embedder.modelId,
+											...(memoryAccess.allProjects ? { requireEmbedding: true } : {}),
+										}
+									: {},
+							);
+							const note = buildUnifiedMemoryNote(recalled.band);
 							// F4.8b: this mechanism reads chat memories, the focus chain, the whole agent ledger and the
 							// Basic-Memory corpus on EVERY turn, then projects and ranks them — and recorded nothing. So
 							// "is that work producing a note, and from how many sources?" had no answer, which is both
@@ -542,12 +590,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 								recordSelfObservation({
 									signal: "custom",
 									severity: "info",
-									message: `Unified memory recall: ${band.length} record(s) banded from ${records.length} candidate(s).`,
+									message: `Unified memory recall: ${recalled.band.length} record(s) banded from ${recalled.candidates.length} candidate(s).`,
 									metadata: {
 										category: "unified_memory_recall",
-										banded: band.length,
-										candidates: records.length,
-										basicMemoryNotes: basicMemoryNotes.length,
+										banded: recalled.band.length,
+										candidates: recalled.candidates.length,
+										basicMemoryNotes: recalled.rankedBasicMemoryNotes.length,
+										allProjects: memoryAccess.allProjects,
+										embeddingModelId: memoryAccess.embedder?.modelId ?? null,
 										noteProduced: Boolean(note),
 									},
 								});

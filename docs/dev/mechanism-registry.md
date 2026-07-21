@@ -13,15 +13,45 @@ direction, so they are kept side by side:
 
 ## 1. Mechanism firing status
 
-Tallied **44713** observation(s) across **27** categories — exhaustive, not a capped window.
+Tallied **48842** observation(s) across **26** categories — exhaustive, not a capped window.
 
 | category | item | enabled by | expectation | observations | status |
 | --- | --- | --- | --- | ---: | --- |
+| `focus_chain_nudge` | §5.N | NKLEIN_FOCUS_CHAIN_NUDGE | every_run | 0 | **too_new_to_judge** |
+| `sandbox_mcp_offer` | §5.AR | NKLEIN_SANDBOX_MCP | every_run | 0 | **too_new_to_judge** |
+| `unified_memory_recall` | F2.9b | NKLEIN_UNIFIED_MEMORY | every_run | 0 | **never_enabled** |
+| `goal_reanchor` | F4.8 | NKLEIN_GOAL_REANCHOR | every_run | 0 | **too_new_to_judge** |
+| `adaptive_budget_retry` | §5.AA | NKLEIN_ADAPTIVE_RETRY | exceptional | 0 | **never_enabled** |
+| `model_lost_residency` | §5.AL | NKLEIN_RESIDENCY_HEARTBEAT | exceptional | 0 | **never_enabled** |
+| `native_force_tool_call` | §5.AA | NKLEIN_NATIVE_FORCE_TOOL_CALL | exceptional | 0 | **never_enabled** |
+| `review_lenses` | §5.AW | NKLEIN_REVIEW_LENSES | every_run | 0 | **too_new_to_judge** |
+| `queue_aware_free_first` | §5.AB | NKLEIN_QUEUE_AWARE_FREE_FIRST | every_run | 0 | **never_enabled** |
+| `opportunistic_idle_dispatch` | F1.36 | NKLEIN_OPPORTUNISTIC_IDLE_WORK | exceptional | 0 | **never_enabled** |
+| `ledger_exemplars` | F12.81 | NKLEIN_LEDGER_EXEMPLARS | every_run | 0 | **never_enabled** |
+| `fewshot_exemplars` | F11.2h | NKLEIN_FEWSHOT_EXEMPLARS | every_run | 0 | **never_enabled** |
+| `knows_today_injection` | §5.AC | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `review_path` | §5.AB | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `skill_prompt_fragments` | §5.AE | NKLEIN_SKILL_PROMPT_FRAGMENTS | every_run | 0 | **never_enabled** |
+| `stall_replan_injected` | F12.22 | NKLEIN_STALL_REPLAN | exceptional | 0 | **never_enabled** |
+| `procedural_skill_distillation` | F4.19 | NKLEIN_PROCEDURAL_SKILLS | every_run | 0 | **never_enabled** |
+| `sysprompt_level` | §5.AQ | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `fleet_aware_decompose` | F12.110 | NKLEIN_FLEET_AWARE_DECOMPOSE | every_run | 0 | **never_enabled** |
+| `architect_editor_phase` | §5.AV | NKLEIN_ARCHITECT_EDITOR | every_run | 0 | **never_enabled** |
+| `spec_lint` | F12.10 | NKLEIN_SPEC_LINT | every_run | 0 | **never_enabled** |
+| `runaway_generation_interrupted` | §5.AA | NKLEIN_RUNAWAY_ABORT | exceptional | 0 | **never_enabled** |
+| `test_driven_gate` | F12.37 | NKLEIN_TEST_DRIVEN_MODE | every_run | 0 | **too_new_to_judge** |
+| `verification_first_gate` | F12.36 | NKLEIN_VERIFICATION_FIRST | every_run | 0 | **too_new_to_judge** |
+| `review_panel_assembly` | §5.AB | NKLEIN_REVIEW_PANEL | every_run | 0 | **too_new_to_judge** |
+| `two_phase_tool_pick` | §5.O | NKLEIN_TWO_PHASE_TOOL_PICK | every_run | 0 | **never_enabled** |
+| `baseline_probe` | F12.60 | NKLEIN_BASELINE_PROBE | exceptional | 0 | **never_enabled** |
+| `repo_verify` | F11.2 | NKLEIN_REPO_VERIFY | exceptional | 0 | **never_enabled** |
+| `tool_trust_decay` | F12.24 | NKLEIN_TOOL_TRUST_DECAY | exceptional | 0 | **never_enabled** |
+| `typecheck_first` | F12.86 | NKLEIN_TYPECHECK_FIRST | exceptional | 0 | **never_enabled** |
 | `quant_floor_breach` | F12.27 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `language_floor_breach` | F12.83 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `adaptive_thinking_recommendation` | F12.27 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `scaffold_profile_recommendation` | F12.14 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
-| `review_effort_scaling` | F12.35 | _(always on)_ | every_run | 0 | **enabled_but_silent** |
+| `review_effort_scaling` | F12.35 | _(always on)_ | every_run | 0 | **too_new_to_judge** |
 | `mcp_tool_surface_drift` | F12.31 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `history_blind_corrector_override` | F12.91 | NKLEIN_HISTORY_BLIND_CORRECTOR | exceptional | 0 | **never_enabled** |
 | `history_blind_corrector_agreed` | F12.91 | NKLEIN_HISTORY_BLIND_CORRECTOR | every_run | 0 | **never_enabled** |
@@ -29,7 +59,7 @@ Tallied **44713** observation(s) across **27** categories — exhaustive, not a 
 | `drift_critic_on_track` | F12.92 | NKLEIN_DRIFT_CRITIC | every_run | 0 | **never_enabled** |
 | `tool_catalog_gate_observation` | F12.18 | NKLEIN_TOOL_GATE_OBSERVE | every_run | 0 | **never_enabled** |
 
-**1 mechanism(s) are ENABLED, expected to fire, and recorded nothing. 0 of 11 are demonstrably firing.**
+**No enabled-but-silent mechanisms. 0 of 41 are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.**
 
 Status meanings — note that only ONE of these is actionable:
 - `healthy` — demonstrably fires.
@@ -40,16 +70,15 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-897 of 2160 exported core symbol(s) have NO non-test consumer. 62 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+947 of 2323 exported core symbol(s) have NO non-test consumer. 61 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
-### Modules where EVERY export is orphaned (120)
+### Modules where EVERY export is orphaned (116)
 
 - `lms-session-stall.ts` (8 export(s))
 - `enforced-reasoning-learning.ts` (7 export(s))
 - `fleet-review-observation.ts` (7 export(s))
 - `memory-freshness-schedule.ts` (7 export(s))
 - `cache-prefix-retention.ts` (6 export(s))
-- `eval-context-footprint.ts` (6 export(s))
 - `fast-memory-fit.ts` (6 export(s))
 - `model-pool.ts` (6 export(s))
 - `skill-import-decision.ts` (6 export(s))
@@ -62,7 +91,6 @@ Status meanings — note that only ONE of these is actionable:
 - `codeact-gating.ts` (4 export(s))
 - `constraint-tax-strategy.ts` (4 export(s))
 - `discriminative-tiebreak.ts` (4 export(s))
-- `long-memory-eval.ts` (4 export(s))
 - `model-online-lookup.ts` (4 export(s))
 - `prompt-evolution-gate.ts` (4 export(s))
 - `repair-validation-gates.ts` (4 export(s))
@@ -75,8 +103,9 @@ Status meanings — note that only ONE of these is actionable:
 - `candidate-tournament.ts` (3 export(s))
 - `confidence-scorer.ts` (3 export(s))
 - `deliberation-loop.ts` (3 export(s))
-- `ears-acceptance-criteria.ts` (3 export(s))
-- `instruction-reanchor.ts` (3 export(s))
+- `field-report-generation.ts` (3 export(s))
+- `field-report-grounding.ts` (3 export(s))
+- `field-report-transport.ts` (3 export(s))
 - `lmstudio-max-tokens-clamp.ts` (3 export(s))
 - `localization-provider.ts` (3 export(s))
 - `long-memory-live-eval.ts` (3 export(s))
@@ -84,19 +113,17 @@ Status meanings — note that only ONE of these is actionable:
 - `mutation-adequacy.ts` (3 export(s))
 - `result-handle.ts` (3 export(s))
 - `skill-pin-drift.ts` (3 export(s))
+- `task-sizing-invariant.ts` (3 export(s))
 - `vlm-screenshot-lens.ts` (3 export(s))
 - `work-package-conflict-resolution.ts` (3 export(s))
 - `work-package-merge-readiness.ts` (3 export(s))
 - `action-plan-ir-gbnf.ts` (2 export(s))
-- `adaptive-attempt-loop.ts` (2 export(s))
 - `adaptive-decomposition-decision.ts` (2 export(s))
 - `citation-conflict-authority.ts` (2 export(s))
 - `clarification-count.ts` (2 export(s))
 - `context-position-salience-risk.ts` (2 export(s))
 - `context-smart-zone.ts` (2 export(s))
-- `diagnostic-oracles.ts` (2 export(s))
 - `durable-lease-renewal.ts` (2 export(s))
-- `egress-task-identity.ts` (2 export(s))
 - `fleet-host-cap-config.ts` (2 export(s))
 - `lmstudio-log-anomalies.ts` (2 export(s))
 - `local-endpoint-clients.ts` (2 export(s))
@@ -106,7 +133,6 @@ Status meanings — note that only ONE of these is actionable:
 - `reason-then-act.ts` (2 export(s))
 - `relative-date-resolver.ts` (2 export(s))
 - `retrieved-evidence.ts` (2 export(s))
-- `rounds-budget.ts` (2 export(s))
 - `skill-bundle-screening.ts` (2 export(s))
 - `skill-capability-grant-reconcile.ts` (2 export(s))
 - `skill-source-trust.ts` (2 export(s))
@@ -135,10 +161,10 @@ Status meanings — note that only ONE of these is actionable:
 - `diversity-reachability.ts` (1 export(s))
 - `durable-job-depth-priority.ts` (1 export(s))
 - `durable-scheduler-backpressure.ts` (1 export(s))
-- `egress-confirm-control.ts` (1 export(s))
 - `endpoint-iteration-loop.ts` (1 export(s))
 - `enforced-reasoning-round-stop.ts` (1 export(s))
 - `failure-hopelessness-from-errors.ts` (1 export(s))
+- `field-report-redaction.ts` (1 export(s))
 - `flake-quarantine.ts` (1 export(s))
 - `fleet-host-observation.ts` (1 export(s))
 - `focus-chain-diff.ts` (1 export(s))
@@ -165,21 +191,18 @@ Status meanings — note that only ONE of these is actionable:
 - `transcript-distractor-pruning.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
 
-### Orphan triage — tracked vs untracked (120 fully-orphaned modules)
+### Orphan triage — tracked vs untracked (116 fully-orphaned modules)
 
-- **113 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
-- **7 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
+- **112 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **4 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
 "why does this exist?" has no recorded answer anywhere in the project.
 
-- `diagnostic-oracles.ts`
 - `fleet-host-cap-config.ts`
 - `fleet-host-observation.ts`
 - `long-memory-live-eval.ts`
 - `persisted-prompt-session-models.ts`
-- `rounds-budget.ts`
-- `swarm-roster-load-plan.ts`
 
 ### Referenced ONLY from comments
 
@@ -187,7 +210,6 @@ A plain `grep -c` reports these as wired. They are not — every reference is a 
 
 - `action-plan-ir.ts` :: `actionPlanStepSchema`
 - `adaptive-attempt-loop.ts` :: `classifyTurnOutcome`
-- `adaptive-attempt-loop.ts` :: `runAdaptiveAttemptLoop`
 - `adaptive-decomposition-decision.ts` :: `decideCardDecomposition`
 - `agent-attempt-ledger.ts` :: `SCHEDULER_EVENT_NAMES`
 - `agent-ledger-selectors.ts` :: `latestRunState`

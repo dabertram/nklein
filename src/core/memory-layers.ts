@@ -171,6 +171,20 @@ export interface MemoryLayers {
 }
 
 /**
+ * Scope the ledger substrate before episodic/semantic projection. A project chat sees only its workspace hash;
+ * an evidence-approved all-projects chat may see the full local ledger. With no active workspace, fail closed.
+ */
+export function scopeMemoryLayerEvents(
+	events: readonly AgentLedgerEvent[],
+	workspacePathHash: string | null,
+	accessAllProjects: boolean,
+): AgentLedgerEvent[] {
+	if (accessAllProjects) return [...events];
+	if (!workspacePathHash) return [];
+	return events.filter((event) => event.workspacePathHash === workspacePathHash);
+}
+
+/**
  * Build all four memory layers from the injected substrate and a salience-ranked flat view. The flat `all` is a stable
  * sort (equal salience preserves layer order working→episodic→semantic→procedural) so the highest-value memories fill a
  * tight band first. Pure.

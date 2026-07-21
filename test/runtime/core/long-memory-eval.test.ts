@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildInternalLongMemoryEvalFixture,
+	buildLongMemoryEvalRetainedVerdict,
+	buildLongMemoryEvalRetentionEvent,
+	buildLongMemoryStoreProfile,
 	decideMemoryScopeBroadening,
 	evaluateLongMemoryBenchmark,
 	type LongMemoryEvalRanker,
+	readLongMemoryEvalRetainedVerdict,
 } from "../../../src/core/long-memory-eval";
 
 const fixture = buildInternalLongMemoryEvalFixture();
@@ -108,5 +112,40 @@ describe("decideMemoryScopeBroadening", () => {
 			accessAllOptIn: true,
 			reason: "LongMemEval benchmark passed.",
 		});
+	});
+
+	it("retains latest-wins evidence for the exact model/store pair and invalidates a changed store profile", () => {
+		const report = evaluateLongMemoryBenchmark(fixture, exactRanker);
+		const storeProfile = buildLongMemoryStoreProfile("embed-v1");
+		const first = buildLongMemoryEvalRetentionEvent({
+			workspacePathHash: "ws",
+			verdict: buildLongMemoryEvalRetainedVerdict({
+				modelId: "reader-a",
+				storeProfile,
+				report,
+				answersPassed: true,
+				controlsDiscriminate: true,
+				evaluatedAt: 10,
+			}),
+		});
+		const laterFailure = buildLongMemoryEvalRetentionEvent({
+			workspacePathHash: "ws",
+			verdict: buildLongMemoryEvalRetainedVerdict({
+				modelId: "reader-a",
+				storeProfile,
+				report,
+				answersPassed: false,
+				controlsDiscriminate: true,
+				evaluatedAt: 20,
+			}),
+		});
+
+		expect(readLongMemoryEvalRetainedVerdict([laterFailure, first], "reader-a", storeProfile)).toMatchObject({
+			passed: false,
+			answersPassed: false,
+			evaluatedAt: 20,
+		});
+		expect(readLongMemoryEvalRetainedVerdict([first], "reader-b", storeProfile)).toBeNull();
+		expect(readLongMemoryEvalRetainedVerdict([first], "reader-a", buildLongMemoryStoreProfile(null))).toBeNull();
 	});
 });

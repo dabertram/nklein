@@ -36,6 +36,24 @@ export function basicMemoryProjectName(workspaceHash: string): string {
 	return `ws-${workspaceHash}`;
 }
 
+/**
+ * Host roots the chat recall reader may inspect. Normal scope is exactly the active workspace plus the deliberate
+ * global store; a retained LongMemEval pass may widen to the runtime's Basic Memory root. This prevents the old live
+ * path from reading the operator's unrelated `~/basic-memory` tree or every project by accident.
+ */
+export function resolveBasicMemoryRecallRoots(input: {
+	runtimeHome: string;
+	workspaceHash: string | null;
+	accessAllProjects: boolean;
+}): string[] {
+	const base = `${input.runtimeHome.replace(/\/+$/u, "")}/basic-memory`;
+	if (input.accessAllProjects) return [base];
+	return [
+		...(input.workspaceHash ? [`${base}/${input.workspaceHash}/notes`] : []),
+		`${base}/${BASIC_MEMORY_GLOBAL_PROJECT}/notes`,
+	];
+}
+
 /** One project registered in the container's basic-memory config.json (name → notes dir), plus its host bind source. */
 export interface BasicMemoryProjectRegistration {
 	scope: BasicMemoryScope;

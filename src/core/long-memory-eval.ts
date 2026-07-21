@@ -1,3 +1,4 @@
+import { type AgentLedgerEvent, type AgentTransitionEvent, buildTransitionEvent } from "./agent-attempt-ledger.js";
 import { recallAtK } from "./retrieval-recall-eval.js";
 
 /**
@@ -267,7 +268,7 @@ export interface MemoryScopeBroadeningDecision {
 
 export function decideMemoryScopeBroadening(input: {
 	requestedAccessAllOptIn: boolean;
-	benchmark: LongMemoryEvalReport | null;
+	benchmark: Pick<LongMemoryEvalReport, "passed"> | LongMemoryEvalRetainedVerdict | null;
 }): MemoryScopeBroadeningDecision {
 	if (!input.requestedAccessAllOptIn) {
 		return { accessAllOptIn: false, reason: "Scope broadening was not requested." };
@@ -279,4 +280,130 @@ export function decideMemoryScopeBroadening(input: {
 		return { accessAllOptIn: false, reason: "LongMemEval benchmark did not pass." };
 	}
 	return { accessAllOptIn: true, reason: "LongMemEval benchmark passed." };
+}
+
+// ── F2.10b retained per-model/store verdict ───────────────────────────────────────────────────────────────────────
+
+export const LONG_MEMORY_EVAL_DECISION = "long_memory_eval";
+export const LONG_MEMORY_EVAL_WORKFLOW_ID = "long-memory-eval";
+/** Bump whenever the production recall composition/ranking semantics change; old evidence must then fail closed. */
+export const LONG_MEMORY_RECALL_STACK_VERSION = "unified-chat-memory-v1";
+
+/** The exact recall implementation paired with a reader model in retained evidence. */
+export function buildLongMemoryStoreProfile(embeddingModelId: string | null): string {
+	return `${LONG_MEMORY_RECALL_STACK_VERSION}:${embeddingModelId?.trim() || "lexical"}`;
+}
+
+export interface LongMemoryEvalRetainedVerdict {
+	modelId: string;
+	storeProfile: string;
+	passed: boolean;
+	retrievalPassed: boolean;
+	answersPassed: boolean;
+	controlsDiscriminate: boolean;
+	recallAtK: number;
+	abstainAccuracy: number;
+	dimensionPassRate: Record<LongMemoryEvalDimension, number>;
+	evaluatedAt: number;
+}
+
+export function buildLongMemoryEvalRetainedVerdict(input: {
+	modelId: string;
+	storeProfile: string;
+	report: LongMemoryEvalReport;
+	answersPassed: boolean;
+	controlsDiscriminate: boolean;
+	evaluatedAt: number;
+}): LongMemoryEvalRetainedVerdict {
+	const retrievalPassed = input.report.passed;
+	return {
+		modelId: input.modelId,
+		storeProfile: input.storeProfile,
+		passed: retrievalPassed && input.answersPassed && input.controlsDiscriminate,
+		retrievalPassed,
+		answersPassed: input.answersPassed,
+		controlsDiscriminate: input.controlsDiscriminate,
+		recallAtK: input.report.recallAtK,
+		abstainAccuracy: input.report.abstainAccuracy,
+		dimensionPassRate: { ...input.report.dimensionPassRate },
+		evaluatedAt: input.evaluatedAt,
+	};
+}
+
+function longMemoryEvalTaskId(modelId: string, storeProfile: string): string {
+	return `long-memory-eval:${encodeURIComponent(modelId)}:${encodeURIComponent(storeProfile)}`;
+}
+
+/** Retain one live run in the agent ledger; the exact model/store pair is embedded and latest-wins on read. */
+export function buildLongMemoryEvalRetentionEvent(input: {
+	workspacePathHash: string;
+	verdict: LongMemoryEvalRetainedVerdict;
+}): AgentTransitionEvent {
+	return buildTransitionEvent({
+		workflowId: LONG_MEMORY_EVAL_WORKFLOW_ID,
+		taskId: longMemoryEvalTaskId(input.verdict.modelId, input.verdict.storeProfile),
+		workspacePathHash: input.workspacePathHash,
+		from: "memory_eval",
+		to: input.verdict.passed ? "long_memory_eval_pass" : "long_memory_eval_fail",
+		reason: JSON.stringify(input.verdict).slice(0, 900),
+		controllerDecision: LONG_MEMORY_EVAL_DECISION,
+		recordedAt: input.verdict.evaluatedAt,
+	});
+}
+
+function parseRetainedVerdict(reason: string | null): LongMemoryEvalRetainedVerdict | null {
+	if (!reason) return null;
+	try {
+		const value = JSON.parse(reason) as Partial<LongMemoryEvalRetainedVerdict>;
+		if (
+			typeof value.modelId !== "string" ||
+			typeof value.storeProfile !== "string" ||
+			typeof value.passed !== "boolean" ||
+			typeof value.retrievalPassed !== "boolean" ||
+			typeof value.answersPassed !== "boolean" ||
+			typeof value.controlsDiscriminate !== "boolean" ||
+			typeof value.recallAtK !== "number" ||
+			typeof value.abstainAccuracy !== "number" ||
+			typeof value.evaluatedAt !== "number" ||
+			!value.dimensionPassRate
+		) {
+			return null;
+		}
+		const dimensionPassRate = {} as Record<LongMemoryEvalDimension, number>;
+		for (const dimension of LONG_MEMORY_EVAL_DIMENSIONS) {
+			const rate = value.dimensionPassRate[dimension];
+			if (typeof rate !== "number" || !Number.isFinite(rate)) return null;
+			dimensionPassRate[dimension] = rate;
+		}
+		return {
+			modelId: value.modelId,
+			storeProfile: value.storeProfile,
+			passed: value.passed,
+			retrievalPassed: value.retrievalPassed,
+			answersPassed: value.answersPassed,
+			controlsDiscriminate: value.controlsDiscriminate,
+			recallAtK: value.recallAtK,
+			abstainAccuracy: value.abstainAccuracy,
+			dimensionPassRate,
+			evaluatedAt: value.evaluatedAt,
+		};
+	} catch {
+		return null;
+	}
+}
+
+/** Read the latest valid verdict for exactly this reader-model + recall-store implementation pair. */
+export function readLongMemoryEvalRetainedVerdict(
+	events: readonly AgentLedgerEvent[],
+	modelId: string,
+	storeProfile: string,
+): LongMemoryEvalRetainedVerdict | null {
+	let latest: LongMemoryEvalRetainedVerdict | null = null;
+	for (const event of events) {
+		if (event.kind !== "transition" || event.controllerDecision !== LONG_MEMORY_EVAL_DECISION) continue;
+		const verdict = parseRetainedVerdict(event.reason);
+		if (!verdict || verdict.modelId !== modelId || verdict.storeProfile !== storeProfile) continue;
+		if (!latest || verdict.evaluatedAt >= latest.evaluatedAt) latest = verdict;
+	}
+	return latest;
 }

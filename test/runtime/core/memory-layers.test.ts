@@ -6,6 +6,7 @@ import {
 	projectProceduralMemory,
 	projectSemanticMemory,
 	projectWorkingMemory,
+	scopeMemoryLayerEvents,
 } from "../../../src/core/memory-layers";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 
@@ -23,6 +24,24 @@ function attempt(modelId: string, outcome: ModelOutcomeKind, recordedAt: number,
 }
 
 describe("memory layers (§5.M working/episodic/semantic/procedural)", () => {
+	describe("ledger scope", () => {
+		it("keeps only the active workspace unless retained evidence explicitly broadens it", () => {
+			const current = attempt("model-current", "success", 1);
+			const foreign = buildAttemptEvent({
+				...base,
+				workspacePathHash: "other-ws",
+				attemptId: "foreign-2",
+				modelId: "model-foreign",
+				outcome: "success",
+				retriesBefore: 0,
+				recordedAt: 2,
+			});
+			expect(scopeMemoryLayerEvents([current, foreign], "ws", false)).toEqual([current]);
+			expect(scopeMemoryLayerEvents([current, foreign], "ws", true)).toEqual([current, foreign]);
+			expect(scopeMemoryLayerEvents([current, foreign], null, false)).toEqual([]);
+		});
+	});
+
 	describe("working layer", () => {
 		it("projects the active goal + current step as the highest-salience records", () => {
 			const records = projectWorkingMemory({

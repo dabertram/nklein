@@ -8,6 +8,9 @@
  * `[[permalink]]` links resolve), else the root-relative POSIX path — matching how the audit resolves link targets.
  */
 
+import type { Dirent } from "node:fs";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
 import { parseBasicMemoryNote } from "./basic-memory-note-parse.js";
 import type { AuditableMemoryNote } from "./memory-freshness-audit.js";
 
@@ -119,14 +122,11 @@ export async function readBasicMemoryRecallSources(
 export function nodeBasicMemoryFsDeps(): BasicMemoryFsDeps {
 	return {
 		async listMarkdownFiles(rootDir: string): Promise<string[]> {
-			const { readdir } = await import("node:fs/promises");
-			const { join } = await import("node:path");
-			type StringDirent = import("node:fs").Dirent<string>;
 			const out: string[] = [];
 			const walk = async (dir: string): Promise<void> => {
-				let entries: StringDirent[];
+				let entries: Dirent<string>[];
 				try {
-					entries = (await readdir(dir, { withFileTypes: true, encoding: "utf8" })) as StringDirent[];
+					entries = await readdir(dir, { withFileTypes: true, encoding: "utf8" });
 				} catch {
 					return;
 				}
@@ -147,11 +147,9 @@ export function nodeBasicMemoryFsDeps(): BasicMemoryFsDeps {
 			return out;
 		},
 		async readFile(path: string): Promise<string> {
-			const { readFile } = await import("node:fs/promises");
 			return readFile(path, "utf8");
 		},
 		async statMtimeMs(path: string): Promise<number> {
-			const { stat } = await import("node:fs/promises");
 			return (await stat(path)).mtimeMs;
 		},
 	};

@@ -44,6 +44,8 @@ export async function composeChatTurnContext(
 	},
 	deps: {
 		embed?: (text: string) => Promise<number[] | null>;
+		embeddingModelId?: string;
+		requireEmbedding?: boolean;
 		summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	},
 ): Promise<ChatTurnContext> {
@@ -65,7 +67,11 @@ export async function composeChatTurnContext(
 			limit: input.memoryLimit ?? 5,
 			...(input.allProjects ? { allProjects: true } : {}),
 		},
-		{ embed: deps.embed },
+		{
+			...(deps.embed ? { embed: deps.embed } : {}),
+			...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
+			...(deps.requireEmbedding ? { requireEmbedding: true } : {}),
+		},
 	);
 	return { goal: input.goal ?? null, summary, recalledMemories, recentMessages: window.recent };
 }

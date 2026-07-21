@@ -32,6 +32,9 @@ export interface ChatRuntimeDeps {
 	estimateTokens: (text: string) => number;
 	/** The in-process embedder for long-term recall; omit to use lexical recall. */
 	embed?: (text: string) => Promise<number[] | null>;
+	embeddingModelId?: string;
+	/** Retained embedding-backed cross-project evidence is invalid if recall falls back to lexical ranking. */
+	requireEmbedding?: boolean;
 	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
 	now?: () => Date;
 	/**
@@ -58,6 +61,8 @@ export async function runChatTurn(
 		userMessage: string;
 		tokenBudget: number;
 		memoryLimit?: number;
+		/** F2.10b: explicit retained-evidence result; session scope alone never grants cross-project memory. */
+		allProjectsMemoryAccess?: boolean;
 		/** Receives reply tokens as they stream (when the model + deps support it). */
 		onToken?: (delta: string) => void;
 	},
@@ -77,9 +82,14 @@ export async function runChatTurn(
 			estimateTokens: deps.estimateTokens,
 			...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
 			// §5.M: an all_projects-scoped session recalls memory across all sessions (durable working memory).
-			...(input.session.scope === "all_projects" ? { allProjects: true } : {}),
+			...(input.allProjectsMemoryAccess ? { allProjects: true } : {}),
 		},
-		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
+		{
+			summarize: deps.summarize,
+			...(deps.embed ? { embed: deps.embed } : {}),
+			...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
+			...(deps.requireEmbedding ? { requireEmbedding: true } : {}),
+		},
 	);
 	// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY; overridable via deps for tests) and
 	// relevance-gated + end-placed by the renderer's decision core (§5.AE / §5.AQ). We always hand it the clock; the

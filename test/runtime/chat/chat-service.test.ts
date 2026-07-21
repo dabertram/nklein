@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
+import { appendChatMemory } from "../../../src/chat/chat-memory-store";
 import { createChatService } from "../../../src/chat/chat-service";
 import { getChatSession } from "../../../src/chat/chat-session-store";
 import { appendChatMessage } from "../../../src/chat/chat-transcript-store";
@@ -96,6 +97,41 @@ describe("createChatService", () => {
 		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
 		// The session goal is anchored into the model prompt.
 		expect(prompts[0]?.some((m) => m.content.includes("Help with TypeScript settings"))).toBe(true);
+	});
+
+	it("withholds cross-project memory until the exact retained-evidence resolver allows it", async () => {
+		const prompts: string[][] = [];
+		let allow = false;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				modelId: "reader-a",
+				complete: async (prompt) => {
+					prompts.push(prompt.map((message) => message.content));
+					return "ok";
+				},
+				summarize: async () => "",
+			}),
+			resolveMemoryScopeBroadening: async () => ({
+				accessAllOptIn: allow,
+				reason: allow ? "LongMemEval benchmark passed." : "No matching benchmark.",
+			}),
+		});
+		const source = await service.createSession({ title: "Source" });
+		const driver = await service.createSession({ title: "Driver", scope: "all_projects" });
+		await appendChatMemory(
+			{ sessionId: source.id, text: "Project Atlas deploy target is staging-west." },
+			{ rootDir: join(rootDir, "memories") },
+		);
+
+		const denied = await service.sendMessage({ sessionId: driver.id, message: "What is the Atlas deploy target?" });
+		expect(denied?.capabilityNotice).toContain("Cross-project memory recall was withheld");
+		expect(prompts[0]?.join("\n")).not.toContain("staging-west");
+
+		allow = true;
+		const allowed = await service.sendMessage({ sessionId: driver.id, message: "What is the Atlas deploy target?" });
+		expect(allowed?.capabilityNotice).toBeUndefined();
+		expect(prompts[1]?.join("\n")).toContain("staging-west");
 	});
 
 	it("bug-hunt #3 (2026-07-05): concurrent sendMessage calls on the SAME session don't interleave the transcript", async () => {

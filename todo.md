@@ -1202,7 +1202,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   F1.26-style retention event to the ledger; `--json` emits both machine-readable. REMAINING (fleet-gated): let the
   F1.31b rail TICK feed fresh reports through this live so the operator surface (F1.35) shows "what the rail found"
   without re-analysis — needs the F1.31b rail running on the fleet.
-- [ ] **F1.34b — Live-validate test-driven mode, then decide the default flip (mode COMPLETE 2026-07-13).** The
+- [?] **F1.34b — Live-validate test-driven mode, then decide the default flip (mode COMPLETE 2026-07-13).** The
   per-project override shipped (`testDrivenModeOverride` true/false/null-inherit through the full config stack:
   types → state factory `effectiveTestDrivenMode` → load/update/save/file-io/change-detection → contract; the
   review runner gates on the EFFECTIVE mode), the safe default is explicit (`TEST_DRIVEN_MODE_DEFAULT = false` in
@@ -1218,7 +1218,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   runner machinery with scripted models, which is the same evidence a weak-model live swarm would give minus
   model noise. What remains is exactly the DEFAULT-FLIP decision — a product-default change that belongs in
   David's decision batch (same class as the F12.58 soft-cap default), plus the optional Settings exposure
-  (rides F1.29b). Nothing left to build solo.
+  (rides F1.29b). Nothing left to build solo. **AWAITING DAVID 2026-07-21:** recommendation is keep default OFF:
+  the present gate proves only that a test-shaped path changed, not meaningful coverage, and default-ON would also
+  reject legitimately non-testable work. Project/global opt-in remains available; do not stall later build packages.
 - [x] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13; UI SHIPPED + browser-verified 2026-07-15, `7aa47224`).**
   `src/core/background-eval-controls.ts` is the whole F1.35 brain: `applyRailControlCommand` (enable/disable/
   pause/resume reducer emitting the exact start/stop action for the F1.31 service — idempotent, pause holds
@@ -1543,15 +1545,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Basic-Memory + focus-chain all unify. GENUINE REMAINDER: (1) the working-memory SNAPSHOT — needs the LIVE turn's
   working-memory state, which the runtime-api recall seam doesn't hold (a different integration point); (2) deeper
   SEMANTIC recall tuning (the lexical ranker is a first cut) — design/fleet, not a mechanical wire.
-- [ ] **F2.10b — Run the 4-dimension benchmark against the LIVE recall stack (dimensions SHIPPED 2026-07-13).**
-  The internal LongMemEval-style benchmark now measures all four F2.10 dimensions: RELEVANCE (recall@k) +
-  abstain accuracy (pre-existing), and new CONTRADICTION / PRIVACY / RECENCY prompts via `forbiddenMemoryIds` —
-  retrieving a superseded decision, another workspace's memory, or a stale fact version is a hard per-prompt
-  failure with the violating ids + dimension named, folded into `dimensionPassRate`. The fail-closed broadening
-  gate (`decideMemoryScopeBroadening`) is unchanged and now strictly harder to pass (a benchmark with ANY
-  dimension failure refuses broadening). REMAINING: run the benchmark against the REAL recall stack (the F2.9
-  unified projection + the chat-memory store's embedder) per model/store pair via the live-eval harness, persist
-  the verdict (the F1.26 retention pattern), and consult it at the scope-broadening seam in the chat surface.
+- [ ] **F2.10c — Make the real recall stack pass its retained scope-broadening benchmark without fixture overfit.**
+  The first production-stack run (F2.10b) correctly FAILED: lexical retrieval reached recall@2=1.0 but returned
+  unrelated, stale, and wrong-workspace memories (`abstain=0`, relevance `0.667`, contradiction/privacy/recency
+  all `0`). The reader correctly abstained, proving retrieval — not answer generation — is the defect. Build
+  namespace-aware candidate filtering plus explicit supersession/recency handling in the shared production
+  composer; preserve compact evidence and separately scored retrieval/reader verdicts (the LongMemEval-V2
+  context-gathering split). Acceptance: the internal controls still fail; no prompt/fixture-id special cases;
+  the exact production composer passes every dimension for each currently resident reader/store pair tested;
+  each exact pair is retained; scope broadening stays closed for missing/failed/stale evidence and for embedding
+  failures. Use only the already-available local fleet — no downloads or model replacements without David's
+  explicit case-by-case decision.
 - [x] **F2.11 (narrowed by audit 2026-07-13) — Unified chat surface: residue only.** The audit found the
   checklist substantially LIVE and e2e-verified (hermetic 72/72): session create/select/DELETE/RELABEL (the
   sidebar's editable `chat-session-title` commits on blur/Enter; delete has a tooltip control; role + scope
