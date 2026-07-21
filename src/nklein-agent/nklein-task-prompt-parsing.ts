@@ -36,10 +36,19 @@ export function parseRequestedMinimumTaskCount(prompt: string): number | null {
 	return WORD_NUMBER_BY_TEXT[wordMatch[1].toLowerCase()] ?? null;
 }
 
-/** The acceptance command a card declares via an `Acceptance command:` line, if any. */
+/**
+ * The acceptance command a card declares via `Acceptance command:`, if any. The canonical form is a standalone
+ * line, but registry prompts may place the declaration as the final sentence of a paragraph (live fixture
+ * `habit-insights-mid`). In that inline form only, discard the prose sentence's terminal period.
+ */
 export function parseAcceptanceCommand(prompt: string): string | null {
-	const match = /^Acceptance command:\s*(.+)$/im.exec(prompt);
-	const command = match?.[1]?.trim();
+	const lineMatch = /^Acceptance command:\s*(.+)$/im.exec(prompt);
+	if (lineMatch) {
+		const command = lineMatch[1]?.trim();
+		return command && command.length > 0 ? command : null;
+	}
+	const inlineMatch = /(?:^|[.!?]\s+)Acceptance command:\s*([^\r\n<]+)(?:<\/user_input>)?$/i.exec(prompt.trim());
+	const command = inlineMatch?.[1]?.trim().replace(/\.$/u, "").trim();
 	return command && command.length > 0 ? command : null;
 }
 

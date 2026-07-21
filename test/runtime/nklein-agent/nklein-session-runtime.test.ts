@@ -1817,6 +1817,65 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		);
 	});
 
+	it("preserves the original card acceptance contract across a model restart", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-runtime-source-prompt-"));
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => undefined),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "planning-card",
+			cwd: workspacePath,
+			prompt: "Build reviewable cards. Acceptance command: npm test.",
+			providerId: "lmstudio",
+			modelId: "weak-architect",
+			systemPrompt: "Plan the work.",
+		});
+		await runtime.restartTaskSession({
+			taskId: "planning-card",
+			prompt: "The previous architect exhausted its attempts. Continue on a fresh model.",
+			launchConfigOverrides: { providerId: "lmstudio", modelId: "fresh-architect" },
+		});
+
+		const restartedTools = fakeHost.start.mock.calls[1]?.[0].localRuntime?.extraTools ?? [];
+		const addTask = restartedTools.find((tool) => tool.name === "add_task");
+		const decompose = restartedTools.find((tool) => tool.name === "decompose_project");
+		if (!addTask || !decompose) {
+			throw new Error("expected decomposition tools after restart");
+		}
+		await addTask.execute(
+			{ id: "implementation", title: "Implement feature", prompt: "Implement it." },
+			undefined as never,
+		);
+		const result = await decompose.execute(
+			{
+				slug: "source-contract",
+				title: "Source contract",
+				spec: "Implement one bounded feature.",
+				plan: "Implement and verify it.",
+			},
+			undefined as never,
+		);
+
+		expect(result).toMatchObject({ ok: true, taskCount: 1 });
+	});
+
 	it("passes tool policies to SDK session start", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({

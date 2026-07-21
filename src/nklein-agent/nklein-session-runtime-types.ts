@@ -90,6 +90,11 @@ export interface StartNKleinSessionRuntimeRequest {
 	 */
 	workspaceRoot?: string | null;
 	prompt: string;
+	/**
+	 * The original card prompt whose acceptance/specification contract survives restarts and cross-model failover.
+	 * When absent on the first start, the runtime seeds it from `prompt`; later restarts preserve the seeded value.
+	 */
+	sourcePrompt?: string | null;
 	/** Normalized !Klein task title; persisted to SDK session metadata when supported. */
 	taskTitle?: string;
 	initialMessages?: NKleinSdkPersistedMessage[];

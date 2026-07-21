@@ -7,7 +7,8 @@
   critique before board materialization. A malformed or empty one-shot payload now switches to that incremental path
   instead of inviting the same failure again. Once incremental construction starts, its validated state wins over a
   redundant full task array; successful card ids are not re-added after a stall, and an omitted default acceptance
-  command is recovered from the trusted originating card. Dead planning cards also honor their promised single restart;
+  command is recovered from the trusted originating card—even after a cross-model restart, and when the registry card
+  writes that declaration as a final inline sentence. Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code
   context, and critic feedback to the next ranked loaded architect before asking a human.

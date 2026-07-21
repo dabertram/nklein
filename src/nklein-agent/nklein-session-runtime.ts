@@ -230,6 +230,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			taskId: request.taskId,
 			cwd: request.cwd,
 			workspaceRoot: request.workspaceRoot,
+			sourcePrompt: request.sourcePrompt ?? request.prompt,
 			providerId: request.providerId,
 			modelId: request.modelId,
 			mode: resolvedMode,
@@ -355,7 +356,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				// host workspace root, never the sandbox workdir (which doesn't exist on the host).
 				workspacePath: hostWorkspaceRoot,
 				sourceTaskId: request.taskId,
-				sourcePrompt: request.prompt,
+				sourcePrompt: request.sourcePrompt ?? request.prompt,
 				onApplied: request.onDecompositionApplied,
 				requestPlanCritique: request.requestPlanCritique,
 				requestClarifyTurn: request.requestClarifyTurn,

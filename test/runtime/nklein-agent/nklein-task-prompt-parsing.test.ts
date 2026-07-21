@@ -25,6 +25,16 @@ describe("parseAcceptanceCommand", () => {
 	it("extracts the acceptance command line", () => {
 		expect(parseAcceptanceCommand("Do X.\nAcceptance command: npm test\nThanks")).toBe("npm test");
 	});
+	it("extracts a final inline acceptance sentence without treating its prose period as shell syntax", () => {
+		expect(parseAcceptanceCommand("Build reviewable cards. Acceptance command: npm test.")).toBe("npm test");
+	});
+	it("extracts an inline acceptance command from a persisted user-input wrapper", () => {
+		expect(
+			parseAcceptanceCommand(
+				'<user_input mode="act">Build reviewable cards. Acceptance command: npm test.</user_input>',
+			),
+		).toBe("npm test");
+	});
 	it("returns null without an acceptance line", () => {
 		expect(parseAcceptanceCommand("No command here")).toBeNull();
 	});

@@ -97,7 +97,10 @@ gap remains.
 > After any empty/schema-invalid one-shot call, recovery must say STOP and route exclusively to the incremental path.
 > Once one incremental card exists, that validated graph is authoritative: ignore any redundant full `tasks` array,
 > never tell a stalled model to re-add successful ids, and recover the exact `Acceptance command:` declared by the
-> trusted originating card when the model omits `defaultAcceptanceCommand`. The accumulated graph is still ephemeral:
+> trusted originating card when the model omits `defaultAcceptanceCommand`. Preserve that originating prompt as
+> control-plane state across cross-model restarts; a failover takeover message is not the card contract. Accept both
+> the canonical command line and the registry's final inline `Acceptance command: npm test.` sentence form. The
+> accumulated graph is still ephemeral:
 > full validation and independent critique happen before materialization.
 
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
@@ -3561,6 +3564,11 @@ output and NOT acted on. Captured as F12.12.)
   ⚠️ The union across roles is used at this seam (it does not know the card's role), which makes the observation
   CONSERVATIVE — it under-reports drops. Erring toward *"the gate drops less than we measured"* is the safe
   direction for a decision about whether dropping is safe.
+  **LIVE ENFORCEMENT INPUT (run `20260721-141742`):** after reading the authoritative spec, Gemma spent four architect
+  turns on `sequential-thinking__sequentialthinking` and bypassed a correctly blocked duplicate `read_files` request
+  by reading the same 38-line file through `read_large_file`. Those were successful tool results but not implementation
+  progress. The phase-aware gate must strongly prefer `add_task`/`add_dependency` once discovery is complete; raw MCP
+  tool success is not evidence that the tool belonged in that phase.
 - [x] **F12.19 — Read-before-write + stale-read guard.** Block a first-time WRITE to a file not yet read this session, and
   invalidate a cached file's content when its mtime changes between read and edit (surface the staleness). Cheap structural
   prevention of the blind-overwrite / edit-on-stale-content hallucinations weak models commit often. Pure guard core. (SWE-agent ACI)
