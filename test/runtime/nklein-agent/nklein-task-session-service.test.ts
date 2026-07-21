@@ -4720,9 +4720,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
-	it("hands repeated decomposition-validation exhaustion to another ranked architect before human fallback", async () => {
+	it("gives each ranked architect a fresh decomposition budget and continues bounded failover hops", async () => {
 		const { service, runtime } = createTrackedService();
-		service.setTaskFailoverCandidates("task-1", ["qwen3", "gemma"]);
+		service.setTaskFailoverCandidates("task-1", ["qwen3", "gemma", "qwopus"]);
 		await service.startTaskSession({
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
@@ -4755,7 +4755,34 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const failoverStart = runtime.startTaskSessionMock.mock.calls[1]?.[0];
 		expect(failoverStart?.modelId).toBe("gemma");
 		expect(failoverStart?.prompt).toContain("fresh architect on a different loaded model");
-		expect(service.getSummary("task-1")?.state).toBe("running");
+		expect(service.getSummary("task-1")).toMatchObject({ state: "running", modelId: "gemma" });
+
+		const secondSessionId = await waitForTaskSessionId(runtime, "task-1");
+		for (let attempt = 1; attempt <= 4; attempt += 1) {
+			const toolCallId = `gemma-decompose-failover-${attempt}`;
+			runtime.emitAgentEvent(secondSessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				input: { slug: "x", plan: `gemma attempt ${attempt}` },
+			});
+			runtime.emitAgentEvent(secondSessionId, {
+				type: "content_end",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				error: "Task graph failed dependency-coherence validation.",
+				output: { error: "Task graph failed dependency-coherence validation." },
+			});
+			if (attempt === 1) {
+				expect(service.getSummary("task-1")?.state).toBe("running");
+			}
+		}
+
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(3));
+		expect(runtime.startTaskSessionMock.mock.calls[2]?.[0].modelId).toBe("qwopus");
+		expect(service.getSummary("task-1")).toMatchObject({ state: "running", modelId: "qwopus" });
 	});
 
 	it("creates task entry and session mapping before start() resolves", async () => {

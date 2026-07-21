@@ -144,14 +144,24 @@ gap remains.
 > `20260721-155451`).** The 14B architect spent both bounded nudges repairing malformed graph calls before automatic
 > failover. Gemma then produced a coherent candidate; the independent Qwen critic correctly requested removal of
 > already-implemented cards, but Gemma inherited zero nudges and its clean stop stranded the actionable critique in
-> Review. A cross-model carry must reset the decomposition-stall budget before the fresh architect starts, while the
-> separate graph-validation/critique attempt caps continue to bound the overall workflow.
+> Review. A later run (`20260721-162255`) exposed the same leak in the repeated graph-validation counter: Gemma
+> inherited Qwen's four failures and was parked after its first correctable missing-field error. A cross-model carry
+> must reset BOTH the turn-end nudge budget and the decomposition-validation failure count before the fresh architect
+> starts. The bounded failover-hop cap still limits total fleet attempts; unrelated plan-artifact loop state remains.
 
 > **⚠️ FAILOVER MUST READ THE GUARD EVENT, NOT AN UNRELATED SUMMARY WARNING (live-found run `20260721-160645`).**
 > The repeated-decomposition guard parked the architect after five failed graph attempts and retained the exact signal
 > in `latestHookActivity`, but `warningMessage` contained a concurrent Codebase Memory container-headroom advisory.
 > Failover inspected only `warningMessage`, so the promised automatic handoff never ran. Match the trusted guardrail
 > activity first (with `warningMessage` as a compatibility fallback), and classify the retry from that same signal.
+
+> **⚠️ TERMINAL DEDUPE IS PER ATTEMPT, NOT PER CARD (live-found run `20260721-162255`).** The first architect's
+> `awaiting_review` state was durably recorded, automatic carry moved the card back to `running`, then a replacement
+> architect reached the same terminal state. A cache that remembered only the last terminal enum suppressed the
+> second attempt's recording AND its next-model failover. Clear terminal-transition dedupe on every non-terminal
+> summary. When a restart overrides the model, update the live summary's provider/model/endpoint identity before
+> emitting `running`; otherwise diagnostics and later policy decisions falsely attribute the replacement turn to the
+> original model.
 
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no

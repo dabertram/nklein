@@ -235,6 +235,19 @@ export class RepeatedToolCallGuard {
 	}
 
 	/**
+	 * Give a fresh architect its own bounded decomposition-validation budget without weakening the separate
+	 * plan-artifact loop guard. Cross-model carry preserves the conversation and graph attempt history, but the
+	 * replacement model must still receive the full validation-repair allowance instead of inheriting the previous
+	 * model's terminal count.
+	 */
+	resetDecompositionFailures(taskId: string): void {
+		const state = this.repeatedFailureTargetByTaskId.get(taskId);
+		if (state?.fingerprint === "decomposition\ndecompose_project") {
+			this.repeatedFailureTargetByTaskId.delete(taskId);
+		}
+	}
+
+	/**
 	 * Dispose all guard state. Called once when the session service is torn down.
 	 */
 	dispose(): void {

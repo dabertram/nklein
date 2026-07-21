@@ -431,7 +431,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
 		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
-		resetDecompositionRecoveryBudget: (taskId) => this.decompositionStallNudger.resetTask(taskId),
+		resetDecompositionRecoveryBudget: (taskId) => {
+			this.decompositionStallNudger.resetTask(taskId);
+			this.repeatedToolCallGuard.resetDecompositionFailures(taskId);
+		},
 	});
 
 	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */
@@ -2590,6 +2593,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const normalized = text.trim();
 		const hasImages = Boolean(images && images.length > 0);
 		const effectiveMode: RuntimeTaskSessionMode = mode ?? entry.summary.mode ?? "act";
+		const effectiveLaunchConfig = this.resolveRestartLaunchConfig({ taskId, launchConfigOverrides });
 		const queueDelivery = entry.summary.state === "running";
 		if (normalized.length === 0 && !hasImages) {
 			return null;
@@ -2625,6 +2629,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const waitingSummary = updateSummary(entry, {
 					state: "running",
 					mode: effectiveMode,
+					...(effectiveLaunchConfig
+						? {
+								providerId: effectiveLaunchConfig.providerId,
+								modelId: effectiveLaunchConfig.modelId,
+								endpoint: effectiveLaunchConfig.baseUrl ?? null,
+								sharedEndpointId: buildSharedLocalEndpointId({
+									providerId: effectiveLaunchConfig.providerId,
+									modelId: effectiveLaunchConfig.modelId,
+									endpoint: effectiveLaunchConfig.baseUrl ?? null,
+								}),
+							}
+						: {}),
 					reviewReason: null,
 					warningMessage: null,
 					lastOutputAt: now(),
@@ -3381,6 +3397,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private captureTerminalRunSummary(summary: RuntimeTaskSessionSummary): void {
 		const state = summary.state;
 		if (state !== "awaiting_review" && state !== "failed" && state !== "interrupted") {
+			// Terminal dedupe is per transition/attempt, not permanent per task. A model failover moves the same card
+			// back through `running`; clear the prior terminal marker so an identical terminal state from the fresh
+			// architect can trigger the next bounded failover hop and record its own attempt evidence.
+			this.lastRecordedRunStateByTaskId.delete(summary.taskId);
 			return;
 		}
 		const taskId = summary.taskId;
