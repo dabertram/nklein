@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The inherent card timeline now has complete checked coverage.** Every completed provider request records its own
+  input/output/cache/reasoning usage, serving identity, finish reason, sequence, and wall time—even when several calls
+  occur inside one turn. Operator guidance, corrective review feedback, takeover, and abandonment are now distinct
+  durable events tied to their actual product gestures. The coverage audit reports 14/14 lifecycle events tracked.
+
 - **Planner injection defense now has a resolved authority boundary.** Repository context remains available to the
   decomposer so cards fit the codebase; model routing stays deterministic, and generated task prose cannot grant network,
   host, write-scope, or outward-action authority. Those capabilities continue to be decided at the actual sandbox,

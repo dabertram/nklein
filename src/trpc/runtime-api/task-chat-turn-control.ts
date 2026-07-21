@@ -31,24 +31,24 @@ export async function handleAbortTaskChatTurn(
 		if (!summary) {
 			return { ok: false, summary: null, error: "Task chat session is not running." };
 		}
-		// P20.10 / N18: an ABORT — the user stopped the whole session. The strongest negative signal in the
-		// intervention taxonomy, and recorded only when a session was actually running (a no-op abort is not an
-		// intervention, it is a click on a dead button).
+		// P20.10 / N18: a TAKEOVER — the user stopped the agent's whole session while retaining the card and its
+		// work. An actual abort is the distinct, explicit gesture that abandons an already-started card to Trash.
+		// Recorded only when a session was actually running (a no-op click is not an intervention).
 		//
 		// ⚠️ **`handleCancelTaskChatTurn` below is deliberately NOT instrumented.** Cancelling a turn looks like a
 		// sibling of this, but the nudge path performs cancel-then-send — so recording an intervention there would
-		// log an abort for **every nudge**, inflating the metric with normal steering and corrupting the one number
+		// log a takeover for **every nudge**, inflating the metric with normal steering and corrupting the one number
 		// P20.10 exists to keep honest. The nudge is already recorded at the send path.
 		try {
 			recordSelfObservation({
 				signal: "custom",
 				severity: "warning",
-				message: `Operator aborted the running session on ${body.taskId}.`,
+				message: `Operator took over task ${body.taskId} by stopping its running agent session.`,
 				taskId: body.taskId,
-				metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "abort" },
+				metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "takeover" },
 			});
 		} catch {
-			// Telemetry must never break the abort a user asked for.
+			// Telemetry must never break the takeover the user asked for.
 		}
 		return { ok: true, summary };
 	} catch (error) {
@@ -58,8 +58,8 @@ export async function handleAbortTaskChatTurn(
 }
 
 /**
- * Cancel a task's in-flight chat turn (the runtime-api `cancelTaskChatTurn` procedure handler). Like
- * abort but scoped to the current turn rather than the whole session.
+ * Cancel a task's in-flight chat turn (the runtime-api `cancelTaskChatTurn` procedure handler). Like takeover,
+ * but scoped to the current turn rather than the whole session and deliberately not an intervention on its own.
  */
 export async function handleCancelTaskChatTurn(
 	workspaceScope: RuntimeTrpcWorkspaceScope,

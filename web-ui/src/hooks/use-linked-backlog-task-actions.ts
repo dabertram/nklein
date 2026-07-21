@@ -39,7 +39,7 @@ export function useLinkedBacklogTaskActions({
 	board: BoardData;
 	setBoard: Dispatch<SetStateAction<BoardData>>;
 	setSelectedTaskId: Dispatch<SetStateAction<string | null>>;
-	stopTaskSession: (taskId: string) => Promise<void>;
+	stopTaskSession: (taskId: string, options?: { interventionSeverity?: "abort" }) => Promise<void>;
 	cleanupTaskArtifacts: (taskId: string) => Promise<unknown>;
 	maybeRequestNotificationPermissionForTaskStart: () => void;
 	kickoffTaskInProgress: (
@@ -114,6 +114,9 @@ export function useLinkedBacklogTaskActions({
 	const performFinishTask = useCallback(
 		async (task: BoardCard, target: FinishTaskTarget, currentBoard?: BoardData): Promise<void> => {
 			const boardBeforeFinish = currentBoard ?? boardRef.current;
+			const sourceSelection = findCardSelection(boardBeforeFinish, task.id);
+			const isOperatorAbort =
+				target === "trash" && sourceSelection !== null && sourceSelection.column.id !== "backlog";
 			const finished =
 				target === "completed"
 					? completeTaskAndGetReadyLinkedTaskIds(boardBeforeFinish, task.id)
@@ -210,7 +213,10 @@ export function useLinkedBacklogTaskActions({
 				}
 			}
 
-			await Promise.all([stopTaskSession(task.id), stopTaskSession(getDetailTerminalTaskId(task.id))]);
+			await Promise.all([
+				stopTaskSession(task.id, isOperatorAbort ? { interventionSeverity: "abort" } : undefined),
+				stopTaskSession(getDetailTerminalTaskId(task.id)),
+			]);
 			await cleanupTaskArtifacts(task.id);
 		},
 		[

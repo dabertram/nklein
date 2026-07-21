@@ -2298,3 +2298,102 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   its label would be bypassable by omission and weaker than the execution boundary. A future graph-level check is
   warranted only if it consumes an independently trusted workspace policy and controls a real grant; there is no open
   engineering remainder today.
+
+- [x] **N18 — TRACK EVERYTHING, as a product feature and not a debug tool *(David 2026-07-20; completed 2026-07-22)*.**
+  *"i want that timeline to be inherent part of !Klein and not just a debug tool. !Klein shall always track every
+  detail … a full picture of any activity, state change/transition, attempted activity, and all the results …
+  everything that happens on a project shall be tracked precisely."* Opt-out is permitted ONLY if the volume
+  turns out to be genuinely excessive — measured, not assumed.
+  **📊 THE VOLUME QUESTION IS ANSWERED, AND THE ANSWER IS: NOT A PROBLEM.** Measured against David's own
+  `~/.nklein` telemetry — a month of heavy, fleet-driven development, not a synthetic estimate:
+  | | |
+  |---|---|
+  | total, ~1 month | **24 MB / 49,380 events** |
+  | busiest day (2026-07-15, multi-agent sweep) | **9.0 MB / 18,666 events** |
+  | typical heavy dev day | 1.6–2.7 MB / 3.5–5.8k events |
+  | per event | ~500 bytes |
+  **So full tracking costs single-digit MB/day at the observed ceiling**, against a 30-day retention default
+  (`DEFAULT_RETENTION_DAYS`) that already bounds the total. **No opt-out is warranted on volume grounds** — the
+  condition David set for allowing one is not met, so it is not being built. Revisit only if a real run exceeds
+  roughly an order of magnitude more than the busiest day here.
+  **✅ SHIPPED: `dev tracking-coverage` — the coverage CONTRACT (`card-tracking-coverage.ts`).**
+  *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
+  list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
+  appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
+  **14 events declared — 14 tracked, 0 partial, 0 untracked**, every tracked claim verified against a real emitter.
+  🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
+  `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
+  `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
+  exit 0. **I had written a docblock in that very file warning against exactly this.** Fixed with an
+  unconditional exclusion; re-verified BOTH ways — green when honest, red naming the broken claim when renamed.
+  **THE KNOWN GAPS, now written down instead of implied** (this list IS the remaining backlog for N18):
+  - `model_usage` — **COMPLETE.** (I first recorded this WRONGLY as untracked; token usage was
+    always written per attempt via `applyModelStatsTrackingLevel`. **A false gap is as corrosive as a false claim
+    of coverage** — it sends someone to build what already exists.) Now ALSO emitted per TURN at `run-finished`
+    with the **serving model id**, which is what makes *"is this card slow, or is this model slow?"* answerable
+    at all. ✅ **PER-REQUEST CLOSED 2026-07-22 after disproving the stated blocker.** The vendored SDK invokes
+    `beforeModel`/`afterModel` for every provider request and stamps that request's usage delta on
+    `assistantMessage.metrics`; the earlier note had inspected `run-finished` but not the hook contract. The live
+    extension now emits `granularity: perRequest` before any recovery branch can return, with input/output/cache
+    read/cache write/reasoning/cost, actual message-level serving identity (configured fallback), finish reason,
+    iteration, request sequence, and provider wall time. Missing provider usage remains explicit null, not zero.
+    🔁 **AND I RE-CHECKED THE "hardcoded null totalTokens/reasoningTokens" SUB-CLAIM 2026-07-20 — it was HALF
+    wrong, caught by tracing the consumer instead of trusting the note.** `totalTokens` being null in the
+    `applyModelStatsTrackingLevel` input is NOT a gap: `gatedUsage.totalTokens` is never read — the run-summary
+    recorder recomputes total inline from prompt+completion, and the ledger attempt event stores prompt+completion
+    (total is trivially derivable). I started to "fix" it by deriving `total = prompt + completion` there, then
+    reverted on finding nothing consumes the field — **a dead change dressed as a fix is the exact self-flattering
+    motion this whole item is about.** The comment at the site now documents why it's left null. ✅ **reasoningTokens CLOSED
+    2026-07-20 for the per-TURN observation** — without the API-contract change I'd feared. The raw usage object
+    is right there at `run-finished`, and `extractCompletionUsage` (F4.12) already knows the ESTABLISHED spelling
+    (`completion_tokens_details.reasoning_tokens`, top-level fallback), so the per-turn `model_usage` metadata now
+    stamps `reasoningTokens` — **null, not zero, when the server does not report it**, because "did not say" and
+    "did zero reasoning" are different facts a budget-tuner must separate.
+    🐛 **The test caught a bug in my OWN change before it shipped:** I called `extractCompletionUsage(result.usage)`
+    when the function reads `.usage` itself and wants `result` — one level too deep, a silent perpetual null
+    dressed as "no reasoning reported". Pinned by a test asserting a known count comes through AND that the wrong
+    (usage-object) shape reads empty. ✅ **AND THE LEDGER/CONTRACT PATH IS NOW DONE TOO** — the "API-contract change"
+    turned out clean and verifiable without a model. `RuntimeTaskSessionUsage` gained an optional
+    `reasoningTokens`; `readSessionUsage` populates it (usage-OBJECT level, distinct from the wrapper level — 5
+    tests pin the level I got wrong once); and the per-ATTEMPT ledger event carries it via an additive
+    `.nullable().default(null)` field. **Backward-compat VERIFIED against real on-disk data: 226 of 226 existing
+    v1 records parse, 0 failures** — the default makes old records lawful without a schemaVersion bump, and null
+    stays distinct from 0 at every layer. So `model_usage` is now tracked at THREE grains — per-turn telemetry,
+    session summary, and per-attempt ledger — each carrying reasoning tokens; per-REQUEST is now closed through
+    the hook seam above as well.
+  - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
+    `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
+    through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
+    **cannot be forgotten by a new call site** the way per-site emission would be. They now carry a real
+    `createdAt` and merge into the card timeline in true order. **The s03 investigation needed the bounce COUNT
+    and the interleaving of a bounce with a capture failure, and had to reconstruct both by counting log lines
+    by hand.** Verified red by removing the emitter (2 claims break).
+  - ~~`attempt_started`~~ — **CLOSED 2026-07-20**, after correcting my SECOND wrong gap claim. A terminal attempt
+    event IS written even when the attempt made no tool calls, so a dead attempt was never invisible; the real
+    gap was that only the END was recorded, leaving an attempt **IN FLIGHT invisible until it terminated** —
+    exactly the state a stalled card is in when someone goes looking — and duration underivable. `startTaskSession`
+    now emits a START marker with the model and mode, **before any setup that can throw**, so an attempt that dies
+    on the way up still leaves a record. Verified red by removing the emitter.
+  - `operator_intervention` — **all four severities are now instrumented at explicit product gestures**, without
+    guessing file authorship: guidance to a running session is a `nudge`; submitted review feedback is a
+    `correction`; stopping the agent while retaining its card/work is a `takeover`; and abandoning an already-started
+    card to Trash is an `abort`. The previous emitter called a retained-card stop an abort, contradicting the
+    taxonomy; that root misclassification is corrected. Review feedback is forced through the durable backend seam
+    instead of disappearing into an attached xterm controller, and Trash records abandonment even when a Review
+    worker has already stopped.
+    ⚠️ **Cancelling a TURN is deliberately NOT instrumented**, though it looks like takeover's sibling: the nudge
+    path performs cancel-then-send, so recording it would log an intervention for **every nudge** and inflate the
+    single number P20.10 exists to keep honest.
+  **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
+  mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
+  (`state/card-trail-sources.ts`), so CLI and UI share one reader — N17's anti-drift rule applies to readers as
+  much as writers, and the day two "what happened to this card" implementations disagree is the day neither can
+  be trusted.
+  The panel renders the things that make a forensic view honest rather than pretty, each pinned by a test: a load
+  failure says *"not an empty card"*; an unreadable source warns that a gap **may be this, not silence**; a
+  truncated list says *"most recent N of M"*; an unclocked event renders `—` instead of an invented time. Those
+  are the renderings that would otherwise let a reader draw a confident wrong conclusion instead of going to look.
+  **✅ N18c COMPLETE 2026-07-22:** the supposed transport and intervention-design blockers were resolved by tracing
+  the actual SDK hook and product-action seams. The checked coverage contract is now **14/14 tracked**; request,
+  turn, session, and attempt usage grains coexist without pretending one is another, and the four operator
+  intervention severities have distinct, observable meanings.

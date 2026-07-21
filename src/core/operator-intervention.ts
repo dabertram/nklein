@@ -21,11 +21,11 @@
 export type InterventionSeverity =
 	/** Typed guidance, no code changed. The mildest: the agent was steered, not corrected. */
 	| "nudge"
-	/** The user edited the agent's output. It produced something, and something was wrong with it. */
+	/** The user submitted review feedback identifying output that needs correction. */
 	| "correction"
-	/** The user wrote the fix themselves. The agent did not get there. */
+	/** The user stopped the agent but retained the card/work to take control themselves. */
 	| "takeover"
-	/** The user abandoned the card. The strongest negative signal available. */
+	/** The user abandoned an already-started card to Trash. The strongest negative signal available. */
 	| "abort";
 
 /** Ascending severity — the single place the ordering is defined. */

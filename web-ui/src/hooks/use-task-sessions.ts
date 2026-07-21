@@ -63,7 +63,7 @@ interface StartTaskSessionOptions {
 export interface UseTaskSessionsResult {
 	upsertSession: (summary: RuntimeTaskSessionSummary) => void;
 	startTaskSession: (task: BoardCard, options?: StartTaskSessionOptions) => Promise<StartTaskSessionResult>;
-	stopTaskSession: (taskId: string) => Promise<void>;
+	stopTaskSession: (taskId: string, options?: { interventionSeverity?: "abort" }) => Promise<void>;
 	sendTaskSessionInput: (
 		taskId: string,
 		text: string,
@@ -185,13 +185,16 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 	);
 
 	const stopTaskSession = useCallback(
-		async (taskId: string): Promise<void> => {
+		async (taskId: string, options?: { interventionSeverity?: "abort" }): Promise<void> => {
 			if (!currentProjectId) {
 				return;
 			}
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				await trpcClient.runtime.stopTaskSession.mutate({ taskId });
+				await trpcClient.runtime.stopTaskSession.mutate({
+					taskId,
+					interventionSeverity: options?.interventionSeverity,
+				});
 			} catch {
 				// Ignore stop errors during cleanup.
 			}
@@ -202,7 +205,10 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 	const sendTaskSessionInput = useCallback(
 		async (taskId: string, text: string, options?: SendTerminalInputOptions): Promise<SendTaskSessionInputResult> => {
 			const appendNewline = options?.appendNewline ?? true;
-			const controller = options?.preferTerminal === false ? null : getTerminalController(taskId);
+			// Intervention attribution is a durable product event, so explicit correction feedback must pass through
+			// the validated backend seam rather than disappearing into an attached xterm controller.
+			const controller =
+				options?.preferTerminal === false || options?.interventionSeverity ? null : getTerminalController(taskId);
 			if (controller) {
 				const sent =
 					options?.mode === "paste"
@@ -222,6 +228,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					text,
 					appendNewline,
 					...(options?.steer ? { delivery: "steer" as const } : {}),
+					interventionSeverity: options?.interventionSeverity,
 				});
 				if (!payload.ok) {
 					const errorMessage = payload.error || "Task session input failed.";

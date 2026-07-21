@@ -6,10 +6,9 @@
  * person disagreed.
  *
  * ── THIS COMMAND PRINTS ITS OWN COVERAGE, PROMINENTLY ──
- * Only `nudge` is instrumented today. The other three severities have no emission site, so their counts are 0
- * because nothing measures them. Printing `0 takeovers` without saying so would be the California
- * disengagement-report mistake in miniature — the exact failure P20.10 exists to avoid — so the caveat is
- * printed after the numbers rather than buried in a docblock nobody runs.
+ * All four current severities have product emission sites. Coverage still prints because a future taxonomy change
+ * must not turn an uninstrumented severity's zero into flattering evidence — the California disengagement-report
+ * mistake P20.10 exists to avoid.
  */
 
 import { readdir, readFile } from "node:fs/promises";

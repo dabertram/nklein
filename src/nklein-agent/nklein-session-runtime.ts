@@ -746,6 +746,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								? createOpenAiCompatPhaseOnePickCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
 								: undefined,
 							sessionResultHandles.store,
+							undefined,
+							{ providerId: request.providerId, modelId: request.modelId },
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

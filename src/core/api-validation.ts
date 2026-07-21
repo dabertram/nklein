@@ -178,6 +178,7 @@ export function parseTaskArtifactsDeleteRequest(value: unknown): RuntimeTaskArti
 		throw new Error("Invalid task artifact delete payload.");
 	}
 	return {
+		...parsed,
 		taskId,
 	};
 }
@@ -293,6 +294,7 @@ export function parseTaskSessionStopRequest(value: unknown): RuntimeTaskSessionS
 		throw new Error("Invalid task session stop payload.");
 	}
 	return {
+		...parsed,
 		taskId,
 	};
 }

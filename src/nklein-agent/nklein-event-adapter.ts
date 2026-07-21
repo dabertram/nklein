@@ -380,10 +380,9 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		// recorded at all. Emitting here gives per-TURN attribution and names the model, which is what makes "is
 		// this card slow, or is this model slow?" answerable.
 		//
-		// ⚠️ **PER-REQUEST IS STILL NOT AVAILABLE, AND THIS DOES NOT PRETEND OTHERWISE.** `run-finished` is the end
-		// of a turn; the SDK aggregates the individual model calls inside it and does not expose them here. So a
-		// retry storm within one turn STILL reads as one expensive call. The metadata says `perTurn` so a reader
-		// cannot mistake this for request-level data.
+		// Request-local usage is recorded independently by the SDK afterModel hook. Keep this turn-grain event: it is
+		// the stable aggregation consumers already use, and its explicit `perTurn` label prevents double-counting it
+		// as another provider request.
 		if (latestUsage) {
 			// N18: reasoning tokens, when the server reports them. `readSessionUsage` (the RuntimeTaskSessionUsage
 			// path) carries no reasoning field, but the RAW usage object is right here, and `extractCompletionUsage`

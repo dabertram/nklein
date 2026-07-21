@@ -8,6 +8,7 @@
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
+import { MODEL_USAGE_CATEGORY } from "../core/card-tracking-coverage";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { buildDriftCriticPrompt, decideDriftCheck, parseDriftCriticVerdict } from "../core/drift-critic";
 import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord } from "../core/edit-thrash-detector";
@@ -220,10 +221,15 @@ export function createKanbanContextFocusExtension(
 	resultHandleStore?: ResultHandleStore,
 	// F12.92 opt-in drift critic (only supplied when NKLEIN_DRIFT_CRITIC is set). Undefined ⇒ inert, byte-identical.
 	driftCriticCaller?: DriftCriticModelCaller,
+	// N18: configured identity fallback for request-level observations. The SDK normally stamps the actual serving
+	// identity on each assistant message; this covers runtimes/providers that omit messageModelInfo.
+	servingModel?: { readonly providerId?: string | null; readonly modelId?: string | null },
 ): NKleinSdkRuntimeExtension {
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
 	let lastOfferedToolNames: readonly string[] = [];
+	let modelRequestStartedAtMs: number | null = null;
+	let modelRequestSequence = 0;
 	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
 	// F12.67: the per-session facts cache makes personalization-key rebuilds INCREMENTAL — unchanged files reuse
 	// their parsed facts (Merkle-style content-hash check inside buildNKleinRepoMap); only edited files re-parse.
@@ -260,6 +266,9 @@ export function createKanbanContextFocusExtension(
 		},
 		hooks: {
 			async beforeModel(context) {
+				// A stopped beforeModel cycle never reaches the provider. Clear first so an unusual runtime cannot pair a
+				// later afterModel with stale timing from a prior request whose completion hook was interrupted.
+				modelRequestStartedAtMs = null;
 				// F12.40: stamp the SDK's run-cumulative usage into the live registry (one Map write per model call)
 				// so the autonomy-budget watchdog can see what a RUNNING card has spent — the summary only learns
 				// usage at run end. Defensive: odd runtimes/fakes may omit the snapshot.
@@ -623,9 +632,52 @@ export function createKanbanContextFocusExtension(
 				if (normalized !== outgoing) {
 					finalResult = { ...(finalResult ?? {}), messages: normalized };
 				}
+				// This is the closest hook-visible point to provider dispatch: exclude repo-map/tool-selection preparation
+				// from inference latency, while retaining the complete stream wait through afterModel.
+				modelRequestStartedAtMs = Date.now();
 				return finalResult;
 			},
 			async afterModel(context) {
+				// N18: this hook is invoked once for every completed provider request, including multiple requests inside
+				// one turn. The SDK stamps request-local deltas on the assistant message, so do not subtract cumulative
+				// snapshots here. Record before any recovery/self-review branch can return or throw.
+				const requestStartedAtMs = modelRequestStartedAtMs;
+				modelRequestStartedAtMs = null;
+				modelRequestSequence += 1;
+				const requestMetrics = context.assistantMessage.metrics;
+				const messageModelInfo = context.assistantMessage.modelInfo;
+				const providerId = messageModelInfo?.provider ?? servingModel?.providerId ?? null;
+				const modelId = messageModelInfo?.id ?? servingModel?.modelId ?? null;
+				const durationMs = requestStartedAtMs === null ? null : Math.max(0, Date.now() - requestStartedAtMs);
+				try {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Model request ${modelRequestSequence} finished on ${sessionId} (${context.finishReason}).`,
+						taskId: sessionId,
+						providerId: providerId ?? undefined,
+						modelId: modelId ?? undefined,
+						metadata: {
+							category: MODEL_USAGE_CATEGORY,
+							granularity: "perRequest",
+							requestSequence: modelRequestSequence,
+							iteration: context.snapshot.iteration,
+							finishReason: context.finishReason,
+							durationMs,
+							usageAvailable: requestMetrics !== undefined,
+							inputTokens: requestMetrics?.inputTokens ?? null,
+							outputTokens: requestMetrics?.outputTokens ?? null,
+							cacheReadTokens: requestMetrics?.cacheReadTokens ?? null,
+							cacheWriteTokens: requestMetrics?.cacheWriteTokens ?? null,
+							reasoningTokens: requestMetrics?.reasoningTokenCount ?? null,
+							cost: requestMetrics?.cost ?? null,
+							providerId,
+							modelId,
+						},
+					});
+				} catch {
+					// Telemetry must never break a model turn.
+				}
 				// Robustness over teaching: if a weak model narrated its tool call as `<tool_call>` text instead of a
 				// structured call, parse it and append a real tool-call part so the loop executes it (this hook runs
 				// before the loop extracts tool calls from the message). A recovered call means the turn is NOT a

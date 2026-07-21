@@ -6,9 +6,12 @@ import { useTaskSessions } from "@/hooks/use-task-sessions";
 import type { BoardCard } from "@/types";
 
 const startTaskSessionMutateMock = vi.hoisted(() => vi.fn());
+const stopTaskSessionMutateMock = vi.hoisted(() => vi.fn());
+const sendTaskSessionInputMutateMock = vi.hoisted(() => vi.fn());
 const deleteTaskArtifactsMutateMock = vi.hoisted(() => vi.fn());
 const trackTaskResumedFromTrashMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
+const terminalInputMock = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock("@/components/app-toaster", () => ({
 	notifyError: notifyErrorMock,
@@ -20,6 +23,12 @@ vi.mock("@/runtime/trpc-client", () => ({
 			startTaskSession: {
 				mutate: startTaskSessionMutateMock,
 			},
+			stopTaskSession: {
+				mutate: stopTaskSessionMutateMock,
+			},
+			sendTaskSessionInput: {
+				mutate: sendTaskSessionInputMutateMock,
+			},
 		},
 		workspace: {
 			deleteTaskArtifacts: {
@@ -27,6 +36,10 @@ vi.mock("@/runtime/trpc-client", () => ({
 			},
 		},
 	}),
+}));
+
+vi.mock("@/terminal/terminal-controller-registry", () => ({
+	getTerminalController: () => ({ input: terminalInputMock, paste: vi.fn(() => true) }),
 }));
 
 vi.mock("@/runtime/task-session-geometry", () => ({
@@ -39,6 +52,8 @@ vi.mock("@/telemetry/events", () => ({
 
 interface HookSnapshot {
 	startTaskSession: ReturnType<typeof useTaskSessions>["startTaskSession"];
+	stopTaskSession: ReturnType<typeof useTaskSessions>["stopTaskSession"];
+	sendTaskSessionInput: ReturnType<typeof useTaskSessions>["sendTaskSessionInput"];
 	cleanupTaskArtifacts: ReturnType<typeof useTaskSessions>["cleanupTaskArtifacts"];
 }
 
@@ -65,9 +80,17 @@ function HookHarness({ onSnapshot }: { onSnapshot: (snapshot: HookSnapshot) => v
 	useEffect(() => {
 		onSnapshot({
 			startTaskSession: sessions.startTaskSession,
+			stopTaskSession: sessions.stopTaskSession,
+			sendTaskSessionInput: sessions.sendTaskSessionInput,
 			cleanupTaskArtifacts: sessions.cleanupTaskArtifacts,
 		});
-	}, [onSnapshot, sessions.cleanupTaskArtifacts, sessions.startTaskSession]);
+	}, [
+		onSnapshot,
+		sessions.cleanupTaskArtifacts,
+		sessions.sendTaskSessionInput,
+		sessions.startTaskSession,
+		sessions.stopTaskSession,
+	]);
 
 	return null;
 }
@@ -79,9 +102,12 @@ describe("useTaskSessions", () => {
 
 	beforeEach(() => {
 		startTaskSessionMutateMock.mockReset();
+		stopTaskSessionMutateMock.mockReset();
+		sendTaskSessionInputMutateMock.mockReset();
 		deleteTaskArtifactsMutateMock.mockReset();
 		trackTaskResumedFromTrashMock.mockReset();
 		notifyErrorMock.mockReset();
+		terminalInputMock.mockClear();
 		startTaskSessionMutateMock.mockResolvedValue({
 			ok: true,
 			summary: {
@@ -102,6 +128,8 @@ describe("useTaskSessions", () => {
 		deleteTaskArtifactsMutateMock.mockResolvedValue({
 			ok: true,
 		});
+		stopTaskSessionMutateMock.mockResolvedValue({ ok: true, summary: null });
+		sendTaskSessionInputMutateMock.mockResolvedValue({ ok: true, summary: null });
 		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
 			.IS_REACT_ACT_ENVIRONMENT;
 		(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -169,6 +197,42 @@ describe("useTaskSessions", () => {
 		});
 
 		expect(trackTaskResumedFromTrashMock).not.toHaveBeenCalled();
+	});
+
+	it("routes attributed correction and abort gestures through the durable backend seam", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		await act(async () => {
+			await latestSnapshot?.sendTaskSessionInput("task-1", "Fix the boundary", {
+				interventionSeverity: "correction",
+			});
+			await latestSnapshot?.stopTaskSession("task-1", { interventionSeverity: "abort" });
+		});
+
+		expect(terminalInputMock).not.toHaveBeenCalled();
+		expect(sendTaskSessionInputMutateMock).toHaveBeenCalledWith({
+			taskId: "task-1",
+			text: "Fix the boundary",
+			appendNewline: true,
+			interventionSeverity: "correction",
+		});
+		expect(stopTaskSessionMutateMock).toHaveBeenCalledWith({
+			taskId: "task-1",
+			interventionSeverity: "abort",
+		});
 	});
 
 	it("forwards start-in-plan-mode from the task card when starting a task", async () => {

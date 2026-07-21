@@ -490,7 +490,7 @@ describe("useLinkedBacklogTaskActions", () => {
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
 	});
 
-	it("stops the main task session and its detail terminal shell when a task is trashed", async () => {
+	it("records an abort on the main session while cleaning up the un-attributed detail shell", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const stopTaskSession = vi.fn(async (_taskId: string) => {});
 
@@ -519,7 +519,7 @@ describe("useLinkedBacklogTaskActions", () => {
 		});
 
 		expect(stopTaskSession).toHaveBeenCalledTimes(2);
-		expect(stopTaskSession).toHaveBeenNthCalledWith(1, reviewTask.id);
+		expect(stopTaskSession).toHaveBeenNthCalledWith(1, reviewTask.id, { interventionSeverity: "abort" });
 		expect(stopTaskSession).toHaveBeenNthCalledWith(2, getDetailTerminalTaskId(reviewTask.id));
 	});
 

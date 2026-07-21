@@ -230,6 +230,8 @@ export type RuntimeTaskSessionStartResponse = z.infer<typeof runtimeTaskSessionS
 
 export const runtimeTaskSessionStopRequestSchema = z.object({
 	taskId: z.string(),
+	/** N18: an explicit operator trash gesture abandoned a card that had already entered execution. */
+	interventionSeverity: z.literal("abort").optional(),
 });
 export type RuntimeTaskSessionStopRequest = z.infer<typeof runtimeTaskSessionStopRequestSchema>;
 
@@ -358,6 +360,8 @@ export const runtimeTaskSessionInputRequestSchema = z.object({
 	 * earlier pending input. Ignored when the session is not running.
 	 */
 	delivery: z.enum(["queue", "steer"]).optional(),
+	/** N18: submitted review feedback explicitly identifies output that needs correction. */
+	interventionSeverity: z.literal("correction").optional(),
 });
 export type RuntimeTaskSessionInputRequest = z.infer<typeof runtimeTaskSessionInputRequestSchema>;
 

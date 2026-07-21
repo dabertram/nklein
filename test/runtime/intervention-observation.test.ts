@@ -39,17 +39,15 @@ describe("extractInterventionEvents", () => {
 		);
 	});
 
-	it("names the UNINSTRUMENTED severities, so their zeros are not read as evidence", () => {
-		// The whole point of P20.10: "0 takeovers observed, and takeovers are not observable" is a different claim
-		// from "0 takeovers happened".
+	it("reports complete coverage only after every severity has an explicit product gesture", () => {
 		const result = extractInterventionEvents("");
-		expect(result.uninstrumentedSeverities).toEqual(["correction", "takeover"]);
-		expect(result.coverageNote).toContain("NOT because they did not happen");
+		expect(result.uninstrumentedSeverities).toEqual([]);
+		expect(result.coverageNote).toBe("All four severities have an emission site.");
 	});
 
 	it("only lists a severity as instrumented once an emission site exists", () => {
 		// Ratchet: adding a severity here without an emitter turns "not measured" into a confident zero.
-		expect(INSTRUMENTED_SEVERITIES).toEqual(["nudge", "abort"]);
+		expect(INSTRUMENTED_SEVERITIES).toEqual(["nudge", "correction", "takeover", "abort"]);
 	});
 
 	it("counts unparseable lines instead of silently dropping them", () => {

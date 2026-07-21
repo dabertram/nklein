@@ -5,23 +5,16 @@
  * emitted an intervention. The metric was built; the observation was not. This is the observation half.
  *
  * ── COVERAGE IS PART OF THE RESULT, NOT A FOOTNOTE ──
- * TWO severities are instrumented: `nudge`, when a human types into a session that is already running, and
- * `abort`, when a human stops a running session outright. `correction` and `takeover` have no emission site —
- * both would require detecting that a human EDITED or REPLACED the agent's output, which nothing observes.
+ * All four severities are instrumented at explicit product gestures: `nudge` for guidance to a running session,
+ * `correction` for submitted review feedback, `takeover` when the operator stops an agent but retains its card,
+ * and `abort` when an already-started card is abandoned to Trash. This avoids guessing authorship from file diffs.
  *
- * ⚠️ Cancelling a TURN is deliberately NOT recorded, though it looks like a sibling of abort: the nudge path
+ * ⚠️ Cancelling a TURN is deliberately NOT recorded, though it looks like a sibling of takeover: the nudge path
  * performs cancel-then-send, so instrumenting it would log an intervention for **every nudge** and inflate the
  * one number this exists to keep honest.
  *
- * That makes the honest report *"0 takeovers were OBSERVED, and takeovers are not observable"* — which is a
- * completely different statement from *"0 takeovers happened"*, and the difference is the whole point of
- * P20.10. A metric that silently reports zero for an uninstrumented severity is the disengagement-report
- * mistake in miniature: a number that looks like evidence of quality and is actually evidence of nothing.
- * So `observedSeverities` is returned alongside the events and the caller is expected to print it.
- *
- * This mirrors N7c exactly, where `mustStayQuiet` reported `indeterminate` because nothing watched the signal —
- * except that here the un-watched case would produce a FLATTERING zero rather than an honest `indeterminate`,
- * which is worse. Hence the explicit coverage field.
+ * Coverage remains part of every extraction result as a ratchet. If a future taxonomy severity is added before a
+ * successful product emission exists, its zero must immediately revert to "unmeasured", never flattering evidence.
  */
 
 import type { InterventionEvent, InterventionSeverity } from "./operator-intervention";
@@ -35,12 +28,12 @@ export const INTERVENTION_CATEGORY = "operator_intervention";
  * **Add to this list only when an emission site exists** — the same rule as `OBSERVABLE_DRAIN_SIGNALS`. Listing
  * a severity here without an emitter turns "not measured" into a confident zero.
  */
-export const INSTRUMENTED_SEVERITIES: readonly InterventionSeverity[] = ["nudge", "abort"];
+export const INSTRUMENTED_SEVERITIES: readonly InterventionSeverity[] = ["nudge", "correction", "takeover", "abort"];
 
 export interface InterventionExtractionResult {
 	readonly events: readonly InterventionEvent[];
 	readonly instrumentedSeverities: readonly InterventionSeverity[];
-	/** Severities with no emission site — their zero counts mean "unmeasured", never "did not happen". */
+	/** Severities with no emission site — normally empty; any future entry makes its zero explicitly unmeasured. */
 	readonly uninstrumentedSeverities: readonly InterventionSeverity[];
 	readonly unparseableLines: number;
 	readonly coverageNote: string;

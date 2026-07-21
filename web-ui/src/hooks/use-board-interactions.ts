@@ -442,7 +442,13 @@ export function useBoardInteractions({
 
 	const handleSendReviewComments = useCallback(
 		async (taskId: string, text: string) => {
-			const typed = await sendTaskSessionInput(taskId, text, { appendNewline: false, mode: "paste" });
+			// This is not a generic nudge: the operator is explicitly identifying output that needs correction.
+			// Send through the backend (not xterm) so successful delivery and its intervention severity are atomic.
+			const typed = await sendTaskSessionInput(taskId, text, {
+				appendNewline: true,
+				preferTerminal: false,
+				interventionSeverity: "correction",
+			});
 			if (!typed.ok) {
 				showAppToast({
 					intent: "danger",
@@ -451,18 +457,6 @@ export function useBoardInteractions({
 					timeout: 7000,
 				});
 				return;
-			}
-			await new Promise<void>((resolve) => {
-				setTimeout(resolve, 200);
-			});
-			const submitted = await sendTaskSessionInput(taskId, "\r", { appendNewline: false });
-			if (!submitted.ok) {
-				showAppToast({
-					intent: "danger",
-					icon: "warning-sign",
-					message: submitted.message ?? "Could not submit review comments to the task session.",
-					timeout: 7000,
-				});
 			}
 		},
 		[sendTaskSessionInput],

@@ -28,7 +28,7 @@ export const REVIEW_PHASE_CATEGORY = "review_phase";
 /** Telemetry category marking an attempt's START — the ledger records only its end. */
 export const ATTEMPT_STARTED_CATEGORY = "attempt_started";
 
-/** Telemetry category for per-TURN token usage, with the model that served it. */
+/** Telemetry category for model usage at request, turn, session, and attempt grains. */
 export const MODEL_USAGE_CATEGORY = "model_usage";
 
 export type TrackingSource =
@@ -114,15 +114,8 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		what: "Token usage — input, output, and reasoning tokens — with the model that served it.",
 		source: "self_observation",
 		emitterToken: "MODEL_USAGE_CATEGORY",
-		status: "partial",
-		gap:
-			"Recorded at THREE grains now — per-turn telemetry, session summary, and the per-attempt ledger — each " +
-			"carrying input/output AND reasoning tokens (reasoning null-not-zero when the server does not report it). " +
-			"The one remaining gap is PER-REQUEST: `run-finished` ends a turn and the SDK aggregates the individual " +
-			"model calls inside it, so a retry storm within one turn still reads as one expensive call. That is a " +
-			"design limit of the transport (the SDK exposes no per-request hook), not a missing emitter — the " +
-			"metadata is stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock " +
-			"LATENCY is also still uncaptured.",
+		status: "tracked",
+		gap: null,
 	},
 	{
 		id: "review_verdict",
@@ -169,11 +162,8 @@ export const CARD_TRACKING_CONTRACT: readonly TrackedLifecycleEvent[] = [
 		what: "A human steps in: nudge, correction, takeover or abort.",
 		source: "self_observation",
 		emitterToken: "operator_intervention",
-		status: "partial",
-		gap:
-			"`nudge` and `abort` have emission sites. `correction` and `takeover` do not — both require detecting that a " +
-			"HUMAN edited or replaced the agent's output, which nothing currently observes, so their zero counts mean " +
-			"unmeasured. See INSTRUMENTED_SEVERITIES.",
+		status: "tracked",
+		gap: null,
 	},
 	{
 		id: "held_for_operator",

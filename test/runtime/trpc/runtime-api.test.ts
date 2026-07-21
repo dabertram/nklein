@@ -3871,11 +3871,51 @@ describe("createRuntimeApi startTaskSession", () => {
 				{ delivery: "steer" },
 			);
 
-			const stopResponse = await api.stopTaskSession(scope, { taskId: "task-1" });
+			selfObservationMocks.recordSelfObservation.mockClear();
+			const correctionResponse = await api.sendTaskSessionInput(scope, {
+				taskId: "task-1",
+				text: "The edge case still fails",
+				appendNewline: true,
+				interventionSeverity: "correction",
+			});
+			expect(correctionResponse.ok).toBe(true);
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-1",
+					metadata: { category: "operator_intervention", interventionSeverity: "correction" },
+				}),
+			);
+
+			selfObservationMocks.recordSelfObservation.mockClear();
+			const stopResponse = await api.stopTaskSession(scope, {
+				taskId: "task-1",
+				interventionSeverity: "abort",
+			});
 			expect(stopResponse.ok).toBe(true);
 			expect(stopResponse.summary?.paused).toBe(false);
 			expect(nkleinTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
 			expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-1",
+					metadata: { category: "operator_intervention", interventionSeverity: "abort" },
+				}),
+			);
+
+			// The board gesture has already happened before cleanup starts; a stop failure must not erase it.
+			selfObservationMocks.recordSelfObservation.mockClear();
+			nkleinTaskSessionService.stopTaskSession.mockRejectedValueOnce(new Error("cleanup failed"));
+			const failedCleanup = await api.stopTaskSession(scope, {
+				taskId: "task-1",
+				interventionSeverity: "abort",
+			});
+			expect(failedCleanup.ok).toBe(false);
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-1",
+					metadata: { category: "operator_intervention", interventionSeverity: "abort" },
+				}),
+			);
 			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
@@ -4178,6 +4218,12 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 		expect(abortResponse.ok).toBe(true);
 		expect(nkleinTaskSessionService.abortTaskSession).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				metadata: { category: "operator_intervention", interventionSeverity: "takeover" },
+			}),
+		);
 
 		nkleinTaskSessionService.cancelTaskTurn.mockResolvedValue(summary);
 		const cancelResponse = await api.cancelTaskChatTurn(

@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-21, after F12.11):** `[ ]` means executable now, not merely “not started”; `[~]`
+**Live status clarification (2026-07-22, after N18):** `[ ]` means executable now, not merely “not started”; `[~]`
 means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited gate
-below is green. The current 198-package remainder is **102 ready + 8 partial + 77 dependency-blocked + 6 external/user-
+below is green. The current 197-package remainder is **102 ready + 7 partial + 77 dependency-blocked + 6 external/user-
 gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -732,6 +732,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   contradicts observed behaviour eventually. **Grep the emitter before writing the gap**, and prefer a real
   symbol (`buildTerminalAttemptEvent`) over a generic word (`attempt`) as the token, because a generic token
   matches something somewhere and verifies nothing.
+- ⚠️ **OPERATOR-INTERVENTION SEVERITY MUST FOLLOW AN EXPLICIT PRODUCT GESTURE, NEVER GUESSED FILE AUTHORSHIP (N18).**
+  A stopped agent whose card/work remains is a `takeover`; an already-started card explicitly discarded to Trash is
+  an `abort`; submitted review feedback is a `correction`; ordinary running-session guidance is a `nudge`. Record at
+  the successful backend seam (and record abandonment before cleanup can fail). Inferring who wrote a diff cannot
+  distinguish the human from the sandbox and turns a go/no-go metric into fiction.
 - ⚠️ **SELF-CONTAMINATION HAPPENED A FOURTH TIME (N18), IN A FILE WHOSE OWN DOCBLOCK WARNED AGAINST IT.**
   `dev tracking-coverage` verifies that each claimed `emitterToken` appears in the source — and it read all of
   `src/`, which includes the contract file declaring those tokens. Every token matched **its own declaration**.
@@ -5701,105 +5706,6 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   ⚠️ **DO NOT "FIX" THIS BY FLIPPING DEFAULTS.** Each flag was defaulted off for a reason, and several change
   every session's prompt. Registration is the fix; enabling is a per-flag decision with a measured A/B behind it.
 
-- [~] **N18 — TRACK EVERYTHING, as a product feature and not a debug tool *(David 2026-07-20)*.**
-  *"i want that timeline to be inherent part of !Klein and not just a debug tool. !Klein shall always track every
-  detail … a full picture of any activity, state change/transition, attempted activity, and all the results …
-  everything that happens on a project shall be tracked precisely."* Opt-out is permitted ONLY if the volume
-  turns out to be genuinely excessive — measured, not assumed.
-  **📊 THE VOLUME QUESTION IS ANSWERED, AND THE ANSWER IS: NOT A PROBLEM.** Measured against David's own
-  `~/.nklein` telemetry — a month of heavy, fleet-driven development, not a synthetic estimate:
-  | | |
-  |---|---|
-  | total, ~1 month | **24 MB / 49,380 events** |
-  | busiest day (2026-07-15, multi-agent sweep) | **9.0 MB / 18,666 events** |
-  | typical heavy dev day | 1.6–2.7 MB / 3.5–5.8k events |
-  | per event | ~500 bytes |
-  **So full tracking costs single-digit MB/day at the observed ceiling**, against a 30-day retention default
-  (`DEFAULT_RETENTION_DAYS`) that already bounds the total. **No opt-out is warranted on volume grounds** — the
-  condition David set for allowing one is not met, so it is not being built. Revisit only if a real run exceeds
-  roughly an order of magnitude more than the busiest day here.
-  **✅ SHIPPED: `dev tracking-coverage` — the coverage CONTRACT (`card-tracking-coverage.ts`).**
-  *"We track everything"* is unfalsifiable, so the first deliverable is not more emission — it is an enumerated
-  list of what can happen to a card, each entry naming its source AND an `emitterToken` that **must literally
-  appear in the codebase**, checked on every run. **A claim cannot outlive its emitter.** Current honest state:
-  **14 events declared — 12 tracked, 2 partial, 0 untracked**, every tracked claim verified against a real emitter.
-  🔴 **AND IT SELF-CONTAMINATED ON THE FIRST RUN — the FOURTH time today (see §4A).** The verifier read all of
-  `src/`, which includes the contract file, so every `emitterToken` matched **its own declaration**. Planting
-  `card_lane_change_RENAMED_BY_SOMEONE` produced *"Every tracked claim was verified against a real emitter"* and
-  exit 0. **I had written a docblock in that very file warning against exactly this.** Fixed with an
-  unconditional exclusion; re-verified BOTH ways — green when honest, red naming the broken claim when renamed.
-  **THE KNOWN GAPS, now written down instead of implied** (this list IS the remaining backlog for N18):
-  - `model_usage` — **IMPROVED, still partial.** (I first recorded this WRONGLY as untracked; token usage was
-    always written per attempt via `applyModelStatsTrackingLevel`. **A false gap is as corrosive as a false claim
-    of coverage** — it sends someone to build what already exists.) Now ALSO emitted per TURN at `run-finished`
-    with the **serving model id**, which is what makes *"is this card slow, or is this model slow?"* answerable
-    at all. **RESIDUAL GAP, and the blocker is real:** `run-finished` ends a TURN and the SDK aggregates the
-    individual model calls inside it, so **a retry storm within one turn still reads as one expensive call**.
-    Metadata is stamped `granularity: perTurn` so it cannot be mistaken for request-level data. Wall-clock
-    latency is still uncaptured. Closing it needs an SDK-level per-request hook that may not exist — **there is
-    no single chokepoint through which every model request passes** (LocalLlmClient, KleinCoreClient and the
-    agent's own SDK loop are separate transports), so this is a design question, not a missing line.
-    🔁 **AND I RE-CHECKED THE "hardcoded null totalTokens/reasoningTokens" SUB-CLAIM 2026-07-20 — it was HALF
-    wrong, caught by tracing the consumer instead of trusting the note.** `totalTokens` being null in the
-    `applyModelStatsTrackingLevel` input is NOT a gap: `gatedUsage.totalTokens` is never read — the run-summary
-    recorder recomputes total inline from prompt+completion, and the ledger attempt event stores prompt+completion
-    (total is trivially derivable). I started to "fix" it by deriving `total = prompt + completion` there, then
-    reverted on finding nothing consumes the field — **a dead change dressed as a fix is the exact self-flattering
-    motion this whole item is about.** The comment at the site now documents why it's left null. ✅ **reasoningTokens CLOSED
-    2026-07-20 for the per-TURN observation** — without the API-contract change I'd feared. The raw usage object
-    is right there at `run-finished`, and `extractCompletionUsage` (F4.12) already knows the ESTABLISHED spelling
-    (`completion_tokens_details.reasoning_tokens`, top-level fallback), so the per-turn `model_usage` metadata now
-    stamps `reasoningTokens` — **null, not zero, when the server does not report it**, because "did not say" and
-    "did zero reasoning" are different facts a budget-tuner must separate.
-    🐛 **The test caught a bug in my OWN change before it shipped:** I called `extractCompletionUsage(result.usage)`
-    when the function reads `.usage` itself and wants `result` — one level too deep, a silent perpetual null
-    dressed as "no reasoning reported". Pinned by a test asserting a known count comes through AND that the wrong
-    (usage-object) shape reads empty. ✅ **AND THE LEDGER/CONTRACT PATH IS NOW DONE TOO** — the "API-contract change"
-    turned out clean and verifiable without a model. `RuntimeTaskSessionUsage` gained an optional
-    `reasoningTokens`; `readSessionUsage` populates it (usage-OBJECT level, distinct from the wrapper level — 5
-    tests pin the level I got wrong once); and the per-ATTEMPT ledger event carries it via an additive
-    `.nullable().default(null)` field. **Backward-compat VERIFIED against real on-disk data: 226 of 226 existing
-    v1 records parse, 0 failures** — the default makes old records lawful without a schemaVersion bump, and null
-    stays distinct from 0 at every layer. So `model_usage` is now tracked at THREE grains — per-turn telemetry,
-    session summary, and per-attempt ledger — each carrying reasoning tokens; the only genuinely-remaining gap is
-    per-REQUEST (the SDK aggregates calls within a turn), which is the design question noted above, not a missing
-    field.
-  - ~~`review_verdict` / `bounce_to_worker`~~ — **CLOSED 2026-07-20.** `stampPhase` in
-    `second-opinion-review-runner.ts` is the single chokepoint every review-phase message already funnels
-    through — verdicts, bounces, judge fan-out, corrector rounds — so ONE emission there covers all of them and
-    **cannot be forgotten by a new call site** the way per-site emission would be. They now carry a real
-    `createdAt` and merge into the card timeline in true order. **The s03 investigation needed the bounce COUNT
-    and the interleaving of a bounce with a capture failure, and had to reconstruct both by counting log lines
-    by hand.** Verified red by removing the emitter (2 claims break).
-  - ~~`attempt_started`~~ — **CLOSED 2026-07-20**, after correcting my SECOND wrong gap claim. A terminal attempt
-    event IS written even when the attempt made no tool calls, so a dead attempt was never invisible; the real
-    gap was that only the END was recorded, leaving an attempt **IN FLIGHT invisible until it terminated** —
-    exactly the state a stalled card is in when someone goes looking — and duration underivable. `startTaskSession`
-    now emits a START marker with the model and mode, **before any setup that can throw**, so an attempt that dies
-    on the way up still leaves a record. Verified red by removing the emitter.
-  - `operator_intervention` — **`nudge` AND `abort` now instrumented** (abort = the user stopped a running
-    session, recorded only when one was actually running; a no-op abort is a click on a dead button, not an
-    intervention). `correction` and `takeover` remain unmeasured — both need detection that a human EDITED or
-    REPLACED the agent's output, which nothing observes.
-    ⚠️ **Cancelling a TURN is deliberately NOT instrumented**, though it looks like abort's sibling: the nudge
-    path performs cancel-then-send, so recording it would log an intervention for **every nudge** and inflate the
-    single number P20.10 exists to keep honest.
-  **✅ N18b — THE TIMELINE IS NOW A PRODUCT SURFACE 2026-07-20.** `getCardTimeline` (tRPC) + `CardTimelinePanel`,
-  mounted on the card detail view beside the Action Trail. **The gatherer was EXTRACTED rather than reimplemented**
-  (`state/card-trail-sources.ts`), so CLI and UI share one reader — N17's anti-drift rule applies to readers as
-  much as writers, and the day two "what happened to this card" implementations disagree is the day neither can
-  be trusted.
-  The panel renders the things that make a forensic view honest rather than pretty, each pinned by a test: a load
-  failure says *"not an empty card"*; an unreadable source warns that a gap **may be this, not silence**; a
-  truncated list says *"most recent N of M"*; an unclocked event renders `—` instead of an invented time. Those
-  are the renderings that would otherwise let a reader draw a confident wrong conclusion instead of going to look.
-  REMAINING (N18c): TWO partials, both with the buildable parts done and only genuinely-gated remainders left.
-  `attempt_started` is now CLOSED (tracked). `model_usage` is tracked at three grains incl. reasoning; its only
-  gap is PER-REQUEST, a transport design limit (the SDK exposes no per-request hook), not a missing emitter.
-  `operator_intervention` has `nudge`+`abort` instrumented; `correction`+`takeover` need detecting that a human
-  EDITED or REPLACED agent output, which nothing observes yet — a detection-mechanism design question, not a
-  wire. **So N18's tracking is 12/14 with the 2 remainders each blocked on a design decision, not on code I can
-  write blind.**
 
 - [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
