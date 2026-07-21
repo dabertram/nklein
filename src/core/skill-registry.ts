@@ -43,8 +43,12 @@ export interface SkillApiProfile {
 	temperature?: number;
 }
 
-export interface Skill {
-	id: SkillId;
+/**
+ * Runtime-compatible skill shape whose id is not restricted to the hand-authored registry union. Effectful community
+ * skill loading maps validated SKILL.md documents into this inert shape; activation remains a separate, gated step.
+ */
+export interface DynamicSkill {
+	id: string;
 	description: string;
 	/** Roles for which this skill is a DEFAULT bundle member (an exact role match ⇒ maximal relevance). */
 	defaultRoles: readonly string[];
@@ -52,7 +56,7 @@ export interface Skill {
 	contextFragments: readonly ContextFragmentId[];
 	/** The tool names this skill needs (still pass the §5.L capability gate at use time). */
 	tools: readonly string[];
-	/** An optional one-line preamble the skill contributes to the system framing. */
+	/** Optional prompt guidance the skill contributes to the system framing. */
 	preamble?: string;
 	/** Lowercased task-text signals that raise relevance when present (a soft signal, below a role match). */
 	keywords: readonly string[];
@@ -60,6 +64,11 @@ export interface Skill {
 	temporalSensitive?: boolean;
 	/** §5.AE/§5.AN: the best-match API-feature configuration for this skill (resolver-merged; model-capability-gated). */
 	apiProfile?: SkillApiProfile;
+}
+
+/** A hand-authored built-in skill, narrowed to the closed registry id union. */
+export interface Skill extends DynamicSkill {
+	id: SkillId;
 }
 
 /** The hand-authored skill set (small by design). Each existing role maps to a default bundle here. */

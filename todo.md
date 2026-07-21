@@ -76,6 +76,14 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ COMMUNITY SKILL LOADING IS A BOUNDED BYTE-READ BOUNDARY, NEVER AN EXECUTION OR ACTIVATION BOUNDARY (F4.20,
+> 2026-07-21).** Confine the requested skill directory lexically and by realpath, reject every symlink/special file,
+> enumerate every non-`SKILL.md` entry (including unexpected top-level files), and cap traversal count/depth, individual
+> reads, and aggregate bytes. Open regular files with `O_NOFOLLOW` and verify the same inode still owns the path after
+> reading. Feed those inert bytes/metadata to the parser, manifest validator, executable screen, injection prescreen,
+> and least-privilege grant reconciler. A clean loader result is only an inert import candidate; review/reject results
+> stay inspectable but quarantined, and no result becomes registered, prompt-active, or executable before later gates.
+
 > **⚠️ RE-ANCHORS MUST PRESERVE CANONICAL CONTRACT LABELS, AND THEIR A/B MUST NOT GRADE OUTPUT TRUNCATION
 > (live-found F4.8, 2026-07-21).** A 0.6B model retained `objective`, `current_focus`, and `constraint` but copied the
 > decoy acceptance value when the tail block renamed `acceptanceCriteria` to the friendly synonym `DONE MEANS`.
@@ -2389,9 +2397,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 - [>] **F4.19b — NL-description semantic skill index** *(embed-path-gated; split from F12.29 2026-07-19).* Index
   procedures by natural-language description for semantic retrieval — needs a local embed path; design with the
   retrieval stack when an embedding model joins the fleet.
-- [ ] **F4.20 — Complete effectful SKILL.md loading.** Read a real skill plus bundle inside containment, feed the existing
-  parser/manifest cores, and map it into the dynamic-skill shape without executing files.
-  **AUDIT 2026-07-18: OPEN** — parser + manifest/reconcile cores exist but consumed only by type; no effectful SKILL.md disk loader runs a real skill+bundle inside containment.
 - [ ] **F4.21 — Implement gated discovery.** Search trusted origins by default; require an explicit untrusted-discovery
   opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
   **AUDIT 2026-07-18: OPEN** — only the trust classifier exists (classifySkillSourceTrust); no discovery/search mechanism, no trusted-origin search, no untrusted opt-in.

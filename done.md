@@ -2173,3 +2173,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   rungs remain authoritative, and the obsolete test-only draft fold was removed. Request-level tests cover default
   pass-through, sampler/thinking/budget application, both structured mechanisms, and safe fallback; focused chat,
   session, runtime, task-service, and profile-core suites pass 286 tests with TypeScript green.
+
+- [x] **F4.20 — complete effectful SKILL.md loading** *(delivered 2026-07-21).* A real community skill directory can now
+  be loaded beneath an explicit containment root and mapped to the runtime-compatible `DynamicSkill` shape without
+  registering, prompting with, importing, or executing it. The effectful seam performs lexical plus realpath
+  confinement, rejects symlinks and special files, uses `O_NOFOLLOW`, checks inode stability, and bounds SKILL.md,
+  per-file, aggregate, entry-count, and depth reads. It enumerates every bundle file—including unexpected roots—and
+  feeds the exact metadata/leading bytes/body through the shipped manifest validator, executable detector, injection
+  prescreen, and least-privilege grant reconciler. Full inert bytes and exact source remain available for F4.22 review
+  and hashing; clean results are only import candidates, while review/executable findings quarantine and hard content
+  findings reject. Nine real-filesystem integration cases prove clean mapping, grant narrowing, executable no-run,
+  hostile-source retention, typed parse failures, traversal/symlink confinement, resource caps, and unexpected-root
+  screening; the composed 140-test safety suite and TypeScript pass.

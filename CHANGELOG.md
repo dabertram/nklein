@@ -78,6 +78,12 @@
   force-call work starts constrained immediately. If a direct constrained request is unsupported or unusable, !Klein
   safely resumes its normal buffered recovery ladder, whose later remedies remain authoritative.
 
+- **Community skill bundles now have a real no-execution loading boundary.** A contained SKILL.md directory is read
+  under strict path, symlink, file-type, depth, count, and byte limits; its source and inert bundle bytes flow through
+  structural validation, executable quarantine, prompt-injection screening, and least-privilege tool reconciliation.
+  The result is an unregistered dynamic-skill candidate for the upcoming review/import flow—never an automatic prompt
+  injection or script execution.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed
