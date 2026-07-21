@@ -2215,3 +2215,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   shaped probe also exposed and fixed `.venv`/`venv` dependency trees exhausting the shared 1,000-file source cap; the
   centralized exclusion now covers code search/index/AST/ego and repo-map scanning. The repeated probe kept only the new
   retrieval discriminator implementation and pruned five real distractors. Focused suites pass 107 tests and TypeScript.
+
+- [x] **F11.2f — verified, minimal, fact-based repo onboarding profile** *(delivered 2026-07-17; reconciled
+  2026-07-21).* The always-on, kill-switchable start preamble is composed from deterministic workspace data rather
+  than LLM prose: real root-manifest commands, package/ESM/entry-point facts, dependency-proven stack and test/lint
+  frameworks, npm-workspaces and detected monorepo tooling, and bounded top-level layout. The task-dependent
+  architecture half is already supplied by the personalized PageRank repo-map rail before each model request, with
+  workspace-relative symbol citations, a token budget, content-fact caching, and invalidation after writes; duplicating
+  it in the static fact sheet would add stale, redundant context. The only proposed extension—parsing CI workflow YAML
+  for commands—was explicitly conditional on live evidence that workers still guess CI commands. An audit of local
+  session transcripts found no sessions whose first turn occurred after the fact sheet shipped, so there is no eligible
+  post-adoption evidence for that extension. It is deliberately not implemented: CI jobs frequently include setup,
+  matrix, secret, deployment, or host-specific commands that are not valid worker acceptance commands. Future telemetry
+  can reopen a narrowly evidenced extractor; the complete delivered profile remains A/B-disableable through
+  `NKLEIN_FRAMEWORK_PREAMBLE`.

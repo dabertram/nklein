@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Repo onboarding context now has an explicit minimality boundary.** Stable manifest-proven commands, stack facts,
+  monorepo tooling, and layout remain in the compact start fact sheet, while task-personalized architecture stays in
+  the live repo-map rail. CI-workflow command parsing was not added without the required post-adoption failure evidence,
+  avoiding stale or host-only CI instructions in every worker prompt.
+
 - **Small local models now build decomposition graphs without fragile nested JSON.** Planning defaults to adding one
   validated card and dependency at a time, then submits the accumulated candidate for full validation and independent
   critique before board materialization. A malformed or empty one-shot payload now switches to that incremental path
