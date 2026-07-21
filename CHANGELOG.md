@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Monorepo context scoping now has an explicit architecture-policy boundary.** !Klein scopes cards to the deepest
+  package, loads the nearest repository instructions, and exposes import impact, while repository-owned lint and
+  acceptance commands remain authoritative for cross-layer rules. It does not invent a layer order from folder names
+  when a project declares no dependency-cruiser, Nx, ESLint boundary, or equivalent policy.
+
 - **The read-only explorer now has a fleet-proven citation handoff and safe specialist routing.** A permanent three-host
   gate localized 8/8 held-out repository questions; compact handoffs passed 18/18 worker checks versus 16/18 direct
   exploration while removing 93.1% of main-context prompt tokens. Resident-only routing uses the role-validated

@@ -2273,3 +2273,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   `NKLEIN_EXPLORER_SUBAGENT`: quality did not regress, but exact McNemar p=0.500 did not justify a quality default flip
   and the extra specialist round trips add latency/capacity cost; Phase 15 owns that separate default decision.
   Evidence: `docs/dev/f11.2j-explorer-ab-2026-07-21.json`.
+
+- [x] **F11.2k — monorepo-aware context scoping** *(delivered 2026-07-17; architecture-policy boundary clarified
+  2026-07-21).* Turbo/Nx/pnpm-workspace facts enter the verified repo profile; `deriveMonorepoTaskScope` resolves a
+  card's deepest package from likely files, warns honestly when one card spans packages, and loads governing
+  `AGENTS.md`/`CLAUDE.md` files outermost-first so the nearest instruction wins by recency. The memoized workspace scan
+  skips dependency trees, root-scoped cards pay no prompt tax, and `ego_graph`/`ast_search` supply native “who imports
+  this?” impact without another graph dependency. The proposed optional cross-layer lint is deliberately not inferred:
+  package/folder shape cannot prove whether a project's UI, domain, data, or sibling dependencies are allowed, and this
+  repository has no declared dependency-cruiser/boundary policy to serve as a truthful default. !Klein instead runs the
+  repository's own lint/acceptance commands, which already execute explicitly configured dependency-cruiser, Nx,
+  restricted-import, or equivalent fitness rules. When no project-owned policy exists, abstention avoids false failures
+  and duplicate sources of truth. Existing focused tests (4) and the full repository gates remain green.
