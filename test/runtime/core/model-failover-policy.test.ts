@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { decideModelFailover, isModelSideError } from "../../../src/core/model-failover-policy";
+import {
+	decideModelCapabilityFailover,
+	decideModelFailover,
+	isModelSideError,
+} from "../../../src/core/model-failover-policy";
 
 describe("isModelSideError", () => {
 	it("classifies the live-found model/engine errors as model-side", () => {
@@ -86,5 +90,17 @@ describe("decideModelFailover", () => {
 		expect(decision.failover).toBe(true);
 		// Skips the canonical alias of the failed model AND returns the bare runtime-usable id.
 		expect(decision.nextModelKey).toBe("mistralai/ministral-3-14b-reasoning");
+	});
+});
+
+describe("decideModelCapabilityFailover", () => {
+	it("selects an untried model after the trusted decomposition recovery guard exhausts", () => {
+		expect(
+			decideModelCapabilityFailover({
+				failedModelKey: "qwopus",
+				triedModelKeys: [],
+				rankedCandidateKeys: ["qwopus", "qwen", "gemma"],
+			}),
+		).toMatchObject({ failover: true, nextModelKey: "qwen" });
 	});
 });

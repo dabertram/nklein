@@ -6,7 +6,9 @@
   validated card and dependency at a time, then submits the accumulated candidate for full validation and independent
   critique before board materialization. A malformed or empty one-shot payload now switches to that incremental path
   instead of inviting the same failure again. Dead planning cards also honor their promised single fresh restart;
-  the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely.
+  the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
+  one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code
+  context, and critic feedback to the next ranked loaded architect before asking a human.
 
 - **Plan critique now audits executable card contracts, not just plausible titles.** The independent critic receives
   the authoritative originating task plus each card's objective, file/write bounds, test-first contract, acceptance,

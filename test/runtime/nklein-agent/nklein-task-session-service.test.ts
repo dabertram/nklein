@@ -4683,6 +4683,44 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
+	it("hands repeated decomposition-validation exhaustion to another ranked architect before human fallback", async () => {
+		const { service, runtime } = createTrackedService();
+		service.setTaskFailoverCandidates("task-1", ["qwen3", "gemma"]);
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose the project.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		for (let attempt = 1; attempt <= 4; attempt += 1) {
+			const toolCallId = `decompose-failover-${attempt}`;
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				input: { slug: "x", tasks: [{ id: `t${attempt}` }] },
+			});
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_end",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				error: "Task graph failed dependency-coherence validation.",
+				output: { error: "Task graph failed dependency-coherence validation." },
+			});
+		}
+
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2));
+		const failoverStart = runtime.startTaskSessionMock.mock.calls[1]?.[0];
+		expect(failoverStart?.modelId).toBe("gemma");
+		expect(failoverStart?.prompt).toContain("fresh architect on a different loaded model");
+		expect(service.getSummary("task-1")?.state).toBe("running");
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartNKleinSessionRuntimeResult>();

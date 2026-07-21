@@ -60,25 +60,23 @@ export interface ModelFailoverDecision {
 	readonly reason: string;
 }
 
-/**
- * Decide whether a failed attempt should fail over to another model. Fails over ONLY when (a) the error is model-side,
- * (b) the per-task failover cap is not exhausted, and (c) a ranked candidate exists that has not been tried yet. The
- * first untried candidate in ranking order wins — the router already encoded quality/feasibility in that order.
- */
-export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDecision {
+export interface ModelCapabilityFailoverInput {
+	/** The model that exhausted the bounded capability-specific recovery path. */
+	readonly failedModelKey: string;
+	/** Models already tried for this task. */
+	readonly triedModelKeys: readonly string[];
+	/** Feasible candidates in router preference order. */
+	readonly rankedCandidateKeys: readonly string[];
+	/** Maximum distinct failover hops per task. */
+	readonly maxFailovers?: number;
+}
+
+function selectNextUntriedModel(
+	input: Omit<ModelFailoverInput, "errorMessage">,
+	reasonPrefix: string,
+): ModelFailoverDecision {
 	const maxFailovers = input.maxFailovers ?? 2;
-	if (!isModelSideError(input.errorMessage)) {
-		return {
-			failover: false,
-			nextModelKey: null,
-			reason: "error is not model-side (task/sandbox/user-scoped) — failover would repeat it.",
-		};
-	}
-	// Normalize BOTH sides onto the bare model id before exclusion: the start path stashes CANONICAL registry keys
-	// ("lmstudio:model:endpoint") while the terminal summary carries the bare runtime id — raw string comparison let a
-	// failover pick THE SAME unloaded model under its canonical alias (live-found 2026-07-17, drain-4 hop-1).
 	const tried = new Set([...input.triedModelKeys, input.failedModelKey].map(stableFitnessModelKey));
-	// Hops already consumed = distinct tried models beyond the original one.
 	const failoversUsed = Math.max(0, tried.size - 1);
 	if (failoversUsed >= maxFailovers) {
 		return {
@@ -88,7 +86,6 @@ export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDec
 		};
 	}
 	const nextCandidate = input.rankedCandidateKeys.find((key) => !tried.has(stableFitnessModelKey(key))) ?? null;
-	// Return the BARE id — launch-config overrides expect a runtime model id, not a canonical registry key.
 	const nextModelKey = nextCandidate === null ? null : stableFitnessModelKey(nextCandidate);
 	if (!nextModelKey) {
 		return {
@@ -100,6 +97,33 @@ export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDec
 	return {
 		failover: true,
 		nextModelKey,
-		reason: `model-side error on ${input.failedModelKey} — failing over to ${nextModelKey} (hop ${failoversUsed + 1}/${maxFailovers}).`,
+		reason: `${reasonPrefix} — failing over to ${nextModelKey} (hop ${failoversUsed + 1}/${maxFailovers}).`,
 	};
+}
+
+/**
+ * Select another model after a bounded, trusted capability guard has proved the current model cannot complete the
+ * protocol. Unlike {@link decideModelFailover}, this is not driven by an engine error; callers must identify the
+ * specific trusted guardrail before invoking it.
+ */
+export function decideModelCapabilityFailover(input: ModelCapabilityFailoverInput): ModelFailoverDecision {
+	return selectNextUntriedModel(input, `bounded decomposition recovery exhausted on ${input.failedModelKey}`);
+}
+
+/**
+ * Decide whether a failed attempt should fail over to another model. Fails over ONLY when (a) the error is model-side,
+ * (b) the per-task failover cap is not exhausted, and (c) a ranked candidate exists that has not been tried yet. The
+ * first untried candidate in ranking order wins — the router already encoded quality/feasibility in that order.
+ */
+export function decideModelFailover(input: ModelFailoverInput): ModelFailoverDecision {
+	if (!isModelSideError(input.errorMessage)) {
+		return {
+			failover: false,
+			nextModelKey: null,
+			reason: "error is not model-side (task/sandbox/user-scoped) — failover would repeat it.",
+		};
+	}
+	// selectNextUntriedModel normalizes both sides onto bare runtime ids, so canonical aliases cannot revisit the same
+	// model and the returned override is directly usable by the launch path.
+	return selectNextUntriedModel(input, `model-side error on ${input.failedModelKey}`);
 }

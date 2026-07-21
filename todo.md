@@ -76,6 +76,13 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A BOUNDED GUARDRAIL IS NOT AN AUTONOMOUS RECOVERY UNLESS ITS TERMINAL STATE ROUTES TO THE NEXT MODEL
+> (live-found 2026-07-21).** The decomposition loop guard correctly stopped Qwopus after four failed submissions,
+> but parked the planning card at `awaiting_review/attention` even though two independent critique rounds had isolated
+> the remaining implementation and loaded architect models were idle. Human attention is the final rung, not the next
+> rung. Trusted capability exhaustion now enters the same ranked, untried-model carry path as engine failures; only an
+> exhausted loaded fleet may remain parked. Preserve the latest critic feedback in the replacement session.
+
 > **⚠️ A ONE-SHOT RECOVERY BUDGET MUST EXCLUDE ITS TARGET FROM GENERIC DISCOVERY (live-found 2026-07-21).**
 > The dead-card path correctly remembered that a planning card had received its ONE fresh restart, but the ordinary
 > ready-card sweep rediscovered the same still-planning card after every replacement died. One promised retry became

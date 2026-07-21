@@ -2,7 +2,7 @@ import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummar
 import { isEnabledByDefaultEnv } from "../core/env-flag";
 import { classifyFailureSignature } from "../core/failure-signature";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { decideModelFailover } from "../core/model-failover-policy";
+import { decideModelCapabilityFailover, decideModelFailover } from "../core/model-failover-policy";
 import { decideNextRetryStrategy } from "../core/retry-policy";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskLaunchConfigOverrides } from "./nklein-launch-config";
@@ -62,9 +62,16 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		if (!isEnabledByDefaultEnv(process.env.NKLEIN_MODEL_FAILOVER)) {
 			return;
 		}
-		// Only the error terminal qualifies — interrupted/failed have their own flows, and a clean awaiting_review
-		// is the normal review hand-off.
-		if (summary.state !== "awaiting_review" || summary.reviewReason !== "error") {
+		if (summary.state !== "awaiting_review") {
+			return;
+		}
+		const decompositionCapabilityExhausted =
+			summary.reviewReason === "attention" &&
+			(summary.warningMessage ?? "").includes("decomposition attempts that kept failing graph validation");
+		// Ordinary attention/review terminals are not failures. The sole exception is the trusted repeated-
+		// decomposition guard: it means this architect exhausted its bounded validation/critique path and the next
+		// loaded architect must take over before a human is involved.
+		if (summary.reviewReason !== "error" && !decompositionCapabilityExhausted) {
 			return;
 		}
 		if (isHomeAgentSessionId(taskId) || inFlightTaskIds.has(taskId)) {
@@ -76,12 +83,14 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 			return;
 		}
 		const tried = triedModelKeysByTaskId.get(taskId) ?? [];
-		const decision = decideModelFailover({
-			errorMessage: summary.warningMessage ?? null,
+		const candidateInput = {
 			failedModelKey,
 			triedModelKeys: tried,
 			rankedCandidateKeys: candidatesByTaskId.get(taskId) ?? [],
-		});
+		};
+		const decision = decompositionCapabilityExhausted
+			? decideModelCapabilityFailover(candidateInput)
+			: decideModelFailover({ ...candidateInput, errorMessage: summary.warningMessage ?? null });
 		if (!decision.failover || !decision.nextModelKey) {
 			return;
 		}
@@ -102,16 +111,19 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		void (async () => {
 			try {
 				deps.noteStrategyApplied?.(taskId, "cross_model_carry");
+				const category = decompositionCapabilityExhausted ? "decomposition_model_failover" : "model_failover";
 				recordSelfObservation({
 					signal: "custom",
 					severity: "warning",
 					message: `Model failover for ${taskId}: ${decision.reason}`,
 					taskId,
-					metadata: { category: "model_failover", failedModelKey, nextModelKey },
+					metadata: { category, failedModelKey, nextModelKey },
 				});
 				await deps.resendTaskInput(
 					taskId,
-					`The previous attempt ended with a model-side error (${(summary.warningMessage ?? "unknown error").slice(0, 160)}). You are a fresh attempt on a different model — continue the task and complete it.`,
+					decompositionCapabilityExhausted
+						? "The previous architect exhausted its bounded decomposition validation and critique attempts. You are a fresh architect on a different loaded model. Re-read the authoritative specification, existing code, and the latest critic feedback in the preserved conversation; rebuild only the remaining implementation work, then submit it for a fresh independent verdict."
+						: `The previous attempt ended with a model-side error (${(summary.warningMessage ?? "unknown error").slice(0, 160)}). You are a fresh attempt on a different model — continue the task and complete it.`,
 					"act",
 					undefined,
 					{ providerId, modelId: nextModelKey },
