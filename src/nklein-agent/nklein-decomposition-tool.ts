@@ -312,7 +312,6 @@ function createDecomposeProjectTool(
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(effectiveInput);
 			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;
-			let appliedBestOfRejected = false;
 			try {
 				validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });
 				rejectedGraphCandidatesBySlug.delete(slug);
@@ -331,7 +330,6 @@ function createDecomposeProjectTool(
 				// Structural validation only (no quality enforcement) — the graph parses/sizes; its coherence
 				// warnings ride along and the §5.AV repair net (cycle-break) still applies downstream.
 				validation = validateNKleinPlanTaskGraph({ taskGraph: best.best });
-				appliedBestOfRejected = true;
 				rejectedGraphCandidatesBySlug.delete(slug);
 				await recordSelfObservation({
 					signal: "custom",
