@@ -56,6 +56,7 @@ ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
 CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
 REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-google/gemma-4-31b-qat}"
 RUN_CONFIG="$RUN_HOME/.nklein/nklein/config.json"
+PROVIDER_SELECTION="$RUN_HOME/.nklein/nklein/nklein-provider-selection.json"
 mkdir -p "$(dirname "$RUN_CONFIG")" "$SESSION_SNAPSHOT_DIR"
 if [ ! -f "$RUN_CONFIG" ]; then
   jq -n --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '{
@@ -67,6 +68,12 @@ if [ ! -f "$RUN_CONFIG" ]; then
       reviewer: {providerId: "lmstudio", modelId: $reviewer}
     }
   }' >"$RUN_CONFIG"
+fi
+# modelRoles choose models after a role has been assigned; the auto-start cascade still resolves the globally
+# selected provider before applying those overrides. Reproduce the local-provider onboarding state inside the
+# isolated HOME rather than borrowing the developer's real HOME (which would contaminate run evidence).
+if [ ! -f "$PROVIDER_SELECTION" ]; then
+  jq -n '{providerId: "lmstudio"}' >"$PROVIDER_SELECTION"
 fi
 
 log(){ printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
@@ -195,6 +202,10 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   if HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
     ABORT_REASON="context_floor_refusal"
     log "REACT: context-floor refusal in runtime log — a model is loaded below ${CTX}. Aborting (fix the load)."; break; fi
+  # REACT: isolated/provider onboarding is incomplete — children can never auto-start in this run.
+  if HOME="$REAL_HOME" grep -q 'No native !Klein provider is configured' "$RUNTIME_LOG" 2>/dev/null; then
+    ABORT_REASON="provider_unconfigured"
+    log "REACT: auto-start has no native provider selection. Aborting (fix isolated onboarding state)."; break; fi
   # REACT: sandbox/docker conflict repeatedly failing
   if [ "$(HOME="$REAL_HOME" grep -c 'is already in use by container' "$RUNTIME_LOG" 2>/dev/null)" -gt 3 ]; then
     ABORT_REASON="sandbox_container_conflict"
