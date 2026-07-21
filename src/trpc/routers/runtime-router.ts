@@ -54,6 +54,8 @@ import {
 	runtimeListPlanQuestionsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
 	runtimeLlmfitCatalogUpdatePullResponseSchema,
+	runtimeManagedSearchControlRequestSchema,
+	runtimeManagedSearchStatusResponseSchema,
 	runtimeMemoryAuditResponseSchema,
 	runtimeMergeHistoryResponseSchema,
 	runtimeModelBehaviorProfilesResponseSchema,
@@ -203,6 +205,13 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getRailStatus: t.procedure
 			.output(runtimeRailStatusResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getRailStatus()),
+		getManagedSearchStatus: t.procedure
+			.output(runtimeManagedSearchStatusResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getManagedSearchStatus()),
+		setManagedSearchControl: t.procedure
+			.input(runtimeManagedSearchControlRequestSchema)
+			.output(runtimeManagedSearchStatusResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.setManagedSearchControl(input)),
 		setRailControl: t.procedure
 			.input(runtimeRailControlRequestSchema)
 			.output(runtimeRailStatusResponseSchema)

@@ -63,6 +63,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("capabilityBrokerEnabled"),
 	runtimeConfigChangeField("modelStatsTrackingLevel"),
 	runtimeConfigChangeField("retrievalEgressEnabled"),
+	runtimeConfigChangeField("retrievalProviderMode"),
 	runtimeConfigChangeField("retrievalSearchBackendUrl"),
 	runtimeConfigChangeField("llmfitCatalogUpdateMode"),
 	runtimeConfigChangeField("speculativeBestOfNEnabled"),

@@ -192,6 +192,7 @@ export function buildRuntimeConfigResponse(
 		reviewLensesEnabled: runtimeConfig.reviewLensesEnabled,
 		capabilityBrokerEnabled: runtimeConfig.capabilityBrokerEnabled,
 		retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
+		retrievalProviderMode: runtimeConfig.retrievalProviderMode,
 		retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 		llmfitCatalogUpdateMode: runtimeConfig.llmfitCatalogUpdateMode,
 		speculativeBestOfNEnabled: runtimeConfig.speculativeBestOfNEnabled,

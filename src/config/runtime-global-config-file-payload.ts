@@ -111,7 +111,9 @@ import {
 } from "./runtime-config-prompt-templates";
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	DEFAULT_RETRIEVAL_PROVIDER_MODE,
 	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalProviderMode,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
 import { normalizeRuntimeSandboxIsolationProfile } from "./runtime-config-sandbox-resolver";
@@ -153,6 +155,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
+	retrievalProviderMode?: "none" | "searxng_url" | "managed_local";
 	retrievalSearchBackendUrl?: string | null;
 	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
@@ -231,6 +234,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const capabilityBrokerEnabled = normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED);
 	const modelStatsTrackingLevel = normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
+	const retrievalProviderMode = normalizeRetrievalProviderMode(
+		config.retrievalProviderMode ?? existing?.retrievalProviderMode,
+		config.retrievalSearchBackendUrl ?? existing?.retrievalSearchBackendUrl,
+	);
 	const llmfitCatalogUpdateMode = normalizeLlmfitCatalogUpdateMode(config.llmfitCatalogUpdateMode);
 	const speculativeBestOfNEnabled = normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled);
 	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
@@ -511,6 +518,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"retrievalEgressEnabled",
 		retrievalEgressEnabled,
 		DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"retrievalProviderMode",
+		retrievalProviderMode,
+		DEFAULT_RETRIEVAL_PROVIDER_MODE,
 	);
 	assignChangedConfigField(
 		payload,

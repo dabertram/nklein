@@ -242,6 +242,7 @@ describe("buildRuntimeConfigSaveRequest", () => {
 		expect(payload.requestTimeoutMs).toBe(120_000);
 		expect(payload.streamTimeoutMs).toBeNull();
 		expect(payload.workspaceBaseDir).toBe("/workspaces/x");
+		expect(payload.retrievalProviderMode).toBe("none");
 		expect(payload.retrievalSearchBackendUrl).toBeNull();
 		expect(payload.maxConcurrentTasks).toBe(3);
 		expect(payload.sandboxCpusPerContainer).toBe(2);

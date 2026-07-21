@@ -69,6 +69,7 @@ export function buildChatAgentToolDepsResolver(input: {
 	 * OFF by default. Absent ⇒ egress off / no backend ⇒ web_search is never offered.
 	 */
 	getRetrievalConfig?: () => Promise<{ egressEnabled: boolean; searchBackendUrl: string | null }>;
+	withSearchBackend?<T>(operation: (backendUrl: string) => Promise<T>): Promise<T>;
 	/**
 	 * §5.M execution-access modes: isolated read-only scopes must not get host-backed `read_file`/`list_dir` tools.
 	 * The runtime can inject a Docker-backed implementation here; when absent we fail closed and offer no workspace FS
@@ -159,14 +160,20 @@ export function buildChatAgentToolDepsResolver(input: {
 		// only when the session opted into internet tools AND egress is on AND a backend URL is configured. egress_read,
 		// so it's egress-gated + confirm-gated (the same `confirm` toggle as browse) but never a taint sink.
 		const retrieval = (await input.getRetrievalConfig?.()) ?? { egressEnabled: false, searchBackendUrl: null };
+		const retrievalSearchBackendUrl = retrieval.searchBackendUrl;
 		const webSearch =
-			session.browserEnabled && retrieval.egressEnabled && retrieval.searchBackendUrl
+			session.browserEnabled && retrieval.egressEnabled && retrievalSearchBackendUrl
 				? createWebSearchTools({
-						search: (query) =>
-							createSearxngWebSearchClient({
-								backendBaseUrl: retrieval.searchBackendUrl,
-								egressEnabled: retrieval.egressEnabled,
-							}).search(query),
+						search: (query) => {
+							const searchAt = (backendUrl: string) =>
+								createSearxngWebSearchClient({
+									backendBaseUrl: backendUrl,
+									egressEnabled: retrieval.egressEnabled,
+								}).search(query);
+							return input.withSearchBackend
+								? input.withSearchBackend(searchAt)
+								: searchAt(retrievalSearchBackendUrl);
+						},
 					})
 				: { tools: [], definitions: [] };
 		const tools = [

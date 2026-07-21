@@ -25,6 +25,7 @@ import { loadUnifiedMemoryRuntimeSources } from "../chat/unified-memory-runtime-
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
+import { effectiveRetrievalSearchBackendUrl } from "../config/runtime-config-retrieval-resolver";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import {
 	selectAttempts,
@@ -136,6 +137,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
 import { openInBrowser } from "../server/browser";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
+import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { appendDistractorObservations } from "../state/distractor-observation-store";
@@ -474,9 +476,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					const config = await loadGlobalRuntimeConfig();
 					return {
 						egressEnabled: config.retrievalEgressEnabled,
-						searchBackendUrl: config.retrievalSearchBackendUrl,
+						searchBackendUrl: effectiveRetrievalSearchBackendUrl({
+							providerMode: config.retrievalProviderMode,
+							searchBackendUrl: config.retrievalSearchBackendUrl,
+						}),
 					};
 				},
+				...(deps.withSearchBackend ? { withSearchBackend: deps.withSearchBackend } : {}),
 				// §5.AU relay: the ACTIVE workspace's live task sessions, so `send_to_card` can deliver into a running
 				// agent's turn (falls back to the durable mailbox when the service isn't loaded or the card isn't live).
 				getActiveTaskSessions: () => {
@@ -937,6 +943,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// injected (or fallback store-backed) coordinator. Byte-safe: without the F1.31 service the controls persist
 		// intent + the status reads disabled/idle; a capable runtime hosts the service and enable/pause drive it.
 		getRailStatus: async () => toRailStatusResponse(await resolveRailCoordinator(deps).getStatus()),
+		getManagedSearchStatus: async () =>
+			deps.managedSearchBackend?.status() ?? {
+				state: "unavailable" as const,
+				backendUrl: "http://127.0.0.1:18888",
+				activeSearches: 0,
+				idleTtlMs: 10 * 60 * 1_000,
+				lastError: null,
+				lastStartedAt: null,
+			},
+		setManagedSearchControl: async (input) => {
+			if (!deps.managedSearchBackend) throw new Error("Managed local search is unavailable in this runtime.");
+			if (input.action === "start") await deps.managedSearchBackend.start();
+			else await deps.managedSearchBackend.stop();
+			return deps.managedSearchBackend.status();
+		},
 		setRailControl: async (input) =>
 			toRailStatusResponse(
 				await resolveRailCoordinator(deps).applyCommand(
@@ -1459,6 +1480,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			};
 		},
 		researchNKleinModel: async (workspaceScope, input) => {
+			const withSearchBackend = deps.withSearchBackend;
 			const body = parseNKleinModelResearchRequest(input);
 			const runtimeConfig = workspaceScope
 				? await deps.loadScopedRuntimeConfig(workspaceScope)
@@ -1477,11 +1499,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					advisorProviderId: launchConfig.providerId,
 					advisorModelId: launchConfig.modelId ?? body.advisorModelId,
 					egressEnabled: runtimeConfig.retrievalEgressEnabled,
-					searchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+					searchBackendUrl: effectiveRetrievalSearchBackendUrl({
+						providerMode: runtimeConfig.retrievalProviderMode,
+						searchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+					}),
 					airGapped: isAirGappedMode(),
 				},
 				{
 					complete: (prompt) => runLocalAdvisorCompletion({ launchConfig, prompt }),
+					...(withSearchBackend
+						? {
+								search: (query: string) =>
+									withSearchBackend((backendUrl) =>
+										createSearxngWebSearchClient({
+											backendBaseUrl: backendUrl,
+											egressEnabled: runtimeConfig.retrievalEgressEnabled,
+											maxResults: 8,
+										}).search(query),
+									),
+							}
+						: {}),
 				},
 			);
 		},

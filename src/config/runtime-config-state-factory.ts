@@ -58,7 +58,7 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
-import { resolveRuntimeRetrievalConfig } from "./runtime-config-retrieval-resolver";
+import { type RuntimeRetrievalProviderMode, resolveRuntimeRetrievalConfig } from "./runtime-config-retrieval-resolver";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
@@ -95,6 +95,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	capabilityBrokerEnabled: boolean;
 	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	retrievalEgressEnabled: boolean;
+	retrievalProviderMode?: RuntimeRetrievalProviderMode;
 	retrievalSearchBackendUrl: string | null;
 	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled: boolean;
@@ -224,6 +225,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		),
 		...resolveRuntimeRetrievalConfig({
 			retrievalEgressEnabled: input.retrievalEgressEnabled,
+			retrievalProviderMode: input.retrievalProviderMode,
 			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,
 		}),
 		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(

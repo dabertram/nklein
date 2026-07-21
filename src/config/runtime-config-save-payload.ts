@@ -75,7 +75,9 @@ import { normalizeFileOverlapParallelism } from "./runtime-config-overlap-resolv
 
 import {
 	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalProviderMode,
 	normalizeRetrievalSearchBackendUrl,
+	type RuntimeRetrievalProviderMode,
 } from "./runtime-config-retrieval-resolver";
 
 import { normalizeRuntimeSandboxIsolationProfileOverride } from "./runtime-config-sandbox-resolver";
@@ -108,6 +110,7 @@ export interface SaveRuntimeConfigInput {
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
+	retrievalProviderMode?: RuntimeRetrievalProviderMode;
 	retrievalSearchBackendUrl?: string | null;
 	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
@@ -189,6 +192,10 @@ export function buildGlobalConfigFilePayload(config: SaveRuntimeConfigInput) {
 		capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 		modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 		retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
+		retrievalProviderMode: normalizeRetrievalProviderMode(
+			config.retrievalProviderMode,
+			config.retrievalSearchBackendUrl,
+		),
 		retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(config.llmfitCatalogUpdateMode),
 		speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
@@ -301,6 +308,10 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 		modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 		retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
+		retrievalProviderMode: normalizeRetrievalProviderMode(
+			config.retrievalProviderMode,
+			config.retrievalSearchBackendUrl,
+		),
 		retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(
 			config.llmfitCatalogUpdateMode ?? DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,

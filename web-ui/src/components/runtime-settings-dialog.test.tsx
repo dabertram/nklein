@@ -790,7 +790,7 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain(".nklein/nklein/telemetry, limit 20");
 	});
 
-	it("surfaces the online-retrieval egress toggle + search backend URL (§5.AC)", async () => {
+	it("migrates a legacy search URL into the explicit SearXNG provider mode (§5.AC/F4.R1)", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
@@ -809,7 +809,9 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		expect(document.body.textContent).toContain("Allow online web research (egress)");
 		expect(document.body.textContent).toContain("Search backend URL");
-		expect(document.body.textContent).toContain("Use an existing SearXNG-compatible endpoint");
+		expect((document.getElementById("runtime-settings-retrieval-provider-mode") as HTMLSelectElement).value).toBe(
+			"searxng_url",
+		);
 		expect((document.getElementById("runtime-settings-retrieval-backend-url") as HTMLInputElement).value).toBe(
 			"http://localhost:18888",
 		);

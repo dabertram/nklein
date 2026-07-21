@@ -63,6 +63,16 @@ describe("buildRuntimeGlobalConfigFilePayload", () => {
 		expect(payload.replayCardsEnabled).toBe(DEFAULT_REPLAY_CARDS_ENABLED);
 	});
 
+	it("preserves an explicit managed retrieval mode across unrelated partial saves", () => {
+		const existing: RuntimeGlobalConfigFileShape = {
+			retrievalProviderMode: "managed_local",
+			retrievalSearchBackendUrl: "http://legacy.example",
+		};
+		const payload = buildRuntimeGlobalConfigFilePayload({ developerModeEnabled: true }, existing);
+		expect(payload.retrievalProviderMode).toBe("managed_local");
+		expect(payload.retrievalSearchBackendUrl).toBe("http://legacy.example");
+	});
+
 	it("does not persist the default agent id unless it was already present on disk", () => {
 		const fresh = buildRuntimeGlobalConfigFilePayload({ selectedAgentId: DEFAULT_AGENT_ID }, null);
 		expect(fresh).not.toHaveProperty("selectedAgentId");

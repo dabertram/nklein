@@ -475,6 +475,20 @@ export const runtimeRailTunablesRequestSchema = z.object({
 });
 export type RuntimeRailTunablesRequest = z.infer<typeof runtimeRailTunablesRequestSchema>;
 
+/** F4.R1 explicit managed-local search lifecycle. No procedure is called at boot, so default rest state is absent. */
+export const runtimeManagedSearchStatusResponseSchema = z.object({
+	state: z.enum(["unavailable", "stopped", "starting", "running", "stopping", "error"]),
+	backendUrl: z.string(),
+	activeSearches: z.number().int().nonnegative(),
+	idleTtlMs: z.number().int().positive(),
+	lastError: z.string().nullable(),
+	lastStartedAt: z.number().int().nullable(),
+});
+export type RuntimeManagedSearchStatusResponse = z.infer<typeof runtimeManagedSearchStatusResponseSchema>;
+
+export const runtimeManagedSearchControlRequestSchema = z.object({ action: z.enum(["start", "stop"]) });
+export type RuntimeManagedSearchControlRequest = z.infer<typeof runtimeManagedSearchControlRequestSchema>;
+
 /**
  * F1.40 — per-card and per-project TIME tracking (read-only telemetry). Age (total wall-clock) + active time (union of
  * attempt spans, "!Klein actually working") + LLM processing time (total across attempts, and successful-only). All

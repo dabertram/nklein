@@ -12,6 +12,8 @@ import type {
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeLedgerAnalyticsResponse,
+	RuntimeManagedSearchControlRequest,
+	RuntimeManagedSearchStatusResponse,
 	RuntimeMemoryAuditResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
@@ -109,6 +111,21 @@ export async function setRailTunables(
 ): Promise<RuntimeRailStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.setRailTunables.mutate(input);
+}
+
+/** F4.R1: inspect the explicitly managed local SearXNG lifecycle. */
+export async function fetchManagedSearchStatus(
+	workspaceId: string | null,
+): Promise<RuntimeManagedSearchStatusResponse> {
+	return await getRuntimeTrpcClient(workspaceId).runtime.getManagedSearchStatus.query();
+}
+
+/** F4.R1: explicitly start/stop the app-owned local SearXNG container. */
+export async function setManagedSearchControl(
+	workspaceId: string | null,
+	input: RuntimeManagedSearchControlRequest,
+): Promise<RuntimeManagedSearchStatusResponse> {
+	return await getRuntimeTrpcClient(workspaceId).runtime.setManagedSearchControl.mutate(input);
 }
 
 /** §5.AL/§10c#11: degraded-model badges for the model selector (runtime-evidence penalties, badge-only). */

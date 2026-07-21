@@ -16,6 +16,7 @@ import {
 	type SandboxWritablePathMount,
 } from "../chat/chat-sandbox-workspace-tools";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
+import { effectiveRetrievalSearchBackendUrl } from "../config/runtime-config-retrieval-resolver";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
@@ -222,6 +223,11 @@ import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates
 import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./background-eval-rail-wiring";
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
+import {
+	createDockerManagedSearchBackend,
+	ManagedSearchBackendController,
+	withConfiguredSearchBackend,
+} from "./managed-search-backend";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -289,6 +295,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();
 	const globalConfig = await loadGlobalRuntimeConfig();
+	const managedSearchBackend = new ManagedSearchBackendController(createDockerManagedSearchBackend());
+	const withSearchBackend = async <T>(operation: (backendUrl: string) => Promise<T>): Promise<T> => {
+		const config = await loadGlobalRuntimeConfig();
+		if (!config.retrievalEgressEnabled) throw new Error("Online retrieval egress is disabled.");
+		return await withConfiguredSearchBackend(
+			{ providerMode: config.retrievalProviderMode, searchBackendUrl: config.retrievalSearchBackendUrl },
+			managedSearchBackend,
+			operation,
+		);
+	};
 	// §5.BB: seed the chat adapter's runtime flags from the persisted settings (env overrides still compose at read
 	// time inside the adapter). Re-applied on every config save via the setActiveRuntimeConfig wrapper below.
 	setChatAdapterRuntimeFlags({
@@ -2700,7 +2716,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
 				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
 				modelStatsTrackingLevel: runtimeConfig.modelStatsTrackingLevel,
-				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+				retrievalSearchBackendUrl: effectiveRetrievalSearchBackendUrl({
+					providerMode: runtimeConfig.retrievalProviderMode,
+					searchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+				}),
+				withSearchBackend,
 				agentWebResearchAllowed,
 				agentMcpAccess,
 				modelTurnAdmissionGate: createModelTurnAdmissionGate(scope),
@@ -3801,7 +3821,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
 			// §5.BB: re-apply the basic-memory switch (service bit + the sandbox manager's writable-store plan gate).
 			service.setBasicMemoryEnabled(runtimeConfig.basicMemoryEnabled);
-			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);
+			service.setRetrievalConfig(
+				runtimeConfig.retrievalEgressEnabled,
+				effectiveRetrievalSearchBackendUrl({
+					providerMode: runtimeConfig.retrievalProviderMode,
+					searchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+				}),
+			);
 			// §5.L: re-apply the per-role web-research capability gate on a live ruleset change (same drift class as the
 			// --network re-apply above — a cached service must not keep looser tool access after the operator tightens it).
 			service.setAgentWebResearchAllowed(agentWebResearchAllowed);
@@ -4016,6 +4042,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
 		getActiveWorkspacePath: deps.workspaceRegistry.getActiveWorkspacePath,
 		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
+		withSearchBackend,
+		managedSearchBackend,
 		loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
 		setActiveRuntimeConfig: (config) => {
 			deps.workspaceRegistry.setActiveRuntimeConfig(config);
@@ -4579,6 +4607,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	return {
 		url,
 		close: async () => {
+			await managedSearchBackend.close().catch(() => undefined);
 			// F1.31b: stop the background-eval service first — it force-stops + cleans every held eval workspace before the
 			// task-session services below are torn down (best-effort; never blocks shutdown on a stuck sandbox).
 			await backgroundEvalRailWiring?.stop().catch(() => undefined);

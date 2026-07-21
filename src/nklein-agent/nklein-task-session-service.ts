@@ -145,7 +145,7 @@ import { forgetPredictedOutput, getPredictedOutput } from "./nklein-predict-outp
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { forgetCompactionRequest, getCompactionRequest } from "./nklein-request-compaction-tool";
-import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
+import { createRetrievalToolsBuilder, type RetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import { createRuntimeObservationRecorder } from "./nklein-runtime-observation-recorder";
@@ -487,16 +487,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		emitSummary: (summary) => this.emitSummary(summary),
 	});
 	/** Builds the §5.AC retrieval tools per task (reads retrieval config LIVE so a mid-session config-off fails closed). */
-	private readonly retrievalToolsBuilder = createRetrievalToolsBuilder({
-		getRetrievalConfig: () => ({
-			egressEnabled: this.retrievalEgressEnabled,
-			agentWebResearchAllowed: this.agentWebResearchAllowed,
-			searchBackendUrl: this.retrievalSearchBackendUrl,
-		}),
-		resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
-		getModelId: (taskId) => this.modelEndpoint.getModelId(taskId),
-		getEndpoint: (taskId) => this.modelEndpoint.getEndpoint(taskId),
-	});
+	private readonly retrievalToolsBuilder: RetrievalToolsBuilder;
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
@@ -649,6 +640,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
 		this.agentWebResearchAllowed = options.agentWebResearchAllowed ?? true;
+		this.retrievalToolsBuilder = createRetrievalToolsBuilder({
+			getRetrievalConfig: () => ({
+				egressEnabled: this.retrievalEgressEnabled,
+				agentWebResearchAllowed: this.agentWebResearchAllowed,
+				searchBackendUrl: this.retrievalSearchBackendUrl,
+			}),
+			resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
+			getModelId: (taskId) => this.modelEndpoint.getModelId(taskId),
+			getEndpoint: (taskId) => this.modelEndpoint.getEndpoint(taskId),
+			...(options.withSearchBackend ? { withSearchBackend: options.withSearchBackend } : {}),
+		});
 		this.agentMcpAccess = options.agentMcpAccess ?? "on";
 		this.modelTurnAdmissionGate = options.modelTurnAdmissionGate ?? null;
 		this.runDecompositionResearchPreflight =

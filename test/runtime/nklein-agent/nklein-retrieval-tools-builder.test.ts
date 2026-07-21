@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createRetrievalToolsBuilder,
 	type RetrievalConfigSnapshot,
@@ -19,6 +19,10 @@ function deps(config: RetrievalConfigSnapshot): RetrievalToolsBuilderDeps {
 		getEndpoint: () => "http://localhost:1234/v1",
 	};
 }
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 describe("createRetrievalToolsBuilder (§5.U extraction)", () => {
 	it("attaches the research tool when egress is on + web-research allowed + a backend is configured", () => {
@@ -50,5 +54,25 @@ describe("createRetrievalToolsBuilder (§5.U extraction)", () => {
 		const builder = createRetrievalToolsBuilder(deps({ ...ON, egressEnabled: false }));
 		expect(builder.isAvailable("t1")).toBe(false);
 		await expect(builder.run("t1", { question: "latest release" })).rejects.toThrow("not available");
+	});
+
+	it("leases the configured managed backend around the actual search call", async () => {
+		const fetchMock = vi.fn(
+			async (_input: string | URL | Request, _init?: RequestInit) =>
+				new Response(JSON.stringify({ query: "latest release", number_of_results: 0, results: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const withSearchBackendCalls = vi.fn();
+		const withSearchBackend = async <T>(operation: (backendUrl: string) => Promise<T>): Promise<T> => {
+			withSearchBackendCalls();
+			return await operation("http://127.0.0.1:18888");
+		};
+		const builder = createRetrievalToolsBuilder({ ...deps(ON), withSearchBackend });
+		await builder.run("t1", { question: "latest release", synthesize: false });
+		expect(withSearchBackendCalls).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[0]?.[0]).toContain("http://127.0.0.1:18888/search");
 	});
 });

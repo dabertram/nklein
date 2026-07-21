@@ -330,6 +330,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	/** The §5.AC SearXNG-compatible search endpoint base URL; null (default) keeps `web_search` detached. */
 	retrievalSearchBackendUrl?: string | null;
+	/** F4.R1: wraps search calls in a managed-local backend lease when that provider mode is active. */
+	withSearchBackend?<T>(operation: (backendUrl: string) => Promise<T>): Promise<T>;
 	/**
 	 * Admission gate for actual SDK model turns after a session exists. Normal card STARTS are already gated in the
 	 * tRPC start path, but review nudges, review-bounce re-drives, synthetic reviewers, plan critics, merge helpers, and

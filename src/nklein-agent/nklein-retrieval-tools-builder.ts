@@ -27,6 +27,8 @@ export interface RetrievalToolsBuilderDeps {
 	resolveProviderId(taskId: string): string;
 	getModelId(taskId: string): string;
 	getEndpoint(taskId: string): string | null;
+	/** F4.R1 managed-local lease wrapper; absent keeps the user-supplied URL path byte-identical. */
+	withSearchBackend?<T>(operation: (backendUrl: string) => Promise<T>): Promise<T>;
 }
 
 export interface RetrievalToolsBuilder {
@@ -74,11 +76,15 @@ export function createRetrievalToolsBuilder(deps: RetrievalToolsBuilderDeps): Re
 				// §5.AC: enable lexical query-relevance ranking in the live loop — hits that actually match the
 				// query terms are folded above ones that are merely fresh/authoritative.
 				search: searchHitsAdapter(
-					(query) =>
-						createSearxngWebSearchClient({
-							backendBaseUrl: deps.getRetrievalConfig().searchBackendUrl,
-							egressEnabled: deps.getRetrievalConfig().egressEnabled,
-						}).search(query),
+					(query) => {
+						const searchAt = (backendUrl: string) =>
+							createSearxngWebSearchClient({
+								backendBaseUrl: backendUrl,
+								egressEnabled: deps.getRetrievalConfig().egressEnabled,
+							}).search(query);
+						const configured = deps.getRetrievalConfig().searchBackendUrl;
+						return deps.withSearchBackend ? deps.withSearchBackend(searchAt) : searchAt(configured ?? "");
+					},
 					{ rerankByRelevance: true },
 				),
 				// PRIME DIRECTIVE #1: the retrieval loop fetches untrusted, backend/SEO-controllable result URLs,

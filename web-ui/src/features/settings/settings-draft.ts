@@ -48,6 +48,7 @@ import { LocalStorageKey, readLocalStorageItem } from "@/storage/local-storage-s
 export type SettingsAgentTimeoutMode = "normal" | "long" | "extended" | "unlimited";
 export type SettingsAgentTimeoutProfile = "cloud" | "local" | "custom";
 export type SettingsHardTaskRoutingMode = "wait_for_best" | "attempt_with_available";
+export type SettingsRetrievalProviderMode = "none" | "searxng_url" | "managed_local";
 
 export interface SettingsConcurrencyDraft {
 	perProvider: ConcurrencyMap;
@@ -96,6 +97,7 @@ interface SettingsDraftCommonFields {
 	replayCardsEnabled: boolean;
 	knowsTodayEnabled: boolean;
 	retrievalEgressEnabled: boolean;
+	retrievalProviderMode: SettingsRetrievalProviderMode;
 	retrievalSearchBackendUrl: string;
 	llmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode;
 	sandboxMcpServersEnabled: boolean;
@@ -217,6 +219,8 @@ export function initSettingsDraftFromConfig(
 		replayCardsEnabled: config?.replayCardsEnabled ?? false,
 		knowsTodayEnabled: config?.knowsTodayEnabled ?? false,
 		retrievalEgressEnabled: config?.retrievalEgressEnabled ?? false,
+		retrievalProviderMode:
+			config?.retrievalProviderMode ?? (config?.retrievalSearchBackendUrl ? "searxng_url" : "none"),
 		retrievalSearchBackendUrl: config?.retrievalSearchBackendUrl ?? "",
 		llmfitCatalogUpdateMode: config?.llmfitCatalogUpdateMode ?? "notify",
 		sandboxMcpServersEnabled: config?.sandboxMcpServersEnabled ?? true,
@@ -411,6 +415,9 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (draft.retrievalEgressEnabled !== snapshot.retrievalEgressEnabled) {
+		return true;
+	}
+	if (draft.retrievalProviderMode !== snapshot.retrievalProviderMode) {
 		return true;
 	}
 	if (draft.retrievalSearchBackendUrl.trim() !== snapshot.retrievalSearchBackendUrl.trim()) {

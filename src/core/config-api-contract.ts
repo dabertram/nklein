@@ -120,6 +120,7 @@ export const runtimeConfigResponseSchema = z.object({
 	capabilityBrokerEnabled: z.boolean().optional(),
 	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
 	retrievalEgressEnabled: z.boolean().optional(),
+	retrievalProviderMode: z.enum(["none", "searxng_url", "managed_local"]).optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
 	llmfitCatalogUpdateMode: runtimeLlmfitCatalogUpdateModeSchema.optional(),
 	// §5.AW opportunistic speculative best-of-N — optional for backward compatibility with older runtimes/config files.
@@ -173,6 +174,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	reviewLensesEnabled: z.boolean().optional(),
 	capabilityBrokerEnabled: z.boolean().optional(),
 	retrievalEgressEnabled: z.boolean().optional(),
+	retrievalProviderMode: z.enum(["none", "searxng_url", "managed_local"]).optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
 	llmfitCatalogUpdateMode: runtimeLlmfitCatalogUpdateModeSchema.optional(),
 	speculativeBestOfNEnabled: z.boolean().optional(),

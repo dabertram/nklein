@@ -86,6 +86,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		capabilityBrokerEnabled: false,
 		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
+		retrievalProviderMode: "none",
 		retrievalSearchBackendUrl: null,
 		llmfitCatalogUpdateMode: "notify",
 		speculativeBestOfNEnabled: true,

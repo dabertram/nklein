@@ -21,6 +21,7 @@ import type {
 } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import type { RuntimeRetrievalProviderMode } from "./runtime-config-retrieval-resolver";
 
 export interface RuntimeConfigState {
 	globalConfigPath: string;
@@ -49,6 +50,8 @@ export interface RuntimeConfigState {
 	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	/** §5.AC egress-gated online retrieval (web_search + browse_url) — OFF BY DEFAULT; false must keep every retrieval path dormant. */
 	retrievalEgressEnabled: boolean;
+	/** F4.R1 explicit provider selection; none is the fail-closed default. */
+	retrievalProviderMode: RuntimeRetrievalProviderMode;
 	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
 	retrievalSearchBackendUrl: string | null;
 	/** §5.AB user-controlled llmfit GitHub catalog update mode. */
@@ -159,6 +162,7 @@ export interface RuntimeConfigUpdateInput {
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
+	retrievalProviderMode?: RuntimeRetrievalProviderMode;
 	retrievalSearchBackendUrl?: string | null;
 	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
@@ -233,6 +237,7 @@ export interface RuntimeGlobalConfigFileShape {
 	capabilityBrokerEnabled?: boolean;
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
+	retrievalProviderMode?: RuntimeRetrievalProviderMode;
 	retrievalSearchBackendUrl?: string | null;
 	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;

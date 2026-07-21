@@ -73,6 +73,8 @@ import type {
 	RuntimeListPlanQuestionsResponse,
 	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeLlmfitCatalogUpdatePullResponse,
+	RuntimeManagedSearchControlRequest,
+	RuntimeManagedSearchStatusResponse,
 	RuntimeMemoryAuditResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
@@ -261,6 +263,10 @@ export interface RuntimeTrpcContext {
 		getMemoryAudit: () => Promise<RuntimeMemoryAuditResponse>;
 		/** F1.35b: the background-eval rail controls/status snapshot (read-only). */
 		getRailStatus: () => Promise<RuntimeRailStatusResponse>;
+		getManagedSearchStatus: () => Promise<RuntimeManagedSearchStatusResponse>;
+		setManagedSearchControl: (
+			input: RuntimeManagedSearchControlRequest,
+		) => Promise<RuntimeManagedSearchStatusResponse>;
 		/** F1.35b: apply an enable/disable/pause/resume rail control command; returns the fresh status. */
 		setRailControl: (input: RuntimeRailControlRequest) => Promise<RuntimeRailStatusResponse>;
 		/** F1.35b: persist new rail cadence/concurrency tunables; returns the fresh status. */

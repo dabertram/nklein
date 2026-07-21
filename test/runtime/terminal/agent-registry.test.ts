@@ -42,6 +42,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		capabilityBrokerEnabled: false,
 		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
+		retrievalProviderMode: "none",
 		retrievalSearchBackendUrl: null,
 		llmfitCatalogUpdateMode: "notify",
 		speculativeBestOfNEnabled: true,
@@ -150,6 +151,7 @@ describe("buildRuntimeConfigResponse", () => {
 	it("keeps curated agent default args independent of autonomous mode", () => {
 		const config = createRuntimeConfigState({
 			agentAutonomousModeEnabled: true,
+			retrievalProviderMode: "managed_local",
 			modelRoles: {
 				worker: {
 					providerId: "ollama",
@@ -171,6 +173,7 @@ describe("buildRuntimeConfigResponse", () => {
 		});
 
 		expect(response.agentAutonomousModeEnabled).toBe(true);
+		expect(response.retrievalProviderMode).toBe("managed_local");
 		expect(response.lostHeartbeatPolicy).toBe("park");
 		expect(response.decompositionAutoApplyEnabled).toBe(true);
 		expect(response.sandboxMaxContainers).toBe(1);

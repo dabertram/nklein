@@ -145,6 +145,7 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.swarmGuardrails).toEqual(DEFAULT_RUNTIME_SWARM_GUARDRAILS);
 		expect(snapshot.developerModeEnabled).toBe(false);
 		expect(snapshot.retrievalEgressEnabled).toBe(false);
+		expect(snapshot.retrievalProviderMode).toBe("none");
 		expect(snapshot.retrievalSearchBackendUrl).toBe("");
 		expect(snapshot.llmfitCatalogUpdateMode).toBe("notify");
 		expect(snapshot.sandboxMcpServersEnabled).toBe(true);
@@ -201,6 +202,7 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.lostHeartbeatPolicy).toBe("fail");
 		expect(snapshot.hardTaskRoutingMode).toBe("wait_for_best");
 		expect(snapshot.reviewMaxRounds).toBe(7);
+		expect(snapshot.retrievalProviderMode).toBe("searxng_url");
 		expect(snapshot.retrievalSearchBackendUrl).toBe("http://127.0.0.1:8080");
 		expect(snapshot.llmfitCatalogUpdateMode).toBe("auto");
 		expect(snapshot.codeEmbeddingDefaults).toEqual({
@@ -303,6 +305,7 @@ describe("isSettingsDraftDirty", () => {
 			{ replayCardsEnabled: false },
 			{ knowsTodayEnabled: false },
 			{ retrievalEgressEnabled: false },
+			{ retrievalProviderMode: "managed_local" },
 			{ retrievalSearchBackendUrl: "http://other" },
 			{ llmfitCatalogUpdateMode: "notify" },
 			{ sandboxMcpServersEnabled: true },

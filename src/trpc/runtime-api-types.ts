@@ -11,6 +11,7 @@ import type {
 import type { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
 import type { runNKleinModelResearch } from "../nklein-agent/nklein-model-research";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
+import type { ManagedSearchBackendController } from "../server/managed-search-backend";
 import type { RailControlCoordinator } from "../server/rail-control-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import type { RuntimeTrpcWorkspaceScope } from "./app-router";
@@ -63,6 +64,9 @@ export interface CreateRuntimeApiDependencies {
 	chatService?: ChatService;
 	/** F3.34 test seam; production uses the egress-gated controller. */
 	runNKleinModelResearch?: typeof runNKleinModelResearch;
+	/** F4.R1 managed retrieval provider; production injects both, tests may omit for URL-only behavior. */
+	withSearchBackend?<T>(operation: (backendUrl: string) => Promise<T>): Promise<T>;
+	managedSearchBackend?: ManagedSearchBackendController;
 	/**
 	 * True when the runtime is bound to a non-loopback host (remote/`--host` mode).
 	 * Both `runCommand` and `openFile` refuse in remote mode because they execute

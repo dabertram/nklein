@@ -279,6 +279,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		capabilityBrokerEnabled: current.capabilityBrokerEnabled,
 		modelStatsTrackingLevel: current.modelStatsTrackingLevel,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
+		retrievalProviderMode: current.retrievalProviderMode,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
 		llmfitCatalogUpdateMode: current.llmfitCatalogUpdateMode,
 		speculativeBestOfNEnabled: current.speculativeBestOfNEnabled,

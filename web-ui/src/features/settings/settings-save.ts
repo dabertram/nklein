@@ -293,6 +293,7 @@ export function buildRuntimeConfigSaveRequest(
 		replayCardsEnabled: draft.replayCardsEnabled,
 		knowsTodayEnabled: draft.knowsTodayEnabled,
 		retrievalEgressEnabled: draft.retrievalEgressEnabled,
+		retrievalProviderMode: draft.retrievalProviderMode,
 		retrievalSearchBackendUrl: draft.retrievalSearchBackendUrl.trim() || null,
 		llmfitCatalogUpdateMode: draft.llmfitCatalogUpdateMode,
 		sandboxMcpServersEnabled: draft.sandboxMcpServersEnabled,

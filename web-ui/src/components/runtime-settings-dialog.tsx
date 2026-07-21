@@ -64,6 +64,7 @@ import {
 	readBooleanTaskDefault,
 	readTaskAutoReviewModeDefault,
 	type SettingsDraft,
+	type SettingsRetrievalProviderMode,
 	snapshotMemoryAuditInputs,
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
@@ -83,7 +84,12 @@ import { useLayoutCustomizations } from "@/resize/layout-customizations";
 import { buildSuggestedCodeEmbeddingBaseUrl } from "@/runtime/code-embedding-endpoint";
 import { isCloudProviderSupportEnabled } from "@/runtime/native-agent";
 import { findNKleinProviderModel } from "@/runtime/nklein-context-window-policy";
-import { fetchNKleinProviderModels, openFileOnHost } from "@/runtime/runtime-config-query";
+import {
+	fetchManagedSearchStatus,
+	fetchNKleinProviderModels,
+	openFileOnHost,
+	setManagedSearchControl,
+} from "@/runtime/runtime-config-query";
 import type {
 	AgentRulesetsConfigPayload,
 	RuntimeAgentId,
@@ -91,6 +97,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeManagedSearchStatusResponse,
 	RuntimeModelGateAction,
 	RuntimeModelRoles,
 	RuntimeNKleinMcpServerAuthStatus,
@@ -299,7 +306,11 @@ export function RuntimeSettingsDialog({
 	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
 	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a search backend URL.
 	const [retrievalEgressEnabled, setRetrievalEgressEnabled] = useState(false);
+	const [retrievalProviderMode, setRetrievalProviderMode] = useState<SettingsRetrievalProviderMode>("none");
 	const [retrievalSearchBackendUrl, setRetrievalSearchBackendUrl] = useState("");
+	const [managedSearchStatus, setManagedSearchStatus] = useState<RuntimeManagedSearchStatusResponse | null>(null);
+	const [managedSearchBusy, setManagedSearchBusy] = useState(false);
+	const [managedSearchError, setManagedSearchError] = useState<string | null>(null);
 	const [llmfitCatalogUpdateMode, setLlmfitCatalogUpdateMode] = useState<RuntimeLlmfitCatalogUpdateMode>("notify");
 	// §5.AR curated sandbox-MCP servers (ON by default) + §5.M capability broker (prompt-injection taint gate).
 	const [sandboxMcpServersEnabled, setSandboxMcpServersEnabled] = useState(true);
@@ -409,6 +420,7 @@ export function RuntimeSettingsDialog({
 	const replayCardsCheckboxId = "runtime-settings-replay-cards";
 	const knowsTodayCheckboxId = "runtime-settings-knows-today";
 	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
+	const retrievalProviderModeInputId = "runtime-settings-retrieval-provider-mode";
 	const retrievalBackendUrlInputId = "runtime-settings-retrieval-backend-url";
 	const sandboxMcpCheckboxId = "runtime-settings-sandbox-mcp";
 	const basicMemoryCheckboxId = "runtime-settings-basic-memory";
@@ -525,6 +537,37 @@ export function RuntimeSettingsDialog({
 		},
 		[desktopBridge],
 	);
+
+	const refreshManagedSearch = useCallback(async () => {
+		try {
+			setManagedSearchStatus(await fetchManagedSearchStatus(workspaceId));
+			setManagedSearchError(null);
+		} catch (error) {
+			setManagedSearchError(error instanceof Error ? error.message : String(error));
+		}
+	}, [workspaceId]);
+
+	const handleManagedSearchControl = useCallback(
+		async (action: "start" | "stop") => {
+			setManagedSearchBusy(true);
+			setManagedSearchError(null);
+			try {
+				setManagedSearchStatus(await setManagedSearchControl(workspaceId, { action }));
+			} catch (error) {
+				setManagedSearchError(error instanceof Error ? error.message : String(error));
+			} finally {
+				setManagedSearchBusy(false);
+			}
+		},
+		[workspaceId],
+	);
+
+	useEffect(() => {
+		if (!open || retrievalProviderMode !== "managed_local") return;
+		void refreshManagedSearch();
+		const timer = window.setInterval(() => void refreshManagedSearch(), 5_000);
+		return () => window.clearInterval(timer);
+	}, [open, refreshManagedSearch, retrievalProviderMode]);
 
 	// Config-derived snapshot the draft is seeded from and compared against (see settings-draft.ts).
 	// Pure derivation, so recomputing on config identity changes is safe; the reset effect below keeps
@@ -729,6 +772,7 @@ export function RuntimeSettingsDialog({
 			replayCardsEnabled,
 			knowsTodayEnabled,
 			retrievalEgressEnabled,
+			retrievalProviderMode,
 			retrievalSearchBackendUrl,
 			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
@@ -793,6 +837,7 @@ export function RuntimeSettingsDialog({
 			replayCardsEnabled,
 			knowsTodayEnabled,
 			retrievalEgressEnabled,
+			retrievalProviderMode,
 			retrievalSearchBackendUrl,
 			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
@@ -907,6 +952,9 @@ export function RuntimeSettingsDialog({
 						break;
 					case "retrievalEgressEnabled":
 						setRetrievalEgressEnabled(configSnapshot.retrievalEgressEnabled);
+						break;
+					case "retrievalProviderMode":
+						setRetrievalProviderMode(configSnapshot.retrievalProviderMode);
 						break;
 					case "retrievalSearchBackendUrl":
 						setRetrievalSearchBackendUrl(configSnapshot.retrievalSearchBackendUrl);
@@ -1146,6 +1194,7 @@ export function RuntimeSettingsDialog({
 		setReplayCardsEnabled(snapshot.replayCardsEnabled);
 		setKnowsTodayEnabled(snapshot.knowsTodayEnabled);
 		setRetrievalEgressEnabled(snapshot.retrievalEgressEnabled);
+		setRetrievalProviderMode(snapshot.retrievalProviderMode);
 		setRetrievalSearchBackendUrl(snapshot.retrievalSearchBackendUrl);
 		setLlmfitCatalogUpdateMode(snapshot.llmfitCatalogUpdateMode);
 		setSandboxMcpServersEnabled(snapshot.sandboxMcpServersEnabled);
@@ -1211,6 +1260,7 @@ export function RuntimeSettingsDialog({
 		config?.replayCardsEnabled,
 		config?.knowsTodayEnabled,
 		config?.retrievalEgressEnabled,
+		config?.retrievalProviderMode,
 		config?.retrievalSearchBackendUrl,
 		config?.llmfitCatalogUpdateMode,
 		config?.sandboxMcpServersEnabled,
@@ -1856,24 +1906,75 @@ export function RuntimeSettingsDialog({
 									</p>
 									<div className="ml-11 mt-2">
 										<label
-											htmlFor={retrievalBackendUrlInputId}
+											htmlFor={retrievalProviderModeInputId}
 											className="block text-[12px] text-text-secondary mb-1"
 										>
-											Search backend URL
+											Search provider
 										</label>
-										<input
-											id={retrievalBackendUrlInputId}
-											type="url"
-											value={retrievalSearchBackendUrl}
-											disabled={controlsDisabled || !retrievalEgressEnabled}
-											onChange={(event) => setRetrievalSearchBackendUrl(event.target.value)}
-											placeholder="http://localhost:18888"
-											className="w-full max-w-sm rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
-										/>
+										<div className="max-w-sm">
+											<NativeSelect
+												id={retrievalProviderModeInputId}
+												fill
+												value={retrievalProviderMode}
+												disabled={controlsDisabled}
+												onChange={(event) =>
+													setRetrievalProviderMode(event.target.value as SettingsRetrievalProviderMode)
+												}
+											>
+												<option value="none">None (off)</option>
+												<option value="searxng_url">Existing SearXNG-compatible URL</option>
+												<option value="managed_local">Managed local backend</option>
+											</NativeSelect>
+										</div>
+										{retrievalProviderMode === "searxng_url" ? (
+											<div className="mt-2">
+												<label
+													htmlFor={retrievalBackendUrlInputId}
+													className="block text-[12px] text-text-secondary mb-1"
+												>
+													Search backend URL
+												</label>
+												<input
+													id={retrievalBackendUrlInputId}
+													type="url"
+													value={retrievalSearchBackendUrl}
+													disabled={controlsDisabled}
+													onChange={(event) => setRetrievalSearchBackendUrl(event.target.value)}
+													placeholder="http://localhost:8080"
+													className="w-full max-w-sm rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
+												/>
+											</div>
+										) : null}
+										{retrievalProviderMode === "managed_local" ? (
+											<div className="mt-2 flex flex-wrap items-center gap-2">
+												<Button
+													size="sm"
+													variant="ghost"
+													disabled={managedSearchBusy || managedSearchStatus?.state === "running"}
+													onClick={() => void handleManagedSearchControl("start")}
+												>
+													Start now
+												</Button>
+												<Button
+													size="sm"
+													variant="ghost"
+													disabled={managedSearchBusy || managedSearchStatus?.state !== "running"}
+													onClick={() => void handleManagedSearchControl("stop")}
+												>
+													Stop
+												</Button>
+												<span className="text-[11px] text-text-tertiary">
+													Status: {managedSearchStatus?.state ?? "loading"}; auto-stops after 10 idle
+													minutes.
+												</span>
+											</div>
+										) : null}
+										{managedSearchError ? (
+											<p className="text-danger text-[11px] mt-1 mb-0">{managedSearchError}</p>
+										) : null}
 										<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-											Use an existing SearXNG-compatible endpoint, or optionally start the bundled local
-											backend with <code>docker compose -f docker/searxng/docker-compose.yml up -d</code>{" "}
-											(binds localhost:18888). Web search stays off until egress is on AND a backend is set.
+											The managed backend is created only on an explicit start or the first search, binds
+											localhost:18888, and is removed after its idle TTL. Web search also requires egress.
 										</p>
 									</div>
 								</div>

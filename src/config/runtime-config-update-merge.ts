@@ -55,6 +55,7 @@ import {
 import { normalizeFileOverlapParallelism } from "./runtime-config-overlap-resolver";
 import {
 	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalProviderMode,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
 import { normalizeRuntimeSandboxIsolationProfile } from "./runtime-config-sandbox-resolver";
@@ -136,6 +137,15 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.retrievalEgressEnabled,
 			current.retrievalEgressEnabled,
 			normalizeRetrievalEgressEnabled,
+		),
+		retrievalProviderMode: keepNormalizedValue(
+			updates.retrievalProviderMode,
+			current.retrievalProviderMode,
+			(value) =>
+				normalizeRetrievalProviderMode(
+					value,
+					updates.retrievalSearchBackendUrl ?? current.retrievalSearchBackendUrl,
+				),
 		),
 		retrievalSearchBackendUrl: keepNormalizedValue(
 			updates.retrievalSearchBackendUrl,

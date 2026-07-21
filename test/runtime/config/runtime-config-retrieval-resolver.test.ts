@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	DEFAULT_RETRIEVAL_PROVIDER_MODE,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
+	effectiveRetrievalSearchBackendUrl,
 	type RuntimeRetrievalConfigFields,
 	resolveRuntimeRetrievalConfig,
 } from "../../../src/config/runtime-config-retrieval-resolver";
@@ -10,6 +12,7 @@ import type { RuntimeGlobalConfigFileShape } from "../../../src/config/runtime-c
 
 const defaults: RuntimeRetrievalConfigFields = {
 	retrievalEgressEnabled: DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	retrievalProviderMode: DEFAULT_RETRIEVAL_PROVIDER_MODE,
 	retrievalSearchBackendUrl: DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 };
 
@@ -33,8 +36,17 @@ describe("resolveRuntimeRetrievalConfig", () => {
 			),
 		).toEqual({
 			retrievalEgressEnabled: true,
+			retrievalProviderMode: "searxng_url",
 			retrievalSearchBackendUrl: "http://localhost:8888",
 		});
+	});
+
+	it("resolves none, user URL, and managed-local modes explicitly", () => {
+		expect(effectiveRetrievalSearchBackendUrl({ providerMode: "none", searchBackendUrl: "http://old" })).toBeNull();
+		expect(
+			effectiveRetrievalSearchBackendUrl({ providerMode: "searxng_url", searchBackendUrl: " http://search:8080 " }),
+		).toBe("http://search:8080");
+		expect(effectiveRetrievalSearchBackendUrl({ providerMode: "managed_local" })).toBe("http://127.0.0.1:18888");
 	});
 
 	it("fails closed: only a literal boolean true enables egress", () => {

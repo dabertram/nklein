@@ -374,6 +374,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		capabilityBrokerEnabled: false,
 		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
+		retrievalProviderMode: "none",
 		retrievalSearchBackendUrl: null,
 		llmfitCatalogUpdateMode: "notify",
 		speculativeBestOfNEnabled: true,
@@ -5364,6 +5365,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		const runResearch = vi.fn(async () => provisional);
 		const config = createRuntimeConfigState();
 		config.retrievalEgressEnabled = true;
+		config.retrievalProviderMode = "searxng_url";
 		config.retrievalSearchBackendUrl = "http://127.0.0.1:8888";
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
