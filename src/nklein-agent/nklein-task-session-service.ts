@@ -431,6 +431,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
 		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
+		resetDecompositionRecoveryBudget: (taskId) => this.decompositionStallNudger.resetTask(taskId),
 	});
 
 	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */

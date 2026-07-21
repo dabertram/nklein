@@ -140,6 +140,13 @@ gap remains.
 > run and the empty-patch path held the card in Review. Calling `add_task`, `add_dependency`, or `decompose_project`
 > is authoritative runtime evidence that the card is now decomposing and must promote it into the recovery path.
 
+> **⚠️ DECOMPOSITION RECOVERY BUDGETS BELONG TO AN ARCHITECT ATTEMPT, NOT THE CARD (live-found run
+> `20260721-155451`).** The 14B architect spent both bounded nudges repairing malformed graph calls before automatic
+> failover. Gemma then produced a coherent candidate; the independent Qwen critic correctly requested removal of
+> already-implemented cards, but Gemma inherited zero nudges and its clean stop stranded the actionable critique in
+> Review. A cross-model carry must reset the decomposition-stall budget before the fresh architect starts, while the
+> separate graph-validation/critique attempt caps continue to bound the overall workflow.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

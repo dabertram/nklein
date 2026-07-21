@@ -21,6 +21,8 @@ export interface ModelFailoverControllerDeps {
 	): Promise<unknown>;
 	/** Correlate the engine-selected carry rung with the next terminal attempt ledger event. */
 	noteStrategyApplied?: (taskId: string, strategy: string) => void;
+	/** A fresh model owns a fresh bounded decomposition-recovery budget. */
+	resetDecompositionRecoveryBudget?: (taskId: string) => void;
 }
 
 export interface ModelFailoverController {
@@ -111,6 +113,10 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		void (async () => {
 			try {
 				deps.noteStrategyApplied?.(taskId, "cross_model_carry");
+				// The decomposition nudge budget is per architect attempt, not per card. Carrying an exhausted
+				// weak-model budget into a fresh model can strand that model immediately after a valid critic
+				// revision request, before it gets one turn to repair the candidate.
+				deps.resetDecompositionRecoveryBudget?.(taskId);
 				const category = decompositionCapabilityExhausted ? "decomposition_model_failover" : "model_failover";
 				recordSelfObservation({
 					signal: "custom",

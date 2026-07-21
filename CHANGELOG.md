@@ -21,6 +21,8 @@
   human correction while an eligible loaded architect can still take over.
   Work cards that discover they need decomposition during refinement now arm bounded decomposition recovery as soon
   as they call a graph-building tool, so a rejected graph cannot end as an ordinary empty-patch Review hold.
+  Cross-model architect handoffs now reset that bounded recovery budget; a stronger fresh architect no longer inherits
+  nudges spent repairing the previous model and can act on a later independent-critic revision request.
   Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code

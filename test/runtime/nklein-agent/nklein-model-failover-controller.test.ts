@@ -50,7 +50,8 @@ describe("createModelFailoverController", () => {
 
 	it("re-drives repeated decomposition-validation exhaustion on another loaded architect before human fallback", async () => {
 		const resend = vi.fn().mockResolvedValue(undefined);
-		const controller = createModelFailoverController({ resendTaskInput: resend });
+		const resetDecompositionRecoveryBudget = vi.fn();
+		const controller = createModelFailoverController({ resendTaskInput: resend, resetDecompositionRecoveryBudget });
 		controller.setCandidates("t1", ["qwopus", "qwen", "gemma"]);
 		controller.maybeModelFailover(
 			"t1",
@@ -65,6 +66,7 @@ describe("createModelFailoverController", () => {
 		expect(resend).toHaveBeenCalledTimes(1);
 		expect(resend.mock.calls[0]?.[1]).toContain("fresh architect on a different loaded model");
 		expect(resend.mock.calls[0]?.[4]).toMatchObject({ providerId: "lmstudio", modelId: "qwen" });
+		expect(resetDecompositionRecoveryBudget).toHaveBeenCalledWith("t1");
 	});
 
 	it("is disabled by the kill-switch", async () => {
