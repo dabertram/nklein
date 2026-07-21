@@ -326,7 +326,7 @@ export class RepeatedToolCallGuard {
 		const toolNamesText = nextState.toolNames.join(", ");
 		const isDecomposition = target.kind === "decomposition";
 		const message = isDecomposition
-			? `!Klein paused this task after ${nextState.count} decomposition attempts that kept failing graph validation. Open the proposed plan graph and the validation errors in the chat, then send a corrected instruction (or split the work into smaller cards) instead of re-running decompose_project.`
+			? `!Klein paused this architect after ${nextState.count} decomposition attempts that kept failing graph validation. !Klein will automatically hand the preserved specification, code context, and validation feedback to the next eligible loaded architect. Human correction is needed only if automatic model failover is unavailable or every eligible architect is exhausted.`
 			: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`;
 		return this.callbacks.parkTaskForAutonomyBudget({
 			taskId: summary.taskId,

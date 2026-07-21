@@ -4671,6 +4671,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reviewReason: "attention",
 			warningMessage: expect.stringContaining("decomposition attempts that kept failing graph validation"),
 		});
+		expect(summary?.warningMessage).toContain("automatically hand");
+		expect(summary?.warningMessage).toContain("Human correction is needed only if");
+		expect(summary?.warningMessage).not.toContain("send a corrected instruction");
 		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({

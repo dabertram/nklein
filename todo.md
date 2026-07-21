@@ -127,6 +127,12 @@ gap remains.
 > with stale incremental state returns the same error forever. A rejection unlocks full-array replacement; successful
 > inline dependency edges are not repeated, and duplicate edge calls are safe idempotent no-ops.
 
+> **⚠️ AN INTERNAL FAILOVER CHECKPOINT MUST NOT ASK FOR A HUMAN (live-found run `20260721-150624`).** The repeated
+> decomposition guard briefly parked an exhausted architect in `awaiting_review` so the model-failover controller could
+> hand the preserved context to Gemma, but its warning told the user to open the plan and send a corrected instruction.
+> The automatic handoff then succeeded without help. At this checkpoint, messaging must lead with automatic transfer;
+> human correction is mentioned only when no eligible loaded architect remains or all have been exhausted.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a
