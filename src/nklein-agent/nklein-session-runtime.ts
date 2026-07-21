@@ -65,6 +65,7 @@ import { createNKleinPlanCritiqueTool } from "./nklein-plan-critique-tool";
 import { createPredictOutputTool } from "./nklein-predict-output-tool";
 import { createNKleinPromotionTool } from "./nklein-promotion-tool";
 import { createRequestCompactionTool } from "./nklein-request-compaction-tool";
+import { createSessionResultHandles } from "./nklein-result-handle-tool";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
@@ -284,6 +285,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		});
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
 		const useHostWorkspaceTools = !request.extraTools;
+		const sessionResultHandles = createSessionResultHandles();
 		const workspaceExtraTools =
 			request.extraTools ??
 			([
@@ -369,6 +371,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// F12.6 self-compaction: the agent proposes a safe forget-moment, the rubric disposes (fire/hold); a
 			// fire records a per-task request the service consults at the next turn boundary (budget fallback intact).
 			...createRequestCompactionTool(request.taskId),
+			// F4.7: stable-shell resolver for per-session large result handles. Its schema is present from turn one so a
+			// later oversized read/search/command result does not churn the tool-prefix cache when the handle appears.
+			sessionResultHandles.tool,
 			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
 			...createWebResearchTool({
 				// F12.101: the enforcing air-gap switch hard-closes web research regardless of the enable flag.
@@ -702,6 +707,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								request.onCardPromoted
 								? createOpenAiCompatPhaseOnePickCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
 								: undefined,
+							sessionResultHandles.store,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

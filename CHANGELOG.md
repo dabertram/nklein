@@ -57,6 +57,11 @@
   model, and evidence constant: all four resident models retained every expected fact and citation across 12/12
   comparisons, with zero regressions and an 89% aggregate prompt-token reduction.
 
+- **Unexpectedly large tool results no longer flood a small model's next turn.** Successful read, search, and command
+  outputs above a context-scaled threshold now leave a bounded head-and-tail preview plus a session-local `result://`
+  handle. The model can page exact slices through a stable `resolve_result` tool when needed. Failure bodies and
+  control-plane results remain verbatim, preserving the evidence needed to diagnose errors and planning decisions.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed

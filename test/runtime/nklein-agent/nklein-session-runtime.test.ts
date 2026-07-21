@@ -117,7 +117,7 @@ function createModelContext(workspacePath: string): AgentBeforeModelContext {
 	};
 }
 
-function createToolContext(toolName: string, isError = false): AgentAfterToolContext {
+function createToolContext(toolName: string, isError = false, output: unknown = {}): AgentAfterToolContext {
 	const tool: AgentTool = {
 		name: toolName,
 		description: "test tool",
@@ -147,7 +147,7 @@ function createToolContext(toolName: string, isError = false): AgentAfterToolCon
 		},
 		input: {},
 		result: {
-			output: {},
+			output,
 			isError,
 		},
 		startedAt: new Date("2026-06-18T00:00:00.000Z"),
@@ -1066,6 +1066,69 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		const refreshedText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
 		expect(refreshedText).toContain("newFeature");
 		expect(refreshedText).not.toContain("oldFeature");
+	});
+
+	it("wires large tool results through the session-local resolver", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-runtime-result-handle-"));
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-result-handle",
+			cwd: workspacePath,
+			prompt: "Inspect a large result",
+			providerId: "lmstudio",
+			modelId: "test-model",
+			contextWindow: 32_000,
+			systemPrompt: "System",
+		});
+
+		const startInput = fakeHost.start.mock.calls[0]?.[0];
+		const extension = startInput?.localRuntime?.extensions?.find(
+			(candidate) => candidate.name === "kanban-context-focus",
+		);
+		const resolver = startInput?.localRuntime?.extraTools?.find((tool) => tool.name === "resolve_result");
+		expect(extension?.hooks?.afterTool).toBeTruthy();
+		expect(resolver).toBeTruthy();
+		if (!extension?.hooks?.afterTool || !resolver) {
+			throw new Error("Expected result-handle hook and resolver tool");
+		}
+
+		const original = { content: `HEAD:${"x".repeat(14_000)}:TAIL` };
+		const hookResult = await extension.hooks.afterTool(createToolContext("read_files", false, original));
+		const handled = hookResult?.result;
+		const handle = handled?.metadata?.resultHandle;
+		expect(handled?.output).toContain("result://read_files/1");
+		expect(typeof handle).toBe("string");
+		const resolved = String(await resolver.execute({ handle }, { agentId: "agent-1", iteration: 2 }));
+		expect(resolved).toContain("HEAD:");
+		expect(resolved).toContain("[next offset: 8000]");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: expect.stringContaining("task-result-handle"),
+				metadata: expect.objectContaining({
+					category: "result_handle_created",
+					toolName: "read_files",
+				}),
+			}),
+		);
 	});
 
 	it("enables SDK skills config when a user instruction service is provided", async () => {

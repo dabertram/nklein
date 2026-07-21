@@ -23,6 +23,7 @@ import {
 	recordFileRead,
 	recordFileWrite,
 } from "../core/read-before-write-guard";
+import type { ResultHandleStore } from "../core/result-handle";
 import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import { DEFAULT_TOOL_CAP, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
@@ -48,6 +49,7 @@ import {
 	createRepoMapRailMessage,
 	REPO_MAP_RAIL_MESSAGE_KIND,
 } from "./nklein-repo-map-rail-messages";
+import { handleLargeToolResult } from "./nklein-result-handle-tool";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
 import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
@@ -214,6 +216,8 @@ export function createKanbanContextFocusExtension(
 	// §5.O opt-in two-phase tool narrowing: when supplied (only when NKLEIN_TWO_PHASE_TOOL_PICK is set), beforeModel runs a
 	// phase-1 pick over the offered tools and narrows the request's tools to it. Undefined ⇒ inert (byte-identical default).
 	twoPhasePickCaller?: TwoPhasePickModelCaller,
+	// F4.7: session-local backing store for large tool-result handles. Undefined keeps isolated extension tests inert.
+	resultHandleStore?: ResultHandleStore,
 	// F12.92 opt-in drift critic (only supplied when NKLEIN_DRIFT_CRITIC is set). Undefined ⇒ inert, byte-identical.
 	driftCriticCaller?: DriftCriticModelCaller,
 ): NKleinSdkRuntimeExtension {
@@ -852,6 +856,33 @@ export function createKanbanContextFocusExtension(
 								toolTrustPendingGuidanceBySessionId.set(sessionId, pending);
 							}
 						}
+					}
+				}
+				if (resultHandleStore) {
+					const result = handleLargeToolResult({
+						toolName: context.tool.name,
+						result: context.result,
+						store: resultHandleStore,
+						contextWindow,
+					});
+					if (result !== context.result) {
+						try {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Large ${context.tool.name} output replaced by a session result handle.`,
+								taskId: sessionId,
+								metadata: {
+									category: "result_handle_created",
+									toolName: context.tool.name,
+									resultHandle: result.metadata?.resultHandle ?? null,
+									originalEstimatedTokens: result.metadata?.originalEstimatedTokens ?? null,
+								},
+							});
+						} catch {
+							// Telemetry must never alter a tool result.
+						}
+						return { result };
 					}
 				}
 				return undefined;

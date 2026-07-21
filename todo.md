@@ -266,6 +266,16 @@ gap remains.
 > standing net for this class.
 
 
+> **LARGE TOOL RESULTS: HANDLE BEFORE THE NEXT MODEL CALL, BUT NEVER HIDE FAILURE OR CONTROL-PLANE EVIDENCE
+> (2026-07-21).** History compaction is too late for an unexpectedly large result: the raw output is already in the
+> very next request. The live F4.7 bridge therefore handles only successful read/search/command-shaped results above
+> a context-scaled threshold, leaves a head+tail preview, and stores the exact value behind a per-session `result://`
+> handle. `resolve_result` is present in the stable tool shell from turn one and returns bounded slices, not another
+> unbounded payload. Failed results remain verbatim (the error body is the diagnostic), and board/control-plane tool
+> results are never hidden. This follows current provider guidance that accumulated tool results are a primary source
+> of context pressure while preserving the tool-call/result pairing required by chat APIs.
+
+
 > Integrated from the former `AGENTS.md` (2026-06-28, user). `todo.md` is the **single file** an agent is pointed at —
 > `AGENTS.md`/`CLAUDE.md` are now thin pointers here. **When to add tribal knowledge to this section:** the user had to
 > intervene/correct/hand-hold · multiple back-and-forths to get something working · something required reading many files
@@ -2270,6 +2280,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stand alone. **Deleting is a legitimate and preferred outcome** — a core that taught its lesson and has no
   consumer has already delivered its value, and maintaining it forever is the cost the charter warns about.
   Do not wire it merely because it exists.
+  **AUDIT CORRECTION + RESULT-HANDLE WIRE 2026-07-21:** the statement above that there is "no assembler" is false.
+  `prompt-fragment-assembly.ts` is the LIVE volatility-ordered assembler reached by task/swarm system prompts and the
+  chat skill-fragment path; `cache-stable-prefix-order.ts` is a SECOND, redundant orphan. F4.40's guarantees therefore
+  come from both a live assembler and its regression net. The message path already preserves coherent chronology
+  (durable system framing first, recent task/evidence last), and reordering tool-call/result pairs would violate the
+  SDK/provider contract, so `context-smart-zone.ts` must not be forced across raw message history.
+  One genuine orphan named by F4.7 is now LIVE: oversized successful read/search/command results are replaced before
+  the next model call by a per-session `result://` handle plus a bounded head+tail preview; the stable-shell
+  `resolve_result` tool pages the exact stored value in bounded slices. Errors and control-plane results stay verbatim.
+  4 focused tests plus a full runtime wiring test. **REMAINING:** decide the unique fragment-level salience case
+  for `context-smart-zone.ts` during the late maturity/deletion pass (David: do not eagerly delete now); do not disturb
+  the live cache-stable ordering merely to manufacture a consumer.
 - [x] **F4.8a — The re-anchor verification *(split from F4.8 2026-07-20)*.**
   **SHIPPED: `reanchor-coverage.ts`, 12 tests.** Assesses a re-anchor against F4.8's four named elements AND the
   "without duplicating large context" clause — **the two are not traded off.** A re-anchor that carries everything
