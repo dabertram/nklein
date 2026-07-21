@@ -2242,3 +2242,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   nested gates run only their declared acceptance. The repeated production-shaped probe passed `test:fast`, lint, and
   typecheck in 28.9 seconds; focused tests (44), the full 1,217-file / 11,898-test fast suite, TypeScript, and Biome pass.
   Evidence: `docs/dev/f11.2g-repo-verify-live-2026-07-21.json`.
+
+- [x] **F11.2h — in-repo few-shot exemplar injection** *(delivered opt-in 2026-07-17; fleet gate closed
+  2026-07-21).* Write-scoped cards can retrieve one or two target-excluded, exemplar-sized existing functions and
+  render them as honestly labeled style/API references behind `NKLEIN_FEWSHOT_EXEMPLARS`. The selector now scores
+  stable function-name/path identity rather than generic words incidentally present in bodies, uses binary cosine
+  overlap so detailed task contracts do not suppress genuine matches, and scans up to 1,000 bounded source files.
+  A permanent held-out code-edit harness runs paired plain/exemplar prompts through resident models, records raw
+  response channels and exact selected citations, and executes generated functions once in a networkless, read-only,
+  capability-dropped Docker sandbox. Its pre-registered five-model/three-host run was adequately powered for a
+  25-point effect (60 pairs, achievable MDE 22.9 points), balanced arms within every model lane, and had zero
+  infrastructure failures or within-model thermal-drift flags. Plain passed 24/60 (40.0%) and exemplars 26/60
+  (43.3%): +3.3 points, 7 better/5 worse, exact McNemar p=0.774. The gain is below the 10-point default-flip floor,
+  costs 316 prompt tokens on average, and is not significant, so the feature deliberately remains opt-in; unknown or
+  irrelevant tasks may still abstain. F12.81 remains the distinct ledger-sourced message-shot extension. Evidence:
+  `docs/dev/f11.2h-few-shot-code-edit-ab-2026-07-21.json`.

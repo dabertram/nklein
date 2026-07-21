@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **In-repo code exemplars now retrieve more relevant functions, while remaining opt-in after a powered fleet gate.**
+  Retrieval scores function-name/path identity instead of incidental body words and no longer loses matches merely
+  because a task has a precise behavioral contract. A 60-pair held-out code-edit run across five resident models and
+  all three hosts measured 40.0% plain versus 43.3% with exemplars (+3.3 points, McNemar p=0.774) at an average 316-token
+  cost, so `NKLEIN_FEWSHOT_EXEMPLARS` stays off by default rather than shipping an unproven prompt tax.
+
 - **Repository-native verification is now on by default after a card's acceptance passes.** !Klein runs a bounded pair
   of real non-mutating lint, `format:check`, or typecheck scripts and feeds failures into the normal repair bounce;
   `NKLEIN_REPO_VERIFY=0` remains the kill-switch. An invocation marker prevents a repository that tests !Klein itself

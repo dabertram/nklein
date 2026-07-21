@@ -4,7 +4,7 @@
  * The cheapest way to make a small model write code that LOOKS NATIVE is to show it 1–2 similar existing
  * functions from this repo as style/API exemplars — retrieval-augmented few-shot beats fine-tuning at ~2 shots
  * (CEDAR ICSE'23). This module retrieves them WITHOUT a model: candidate = every named, exemplar-sized function
- * declaration; similarity = identifier-token overlap with the task text (camelCase-aware); the card's own target
+ * declaration; similarity = function-identity/path token overlap with the task text (camelCase-aware); the card's own target
  * files are excluded (the worker already reads those). Rendering is prompt-ready and honestly labeled as style
  * reference, not instruction. Activation is OPT-IN (`NKLEIN_FEWSHOT_EXEMPLARS`) until a fleet A/B proves the
  * token cost pays for itself.
@@ -28,6 +28,7 @@ export interface FewShotExemplar {
 const TS_EXTENSIONS = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/i;
 const MAX_EXEMPLAR_LINES = 50;
 const MIN_OVERLAP_SCORE = 0.12;
+const DEFAULT_MAX_FILES = 1_000;
 
 /** Split an identifier or prose into lowercase tokens (camelCase / snake_case / punctuation aware). */
 export function tokenizeForOverlap(text: string): Set<string> {
@@ -78,7 +79,10 @@ export function extractFunctionExemplarCandidates(path: string, content: string)
 			return;
 		}
 		const snippet = lines.slice(lineStart - 1, lineEnd).join("\n");
-		candidates.push({ path, name, lineStart, lineEnd, snippet, tokens: tokenizeForOverlap(`${name} ${snippet}`) });
+		// Score on identity, not the whole body. Body tokens made generic helpers win because incidental words such as
+		// "task", "model", "file", or "result" appeared somewhere in almost every implementation. The rendered snippet
+		// remains complete; only retrieval relevance uses the stable name/path vocabulary.
+		candidates.push({ path, name, lineStart, lineEnd, snippet, tokens: tokenizeForOverlap(`${name} ${path}`) });
 	};
 	for (const statement of sourceFile.statements) {
 		if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
@@ -98,7 +102,7 @@ export function extractFunctionExemplarCandidates(path: string, content: string)
 	return candidates;
 }
 
-/** Jaccard-style overlap of the task tokens against a candidate's tokens (asymmetric: how much of the task it covers). */
+/** Binary cosine overlap: stable when a precise task contract contains much more prose than a function identity. */
 function overlapScore(taskTokens: ReadonlySet<string>, candidateTokens: ReadonlySet<string>): number {
 	if (taskTokens.size === 0 || candidateTokens.size === 0) {
 		return 0;
@@ -109,7 +113,7 @@ function overlapScore(taskTokens: ReadonlySet<string>, candidateTokens: Readonly
 			hits += 1;
 		}
 	}
-	return hits / taskTokens.size;
+	return hits / Math.sqrt(taskTokens.size * candidateTokens.size);
 }
 
 /** Pick the 1–2 most task-similar exemplars across pre-extracted candidates. Pure. */
@@ -173,7 +177,7 @@ export async function selectWorkspaceFewShotExemplars(options: {
 	maxExemplars?: number;
 }): Promise<FewShotExemplar[]> {
 	try {
-		const filePaths = await listSourceFiles(options.workspacePath, options.maxFiles ?? 400);
+		const filePaths = await listSourceFiles(options.workspacePath, options.maxFiles ?? DEFAULT_MAX_FILES);
 		const candidates: ExemplarCandidate[] = [];
 		for (const filePath of filePaths) {
 			const path = relative(options.workspacePath, filePath);

@@ -64,6 +64,38 @@ describe("nklein-few-shot-exemplars (F11.2h)", () => {
 		expect(excluded).toEqual([]);
 	});
 
+	it("does not select an unrelated function merely because its body mentions task words", () => {
+		const noisy = extractFunctionExemplarCandidates(
+			"src/run-thing.ts",
+			[
+				"export function runThing(value: unknown) {",
+				'  const configFile = "workspace config file";',
+				'  const schemaValidation = "schema validation";',
+				"  return { value, configFile, schemaValidation };",
+				"}",
+			].join("\n"),
+		);
+		const picked = selectFewShotExemplars({
+			taskText: "Add a parser for the workspace config file with schema validation",
+			targetPaths: [],
+			candidates: noisy,
+		});
+		expect(picked).toEqual([]);
+	});
+
+	it("keeps identity overlap relevant when the task includes a precise behavioral contract", () => {
+		const picked = selectFewShotExemplars({
+			taskText:
+				"Normalize workspace source file paths by trimming outer whitespace, replacing backslashes, removing leading segments, dropping empty values and exact duplicates, and preserving first-seen order.",
+			targetPaths: [],
+			candidates: extractFunctionExemplarCandidates(
+				"src/core/workspace-paths.ts",
+				"export function normalizeWorkspacePaths(values: readonly string[]) { return [...values]; }",
+			),
+		});
+		expect(picked.map((exemplar) => exemplar.name)).toEqual(["normalizeWorkspacePaths"]);
+	});
+
 	it("renders an honestly-labeled style block and null for no exemplars", () => {
 		const picked = selectFewShotExemplars({
 			taskText: "parse config file",
