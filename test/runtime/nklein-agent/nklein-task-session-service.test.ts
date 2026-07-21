@@ -54,6 +54,10 @@ const taskResultBranchMocks = vi.hoisted(() => ({
 	resolveTaskResultBranchCommit: vi.fn(),
 }));
 
+const reviewerModelSelectionMocks = vi.hoisted(() => ({
+	pickDiverseReviewerModel: vi.fn(),
+}));
+
 vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
 	captureTaskTurnCheckpoint: turnCheckpointMocks.captureTaskTurnCheckpoint,
 	deleteTaskTurnCheckpointRef: turnCheckpointMocks.deleteTaskTurnCheckpointRef,
@@ -66,6 +70,10 @@ vi.mock("../../../src/workspace/task-result-branches.js", () => ({
 
 vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
 	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+}));
+
+vi.mock("../../../src/nklein-agent/nklein-reviewer-model-selection.js", () => ({
+	pickDiverseReviewerModel: reviewerModelSelectionMocks.pickDiverseReviewerModel,
 }));
 
 function createDeferred<T>() {
@@ -555,6 +563,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		selfObservationMocks.recordSelfObservation.mockReset();
 		taskResultBranchMocks.applyTaskPatchToResultBranch.mockReset();
 		taskResultBranchMocks.resolveTaskResultBranchCommit.mockReset();
+		reviewerModelSelectionMocks.pickDiverseReviewerModel.mockReset();
+		reviewerModelSelectionMocks.pickDiverseReviewerModel.mockResolvedValue(null);
 		taskResultBranchMocks.applyTaskPatchToResultBranch.mockImplementation(async (input: { taskId: string }) => ({
 			taskId: input.taskId,
 			branchName: `nklein/tasks/${input.taskId}`,
@@ -660,6 +670,57 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Review the change",
 		});
 		expect(reviewerSummary.role).toBe("reviewer");
+	});
+
+	it("hydrates persisted worker launch metadata when review escalation runs after terminal cache cleanup", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-review-escalation-persisted",
+				source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-07-21T00:00:00.000Z",
+				updatedAt: "2026-07-21T00:01:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "qwen/qwen2.5-coder-14b",
+				cwd: "/workspaces/task-review-escalation",
+				workspaceRoot: "/host/repo",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: {
+							providerId: "lmstudio",
+							modelId: "qwen/qwen2.5-coder-14b",
+							workspaceRoot: "/host/repo",
+						},
+					},
+				},
+			},
+			messages: [],
+		});
+		reviewerModelSelectionMocks.pickDiverseReviewerModel.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "qwen/qwen3.6-35b-a3b",
+		});
+
+		await expect(service.pickDiverseEscalationModel?.("task-review-escalation")).resolves.toEqual({
+			providerId: "lmstudio",
+			modelId: "qwen/qwen3.6-35b-a3b",
+		});
+		expect(runtime.readPersistedTaskSessionMock).toHaveBeenCalledWith("task-review-escalation");
+		expect(reviewerModelSelectionMocks.pickDiverseReviewerModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "qwen/qwen2.5-coder-14b",
+			}),
+			"task-review-escalation",
+			"worker",
+			expect.any(Object),
+		);
 	});
 
 	it("records the assembled prompt-SHELL key per model in the warmth ledger (§5.AQ cache-warmth routing)", async () => {

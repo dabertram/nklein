@@ -137,6 +137,8 @@ function buildNextReview(input: {
 	parkedReason: string | null;
 	previousSignOff: string | null;
 	now: number;
+	/** Persisted one-shot worker escalation; must survive every subsequent review-state rewrite. */
+	escalated?: boolean;
 	/** §5.AW: persisted A/B arbitration pick on a delivered review; omitted otherwise. */
 	preferredCandidate?: "primary" | "speculative";
 }): RuntimeCardReview {
@@ -150,6 +152,7 @@ function buildNextReview(input: {
 		lastInsight: input.submission.insight,
 		signOff: input.signOff ?? input.previousSignOff,
 		parkedReason: input.parkedReason,
+		...(input.escalated !== undefined ? { escalated: input.escalated } : {}),
 		...(input.preferredCandidate ? { preferredCandidate: input.preferredCandidate } : {}),
 		updatedAt: input.now,
 	};
@@ -306,6 +309,7 @@ export async function runNKleinSecondOpinionReview(
 			parkedReason: null,
 			previousSignOff,
 			now,
+			...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 			// Persist the pick so a restart between this verdict and delivery still delivers the winner.
 			...(preferred ? { preferredCandidate: preferred } : {}),
 		});
@@ -328,6 +332,7 @@ export async function runNKleinSecondOpinionReview(
 			parkedReason: null,
 			previousSignOff,
 			now,
+			...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 		});
 		await input.deps.onBounce({ taskId: input.taskId, review, workerPrompt: transition.workerPrompt });
 		return { type: "bounced", round };
@@ -343,6 +348,7 @@ export async function runNKleinSecondOpinionReview(
 			parkedReason: null,
 			previousSignOff,
 			now,
+			...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 		});
 		await input.deps.onEscalate({ taskId: input.taskId, review, workerPrompt: transition.workerPrompt });
 		return { type: "escalated", round };
@@ -357,6 +363,7 @@ export async function runNKleinSecondOpinionReview(
 		parkedReason: transition.reason,
 		previousSignOff,
 		now,
+		...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 	});
 	await input.deps.onPark({ taskId: input.taskId, review, reason: transition.reason });
 	return { type: "parked", round, reason: transition.reason };

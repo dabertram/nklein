@@ -1004,7 +1004,13 @@ export async function runSecondOpinionReviewForTask(
 				// (decideCardDecomposition Rule 1). Spawn ONE follow-up decompose card so the architect splits the
 				// objective into smaller cards; the caller schedules it immediately (backlog + no deps). Runs 21-25:
 				// this is the productive escape for the score-clamp-class cards that defeated all three model tiers.
-				if (escalatedWorkerTaskIds.has(input.taskId)) {
+				// The persisted flag is authoritative across runtime restarts; the in-memory set only closes the
+				// same-process race before a refreshed card snapshot is available.
+				if (
+					escalatedWorkerTaskIds.has(input.taskId) ||
+					card.review?.escalated === true ||
+					review.escalated === true
+				) {
 					const redecomposeTaskId = `redecompose-${input.taskId}`;
 					const spawned = await retryWorkspaceStateLock(() =>
 						mutate(input.workspacePath, (current) => {

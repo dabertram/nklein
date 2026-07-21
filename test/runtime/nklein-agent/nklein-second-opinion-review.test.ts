@@ -382,6 +382,41 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect(review.parkedReason).toBeTruthy();
 	});
 
+	it("preserves the persisted worker-escalation flag when a later review parks", async () => {
+		const card: SecondOpinionReviewCard = {
+			id: "task-1",
+			title: "T",
+			prompt: "p",
+			review: {
+				status: "changes_requested",
+				round: 1,
+				history: [{ round: 1, verdict: "request_changes", feedbackFingerprint: "a", workFingerprint: "w1" }],
+				lastVerdict: "request_changes",
+				lastSummary: "Escalated",
+				lastFeedback: "Address the failing case",
+				lastInsight: null,
+				signOff: null,
+				parkedReason: null,
+				escalated: true,
+				updatedAt: 1,
+			},
+		};
+		const deps = makeDeps({
+			card,
+			submission: {
+				verdict: "request_changes",
+				summary: "Still incomplete",
+				feedback: "Address the failing case",
+				insight: null,
+			},
+		});
+
+		await expect(runNKleinSecondOpinionReview({ ...base, maxRounds: 2, deps })).resolves.toMatchObject({
+			type: "parked",
+		});
+		expect(firstArg<{ review: RuntimeCardReview }>(deps.onPark).review.escalated).toBe(true);
+	});
+
 	it("threads prior feedback into the reviewer seed prompt on a re-review", async () => {
 		const card: SecondOpinionReviewCard = {
 			id: "task-1",

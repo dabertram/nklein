@@ -2966,7 +2966,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * the worker model (today's behavior), with the waiver surfaced as a self-observation.
 	 */
 	async pickDiverseEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null> {
-		const launch = this.launchConfigByTaskId.get(taskId) ?? null;
+		// A worker's terminal transition deliberately clears the volatile launch cache before review begins. Review
+		// escalation happens later, so consulting only that map falsely reports "no candidate" for every normally
+		// completed worker. Recover the launch config from the SDK-owned persisted session metadata, using the same
+		// cache/hydration path as restart and rebind. This keeps escalation available across both terminal cleanup and
+		// runtime restarts.
+		let launch = this.launchConfigByTaskId.get(taskId) ?? null;
+		if (!launch) {
+			const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+			launch = this.resolvePersistedLaunchConfig({ taskId, persistedSnapshot });
+		}
 		if (!launch?.providerId || !launch.modelId) {
 			return null;
 		}
