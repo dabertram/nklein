@@ -2133,3 +2133,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   one hardware-fit model, and local loads fail closed on low memory pressure or swap growth. This was proven with two
   then three requested m5max residents while m4mini and legion5pro stayed warm; LM Studio retained the safe set, system
   memory remained 82–94% free, and swap use did not grow. Focused tests (13) and TypeScript pass.
+
+- [x] **F4.7 — finish live context arrangement without violating chronology or cache reuse** *(reconciled
+  2026-07-21).* The earlier “no assembler” audit was wrong: `prompt-fragment-assembly.ts` is production-reachable
+  through task/swarm system prompts and chat, orders durable fragments before volatile material, and keeps hard-contract
+  heads explicit; F4.40 separately regression-locks stable prefix bytes. Raw message history remains append-only because
+  reordering tool-call/result pairs would violate provider contracts. Oversized successful read/search/command results
+  are handled before the next model call through bounded previews and exact per-session `result://` pages; failures and
+  control-plane evidence remain verbatim. Model-sensitive pruning and the learned context budget already feed the live
+  path with the 32k floor intact. The similarly named `cache-stable-prefix-order.ts` and `context-smart-zone.ts` cores
+  have no production caller. The latter also lacks real band/priority producers, so wiring it merely to satisfy its
+  existence would invent policy and risk both chronology and prefix reuse. That one genuine keep/wire/delete judgment
+  is split to F4.7b behind David-gated P15.4b, the late maturity pass where orphan decisions explicitly belong.

@@ -291,6 +291,15 @@ gap remains.
 > of context pressure while preserving the tool-call/result pairing required by chat APIs.
 
 
+> **PROMPT FRAGMENTS ARE REORDERABLE; CHAT HISTORY IS NOT (F4.7 reconciliation, 2026-07-21).** The live
+> `prompt-fragment-assembly.ts` orders independently-rendered system/skill fragments by volatility, which safely buys a
+> stable cache prefix and a recent task tail. Do not generalize that operation to raw messages: assistant tool calls and
+> their tool results have provider-contract chronology, and moving either can make an otherwise valid request invalid or
+> semantically false. Attention/smart-zone ordering is a separate policy axis from cache ordering. Before wiring an
+> attention orderer, require real band/priority producers and compare its salience benefit against prefix-reuse loss;
+> an existing tested orderer is not itself evidence that every prompt path should consume it.
+
+
 > Integrated from the former `AGENTS.md` (2026-06-28, user). `todo.md` is the **single file** an agent is pointed at —
 > `AGENTS.md`/`CLAUDE.md` are now thin pointers here. **When to add tribal knowledge to this section:** the user had to
 > intervene/correct/hand-hold · multiple back-and-forths to get something working · something required reading many files
@@ -2273,40 +2282,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 4B. Context arrangement and enforced reasoning *(legacy §5.AD)*
 
-- [ ] **F4.7 — Wire smart-zone context arrangement into every prompt path.** Keep stable system/skill prefixes,
-  task/evidence recency, result handles, and model-specific sensitivity while enforcing the 32k floor.
-  **⚠️ AUDIT 2026-07-20 — DECIDE BEFORE BUILDING: this item may be REDUNDANT, and its two cores are UNWIRED.**
-  Verified by consumer count: `cache-stable-prefix-order.ts` has **ZERO** non-test consumers
-  (`orderFragmentsForStablePrefix`, `planCacheStablePrefixOrder`, `planCacheStablePrefixWithReuse` — 0 each), and
-  `context-smart-zone.ts`'s two apparent consumers are **comment mentions in docblocks, not calls**. These are
-  textbook P15.1 "shipped but never exercised" cores.
-  **AND THE GOAL THEY SERVE IS ALREADY MET BY OTHER MEANS.** F4.40 (`[x]`, correctly) achieved byte-stable
-  cache-aware layout NOT by routing builders through an assembler, but by PROVING the existing builders already
-  emit stable prefixes and regression-locking that with 12 tests (session-env is a true suffix; decompose/review/
-  chat seeds byte-identical; no builder embeds `Date.now`/`toISOString`/random in prompt bytes). **That is the
-  better solution to the same problem** — it is non-invasive, changes no behaviour, and yields the same guarantee
-  with a test net that fails loudly if anyone breaks it.
-  **DOCUMENTATION DRIFT TO FIX:** F12.73 and two other items refer to "the cache-stable-prefix assembler (F4.40)"
-  as though an assembler is running. There is no assembler in the prompt path — there is a proven-stable set of
-  builders plus a regression net. Anyone reasoning from "the assembler stabilizes the prefix" is reasoning about
-  code that never executes.
-  **THE DECISION (P15.4 kill-list candidate):** either wire the smart-zone arrangement for the recency/salience
-  benefit it uniquely offers (which F4.40's net does NOT provide), or DELETE both cores and let F4.40's proof
-  stand alone. **Deleting is a legitimate and preferred outcome** — a core that taught its lesson and has no
-  consumer has already delivered its value, and maintaining it forever is the cost the charter warns about.
-  Do not wire it merely because it exists.
-  **AUDIT CORRECTION + RESULT-HANDLE WIRE 2026-07-21:** the statement above that there is "no assembler" is false.
-  `prompt-fragment-assembly.ts` is the LIVE volatility-ordered assembler reached by task/swarm system prompts and the
-  chat skill-fragment path; `cache-stable-prefix-order.ts` is a SECOND, redundant orphan. F4.40's guarantees therefore
-  come from both a live assembler and its regression net. The message path already preserves coherent chronology
-  (durable system framing first, recent task/evidence last), and reordering tool-call/result pairs would violate the
-  SDK/provider contract, so `context-smart-zone.ts` must not be forced across raw message history.
-  One genuine orphan named by F4.7 is now LIVE: oversized successful read/search/command results are replaced before
-  the next model call by a per-session `result://` handle plus a bounded head+tail preview; the stable-shell
-  `resolve_result` tool pages the exact stored value in bounded slices. Errors and control-plane results stay verbatim.
-  4 focused tests plus a full runtime wiring test. **REMAINING:** decide the unique fragment-level salience case
-  for `context-smart-zone.ts` during the late maturity/deletion pass (David: do not eagerly delete now); do not disturb
-  the live cache-stable ordering merely to manufacture a consumer.
+- [>] **F4.7b — Decide smart-zone fragment salience or retirement after P15.4b** *(David-gated maturity pass; split
+  2026-07-21).* `context-smart-zone.ts` remains a tested but production-unreachable ordering core. Do not force it
+  across raw message history (tool-call/result chronology is contractual), and do not inject it into the live
+  `prompt-fragment-assembly.ts` path without first defining real band/priority producers and proving that the attention
+  benefit outweighs the loss of byte-stable prefix reuse. P15.4b owns the late keep/wire/delete walk; David explicitly
+  deferred deletion batches until that pass. `cache-stable-prefix-order.ts` is a separate redundant orphan in the same
+  walk. The delivered F4.7 scope—stable-first/volatile-last live fragments, recent task material, bounded exact result
+  handles, model-sensitive pruning, and the 32k floor—is archived in `done.md`.
 - [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [x] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than **ACTIVATED 2026-07-15:** answer-budget-projection.ts + `dev answer-budgets` runs learnAnswerBudget over real model-perf observations (verified live). **AUDIT 2026-07-19: THE CAP WIRE IS LIVE (W2.3a)** — `resolveKnownContextWindowForTask` derates the effective window by `learnedQualityEffectiveBudget` (0.9× below the first observed degradation, ≥32k floor) and feeds ALL seven session-start/restart consumers in the service, so compaction budgets, fragment budgets, and the pre-send guard all derive from the learned knee, never the advertised window. Item complete.
@@ -3394,7 +3377,8 @@ output and NOT acted on. Captured as F12.12.)
   Occupancy getter at the tool registration remains null (threadable later).
 - [x] **F12.7 — Audit for KV-cache-killing dynamic prefix injection.** A single-token change early in the prompt (classic
   culprit: a timestamp in the system prompt) invalidates the KV cache from that point → up to a 10× throughput collapse at
-  long agentic contexts. !Klein has the cache-stable-prefix assembler (F4.40) — extend it with an AUDIT that flags any
+  long agentic contexts. !Klein has a live volatility-ordered prompt-fragment assembler plus F4.40's prefix-identity
+  regression net — extend that net with an AUDIT that flags any
   volatile content (dates, ids, counters) that leaked ahead of the stable prefix across the live builders, and a telemetry
   reuseRatio check. (thinksmart.life kv-cache-local-inference; bentoml prefix-caching)
   **AUDIT CORE SHIPPED 2026-07-17:** `kv-prefix-audit.ts` `auditPromptPrefixVolatility` — flags 6 volatility classes
@@ -3693,7 +3677,8 @@ output and NOT acted on. Captured as F12.12.)
 - [x] **F12.21 — Instruction re-anchoring against context rot.** 7–8B models lose mid-context info (>30% accuracy drop) and
   suffer instruction fade-out on long cards. Render the acceptance criteria + the CURRENT instruction at the END of the
   prompt, and inject event-driven `system-reminder`-style fresh messages on tool error / high turn count / detected loop.
-  Near-free positioning win; composes with the F4.40 cache-stable-prefix assembler. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
+  Near-free positioning win; composes with the live volatility-ordered prompt-fragment assembler and F4.40's
+  prefix-identity regression net. (Morph context-rot; Anthropic context-engineering; terminal-agent-scaffolding 2603.05344)
   **CORE SHIPPED 2026-07-17:** `instruction-reanchor.ts` — `decideReanchor` (event-driven firing: loop >
   stale-anchor tool-error > 12-turn periodic; quiet otherwise — spammed reminders get ignored) +
   `buildReanchorReminder` (compact tail message: current step + done-means + trigger-specific guidance; absent
@@ -4559,8 +4544,9 @@ output and NOT acted on. Captured as F12.12.)
   blocked on a second runtime adapter (llama.cpp server / Ollama / vLLM), not on !Klein code. Re-scoped from
   "ready" to "waits on the runtime-adapter boundary" (see the interop phase). Do NOT attempt to pass these flags
   through LM Studio; they are silently ignored, which is the same failure class as the GBNF-grammar lesson in §4A.
-- [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The cache-stable-prefix assembler (F4.40) stabilizes the
-  PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless `--cache-reuse N` is on (KV-shifting; **the frequently-cited `256` has NO primary-source basis — the flag is a MINIMUM CHUNK SIZE and its optimum is workload-dependent and publicly unmeasured, so treat any specific value as a starting point to measure, not a recommendation**) —
+- [>] **F12.73 — Enable `--cache-reuse` for multi-turn loops.** The live prompt-fragment assembler and F4.40's
+  regression net preserve a stable PREFIX, but llama.cpp won't reuse KV past the first mid-prompt divergence unless
+  `--cache-reuse N` is on (KV-shifting; **the frequently-cited `256` has NO primary-source basis — the flag is a MINIMUM CHUNK SIZE and its optimum is workload-dependent and publicly unmeasured, so treat any specific value as a starting point to measure, not a recommendation**) —
   a large TTFT win the assembler currently leaves on the table. (llama.cpp server README; KV-reuse #13606)
   **POSSIBLE UNBLOCK 2026-07-20 (David): `mlx-serve` exposes the flag this item needs — see P17.1a.** Still
   blocked *today* (it is not our runtime yet, and it is Apple-Silicon-only so it cannot cover the Linux node),
