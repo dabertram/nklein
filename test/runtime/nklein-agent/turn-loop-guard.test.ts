@@ -221,6 +221,19 @@ describe("TurnLoopGuard", () => {
 		expect(harness.parked[0]?.metadata.guardrail).toBe("turn_loop");
 	});
 
+	it("does not manufacture a human gate from repeated generated test code", async () => {
+		const harness = buildHarness({ startPrompt: "Implement the summary.", escalationModel: null });
+		const generatedTest =
+			"I will add this test:\n```ts\nexpect(summary.recommendation).toBe('Maintain your current effort.');\n```";
+		pushAssistantTurns(harness.entry, [generatedTest, generatedTest, generatedTest]);
+		harness.guard.check("task-1");
+		await flush();
+		expect(harness.sent).toEqual([]);
+		expect(harness.escalated).toEqual([]);
+		expect(harness.parked).toEqual([]);
+		expect(harness.observations[0]?.category).toBe("turn_loop_ambiguous_deferred");
+	});
+
 	it("attributes the existing terminal park path to the broker's active hard denial", async () => {
 		const hardDenial = {
 			toolName: "apply_patch",

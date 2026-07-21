@@ -261,13 +261,28 @@ export class TurnLoopGuard {
 			return;
 		}
 
-		// Layer 2 — park with the SPECIFIC question (the needs-you surface).
+		// Layer 2 requires an actual operator-resolvable boundary (or a trusted capability denial). Repeated code or
+		// proposal prose with no question is insufficient evidence for a human gate; defer to the ordinary liveness /
+		// empty-patch machinery instead of fabricating a "contested question" from implementation text.
 		const current = this.callbacks.getTaskEntry(taskId);
 		if (!current || current.summary.reviewReason === "attention") {
 			return;
 		}
-		state.resolvedTerminally = true;
 		const hardDenial = this.callbacks.getCapabilityBrokerHardDenial?.(taskId) ?? null;
+		if (!verdict.contestedQuestion && !hardDenial) {
+			state.nextEligibleTurnCount = turnCount + TURN_LOOP_REARM_TURNS;
+			this.callbacks.recordObservation({
+				taskId,
+				message: `Turn-loop fingerprint repeated without an operator-resolvable boundary; deferring to task liveness controls (${verdict.kind} ×${verdict.occurrences}).`,
+				metadata: {
+					category: "turn_loop_ambiguous_deferred",
+					kind: verdict.kind,
+					occurrences: verdict.occurrences,
+				},
+			});
+			return;
+		}
+		state.resolvedTerminally = true;
 		this.callbacks.parkTaskForAutonomyBudget({
 			taskId,
 			entry: current,

@@ -70,15 +70,25 @@ export function turnFingerprint(turn: AgentLoopTurn): string {
  * interrogative sentence; falls back to a sentence carrying a conflict marker (but/however/targets/expects/…).
  */
 export function extractContestedQuestion(text: string): string | null {
-	const sentences = text
+	// Generated implementations/tests commonly contain `expect(...)` assertions inside fenced code. They are
+	// executable proposals, not questions for the operator. Remove fenced code before sentence extraction so a
+	// repeated code sample cannot become a fabricated human boundary (live run 20260721-163800).
+	const prose = text.replace(/```[^\n]*\n[\s\S]*?(?:```|$)/gu, "\n");
+	const sentences = prose
 		.split(/(?<=[.?!])\s+|\n+/u)
 		.map((sentence) => sentence.trim())
-		.filter((sentence) => sentence.length > 0);
+		.filter(
+			(sentence) =>
+				sentence.length > 0 &&
+				!/(?:^|\s)(?:expect|assert|test|it|describe)\s*\(/i.test(sentence) &&
+				!/(?:=>|;\s*$)/u.test(sentence),
+		);
 	const question = [...sentences].reverse().find((sentence) => sentence.endsWith("?"));
 	if (question) {
 		return question.slice(0, 240);
 	}
-	const conflictMarker = /\b(but|however|targets?|expects?|requires?|allowed|outside|instead of|conflict|mismatch)\b/i;
+	const conflictMarker =
+		/\b(but|however|targets?|expect(?:s|ed)|requires?|allowed|outside|instead of|conflict|mismatch)\b/i;
 	const conflict = [...sentences].reverse().find((sentence) => conflictMarker.test(sentence));
 	return conflict ? conflict.slice(0, 240) : null;
 }

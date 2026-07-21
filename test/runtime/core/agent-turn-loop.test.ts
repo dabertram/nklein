@@ -38,6 +38,16 @@ describe("extractContestedQuestion", () => {
 	it("returns null for progress text", () => {
 		expect(extractContestedQuestion("Wrote greet.ts and ran the tests. All pass.")).toBeNull();
 	});
+	it("does not reinterpret a generated test assertion as an operator question", () => {
+		expect(
+			extractContestedQuestion(
+				"I will add this test:\n```ts\nexpect(summary.recommendation).toBe('Maintain your current effort.');\n```",
+			),
+		).toBeNull();
+		expect(
+			extractContestedQuestion("expect(summary.recommendation).toBe('Maintain your current effort.');"),
+		).toBeNull();
+	});
 });
 
 describe("detectTurnLoop", () => {

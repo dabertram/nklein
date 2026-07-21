@@ -163,6 +163,13 @@ gap remains.
 > emitting `running`; otherwise diagnostics and later policy decisions falsely attribute the replacement turn to the
 > original model.
 
+> **⚠️ REPEATED CODE IS NOT A REPEATED HUMAN QUESTION (live-found run `20260721-163800`).** Qwen repeated a generated
+> test snippet while making no writes. The turn-loop extractor matched the `expect(` assertion as the English conflict
+> marker “expect”, labeled the assertion a contested question, and parked for human input. Strip fenced code and
+> code-shaped statements before extracting boundaries; the prose marker accepts `expects`/`expected`, not a bare
+> assertion call. If a text fingerprint repeats but yields neither a real question nor a trusted capability denial,
+> it cannot open a human gate—record and defer to the normal liveness/empty-patch recovery path.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a
