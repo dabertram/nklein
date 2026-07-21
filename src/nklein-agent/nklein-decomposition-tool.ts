@@ -541,8 +541,14 @@ function createDecomposeProjectTool(
 					},
 				});
 				if (critique?.verdict === "revise" && critique.feedback) {
+					if (incrementalState) {
+						// A critic can request EDGE changes after an incremental graph has already been submitted. Retaining that
+						// graph makes the advertised revision impossible: add_task rejects the stable ids as duplicates and there
+						// is no remove/update-edge operation. Start the single allowed revision from a clean construction.
+						resetIncrementalDagSessionState(incrementalState);
+					}
 					throw new Error(
-						`A second-opinion plan critic (a different model family) reviewed this decomposition and requested ONE revision before work starts. Apply this feedback and call decompose_project again with the REVISED plan (keep the same slug "${slug}"):\n${critique.feedback}`,
+						`A second-opinion plan critic (a different model family) reviewed this decomposition and requested ONE revision before work starts. The prior incremental graph has been cleared so stable task ids can be reused. Rebuild it with add_task/add_dependency, or send one complete revised tasks array, then call decompose_project again with the same slug "${slug}":\n${critique.feedback}`,
 					);
 				}
 			}

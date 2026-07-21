@@ -463,7 +463,11 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		scaffoldedBaseRef = await execFileAsync("git", ["-C", projectPath, "rev-parse", "--abbrev-ref", "HEAD"])
 			.then(({ stdout }) => stdout.trim() || null)
 			.catch(() => null);
-		write(`Scaffolded isolated dev-test workspace: ${projectPath}\n`);
+		// `--json` is an automation contract: stdout must be one parseable JSON document. The controller already
+		// captures the isolated workspace through board/evidence paths, so do not prefix JSON with human prose.
+		if (!options.json) {
+			write(`Scaffolded isolated dev-test workspace: ${projectPath}\n`);
+		}
 	}
 	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
 	const client = createDevRuntimeClient(workspace.workspaceId);

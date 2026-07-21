@@ -178,4 +178,44 @@ describe("decompose_project completion route (shared session state)", () => {
 			decompose.execute({ slug: "incremental-demo", spec: "Three-step build.", plan: "Again." }, ctx),
 		).rejects.toThrow(/missing required fields: tasks/);
 	});
+
+	it("clears the submitted incremental graph when the critic requests a revision", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-critique-"));
+		const requestPlanCritique = vi.fn(async () => ({
+			verdict: "revise" as const,
+			summary: "Fix the edge direction.",
+			feedback: "Make the UI depend directly on the API.",
+		}));
+		const tools = createNKleinDecompositionTools({ workspacePath, requestPlanCritique });
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+		const addTask = byName.get("add_task");
+		const decompose = byName.get("decompose_project");
+		if (!addTask || !decompose) {
+			throw new Error("expected add_task and decompose_project in the toolset");
+		}
+
+		for (const id of ["a", "b", "c", "d", "e"]) {
+			await addTask.execute(
+				{ id, title: `Implement ${id}`, prompt: `Implement ${id}.`, dependsOn: id === "b" ? ["a"] : [] },
+				ctx,
+			);
+		}
+		await expect(
+			decompose.execute(
+				{
+					slug: "critic-revision",
+					title: "Critic revision",
+					spec: "Five slices.",
+					plan: "Implement the slices.",
+					defaultAcceptanceCommand: "npm test",
+				},
+				ctx,
+			),
+		).rejects.toThrow(/prior incremental graph has been cleared/i);
+
+		// The stable id is reusable immediately; before the fix this was duplicate_node and the revision was impossible.
+		await expect(
+			addTask.execute({ id: "a", title: "Implement revised a", prompt: "Revise a." }, ctx),
+		).resolves.toMatchObject({ ok: true, taskId: "a" });
+	});
 });

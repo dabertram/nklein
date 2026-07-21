@@ -72,6 +72,8 @@ describe("real-model run evidence", () => {
 				"plan-critique is waiting for capacity at its 1 concurrent-session cap",
 				"context_floor_unmet",
 				"name is already in use by container abc",
+				"Could not auto-start linked task: No native !Klein provider is configured",
+				"Board-liveness watchdog fired: frozen board self-heal",
 				"FATAL runtime exited",
 			].join("\n"),
 		);
@@ -80,6 +82,8 @@ describe("real-model run evidence", () => {
 			"model_capacity_wait",
 			"context_floor_refusal",
 			"sandbox_conflict",
+			"auto_start_failure",
+			"board_liveness_recovery",
 			"runtime_failure",
 		]);
 	});

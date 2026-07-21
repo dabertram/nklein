@@ -48,6 +48,26 @@ mkdir -p "$RUN_DIR" "$RUN_HOME"
 RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR="$RUN_DIR/drain.err"
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
 EVIDENCE_DIR="$RUN_DIR/evidence"
+SESSION_SNAPSHOT_DIR="$RUN_HOME/.nklein/evidence-session-snapshots"
+
+# The isolated HOME must still be a runnable !Klein installation. Configure the resident fleet as the role fallback
+# so decomposition children do not strand with "No native !Klein provider is configured" after a forced seed model.
+ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
+CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
+REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-google/gemma-4-31b-qat}"
+RUN_CONFIG="$RUN_HOME/.nklein/nklein/config.json"
+mkdir -p "$(dirname "$RUN_CONFIG")" "$SESSION_SNAPSHOT_DIR"
+if [ ! -f "$RUN_CONFIG" ]; then
+  jq -n --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '{
+    selectedAgentId: "nklein",
+    developerModeEnabled: true,
+    modelRoles: {
+      architect: {providerId: "lmstudio", modelId: $architect},
+      worker: {providerId: "lmstudio", modelId: $worker},
+      reviewer: {providerId: "lmstudio", modelId: $reviewer}
+    }
+  }' >"$RUN_CONFIG"
+fi
 
 log(){ printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
 REAL_HOME="$HOME"; DEVLOG_PID=""; RUNTIME_PID=""; DRAIN_PID=""; TEARDOWN_DONE=0
@@ -92,6 +112,7 @@ trap 'exit 143' TERM
 
 # ─────────────────────────────── setup ───────────────────────────────
 log "=== REAL-MODEL RUN $STAMP  preset=$PRESET mode=${MODE:-plan} worker=$WORKER fleet=[${FLEET[*]}] ==="
+log "isolated role config: architect=$ARCHITECT_MODEL worker=$CHILD_WORKER_MODEL reviewer=$REVIEWER_MODEL"
 HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && { log "FATAL: port $PORT already in use"; exit 2; }
 
 # Pin m5max so loads land on the fast box, not an auto-routed remote.
@@ -155,9 +176,17 @@ tool_activity(){    # exact use/result/error/pending counts across persisted tra
   done
   echo "uses=$uses,results=$results,errors=$errors,pending=$((uses-results))"
 }
+snapshot_session_transcripts(){ # auxiliary sessions are cleared after use; preserve their latest complete live image
+  local f
+  for f in "$RUN_HOME"/.nklein/data/sessions/*/*.messages.json; do
+    [ -f "$f" ] || continue
+    cp "$f" "$SESSION_SNAPSHOT_DIR/$(basename "$f")" 2>/dev/null || true
+  done
+}
 LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
+  snapshot_session_transcripts
   NOW=$(date +%s); ELAPSED=$((NOW-DRAIN_START))
   MSTAT=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep -iE 'GENERAT|PROCESS' | awk '{print $1}' | tr '\n' ',' )
   SIG=$(board_signature); TOOLS=$(tool_activity)
@@ -188,14 +217,25 @@ if [ -n "$ABORT_REASON" ] && kill -0 "$DRAIN_PID" 2>/dev/null; then
 fi
 wait "$DRAIN_PID" 2>/dev/null; DRAIN_STATUS=$?; DRAIN_END=$(date +%s)
 log "=== RESULT (real wall time $((DRAIN_END-DRAIN_START))s) ==="
-HOME="$REAL_HOME" python3 -c "import json;d=json.load(open('$DRAIN_JSON'));c=d.get('classification',{});print('outcome:',c.get('outcome'),'| success:',c.get('success'),'| counts:',d.get('finalCounts'))" 2>/dev/null | tee -a "$RUNLOG" \
-  || { log "no classification (see drain.json/err)"; tail -3 "$DRAIN_JSON" 2>/dev/null; tail -3 "$DRAIN_ERR" 2>/dev/null; }
+snapshot_session_transcripts
+DRAIN_OUTCOME="unclassified"; DRAIN_SUCCESS=false
+if jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
+  DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
+  DRAIN_SUCCESS=$(jq -r '.classification.success // false' "$DRAIN_JSON")
+  log "outcome: $DRAIN_OUTCOME | success: $DRAIN_SUCCESS | counts: $(jq -c '.finalCounts' "$DRAIN_JSON")"
+else
+  log "no classification (see drain.json/err)"
+  tail -3 "$DRAIN_JSON" 2>/dev/null
+  tail -3 "$DRAIN_ERR" 2>/dev/null
+fi
 
 jq -n \
   --arg abortReason "$ABORT_REASON" \
+  --arg outcome "$DRAIN_OUTCOME" \
+  --argjson success "$DRAIN_SUCCESS" \
   --argjson drainExitCode "$DRAIN_STATUS" \
   --argjson durationSeconds "$((DRAIN_END-DRAIN_START))" \
-  '{abortReason: (if $abortReason == "" then null else $abortReason end), drainExitCode: $drainExitCode, durationSeconds: $durationSeconds}' \
+  '{abortReason: (if $abortReason == "" then null else $abortReason end), outcome: $outcome, success: $success, drainExitCode: $drainExitCode, durationSeconds: $durationSeconds}' \
   >"$RUN_DIR/controller-result.json"
 
 log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"
@@ -208,4 +248,8 @@ else
   log "⚠ evidence collection reported errors (exit $EVIDENCE_STATUS); see evidence/summary.json + evidence-collector.err"
 fi
 log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
+FINAL_STATUS=0
+if [ "$DRAIN_STATUS" -ne 0 ] || [ "$DRAIN_SUCCESS" != true ] || [ -n "$ABORT_REASON" ]; then FINAL_STATUS=1; fi
+log "controller exit: $FINAL_STATUS"
+exit "$FINAL_STATUS"
 # teardown runs on EXIT

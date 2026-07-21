@@ -21,6 +21,13 @@ interface EvidenceFileError {
 	error: string;
 }
 
+interface CollectedTranscript {
+	file: string;
+	sessionId: string;
+	messageCount: number;
+	executions: RealModelToolExecutionEvidence[];
+}
+
 function parseArgs(args: readonly string[]): CliOptions {
 	let homeDir: string | null = null;
 	let outputDir: string | null = null;
@@ -112,22 +119,45 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 	await Promise.all([mkdir(sessionOutputDir, { recursive: true }), mkdir(boardOutputDir, { recursive: true })]);
 
 	const errors: EvidenceFileError[] = [];
-	const transcriptFiles = await findFiles(join(options.homeDir, ".nklein", "data", "sessions"), (path) =>
-		path.endsWith(".messages.json"),
-	);
-	const sessionExecutions: RealModelToolExecutionEvidence[][] = [];
+	const transcriptFiles = [
+		...(await findFiles(join(options.homeDir, ".nklein", "data", "sessions"), (path) =>
+			path.endsWith(".messages.json"),
+		)),
+		...(await findFiles(join(options.homeDir, ".nklein", "evidence-session-snapshots"), (path) =>
+			path.endsWith(".messages.json"),
+		)),
+	];
+	// Auxiliary sessions are intentionally cleared after their bounded turn. The controller snapshots them while live;
+	// merge those snapshots with still-live transcripts by session id and retain the most complete copy of each session.
+	const transcriptBySessionId = new Map<string, CollectedTranscript>();
 	for (const file of transcriptFiles) {
 		try {
 			const body = await readFile(file, "utf8");
 			const document: unknown = JSON.parse(body);
 			const executions = extractRealModelToolEvidence(document);
-			sessionExecutions.push(executions);
-			const sessionId = executions[0]?.sessionId ?? basename(dirname(file));
-			await copyFile(file, join(sessionOutputDir, `${safeName(sessionId)}.messages.json`));
+			const record = typeof document === "object" && document !== null ? (document as Record<string, unknown>) : {};
+			const sessionId =
+				(typeof record.sessionId === "string" && record.sessionId.trim()) ||
+				executions[0]?.sessionId ||
+				basename(dirname(file));
+			const messageCount = Array.isArray(record.messages) ? record.messages.length : 0;
+			const previous = transcriptBySessionId.get(sessionId);
+			if (
+				!previous ||
+				executions.length > previous.executions.length ||
+				(executions.length === previous.executions.length && messageCount > previous.messageCount)
+			) {
+				transcriptBySessionId.set(sessionId, { file, sessionId, messageCount, executions });
+			}
 		} catch (error) {
 			errors.push({ file, error: error instanceof Error ? error.message : String(error) });
 		}
 	}
+	const transcripts = [...transcriptBySessionId.values()];
+	for (const transcript of transcripts) {
+		await copyFile(transcript.file, join(sessionOutputDir, `${safeName(transcript.sessionId)}.messages.json`));
+	}
+	const sessionExecutions = transcripts.map((transcript) => transcript.executions);
 
 	const executions = sessionExecutions.flat().sort((left, right) => (left.toolUseAt ?? 0) - (right.toolUseAt ?? 0));
 	await Promise.all([

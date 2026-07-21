@@ -29,6 +29,8 @@ export type RealModelRuntimeSignalKind =
 	| "model_capacity_wait"
 	| "context_floor_refusal"
 	| "sandbox_conflict"
+	| "auto_start_failure"
+	| "board_liveness_recovery"
 	| "runtime_failure";
 
 export interface RealModelRuntimeSignal {
@@ -180,6 +182,10 @@ export function extractRealModelRuntimeSignals(log: string): RealModelRuntimeSig
 			kind = "context_floor_refusal";
 		} else if (/already in use by container/iu.test(line)) {
 			kind = "sandbox_conflict";
+		} else if (/could not auto-start|auto-start failed|no native !klein provider is configured/iu.test(line)) {
+			kind = "auto_start_failure";
+		} else if (/board-liveness watchdog|rescue handover/iu.test(line)) {
+			kind = "board_liveness_recovery";
 		} else if (/uncaught|unhandled|\bfatal\b/iu.test(line)) {
 			kind = "runtime_failure";
 		}
