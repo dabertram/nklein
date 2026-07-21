@@ -61,7 +61,7 @@ describe("runAdaptiveAttemptLoop", () => {
 	});
 
 	it("fires ladder rungs in the per-outcome order, skipping tried ones, until one succeeds", async () => {
-		// no_tool_call ladder: reduced_tool_set → constrained_schema → … ; the 3rd attempt (constrained) succeeds.
+		// no_tool_call ladder: raise_token_budget → reduced_tool_set (thinking unsupported by default) → … .
 		const { runAttempt } = scriptedAttempts(["no_tool_call", "no_tool_call", "success"]);
 		const out = await runAdaptiveAttemptLoop({
 			profile: profile(),
@@ -70,9 +70,9 @@ describe("runAdaptiveAttemptLoop", () => {
 		});
 		expect(out.outcome).toBe("success");
 		expect(out.attempts).toBe(3);
-		expect(out.strategiesTried).toEqual(["reduced_tool_set", "constrained_schema"]);
-		// One capsule for the failed `reduced_tool_set` rung; the successful one is not capsuled.
-		expect(out.capsules.map((c) => c.strategy)).toEqual(["reduced_tool_set"]);
+		expect(out.strategiesTried).toEqual(["raise_token_budget", "reduced_tool_set"]);
+		// One capsule for the failed budget rung; the successful one is not capsuled.
+		expect(out.capsules.map((c) => c.strategy)).toEqual(["raise_token_budget"]);
 		expect(out.parkedReason).toBeNull();
 	});
 
@@ -81,7 +81,18 @@ describe("runAdaptiveAttemptLoop", () => {
 		await runAdaptiveAttemptLoop({ profile: profile(), runAttempt, retryBudgetOptions: { minBudget: 6 } });
 		expect(calls[0].note).toBe(""); // baseline attempt has no prior context
 		expect(calls[1].note).toBe(""); // no capsules yet when planning rung #1
-		expect(calls[2].note).toContain("reduced_tool_set"); // capsule from rung #1 is now carried
+		expect(calls[2].note).toContain("raise_token_budget"); // capsule from rung #1 is now carried
+	});
+
+	it("runs thinking_disable after the budget rung only for a model that supports thinking control", async () => {
+		const { runAttempt } = scriptedAttempts(["no_tool_call", "no_tool_call", "success"]);
+		const out = await runAdaptiveAttemptLoop({
+			profile: profile(),
+			runAttempt,
+			supportsThinkingControl: true,
+			retryBudgetOptions: { minBudget: 6 },
+		});
+		expect(out.strategiesTried).toEqual(["raise_token_budget", "thinking_disable"]);
 	});
 
 	it("parks with the budget reason and returns the best partial when the budget is exhausted", async () => {

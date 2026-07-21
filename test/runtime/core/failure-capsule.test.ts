@@ -42,13 +42,19 @@ describe("failure-capsule", () => {
 	});
 
 	it("untriedStrategies returns the ladder rungs not yet tried, in ladder order (no circles)", () => {
-		const ladder = retryLadderForOutcome("no_tool_call"); // reduced_tool_set → constrained_schema → alternate_endpoint → prompt_variant → cross_model_carry
+		const ladder = retryLadderForOutcome("no_tool_call");
 		const capsules: FailureCapsule[] = [
 			buildFailureCapsule({ strategy: "reduced_tool_set", outcome: "no_tool_call" }),
 			buildFailureCapsule({ strategy: "constrained_schema", outcome: "no_tool_call" }),
 		];
 		const remaining = untriedStrategies(capsules, ladder);
-		expect(remaining).toEqual(["alternate_endpoint", "prompt_variant", "cross_model_carry"]);
+		expect(remaining).toEqual([
+			"raise_token_budget",
+			"thinking_disable",
+			"alternate_endpoint",
+			"prompt_variant",
+			"cross_model_carry",
+		]);
 		// All tried → empty.
 		expect(
 			untriedStrategies(

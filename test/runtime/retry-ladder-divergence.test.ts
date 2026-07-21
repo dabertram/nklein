@@ -2,23 +2,19 @@ import { describe, expect, it } from "vitest";
 import { auditChatLadderAdoption, compareLadders, OBSERVED_CHAT_LADDERS } from "../../src/core/retry-ladder-divergence";
 
 describe("compareLadders", () => {
-	it("flags a rung chat tries that the engine's ladder omits as a LOSS", () => {
-		// The real case: chat retries a bigger token budget on a no-tool-call turn, the engine only lists that rung
-		// under `aborted`. Adopting would drop the cheapest live-validated recovery for the commonest failure.
+	it("recognizes the chat budget rung now covered by the engine", () => {
 		const report = compareLadders({ outcome: "no_tool_call", chatSequence: ["raise_token_budget"] });
-		expect(report.safeToAdopt).toBe(false);
-		expect(report.divergences.some((d) => d.kind === "missing_in_engine" && d.rung === "raise_token_budget")).toBe(
-			true,
-		);
-		expect(report.summary).toContain("REGRESS");
+		expect(report.safeToAdopt).toBe(true);
+		expect(report.divergences.every((d) => d.kind === "engine_only")).toBe(true);
 	});
 
-	it("flags thinking_disable as INEXPRESSIBLE, not merely missing", () => {
-		// Distinct from `missing_in_engine`: there is nowhere to put this rung back, because the strategy union has
-		// no name for it. Collapsing the two would hide that adopting requires extending the engine's vocabulary.
-		const report = compareLadders({ outcome: "no_tool_call", chatSequence: ["thinking_disable"] });
-		expect(report.divergences[0]?.kind).toBe("inexpressible_in_engine");
-		expect(report.divergences[0]?.detail).toContain("no place to put it back");
+	it("recognizes thinking_disable as an engine strategy", () => {
+		const report = compareLadders({
+			outcome: "no_tool_call",
+			chatSequence: ["raise_token_budget", "thinking_disable"],
+		});
+		expect(report.safeToAdopt).toBe(true);
+		expect(report.divergences.every((d) => d.kind === "engine_only")).toBe(true);
 	});
 
 	it("flags a reorder, because the chat order is cost-ranked rather than arbitrary", () => {
@@ -34,7 +30,10 @@ describe("compareLadders", () => {
 	});
 
 	it("treats an engine-only rung as a GAIN that does not block adoption", () => {
-		const report = compareLadders({ outcome: "no_tool_call", chatSequence: ["reduced_tool_set"] });
+		const report = compareLadders({
+			outcome: "no_tool_call",
+			chatSequence: ["raise_token_budget", "thinking_disable", "reduced_tool_set"],
+		});
 		expect(report.divergences.every((d) => d.kind === "engine_only")).toBe(true);
 		expect(report.safeToAdopt).toBe(true);
 		expect(report.summary).toContain("loses nothing");
@@ -47,20 +46,17 @@ describe("compareLadders", () => {
 });
 
 describe("auditChatLadderAdoption", () => {
-	it("reports the CURRENT state: F3.8 is NOT a safe wire yet", () => {
-		// This is the finding, pinned. If someone later extends the engine so this passes, that is the signal F3.8
-		// became a wire — and this test will say so by failing, which is the point.
+	it("reports the current state: the engine now preserves every observed chat rung", () => {
 		const audit = auditChatLadderAdoption();
-		expect(audit.safeToAdopt).toBe(false);
-		expect(audit.summary).toContain("F3.8 is not a wire yet");
+		expect(audit.safeToAdopt).toBe(true);
+		expect(audit.summary).toContain("can proceed as a wire");
 	});
 
-	it("names the token-budget rung as the specific blocker on the no_tool_call path", () => {
+	it("reports no blocking divergence on the no_tool_call path", () => {
 		const audit = auditChatLadderAdoption();
 		const noToolCall = audit.reports.find((r) => r.outcome === "no_tool_call");
-		expect(
-			noToolCall?.divergences.some((d) => d.rung === "raise_token_budget" && d.kind === "missing_in_engine"),
-		).toBe(true);
+		expect(noToolCall?.safeToAdopt).toBe(true);
+		expect(noToolCall?.divergences.every((d) => d.kind === "engine_only")).toBe(true);
 	});
 
 	it("passes once the engine covers everything the ladders do", () => {

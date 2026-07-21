@@ -20,14 +20,14 @@ describe("decideNextRetryStrategy", () => {
 		expect(d.strategy).toBe("park");
 	});
 
-	it("picks the first relevant rung for the failure mode (no_tool_call → reduced_tool_set first)", () => {
+	it("picks the first relevant rung for the failure mode (no_tool_call → raise_token_budget first)", () => {
 		const d = decideNextRetryStrategy({
 			lastOutcome: "no_tool_call",
 			attemptsSoFar: 1,
 			retryBudget: 5,
 			triedStrategies: [],
 		});
-		expect(d.strategy).toBe("reduced_tool_set");
+		expect(d.strategy).toBe("raise_token_budget");
 		expect(d.reason).toContain("no_tool_call");
 	});
 
@@ -36,9 +36,20 @@ describe("decideNextRetryStrategy", () => {
 			lastOutcome: "no_tool_call",
 			attemptsSoFar: 2,
 			retryBudget: 5,
-			triedStrategies: ["reduced_tool_set", "constrained_schema"],
+			triedStrategies: ["raise_token_budget", "reduced_tool_set", "constrained_schema"],
 		});
 		expect(d.strategy).toBe("alternate_endpoint");
+	});
+
+	it("offers thinking_disable only when the caller proves the model supports its soft switch", () => {
+		const base = {
+			lastOutcome: "no_tool_call" as const,
+			attemptsSoFar: 1,
+			retryBudget: 5,
+			triedStrategies: ["raise_token_budget" as const],
+		};
+		expect(decideNextRetryStrategy(base).strategy).toBe("reduced_tool_set");
+		expect(decideNextRetryStrategy({ ...base, supportsThinkingControl: true }).strategy).toBe("thinking_disable");
 	});
 
 	it("parks when the learned retry budget is exhausted", () => {
@@ -121,7 +132,11 @@ describe("retryLadderForOutcome", () => {
 describe("retryLadderForOutcome", () => {
 	it("returns the priority-ordered ladder; success has none", () => {
 		expect(retryLadderForOutcome("success")).toEqual([]);
-		expect(retryLadderForOutcome("no_tool_call")[0]).toBe("reduced_tool_set");
+		expect(retryLadderForOutcome("no_tool_call").slice(0, 3)).toEqual([
+			"raise_token_budget",
+			"thinking_disable",
+			"reduced_tool_set",
+		]);
 		expect(retryLadderForOutcome("timeout")).toContain("decompose");
 	});
 });
@@ -133,8 +148,8 @@ describe("planNextAttempt (unified §5.AA brain)", () => {
 			buildFailureCapsule({ strategy: "reduced_tool_set", outcome: "no_tool_call", evidence: "still no call" }),
 		];
 		const plan = planNextAttempt({ lastOutcome: "no_tool_call", attemptsSoFar: 0, profile, capsules });
-		// reduced_tool_set already tried → next no_tool_call rung is constrained_schema.
-		expect(plan.strategy).toBe("constrained_schema");
+		// reduced_tool_set already tried, but the newly-live budget rung has not been tried yet.
+		expect(plan.strategy).toBe("raise_token_budget");
 		expect(plan.parked).toBe(false);
 		expect(plan.retryBudget).toBe(1);
 		expect(plan.doNotRepeatNote).toContain("reduced_tool_set");

@@ -91,6 +91,8 @@ export interface AdaptiveAttemptLoopInput<TResult> {
 	runAttempt: (strategy: RetryStrategy | null, doNotRepeatNote: string) => Promise<AdaptiveAttemptResult<TResult>>;
 	/** Tuning for the learned retry budget (passed through to `planNextAttempt`). */
 	retryBudgetOptions?: RetryBudgetOptions;
+	/** Whether the selected model has a verified soft switch for the `thinking_disable` rung. */
+	supportsThinkingControl?: boolean;
 	/** A hard safety cap on total attempts regardless of the learned budget (defaults to 8). */
 	maxAttempts?: number;
 }
@@ -132,6 +134,7 @@ export async function runAdaptiveAttemptLoop<TResult>(
 			attemptsSoFar,
 			profile: input.profile,
 			capsules,
+			supportsThinkingControl: input.supportsThinkingControl,
 			...(input.retryBudgetOptions ? { retryBudgetOptions: input.retryBudgetOptions } : {}),
 		});
 		if (plan.parked || attemptsSoFar >= maxAttempts) {

@@ -32,10 +32,10 @@ import type { ModelOutcomeKind } from "./model-behavior-profile";
 import { type RetryStrategy, retryLadderForOutcome } from "./retry-policy";
 
 /**
- * Rungs the chat path actually performs. This is a SUPERSET of `RetryStrategy` because chat does one thing the
- * engine has no vocabulary for — see `thinking_disable`.
+ * Rungs the chat path actually performs. F3.8's prerequisite work made every observed chat rung a `RetryStrategy`;
+ * keeping this alias gives the comparison a chat-specific name without maintaining a second strategy union.
  */
-export type ChatRung = RetryStrategy | "thinking_disable";
+export type ChatRung = RetryStrategy;
 
 export interface LadderComparison {
 	readonly outcome: ModelOutcomeKind;
@@ -67,11 +67,6 @@ export interface DivergenceReport {
 	readonly summary: string;
 }
 
-/** Rungs the engine has no representation for anywhere in its strategy union. */
-function isInexpressible(rung: ChatRung): boolean {
-	return !(retryLadderForOutcome("aborted") as readonly string[]).includes(rung) && rung === "thinking_disable";
-}
-
 /**
  * Compare one outcome's ladders.
  *
@@ -85,14 +80,6 @@ export function compareLadders(comparison: LadderComparison): DivergenceReport {
 	const divergences: Divergence[] = [];
 
 	comparison.chatSequence.forEach((rung, chatIndex) => {
-		if (isInexpressible(rung)) {
-			divergences.push({
-				kind: "inexpressible_in_engine",
-				rung,
-				detail: `chat performs "${rung}" but the engine's RetryStrategy union cannot express it — adoption would delete this rung with no place to put it back`,
-			});
-			return;
-		}
 		if (!engineSet.has(rung)) {
 			divergences.push({
 				kind: "missing_in_engine",

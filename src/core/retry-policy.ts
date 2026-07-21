@@ -22,6 +22,7 @@ import {
 export type RetryStrategy =
 	| "same_model_retry"
 	| "raise_token_budget"
+	| "thinking_disable"
 	| "reduced_tool_set"
 	| "constrained_schema"
 	| "alternate_endpoint"
@@ -39,8 +40,11 @@ export type RetryStrategy =
  */
 const RELEVANT_STRATEGIES_BY_OUTCOME: Record<ModelOutcomeKind, readonly RetryStrategy[]> = {
 	success: [],
-	// The model didn't emit a tool call: shrink the menu, force the shape, try a more-structured endpoint, reword.
+	// The model didn't emit a tool call: first remove output starvation (and disable optional thinking when supported),
+	// then shrink the menu, force the shape, try a more-structured endpoint, and reword.
 	no_tool_call: [
+		"raise_token_budget",
+		"thinking_disable",
 		"reduced_tool_set",
 		"constrained_schema",
 		"alternate_endpoint",
@@ -74,6 +78,8 @@ export interface RetryDecisionInput {
 	retryBudget: number;
 	/** Strategies already tried this task (so we never repeat a rung — no circles). */
 	triedStrategies: readonly RetryStrategy[];
+	/** Whether this model has a verified soft switch for the `thinking_disable` rung. Unknown defaults to unsupported. */
+	supportsThinkingControl?: boolean;
 }
 
 export interface RetryDecision {
@@ -99,6 +105,9 @@ export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecisio
 	}
 	const tried = new Set<RetryStrategy>(input.triedStrategies);
 	for (const strategy of RELEVANT_STRATEGIES_BY_OUTCOME[input.lastOutcome]) {
+		if (strategy === "thinking_disable" && input.supportsThinkingControl !== true) {
+			continue;
+		}
 		if (!tried.has(strategy)) {
 			return {
 				strategy,
@@ -144,6 +153,7 @@ export function planNextAttempt(input: {
 	attemptsSoFar: number;
 	profile: ModelBehaviorProfile;
 	capsules: readonly FailureCapsule[];
+	supportsThinkingControl?: boolean;
 	retryBudgetOptions?: RetryBudgetOptions;
 }): NextAttemptPlan {
 	const retryBudget = learnedRetryBudget(input.profile, input.retryBudgetOptions);
@@ -152,6 +162,7 @@ export function planNextAttempt(input: {
 		attemptsSoFar: input.attemptsSoFar,
 		retryBudget,
 		triedStrategies: input.capsules.map((capsule) => capsule.strategy),
+		supportsThinkingControl: input.supportsThinkingControl,
 	});
 	return {
 		strategy: decision.strategy,
