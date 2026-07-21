@@ -32,10 +32,17 @@ export interface IncrementalDagSessionState {
 	tasksById: Map<string, NKleinPlanTask>;
 	/** Total rejected operations this session (a weak-model quality signal for telemetry). */
 	rejectedOpCount: number;
+	/** A rejected assembled submission may be replaced by an explicit corrected tasks array on the next call. */
+	allowTaskArrayRevision: boolean;
 }
 
 export function createIncrementalDagSessionState(): IncrementalDagSessionState {
-	return { construction: emptyDagConstruction(), tasksById: new Map(), rejectedOpCount: 0 };
+	return {
+		construction: emptyDagConstruction(),
+		tasksById: new Map(),
+		rejectedOpCount: 0,
+		allowTaskArrayRevision: false,
+	};
 }
 
 /** Reset after a successful decompose_project apply (the construction was consumed or superseded). */
@@ -43,6 +50,7 @@ export function resetIncrementalDagSessionState(state: IncrementalDagSessionStat
 	state.construction = emptyDagConstruction();
 	state.tasksById.clear();
 	state.rejectedOpCount = 0;
+	state.allowTaskArrayRevision = false;
 }
 
 /**
@@ -77,14 +85,19 @@ export function assembleIncrementalTasks(state: IncrementalDagSessionState): NKl
 /**
  * If the session accumulated an incremental construction, inject its assembled tasks into decompose_project. Once the
  * model starts incremental mode, that validated state is authoritative even if a weak model redundantly embeds a full
- * tasks array in the final call (live run 20260721-140808). One-shot mode remains unchanged when no incremental node
- * exists.
+ * tasks array in the final call (live run 20260721-140808). Once validation rejects the assembled graph, however, an
+ * explicit tasks array is a repair payload and must be honored: otherwise the stale incremental payload replaces the
+ * correction and returns the same error forever (live run 20260721-145742). One-shot mode remains unchanged when no
+ * incremental node exists.
  */
 export function injectIncrementalTasksIntoDecomposeInput(input: unknown, state: IncrementalDagSessionState): unknown {
 	if (typeof input !== "object" || input === null) {
 		return input;
 	}
 	const record = input as Record<string, unknown>;
+	if (state.allowTaskArrayRevision && record.tasks !== undefined) {
+		return input;
+	}
 	const assembled = assembleIncrementalTasks(state);
 	if (!assembled) {
 		return input;
@@ -180,12 +193,16 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 							.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
 							.join("; ")}. Fix each with add_dependency once the missing task exists.`
 					: "";
+			const acceptedEdgeNote =
+				acceptedDependencyCount > 0
+					? ` ${acceptedDependencyCount} inline dependency edge(s) were accepted; do NOT repeat them with add_dependency.`
+					: "";
 			return {
 				ok: true,
 				taskId: task.id,
 				acceptedDependencyCount,
 				rejectedDependencies,
-				instruction: `Task "${task.id}" added.${rejectionNote} ${progressLine(state)}`,
+				instruction: `Task "${task.id}" added.${acceptedEdgeNote}${rejectionNote} ${progressLine(state)}`,
 			};
 		},
 	};
@@ -214,6 +231,15 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			}
 			const outcome = applyDagOp(state.construction, { op: "add_edge", from: dependsOn, to: taskId });
 			if (!outcome.result.ok) {
+				if (outcome.result.reason === "duplicate_edge") {
+					return {
+						ok: true,
+						taskId,
+						dependsOn,
+						alreadyPresent: true,
+						instruction: `Dependency already recorded: "${taskId}" depends on "${dependsOn}". No change was needed. ${progressLine(state)}`,
+					};
+				}
 				state.rejectedOpCount += 1;
 				throw new Error(
 					`add_dependency rejected (${outcome.result.reason}): ${describeDependencyRejection(outcome.result)}`,

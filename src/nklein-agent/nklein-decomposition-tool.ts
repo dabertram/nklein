@@ -336,6 +336,12 @@ function createDecomposeProjectTool(
 				validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });
 				rejectedGraphCandidatesBySlug.delete(slug);
 			} catch (qualityError) {
+				// The assembled graph remains authoritative for the first final call, protecting completed incremental
+				// work from redundant weak-model payloads. After that graph is rejected, an explicit tasks array is a
+				// correction and must be allowed to replace it; otherwise the stale graph masks the repair forever.
+				if (incrementalState && incrementalState.construction.nodes.length > 0) {
+					incrementalState.allowTaskArrayRevision = true;
+				}
 				// W2.7a: stash the parseable-but-violating graph; bounce within budget, else apply the BEST seen.
 				const candidates = rejectedGraphCandidatesBySlug.get(slug) ?? [];
 				candidates.push(taskGraph);

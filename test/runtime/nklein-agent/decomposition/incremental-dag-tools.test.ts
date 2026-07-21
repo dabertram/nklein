@@ -74,6 +74,7 @@ describe("add_task", () => {
 			expect.objectContaining({ dependsOn: "ghost", reason: "unknown_from" }),
 		]);
 		expect(result.instruction).toContain('"ghost"');
+		expect(result.instruction).toContain("do NOT repeat them with add_dependency");
 		expect(state.construction.edges).toEqual([{ from: "a", to: "b" }]);
 		expect(state.rejectedOpCount).toBe(1);
 	});
@@ -96,7 +97,7 @@ describe("add_dependency", () => {
 		);
 	});
 
-	it("rejects duplicates, self-loops, and cycle-closing edges with the precise core reason", async () => {
+	it("treats duplicate edges as an idempotent no-op and rejects self-loops and cycles", async () => {
 		const { addTask, addDependency } = getTools();
 		await addTask.execute({ id: "a", title: "A", prompt: "Do a." }, ctx);
 		await addTask.execute({ id: "b", title: "B", prompt: "Do b." }, ctx);
@@ -104,7 +105,10 @@ describe("add_dependency", () => {
 		await addDependency.execute({ taskId: "b", dependsOn: "a" }, ctx);
 		await addDependency.execute({ taskId: "c", dependsOn: "b" }, ctx);
 
-		await expect(addDependency.execute({ taskId: "b", dependsOn: "a" }, ctx)).rejects.toThrow(/duplicate_edge/);
+		await expect(addDependency.execute({ taskId: "b", dependsOn: "a" }, ctx)).resolves.toMatchObject({
+			ok: true,
+			alreadyPresent: true,
+		});
 		await expect(addDependency.execute({ taskId: "a", dependsOn: "a" }, ctx)).rejects.toThrow(/self_loop/);
 		// a → b → c already; c before a would close the loop.
 		await expect(addDependency.execute({ taskId: "a", dependsOn: "c" }, ctx)).rejects.toThrow(
@@ -141,13 +145,69 @@ describe("assembly + injection", () => {
 			),
 		).toEqual(["a", "b", "c"]);
 
+		// A rejected assembled submission unlocks a deliberate full-array repair; the stale graph must not mask it.
+		state.allowTaskArrayRevision = true;
+		expect(
+			(injectIncrementalTasksIntoDecomposeInput(oneShot, state) as { tasks: Array<{ id: string }> }).tasks.map(
+				(task) => task.id,
+			),
+		).toEqual(["z"]);
+
 		resetIncrementalDagSessionState(state);
+		expect(state.allowTaskArrayRevision).toBe(false);
 		expect(assembleIncrementalTasks(state)).toBeNull();
 		expect(injectIncrementalTasksIntoDecomposeInput({ slug: "s" }, state)).toEqual({ slug: "s" });
 	});
 });
 
 describe("decompose_project completion route (shared session state)", () => {
+	it("honors an explicit corrected tasks array after the assembled graph fails validation", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-validation-repair-"));
+		const tools = createNKleinDecompositionTools({ workspacePath });
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+		const addTask = byName.get("add_task");
+		const decompose = byName.get("decompose_project");
+		if (!addTask || !decompose) throw new Error("expected incremental decomposition tools");
+
+		await addTask.execute(
+			{
+				id: "score-cap",
+				title: "Implement score cap",
+				prompt: "Clamp the returned score and add its test.",
+				filesLikelyTouched: ["src/habit-score.ts"],
+				testFirst: true,
+				acceptanceTestPrompt: "Add the perfect-week cap test.",
+			},
+			ctx,
+		);
+		const base = {
+			slug: "validation-repair",
+			title: "Validation repair",
+			spec: "Clamp the score and test it.",
+			plan: "Test then clamp.",
+			defaultAcceptanceCommand: "npm test",
+		};
+		await expect(decompose.execute(base, ctx)).rejects.toThrow(/writeScope only permits exact non-test files/);
+
+		const repaired = (await decompose.execute(
+			{
+				...base,
+				tasks: [
+					{
+						id: "score-cap",
+						title: "Implement score cap",
+						prompt: "Clamp the returned score and add its test.",
+						filesLikelyTouched: ["src/habit-score.ts", "test/habit-score.test.js"],
+						testFirst: true,
+						acceptanceTestPrompt: "Add the perfect-week cap test.",
+					},
+				],
+			},
+			ctx,
+		)) as { ok: boolean; taskCount: number };
+		expect(repaired).toMatchObject({ ok: true, taskCount: 1 });
+	});
+
 	it("recovers the originating card's acceptance command when the model omits it", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-source-acceptance-"));
 		const tools = createNKleinDecompositionTools({

@@ -14,6 +14,7 @@ describe("!Klein decomposition workflow defaults", () => {
 			"Build the candidate graph with the incremental protocol by default",
 		);
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("call `add_task` once per card");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("MUST NOT be repeated with `add_dependency`");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("call `decompose_project` WITHOUT `tasks`");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("sent to independent critique before any board graph");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("apply the generated graph through the command it returns");

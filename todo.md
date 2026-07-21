@@ -121,6 +121,12 @@ gap remains.
 > acceptance coverage. Revision prompts must preserve the originating task as authoritative and require independent
 > verification of critic claims before cards are dropped or work is declared complete.
 
+> **⚠️ AUTHORITATIVE INCREMENTAL STATE NEEDS AN EXPLICIT REPAIR TRANSITION (live-found run `20260721-145742`).** Keeping
+> accepted incremental cards authoritative protects weak models from losing a good graph in the final nested payload,
+> but after validation rejects that graph the next explicit `tasks` array is a correction. Overwriting the correction
+> with stale incremental state returns the same error forever. A rejection unlocks full-array replacement; successful
+> inline dependency edges are not repeated, and duplicate edge calls are safe idempotent no-ops.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

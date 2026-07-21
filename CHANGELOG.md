@@ -14,6 +14,9 @@
   Plan critics must now substantiate "already implemented" claims against exact symbols, end-to-end behavior, and
   requested acceptance coverage; their feedback is explicitly advisory so an architect cannot discard authoritative
   requirements merely because a critic cites passing existing tests.
+  When an incrementally assembled graph fails validation, a corrected explicit task array now replaces the rejected
+  graph instead of being silently overwritten by stale session state. Repeated dependency edges are idempotent no-ops,
+  and the workflow no longer tells architects to repeat edges already accepted inline by `add_task`.
   Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code
