@@ -28,6 +28,8 @@
   so an unrelated concurrent advisory cannot overwrite the signal and silently suppress automatic handoff. Terminal
   dedupe now resets when the card returns to running, allowing a second architect that reaches the same terminal state
   to be recorded and handed to the next bounded candidate instead of being silently stranded.
+  Cross-model restarts with retained conversation history now launch the carry prompt atomically with SDK startup;
+  replacement sessions can no longer exist in a false-running state without ever sending a request to the new model.
   The textual turn-loop guard no longer mistakes repeated generated assertions such as `expect(...)` for a question
   that needs a human answer; code-only repeats without a trusted capability denial remain in autonomous recovery.
   Dead planning cards also honor their promised single restart;

@@ -452,6 +452,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		const sessionHost = await this.ensureSessionHost();
 		const userImages = toSdkUserImages(request.images);
 		const shouldSendInitialTurn = request.prompt.trim().length > 0 || Boolean(userImages?.length);
+		// The local SDK treats a session seeded with history but no start prompt as a read-only resume: it persists the
+		// messages and transitions the session to completed before a later `send` can run. In a live cross-model carry
+		// that left the replacement manifest at running after `agent_start`, emitted no LM Studio request, and never
+		// appended the carry prompt (run 20260721-165902). Start the first turn atomically whenever retained history is
+		// present; fresh sessions keep the established start-then-send path.
+		const runInitialTurnInStart = Boolean(request.initialMessages?.length) && shouldSendInitialTurn;
 		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
 		const compaction = buildNKleinContextCompactionConfig(request.contextWindow);
 		const teamDelegation = resolveNKleinTeamDelegationPolicy({
@@ -545,6 +551,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			startResult = await sessionHost.start({
 				config,
 				initialMessages: request.initialMessages,
+				...(runInitialTurnInStart
+					? {
+							prompt: request.prompt,
+							userImages,
+						}
+					: {}),
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: NKLEIN_MODEL_CATALOG_DEFAULTS,
@@ -726,7 +738,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		}
 
 		let result: unknown = startResult.result ?? null;
-		if (shouldSendInitialTurn) {
+		if (shouldSendInitialTurn && !runInitialTurnInStart) {
 			try {
 				result = await sessionHost.send({
 					sessionId: startResult.sessionId,

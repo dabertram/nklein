@@ -1876,6 +1876,50 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(result).toMatchObject({ ok: true, taskCount: 1 });
 	});
 
+	it("runs a retained-history restart atomically in SDK start", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: { text: "continued" },
+			})),
+			send: vi.fn(async () => undefined),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+		const retainedMessages: NKleinSdkPersistedMessage[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "Previous attempt" },
+		];
+
+		await runtime.startTaskSession({
+			taskId: "planning-card",
+			cwd: "/tmp/worktree",
+			prompt: "Continue on the replacement model",
+			initialMessages: retainedMessages,
+			providerId: "lmstudio",
+			modelId: "replacement-architect",
+			systemPrompt: "Plan the work.",
+		});
+
+		expect(fakeHost.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: retainedMessages,
+				prompt: "Continue on the replacement model",
+			}),
+		);
+		expect(fakeHost.send).not.toHaveBeenCalled();
+	});
+
 	it("passes tool policies to SDK session start", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({

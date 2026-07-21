@@ -163,6 +163,14 @@ gap remains.
 > emitting `running`; otherwise diagnostics and later policy decisions falsely attribute the replacement turn to the
 > original model.
 
+> **⚠️ A RETAINED-HISTORY RESTART MUST START ITS CARRY TURN ATOMICALLY (live-found run `20260721-165902`).** The local
+> Cline SDK treats non-empty `initialMessages` with no start prompt as a read-only resume: it persists the transcript
+> and completes that startup path before a later `send` can run. Cross-model architect failover created the Gemma
+> replacement and emitted `agent_start`, but LM Studio received no request, the carry prompt never entered history,
+> and the card stayed falsely `running`. When restarting with retained history and a non-empty prompt, pass the prompt
+> into SDK `start` and consume that result; do not start an empty read-only resume and hope to send afterward. Verify
+> replacement health from a new model request or transcript turn, never from session creation alone.
+
 > **⚠️ REPEATED CODE IS NOT A REPEATED HUMAN QUESTION (live-found run `20260721-163800`).** Qwen repeated a generated
 > test snippet while making no writes. The turn-loop extractor matched the `expect(` assertion as the English conflict
 > marker “expect”, labeled the assertion a contested question, and parked for human input. Strip fenced code and
