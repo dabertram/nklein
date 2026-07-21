@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createProceduralSkill, type ProceduralSkill } from "../../../src/core/procedural-skill-record";
-import { buildSessionSkillFragments } from "../../../src/nklein-agent/nklein-session-skill-fragments";
+import {
+	buildSessionSkillContext,
+	buildSessionSkillFragments,
+} from "../../../src/nklein-agent/nklein-session-skill-fragments";
 
 const FLAG = "NKLEIN_SKILL_PROMPT_FRAGMENTS";
 const PROC_FLAG = "NKLEIN_PROCEDURAL_SKILLS";
@@ -136,6 +139,26 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 			dynamicsLevel: "assigned_skills",
 		});
 		expect(assigned.find((fragment) => fragment.key === "repo-map")).toBeUndefined();
+	});
+
+	it("F4.15 resolves fragments and a difficulty-modulated API profile from the same active skills", async () => {
+		const easy = await buildSessionSkillContext({
+			role: "worker",
+			taskText: "fix typo in comment",
+			workspacePath: null,
+			difficulty: 0.1,
+		});
+		expect(easy.activeSkillIds).toContain("code_editing");
+		expect(easy.apiProfile.reasoning).toBe("off");
+
+		const review = await buildSessionSkillContext({
+			role: "reviewer",
+			taskText: "review the change",
+			workspacePath: null,
+			difficulty: 0.1,
+		});
+		expect(review.activeSkillIds).toContain("review");
+		expect(review.apiProfile.reasoning).toBe("high");
 	});
 });
 describe("F4.17 overflow capping", () => {

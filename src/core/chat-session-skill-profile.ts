@@ -2,7 +2,8 @@
  * §5.AE chat-session skill profile (pure) — resolve a chat session's USER-SELECTED skill ids into a merged
  * {@link SkillApiProfile}. David's decision (2026-07-04): a chat session's skills are user-selected per session (the
  * user picks which skills are enabled/allowed), so THIS resolves that selection into the profile the model-call seam
- * folds in via {@link ./skill-api-profile-apply}. Unknown ids are dropped (validated against {@link SKILL_REGISTRY}),
+ * applies at the chat and shared AgentModel request seams. Unknown ids are dropped (validated against
+ * {@link SKILL_REGISTRY}),
  * duplicates collapse, and the merge is the registry's own {@link resolveApiProfileForSkills} (reasoning = strongest,
  * structuredOutput / forceToolCall = OR-any, temperature = min). An empty / all-unknown selection yields `{}` — inert,
  * so the fold leaves the model call byte-identical.

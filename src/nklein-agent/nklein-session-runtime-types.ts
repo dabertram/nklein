@@ -13,6 +13,7 @@ import type {
 } from "../core/api-contract";
 import type { ModelBehaviorProfile, ModelOutcomeKind } from "../core/model-behavior-profile";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import type { SkillApiProfile } from "../core/skill-registry";
 import type { StrategyAttemptObservation, StrategyEffectivenessLedger } from "../core/strategy-effectiveness-ledger";
 import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -103,6 +104,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	modelId: string;
 	/** F3.3: resolved swarm role selects the bounded no-tool-call prompt variant. */
 	role?: RuntimeModelPerformanceRole;
+	/** F4.15: difficulty-modulated active-skill policy applied at every chat-completion request in this session. */
+	skillApiProfile?: SkillApiProfile;
 	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
 	onPromptStrategyApplied?: (strategy: string) => void;
 	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */

@@ -1,3 +1,4 @@
+import { answerBudgetPrior } from "../core/answer-budget-prior";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { extractCompletionUsage } from "../core/completion-usage";
 import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
@@ -8,7 +9,7 @@ import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { createRetryStrategyCursor, type RetryStrategy, raisedTokenBudget } from "../core/retry-policy";
 import { resolveApiProfileRequest } from "../core/skill-api-profile-request";
-import type { SkillApiProfile } from "../core/skill-registry";
+import { modulateApiProfileForDifficulty, type SkillApiProfile } from "../core/skill-registry";
 import { buildTruncationObservation } from "../core/truncation-diagnostics-summary";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
@@ -388,11 +389,35 @@ export function createChatModelDeps(
 	options: {
 		sampling?: LocalLlmSamplingOptions;
 		modelId?: string;
+		/** F4.15: selected-skill sampler/thinking policy for the user-visible final answer. */
+		apiProfile?: SkillApiProfile;
 		/** F4.12 test seam: override the truncation-observation store root (defaults to the runtime home). */
 		truncationStoreRootDir?: string;
 	} = {},
 ): ChatModelDeps {
-	const { sampling, reasoningBudget, answerBudget } = resolveChatTurnSampling(options);
+	const apiRequest = resolveApiProfileRequest(options.apiProfile, options.modelId ?? "");
+	const profileSampling =
+		apiRequest.temperature !== null
+			? { ...(options.sampling ?? DEFAULT_SAMPLING), temperature: apiRequest.temperature }
+			: options.sampling;
+	let { sampling, reasoningBudget, answerBudget } = resolveChatTurnSampling({
+		...options,
+		...(profileSampling ? { sampling: profileSampling } : {}),
+	});
+	if (
+		options.apiProfile?.reasoning === "high" &&
+		options.sampling?.maxTokens === undefined &&
+		options.modelId &&
+		isReasoningModel(options.modelId)
+	) {
+		const budget = planReasoningOutputBudget({
+			answerBudgetTokens: sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024,
+			isReasoning: true,
+		});
+		sampling = { ...sampling, maxTokens: budget.totalMaxTokens };
+		reasoningBudget = budget.reasoningReserveTokens;
+		answerBudget = budget.answerBudgetTokens;
+	}
 	// F4.12 — record WHY a chat completion truncated (opt-in NKLEIN_TRUNCATION_DIAGNOSTICS, default OFF = no I/O).
 	// Best-effort: any failure is swallowed so a recording never affects the chat turn. Fills `dev truncation-diagnostics`.
 	const recordTruncation = (surface: string, completion: LocalLlmCompletion): void =>
@@ -409,12 +434,15 @@ export function createChatModelDeps(
 	return {
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {
-			const messages = prompt.map((message) => ({
+			let messages = prompt.map((message) => ({
 				role: message.role,
 				content: message.content,
 				// F2.7b: forward multimodal parts (present only on a vision user turn) to the wire as array content.
 				...(message.parts ? { parts: message.parts } : {}),
 			}));
+			if (apiRequest.thinkingDirective) {
+				messages = replaceLastUserText(messages, `${lastUserText(prompt)}\n\n${apiRequest.thinkingDirective}`);
+			}
 			if (onToken && client.completeStream) {
 				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged)
 				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
@@ -508,17 +536,23 @@ export function createChatAgentModel(
 	usedToolNames?: readonly string[],
 	forceToolCall?: boolean,
 ) => Promise<ChatAgentModelResponse> {
-	// §5.AE: fold the session's merged skill apiProfile (from the user-selected skills) into the model call, gated by
-	// what the chosen model supports. temperature overrides sampling; the reasoning intent becomes a soft-switch
-	// directive appended to the last user message (only when the model has a known switch). An empty profile ⇒ no
-	// directive + no temperature override ⇒ byte-identical current behavior. structuredOutput/forceToolCall levers are
-	// intentionally NOT folded here yet (the constrained rung is escalation-driven; wiring them proactively is a
-	// separate increment).
-	const apiRequest = resolveApiProfileRequest(options.apiProfile, options.modelId ?? "");
-	const baseSampling = options.sampling ?? DEFAULT_SAMPLING;
-	const sampling =
-		apiRequest.temperature !== null ? { ...baseSampling, temperature: apiRequest.temperature } : baseSampling;
 	return async (messages, allowTools, _onToken, usedToolNames, forceToolCall) => {
+		// F4.15: modulate only a genuinely selected profile; `{}` remains a strict pass-through for sessions with no
+		// selected skill. The compact difficulty prior is turn-local, so a long/hard follow-up can raise an otherwise
+		// unopinionated profile without freezing the decision at session creation.
+		const instruction = lastUserText(messages);
+		const hasProfile = Boolean(options.apiProfile && Object.keys(options.apiProfile).length > 0);
+		const hardSignal = /architect|refactor|migrat|concurren|deadlock|security|performance|decompos/iu.test(
+			instruction,
+		);
+		const difficulty = Math.min(1, 0.2 + instruction.length / 4_000 + (hardSignal ? 0.45 : 0));
+		const profile = hasProfile
+			? modulateApiProfileForDifficulty(options.apiProfile ?? {}, difficulty)
+			: options.apiProfile;
+		const apiRequest = resolveApiProfileRequest(profile, options.modelId ?? "");
+		const baseSampling = options.sampling ?? DEFAULT_SAMPLING;
+		let sampling =
+			apiRequest.temperature !== null ? { ...baseSampling, temperature: apiRequest.temperature } : baseSampling;
 		let wire = messages.map((message) => ({
 			role: message.role,
 			content: message.content,
@@ -530,10 +564,79 @@ export function createChatAgentModel(
 			wire = replaceLastUserText(wire, `${lastUserText(messages)}\n\n${apiRequest.thinkingDirective}`);
 		}
 		const offered = allowTools ? toolDefinitions : [];
+		if (hasProfile && options.sampling?.maxTokens === undefined) {
+			const outputMode =
+				apiRequest.forceToolCall || apiRequest.structuredOutputStrategy === "native_tool_call"
+					? "forced_tool_call"
+					: apiRequest.preferStructuredOutput
+						? "structured"
+						: "free_generation";
+			const taskClass = offered.length > 1 ? "multi_tool" : offered.length === 1 ? "single_tool" : "trivial_reply";
+			sampling = {
+				...sampling,
+				maxTokens: answerBudgetPrior({
+					reasoning: Boolean(options.modelId && isReasoningModel(options.modelId)),
+					taskClass,
+					outputMode,
+					contextWindow: 32_000,
+					inputTokens: Math.ceil(wire.reduce((sum, message) => sum + message.content.length, 0) / 4),
+					minBudget: outputMode === "forced_tool_call" ? 256 : baseSampling.maxTokens,
+				}).maxTokens,
+			};
+		}
 		// §5.AF: which §5.AA recovery rung produced the returned response (stamped on it for the ledger writer).
 		let appliedPromptStrategy: string | null = null;
+		// F4.15: structured/forced profiles engage on the FIRST request, not after paying for a known-bad auto turn.
+		// A malformed/empty direct result safely falls through to the established auto + recovery ladder.
+		if (allowTools && offered.length > 0 && (apiRequest.forceToolCall || apiRequest.preferStructuredOutput)) {
+			try {
+				if (apiRequest.forceToolCall || apiRequest.structuredOutputStrategy === "native_tool_call") {
+					const proactive = await client.completeWithTools({ messages: wire, sampling }, offered, {
+						toolChoice: "required",
+					});
+					const call = proactive.toolCalls[0];
+					if (call) {
+						return {
+							text: "",
+							toolCalls: [{ id: call.id, name: call.name, arguments: call.arguments }],
+							promptStrategy: "skill_profile_native_required",
+						};
+					}
+				} else if (apiRequest.structuredOutputStrategy === "json_schema_grammar" && client.complete) {
+					const schema = buildConstrainedToolCallSchema(offered);
+					const constrained = schema
+						? await client.complete({
+								messages: [
+									...wire,
+									{
+										role: "system",
+										content: "Return the next required tool call as the constrained JSON object.",
+									},
+								],
+								sampling,
+								format: { jsonSchema: schema },
+							})
+						: null;
+					const call = constrained ? parseConstrainedToolCall(constrained.content, offered) : null;
+					if (call) {
+						return {
+							text: "",
+							toolCalls: [
+								{
+									id: `skill-profile-${Date.now().toString(36)}`,
+									name: call.name,
+									arguments: call.arguments,
+								},
+							],
+							promptStrategy: "skill_profile_json_schema",
+						};
+					}
+				}
+			} catch {
+				// Preserve the normal auto+recovery path when the proactive local lever is unsupported or temporarily fails.
+			}
+		}
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
-		const instruction = lastUserText(messages);
 		const used = new Set(usedToolNames ?? []);
 		const initialAnchor = selectToolsForAttempt(offered, instruction, 1);
 		const initialAnchoredRemaining = initialAnchor.tools.filter((tool) => !used.has(tool.name));

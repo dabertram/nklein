@@ -91,6 +91,12 @@ gap remains.
 > cold residents needed to admit the next model, never active work or unrelated hosts. The unsafe state was four
 > unbudgeted 32k residents (~74.5 GB weights before KV/runtime memory), not residency itself.
 
+> **⚠️ REQUEST POLICY WRAPS RECOVERY; RECOVERY MUST NOT WRAP REQUEST POLICY (F4.15, 2026-07-21).** Apply a session's
+> skill/API profile once to the baseline `AgentModelRequest`, then hand that request to the adaptive recovery model.
+> Putting the profile decorator inside every retry silently re-enables `thinking:true`/`/think` after a
+> `thinking_disable` recovery rung and defeats the root-cause remedy. The outer profile also owns proactive native or
+> JSON-schema dispatch; an unusable direct result falls through to the normal buffered SDK/recovery path.
+
 > **⚠️ A BOUNDED GUARDRAIL IS NOT AN AUTONOMOUS RECOVERY UNLESS ITS TERMINAL STATE ROUTES TO THE NEXT MODEL
 > (live-found 2026-07-21).** The decomposition loop guard correctly stopped Qwopus after four failed submissions,
 > but parked the planning card at `awaiting_review/attention` even though two independent critique rounds had isolated
@@ -828,16 +834,16 @@ source repo went private — so if it vanishes the buildable source still lives 
 - **Self-referential `replace_all` when extracting a helper: add the helper body AFTER the sweep, or it rewrites ITSELF into infinite recursion (2026-06-30).** Consolidating an inline pair (`providerId: …, modelId: …`) at N call sites into a `resolveTaskModelIdentity()` helper: I added the helper (whose body IS that exact pair) and THEN `replace_all`'d the pair → `...this.resolveTaskModelIdentity(x)`. The sweep matched the helper's OWN body too, making it `return { ...this.resolveTaskModelIdentity(x) }` — infinite self-recursion. **tsc PASSES it (type-valid); only the runtime suite catches it** (here: `RangeError: Maximum call stack size exceeded` across 57 service tests at once). Mitigations: do the `replace_all` FIRST then add the helper, or give the helper's body a shape the pattern can't match, or just re-read the helper after the sweep. General lesson: a green tsc is necessary-not-sufficient for a mechanical multi-site refactor — the full suite is the real gate (this is why every extraction here is suite-gated, not just tsc-gated).
 - **`response_format: json_schema` structured output DEAD-ENDS on qwen3.5 / qwopus3.6 REASONING models → `finish_reason:stop` with EMPTY `content` (2026-07-01, live-probed via 127.0.0.1:1234 on resident qwen3.5-9b AND qwopus3.6-27b).** The grammar constraint conflicts with the reasoning channel: the model emits ~16–20 reasoning tokens (captured in `message.reasoning_content`) then STOPS with no JSON in `content`, at `max_tokens` 200/800/**2000 alike** ⇒ a grammar dead-end, NOT a budget cap. Reproduces on the capable **27B** (so it's the reasoning FAMILY, not size — the "<7B" caveat in the §5.AN structured-output note is wrong), and `/no_think` / a "don't think" nudge does nothing (qwen3.5 ignores it — reasoning even GREW to 845 tok). **⇒ The codebase's "THE forcing lever = constrained decoding" (§5.AN, live-verified 2026-06-29 on qwen2.5-coder-14b + phi-4-mini — both NON-reasoning) is reasoning-model-INCOMPATIBLE: the §5.AA constrained-tool-call rung silently returns EMPTY on the current all-reasoning resident tier.** ROBUST fallback (live-verified same probe): NO grammar + LARGE budget (the model burns 500–850 reasoning tok first) + parse the JSON object from the small post-reasoning `content` (546 reasoning tok → 41-char `content` = valid `{…}`). Structured-output strategy MUST be reasoning-aware: json_schema for non-reasoning, prose-extract for reasoning. `lmstudio-response-format.ts` stays envelope-correct; its applicability is model-gated. (Owed: a positive control on a resident NON-reasoning model to re-confirm json_schema works there — none loaded now; don't disrupt the user's resident set just to get one. Probes: `scratchpad/probe-structured-output*.py`.)
 - **FIX for the above: native TOOL-CALLING WORKS on reasoning models where `json_schema` dead-ends (live-probed 2026-07-01, qwen3.5-9b + qwopus3.6-27b).** `tools` + `tool_choice:"required"` returns `finish_reason:tool_calls` with a VALID tool_call after ~55–171 reasoning tokens (fast 4–12s; guaranteed schema-valid `arguments`) — the model reasons freely, then the call lands in the SEPARATE `tool_calls` channel, so there is no grammar-vs-reasoning conflict (`"auto"` and `"required"` both work). **⇒ To FORCE structured output from a reasoning model, wrap the target schema as ONE tool's `parameters` + `tool_choice:"required"`, NOT `response_format:json_schema`.** CONFIRMED IN-CODE: the §5.AA constrained-tool-call FORCING-FALLBACK rung (`chat-local-llm-adapter.ts` ~242/256 → `buildConstrainedToolCallSchema` → `response_format:json_schema`, then `parseConstrainedToolCall(constrained.content)`) reads from `content` — EMPTY on a reasoning model ⇒ null ⇒ forces nothing (a verified no-op on the all-reasoning resident tier). IMPACT IS BOUNDED: the PRIMARY `completeWithTools` path already uses native tools and works on reasoning models, so ONLY the force-a-RELUCTANT-call recovery is dead; fix = force that fallback via native `tool_choice:"required"`. Decision core shipped: `structured-output-strategy.ts::selectStructuredOutputStrategy` (reasoning→`native_tool_call`, confident-non-reasoning→`json_schema_grammar`, unknown→`native_tool_call`) composing `isReasoningModel` in `model-thinking-control.ts`; the `prose_extract` last-resort reuses `repairJsonValue`. Probes: `scratchpad/probe-tool-call.py`.
-- **MODEL LOADING — !Klein MANAGES IT, GUARDED (user handover 2026-06-29; supersedes the 2026-06-28 no-load rule).**
+- **MODEL LOADING — !Klein MANAGES IT, GUARDED (user handover 2026-06-29; capacity policy updated 2026-07-21).**
   **TEMPORARY / REVOCABLE: the user re-confirmed (2026-06-29) "you can load/unload yourself, as you need — just don't
   overload the system … not a forever rule, until further notice."** So treat load control as ON now, but watch for the
-  user revoking it, and always keep the system safe (the headroom guard below is non-negotiable; when in doubt, unload
-  rather than pile on).
-  The user unloaded everything and handed loading/unloading control to !Klein, under HARD guardrails:
-  **(1) one model resident at a time** — UNLOAD before LOADING the next (never pile up; the user's pinned/embedding
-  models excepted); **(2) context = 40000** for every load (≥32k floor honored); **(3) size cap ≤14B for now**
-  (qwen2.5-coder-14b is the ceiling) — raise only as the tier roadmap advances; **(4) headroom-check every load**
-  (keep ~25% RAM free). Tooling: detect resident via `/api/v0/models` `state`
+  user revoking it, and always keep the system safe (the headroom guard below is non-negotiable).
+  The current HARD guardrail is CAPACITY-BASED: **(1)** m5max may retain two or three useful models when the estimated
+  total plus KV/runtime reserve stays below its ceiling and the OS remains out of swap; **(2)** legion5pro retains one
+  model that fits its 8 GB VRAM; **(3)** m4mini retains one hardware-fit small model (the 0.6B is appropriate for cheap,
+  bounded work, not quality-critical judgment); **(4)** preserve warm prompt caches and unload only the cold residents
+  needed for admission; **(5)** context is always ≥32k (40k when the selected model/host budget safely supports it);
+  **(6)** verify memory pressure and swap growth before and after any load. Tooling: detect resident via `/api/v0/models` `state`
   ([lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts)); sizes via `lms ps`
   (`parseLmsPs` in [lms-model-control.ts](src/core/lms-model-control.ts)); guard via
   [model-load-headroom.ts](src/core/model-load-headroom.ts) `decideModelLoad`; plan+command via `planGuardedModelLoad` /
@@ -2335,8 +2341,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 4C. Dynamic prompt skills *(legacy §5.AE)*
 
-- [ ] **F4.15 — Finish per-skill/API feature-profile wiring.** Apply thinking directive, structured-output strategy,
-  proactive force-call, sampler, and budget preferences at chat and swarm call seams.
 - [x] **F4.16 — Finish dynamics-level configuration.** Resolve global/project/role/task levels, expose effective state, **CORE DONE 2026-07-15:** scoped-override-resolution.ts resolveScopedOverride (task>role>project>global, source-tracked, 4 tests). **FINALIZED 2026-07-19 (split):** the resolution core is complete with zero consumers by design — WHICH settings become scoped (and their UI) is a product-design decision → DAVID BATCH; the wire is mechanical once the setting list is chosen.
   and make the default fully dynamic without hidden env-only behavior.
 - [x] **F4.17 — Replace hard-coded prompt blocks with composed skill fragments.** Wire board and chat through one

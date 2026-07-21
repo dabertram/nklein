@@ -2161,3 +2161,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   returned one HTTP 400 on its second raw arm and disappeared from residency; the harness did not reload it, and now
   captures/prints provider error bodies plus supports bounded case reruns. The evaluator never loads, unloads, or
   downloads models. Focused tests (3) and TypeScript pass.
+
+- [x] **F4.15 — finish per-skill/API feature-profile wiring** *(delivered 2026-07-21).* Active skills are now resolved
+  once into a shared session context carrying both prompt fragments and a difficulty-modulated API profile. Primary,
+  restarted, and synthetic swarm sessions pass that profile to a shared `AgentModel` decorator on every turn; chat
+  applies the same policy during tool discovery and its streamed/tools-disabled final answer. Thinking directives,
+  temperature, and proactive reasoning/answer budgets reach the actual requests. Structured profiles select native
+  `tool_choice:required` for reasoning/unknown families and JSON-schema grammar for recognized non-reasoners;
+  force-call profiles engage on the first request instead of paying for a known-bad auto turn. Direct constrained
+  failures fall through to the established SDK/recovery path. The profile wraps adaptive recovery so later recovery
+  rungs remain authoritative, and the obsolete test-only draft fold was removed. Request-level tests cover default
+  pass-through, sampler/thinking/budget application, both structured mechanisms, and safe fallback; focused chat,
+  session, runtime, task-service, and profile-core suites pass 286 tests with TypeScript green.

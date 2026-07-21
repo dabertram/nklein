@@ -17,6 +17,7 @@ import { deriveProceduralContextTags, matchProceduralSkills } from "../core/proc
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
 import { selectSandboxMcpServersForModel } from "../core/sandbox-mcp-catalog.js";
 import { buildSkillPromptFragments } from "../core/skill-prompt-fragments.js";
+import { modulateApiProfileForDifficulty, type SkillApiProfile } from "../core/skill-registry.js";
 import { resolveActiveSkills, type SkillDynamicsLevel } from "../core/skill-resolver.js";
 import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-guidance.js";
 import { readAllDistractorObservations } from "../state/distractor-observation-store";
@@ -61,10 +62,32 @@ export interface BuildSessionSkillFragmentsInput {
 	 * can never blow a small window.
 	 */
 	fragmentBudgetTokens?: number;
+	/** F4.15: normalized task difficulty in [0,1], used to fill/escalate the active skills' reasoning preference. */
+	difficulty?: number;
 }
 
-/** Resolve active skills → their `wired` context fragments → assembler PromptFragments (with real producer text). */
-export async function buildSessionSkillFragments(input: BuildSessionSkillFragmentsInput): Promise<PromptFragment[]> {
+export interface SessionSkillContext {
+	fragments: PromptFragment[];
+	apiProfile: SkillApiProfile;
+	activeSkillIds: string[];
+}
+
+/** Resolve active skills ONCE so prompt fragments and request-level API policy can never disagree. */
+export async function buildSessionSkillContext(input: BuildSessionSkillFragmentsInput): Promise<SessionSkillContext> {
+	const activeSkills = resolveActiveSkills({
+		role: input.role,
+		taskText: input.taskText,
+		...(input.dynamicsLevel !== undefined ? { dynamicsLevel: input.dynamicsLevel } : {}),
+	});
+	const apiProfile =
+		input.difficulty === undefined
+			? activeSkills.apiProfile
+			: modulateApiProfileForDifficulty(activeSkills.apiProfile, input.difficulty);
+	const finish = (fragments: PromptFragment[]): SessionSkillContext => ({
+		fragments,
+		apiProfile,
+		activeSkillIds: activeSkills.skills.map((skill) => skill.id),
+	});
 	const fragments: PromptFragment[] = [];
 
 	// §5.AR structural-retrieval nudge — pure + cheap (no I/O), so it is NOT gated behind the repo-map scan flag. It is
@@ -85,11 +108,7 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 	// §5.AE repo-map fragment — opt-in (default OFF): building a repo map is a real workspace scan, so it's gated.
 	// Enabling it makes a code/planning session's system prompt carry a repo map. Off ⇒ no repo map (no scan).
 	if (isTruthyEnv(process.env.NKLEIN_SKILL_PROMPT_FRAGMENTS)) {
-		const activeFragments = resolveActiveSkills({
-			role: input.role,
-			taskText: input.taskText,
-			...(input.dynamicsLevel !== undefined ? { dynamicsLevel: input.dynamicsLevel } : {}),
-		}).fragments;
+		const activeFragments = activeSkills.fragments;
 		if (activeFragments.length > 0) {
 			// Pre-compute the async producer text (repo map) ONLY when a skill actually declares it — the builder is a
 			// real workspace scan, so we never pay it for a session whose skills don't want a repo map.
@@ -169,7 +188,7 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 			// measured distractor shape; validated procedures are short targeted guidance and stay.
 			const pruned = fragments.filter((fragment) => fragment.key.startsWith("procedural-skill:"));
 			if (pruned.length !== fragments.length) {
-				return pruned;
+				return finish(pruned);
 			}
 		}
 	}
@@ -188,7 +207,12 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 			input.fragmentBudgetTokens,
 		);
 		const kept = new Set(selection.kept);
-		return fragments.filter((fragment) => kept.has(fragment.key));
+		return finish(fragments.filter((fragment) => kept.has(fragment.key)));
 	}
-	return fragments;
+	return finish(fragments);
+}
+
+/** Compatibility projection for callers that only need prompt fragments. */
+export async function buildSessionSkillFragments(input: BuildSessionSkillFragmentsInput): Promise<PromptFragment[]> {
+	return (await buildSessionSkillContext(input)).fragments;
 }

@@ -138,6 +138,18 @@ describe("createChatModelDeps", () => {
 		expect(calls).toHaveLength(1);
 	});
 
+	it("F4.15 applies the selected skill profile to the tools-disabled final-answer request", async () => {
+		const { client, calls, sampling } = fakeClient("planned");
+		const deps = createChatModelDeps(client, {
+			modelId: "qwen/qwen3-8b",
+			apiProfile: { reasoning: "high", temperature: 0.1 },
+		});
+		await deps.complete([{ role: "user", content: "plan this" }]);
+		expect(calls[0]?.[0]?.content).toContain("/think");
+		expect(sampling[0]?.temperature).toBe(0.1);
+		expect(sampling[0]?.maxTokens).toBeGreaterThan(1_024);
+	});
+
 	it("salvages a runaway repeated-tail loop in the reply (§5.AA)", async () => {
 		// A model that finished but looped its closing line — collapse the loop to its useful prefix.
 		const sentence = "Done! The file config.json has been created.";
@@ -672,6 +684,51 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 			await model([{ role: "user", content: "plan this" }], true);
 			expect(get().temperature).toBe(0.3);
 			expect(get().lastUser).toBe("plan this");
+		});
+
+		it("proactively uses response_format for a structured skill on a non-reasoning model", async () => {
+			let autoCalls = 0;
+			let schemaName: string | undefined;
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async () => {
+					autoCalls += 1;
+					return { content: "", toolCalls: [], finishReason: "stop", raw: {} };
+				},
+				complete: async (input) => {
+					schemaName = input.format?.jsonSchema?.name;
+					return { content: '{"tool":"read_file","arguments":{"path":"todo.md"}}' };
+				},
+			};
+			const model = createChatAgentModel(client, SIX_TOOLS, {
+				modelId: "qwen/qwen2.5-coder-14b",
+				apiProfile: { structuredOutput: true },
+			});
+			const result = await model([{ role: "user", content: "find the relevant source" }], true);
+			expect(schemaName).toBe("klein_tool_call");
+			expect(autoCalls).toBe(0);
+			expect(result.toolCalls[0]).toMatchObject({ name: "read_file", arguments: { path: "todo.md" } });
+		});
+
+		it("proactively uses native tool_choice required for structured output on a reasoning model", async () => {
+			let toolChoice: string | undefined;
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async (_input, _tools, opts) => {
+					toolChoice = opts?.toolChoice;
+					return {
+						content: "",
+						toolCalls: [{ id: "c-native", name: "read_file", arguments: { path: "todo.md" } }],
+						finishReason: "tool_calls",
+						raw: {},
+					};
+				},
+			};
+			const model = createChatAgentModel(client, SIX_TOOLS, {
+				modelId: "qwen/qwen3-8b",
+				apiProfile: { structuredOutput: true },
+			});
+			const result = await model([{ role: "user", content: "inspect it" }], true);
+			expect(toolChoice).toBe("required");
+			expect(result.promptStrategy).toBe("skill_profile_native_required");
 		});
 	});
 

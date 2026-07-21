@@ -53,6 +53,7 @@ import {
 	releaseNKleinLargeFileWorkflow,
 } from "./nklein-large-file-workflow";
 import { hashWorkspacePathForLedger } from "./nklein-ledger-attempt";
+import { LocalLlmClient } from "./nklein-local-llm-client";
 import { CLOUD_ENABLED } from "./nklein-local-only-policy";
 import {
 	createNKleinMcpRuntimeService,
@@ -91,6 +92,7 @@ import {
 	type NKleinSdkStartSessionInput,
 	type NKleinSdkTeamEvent,
 } from "./sdk-runtime-boundary";
+import { createSkillApiProfileAgentModel } from "./skill-api-profile-agent-model";
 import { createOpenAiCompatPhaseOnePickCaller } from "./two-phase-before-model";
 
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -569,7 +571,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					// executable shared-policy rung before any partial text/reasoning/usage event becomes visible. Caller
 					// cancellation is authoritative, and a turn that emitted a tool call is never replayed.
 					modelWrapper: (base) => {
-						const recoveryBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
+						const guardedBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
 							? createRunawayInterruptModel(base, {
 									onInterrupt: (verdict) => {
 										process.stderr.write(
@@ -597,6 +599,21 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 									},
 								})
 							: base;
+						const directClient = request.baseUrl?.trim()
+							? new LocalLlmClient({
+									providerId: request.providerId,
+									modelId: request.modelId,
+									baseUrl: request.baseUrl,
+									apiKey: request.apiKey,
+									...(request.apiTimeoutMs ? { timeoutMs: request.apiTimeoutMs } : {}),
+								})
+							: undefined;
+						const profileOptions = {
+							modelId: request.modelId,
+							profile: request.skillApiProfile,
+							contextWindow: request.contextWindow,
+							...(directClient ? { directClient } : {}),
+						};
 						const alternateEndpointModel = request.baseUrl?.trim()
 							? createLocalAlternateEndpointModel({
 									baseUrl: request.baseUrl,
@@ -626,7 +643,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 									},
 								})
 							: undefined;
-						return createAdaptiveSwarmRecoveryModel(recoveryBase, {
+						const adaptiveModel = createAdaptiveSwarmRecoveryModel(guardedBase, {
 							modelId: request.modelId,
 							profile: request.behaviorProfile,
 							strategyEffectivenessLedger: request.strategyEffectivenessLedger,
@@ -686,6 +703,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								}
 							},
 						});
+						// Profile the BASELINE request outside recovery: every retry inherits it, while an explicit adaptive rung
+						// (notably thinking_disable) remains authoritative instead of being re-overridden by the profile decorator.
+						return createSkillApiProfileAgentModel(adaptiveModel, profileOptions);
 					},
 					extensions: [
 						createKanbanContextFocusExtension(

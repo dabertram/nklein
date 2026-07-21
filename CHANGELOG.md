@@ -72,6 +72,12 @@
   local models, every completed pair retained all authoritative contract fields without leaking superseded values; the
   clean Legion 9B and Qwen 35B acceptance run cut provider prompt tokens by 53% with no quality regression.
 
+- **Selected skills now control the real chat and swarm model requests.** Their difficulty-aware thinking preference,
+  temperature, and output budget apply on every turn, including chat's streamed final answer. Structured work uses
+  JSON-schema grammar on recognized non-reasoners and native required tool calls on reasoning models; proactive
+  force-call work starts constrained immediately. If a direct constrained request is unsupported or unusable, !Klein
+  safely resumes its normal buffered recovery ladder, whose later remedies remain authoritative.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed

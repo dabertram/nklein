@@ -13,7 +13,7 @@ The cause was not dead code — it was **discoverability**. A long orphan list r
 code*; the accurate reading is *a lot of built capability nobody can find*. Deleting it destroys value;
 indexing it recovers value.
 
-668 core modules.
+672 core modules.
 
 | module | purpose | labels |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ indexing it recovers value.
 | `core/agent-attempt-ledger.ts` | The Agent Attempt Ledger (todo §5.AF) — the keystone evidence substrate. | F1.16 F1.18b §5.AA §5.AB §5.AC §5.AD §5.AF §5.O §5.Z |
 | `core/agent-catalog.ts` | (no docblock) | P0.9c §5.A |
 | `core/agent-ledger-efficiency.ts` | §5.AW efficiency scoreboard (audit 2026-07-02 W1.4) — the ledger-derived rollup that makes swarm waste VISIBLE. | W1.1 W1.4 §5.AG §5.AW |
-| `core/agent-ledger-projections.ts` | Projections that bridge the Agent Attempt Ledger (§5.AF — the ONE evidence stream) to the learning/selection layers, | §5.AA §5.AF §5.Z |
+| `core/agent-ledger-projections.ts` | Projections that bridge the Agent Attempt Ledger (§5.AF — the ONE evidence stream) to the learning/selection layers, | §5.AA §5.AF |
 | `core/agent-ledger-selectors.ts` | The current controller run-state for a workflow — the `to` of its most-recent transition (by `recordedAt`), or null | §5.U |
 | `core/agent-rulesets.ts` | Per-role agent rulesets: two independent, tiered dials that let the user "unleash" the swarm while keeping | — |
 | `core/agent-stuckness.ts` | Failure outcomes that usually reflect a fixable OUTPUT-FORMAT slip (or a transient SDK/endpoint abort) — the model | §5.AA §5.AB §5.AF §5.AK |
@@ -147,6 +147,7 @@ indexing it recovers value.
 | `core/decision-handoff.ts` | F12.38 compacted decision-handoff between dependent cards — PURE core. | F12.38 |
 | `core/decompose-tool-policy.ts` | §5.B/§5.O decompose (plan-mode) TOOL-SET restriction — a decompose/plan card's ONLY job is to call `decompose_project` | §5.B §5.O |
 | `core/decomposition-redecompose-trigger.ts` | Re-decompose trigger (todo §5.B — decomposition quality & the knowledge-expansion loop). | §5.AB §5.B §5.Z |
+| `core/decomposition-research-preflight.ts` | (no docblock) | — |
 | `core/decomposition-stall.ts` | Decomposition turn-stall recovery decision core (todo §5.B/§5.G follow-up). | §5.B §5.G |
 | `core/decomposition-subtask-dag.ts` | Decomposition subtask-DAG structural validator (todo §5.B — decomposition quality & the knowledge-expansion loop). | §5.AK §5.B §5.O |
 | `core/deliberation-loop.ts` | §5.AW deliberation core (audit 2026-07-02 W4.1) — a bounded, decision-agnostic PROPOSE → CRITIQUE → RESOLVE loop | W4.1 §5.AB §5.AF §5.AW §5.S |
@@ -356,6 +357,7 @@ indexing it recovers value.
 | `core/model-pool-key.ts` | Derive the ROUTING pool key for a swarm candidate (§5.AB LM-Link per-machine pools, user 2026-07-01). | §5.AB |
 | `core/model-pool-routing.ts` | Pool-aware routing (todo §5.AB per-machine pools, user 2026-06-29). | §5.AB |
 | `core/model-pool.ts` | §5.W / §5.AF — the `ModelPool` model (pure core). | §5.AF §5.W |
+| `core/model-research-policy.ts` | (no docblock) | F3.34 |
 | `core/model-residency-planner.ts` | §5.AB autonomous load/unload planner (David 2026-07-07: "load/unload as-needed, just don't overload any of the 3 | §5.AB |
 | `core/model-selection-reason.ts` | The §5.AB "why this model for this task" inspectable reason (sub-deliverable #5) — a PURE projection of a task-start | §5.AB §5.AE §5.AF §5.AG |
 | `core/model-sensitive-pruning.ts` | F4.13 — model-sensitive retrieval pruning (pure). | F4.13 |
@@ -379,7 +381,7 @@ indexing it recovers value.
 | `core/nightly-schedule.ts` | N6 — nightly scheduling: go faster WITHOUT weakening coverage. | — |
 | `core/nightly-signal-extraction.ts` | N7c — turn a drain's self-observation telemetry into the SIGNAL EVENTS N5's packs judge. | — |
 | `core/nklein-mcp-api-contract.ts` | (no docblock) | §5.X |
-| `core/nklein-ops-api-contract.ts` | (no docblock) | §5.G §5.H §5.X |
+| `core/nklein-ops-api-contract.ts` | (no docblock) | F3.34 §5.G §5.H §5.X |
 | `core/nklein-provider-api-contract.ts` | (no docblock) | §5.X |
 | `core/nklein-provider-mutations-api-contract.ts` | (no docblock) | §5.X |
 | `core/no-op-ablation.ts` | P20.3 — NO-OP ABLATION: stub the artifact the agent claims to have built, re-run the tests, and see if anyone | P15.7 P20.3 |
@@ -409,7 +411,7 @@ indexing it recovers value.
 | `core/persisted-prompt-session-models.ts` | (no docblock) | — |
 | `core/placeholder-scan.ts` | Placeholder / stub scanner (pure) — a mechanical enforcement of the §4A "no built-but-not-wired" rule, ported from | — |
 | `core/plan-artifacts-api-contract.ts` | (no docblock) | F1.3d F1.4 §5.X |
-| `core/plan-critique-decision.ts` | W4.3 — the decompose-specific adapter over the §5.AW deliberation trigger: should THIS validated plan get one | W4.3 §5.AW |
+| `core/plan-critique-decision.ts` | W4.3 — the decompose-specific adapter over the §5.AW deliberation trigger: every validated candidate plan gets one | W4.3 §5.AW |
 | `core/plan-gap-kind.ts` | The plan-gap kind enum + type, kept in a **browser-safe** module (zod only, no Node imports) so the contract | — |
 | `core/plan-gap.ts` | (no docblock) | — |
 | `core/plan-integration-gate.ts` | Plan-level integration gate — pure core (todo §5.0.5, decision 2026-07-02: "YES, gate the plan"). | — |
@@ -446,6 +448,7 @@ indexing it recovers value.
 | `core/read-before-write-guard.ts` | F12.19 read-before-write + stale-read guard — PURE core. | F12.19 |
 | `core/real-model-run-evidence.ts` | (no docblock) | — |
 | `core/reanchor-coverage.ts` | F4.8 — verify that end-of-context re-anchors retain what they are supposed to retain. | F12.21 F4.8 §5.AD §5.N |
+| `core/reanchor-quality-ab.ts` | F4.8b — deterministic live-fleet A/B fixture for end-of-context task re-anchors. | F4.8b |
 | `core/reason-then-act.ts` | §5.AD reason-THEN-act — the pure orchestration transform for the two-phase turn that converts a reasoning model into | §5.AD |
 | `core/reasoning-capture.ts` | F2.23 (first a-leaf) — the SAFE reasoning-capture primitive. | F2.23 |
 | `core/reasoning-channel-split.ts` | §5.AN: separate a completion's REASONING channel from its VISIBLE answer, across LM Studio's documented reasoning | §5.AA §5.AN |
@@ -517,7 +520,6 @@ indexing it recovers value.
 | `core/setup-detection.ts` | §5.BA guided-configuration detection core — PURE "detect → recommend" logic. | §5.AR §5.AX §5.BA |
 | `core/shell.ts` | (no docblock) | — |
 | `core/shortcut-behavior-monitor.ts` | F12.97 shortcut-behavior monitor over a delivered diff — PURE core, complementary to F12.44's | F12.44 F12.97 |
-| `core/skill-api-profile-apply.ts` | §5.AE skill apiProfile → chat model-call reconcile — DRAFT (David decision-7: SESSION-SCOPED), held for approval. | §5.AE |
 | `core/skill-api-profile-request.ts` | §5.AE → §5.AN bridge (pure): translate a resolved {@link SkillApiProfile} (the abstract per-skill INTENT — | §5.AA §5.AE §5.AG §5.AN |
 | `core/skill-bundle-screening.ts` | F4.24 — deterministic bundle screening for EXECUTABLES / binary payloads. | F4.24 |
 | `core/skill-bundled-file-manifest.ts` | SKILL.md BUNDLED-FILE manifest validator (todo §5.AP.A leaf (b) — the bundled-file (`scripts/` / `references/` / | §5.AP |
@@ -566,6 +568,7 @@ indexing it recovers value.
 | `core/swarm-roster.ts` | Named swarm rosters (todo §5.AB per-machine pools, user 2026-06-29). | §5.AA §5.AB §5.AL §5.O §5.Z |
 | `core/swarm-tool-capability.ts` | Swarm-tool capability lookup (§5.L decision-4) — the PER-TOOL STATIC manifest + output-taint for the autonomous | F1.21 §5.L |
 | `core/sweep-resource-governance.ts` | §5.AI/§10 sweep resource governance (operational) — the pure deciders that keep a background model-sweep from | §5.AB §5.AI |
+| `core/synthesis-evidence-quality-eval.ts` | F4.6 paired answer-quality evaluation for the live retrieval synthesis prompt. | F4.6 |
 | `core/synthetic-task-id.ts` | Synthetic task-id conventions (todo §5.U — consolidates a `::` magic-string check that had drifted across ~5 files). | §5.U |
 | `core/sysprompt-level.ts` | §5.AQ A+B+C — the TIERED SYSPROMPT: a user-facing "sysprompt size" ladder, an AUTO selector, and the intent-mode knob. | §5.AE §5.AQ §5.O |
 | `core/taint-content-scan.ts` | §5.L content-scan `secret_like` source — the owed SCANNER that turns raw content into taint labels. | §5.L |
@@ -609,10 +612,11 @@ indexing it recovers value.
 | `core/tool-error-contract.ts` | Typed semantic error contract for small-model tool-call failures (todo §5.O). | §5.AA §5.O |
 | `core/tool-output-cap.ts` | F12.65 tool-output cap — PURE core. | F12.65 |
 | `core/tool-replay-policy.ts` | F1.17 (§5.AF) — replay POLICIES over the F1.16 per-tool idempotency substrate: what a replayed/resumed run does | F1.16 F1.17 §5.AF |
+| `core/tool-result-failure.ts` | (no docblock) | — |
 | `core/tool-result-record.ts` | F1.16 (§5.AF) — per-tool idempotency identity + durable result evidence, the substrate the F1.17 replay policies | F1.16 F1.17 §5.AF |
 | `core/tool-trust-decay.ts` | F12.24 per-tool trust decay — PURE core. | F12.24 F3.30 |
 | `core/topic-aware-freshness.ts` | Topic-aware freshness — the composition that makes source-age judgment SHELF-LIFE aware (todo §5.AC, the "knows | §5.AC |
-| `core/tracked-requirements.ts` | P15.7b — the tracked-requirement map: which backlog items get element-level coverage checking. | F12.21 F12.92 F3.8 F4.8 P15.7 P15.7b P18.4 P18.4b P20.5 |
+| `core/tracked-requirements.ts` | P15.7b — the tracked-requirement map: which backlog items get element-level coverage checking. | F12.21 F3.11 F3.34 F3.8 F4.8 P15.7 P15.7b |
 | `core/trajectory-quality-projection.ts` | Trajectory-quality projection (F12.42 mount) — project the F12.42 process signals off the PERSISTED agent ledger and | F12.42 |
 | `core/trajectory-quality-score.ts` | Trajectory-quality scorer — Ideal / Solid / Lucky (F12.42, todo §5.AF / Phase 12). | F12.42 F12.94 §5.AF |
 | `core/transcript-distractor-pruning.ts` | P18.3 — prune superseded messages from the TRANSCRIPT before compaction compresses it. | P18.3 §5.AD |

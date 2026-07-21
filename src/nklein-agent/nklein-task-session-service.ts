@@ -62,7 +62,6 @@ import {
 	type ModelBehaviorProfile,
 	type ModelOutcomeKind,
 } from "../core/model-behavior-profile";
-import { applyThinkingDisable } from "../core/model-thinking-control";
 import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import {
@@ -164,7 +163,7 @@ import {
 	type NKleinSessionRuntime,
 	readKanbanLaunchConfigFromSessionRecord,
 } from "./nklein-session-runtime";
-import { buildSessionSkillFragments } from "./nklein-session-skill-fragments";
+import { buildSessionSkillContext } from "./nklein-session-skill-fragments";
 import {
 	clearActiveTurnState,
 	cloneSummary,
@@ -190,7 +189,7 @@ import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
 import { formatStartWarnings, resolveNKleinTaskRole, toErrorMessage } from "./nklein-task-session-helpers";
-import { shouldDisableSwarmThinking } from "./nklein-task-start-guard";
+import { estimateNKleinStartDifficulty, estimateNKleinStartPromptTokens } from "./nklein-task-start-guard";
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
 import { createTimeoutController } from "./nklein-timeout-controller";
@@ -1326,8 +1325,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// §5.U/§5.AQ: both start paths build their assembly input through the shared `buildSessionSystemPromptInput`
 		// (the byte-stable, volatility-ordered fragment assembly lives in the pure `buildSessionSystemPrompt`). This
 		// restart seam also builds the SYNTHETIC sessions (`::review`/`::plan-critique`/`::merge` — kind derived from
-		// the task-id suffix) and bakes the lean/full efficiency-rules level; it carries no planning/skill fragments.
+		// the task-id suffix) and bakes the lean/full efficiency-rules level. F4.15 resolves the same skill context here
+		// as on primary starts so restarts and auxiliary reviewers cannot silently lose request-level skill policy.
 		const role = resolveNKleinTaskRole(input.taskId, this.explicitDecompositionTaskIds.has(input.taskId));
+		const sessionSkillContext = await buildSessionSkillContext({
+			role,
+			taskText: input.prompt,
+			workspacePath: hostWorkspaceRoot,
+			modelId: launchConfig.modelId,
+			sandboxMcpEnabled: this.isSandboxMcpEnabled(),
+			...(this.agentSandboxManager
+				? { sandboxContainerMemoryLimitMb: this.agentSandboxManager.getContainerMemoryLimitMb() }
+				: {}),
+			fragmentBudgetTokens: Math.min(2_000, Math.round(((requestContextWindow ?? 32_000) || 32_000) * 0.08)),
+			difficulty:
+				estimateNKleinStartDifficulty(
+					estimateNKleinStartPromptTokens({ prompt: input.prompt, images: input.images }),
+					{ taskText: input.prompt, isPlanCard: role === "architect" },
+				) / 100,
+		});
 		const attemptRetryContext = await this.buildAttemptRetryContext(
 			input.taskId,
 			launchConfig.providerId,
@@ -1353,6 +1369,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 					level: leanSyspromptLevel,
 				}),
+				skillFragments: sessionSkillContext.fragments,
 			}),
 		);
 		// F4.8b: **the flag's own comment says "enable to measure" and "default full until the scoreboard proves
@@ -1457,15 +1474,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				taskId: input.taskId,
 				cwd: agentPerceivedCwd,
 				workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
-				// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes the
-				// 500–965-token reasoning tax + its truncation risk at no correctness cost; hard cards keep reasoning.
-				prompt: shouldDisableSwarmThinking({
-					modelId: launchConfig.modelId,
-					prompt: effectiveStartPrompt,
-					taskTitle: null,
-				})
-					? applyThinkingDisable(effectiveStartPrompt, launchConfig.modelId ?? "")
-					: effectiveStartPrompt,
+				prompt: effectiveStartPrompt,
 				initialMessages: input.initialMessages,
 				maxTokensPerTurn: input.maxTokensPerTurn ?? input.launchConfig.maxTokensPerTurn ?? null,
 				images: input.images,
@@ -1474,6 +1483,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				behaviorProfile: attemptRetryContext.profile,
 				strategyEffectivenessLedger: attemptRetryContext.strategyLedger,
 				role,
+				skillApiProfile: sessionSkillContext.apiProfile,
 				onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(input.taskId, strategy),
 				onRetryStrategyOutcome: (observation) =>
 					this.recordRetryStrategyOutcome({
@@ -2044,8 +2054,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// home-agent append (task) → session-env (task, LAST — the true task-volatile suffix).
 				// §5.AE: resolve the session's active skills → their `wired` system-prompt fragments (today: a repo map
 				// for a code/planning session). Fail-soft to [] — never blocks a start.
-				const sessionSkillFragments = await buildSessionSkillFragments({
-					role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
+				const role = resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId));
+				const sessionSkillContext = await buildSessionSkillContext({
+					role,
 					taskText: taskPrompt,
 					workspacePath: request.workspaceRoot?.trim() || request.cwd,
 					modelId,
@@ -2062,7 +2073,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// F4.17 overflow capping: skill-driven fragments get ≤8% of the window (cap 2k tokens) so one
 					// retrieval pile can never blow a small context.
 					fragmentBudgetTokens: Math.min(2_000, Math.round(((request.contextWindow ?? 32_000) || 32_000) * 0.08)),
+					difficulty:
+						estimateNKleinStartDifficulty(
+							estimateNKleinStartPromptTokens({
+								prompt: taskPrompt,
+								taskTitle: request.taskTitle,
+								images: request.images,
+							}),
+							{ taskText: taskPrompt, isPlanCard: request.startInPlanMode },
+						) / 100,
 				});
+				const sessionSkillFragments = sessionSkillContext.fragments;
 				// F12.29: remember which procedures were surfaced so the terminal attempt event can stamp them
 				// (the paired-trajectory audit needs the with-skill/without-skill split).
 				const surfacedSkillIds = sessionSkillFragments
@@ -2074,7 +2095,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				} else {
 					this.surfacedSkillIdsByTaskId.delete(request.taskId);
 				}
-				const role = resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId));
 				const attemptRetryContext = await this.buildAttemptRetryContext(
 					request.taskId,
 					providerId,
@@ -2188,15 +2208,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
 							// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
 							workspaceRoot: request.workspaceRoot ?? request.cwd,
-							// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes
-							// the 500–965-token reasoning tax + its truncation risk; hard cards keep their reasoning.
-							prompt: shouldDisableSwarmThinking({
-								modelId,
-								prompt: workerStartPrompt,
-								taskTitle: request.taskTitle ?? null,
-							})
-								? applyThinkingDisable(workerStartPrompt, modelId ?? "")
-								: workerStartPrompt,
+							prompt: workerStartPrompt,
 							taskTitle: request.taskTitle,
 							maxTokensPerTurn: request.maxTokensPerTurn ?? null,
 							initialMessages,
@@ -2206,6 +2218,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							behaviorProfile: attemptRetryContext.profile,
 							strategyEffectivenessLedger: attemptRetryContext.strategyLedger,
 							role,
+							skillApiProfile: sessionSkillContext.apiProfile,
 							onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(request.taskId, strategy),
 							onRetryStrategyOutcome: (observation) =>
 								this.recordRetryStrategyOutcome({

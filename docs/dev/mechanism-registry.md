@@ -13,7 +13,7 @@ direction, so they are kept side by side:
 
 ## 1. Mechanism firing status
 
-Tallied **48842** observation(s) across **26** categories — exhaustive, not a capped window.
+Tallied **48966** observation(s) across **28** categories — exhaustive, not a capped window.
 
 | category | item | enabled by | expectation | observations | status |
 | --- | --- | --- | --- | ---: | --- |
@@ -29,7 +29,7 @@ Tallied **48842** observation(s) across **26** categories — exhaustive, not a 
 | `opportunistic_idle_dispatch` | F1.36 | NKLEIN_OPPORTUNISTIC_IDLE_WORK | exceptional | 0 | **never_enabled** |
 | `ledger_exemplars` | F12.81 | NKLEIN_LEDGER_EXEMPLARS | every_run | 0 | **never_enabled** |
 | `fewshot_exemplars` | F11.2h | NKLEIN_FEWSHOT_EXEMPLARS | every_run | 0 | **never_enabled** |
-| `knows_today_injection` | §5.AC | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `knows_today_injection` | §5.AC | _(always on)_ | every_run | 4 | **healthy** |
 | `review_path` | §5.AB | _(always on)_ | every_run | 0 | **too_new_to_judge** |
 | `skill_prompt_fragments` | §5.AE | NKLEIN_SKILL_PROMPT_FRAGMENTS | every_run | 0 | **never_enabled** |
 | `stall_replan_injected` | F12.22 | NKLEIN_STALL_REPLAN | exceptional | 0 | **never_enabled** |
@@ -59,7 +59,7 @@ Tallied **48842** observation(s) across **26** categories — exhaustive, not a 
 | `drift_critic_on_track` | F12.92 | NKLEIN_DRIFT_CRITIC | every_run | 0 | **never_enabled** |
 | `tool_catalog_gate_observation` | F12.18 | NKLEIN_TOOL_GATE_OBSERVE | every_run | 0 | **never_enabled** |
 
-**No enabled-but-silent mechanisms. 0 of 41 are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.**
+**No enabled-but-silent mechanisms. 1 of 41 are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.**
 
 Status meanings — note that only ONE of these is actionable:
 - `healthy` — demonstrably fires.
@@ -70,9 +70,9 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-947 of 2324 exported core symbol(s) have NO non-test consumer. 61 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+948 of 2357 exported core symbol(s) have NO non-test consumer. 59 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
-### Modules where EVERY export is orphaned (116)
+### Modules where EVERY export is orphaned (112)
 
 - `lms-session-stall.ts` (8 export(s))
 - `enforced-reasoning-learning.ts` (7 export(s))
@@ -82,9 +82,9 @@ Status meanings — note that only ONE of these is actionable:
 - `fast-memory-fit.ts` (6 export(s))
 - `model-pool.ts` (6 export(s))
 - `skill-import-decision.ts` (6 export(s))
-- `strategy-effectiveness-ledger.ts` (6 export(s))
 - `judge-calibration.ts` (5 export(s))
 - `memory-governance.ts` (5 export(s))
+- `reanchor-quality-ab.ts` (5 export(s))
 - `spec-deliberation.ts` (5 export(s))
 - `cache-aware-prompt-layout.ts` (4 export(s))
 - `cache-stable-prefix-order.ts` (4 export(s))
@@ -111,8 +111,8 @@ Status meanings — note that only ONE of these is actionable:
 - `long-memory-live-eval.ts` (3 export(s))
 - `mechanism-decision-report.ts` (3 export(s))
 - `mutation-adequacy.ts` (3 export(s))
-- `result-handle.ts` (3 export(s))
 - `skill-pin-drift.ts` (3 export(s))
+- `synthesis-evidence-quality-eval.ts` (3 export(s))
 - `task-sizing-invariant.ts` (3 export(s))
 - `vlm-screenshot-lens.ts` (3 export(s))
 - `work-package-conflict-resolution.ts` (3 export(s))
@@ -126,7 +126,6 @@ Status meanings — note that only ONE of these is actionable:
 - `durable-lease-renewal.ts` (2 export(s))
 - `fleet-host-cap-config.ts` (2 export(s))
 - `lmstudio-log-anomalies.ts` (2 export(s))
-- `local-endpoint-clients.ts` (2 export(s))
 - `narration-dialect.ts` (2 export(s))
 - `persisted-prompt-session-models.ts` (2 export(s))
 - `portable-continuation-selector.ts` (2 export(s))
@@ -146,7 +145,6 @@ Status meanings — note that only ONE of these is actionable:
 - `visual-verification-gate.ts` (2 export(s))
 - `action-plan-executor.ts` (1 export(s))
 - `admissible-cited-synthesis.ts` (1 export(s))
-- `answer-budget-prior.ts` (1 export(s))
 - `background-eval-runner-signals.ts` (1 export(s))
 - `cache-friendly-route.ts` (1 export(s))
 - `citation-conflict-annotation.ts` (1 export(s))
@@ -161,7 +159,6 @@ Status meanings — note that only ONE of these is actionable:
 - `diversity-reachability.ts` (1 export(s))
 - `durable-job-depth-priority.ts` (1 export(s))
 - `durable-scheduler-backpressure.ts` (1 export(s))
-- `endpoint-iteration-loop.ts` (1 export(s))
 - `enforced-reasoning-round-stop.ts` (1 export(s))
 - `failure-hopelessness-from-errors.ts` (1 export(s))
 - `field-report-redaction.ts` (1 export(s))
@@ -181,7 +178,6 @@ Status meanings — note that only ONE of these is actionable:
 - `repair-kernel-ledger.ts` (1 export(s))
 - `request-economy-plan.ts` (1 export(s))
 - `scoped-override-resolution.ts` (1 export(s))
-- `skill-api-profile-apply.ts` (1 export(s))
 - `skill-compat.ts` (1 export(s))
 - `skill-md-parse.ts` (1 export(s))
 - `skill-variation-rung.ts` (1 export(s))
@@ -191,9 +187,9 @@ Status meanings — note that only ONE of these is actionable:
 - `transcript-distractor-pruning.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
 
-### Orphan triage — tracked vs untracked (116 fully-orphaned modules)
+### Orphan triage — tracked vs untracked (112 fully-orphaned modules)
 
-- **112 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **108 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
 - **4 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
@@ -243,8 +239,6 @@ A plain `grep -c` reports these as wired. They are not — every reference is a 
 - `knowledge-volatility-ttl.ts` :: `isKnowledgeStale`
 - `llmfit-adapter.ts` :: `llmfitPredictedWallTimeMs`
 - `lmstudio-max-tokens-clamp.ts` :: `clampMaxTokens`
-- `local-endpoint-clients.ts` :: `callLocalAnthropicMessages`
-- `local-endpoint-clients.ts` :: `callLocalNativeChat`
 - `model-eval-aggregation.ts` :: `DIFFICULTY_TIER_SCORE`
 - `model-fitness-freshness.ts` :: `selectFitnessCellsToReeval`
 - `model-fitness.ts` :: `selectModelForTask`
