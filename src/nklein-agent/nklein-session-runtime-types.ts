@@ -5,7 +5,12 @@
 // type-only back-import of StartNKleinSessionRuntimeRequest) is unchanged.
 
 import type { ToolExecutors } from "@cline/sdk";
-import type { RuntimeNKleinReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
+import type {
+	RuntimeModelPerformanceRole,
+	RuntimeNKleinReasoningEffort,
+	RuntimeTaskImage,
+	RuntimeTaskSessionMode,
+} from "../core/api-contract";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -89,6 +94,10 @@ export interface StartNKleinSessionRuntimeRequest {
 	images?: RuntimeTaskImage[];
 	providerId: string;
 	modelId: string;
+	/** F3.3: resolved swarm role selects the bounded no-tool-call prompt variant. */
+	role?: RuntimeModelPerformanceRole;
+	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
+	onPromptStrategyApplied?: (strategy: string) => void;
 	mode?: RuntimeTaskSessionMode;
 	apiKey?: string | null;
 	baseUrl?: string | null;

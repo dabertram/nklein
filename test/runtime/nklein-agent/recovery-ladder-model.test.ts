@@ -123,4 +123,21 @@ describe("createRecoveryLadderModel", () => {
 		expect(await collect(wrapped.stream(req()))).toEqual(stalledTurn);
 		expect(requests).toHaveLength(1);
 	});
+
+	it("observes each completed attempt without letting observer errors alter recovery", async () => {
+		const { model } = fakeBase([stalledTurn, toolCallTurn]);
+		const onAttemptComplete = vi.fn((signal: RecoveryTurnSignal) => {
+			if (signal.attempt === 0) throw new Error("telemetry failed");
+		});
+		const wrapped = createRecoveryLadderModel({
+			base: model,
+			shouldRecover: (signal) => !signal.hadToolCall,
+			reframe: (request) => request,
+			onAttemptComplete,
+		});
+
+		expect(await collect(wrapped.stream(req()))).toEqual(toolCallTurn);
+		expect(onAttemptComplete).toHaveBeenNthCalledWith(1, expect.objectContaining({ attempt: 0 }), true);
+		expect(onAttemptComplete).toHaveBeenNthCalledWith(2, expect.objectContaining({ attempt: 1 }), false);
+	});
 });

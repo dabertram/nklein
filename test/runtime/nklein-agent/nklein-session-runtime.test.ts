@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AgentModel, AgentModelEvent, AgentModelRequest } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { NKleinMcpRuntimeService } from "../../../src/nklein-agent/nklein-mcp-runtime-service";
 import {
@@ -782,6 +783,112 @@ describe("InMemoryNKleinSessionRuntime", () => {
 							name: "write_file",
 						}),
 					]),
+				}),
+			}),
+		);
+	});
+
+	it("wires role-aware prompt variation at the shared model seam and reports its outcome", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const onPromptStrategyApplied = vi.fn();
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1::review",
+			cwd: "/tmp/worktree",
+			prompt: "Finish the review.",
+			providerId: "nklein",
+			modelId: "local-reviewer",
+			role: "reviewer",
+			onPromptStrategyApplied,
+			systemPrompt: "stable system prompt",
+		});
+
+		const startInput = fakeHost.start.mock.calls[0]?.[0];
+		const modelWrapper = startInput?.localRuntime?.modelWrapper;
+		expect(modelWrapper).toBeTypeOf("function");
+		if (!modelWrapper) throw new Error("Expected local model wrapper");
+		let call = 0;
+		const base: AgentModel = {
+			stream(input: AgentModelRequest) {
+				call += 1;
+				const events: AgentModelEvent[] =
+					call === 1
+						? [{ type: "finish", reason: "stop" }]
+						: [
+								{
+									type: "tool-call-delta",
+									toolCallId: "call-1",
+									toolName: "submit_review",
+									inputText: "{}",
+								},
+								{ type: "finish", reason: "tool-calls" },
+							];
+				return (async function* () {
+					void input;
+					for (const event of events) yield event;
+				})();
+			},
+		};
+		const input: AgentModelRequest = {
+			systemPrompt: "stable system prompt",
+			messages: [
+				{
+					id: "user-1",
+					role: "user",
+					content: [{ type: "text", text: "Finish the review." }],
+					createdAt: 1,
+				},
+			],
+			tools: [
+				{
+					name: "submit_review",
+					description: "Submit the verdict",
+					inputSchema: { type: "object" },
+					lifecycle: { completesRun: true },
+				},
+			],
+		};
+		const events: AgentModelEvent[] = [];
+		selfObservationMocks.recordSelfObservation.mockClear();
+		for await (const event of await modelWrapper(base).stream(input)) events.push(event);
+
+		expect(events).toEqual([
+			{
+				type: "tool-call-delta",
+				toolCallId: "call-1",
+				toolName: "submit_review",
+				inputText: "{}",
+			},
+			{ type: "finish", reason: "tool-calls" },
+		]);
+		expect(call).toBe(2);
+		expect(onPromptStrategyApplied).toHaveBeenCalledWith("prompt_variant:explicit_format");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1::review",
+				metadata: expect.objectContaining({
+					category: "swarm_prompt_variation",
+					role: "reviewer",
+					family: "explicit_format",
+					recovered: true,
 				}),
 			}),
 		);

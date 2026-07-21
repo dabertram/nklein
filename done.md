@@ -2021,3 +2021,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
 >       ⇒ plan DAG, outcome ⇒ delivery reports, altitude ⇒ zoom ladder. No operator workflow was found that these
 >       four cannot express, so a Mission layer would add a fifth name for the same nouns plus a concept every
 >       operator must learn. Re-open only with a concrete workflow that provably cannot be expressed by the four.
+
+### Phase 3 — model learning, routing, and recovery
+
+- [x] **F3.3 — bounded, role-aware prompt variation at the shared swarm model seam** *(delivered 2026-07-21).*
+  A clean model turn that stops without calling a tool now gets one replacement-safe retry when !Klein can prove the
+  intended target: the latest user instruction explicitly names an offered tool, or exactly one offered tool completes
+  the run. Architects and reviewers receive an explicit single-tool-call framing; workers receive the direct imperative
+  framing. Ordinary prose answers, tool-call turns, aborts, provider errors, empty/malformed streams, and ambiguous tool
+  menus are never retried. Only the latest user-message suffix changes, leaving the system prompt and all earlier
+  messages stable for prefix caching. Every attempted variant records its family, role, target tool, and recovered/failed
+  outcome; successful recoveries also label the terminal task-attempt ledger. The feature is default-on with
+  `NKLEIN_SWARM_PROMPT_VARIATION=off` as a kill switch. Pure policy, recovery observer, live SDK-wrapper, and
+  task-role propagation regressions pass; typecheck is green, and the full repository suite passes 1,262 files/1
+  skipped and 12,316 tests/1 skipped.

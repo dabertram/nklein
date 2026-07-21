@@ -50,6 +50,8 @@ export interface RecoveryLadderModelDeps {
 	reframe(request: AgentModelRequest, attempt: number): AgentModelRequest;
 	/** Optional out-of-band activity observer; buffered events remain hidden from the model consumer. */
 	onBufferedEvent?: (event: AgentModelEvent) => void;
+	/** Observe every completed provider attempt and whether the wrapper will replace it with another bounded attempt. */
+	onAttemptComplete?: (signal: RecoveryTurnSignal, willRecover: boolean) => void;
 }
 
 /**
@@ -98,18 +100,23 @@ async function* streamWithRecovery(
 		thrownError = error;
 	}
 
-	if (
-		attempt < maxAttempts &&
-		deps.shouldRecover({
-			finishReason,
-			hadToolCall,
-			offeredTools: request.tools.length > 0,
-			attempt,
-			finishError,
-			thrownError,
-			callerAborted: request.signal?.aborted === true,
-		})
-	) {
+	const signal: RecoveryTurnSignal = {
+		finishReason,
+		hadToolCall,
+		offeredTools: request.tools.length > 0,
+		attempt,
+		finishError,
+		thrownError,
+		callerAborted: request.signal?.aborted === true,
+	};
+	const willRecover = attempt < maxAttempts && deps.shouldRecover(signal);
+	try {
+		deps.onAttemptComplete?.(signal, willRecover);
+	} catch {
+		// Observability must never alter recovery or replay semantics.
+	}
+
+	if (willRecover) {
 		// Re-invoke with a re-framed request; the recovered turn REPLACES this one (buffered events discarded).
 		yield* streamWithRecovery(deps, deps.reframe(request, attempt), attempt + 1, maxAttempts);
 		return;

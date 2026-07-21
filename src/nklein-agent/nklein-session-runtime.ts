@@ -30,7 +30,7 @@ import {
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
@@ -77,6 +77,7 @@ import {
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
+import { createSwarmPromptVariationModel } from "./prompt-variation-model";
 import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -547,8 +548,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					// P0.4: buffer at the shared AgentModel seam so a provider/runtime abort can be replaced by a bounded
 					// same-model retry before any text/reasoning/usage event becomes visible. The wrapper refuses retries
 					// when the outer signal was cancelled or a tool-call delta appeared.
-					modelWrapper: (base) =>
-						createTransientAbortRecoveryModel(
+					modelWrapper: (base) => {
+						const transientRecoveryModel = createTransientAbortRecoveryModel(
 							// F3.5 interrupt-safely (OPT-IN via NKLEIN_RUNAWAY_ABORT; default OFF = byte-identical): sample the
 							// in-flight text and abort a degenerate turn typed, under the recovery buffer so the failure feeds
 							// the §5.AA attempt ladder instead of replaying garbage. Activation stays telemetry-gated.
@@ -584,7 +585,41 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								onBufferedToken: () =>
 									this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
 							},
-						),
+						);
+						if (!isEnabledByDefaultEnv(process.env.NKLEIN_SWARM_PROMPT_VARIATION)) {
+							return transientRecoveryModel;
+						}
+						return createSwarmPromptVariationModel(transientRecoveryModel, {
+							role: request.role ?? "unknown",
+							onOutcome: (outcome) => {
+								if (outcome.recovered) {
+									request.onPromptStrategyApplied?.(`prompt_variant:${outcome.family}`);
+								}
+								try {
+									recordSelfObservation({
+										signal: "custom",
+										severity: outcome.recovered ? "info" : "warning",
+										message: outcome.recovered
+											? `Prompt variation ${outcome.family} recovered a no-tool-call turn for ${request.taskId}.`
+											: `Prompt variation ${outcome.family} did not recover a no-tool-call turn for ${request.taskId}.`,
+										taskId: request.taskId,
+										providerId: request.providerId,
+										modelId: request.modelId,
+										workspacePath: agentPerceivedCwd,
+										metadata: {
+											category: "swarm_prompt_variation",
+											role: outcome.role,
+											family: outcome.family,
+											toolName: outcome.toolName,
+											recovered: outcome.recovered,
+										},
+									});
+								} catch {
+									// Telemetry must never alter model recovery semantics.
+								}
+							},
+						});
+					},
 					extensions: [
 						createKanbanContextFocusExtension(
 							requestedSessionId,

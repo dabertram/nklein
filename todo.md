@@ -1661,8 +1661,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (kind failover) for observability; (5) verify with the isolated-drain rig (memory: ministral-alternation-debugging
   has the rig recipe incl. the dev:full stale-server + /Users-path gotchas).
   **FINALIZED 2026-07-19 (split):** the model-side leg is COMPLETE + live-validated (decideModelFailover via the failover controller at captureTerminalRunSummary, default-ON, kill-switch). The endpoint-alternatives leg has NO live substrate today — production reaches ONE gateway (localhost:1234; direct machine IPs unreachable per the fleet-live memory), so same-model/different-endpoint iteration only becomes real with the multi-endpoint pool work (F3.20-24) → FLEET QUEUE, tracked there with the wire recipe above kept for that moment.
-- [ ] **F3.3 — Wire prompt variation into the shared swarm/model seam.** Apply bounded, role-aware variants and record
-  effectiveness without contaminating stable cache prefixes.
 - [x] **F3.4 — Replace reasoning-model grammar forcing with native required-tool calls.** Keep json-schema grammar only
   for verified non-reasoners; fall back to prose extraction conservatively.
   **AUDIT 2026-07-19: MECHANISM LIVE ON THE EVAL/DECOMPOSE PATH** — nklein-local-llm-client supports

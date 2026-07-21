@@ -659,7 +659,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	});
 
 	it("stamps the resolved launch role on the session summary (todo §5.G/§5.U)", async () => {
-		const { service } = createTrackedService();
+		const { service, runtime } = createTrackedService();
 
 		const workerSummary = await service.startTaskSession({
 			taskId: "task-worker",
@@ -674,6 +674,10 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Review the change",
 		});
 		expect(reviewerSummary.role).toBe("reviewer");
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2));
+		expect(runtime.startTaskSessionMock.mock.calls[0]?.[0].role).toBe("worker");
+		expect(runtime.startTaskSessionMock.mock.calls[1]?.[0].role).toBe("reviewer");
+		expect(runtime.startTaskSessionMock.mock.calls[0]?.[0].onPromptStrategyApplied).toBeTypeOf("function");
 	});
 
 	it("hydrates persisted worker launch metadata when review escalation runs after terminal cache cleanup", async () => {

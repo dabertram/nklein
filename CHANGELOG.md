@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Local swarm models get one precise second chance when they explain instead of acting.** If a worker, architect, or
+  reviewer cleanly stops without making the tool call its task clearly requires, !Klein retries once with a short
+  role-specific framing. The original failed turn is replaced, stable prompt history remains cacheable, ambiguous prose
+  answers are left alone, and the outcome is recorded so the useful phrasing can be measured per role and model.
+
 - **Cross-project chat memory now opens only for a measured reader/retrieval pair.** The live LongMemEval harness
   invokes the same unified recall composer as production, scores retrieval separately from the model reading the
   returned evidence, and retains the result for the exact resident reader plus versioned lexical/embedding store.
