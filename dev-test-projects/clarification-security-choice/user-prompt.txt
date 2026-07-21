@@ -1,0 +1,9 @@
+Create a dependency-linked implementation-card breakdown for specification.md. Explicitly include one question with id
+`auth-migration-mode`, status `open`, and a working assumption of `oidc`. Its question text must state that choosing
+OIDC versus password requires knowing whether the target deployment is new or existing, and that this external fact is
+absent and must not be inferred. Keep it OPEN because authentication migration is a high-stakes product decision. Do not
+mark it answered or assumed-default.
+
+Decompose ONLY the requested authentication-mode change: one implementation card and one directly dependent test card.
+Do not add habit-scoring, general CLI argument parsing, documentation, or verification-only cards. Use machine-checkable
+acceptance commands and keep the two cards independently reviewable.

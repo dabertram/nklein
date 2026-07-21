@@ -125,6 +125,8 @@ export interface AutoClarifyProposal {
 	proposal: string;
 	resolved: boolean;
 	selfReportedProgress: boolean;
+	/** Force a second opinion even when the architect claims confidence (used for destructive/high-stakes answers). */
+	requiresReview?: boolean;
 }
 
 /**
@@ -161,12 +163,14 @@ export async function runAutoClarifyLoop(
 	const hardBound = resolveAutoClarifyRoundBudget(config) + 1;
 	for (let iteration = 0; iteration < hardBound; iteration++) {
 		const proposal = await deps.propose(question, rounds);
-		const reviewerOpinion = proposal.resolved ? null : await deps.review(question, proposal.proposal);
+		const reviewerOpinion =
+			proposal.resolved && !proposal.requiresReview ? null : await deps.review(question, proposal.proposal);
 		rounds.push({
 			proposal: proposal.proposal,
 			reviewerOpinion,
 			selfReportedProgress: proposal.selfReportedProgress,
-			resolved: proposal.resolved,
+			// A forced reviewer objection overrides the architect's confidence for this round.
+			resolved: proposal.resolved && reviewerOpinion === null,
 		});
 		const decision = decideAutoClarifyStep(rounds, config, deps.similarity);
 		if (decision.action !== "keep_asking") {

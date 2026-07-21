@@ -1,0 +1,11 @@
+{
+	"id": "clarification-security-choice",
+	"title": "Resolve an open authentication migration decision",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "Planning fundamentals",
+	"tags": ["planning", "clarification", "security"],
+	"complexity": 45,
+	"filesLikelyTouched": ["src/index.ts", "test/habit-score.test.js"]
+}

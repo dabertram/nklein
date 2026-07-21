@@ -9,7 +9,7 @@
  */
 
 import type { NKleinPlanQuestion } from "../nklein-agent/nklein-plan-artifacts";
-import { type AssumptionMode, type CandidateAssumption, clarifyOrAssume } from "./assumption-safety";
+import { type AssumptionMode, assumptionRisk, type CandidateAssumption, clarifyOrAssume } from "./assumption-safety";
 import { detectClarificationSignals } from "./clarification-need";
 
 export interface OpenQuestionPassDecision {
@@ -30,16 +30,24 @@ export interface OpenQuestionPassDecision {
  * reversibility and raises impact — it never auto-resolves more. Destructive verbs are the worst case
  * (irreversible); security/contract/schema wording is costly-but-undoable.
  */
-const DESTRUCTIVE_PATTERN = /\b(delete|drop|destro|wipe|purge|irreversib)\b/i;
+const DESTRUCTIVE_PATTERN = /\b(delete|deletion|drop|destroy|destruction|wipe|purge|irreversible|irreversibility)\b/i;
 const HIGH_STAKES_PATTERN =
-	/\b(migrat|auth|security|secret|credential|payment|billing|encrypt|schema|licen[cs]e|contract|public api)\b/i;
+	/\b(migrate|migration|migrations|migrating|auth|authn|authz|authentication|authorization|security|secret|secrets|credential|credentials|payment|payments|billing|encrypt|encrypted|encrypting|encryption|schema|schemas|licen[cs]e|contract|contracts|public api)\b/i;
 
 function questionCorpus(question: NKleinPlanQuestion): string {
 	return [
+		question.id,
 		question.question,
 		question.assumption ?? "",
 		...question.options.map((option) => `${option.label} ${option.description ?? ""}`),
 	].join(" ");
+}
+
+/** Safety boundary shared with the model-backed loop: these questions may be researched, but never defaulted on
+ * exhaustion. The deterministic pass and the bounded model loop must not disagree about what is safe to assume. */
+export function isSafetyCriticalPlanQuestion(question: NKleinPlanQuestion): boolean {
+	const corpus = questionCorpus(question);
+	return DESTRUCTIVE_PATTERN.test(corpus) || HIGH_STAKES_PATTERN.test(corpus);
 }
 
 /** Pick the default the pass would adopt: the stored assumption, else the recommended (or only) option's label. */
@@ -107,6 +115,17 @@ export function decideOpenQuestionResolution(
 			risk: 0,
 			flagged: false,
 			reason: "No default to adopt (no assumption and no recommended option) — the question needs an answer.",
+		};
+	}
+	if (isSafetyCriticalPlanQuestion(question)) {
+		const estimate = estimateQuestionAssumption(question, assumption);
+		return {
+			action: "keep_open",
+			assumption,
+			risk: assumptionRisk(estimate),
+			flagged: false,
+			reason:
+				"The open question affects a destructive or high-stakes boundary; send it through model-backed clarification instead of silently adopting its working default.",
 		};
 	}
 	const decision = clarifyOrAssume(question.question, estimateQuestionAssumption(question, assumption), mode);

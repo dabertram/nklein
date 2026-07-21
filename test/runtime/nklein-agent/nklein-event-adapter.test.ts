@@ -24,6 +24,12 @@ function applyEvent(input: {
 	event: unknown;
 	pendingTurnCancelTaskIds?: Set<string>;
 	isNKleinProvider?: boolean;
+	onClarificationAsked?: (ask: {
+		taskId: string;
+		toolCallId: string | null;
+		question: string;
+		options: string[];
+	}) => void;
 }) {
 	const taskId = input.taskId ?? "task-1";
 	const entry = input.entry ?? createEntry(taskId);
@@ -43,6 +49,7 @@ function applyEvent(input: {
 		emitMessage: (_taskId, message) => {
 			messages.push(message);
 		},
+		onClarificationAsked: input.onClarificationAsked,
 	});
 
 	return {
@@ -70,6 +77,34 @@ function runtimeSnapshot(iteration = 1) {
 }
 
 describe("applyNKleinSessionEvent", () => {
+	it("emits a structured execution clarification when the native ask tool starts", () => {
+		const asks: Array<{ taskId: string; toolCallId: string | null; question: string; options: string[] }> = [];
+		applyEvent({
+			onClarificationAsked: (ask) => asks.push(ask),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "tool-started",
+						toolCall: {
+							toolCallId: "ask-1",
+							toolName: "ask_followup_question",
+							input: {
+								question: " Which auth provider? ",
+								options: ["OIDC", "SAML"],
+							},
+						},
+					},
+				},
+			},
+		});
+
+		expect(asks).toEqual([
+			{ taskId: "task-1", toolCallId: "ask-1", question: "Which auth provider?", options: ["OIDC", "SAML"] },
+		]);
+	});
+
 	it("renews token liveness for a buffered model delta without exposing a message", () => {
 		const entry = createEntry("task-1");
 		entry.summary.state = "running";

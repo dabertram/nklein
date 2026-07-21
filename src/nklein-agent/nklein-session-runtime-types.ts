@@ -185,7 +185,7 @@ export interface NKleinSessionRuntime {
 		launchConfigOverrides?: NKleinSessionLaunchConfigOverrides,
 	): boolean;
 	resumeTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null>;
-	stopTaskSession(taskId: string): Promise<void>;
+	stopTaskSession(taskId: string, options?: { suppressTaskEvents?: boolean }): Promise<void>;
 	abortTaskSession(taskId: string): Promise<void>;
 	clearTaskSessions(taskId: string): Promise<void>;
 	getTaskSessionId(taskId: string): string | null;

@@ -159,6 +159,28 @@ describe("runAutoClarifyLoop", () => {
 		expect(result.rounds).toHaveLength(2);
 	});
 
+	it("requires a forced reviewer to accept a safety-critical resolved proposal", async () => {
+		const review = vi.fn(async () => "The required external fact is still absent.");
+		const result = await runAutoClarifyLoop(
+			question,
+			{
+				propose: async () => ({
+					proposal: "Adopt OIDC as a working assumption but keep the decision open.",
+					resolved: true,
+					selfReportedProgress: true,
+					requiresReview: true,
+				}),
+				review,
+				similarity: exactSimilarity,
+			},
+			{ ...DEFAULT_AUTO_CLARIFY_CONFIG, safetyCap: 1 },
+		);
+
+		expect(review).toHaveBeenCalledOnce();
+		expect(result.rounds[0]?.resolved).toBe(false);
+		expect(result.decision.action).toBe("give_up_with_assumption");
+	});
+
 	it("gives up with an assumption when the architect stalls (converged + no self-progress)", async () => {
 		const deps: AutoClarifyTurnDeps = {
 			propose: vi.fn(async () => ({ proposal: "Use SQLite", resolved: false, selfReportedProgress: false })),

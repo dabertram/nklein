@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { filterToolsByPolicyEnabled } from "../core/judge-tool-policy";
 import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
@@ -173,6 +175,26 @@ async function persistKanbanLaunchConfigToNKleinSessionMetadata(
 	} catch {
 		// Best-effort only — live in-memory restart config still covers the current process.
 	}
+}
+
+/** Run-controller evidence seam: auxiliary sessions are deleted immediately after their bounded turn, so periodic
+ * polling can miss the final submission/result. When explicitly enabled, preserve the exact final messages before
+ * deletion. Ordinary product runs do no extra I/O. */
+async function snapshotSessionBeforeEvidenceDeletion(
+	sessionHost: NKleinSessionHostBoundary,
+	sessionId: string,
+): Promise<void> {
+	const outputDir = process.env.NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR?.trim();
+	if (!outputDir) {
+		return;
+	}
+	const messages = await sessionHost.readMessages(sessionId);
+	await mkdir(outputDir, { recursive: true });
+	await writeFile(
+		join(outputDir, `${sessionId}.messages.json`),
+		`${JSON.stringify({ sessionId, messages }, null, 2)}\n`,
+		"utf8",
+	);
 }
 
 // Own the SDK session host plus the taskId <-> sessionId bindings so higher layers can stay task-oriented.
@@ -749,13 +771,20 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		};
 	}
 
-	async stopTaskSession(taskId: string): Promise<void> {
+	async stopTaskSession(taskId: string, options: { suppressTaskEvents?: boolean } = {}): Promise<void> {
 		const sessionId = this.sessionIdByTaskId.get(taskId);
 		if (!sessionId) {
 			await this.releaseTaskMcpToolBundle(taskId);
 			return;
 		}
 		const sessionHost = await this.ensureSessionHost();
+		// A restart replaces this session deliberately. Some SDK hosts synchronously emit `ended/exit` from stop();
+		// routing that event into the task service marks the replacement round awaiting_review before it even starts,
+		// which can launch a stale review and several concurrent redrives. Remove only the reverse event route before
+		// stopping; the forward binding remains available for the exact cleanup below.
+		if (options.suppressTaskEvents) {
+			this.taskIdBySessionId.delete(sessionId);
+		}
 		try {
 			await sessionHost.stop(sessionId);
 			this.clearTaskSessionBinding(taskId, sessionId);
@@ -805,6 +834,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		}
 
 		for (const sessionId of matchingSessionIds) {
+			await snapshotSessionBeforeEvidenceDeletion(sessionHost, sessionId).catch(() => undefined);
 			await sessionHost.delete(sessionId).catch(() => false);
 			this.taskIdBySessionId.delete(sessionId);
 			releaseNKleinLargeFileWorkflow(sessionId);

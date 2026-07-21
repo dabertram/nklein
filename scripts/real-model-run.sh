@@ -11,14 +11,16 @@
 #   teardown — always: kill the runtime + sandboxes; keep the fleet resident unless --unload
 #
 # Usage:  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--unload] [--max-min N]
-# Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180), NKLEIN_POLL_SECS (15)
+# Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180),
+#         NKLEIN_ACTIVE_STALL_SECS (900), NKLEIN_POLL_SECS (15)
 set -uo pipefail
 
 # ─────────────────────────────── config ───────────────────────────────
 PORT="${NKLEIN_RUNTIME_PORT:-3484}"
 TOKEN="${NKLEIN_INTERNAL_AUTH_TOKEN:-real-run-token-$$}"
 POLL_SECS="${NKLEIN_POLL_SECS:-15}"       # how often the watcher samples (cheap sources only)
-STALL_SECS="${NKLEIN_STALL_SECS:-180}"    # no board change AND model idle this long ⇒ stall reaction
+STALL_SECS="${NKLEIN_STALL_SECS:-180}"    # no board/tool/model-log progress this long ⇒ stall reaction
+ACTIVE_STALL_SECS="${NKLEIN_ACTIVE_STALL_SECS:-900}" # active prefill/generation can be quiet; still bounded
 CTX="${NKLEIN_CONTEXT_LENGTH:-32768}"     # ≥32k floor (prime directive #3) — MUST be met or sessions never start
 M5MAX_DEVICE="${NKLEIN_M5MAX_DEVICE:-}"   # optional lms device identifier to pin (auto-detected if empty)
 
@@ -77,7 +79,9 @@ if [ ! -f "$PROVIDER_SELECTION" ]; then
 fi
 
 log(){ printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
-REAL_HOME="$HOME"; DEVLOG_PID=""; RUNTIME_PID=""; DRAIN_PID=""; TEARDOWN_DONE=0
+REAL_HOME="$HOME"; DEVLOG_PID=""; RUNTIME_PID=""; DRAIN_PID=""; TEARDOWN_DONE=0; RUN_LOCK_HELD=0
+RUN_LOCK="$REPO/.real-runs/.controller.lock"
+RUN_PHASE="setup"; SIGNAL_ABORT_REASON=""; SIGNAL_EXIT_STATUS=0
 
 terminate_process_tree(){
   local parent="$1" child
@@ -111,16 +115,50 @@ teardown(){
   if [ "$UNLOAD" = 1 ]; then HOME="$REAL_HOME" lms unload --all 2>/dev/null | tail -1 | xargs log; else log "fleet kept resident (use --unload to free)"; fi
   sleep 1
   HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && log "⚠ port $PORT still busy" || log "port $PORT free"
+  if [ "$RUN_LOCK_HELD" = 1 ]; then
+    rm -f "$RUN_LOCK/owner.pid"
+    rmdir "$RUN_LOCK" 2>/dev/null || true
+    RUN_LOCK_HELD=0
+  fi
   log "run dir: $RUN_DIR"
 }
-trap teardown EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+
+handle_signal(){
+  SIGNAL_ABORT_REASON="$1"
+  SIGNAL_EXIT_STATUS="$2"
+  # During watch, return control to the loop so it stops the drain and preserves evidence.
+  # Before a drain exists there is nothing meaningful to report, so ordinary teardown is sufficient.
+  [ "$RUN_PHASE" = "watch" ] || exit "$SIGNAL_EXIT_STATUS"
+}
 
 # ─────────────────────────────── setup ───────────────────────────────
 log "=== REAL-MODEL RUN $STAMP  preset=$PRESET mode=${MODE:-plan} worker=$WORKER fleet=[${FLEET[*]}] ==="
 log "isolated role config: architect=$ARCHITECT_MODEL worker=$CHILD_WORKER_MODEL reviewer=$REVIEWER_MODEL"
-HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && { log "FATAL: port $PORT already in use"; exit 2; }
+# Do not arm teardown until this controller exclusively owns the lifecycle. A rejected concurrent launch must never
+# remove another run's Docker sandboxes (real incident: a port-conflict exit destroyed the active run's container).
+HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && { log "FATAL: port $PORT already in use; leaving its owner untouched"; exit 2; }
+if mkdir "$RUN_LOCK" 2>/dev/null; then
+  RUN_LOCK_HELD=1
+else
+  LOCK_OWNER="$(cat "$RUN_LOCK/owner.pid" 2>/dev/null || true)"
+  if [ -z "$LOCK_OWNER" ]; then
+    sleep 1
+    LOCK_OWNER="$(cat "$RUN_LOCK/owner.pid" 2>/dev/null || true)"
+  fi
+  if [ -z "$LOCK_OWNER" ] || ! kill -0 "$LOCK_OWNER" 2>/dev/null; then
+    rm -f "$RUN_LOCK/owner.pid"
+    rmdir "$RUN_LOCK" 2>/dev/null || true
+  fi
+  mkdir "$RUN_LOCK" 2>/dev/null && RUN_LOCK_HELD=1
+fi
+if [ "$RUN_LOCK_HELD" != 1 ]; then
+  log "FATAL: another real-model controller owns $RUN_LOCK; leaving it untouched"
+  exit 2
+fi
+printf '%s\n' "$$" >"$RUN_LOCK/owner.pid"
+trap teardown EXIT
+trap 'handle_signal interrupted 130' INT
+trap 'handle_signal terminated 143' TERM
 
 # Pin m5max so loads land on the fast box, not an auto-routed remote.
 if [ -z "$M5MAX_DEVICE" ]; then M5MAX_DEVICE="$(HOME="$REAL_HOME" lms link set-preferred-device 2>&1 | grep -iE 'm5max' | grep -oE '[0-9a-f]{32}' | head -1)"; fi
@@ -142,6 +180,7 @@ log "starting LM Studio dev-log stream → $(basename "$DEVLOG")"
 
 log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
 ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
+	NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR="$SESSION_SNAPSHOT_DIR" \
     npx tsx src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
 for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
 HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }
@@ -190,14 +229,20 @@ snapshot_session_transcripts(){ # auxiliary sessions are cleared after use; pres
     cp "$f" "$SESSION_SNAPSHOT_DIR/$(basename "$f")" 2>/dev/null || true
   done
 }
-LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""
+LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""; RUN_PHASE="watch"
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
+  if [ -n "$SIGNAL_ABORT_REASON" ]; then
+    ABORT_REASON="$SIGNAL_ABORT_REASON"
+    log "REACT: received $SIGNAL_ABORT_REASON — stopping the drain and preserving evidence."
+    break
+  fi
   snapshot_session_transcripts
   NOW=$(date +%s); ELAPSED=$((NOW-DRAIN_START))
   MSTAT=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep -iE 'GENERAT|PROCESS' | awk '{print $1}' | tr '\n' ',' )
-  SIG=$(board_signature); TOOLS=$(tool_activity)
-  printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${MSTAT:-idle}" | tee -a "$SNAP"
+  SIG=$(board_signature); TOOLS=$(tool_activity); DEVLOG_BYTES=$(wc -c <"$DEVLOG" 2>/dev/null || echo 0)
+  DEVLOG_BYTES="${DEVLOG_BYTES//[[:space:]]/}"
+  printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] model-log-bytes=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${DEVLOG_BYTES:-0}" "${MSTAT:-idle}" | tee -a "$SNAP"
   # REACT: floor refusal (config error — abort, it will never start)
   if HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
     ABORT_REASON="context_floor_refusal"
@@ -211,17 +256,22 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
     ABORT_REASON="sandbox_container_conflict"
     log "REACT: repeated sandbox container-name conflict — stale containers. Aborting; teardown will clear them."; break; fi
   # progress tracking
-  CURSIG="$SIG|$TOOLS"
+  CURSIG="$SIG|$TOOLS|devlog=${DEVLOG_BYTES:-0}"
   if [ "$CURSIG" != "$LAST_SIG" ]; then LAST_SIG="$CURSIG"; LAST_CHANGE="$NOW"; fi
   IDLE_FOR=$((NOW-LAST_CHANGE))
-  # REACT: stall — no board/tool change AND no model generating for STALL_SECS
-  if [ "$IDLE_FOR" -ge "$STALL_SECS" ] && [ -z "$MSTAT" ]; then
+  # LM Studio can spend several minutes in PROCESSINGPROMPT without advancing its dev-log stream (real Qwen2.5
+  # 32k prefill evidence). Keep active work bounded, but do not apply the tighter genuinely-idle threshold to it.
+  STALL_LIMIT="$STALL_SECS"; STALL_KIND="idle"
+  if [ -n "$MSTAT" ]; then STALL_LIMIT="$ACTIVE_STALL_SECS"; STALL_KIND="active-model"; fi
+  if [ "$IDLE_FOR" -ge "$STALL_LIMIT" ]; then
     ABORT_REASON="stalled"
-    log "REACT: STALL — no board/tool progress and no model active for ${IDLE_FOR}s. Snapshotting + aborting."
+    log "REACT: STALL ($STALL_KIND) — no board/tool/model-log progress for ${IDLE_FOR}s (limit ${STALL_LIMIT}s). Snapshotting + aborting."
     { echo "=== STALL SNAPSHOT ==="; echo "board: $SIG"; echo "runtime log tail:"; tail -20 "$RUNTIME_LOG"; } >>"$SNAP"; break; fi
 done
 
 # ─────────────────────────────── report ───────────────────────────────
+[ -z "$ABORT_REASON" ] && [ -n "$SIGNAL_ABORT_REASON" ] && ABORT_REASON="$SIGNAL_ABORT_REASON"
+RUN_PHASE="report"
 if [ -n "$ABORT_REASON" ] && kill -0 "$DRAIN_PID" 2>/dev/null; then
   log "stopping drain immediately after reactive abort ($ABORT_REASON)"
   stop_process_tree "$DRAIN_PID"

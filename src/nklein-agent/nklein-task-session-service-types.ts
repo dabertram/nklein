@@ -133,7 +133,7 @@ export interface NKleinTaskSessionService {
 	startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
 	stopTaskSession(
 		taskId: string,
-		options?: { reviewReason?: RuntimeTaskSessionReviewReason },
+		options?: { reviewReason?: RuntimeTaskSessionReviewReason; abortActiveTurn?: boolean },
 	): Promise<RuntimeTaskSessionSummary | null>;
 	completeTaskSessionAfterDecomposition(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
@@ -286,6 +286,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * through the normal path so it persists + renders). Null when neither exists.
 	 */
 	loadPersistedFocusChain?: (taskId: string) => Promise<{ chain: FocusChain; source: "persisted" | "seeded" } | null>;
+	/** F1.3e: persist a plan-born worker's native clarification ask and bind it to the exact blocked card. */
+	onClarificationAsked?: (ask: { taskId: string; question: string; options: string[] }) => void | Promise<void>;
 	/**
 	 * §12 turn-loop ladder, escalate-model rung: a running agent confirmed LOOPING on a boundary it cannot resolve,
 	 * with a lineage-diverse loaded model available. The runtime effects the §5.AG routing (card-mailbox boundary

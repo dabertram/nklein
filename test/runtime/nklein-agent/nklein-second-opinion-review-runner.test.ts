@@ -38,7 +38,7 @@ function harness(over: { hang?: boolean } = {}) {
 			if (over.hang) return new Promise(() => {}); // never resolves → keeps the round in-flight
 			return drive({
 				workspace: { workdir: "/wd" },
-				deadlineMs: 8_000,
+				deadlineMs: Date.now() + 8_000,
 				runBoundedTurn: async (p: Promise<unknown>) => {
 					await p;
 					return "settled";
@@ -112,6 +112,9 @@ describe("createSecondOpinionReviewRunner", () => {
 		});
 		expect(result).toEqual(APPROVE);
 		expect(d.startRuntimeSession).toHaveBeenCalledOnce();
+		expect(d.startRuntimeSession).toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "t1::review", admissionParentTaskId: "t1" }),
+		);
 		expect(h.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "t1::review",
@@ -182,17 +185,18 @@ describe("createSecondOpinionReviewRunner", () => {
 		);
 	});
 
-	it("records a settled reviewer turn even when the reviewer produces no verdict", async () => {
+	it("records a settled reviewer turn and hands admission through its nudge when no verdict lands", async () => {
 		const d = deps({
 			startRuntimeSession: vi.fn(async () => ({ result: {} })),
 			sendTaskSessionInput: vi.fn(async () => {}),
-			maxNudges: 0,
+			maxNudges: 1,
 		});
 		const runner = createSecondOpinionReviewRunner(d);
 		await runner.runSecondOpinionReviewSession({
 			...input,
 			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
 		});
+		expect(d.sendTaskSessionInput).toHaveBeenCalledWith("t1::review", expect.any(String), "t1");
 		expect(h.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "t1::review",

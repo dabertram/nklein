@@ -103,6 +103,41 @@ describe("decideOpenQuestionResolution (F1.3c)", () => {
 		expect(decision.risk).toBeGreaterThan(0);
 	});
 
+	it("keeps an explicitly open high-stakes choice for model-backed clarification despite a working default", () => {
+		const decision = decideOpenQuestionResolution(
+			question({
+				question: "Which authentication migration mode should this deployment use?",
+				assumption: "oidc",
+				options: [
+					{ id: "oidc", label: "OIDC", description: "Modern authentication.", recommended: true },
+					{ id: "password", label: "Password", description: "Legacy compatibility.", recommended: false },
+				],
+			}),
+		);
+		expect(decision.action).toBe("keep_open");
+		expect(decision.reason).toMatch(/model-backed clarification/);
+	});
+
+	it("uses the stable question id when a model shortens the high-stakes question body", () => {
+		const decision = decideOpenQuestionResolution(
+			question({
+				id: "auth-migration-mode",
+				question:
+					"Choosing OIDC versus password requires knowing whether the target deployment is new or existing, and that this external fact is absent and must not be inferred.",
+				assumption: "oidc",
+			}),
+		);
+		expect(decision.action).toBe("keep_open");
+		expect(decision.reason).toMatch(/high-stakes boundary/);
+	});
+
+	it("does not treat unrelated words beginning with auth as a security boundary", () => {
+		const decision = decideOpenQuestionResolution(
+			question({ question: "Which author should own the changelog entry?", assumption: "Use the committer." }),
+		);
+		expect(decision.action).toBe("assume_default");
+	});
+
 	it("is deterministic — the same question yields the same verdict", () => {
 		const probe = question({ assumption: "Assume defaults." });
 		expect(decideOpenQuestionResolution(probe)).toEqual(decideOpenQuestionResolution(probe));

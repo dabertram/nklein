@@ -175,6 +175,7 @@ import { shouldDisableSwarmThinking } from "./nklein-task-start-guard";
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
 import { createTimeoutController } from "./nklein-timeout-controller";
+import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import { maybeDistillAndStoreProcedure } from "./procedural-skill-producer";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
@@ -283,6 +284,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	// F1.14: the recovery-rung label for the task's NEXT terminal attempt event (promptStrategy) — stamped by the
 	// runtime's re-drive/steer rungs via noteNextAttemptStrategy, consumed (and cleared) at the terminal write.
 	private readonly nextAttemptStrategyByTaskId = new Map<string, string>();
+	private readonly recordedClarificationAskKeys = new Set<string>();
+	private clarificationWriteTail: Promise<void> = Promise.resolve();
+	private readonly onClarificationAsked: CreateInMemoryNKleinTaskSessionServiceOptions["onClarificationAsked"];
 	/** §5.AN opt-in residency heartbeats, one per running task (auto-cleaned on session end). */
 	private readonly modelResidencyWatcher = createModelResidencyWatcher({
 		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId),
@@ -348,7 +352,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getPauseController: () => this.pauseController,
 		getHarness: () => this.secondarySessionHarness,
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
-		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
+		sendTaskSessionInput: (taskId, prompt, admissionParentTaskId) =>
+			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
@@ -419,7 +424,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		recordObservationWithModel: (event) => this.recordObservationWithModel(event),
 		readPersistedTaskSession: (taskId) => this.sessionRuntime.readPersistedTaskSession(taskId),
 		resolvePersistedLaunchConfig: (input) => this.resolvePersistedLaunchConfig(input),
-		stopTaskSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId),
+		stopTaskSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId, { suppressTaskEvents: true }),
 		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
 		waitUntilTaskResumed: (taskId) => this.waitUntilTaskResumed(taskId),
 		markStarted: (taskId) => this.requestTimer.markStarted(taskId),
@@ -611,6 +616,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.loadPersistedFocusChain = options.loadPersistedFocusChain;
+		this.onClarificationAsked = options.onClarificationAsked;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
@@ -1508,7 +1514,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				images: input.images,
 				contextWindow,
 			});
-			await this.sessionRuntime.stopTaskSession(input.taskId);
+			await this.sessionRuntime.stopTaskSession(input.taskId, { suppressTaskEvents: true });
 			return await this.restartTaskSessionFromResolvedConfig({
 				taskId: input.taskId,
 				prompt: input.prompt,
@@ -2109,7 +2115,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskId: string,
 		// F2.17b: the reviewReason to stamp on the interrupted summary (default "interrupted"). The delivery
 		// boundary-hold path passes "protected_write" so the operator inbox surfaces the held card distinctly.
-		options: { reviewReason?: RuntimeTaskSessionReviewReason } = {},
+		options: { reviewReason?: RuntimeTaskSessionReviewReason; abortActiveTurn?: boolean } = {},
 	): Promise<RuntimeTaskSessionSummary | null> {
 		let entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -2126,7 +2132,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		if (options.abortActiveTurn) {
+			await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
+		} else {
+			await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		}
 		// P0.8: stop used to dispose + forget the sandbox BEFORE the interrupted summary was emitted, so the
 		// terminal-salvage hook (captureTerminalRunSummary → finalizeSandboxReview) saw no sandbox and the round ended
 		// with no captured result, no failure marker, and no prior-work rebound. When the finalizer can still salvage
@@ -2629,7 +2639,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		await this.sessionRuntime.stopTaskSession(taskId, { suppressTaskEvents: true }).catch(() => null);
 		clearActiveTurnState(entry);
 
 		const effectiveMode: RuntimeTaskSessionMode = entry.summary.mode ?? "act";
@@ -3151,6 +3161,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.autonomyBudgetWatchdog.dispose();
 		this.timeoutController.clearSettings();
 		await this.sessionRuntime.dispose();
+		await this.clarificationWriteTail;
 		// Patch capture is only the first half of finalization; host-side result-branch assembly and the durable marker
 		// continue asynchronously. Drain them before clearing state/stopping Docker so clean shutdown cannot lose a result.
 		await this.sandboxReviewFinalizer.drain();
@@ -3161,6 +3172,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextBudgetInputs.clear();
 		this.requestTimer.clear();
 		this.explicitDecompositionTaskIds.clear();
+		this.recordedClarificationAskKeys.clear();
 		this.sandboxState.clear();
 		this.focusChainStore.clear();
 		this.teamProgressEmitter.clear();
@@ -3464,6 +3476,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			},
 			emitMessage: (taskIdFromEvent: string, message: NKleinTaskMessage) => {
 				this.emitMessage(taskIdFromEvent, message);
+			},
+			onClarificationAsked: (ask) => {
+				if (!this.onClarificationAsked) {
+					return;
+				}
+				const key = `${ask.taskId}:${ask.toolCallId ?? computeNKleinToolInputFingerprint({ question: ask.question, options: ask.options })}`;
+				this.clarificationWriteTail = this.clarificationWriteTail
+					.then(async () => {
+						// Check inside the serialized write, not when the event arrives. The SDK can emit both content_start and
+						// tool-started for one native ask. If the first durable write fails, the already-queued duplicate then
+						// retries it; only a completed write earns the dedupe marker.
+						if (this.recordedClarificationAskKeys.has(key)) {
+							return;
+						}
+						await this.onClarificationAsked?.(ask);
+						this.recordedClarificationAskKeys.add(key);
+					})
+					.then(() => undefined)
+					.catch((error) => {
+						this.recordObservationWithModel({
+							signal: "custom",
+							severity: "warning",
+							message: `Could not persist clarification block for ${ask.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+							taskId: ask.taskId,
+							workspacePath: entry.summary.workspacePath,
+							metadata: { category: "clarification_block_persist_failed" },
+						});
+					});
 			},
 		});
 		if ((focusChainTouchDelta.files?.length ?? 0) > 0 || (focusChainTouchDelta.cardIds?.length ?? 0) > 0) {

@@ -40,7 +40,7 @@ export interface SecondOpinionReviewRunnerDeps {
 	/** The shared secondary-session harness (bounded sandbox session + always-teardown). */
 	getHarness(): SecondarySessionHarness;
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
-	sendTaskSessionInput(taskId: string, prompt: string): Promise<unknown>;
+	sendTaskSessionInput(taskId: string, prompt: string, admissionParentTaskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
 }
@@ -236,6 +236,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 					await runBoundedTurn(
 						deps.startRuntimeSession({
 							taskId: reviewTaskId,
+							admissionParentTaskId: input.taskId,
 							cwd: workspace.workdir,
 							workspaceRoot: input.projectRepoPath,
 							prompt: input.seedPrompt,
@@ -263,7 +264,9 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				for (let nudge = 0; verdict === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
 					turnOutcome = mergeTurnOutcome(
 						turnOutcome,
-						await runBoundedTurn(deps.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT)),
+						await runBoundedTurn(
+							deps.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT, input.taskId),
+						),
 					);
 				}
 				// Widen past TS's closure-assignment blind spot: `verdict` is written by the submit_review callback.

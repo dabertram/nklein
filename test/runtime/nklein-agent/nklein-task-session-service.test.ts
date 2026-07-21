@@ -584,13 +584,16 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		turnCheckpointMocks.deleteTaskTurnCheckpointRef.mockResolvedValue(undefined);
 	});
 
-	function createTrackedService(): TaskSessionServiceHarness {
+	function createTrackedService(
+		optionOverrides: Pick<CreateInMemoryNKleinTaskSessionServiceOptions, "onClarificationAsked"> = {},
+	): TaskSessionServiceHarness {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		// Keep this suite fully in-process. Earlier Node 22 GitHub runner hangs
 		// came from the real SDK session runtime booting a live child process
 		// before Vitest could report a single test result from this file.
 		const service = createDiagnosticIsolatedService({
+			...optionOverrides,
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			allowUnisolatedTestRuntime: true,
@@ -3384,6 +3387,23 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
+	it("aborts the provider turn when a redrive replaces an active attempt", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-redrive",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+			providerId: "nklein",
+			modelId: "anthropic/claude-sonnet-4.6",
+		});
+
+		const stopped = await service.stopTaskSession("task-redrive", { abortActiveTurn: true });
+
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-redrive");
+		expect(runtime.stopTaskSessionMock).not.toHaveBeenCalledWith("task-redrive");
+		expect(stopped?.state).toBe("interrupted");
+	});
+
 	it("rebinds persisted sessions before stopping when no in-memory entry exists", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
@@ -3667,6 +3687,57 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		expect(service.getSummary("task-1")?.state).toBe("running");
 		expect(service.getSummary("task-1")?.reviewReason).toBeNull();
+	});
+
+	it("forwards one durable clarification event for duplicate native ask start events", async () => {
+		const onClarificationAsked = vi.fn(async () => undefined);
+		const { service, runtime } = createTrackedService({ onClarificationAsked });
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		const askEvent = {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "ask-1",
+			toolName: "ask_followup_question",
+			input: { question: "Which auth provider?", options: ["OIDC", "SAML"] },
+		};
+
+		runtime.emitAgentEvent(sessionId, askEvent);
+		runtime.emitAgentEvent(sessionId, askEvent);
+
+		await vi.waitFor(() => expect(onClarificationAsked).toHaveBeenCalledTimes(1));
+		expect(onClarificationAsked).toHaveBeenCalledWith({
+			taskId: "task-1",
+			toolCallId: "ask-1",
+			question: "Which auth provider?",
+			options: ["OIDC", "SAML"],
+		});
+	});
+
+	it("retries a failed clarification write when the SDK emits the duplicate native event", async () => {
+		const onClarificationAsked = vi
+			.fn<NonNullable<CreateInMemoryNKleinTaskSessionServiceOptions["onClarificationAsked"]>>()
+			.mockRejectedValueOnce(new Error("transient write failure"))
+			.mockResolvedValueOnce(undefined);
+		const { service, runtime } = createTrackedService({ onClarificationAsked });
+		await service.startTaskSession({ taskId: "task-1", cwd: "/tmp/worktree", prompt: "" });
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		const askEvent = {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "ask-1",
+			toolName: "ask_followup_question",
+			input: { question: "Which auth provider?", options: ["OIDC", "SAML"] },
+		};
+
+		runtime.emitAgentEvent(sessionId, askEvent);
+		runtime.emitAgentEvent(sessionId, askEvent);
+
+		await vi.waitFor(() => expect(onClarificationAsked).toHaveBeenCalledTimes(2));
 	});
 
 	it("moves to awaiting_review when SDK emits done for a completed turn", async () => {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import type {
 	AgentTool,
 } from "../../../src/nklein-agent/sdk-agent-types";
 import type {
+	NKleinSdkPersistedMessage,
 	NKleinSdkSessionRecord,
 	NKleinSdkStartSessionInput,
 	NKleinSdkUserInstructionService,
@@ -2007,6 +2008,53 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(runtime.getTaskSessionId("task-1")).toBeNull();
 	});
 
+	it("suppresses the stopped session's exit event when replacing it", async () => {
+		let subscribedListener: ((event: unknown) => void) | null = null;
+		const onTaskEvent = vi.fn();
+		const fakeHost = {
+			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async (sessionId: string) => {
+				subscribedListener?.({
+					type: "ended",
+					payload: { sessionId, reason: "exit", ts: Date.now() },
+				});
+			}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn((listener: (event: unknown) => void) => {
+				subscribedListener = listener;
+				return () => {};
+			}),
+		};
+
+		const runtime = createInMemoryNKleinSessionRuntime({
+			onTaskEvent,
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+		await runtime.startTaskSession({
+			taskId: "task-restart",
+			cwd: "/tmp/worktree",
+			prompt: "Initial turn",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+
+		await runtime.stopTaskSession("task-restart", { suppressTaskEvents: true });
+
+		expect(onTaskEvent).not.toHaveBeenCalled();
+		expect(runtime.getTaskSessionId("task-restart")).toBeNull();
+	});
+
 	it("clears the live task binding when stop fails and the session no longer exists", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
@@ -2098,6 +2146,71 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(fakeHost.delete).toHaveBeenCalledWith(liveSessionId);
 		expect(fakeHost.delete).not.toHaveBeenCalledWith("task-2-old");
 		expect(runtime.getTaskSessionId("task-1")).toBeNull();
+	});
+
+	it("snapshots the final auxiliary transcript before deleting it when run evidence is enabled", async () => {
+		const previousDir = process.env.NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR;
+		const snapshotDir = await mkdtemp(join(tmpdir(), "nklein-session-evidence-"));
+		process.env.NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR = snapshotDir;
+		const sessionId = "task-evidence-old";
+		const messages: NKleinSdkPersistedMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call-1", name: "submit_plan_critique", input: {} }],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call-1",
+						name: "submit_plan_critique",
+						is_error: false,
+						content: '{"ok":true}',
+					},
+				],
+			},
+		];
+		const fakeHost = {
+			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => [
+				createPersistedRecord({
+					sessionId,
+					status: "completed",
+					startedAt: "2026-03-17T10:00:00.000Z",
+					updatedAt: "2026-03-17T10:05:00.000Z",
+				}),
+			]),
+			readMessages: vi.fn(async () => messages),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		try {
+			const runtime = createInMemoryNKleinSessionRuntime({
+				createSessionHost: async () => fakeHost,
+				createMcpRuntimeService: createNoopMcpRuntimeService,
+			});
+			await runtime.clearTaskSessions("task-evidence");
+
+			const snapshot = JSON.parse(await readFile(join(snapshotDir, `${sessionId}.messages.json`), "utf8"));
+			expect(snapshot).toEqual({ sessionId, messages });
+			expect(fakeHost.delete).toHaveBeenCalledWith(sessionId);
+		} finally {
+			if (previousDir === undefined) {
+				delete process.env.NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR;
+			} else {
+				process.env.NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR = previousDir;
+			}
+		}
 	});
 
 	it("reads persisted task history by scanning task-prefixed SDK session ids", async () => {

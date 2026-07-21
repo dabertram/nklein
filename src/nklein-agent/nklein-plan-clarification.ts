@@ -12,7 +12,7 @@ import {
 	runAutoClarifyLoop,
 } from "../core/auto-clarify";
 import { applyClarificationAnswer, type ClarificationAnswerInput } from "../core/clarification-answer";
-import { decideOpenQuestionResolution } from "../core/question-clarification-pass";
+import { decideOpenQuestionResolution, isSafetyCriticalPlanQuestion } from "../core/question-clarification-pass";
 import {
 	appendNKleinPlanRevision,
 	type NKleinPlanQuestion,
@@ -201,6 +201,15 @@ export function clarifyTextSimilarity(a: string, b: string): number {
 	return intersection / (left.size + right.size - intersection);
 }
 
+/** A verdict enum cannot overrule its own prose. Local models sometimes submit `proceed` while saying the decision
+ * must remain open or the required fact is absent. Treat that contradiction as unresolved so it reaches review/the
+ * safety fallback instead of becoming a fabricated answer. */
+export function clarifyProposalSignalsUnresolved(text: string): boolean {
+	return /\b(?:remain|stays?|keep(?:ing)?|kept|leave|left)\s+(?:(?:the|this)\s+(?:decision|question)\s+)?open\b|\b(?:cannot|can't|must not)\s+(?:be\s+)?(?:answer(?:ed)?|resolv(?:e|ed)|determin(?:e|ed)|infer(?:red)?)\b|\bexternal fact\b.{0,120}\b(?:absent|missing|unknown|required)\b|\b(?:answer|decision|question)\s+(?:is\s+)?(?:unknown|unresolved)\b/isu.test(
+		text,
+	);
+}
+
 /** F1.3e loop config: each round costs 1-2 bounded sessions, so the budget is TIGHT (2 rounds, then assume). */
 const MODEL_CLARIFY_LOOP_CONFIG: AutoClarifyConfig = {
 	safetyCap: 2,
@@ -220,6 +229,7 @@ function buildClarifyProposeSeedPrompt(question: NKleinPlanQuestion, rounds: rea
 		"You are the ARCHITECT resolving an open planning question for this project. Investigate briefly if needed, then call submit_plan_critique EXACTLY ONCE to deliver your proposal:",
 		'- `verdict: "proceed"` when you are CONFIDENT in an answer; put the ANSWER ITSELF in `summary`.',
 		'- `verdict: "revise"` when you cannot answer without the user; put what is missing in `feedback`.',
+		"An interim working assumption is NOT an answer. If an external fact required to choose is absent, use revise; do not call proceed while saying the question must remain open.",
 		`Question: ${question.question}`,
 		question.options.length > 0
 			? `Known options:\n${question.options.map((option) => `- ${option.label}${option.recommended ? " (recommended)" : ""}${option.description ? ` — ${option.description}` : ""}`).join("\n")}`
@@ -235,6 +245,7 @@ function buildClarifyReviewSeedPrompt(question: NKleinPlanQuestion, proposal: st
 		"You are a REVIEWER giving a second opinion on a proposed answer to an open planning question. Call submit_plan_critique EXACTLY ONCE:",
 		'- `verdict: "proceed"` if the proposed answer is sound (no objection).',
 		'- `verdict: "revise"` with a concrete objection in `feedback` if it is wrong, risky, or under-specified.',
+		"Proceed only if the proposal fully answers and can close the question. If it merely chooses a working assumption, says the decision remains open, or depends on an absent external fact, use revise.",
 		`Question: ${question.question}`,
 		`Proposed answer: ${proposal}`,
 	].join("\n\n");
@@ -282,6 +293,7 @@ export async function runModelBackedClarifyLoop(input: {
 			continue;
 		}
 		attempted += 1;
+		const safetyCritical = isSafetyCriticalPlanQuestion(question);
 		let turnUnavailable = false;
 		const loopResult = await runAutoClarifyLoop(
 			question,
@@ -296,10 +308,13 @@ export async function runModelBackedClarifyLoop(input: {
 						// A no-progress, unresolved echo terminates the loop at the budget with give-up semantics.
 						return { proposal: "", resolved: false, selfReportedProgress: false };
 					}
+					const proposal = turn.verdict === "proceed" ? turn.summary : (turn.feedback ?? turn.summary);
+					const resolved = turn.verdict === "proceed" && !clarifyProposalSignalsUnresolved(proposal);
 					return {
-						proposal: turn.verdict === "proceed" ? turn.summary : (turn.feedback ?? turn.summary),
-						resolved: turn.verdict === "proceed",
-						selfReportedProgress: turn.verdict === "proceed",
+						proposal,
+						resolved,
+						selfReportedProgress: resolved,
+						requiresReview: safetyCritical,
 					};
 				},
 				review: async (target, proposal) => {
@@ -313,7 +328,9 @@ export async function runModelBackedClarifyLoop(input: {
 					if (!turn) {
 						return null;
 					}
-					return turn.verdict === "proceed" ? null : (turn.feedback ?? turn.summary);
+					return turn.verdict === "proceed" && !clarifyProposalSignalsUnresolved(turn.summary)
+						? null
+						: (turn.feedback ?? turn.summary);
 				},
 				similarity: clarifyTextSimilarity,
 			},
@@ -323,6 +340,7 @@ export async function runModelBackedClarifyLoop(input: {
 			!loopResult ||
 			turnUnavailable ||
 			loopResult.decision.action === "keep_asking" ||
+			(safetyCritical && loopResult.decision.action === "give_up_with_assumption") ||
 			(loopResult.decision.action === "give_up_with_assumption" && !loopResult.decision.assumption.trim())
 		) {
 			summary.keptOpenIds.push(questionId);

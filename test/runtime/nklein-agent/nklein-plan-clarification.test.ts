@@ -6,9 +6,11 @@ import {
 	nkleinPlanTaskGraphSchema,
 	readNKleinPlanArtifacts,
 	resolveNKleinPlanArtifactPaths,
+	updateNKleinPlanQuestion,
 	writeNKleinPlanArtifacts,
 } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
+	clarifyProposalSignalsUnresolved,
 	clarifyTextSimilarity,
 	resolvePlanQuestion,
 	runDecompositionClarificationPass,
@@ -372,6 +374,47 @@ describe("runModelBackedClarifyLoop (F1.3e)", () => {
 		const artifacts = await readNKleinPlanArtifacts(workspacePath, "loop");
 		expect(artifacts.questions[1]).toMatchObject({ id: "q-b", status: "assumed-default" });
 	});
+
+	it("reviews confident safety-critical proposals and keeps them open when the reviewer still objects", async () => {
+		const workspacePath = await createLoopWorkspace();
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, "loop");
+		const original = artifacts.questions[0];
+		if (!original) {
+			throw new Error("Expected q-a fixture question.");
+		}
+		await updateNKleinPlanQuestion({
+			workspacePath,
+			slug: "loop",
+			question: {
+				...original,
+				question:
+					"Should authentication use OIDC or password? The new-versus-existing deployment fact is external and absent.",
+				assumption: "oidc",
+			},
+		});
+		const turns: string[] = [];
+		const summary = await runModelBackedClarifyLoop({
+			workspacePath,
+			slug: "loop",
+			questionIds: ["q-a"],
+			requestClarifyTurn: async ({ role }) => {
+				turns.push(role);
+				if (role === "propose") {
+					return {
+						verdict: "proceed",
+						summary: "Use OIDC as a temporary assumption while keeping the decision open.",
+						feedback: null,
+					};
+				}
+				return { verdict: "revise", summary: "Not resolved", feedback: "The external fact is absent." };
+			},
+		});
+
+		expect(turns).toEqual(["propose", "review", "propose", "review"]);
+		expect(summary).toEqual({ resolvedCount: 0, keptOpenIds: ["q-a"] });
+		const updated = await readNKleinPlanArtifacts(workspacePath, "loop");
+		expect(updated.questions[0]?.status).toBe("open");
+	});
 });
 
 describe("clarifyTextSimilarity", () => {
@@ -381,5 +424,22 @@ describe("clarifyTextSimilarity", () => {
 		const ab = clarifyTextSimilarity("alpha beta gamma", "beta gamma delta");
 		expect(ab).toBeCloseTo(0.5, 5);
 		expect(ab).toBe(clarifyTextSimilarity("beta gamma delta", "alpha beta gamma"));
+	});
+});
+
+describe("clarifyProposalSignalsUnresolved", () => {
+	it("rejects proceed prose that says the decision remains open or the external fact is absent", () => {
+		expect(clarifyProposalSignalsUnresolved("The OIDC choice must remain OPEN until deployment type is known.")).toBe(
+			true,
+		);
+		expect(
+			clarifyProposalSignalsUnresolved("The external fact is deliberately absent, so this cannot be inferred."),
+		).toBe(true);
+	});
+
+	it("allows a concrete answer without unresolved language", () => {
+		expect(clarifyProposalSignalsUnresolved("Use OIDC; deployment inventory confirms every target is new.")).toBe(
+			false,
+		);
 	});
 });

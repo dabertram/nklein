@@ -137,11 +137,16 @@ import {
 	type NKleinEndpointSessionSnapshot,
 	scheduleNKleinEndpointStart,
 } from "../nklein-agent/nklein-endpoint-scheduler";
+import { recordExecutionClarificationBlock } from "../nklein-agent/nklein-execution-clarification";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
+import {
+	hasDeliverySessionWaitingForModelTurn,
+	stopPrimaryAttemptForRedrive,
+} from "../nklein-agent/nklein-speculative-preemption";
 import {
 	createInMemoryNKleinTaskSessionService,
 	type NKleinModelTurnAdmissionGate,
@@ -2782,7 +2787,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							`Turn-loop escalation: ${event.taskId} looped on "${event.boundary}" — switched its model to ${event.model.modelId} and stopping the session for a redrive.`,
 						);
 						const escalationService = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
-						await escalationService?.stopTaskSession(event.taskId);
+						// This speculative candidate belongs to the abandoned attempt. On a cap-one host it otherwise
+						// blocks the model-switched redrive and the review that caused the switch.
+						if (escalationService) {
+							await stopPrimaryAttemptForRedrive(escalationService, event.taskId);
+						}
 					} catch (error) {
 						deps.warn(
 							`Turn-loop escalation failed for ${event.taskId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -2813,6 +2822,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							})
 						: null;
 					return seeded ? { chain: seeded, source: "seeded" as const } : null;
+				},
+				onClarificationAsked: async (ask) => {
+					const result = await recordExecutionClarificationBlock({
+						workspacePath: scope.workspacePath,
+						ask,
+					});
+					if (result.status === "recorded") {
+						void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(
+							scope.workspaceId,
+							scope.workspacePath,
+						);
+					}
 				},
 				onFocusChainUpdated: async (taskId, chain) => {
 					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.
@@ -3385,7 +3406,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// spec (the tick bounds preemption latency to one tick).
 							const realWorkWaiting =
 								taskStartQueue.size(scope.workspaceId) > 0 ||
-								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
+								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0 ||
+								hasDeliverySessionWaitingForModelTurn(trackedService.listSummaries());
 							if (realWorkWaiting && runningSpecSessions.length > 0) {
 								for (const spec of runningSpecSessions) {
 									const primaryTaskId = primaryTaskIdOfSpeculativeMirror(spec.taskId);

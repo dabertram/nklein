@@ -78,6 +78,42 @@ export interface ApplyNKleinSessionEventInput {
 	isNKleinProvider: boolean;
 	emitSummary: (summary: RuntimeTaskSessionSummary) => void;
 	emitMessage: (taskId: string, message: NKleinTaskMessage) => void;
+	onClarificationAsked?: (ask: {
+		taskId: string;
+		toolCallId: string | null;
+		question: string;
+		options: string[];
+	}) => void;
+}
+
+function emitClarificationAsk(
+	input: ApplyNKleinSessionEventInput,
+	toolName: string | null,
+	toolCallId: string | null,
+	toolInput: unknown,
+): void {
+	if (toolName?.trim().toLowerCase() !== "ask_followup_question") {
+		return;
+	}
+	const record = asRecord(toolInput);
+	const question = typeof record?.question === "string" ? record.question.trim() : "";
+	if (!question) {
+		return;
+	}
+	const rawOptions = Array.isArray(record?.follow_up)
+		? record.follow_up
+		: Array.isArray(record?.options)
+			? record.options
+			: [];
+	const options = rawOptions.flatMap((value) => {
+		if (typeof value === "string") {
+			return value.trim() ? [value.trim()] : [];
+		}
+		const option = asRecord(value);
+		const label = typeof option?.text === "string" ? option.text.trim() : "";
+		return label ? [label] : [];
+	});
+	input.onClarificationAsked?.({ taskId: input.taskId, toolCallId, question, options });
 }
 
 function emitAssistantTextSummary(input: ApplyNKleinSessionEventInput, text: string | null): void {
@@ -550,6 +586,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		const toolInput = toolCall?.input;
 		const toolDisplay = getNKleinToolCallDisplay(toolName, toolInput);
 		const isUserAttentionTool = isNKleinUserAttentionTool(toolName);
+		emitClarificationAsk(input, toolName, toolCallId, toolInput);
 		input.emitMessage(
 			taskId,
 			startToolCallMessage(entry, taskId, {
@@ -646,6 +683,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		const toolInput = agentEvent.input;
 		const toolDisplay = getNKleinToolCallDisplay(toolName, toolInput);
 		const isUserAttentionTool = isNKleinUserAttentionTool(toolName);
+		emitClarificationAsk(input, toolName, toolCallId, toolInput);
 		input.emitMessage(
 			taskId,
 			startToolCallMessage(entry, taskId, {
