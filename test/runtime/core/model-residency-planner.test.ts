@@ -78,4 +78,31 @@ describe("planResidencyForModel", () => {
 		expect(plan.fits).toBe(true);
 		expect(plan.toUnload).toEqual(["c1", "c2"]); // coldest two, in order
 	});
+
+	it("evicts the coldest idle resident to honor a hard host-count cap even when memory fits", () => {
+		const plan = planResidencyForModel({
+			neededSizeBytes: 8 * GiB,
+			resident: [
+				resident("cold", 8, { lastUsedAt: 1 }),
+				resident("hot", 8, { lastUsedAt: 100 }),
+				resident("hotter", 8, { lastUsedAt: 200 }),
+			],
+			totalBudgetBytes: 128 * GiB,
+			maxResidents: 3,
+		});
+		expect(plan.fits).toBe(true);
+		expect(plan.toUnload).toEqual(["cold"]);
+	});
+
+	it("refuses to exceed the host-count cap when every resident is active", () => {
+		const plan = planResidencyForModel({
+			neededSizeBytes: 8 * GiB,
+			resident: [resident("busy-a", 8, { inUse: true }), resident("busy-b", 8, { inUse: true })],
+			totalBudgetBytes: 128 * GiB,
+			maxResidents: 2,
+		});
+		expect(plan.fits).toBe(false);
+		expect(plan.toUnload).toEqual([]);
+		expect(plan.reason).toMatch(/host cap/i);
+	});
 });

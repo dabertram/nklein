@@ -3,17 +3,42 @@
 #
 # THE RULE (§4A): every real-model run goes through this script, never ad-hoc commands. It owns the whole
 # lifecycle so a run can NEVER "just sit there" while a card stalls:
-#   setup  — pin m5max, load the resident fleet at ≥32k, start LM Studio dev-log streaming, start the !Klein runtime
-#   run    — launch the dev-test drain (background)
+#   setup  — guarded retained-set admission at ≥32k, then LM Studio dev-log streaming (+ runtime for dev-test runs)
+#   run    — launch the dev-test drain or deterministic role-eval harness (background)
 #   watch  — ACTIVELY monitor from cheap sources (lms ps, the persisted board.json, the runtime log, the dev-log
 #            stream) — NEVER polling the inference endpoint — and REACT to stall / crash / floor-refusal / success
 #   report — assemble raw logs plus exact tool_use→tool_result pairs, errors, pending calls, board state, and transitions
 #   teardown — always: kill the runtime + sandboxes; keep the fleet resident unless --unload
 #
 # Usage:  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--unload] [--max-min N]
+#         scripts/real-model-run.sh --eval-harness --worker <modelId> [--unload] [--max-min N]
 # Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180),
 #         NKLEIN_ACTIVE_STALL_SECS (900), NKLEIN_POLL_SECS (15)
 set -uo pipefail
+
+usage(){
+  cat <<'EOF'
+Usage:
+  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--max-min N] [--unload]
+  scripts/real-model-run.sh --eval-harness --worker <modelId> [--max-min N] [--unload]
+
+Options:
+  --plan            Run the planning/decomposition drain (default is --act).
+  --act             Run the direct-action drain.
+  --eval-harness    Run the deterministic per-role model evaluation without starting the !Klein runtime.
+  --worker ID       Model identifier to run and safely admit to the retained set.
+  --max-min N       Hard wall-clock bound in whole minutes (default: 20).
+  --unload          Unload all models during teardown (default: keep the safe retained set warm).
+  --check-config    Validate and print the resolved run configuration without changing any state.
+  -h, --help        Print this help without changing model or runtime state.
+
+Environment:
+  NKLEIN_FLEET="id ..." overrides the inferred dev-test fleet (at most NKLEIN_LOAD_MAX_RESIDENTS unique models).
+  NKLEIN_LOAD_DEVICE explicitly selects the LM Link host (default: m5max).
+  NKLEIN_LOAD_MAX_RESIDENTS caps that host's warm set (default and hard local ceiling: 3).
+  NKLEIN_LOAD_TARGET_RAM_GB is required when the selected host is remote.
+EOF
+}
 
 # ─────────────────────────────── config ───────────────────────────────
 PORT="${NKLEIN_RUNTIME_PORT:-3484}"
@@ -22,23 +47,77 @@ POLL_SECS="${NKLEIN_POLL_SECS:-15}"       # how often the watcher samples (cheap
 STALL_SECS="${NKLEIN_STALL_SECS:-180}"    # no board/tool/model-log progress this long ⇒ stall reaction
 ACTIVE_STALL_SECS="${NKLEIN_ACTIVE_STALL_SECS:-900}" # active prefill/generation can be quiet; still bounded
 CTX="${NKLEIN_CONTEXT_LENGTH:-32768}"     # ≥32k floor (prime directive #3) — MUST be met or sessions never start
-M5MAX_DEVICE="${NKLEIN_M5MAX_DEVICE:-}"   # optional lms device identifier to pin (auto-detected if empty)
+LOAD_DEVICE="${NKLEIN_LOAD_DEVICE:-m5max}"
+MAX_RESIDENTS="${NKLEIN_LOAD_MAX_RESIDENTS:-3}"
 
-PRESET="mid_task"; MODE="--no-plan"; WORKER=""; UNLOAD=0; MAX_MIN=20
-for arg in "$@"; do case "$arg" in
-  --plan) MODE="";; --act) MODE="--no-plan";;
-  --unload) UNLOAD=1;;
-  --worker) NEXT_IS_WORKER=1;;
-  --max-min) NEXT_IS_MAX=1;;
-  *) if [ "${NEXT_IS_WORKER:-0}" = 1 ]; then WORKER="$arg"; NEXT_IS_WORKER=0;
-     elif [ "${NEXT_IS_MAX:-0}" = 1 ]; then MAX_MIN="$arg"; NEXT_IS_MAX=0;
-     else PRESET="$arg"; fi;;
-esac; done
+PRESET="mid_task"; PRESET_SET=0; MODE="--no-plan"; MODE_SET=0; RUN_KIND="dev-test"
+WORKER=""; UNLOAD=0; MAX_MIN=20; CHECK_ONLY=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0;;
+    --plan) MODE=""; MODE_SET=1; shift;;
+    --act) MODE="--no-plan"; MODE_SET=1; shift;;
+    --eval-harness) RUN_KIND="eval"; shift;;
+    --unload) UNLOAD=1; shift;;
+    --check-config) CHECK_ONLY=1; shift;;
+    --worker)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || { printf 'error: --worker requires a model identifier\n' >&2; usage >&2; exit 64; }
+      WORKER="$2"; shift 2;;
+    --max-min)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || { printf 'error: --max-min requires a positive integer\n' >&2; usage >&2; exit 64; }
+      MAX_MIN="$2"; shift 2;;
+    --*) printf 'error: unknown option: %s\n' "$1" >&2; usage >&2; exit 64;;
+    *)
+      [ "$PRESET_SET" = 0 ] || { printf 'error: unexpected positional argument: %s\n' "$1" >&2; usage >&2; exit 64; }
+      PRESET="$1"; PRESET_SET=1; shift;;
+  esac
+done
 
-# The resident fleet — small + fast, kept loaded on m5max (David 2026-07-21). Override with NKLEIN_FLEET="a b c".
-DEFAULT_FLEET="qwen/qwen3.6-35b-a3b google/gemma-4-31b-qat qwopus3.5-9b-coder-mlx@8bit qwen/qwen2.5-coder-14b"
-read -r -a FLEET <<< "${NKLEIN_FLEET:-$DEFAULT_FLEET}"
+case "$MAX_MIN" in ''|*[!0-9]*|0) printf 'error: --max-min must be a positive integer\n' >&2; exit 64;; esac
+case "$CTX" in ''|*[!0-9]*) printf 'error: NKLEIN_CONTEXT_LENGTH must be an integer ≥32000\n' >&2; exit 64;; esac
+[ "$CTX" -ge 32000 ] || { printf 'error: NKLEIN_CONTEXT_LENGTH=%s violates the 32000-token floor\n' "$CTX" >&2; exit 64; }
+case "$MAX_RESIDENTS" in ''|*[!0-9]*|0) printf 'error: NKLEIN_LOAD_MAX_RESIDENTS must be a positive integer\n' >&2; exit 64;; esac
+[ "$MAX_RESIDENTS" -le 3 ] || { printf 'error: m5max retained-set safety ceiling is 3 models\n' >&2; exit 64; }
+if [ "$RUN_KIND" = eval ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
+  printf 'error: presets and --plan/--act do not apply to --eval-harness\n' >&2; exit 64
+fi
+
 WORKER="${WORKER:-qwen/qwen3.6-35b-a3b}"
+ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
+CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
+REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-$WORKER}"
+
+# Infer only the models the requested run can actually use. Keep at most three warm on m5max; never preload a stale
+# four-model roster. An explicit NKLEIN_FLEET remains available, but is rejected if it exceeds the declared cap.
+FLEET=()
+append_unique(){
+  local candidate="$1" existing
+  [ -n "$candidate" ] || return
+  for existing in "${FLEET[@]-}"; do [ "$existing" = "$candidate" ] && return; done
+  FLEET+=("$candidate")
+}
+if [ -n "${NKLEIN_FLEET:-}" ]; then
+  read -r -a REQUESTED_FLEET <<< "$NKLEIN_FLEET"
+  for model_id in "${REQUESTED_FLEET[@]}"; do append_unique "$model_id"; done
+elif [ "$RUN_KIND" = eval ]; then
+  append_unique "$WORKER"
+elif [ -n "$MODE" ]; then
+  append_unique "$WORKER"
+else
+  append_unique "$WORKER"
+  append_unique "$ARCHITECT_MODEL"
+  append_unique "$CHILD_WORKER_MODEL"
+  append_unique "$REVIEWER_MODEL"
+fi
+[ "${#FLEET[@]}" -le "$MAX_RESIDENTS" ] || {
+  printf 'error: requested fleet has %s unique models but the host cap is %s\n' "${#FLEET[@]}" "$MAX_RESIDENTS" >&2
+  exit 64
+}
+if [ "$CHECK_ONLY" = 1 ]; then
+  printf 'kind=%s preset=%s mode=%s worker=%s device=%s context=%s cap=%s fleet=[%s]\n' \
+    "$RUN_KIND" "$PRESET" "${MODE:-plan}" "$WORKER" "$LOAD_DEVICE" "$CTX" "$MAX_RESIDENTS" "${FLEET[*]}"
+  exit 0
+fi
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -54,13 +133,12 @@ SESSION_SNAPSHOT_DIR="$RUN_HOME/.nklein/evidence-session-snapshots"
 
 # The isolated HOME must still be a runnable !Klein installation. Configure the resident fleet as the role fallback
 # so decomposition children do not strand with "No native !Klein provider is configured" after a forced seed model.
-ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
-CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
-REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-google/gemma-4-31b-qat}"
 RUN_CONFIG="$RUN_HOME/.nklein/nklein/config.json"
 PROVIDER_SELECTION="$RUN_HOME/.nklein/nklein/nklein-provider-selection.json"
-mkdir -p "$(dirname "$RUN_CONFIG")" "$SESSION_SNAPSHOT_DIR"
-if [ ! -f "$RUN_CONFIG" ]; then
+if [ "$RUN_KIND" = dev-test ]; then
+  mkdir -p "$(dirname "$RUN_CONFIG")" "$SESSION_SNAPSHOT_DIR"
+fi
+if [ "$RUN_KIND" = dev-test ] && [ ! -f "$RUN_CONFIG" ]; then
   jq -n --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '{
     selectedAgentId: "nklein",
     developerModeEnabled: true,
@@ -74,7 +152,7 @@ fi
 # modelRoles choose models after a role has been assigned; the auto-start cascade still resolves the globally
 # selected provider before applying those overrides. Reproduce the local-provider onboarding state inside the
 # isolated HOME rather than borrowing the developer's real HOME (which would contaminate run evidence).
-if [ ! -f "$PROVIDER_SELECTION" ]; then
+if [ "$RUN_KIND" = dev-test ] && [ ! -f "$PROVIDER_SELECTION" ]; then
   jq -n '{providerId: "lmstudio"}' >"$PROVIDER_SELECTION"
 fi
 
@@ -108,13 +186,17 @@ teardown(){
   stop_process_tree "$RUNTIME_PID"
   [ -n "$DEVLOG_PID" ] && kill "$DEVLOG_PID" 2>/dev/null
   SANDBOX_COUNT=0
-  for container_id in $(HOME="$REAL_HOME" docker ps -aq --filter 'name=nklein-agent-sandbox' 2>/dev/null); do
-    HOME="$REAL_HOME" docker rm -f "$container_id" >/dev/null 2>&1 && SANDBOX_COUNT=$((SANDBOX_COUNT + 1))
-  done
+  if [ "$RUN_KIND" = dev-test ]; then
+    for container_id in $(HOME="$REAL_HOME" docker ps -aq --filter 'name=nklein-agent-sandbox' 2>/dev/null); do
+      HOME="$REAL_HOME" docker rm -f "$container_id" >/dev/null 2>&1 && SANDBOX_COUNT=$((SANDBOX_COUNT + 1))
+    done
+  fi
   [ "$SANDBOX_COUNT" -gt 0 ] && log "removed $SANDBOX_COUNT sandbox container(s)"
   if [ "$UNLOAD" = 1 ]; then HOME="$REAL_HOME" lms unload --all 2>/dev/null | tail -1 | xargs log; else log "fleet kept resident (use --unload to free)"; fi
   sleep 1
-  HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && log "⚠ port $PORT still busy" || log "port $PORT free"
+  if [ "$RUN_KIND" = dev-test ]; then
+    HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && log "⚠ port $PORT still busy" || log "port $PORT free"
+  fi
   if [ "$RUN_LOCK_HELD" = 1 ]; then
     rm -f "$RUN_LOCK/owner.pid"
     rmdir "$RUN_LOCK" 2>/dev/null || true
@@ -132,11 +214,13 @@ handle_signal(){
 }
 
 # ─────────────────────────────── setup ───────────────────────────────
-log "=== REAL-MODEL RUN $STAMP  preset=$PRESET mode=${MODE:-plan} worker=$WORKER fleet=[${FLEET[*]}] ==="
-log "isolated role config: architect=$ARCHITECT_MODEL worker=$CHILD_WORKER_MODEL reviewer=$REVIEWER_MODEL"
+log "=== REAL-MODEL RUN $STAMP  kind=$RUN_KIND preset=$PRESET mode=${MODE:-plan} worker=$WORKER fleet=[${FLEET[*]}] ==="
+[ "$RUN_KIND" = dev-test ] && log "isolated role config: architect=$ARCHITECT_MODEL worker=$CHILD_WORKER_MODEL reviewer=$REVIEWER_MODEL"
 # Do not arm teardown until this controller exclusively owns the lifecycle. A rejected concurrent launch must never
 # remove another run's Docker sandboxes (real incident: a port-conflict exit destroyed the active run's container).
-HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && { log "FATAL: port $PORT already in use; leaving its owner untouched"; exit 2; }
+if [ "$RUN_KIND" = dev-test ]; then
+  HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && { log "FATAL: port $PORT already in use; leaving its owner untouched"; exit 2; }
+fi
 if mkdir "$RUN_LOCK" 2>/dev/null; then
   RUN_LOCK_HELD=1
 else
@@ -160,40 +244,56 @@ trap teardown EXIT
 trap 'handle_signal interrupted 130' INT
 trap 'handle_signal terminated 143' TERM
 
-# Pin m5max so loads land on the fast box, not an auto-routed remote.
-if [ -z "$M5MAX_DEVICE" ]; then M5MAX_DEVICE="$(HOME="$REAL_HOME" lms link set-preferred-device 2>&1 | grep -iE 'm5max' | grep -oE '[0-9a-f]{32}' | head -1)"; fi
-[ -n "$M5MAX_DEVICE" ] && { HOME="$REAL_HOME" lms link set-preferred-device "$M5MAX_DEVICE" >/dev/null 2>&1 && log "pinned m5max ($M5MAX_DEVICE)"; }
-
-log "loading fleet at ${CTX} ctx (≥32k floor)…"
+log "admitting retained fleet on $LOAD_DEVICE at ${CTX} ctx (≥32k floor, cap $MAX_RESIDENTS)…"
+LOAD_FAILURES=0
 for m in "${FLEET[@]}"; do
-  if HOME="$REAL_HOME" lms ps 2>/dev/null | grep -q "$m"; then log "  ✓ $m already resident"; continue; fi
-  if HOME="$REAL_HOME" lms load "$m" --context-length "$CTX" --gpu max -y >"$RUN_DIR/load-$(echo "$m"|tr '/@' '__').log" 2>&1; then
-    dev=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep "$m" | grep -oiE 'Local|m5max|m4mini|legion[0-9a-z]*' | head -1)
-    log "  ✓ loaded $m (device ${dev:-?})"
-  else log "  ✗ FAILED to load $m — see load log"; fi
+  LOAD_LOG="$RUN_DIR/load-$(echo "$m" | tr '/@:' '____').log"
+  if ( cd "$REPO" && HOME="$REAL_HOME" \
+       NKLEIN_LOAD_DEVICE="$LOAD_DEVICE" NKLEIN_LOAD_MAX_RESIDENTS="$MAX_RESIDENTS" \
+       NKLEIN_LOAD_PINNED_MODELS="${NKLEIN_RETAIN_MODELS:-} ${FLEET[*]}" \
+       npx tsx scripts/model-lab.mts admit "$m" "$CTX" ) >"$LOAD_LOG" 2>&1; then
+    log "  ✓ admitted $m; warm-set policy reconciled"
+  else
+    log "  ✗ REFUSED $m — see $(basename "$LOAD_LOG")"
+    LOAD_FAILURES=$((LOAD_FAILURES + 1))
+  fi
 done
-RESIDENT=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep -cE 'IDLE|GENERAT|PROCESS'); log "resident models: $RESIDENT"
+[ "$LOAD_FAILURES" -eq 0 ] || { log "FATAL: $LOAD_FAILURES required model admission(s) failed"; exit 3; }
+PS_JSON=$(HOME="$REAL_HOME" lms ps --json 2>/dev/null || true)
+RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm")] | length' 2>/dev/null || echo 0)
+LOCAL_RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm" and .deviceIdentifier == null)] | length' 2>/dev/null || echo 0)
+log "resident models across LM Link: $RESIDENT (local $LOAD_DEVICE: $LOCAL_RESIDENT)"
 [ "$RESIDENT" -lt 1 ] && { log "FATAL: no models resident"; exit 3; }
 
 log "starting LM Studio dev-log stream → $(basename "$DEVLOG")"
 ( HOME="$REAL_HOME" lms log stream >"$DEVLOG" 2>&1 ) & DEVLOG_PID=$!
 
-log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
-( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
-	NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR="$SESSION_SNAPSHOT_DIR" \
-    npx tsx src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
-for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
-HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }
-log "runtime UP"
+if [ "$RUN_KIND" = dev-test ]; then
+  log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
+  ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
+    NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR="$SESSION_SNAPSHOT_DIR" \
+      npx tsx src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
+  for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
+  HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }
+  log "runtime UP"
+fi
 
 # ─────────────────────────────── run ───────────────────────────────
-log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
 DRAIN_START=$(date +%s)
-( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
-    npx tsx src/cli.ts dev test-project --preset "$PRESET" $MODE \
-      --model-id "$WORKER" --provider-id lmstudio \
-      --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
-      >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+if [ "$RUN_KIND" = eval ]; then
+  DRAIN_JSON="$RUN_DIR/eval.log"; DRAIN_ERR="$RUN_DIR/eval.err"
+  log "launching role eval: worker=$WORKER max=${MAX_MIN}m"
+  ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
+      NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
+      npx tsx scripts/eval-harness.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+else
+  log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
+  ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
+      npx tsx src/cli.ts dev test-project --preset "$PRESET" $MODE \
+        --model-id "$WORKER" --provider-id lmstudio \
+        --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
+        >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+fi
 
 # ─────────────────────────────── watch + react ───────────────────────────────
 board_signature(){  # cheap board state from the persisted json (NO api call): "col=count|col=count", non-empty cols only
@@ -239,6 +339,7 @@ snapshot_session_transcripts(){ # auxiliary sessions are cleared after use; pres
 LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""; RUN_PHASE="watch"
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
+  kill -0 "$DRAIN_PID" 2>/dev/null || break
   if [ -n "$SIGNAL_ABORT_REASON" ]; then
     ABORT_REASON="$SIGNAL_ABORT_REASON"
     log "REACT: received $SIGNAL_ABORT_REASON — stopping the drain and preserving evidence."
@@ -246,22 +347,38 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   fi
   snapshot_session_transcripts
   NOW=$(date +%s); ELAPSED=$((NOW-DRAIN_START))
-  MSTAT=$(HOME="$REAL_HOME" lms ps 2>/dev/null | grep -iE 'GENERAT|PROCESS' | awk '{print $1}' | tr '\n' ',' )
+  if [ "$ELAPSED" -ge $((MAX_MIN*60)) ]; then
+    ABORT_REASON="wall_clock_limit"
+    log "REACT: hard wall-clock limit ${MAX_MIN}m reached — stopping the run and preserving evidence."
+    break
+  fi
+  PS_JSON=$(HOME="$REAL_HOME" lms ps --json 2>/dev/null || true)
+  MSTAT=$(printf '%s' "$PS_JSON" | jq -r '.[] | select(.type == "llm" and (.status != null and .status != "idle")) | .identifier' 2>/dev/null | tr '\n' ',')
   SIG=$(board_signature); TOOLS=$(tool_activity); DEVLOG_BYTES=$(wc -c <"$DEVLOG" 2>/dev/null || echo 0)
   DEVLOG_BYTES="${DEVLOG_BYTES//[[:space:]]/}"
   printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] model-log-bytes=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${DEVLOG_BYTES:-0}" "${MSTAT:-idle}" | tee -a "$SNAP"
   # REACT: floor refusal (config error — abort, it will never start)
-  if HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
+  if [ "$RUN_KIND" = dev-test ] && HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
     ABORT_REASON="context_floor_refusal"
     log "REACT: context-floor refusal in runtime log — a model is loaded below ${CTX}. Aborting (fix the load)."; break; fi
   # REACT: isolated/provider onboarding is incomplete — children can never auto-start in this run.
-  if HOME="$REAL_HOME" grep -q 'No native !Klein provider is configured' "$RUNTIME_LOG" 2>/dev/null; then
+  if [ "$RUN_KIND" = dev-test ] && HOME="$REAL_HOME" grep -q 'No native !Klein provider is configured' "$RUNTIME_LOG" 2>/dev/null; then
     ABORT_REASON="provider_unconfigured"
     log "REACT: auto-start has no native provider selection. Aborting (fix isolated onboarding state)."; break; fi
   # REACT: sandbox/docker conflict repeatedly failing
-  if [ "$(HOME="$REAL_HOME" grep -c 'is already in use by container' "$RUNTIME_LOG" 2>/dev/null)" -gt 3 ]; then
+  if [ "$RUN_KIND" = dev-test ] && [ "$(HOME="$REAL_HOME" grep -c 'is already in use by container' "$RUNTIME_LOG" 2>/dev/null)" -gt 3 ]; then
     ABORT_REASON="sandbox_container_conflict"
     log "REACT: repeated sandbox container-name conflict — stale containers. Aborting; teardown will clear them."; break; fi
+  # REACT: the required worker disappeared. Continuing would only generate model-not-found churn and misleading stalls.
+  if ! printf '%s' "$PS_JSON" | jq -e --arg worker "$WORKER" '
+    any(.[]; .type == "llm" and (.identifier == $worker or .modelKey == $worker or .indexedModelIdentifier == $worker))
+  ' >/dev/null 2>&1; then
+    ABORT_REASON="worker_unloaded"
+    log "REACT: required worker $WORKER is no longer resident. Aborting before requests churn."; break; fi
+  # REACT: LM Studio can leave a crashed model nominally IDLE. The dev stream is the authoritative backend signal.
+  if grep -Eiq 'fatal exception in the backend generation thread|model has crashed' "$DEVLOG" 2>/dev/null; then
+    ABORT_REASON="backend_crash"
+    log "REACT: LM Studio reported a fatal backend generation crash. Aborting and preserving the exact dev log."; break; fi
   # progress tracking
   CURSIG="$SIG|$TOOLS|devlog=${DEVLOG_BYTES:-0}"
   if [ "$CURSIG" != "$LAST_SIG" ]; then LAST_SIG="$CURSIG"; LAST_CHANGE="$NOW"; fi
@@ -287,7 +404,15 @@ wait "$DRAIN_PID" 2>/dev/null; DRAIN_STATUS=$?; DRAIN_END=$(date +%s)
 log "=== RESULT (real wall time $((DRAIN_END-DRAIN_START))s) ==="
 snapshot_session_transcripts
 DRAIN_OUTCOME="unclassified"; DRAIN_SUCCESS=false
-if jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
+if [ "$RUN_KIND" = eval ]; then
+  case "$DRAIN_STATUS" in
+    0) DRAIN_OUTCOME="passed"; DRAIN_SUCCESS=true;;
+    3) DRAIN_OUTCOME="partial";;
+    *) DRAIN_OUTCOME="failed";;
+  esac
+  EVAL_RESULT=$(grep '^result:' "$DRAIN_JSON" 2>/dev/null | tail -1)
+  log "eval outcome: $DRAIN_OUTCOME | ${EVAL_RESULT:-no result line; see eval.log/eval.err}"
+elif jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
   DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
   DRAIN_SUCCESS=$(jq -r '.classification.success // false' "$DRAIN_JSON")
   log "outcome: $DRAIN_OUTCOME | success: $DRAIN_SUCCESS | counts: $(jq -c '.finalCounts' "$DRAIN_JSON")"
@@ -306,18 +431,27 @@ jq -n \
   '{abortReason: (if $abortReason == "" then null else $abortReason end), outcome: $outcome, success: $success, drainExitCode: $drainExitCode, durationSeconds: $durationSeconds}' \
   >"$RUN_DIR/controller-result.json"
 
-log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"
-EVIDENCE_SUMMARY=$("$REPO/node_modules/.bin/tsx" "$REPO/src/commands/real-model-evidence-cli.ts" \
-  --home "$RUN_HOME" --out "$EVIDENCE_DIR" --runtime-log "$RUNTIME_LOG" 2>"$RUN_DIR/evidence-collector.err")
-EVIDENCE_STATUS=$?
-if [ "$EVIDENCE_STATUS" -eq 0 ]; then
-  log "evidence: $EVIDENCE_SUMMARY"
+if [ "$RUN_KIND" = dev-test ]; then
+  log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"
+  EVIDENCE_SUMMARY=$("$REPO/node_modules/.bin/tsx" "$REPO/src/commands/real-model-evidence-cli.ts" \
+    --home "$RUN_HOME" --out "$EVIDENCE_DIR" --runtime-log "$RUNTIME_LOG" 2>"$RUN_DIR/evidence-collector.err")
+  EVIDENCE_STATUS=$?
+  if [ "$EVIDENCE_STATUS" -eq 0 ]; then
+    log "evidence: $EVIDENCE_SUMMARY"
+  else
+    log "⚠ evidence collection reported errors (exit $EVIDENCE_STATUS); see evidence/summary.json + evidence-collector.err"
+  fi
+  log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
 else
-  log "⚠ evidence collection reported errors (exit $EVIDENCE_STATUS); see evidence/summary.json + evidence-collector.err"
+  log "logs: eval.log, eval.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
 fi
-log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
-FINAL_STATUS=0
-if [ "$DRAIN_STATUS" -ne 0 ] || [ "$DRAIN_SUCCESS" != true ] || [ -n "$ABORT_REASON" ]; then FINAL_STATUS=1; fi
+if [ "$RUN_KIND" = eval ]; then
+  FINAL_STATUS="$DRAIN_STATUS"
+  [ -n "$ABORT_REASON" ] && FINAL_STATUS=1
+else
+  FINAL_STATUS=0
+  if [ "$DRAIN_STATUS" -ne 0 ] || [ "$DRAIN_SUCCESS" != true ] || [ -n "$ABORT_REASON" ]; then FINAL_STATUS=1; fi
+fi
 log "controller exit: $FINAL_STATUS"
 exit "$FINAL_STATUS"
 # teardown runs on EXIT

@@ -11,6 +11,29 @@ import type { ModelCapabilityEntry } from "./model-capability-catalog.js";
  * before a generic `gemma-4`). Seeded 2026-06-29 from the §5.AL research sweep + our own model sweeps.
  */
 export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
+	{
+		family: "ternary-bonsai-27b-mlx",
+		match: /ternary-?bonsai-?27b.*mlx|bonsai-?27b.*mlx-?2bit/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		chaining: "fails",
+		structuredOutput: "native_tool_call",
+		speed: "medium",
+		sizeGb: 8.5,
+		note: "Prism Ternary Bonsai 27B MLX 2-bit. TOOL-FREE LIVE EVAL 2026-07-22 (m5max, fresh 40k load): context worker 1.000 across 2k/8k/24k and reviewer 0.722 (reliability 0.667; ~60s/cell), so it is a strong context-heavy reader and useful second-opinion reviewer. AGENTIC PATH BLOCKED ON THE CURRENT LM STUDIO MLX RUNTIME: architect and worker tool requests reproducibly return HTTP 400 because mlx_engine/tool_runtime.py applies an llguidance grammar at token zero and crashes when the thinking model emits `!`; the failed grammar also poisons the nominally-idle instance until reload. Prism's own mlx_lm server documents native tool calls, so this is a serving-layer incompatibility, not evidence that the weights lack tool ability. Keep out of ordinary !Klein tool chains on LM Studio; use only fresh, tool-free review/context calls until that runtime is fixed or the official server is integrated.",
+		sources: [
+			"real-model eval 2026-07-22 (.real-runs/20260722-010344: tool-free mean 0.861/6; context 1.000, reviewer 0.722; .real-runs/20260722-010114 + 20260722-010845: llguidance token-! fatal tool grammar)",
+			"https://huggingface.co/prism-ml/Ternary-Bonsai-27B-mlx-2bit",
+			"https://github.com/PrismML-Eng/Bonsai-demo/blob/main/TOOLS.md",
+			"https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/1592",
+		],
+		severityOverride: "warn",
+		disqualifiers: [
+			"LM Studio MLX runtime 1.10.1 crashes its constrained tool grammar before the first call and can leak the failed grammar into later requests; fresh reload required after failure",
+		],
+		basis: "both",
+		verified: true,
+	},
 	// ── NEW FLEET ADDITIONS 2026-07-17 (David added a handful of models) — STRUCTURAL PRIORS pending a fleet sweep.
 	//    Each is verified:false + basis:"research": the match/kind/size/speed are known from arch+size+lineage, but the
 	//    tool-use/chaining verdict is a lineage prior, NOT our empirical eval yet. `dev`/runtime sweep upgrades these to

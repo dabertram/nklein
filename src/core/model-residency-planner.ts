@@ -45,6 +45,8 @@ export function planResidencyForModel(input: {
 	resident: readonly ResidentModelInfo[];
 	totalBudgetBytes: number;
 	reserveFraction?: number;
+	/** Optional hard resident-count cap for this host. The incoming model consumes one slot. */
+	maxResidents?: number;
 }): ResidencyPlan {
 	const reserveFraction = input.reserveFraction ?? DEFAULT_RESERVE_FRACTION;
 	const usableBudget = input.totalBudgetBytes * (1 - reserveFraction);
@@ -59,9 +61,13 @@ export function planResidencyForModel(input: {
 		};
 	}
 
-	// Already fits in the current free headroom (no eviction needed).
+	const maxResidents =
+		input.maxResidents === undefined ? Number.POSITIVE_INFINITY : Math.max(1, Math.trunc(input.maxResidents));
+	const countEvictionsNeeded = Math.max(0, input.resident.length + 1 - maxResidents);
+
+	// Already fits in both current memory headroom and the host's resident-count cap.
 	const freeNow = usableBudget - residentBytes;
-	if (input.neededSizeBytes <= freeNow) {
+	if (input.neededSizeBytes <= freeNow && countEvictionsNeeded === 0) {
 		return {
 			fits: true,
 			toUnload: [],
@@ -70,12 +76,12 @@ export function planResidencyForModel(input: {
 		};
 	}
 
-	// Evict coldest not-in-use residents until the needed model fits. In-use models are immovable.
+	// Evict coldest not-in-use residents until BOTH memory and count constraints fit. In-use models are immovable.
 	const evictable = input.resident.filter((model) => !model.inUse).sort((a, b) => a.lastUsedAt - b.lastUsedAt); // coldest first
 	const toUnload: string[] = [];
 	let freed = 0;
 	for (const model of evictable) {
-		if (input.neededSizeBytes <= freeNow + freed) {
+		if (input.neededSizeBytes <= freeNow + freed && toUnload.length >= countEvictionsNeeded) {
 			break;
 		}
 		toUnload.push(model.key);
@@ -83,7 +89,8 @@ export function planResidencyForModel(input: {
 	}
 
 	const freeBytesAfter = freeNow + freed - input.neededSizeBytes;
-	if (freeBytesAfter >= 0) {
+	const countFits = input.resident.length - toUnload.length + 1 <= maxResidents;
+	if (freeBytesAfter >= 0 && countFits) {
 		return {
 			fits: true,
 			toUnload,
@@ -98,7 +105,9 @@ export function planResidencyForModel(input: {
 		fits: false,
 		toUnload: [],
 		freeBytesAfter,
-		reason: `Cannot fit ${bytesToGiB(input.neededSizeBytes)} even after unloading every evictable model — keeping the current set (never overload).`,
+		reason: countFits
+			? `Cannot fit ${bytesToGiB(input.neededSizeBytes)} even after unloading every evictable model — keeping the current set (never overload).`
+			: `Cannot admit another model without exceeding the ${maxResidents}-model host cap because the remaining residents are in use — keeping the current set.`,
 	};
 }
 

@@ -85,6 +85,16 @@ function buildTracks(): ScenarioTrack[] {
 				repeatLastTurn: true,
 				provenance: "generated from the corpus answer key (verify-simulated-eval)",
 			});
+		} else if (row.family === "context_probe") {
+			// Return a canonical answer-key fragment. Context probes deliberately score content recovery, not formatting.
+			tracks.push({
+				id: `eval-${row.id}`,
+				requestClass: "any",
+				userMessageIncludes: needle,
+				turns: [{ behavior: { kind: "text", content: row.expectedFragments[0] ?? "" } }],
+				repeatLastTurn: true,
+				provenance: "generated from the corpus answer key (verify-simulated-eval)",
+			});
 		} else {
 			tracks.push({
 				id: `eval-${row.id}`,

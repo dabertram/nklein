@@ -567,15 +567,33 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 - **RULE (David 2026-07-21): EVERY real-model run goes through `scripts/real-model-run.sh`, never ad-hoc commands.**
   Sitting and hand-watching a run while a card silently stalls is unprofessional and wastes compute. The harness owns
-  the whole lifecycle: pin m5max → load the resident fleet at ≥32k → start `lms log stream` (LM Studio dev logs) →
-  start the !Klein runtime → launch the drain → **actively watch from CHEAP sources only (`lms ps`, the persisted
+  the whole lifecycle: strictly parse/validate first → guarded `model-lab admit` onto an explicit host at ≥32k → start
+  `lms log stream` (LM Studio dev logs) → start the !Klein runtime when needed → launch the drain or role-eval →
+  **actively watch from CHEAP sources only (`lms ps`, the persisted
   `board.json`, the runtime log, the dev-log stream) — NEVER polling the inference endpoint** → **REACT to
   stall/crash/floor-refusal** (snapshot + abort) → report every log into `.real-runs/<stamp>/` → always teardown
   (fleet kept resident unless `--unload`). Usage: `scripts/real-model-run.sh [preset] [--plan|--act] [--worker <id>]
-  [--max-min N] [--unload]`. Resident fleet default (small + fast, all on m5max): `qwen/qwen3.6-35b-a3b` +
-  `google/gemma-4-31b-qat` + `qwopus3.5-9b-coder-mlx@8bit` + `qwen/qwen2.5-coder-14b` (override via `NKLEIN_FLEET`).
-  Fundamentals-first: get a clean end-to-end through this harness BEFORE trusting any drain result. (Live 2026-07-21:
-  the 4-model fleet loaded on m5max at 32k in ~26s and the runtime came up in 4s.)
+  [--max-min N] [--unload]`, or `--eval-harness --worker <id>` for the shared deterministic role corpus; `--help` and
+  `--check-config` are side-effect-free. The inferred dev fleet contains only models the selected run can use (normally
+  Qwen3.6 35B A3B + Qwen2.5 Coder 14B for planning, one forced worker for act/eval), never the stale four-model roster.
+  `NKLEIN_FLEET` can override it only within `NKLEIN_LOAD_MAX_RESIDENTS` (m5max hard ceiling 3); `NKLEIN_RETAIN_MODELS`
+  preserves deliberate warm residents. Admission reconciles an already-loaded target too, evicts only cold idle and
+  unpinned residents, refuses active/pinned overcommit, enforces the advertised context floor, checks live local memory
+  pressure before the change, and rolls back a new load on <25% free pressure or >256 MiB swap growth. Estimate/load
+  CLI calls are confirmation-free and bounded so controller setup cannot hang. Fundamentals-first: get a clean
+  end-to-end through this harness BEFORE trusting any drain/eval result. (Live 2026-07-22: a loaded 40k Bonsai target
+  reconciled m5max from four to three by evicting only idle Phi; 95% free pressure and 0 MiB swap growth; linked m4mini
+  and legion5pro residents remained untouched.)
+  - **BONSAI 27B MLX / LM STUDIO TOOL-GRAMMAR INCOMPATIBILITY (live + researched 2026-07-22):** 40k is safe and well
+    inside the checkpoint's advertised 262k context; a fresh tool-free run scored context worker 1.000 at 2k/8k/24k
+    and reviewer 0.722. Tool-bearing architect/worker requests fail before the first call in LM Studio MLX runtime
+    1.10.1: `mlx_engine/tool_runtime.py` constrains token zero to `<function=...>`, while Bonsai begins its thinking with
+    `!`, and llguidance raises `token "!" doesn't satisfy the grammar`. Prism documents native tool calls through its
+    own stock-MLX server, and changing sampling to its recommended 0.7/0.95/20 does not change the failure; this is a
+    serving-layer incompatibility, not a context/RAM or demonstrated weight-capability failure. A failed tool request can
+    leave the nominally-idle instance carrying the poisoned grammar into later requests, so force-reload it before
+    tool-free use. Until LM Studio fixes the parser or !Klein deliberately integrates the official server, route Bonsai
+    only to fresh tool-free context/review work—not ordinary agentic chains. The catalog encodes this as a warning.
   - **EVIDENCE CONTRACT (fixed + live-proven 2026-07-21): counts are not evidence.** The controller snapshots every
     live transcript (including short-lived auxiliary critic/reviewer sessions) and the collector emits exact
     `tool_use`→`tool_result` pairs, raw `is_error`, effective error classification, error bodies, pending/orphan calls,

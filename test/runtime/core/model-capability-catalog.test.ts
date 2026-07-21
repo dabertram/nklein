@@ -56,6 +56,16 @@ describe("model-capability-catalog: lookup", () => {
 		expect(lookupModelCapability("qwen/qwen3-8b")?.family).toBe("qwen3-8b");
 	});
 
+	it("records Bonsai as tool-capable weights with a serving-layer warning for LM Studio", () => {
+		const entry = lookupModelCapability("prism-ml/Ternary-Bonsai-27B-mlx-2bit");
+		expect(entry?.family).toBe("ternary-bonsai-27b-mlx");
+		expect(entry?.toolUse).toBe("TOOL_CAPABLE");
+		expect(entry?.verified).toBe(true);
+		expect(entry?.note).toContain("context worker 1.000");
+		expect(entry?.disqualifiers?.join(" ")).toContain("LM Studio MLX runtime");
+		expect(assessModelSuitability("ternary-bonsai-27b-mlx").severity).toBe("warn");
+	});
+
 	it("resolves the qwopus3.6 reasoning family BEFORE the generic qwopus-merge row (specific wins)", () => {
 		// Live 2026-07-01: the 27B qwopus3.6 completes the chain VIA the force-advance rung → TOOL_CAPABLE (reasoning).
 		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");

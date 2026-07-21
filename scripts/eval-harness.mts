@@ -36,31 +36,99 @@ const CHAT_URL = `${RAW_BASE.endsWith("/v1") ? RAW_BASE : `${RAW_BASE}/v1`}/chat
 const MAX_TOKENS = Number(process.env.NKLEIN_EVAL_MAX_TOKENS ?? "2500");
 const PASS_BAR = Number(process.env.NKLEIN_EVAL_PASS_BAR ?? "0.6");
 const REPEATS = Math.max(1, Math.trunc(Number(process.env.NKLEIN_EVAL_REPEATS ?? "1")) || 1);
+const TEMPERATURE = Number(process.env.NKLEIN_EVAL_TEMPERATURE ?? "0");
+const TOP_P = process.env.NKLEIN_EVAL_TOP_P ? Number(process.env.NKLEIN_EVAL_TOP_P) : undefined;
+const TOP_K = process.env.NKLEIN_EVAL_TOP_K ? Number(process.env.NKLEIN_EVAL_TOP_K) : undefined;
+const PROMPT_IDS = (process.env.NKLEIN_EVAL_PROMPT_IDS ?? "")
+	.split(",")
+	.map((value) => value.trim())
+	.filter(Boolean);
+let terminalBackendError = false;
 
 if (!MODEL) {
 	console.error("eval-harness: NKLEIN_VERIFY_MODEL is required");
 	process.exit(64);
 }
+if (!Number.isFinite(TEMPERATURE) || TEMPERATURE < 0) {
+	console.error("eval-harness: NKLEIN_EVAL_TEMPERATURE must be a non-negative number");
+	process.exit(64);
+}
+if (TOP_P !== undefined && (!Number.isFinite(TOP_P) || TOP_P <= 0 || TOP_P > 1)) {
+	console.error("eval-harness: NKLEIN_EVAL_TOP_P must be in (0, 1]");
+	process.exit(64);
+}
+if (TOP_K !== undefined && (!Number.isSafeInteger(TOP_K) || TOP_K < 1)) {
+	console.error("eval-harness: NKLEIN_EVAL_TOP_K must be a positive integer");
+	process.exit(64);
+}
 
 const chat: ModelEvalChat = async (messages: ModelEvalChatMessage[], extra: Record<string, unknown>) => {
+	if (terminalBackendError) {
+		return null;
+	}
+	const promptLabel = messages.at(-1)?.content.replace(/\s+/gu, " ").slice(0, 100) ?? "unknown prompt";
 	try {
 		const res = await fetch(CHAT_URL, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ model: MODEL, messages, temperature: 0, max_tokens: MAX_TOKENS, ...extra }),
+			body: JSON.stringify({
+				model: MODEL,
+				messages,
+				temperature: TEMPERATURE,
+				max_tokens: MAX_TOKENS,
+				...(TOP_P === undefined ? {} : { top_p: TOP_P }),
+				...(TOP_K === undefined ? {} : { top_k: TOP_K }),
+				...extra,
+			}),
 		});
-		const json = (await res.json()) as { choices?: ModelEvalChatChoice[]; error?: unknown };
-		if (json.error) {
+		const body = await res.text();
+		let json: { choices?: ModelEvalChatChoice[]; error?: unknown };
+		try {
+			json = JSON.parse(body) as typeof json;
+		} catch {
+			console.error(`eval-harness: non-JSON response HTTP ${res.status} for ${promptLabel}: ${body.slice(0, 500)}`);
 			return null;
 		}
-		return json.choices?.[0] ?? null;
-	} catch {
+		if (!res.ok || json.error) {
+			const diagnostic = JSON.stringify(json.error ?? json);
+			terminalBackendError = /fatal exception in the backend generation thread|model has crashed|model_not_found/iu.test(
+				diagnostic,
+			);
+			console.error(
+				`eval-harness: backend error HTTP ${res.status} for ${promptLabel}: ${diagnostic.slice(0, 5_000)}`,
+			);
+			return null;
+		}
+		const choice = json.choices?.[0];
+		if (!choice) {
+			console.error(`eval-harness: HTTP ${res.status} returned no choice for ${promptLabel}: ${body.slice(0, 500)}`);
+			return null;
+		}
+		if (
+			!choice.message?.content?.trim() &&
+			!choice.message?.reasoning_content?.trim() &&
+			(choice.message?.tool_calls?.length ?? 0) === 0
+		) {
+			console.error(`eval-harness: empty choice for ${promptLabel}: ${JSON.stringify(choice).slice(0, 500)}`);
+		}
+		return choice;
+	} catch (error) {
+		console.error(`eval-harness: transport failure for ${promptLabel}: ${error instanceof Error ? error.message : error}`);
 		return null;
 	}
 };
 
 async function main(): Promise<void> {
-	const result = await runModelEval({ modelId: MODEL, repeats: REPEATS, passBar: PASS_BAR, maxTokens: MAX_TOKENS }, { chat });
+	const result = await runModelEval(
+		{
+			modelId: MODEL,
+			repeats: REPEATS,
+			passBar: PASS_BAR,
+			maxTokens: MAX_TOKENS,
+			promptIds: PROMPT_IDS.length > 0 ? PROMPT_IDS : undefined,
+		},
+		{ chat },
+	);
 	console.log(`eval-harness: model=${MODEL} strategy=${result.strategy} bar=${PASS_BAR} repeats=${REPEATS}`);
 	for (const cell of result.cells) {
 		const label = REPEATS > 1 ? `${cell.id}#${cell.attempt}` : cell.id;
