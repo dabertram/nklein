@@ -199,6 +199,10 @@ import {
 	redactWorkspacePathForAgent,
 	toWorkspaceRelativeArtifactPath,
 } from "./decomposition/plan-artifact-apply";
+import {
+	findUncoveredPlanRequirements,
+	formatUncoveredPlanRequirements,
+} from "./decomposition/plan-requirement-coverage";
 import { formatExpansionRevisionMarkdown } from "./decomposition/plan-task-expansion";
 import { normalizeDecomposeProjectToolInput } from "./decomposition/plan-task-input-parse";
 import {
@@ -407,6 +411,12 @@ function createDecomposeProjectTool(
 						warnings: validation.quality.warnings,
 					},
 				});
+			}
+			const uncoveredRequirements = findUncoveredPlanRequirements(spec, validation.taskGraph.tasks);
+			if (uncoveredRequirements.length > 0) {
+				throw new Error(
+					`Task graph failed specification-coverage validation. The following specification statements are not represented clearly enough in any implementation, verification, or acceptance contract:\n${formatUncoveredPlanRequirements(uncoveredRequirements)}\nAdd or strengthen card prompts/acceptance checks so each statement is machine-auditable. Do not delete or weaken the specification to bypass this gate.`,
+				);
 			}
 			// §5.B subtask-DAG structural gate + re-decompose trigger — RECORD-ONLY (observe, never bounce/reject).
 			// The apply path above (validateNKleinPlanTaskGraph → writeNKleinPlanArtifacts → apply) is byte-identical;

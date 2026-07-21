@@ -955,6 +955,45 @@ describe("nklein decomposition tools", () => {
 		expect(requestPlanCritique).toHaveBeenCalledTimes(2);
 	});
 
+	it("rejects specification coverage omitted from every card before spending critic budget", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-spec-coverage-"));
+		const requestPlanCritique = vi.fn();
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) throw new Error("missing decompose_project");
+
+		await expect(
+			tool.execute(
+				{
+					slug: "habit-insights",
+					title: "Habit insights",
+					spec: [
+						"- calculateHabitScore must clamp its result to 0-100.",
+						"- summarizeHabitWeek must classify trend as improving, declining, or steady.",
+						"- The same input must always yield a deterministic stable recommendation.",
+						"- All invariants must be asserted by npm test.",
+					].join("\n"),
+					plan: "Clamp the score, update the CLI, then test those two changes.",
+					defaultAcceptanceCommand: "npm test",
+					tasks: [
+						{ id: "score", title: "Implement score cap", prompt: "Clamp calculateHabitScore to 0-100." },
+						{ id: "cli", title: "Implement CLI output", prompt: "Print the summary recommendation." },
+						{
+							id: "tests",
+							title: "Verify score and CLI",
+							prompt: "Assert score clamping and CLI recommendation output.",
+							dependsOn: ["score", "cli"],
+						},
+					],
+				},
+				undefined as never,
+			),
+		).rejects.toThrow(/specification-coverage validation[\s\S]*improving, declining, or steady/);
+		expect(requestPlanCritique).not.toHaveBeenCalled();
+		await expect(readNKleinPlanArtifacts(workspacePath, "habit-insights")).rejects.toThrow();
+	});
+
 	it("W4.3: two rejected candidates fail closed without writing plan artifacts", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-rejected-"));
 		const requestPlanCritique = vi.fn().mockResolvedValue({

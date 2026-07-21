@@ -35,6 +35,10 @@
   replacement model receives a request. Same-model retained-history restarts launch their prompt atomically at startup.
   The textual turn-loop guard no longer mistakes repeated generated assertions such as `expect(...)` for a question
   that needs a human answer; code-only repeats without a trusted capability denial remain in autonomous recovery.
+  Candidate graphs now also pass a deterministic specification-coverage gate before consuming an independent critic:
+  markdown requirements, enumerated outcomes, and exact invariants must be named in at least one implementation,
+  verification, or acceptance contract. A critic can no longer materialize an incomplete graph merely by asserting
+  that “all invariants are covered” when the card contracts omit them.
   Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code

@@ -157,6 +157,15 @@ gap remains.
 > revision prompt before the replacement starts. Same-model restarts keep that lineage; the fleet failover cap still
 > bounds total attempts, and every replacement candidate still receives critique before graph materialization.
 
+> **⚠️ A CRITIC'S “ALL INVARIANTS COVERED” CLAIM IS NOT COVERAGE (live-found run `20260721-180959`).** After the
+> critique-lineage fix, Gemma's replacement candidate correctly restarted at `1/2` and the board remained unchanged
+> through both critic rounds. Qwen then approved a three-card graph while claiming every specification invariant was
+> covered, even though its only test contract named score clamping and CLI output—nothing about declining, steady, or
+> deterministic-repeat behavior. Before spending critic budget, compare each markdown requirement in the candidate
+> specification with the complete task-contract corpus. Enumerated outcomes and exact invariants (`all`, `every`,
+> `deterministic`, `stable`, and similar terms) must appear explicitly in implementation, verification, or acceptance
+> contracts. Existing behavior may be represented by regression coverage; it may not disappear on a prose assertion.
+
 > **⚠️ FAILOVER MUST READ THE GUARD EVENT, NOT AN UNRELATED SUMMARY WARNING (live-found run `20260721-160645`).**
 > The repeated-decomposition guard parked the architect after five failed graph attempts and retained the exact signal
 > in `latestHookActivity`, but `warningMessage` contained a concurrent Codebase Memory container-headroom advisory.
