@@ -3,6 +3,7 @@ import type { EgressProxyDnsSocket } from "../../../src/nklein-agent/egress-prox
 import {
 	buildEgressProxyListeners,
 	createEgressProxyRuntime,
+	EGRESS_PROXY_CAPABILITY_CONFIG,
 	EGRESS_PROXY_ROLE_PORTS,
 	parseEgressConfirmRoles,
 } from "../../../src/nklein-agent/egress-proxy-entrypoint";
@@ -122,6 +123,12 @@ describe("buildEgressProxyListeners", () => {
 			{ role: "worker", listenerPort: 3129 },
 			{ role: "reviewer", listenerPort: 3130 },
 		]);
+	});
+});
+
+describe("production egress capability policy", () => {
+	it("binds every proxy listener to the allowlist tier instead of the fully-open product default", () => {
+		expect(EGRESS_PROXY_CAPABILITY_CONFIG).toEqual({ globalPreset: "medium" });
 	});
 });
 

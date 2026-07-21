@@ -42,8 +42,9 @@ import { resolveAgentSandboxImageName } from "../../src/nklein-agent/nklein-agen
 
 const NAMESPACE = "itest";
 const ALLOWED_HOST = "example.com";
-const DENIED_HOST = "denied.example.org";
+const DENIED_HOST = "example.org";
 const WORKER_PORT = EGRESS_PROXY_ROLE_PORTS.worker;
+const REVIEWER_PORT = EGRESS_PROXY_ROLE_PORTS.reviewer;
 const AUDIT_DIR_IN_PROXY = "/tmp/audit";
 
 interface EgressGate {
@@ -208,7 +209,7 @@ if (gate.ready) {
 		const networkName = egressNetworkName(NAMESPACE);
 		const containerName = egressProxyContainerName(NAMESPACE);
 
-		it("approves one listed CONNECT, denies an unlisted host, and has no route without the proxy", async () => {
+		it("isolates role-scoped hosts, approves one worker CONNECT, and has no direct route", async () => {
 			try {
 				const controlToken = "d".repeat(64);
 				await teardownEgressProxy(runDocker, { containerName, networkName });
@@ -218,7 +219,7 @@ if (gate.ready) {
 					networkName,
 					bundleHostPath: gate.bundlePath,
 					env: {
-						NKLEIN_EGRESS_PROXY_ALLOWLIST: ALLOWED_HOST,
+						NKLEIN_EGRESS_PROXY_ALLOWLIST: `worker:${ALLOWED_HOST}`,
 						NKLEIN_EGRESS_PROXY_AUDIT_DIR: AUDIT_DIR_IN_PROXY,
 						[EGRESS_CONFIRM_ROLES_ENV]: "worker",
 						[EGRESS_CONFIRM_CONTROL_TOKEN_ENV]: controlToken,
@@ -232,6 +233,11 @@ if (gate.ready) {
 				const proxyEnv = {
 					HTTP_PROXY: `http://${ip}:${WORKER_PORT}`,
 					HTTPS_PROXY: `http://${ip}:${WORKER_PORT}`,
+					NO_PROXY: "",
+				};
+				const reviewerProxyEnv = {
+					HTTP_PROXY: `http://${ip}:${REVIEWER_PORT}`,
+					HTTPS_PROXY: `http://${ip}:${REVIEWER_PORT}`,
 					NO_PROXY: "",
 				};
 
@@ -254,17 +260,29 @@ if (gate.ready) {
 				expect(pending[0]).toMatchObject({ host: ALLOWED_HOST, port: 443, role: "worker" });
 				expect(await resolvePendingEgressConfirm(endpoint, { ...pending[0], approve: true })).toBe("applied");
 				expect(await allowedRequest).toBe(0);
+				// The same host is absent from the reviewer listener's snapshot and must be denied rather than confirmed.
+				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, reviewerProxyEnv)).not.toBe(0);
 				// Unlisted host is refused by the proxy (non-zero exit).
 				expect(httpGetInSandbox(networkName, `https://${DENIED_HOST}`, proxyEnv)).not.toBe(0);
 				// Without the proxy env, the `--internal` network gives no route (fail-closed backstop).
 				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, null)).not.toBe(0);
 
 				// Audit is emitted when each tunnel closes; the sandbox process can exit just before the proxy's close event.
-				const audit = await waitForProxyAudit(containerName, 2);
-				const allowRecord = audit.find((r) => r.host === ALLOWED_HOST && r.decision === "confirm");
-				const denyRecord = audit.find((r) => r.host === DENIED_HOST && r.decision === "deny");
+				const audit = await waitForProxyAudit(containerName, 3);
+				const allowRecord = audit.find(
+					(r) => r.host === ALLOWED_HOST && r.role === "worker" && r.decision === "confirm",
+				);
+				const roleDenyRecord = audit.find(
+					(r) => r.host === ALLOWED_HOST && r.role === "reviewer" && r.decision === "deny",
+				);
+				const denyRecord = audit.find(
+					(r) => r.host === DENIED_HOST && r.role === "worker" && r.decision === "deny",
+				);
 				expect(allowRecord?.executed).toBe(true);
+				expect(roleDenyRecord?.executed).toBe(false);
+				expect(roleDenyRecord?.reasonCode).toBe("not_on_allowlist");
 				expect(denyRecord?.executed).toBe(false);
+				expect(denyRecord?.reasonCode).toBe("not_on_allowlist");
 			} finally {
 				await teardownEgressProxy(runDocker, { containerName, networkName });
 				rmSync(gate.bundlePath, { force: true });

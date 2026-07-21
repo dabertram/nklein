@@ -492,6 +492,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   broken hook as working. A harness that cannot make the bug appear cannot detect its absence. Run the control
   first, confirm it is red, and only then trust the green. This is the browser-level twin of the audit rule
   above: **the first run that passes cleanly is evidence about the harness, not about the code.**
+- **AN EGRESS DENIAL TEST MUST USE A RESOLVABLE TARGET AND ASSERT THE POLICY REASON.** F2.4's original live test used
+  `denied.example.org`; its request failed because DNS could not resolve it, while the production proxy had silently
+  inherited the general `fully_open` capability default and was not enforcing the allowlist at all. A non-zero client
+  exit proves only that *something* failed. Use a known-resolvable public host outside the scoped allowlist and assert
+  the audit's `reasonCode === "not_on_allowlist"`; otherwise DNS/TLS failures can certify a fail-open policy.
 - **HOST-LOOPBACK DOCKER PUBLISH DOES NOT MAKE THE CONTAINER LISTENER PRIVATE (live-proven 2026-07-21).**
   `--publish 127.0.0.1::<container-port>` limits the HOST socket to loopback, but Docker still forwards it to a
   container-interface listener that co-networked sandboxes can address directly. A security-sensitive control
@@ -1388,7 +1393,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   proxy env can no longer masquerade as an empty allowlist — it forces replacement. Deterministic server/client,
   lifecycle, runtime bridge, and browser coverage green; live Docker proof parks a real sandbox CONNECT, releases it
   after a bound host approval, keeps an unlisted host denied, and confirms direct egress still has no route.
-- [ ] **F2.4b — Settings UI hint + live validation (per-role allowlists SHIPPED 2026-07-13).** The SAME
+- [x] **F2.4b — Settings UI hint + live validation (per-role allowlists SHIPPED 2026-07-13).** The SAME
   `sandboxEgressAllowlist` string now supports role-scoped entries (`worker:api.github.com` grants ONE role;
   plain entries stay global — every v1 string parses byte-identically; an unknown role prefix stays a plain
   global entry, fail-safe-narrow). `parseRoleScopedEgressAllowlist` + `allowlistForRoleFromScoped` bind in the
@@ -1397,8 +1402,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   compares the running container's allowlist env against the desired value and replaces the container on ANY
   drift (a stale wider policy never keeps serving; tested both directions). The Settings field hint now documents
   the role-scoped syntax (2026-07-14: `role:host` grants one role, plain = global; `runtime-settings-dialog.tsx`).
-  REMAINING (fleet-gated): live-validate on the fleet — a worker CONNECT to a worker-scoped host succeeds while a
-  reviewer CONNECT to it is denied + audited.
+  **✅ LIVE ROLE ISOLATION SHIPPED 2026-07-21.** The Docker-gated integration starts the real bundled proxy with a
+  worker-scoped public host, routes an approved worker CONNECT through the worker listener, then routes the exact
+  same destination through the reviewer listener and proves it is denied. The first run exposed a real fail-open:
+  production omitted the capability snapshot, so the proxy inherited the product-wide `fully_open` default and
+  bypassed every allowlist. `EGRESS_PROXY_CAPABILITY_CONFIG` now binds this allowlist-only proxy to the `medium`
+  (`networkPolicy: allowlist`) tier. The audit asserts the worker `confirm` executed while reviewer and unrelated,
+  resolvable worker destinations were rejected specifically as `not_on_allowlist`; direct egress still has no route.
 - [ ] **F2.5b — Issue per-task credentials at sandbox creation + require-auth decision (attribution SHIPPED
   2026-07-13).** The proxy now ATTRIBUTES every CONNECT verdict: `parseProxyAuthorizationHeader` (pure,
   attribution-only — malformed/absent claims never affect the verdict) extracts the `Basic taskId:token` claim

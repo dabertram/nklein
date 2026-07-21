@@ -53,6 +53,12 @@ export const EGRESS_CONFIRM_ROLES_ENV = "NKLEIN_EGRESS_CONFIRM_ROLES";
 export const EGRESS_CONFIRM_CONTROL_TOKEN_ENV = "NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN";
 /** Container-side control listener; Docker publishes it to a random HOST-loopback port. */
 export const EGRESS_CONFIRM_CONTROL_PORT = 3131;
+/**
+ * The proxy is the implementation of the `allowlist` network tier. The shared sandbox pool currently resolves one
+ * global network policy, so every proxy listener must start from that tier; defaulting this process to the product's
+ * general `fully_open` tier would bypass every configured host list.
+ */
+export const EGRESS_PROXY_CAPABILITY_CONFIG: AgentCapabilityRulesetConfig = Object.freeze({ globalPreset: "medium" });
 
 export interface EgressProxyRuntimeDeps {
 	/** Resolved capability ruleset (role → tier → networkPolicy). Absent ⇒ built-in default tier. */
@@ -220,6 +226,7 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 			})
 		: undefined;
 	const runtime = createEgressProxyRuntime({
+		capabilityConfig: EGRESS_PROXY_CAPABILITY_CONFIG,
 		auditRootDir: process.env.NKLEIN_EGRESS_PROXY_AUDIT_DIR?.trim() || undefined,
 		allowlistForRole: hasEntries ? allowlistForRoleFromScoped(scoped) : undefined,
 		requirePerActionApprovalForRole: confirmRoles.size > 0 ? (role) => confirmRoles.has(role) : undefined,

@@ -1,9 +1,9 @@
 # Host-side egress proxy — design (§5.L per-role network allowlists, GREENLIT §10c#18)
 
 > Maintained design/provenance reference, not a task list. Remaining implementation is tracked only in `todo.md`
-> F2.3–F2.5; I1–I4 history below describes the shipped baseline.
+> F2.5; I1–I5 history below describes the shipped baseline.
 >
-> **Status:** I1–I5 shipped; F2.4–F2.5 own the remaining live per-role/per-task work. This document specifies the
+> **Status:** I1–I5 plus live per-role isolation shipped; F2.5 owns the remaining per-task work. This document specifies the
 > host-side egress proxy + sandbox network topology that makes the `allowlist` network tier REAL: DNS/SNI-level
 > enforcement that calls the existing pure [`decideEgressPolicy`](../../src/core/egress-policy-decision.ts) at connect
 > time, per-ROLE allowlists keyed to the capability tiers, a per-attempt audit trail, and (optionally) per-action
@@ -295,11 +295,16 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
   that shipped bundle next to the bundled app module (`dist/`); `NKLEIN_EGRESS_PROXY_BUNDLE` stays a dev/test
   override; neither present ⇒ null ⇒ the manager fail-closes to `available:false`. ESM keeps `import.meta.url` intact
   so the in-container main-module guard fires.
-- **e2e / regression:** the live-Docker `egress-proxy.docker.test.ts` proves allow/deny/no-route + audit end-to-end
-  (gated on `NKLEIN_SANDBOX_EGRESS_PROXY=1` + docker); the deterministic manager wiring (`nklein-agent-sandbox-egress`,
+- **e2e / regression:** the live-Docker `egress-proxy.docker.test.ts` proves allow/deny/no-route + audit end-to-end,
+  including that a worker-scoped host succeeds through the worker listener but is denied and audited through the
+  reviewer listener (gated on `NKLEIN_SANDBOX_EGRESS_PROXY=1` + docker); the deterministic manager wiring (`nklein-agent-sandbox-egress`,
   8 cases) + resolver unit tests (override / auto-discover / null-fail-closed / whitespace) cover the seam without
   Docker. A full aimock board-flow scenario was NOT added — it would require live Docker and is redundant with the
   integration test's real allow/deny proof.
+- **Production policy binding (live-corrected 2026-07-21):** the proxy process explicitly supplies the `medium`
+  capability tier (`networkPolicy: allowlist`) to every role snapshot. Omitting it inherited the product-wide
+  `fully_open` default and bypassed configured host lists; the old negative live probe hid that defect behind an
+  unresolvable hostname. The live denial now uses a resolvable public host and asserts `not_on_allowlist` in the audit.
 - Docs: this doc stamped SHIPPED-through-I4; the CHANGELOG `## [Upcoming]` egress bullet updated (Settings surface now
   shipped; per-role attribution remains the deferred follow-up).
 

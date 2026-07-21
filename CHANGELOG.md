@@ -183,7 +183,9 @@
   setup is needed. Allowlists can be scoped by role, and an optional per-role one-shot confirmation mode now parks a
   connection until the operator approves or denies its exact role and destination in the UI. That control channel is
   host-loopback-only and independently token-authenticated, so a sandbox cannot approve its own request; no answer
-  times out to deny. Per-task audit attribution is still to come.
+  times out to deny. The production proxy is now explicitly bound to the allowlist network tier; previously it
+  inherited the general fully-open tier and could bypass the configured host list. Live Docker coverage now proves
+  worker/reviewer scope isolation and audits policy denials by reason. Per-task audit attribution is still to come.
 
 - **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
   machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when
