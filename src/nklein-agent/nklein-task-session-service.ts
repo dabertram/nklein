@@ -453,6 +453,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.decompositionStallNudger.resetTask(taskId);
 			this.repeatedToolCallGuard.resetDecompositionFailures(taskId);
 		},
+		resetPlanCritiqueBudget: (taskId) => this.planCritiqueRunner.resetTask(taskId),
 	});
 
 	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */

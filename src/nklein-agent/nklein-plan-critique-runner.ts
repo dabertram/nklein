@@ -49,6 +49,8 @@ export interface PlanCritiqueRunner {
 	buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined;
 	/** Trusted continuation context retained when a rejected architect turn dies before it can revise in-session. */
 	getPendingRevisionPrompt(taskId: string): string | null;
+	/** Start a fresh bounded critique lineage when a different architect model takes over the same card. */
+	resetTask(taskId: string): void;
 	runPlanCritiqueSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -94,6 +96,17 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 
 	function getPendingRevisionPrompt(taskId: string): string | null {
 		return pendingRevisionPromptByTaskId.get(taskId) ?? null;
+	}
+
+	function resetTask(taskId: string): void {
+		const planKeyPrefix = `${taskId}:`;
+		for (const planKey of critiqueAttemptsByPlanKey.keys()) {
+			if (planKey.startsWith(planKeyPrefix)) {
+				critiqueAttemptsByPlanKey.delete(planKey);
+			}
+		}
+		pendingRevisionSlugByTaskId.delete(taskId);
+		pendingRevisionPromptByTaskId.delete(taskId);
 	}
 
 	function buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined {
@@ -289,5 +302,5 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 		};
 	}
 
-	return { buildRequestHandler, getPendingRevisionPrompt, buildClarifyTurnHandler, runPlanCritiqueSession };
+	return { buildRequestHandler, getPendingRevisionPrompt, resetTask, buildClarifyTurnHandler, runPlanCritiqueSession };
 }

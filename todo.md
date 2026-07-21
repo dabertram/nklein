@@ -149,6 +149,14 @@ gap remains.
 > must reset BOTH the turn-end nudge budget and the decomposition-validation failure count before the fresh architect
 > starts. The bounded failover-hop cap still limits total fleet attempts; unrelated plan-artifact loop state remains.
 
+> **⚠️ PLAN-CRITIQUE LINEAGE BELONGS TO AN ARCHITECT ATTEMPT, NOT THE CARD (live-found run
+> `20260721-173818`).** Qwen and Gemma spent the two-candidate critique budget, then automatic failover correctly
+> launched Qwopus with a clean carry. The service-owned critic counter survived that handoff, however, so Qwopus's
+> first candidate was numbered `3/2` and its fully corrected revision was rejected solely as over budget. Cross-model
+> decomposition failover must clear the prior architect's critique attempt count, stable-slug lock, and pending
+> revision prompt before the replacement starts. Same-model restarts keep that lineage; the fleet failover cap still
+> bounds total attempts, and every replacement candidate still receives critique before graph materialization.
+
 > **⚠️ FAILOVER MUST READ THE GUARD EVENT, NOT AN UNRELATED SUMMARY WARNING (live-found run `20260721-160645`).**
 > The repeated-decomposition guard parked the architect after five failed graph attempts and retained the exact signal
 > in `latestHookActivity`, but `warningMessage` contained a concurrent Codebase Memory container-headroom advisory.

@@ -39,6 +39,8 @@ export interface ModelFailoverControllerDeps {
 	noteStrategyApplied?: (taskId: string, strategy: string) => void;
 	/** A fresh model owns a fresh bounded decomposition-recovery budget. */
 	resetDecompositionRecoveryBudget?: (taskId: string) => void;
+	/** A fresh architect model owns a fresh bounded plan-critique lineage. */
+	resetPlanCritiqueBudget?: (taskId: string) => void;
 }
 
 export interface ModelFailoverController {
@@ -136,6 +138,9 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 				// weak-model budget into a fresh model can strand that model immediately after a valid critic
 				// revision request, before it gets one turn to repair the candidate.
 				deps.resetDecompositionRecoveryBudget?.(taskId);
+				if (decompositionCapabilityExhausted) {
+					deps.resetPlanCritiqueBudget?.(taskId);
+				}
 				const category = decompositionCapabilityExhausted ? "decomposition_model_failover" : "model_failover";
 				recordSelfObservation({
 					signal: "custom",

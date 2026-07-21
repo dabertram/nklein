@@ -180,6 +180,29 @@ describe("createPlanCritiqueRunner — buildRequestHandler", () => {
 		expect(runner.getPendingRevisionPrompt("t1")).toBeNull();
 	});
 
+	it("starts a fresh critique lineage when a different architect model takes over", async () => {
+		const d = deps({
+			startRuntimeSession: vi.fn(async (launch) => {
+				launch.onPlanCritiqueSubmitted?.(REVISE);
+				return { result: {} };
+			}),
+		});
+		const runner = createPlanCritiqueRunner(d);
+		const firstArchitect = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+
+		expect(firstArchitect).toMatchObject({ verdict: "revise", critiqueAttempt: 1 });
+		expect(runner.getPendingRevisionPrompt("t1")).not.toBeNull();
+
+		runner.resetTask("t1");
+		const replacementArchitect = await runner.buildRequestHandler(
+			"t1",
+			"/repo",
+		)?.({ slug: "habit-insights" } as never);
+
+		expect(replacementArchitect).toMatchObject({ verdict: "revise", critiqueAttempt: 1 });
+		expect(runner.getPendingRevisionPrompt("t1")).toContain("candidate 1/2");
+	});
+
 	it("rejects a revised candidate that changes its slug instead of resetting critique lineage", async () => {
 		const d = deps({
 			startRuntimeSession: vi.fn(async (launch) => {

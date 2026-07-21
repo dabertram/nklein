@@ -23,7 +23,9 @@
   as they call a graph-building tool, so a rejected graph cannot end as an ordinary empty-patch Review hold.
   Cross-model architect handoffs now reset that bounded recovery budget; a stronger fresh architect no longer inherits
   nudges or graph-validation failures spent by the previous model and can act on a later independent-critic revision
-  request. Replacement turns now also publish their actual model identity immediately.
+  request. They also reset the prior architect's plan-critique lineage, so a replacement's first candidate is no longer
+  rejected as `3/2` merely because earlier models spent the two-candidate budget; same-model revisions still retain
+  their mandatory critic history. Replacement turns now also publish their actual model identity immediately.
   Decomposition-exhaustion failover now keys off the authoritative guardrail activity as well as the summary warning,
   so an unrelated concurrent advisory cannot overwrite the signal and silently suppress automatic handoff. Terminal
   dedupe now resets when the card returns to running, allowing a second architect that reaches the same terminal state
