@@ -3713,6 +3713,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		if (entry.summary.state === "running" && hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
 			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
+				// A normal work card may discover during refinement that it must split itself. The promotion prompt
+				// explicitly permits that path, so the ACTUAL decomposition tool boundary must arm the same bounded
+				// turn-end recovery as a card that started in plan mode. Without this promotion, a rejected graph
+				// followed by a clean model stop was misclassified as ordinary worker completion and held in Review.
+				this.explicitDecompositionTaskIds.add(taskId);
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.add(taskId);

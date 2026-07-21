@@ -133,6 +133,13 @@ gap remains.
 > The automatic handoff then succeeded without help. At this checkpoint, messaging must lead with automatic transfer;
 > human correction is mentioned only when no eligible loaded architect remains or all have been exhausted.
 
+> **⚠️ ACTUAL DECOMPOSITION TOOL USE MUST ARM DECOMPOSITION RECOVERY (live-found run `20260721-154105`).** A card
+> started with `startInPlanMode: false` is still explicitly allowed to split itself during refinement. The 14B coder
+> chose that route and failed over to Gemma; Gemma received an actionable dependency-coherence rejection, then ended
+> its turn. Because only plan-mode starts were registered as decomposition tasks, the targeted bounded retry did not
+> run and the empty-patch path held the card in Review. Calling `add_task`, `add_dependency`, or `decompose_project`
+> is authoritative runtime evidence that the card is now decomposing and must promote it into the recovery path.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

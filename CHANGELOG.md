@@ -19,6 +19,8 @@
   and the workflow no longer tells architects to repeat edges already accepted inline by `add_task`.
   Decomposition-exhaustion handoffs now describe the automatic stronger-model transfer first; they no longer ask for
   human correction while an eligible loaded architect can still take over.
+  Work cards that discover they need decomposition during refinement now arm bounded decomposition recovery as soon
+  as they call a graph-building tool, so a rejected graph cannot end as an ordinary empty-patch Review hold.
   Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code

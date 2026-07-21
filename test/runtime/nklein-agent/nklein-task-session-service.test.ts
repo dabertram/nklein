@@ -3947,6 +3947,40 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 	});
 
+	it("arms decomposition recovery when a normal work card calls decompose_project", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Implement this card; split it if refinement proves it is too large.",
+			startInPlanMode: false,
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "decompose-1",
+			toolName: "decompose_project",
+			input: { slug: "split-work", tasks: [] },
+		});
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			reason: "completed",
+			text: "The submitted graph needs correction.",
+		});
+
+		await waitForSettled(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				expect.stringContaining("If any `add_task` calls already succeeded"),
+				"act",
+				undefined,
+			);
+		});
+	});
+
 	it("does not re-prompt a non-decomposition turn that ended with no tool call", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
