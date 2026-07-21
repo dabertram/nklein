@@ -67,6 +67,11 @@
   recover a superseded acceptance value. A paired ~30k-token fleet check found no quality regression after the fix,
   but also no improvement over the already-correct baseline, so the feature deliberately remains opt-in.
 
+- **Learned context limits now have a live quality proof.** A paired resident-fleet evaluator compares a sendable
+  near-threshold transcript with the exact production-compacted form of that same transcript. Across small and capable
+  local models, every completed pair retained all authoritative contract fields without leaking superseded values; the
+  clean Legion 9B and Qwen 35B acceptance run cut provider prompt tokens by 53% with no quality regression.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed

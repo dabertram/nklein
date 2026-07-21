@@ -2145,3 +2145,19 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   have no production caller. The latter also lacks real band/priority producers, so wiring it merely to satisfy its
   existence would invent policy and risk both chronology and prefix reuse. That one genuine keep/wire/delete judgment
   is split to F4.7b behind David-gated P15.4b, the late maturity pass where orphan decisions explicitly belong.
+
+- [x] **F4.11 — prove learned-budget quality on small and capable local models** *(delivered 2026-07-21).* A permanent
+  paired evaluator builds two authoritative transcripts just beyond the 32k learned window's safe working threshold,
+  then derives the treatment through the exact production `learnedQualityEffectiveBudget` → `planContextBudget` path.
+  The raw controls remain provider-sendable (26.1–28.2k message tokens; 29.3–31.4k projected with response reserve),
+  while production compaction reduces them to 12.0–12.4k message tokens and removes only superseded bulk. Exact opaque
+  contract fields and decoy leakage are scored deterministically; arm order alternates, and response, reasoning,
+  provider token counts, finish reason, latency, and failures are checkpointed separately.
+  The full resident sweep produced seven complete pairs across Qwen3.6-35B-A3B, Qwen2.5-Coder-14B, Legion's
+  Qwopus3.5-9B-Coder-MTP, and Qwen3-0.6B: every completed raw and compacted answer scored 1.00, including all four
+  capable-model pairs and three small-model pairs, with zero regression. A bounded clean rerun of the implementation
+  case on Legion 9B plus Qwen 35B passed all four arms and is the acceptance artifact. Compaction cut actual provider
+  prompt tokens by 53% on that case (about 26.6k→12.5k) and reduced latency on both models. The 0.6B linked runtime
+  returned one HTTP 400 on its second raw arm and disappeared from residency; the harness did not reload it, and now
+  captures/prints provider error bodies plus supports bounded case reruns. The evaluator never loads, unloads, or
+  downloads models. Focused tests (3) and TypeScript pass.
