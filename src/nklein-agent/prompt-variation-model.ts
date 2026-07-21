@@ -1,5 +1,6 @@
 /** F3.3 — bounded, role-aware prompt variation at the shared swarm AgentModel seam. */
 import type { AgentMessage, AgentMessagePart, AgentModel, AgentModelRequest } from "@cline/shared";
+import { stripFocusBrief } from "./nklein-observed-path-extraction";
 import { buildPromptVariant, PROMPT_VARIANT_LADDER, type PromptVariantFamily } from "./nklein-prompt-variation";
 import { createRecoveryLadderModel } from "./recovery-ladder-model";
 
@@ -27,9 +28,9 @@ function textFromMessage(message: AgentMessage): string {
 	return message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 }
 
-function mentionsTool(text: string, toolName: string): boolean {
+function toolMentionIndex(text: string, toolName: string): number {
 	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-	return new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}([^\\p{L}\\p{N}_]|$)`, "iu").test(text);
+	return new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}([^\\p{L}\\p{N}_]|$)`, "iu").exec(text)?.index ?? -1;
 }
 
 function replaceMessageText(message: AgentMessage, text: string): AgentMessage {
@@ -73,9 +74,15 @@ export function planSwarmPromptVariation(
 	}
 	const userMessage = userIndex >= 0 ? request.messages[userIndex] : undefined;
 	if (!userMessage) return null;
-	const instruction = textFromMessage(userMessage).trim();
+	// Context focusing prepends a machine-generated coverage rail to the original user instruction. Tool names in that
+	// rail (especially `read_files`) are evidence labels, not requested actions; using them as retry anchors caused a
+	// live decomposition recovery to force an endless read loop (run 20260721-144558).
+	const instruction = stripFocusBrief(textFromMessage(userMessage)).trim();
 	if (!instruction) return null;
-	const namedTool = request.tools.find((tool) => mentionsTool(instruction, tool.name));
+	const namedTool = request.tools
+		.map((tool, order) => ({ tool, order, index: toolMentionIndex(instruction, tool.name) }))
+		.filter((candidate) => candidate.index >= 0)
+		.sort((left, right) => left.index - right.index || left.order - right.order)[0]?.tool;
 	const completingTools = request.tools.filter((tool) => tool.lifecycle?.completesRun === true);
 	const tool = namedTool ?? (completingTools.length === 1 ? completingTools[0] : undefined);
 	if (!tool) return null;

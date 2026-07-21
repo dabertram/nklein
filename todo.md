@@ -108,6 +108,12 @@ gap remains.
 > success counts both lied. Stateful bookkeeping tools must reject an unchanged replay with a compact error and direct
 > the model to the current task step; only a changed chain is a successful update.
 
+> **⚠️ CONTEXT-RAIL TOOL NAMES ARE NOT USER INTENT (live-found run `20260721-144558`).** The no-tool-call recovery
+> planner scanned a prepended read-coverage brief, saw `read_files`, reduced the catalog to that one tool, and told the
+> architect to issue a read—even though the product instruction requested decomposition and the files were already
+> covered. Strip the delimited focus brief before choosing a retry anchor. If the remaining instruction names several
+> tools, choose by textual mention order, never catalog registration order.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

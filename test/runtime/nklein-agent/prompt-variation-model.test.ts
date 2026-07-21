@@ -157,6 +157,31 @@ describe("swarm prompt variation", () => {
 		]);
 	});
 
+	it("uses instruction mention order rather than tool-catalog order when several tools are named", () => {
+		const plan = planSwarmPromptVariation(
+			request({
+				instruction: "Call add_task now, then decompose_project. Do not retry read_files.",
+				tools: [tool("read_files"), tool("decompose_project"), tool("add_task")],
+			}),
+			"architect",
+		);
+
+		expect(plan?.toolName).toBe("add_task");
+	});
+
+	it("does not treat tool names in a prepended context-focus brief as user-requested actions", () => {
+		const plan = planSwarmPromptVariation(
+			request({
+				instruction:
+					"[!Klein context focus brief]\nread_files coverage ledger:\n- specification.md\n[/!Klein context focus brief]\n\nFinish the plan.",
+				tools: [tool("read_files"), tool("add_task")],
+			}),
+			"architect",
+		);
+
+		expect(plan).toBeNull();
+	});
+
 	it("keeps the prior instruction as the anchor after a completed tool-result message", () => {
 		const baseInput = request({
 			instruction: "Call submit_review after checking the evidence.",
