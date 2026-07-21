@@ -63,7 +63,10 @@ export function planSwarmPromptVariation(
 ): PromptVariationPlan | null {
 	let userIndex = -1;
 	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
-		if (request.messages[index]?.role === "user") {
+		const candidate = request.messages[index];
+		// An agent iteration commonly ends in a user-role message containing only tool results. Keep walking to the
+		// latest actual instruction; otherwise recovery silently disappears immediately after the first completed tool.
+		if (candidate?.role === "user" && textFromMessage(candidate).trim().length > 0) {
 			userIndex = index;
 			break;
 		}

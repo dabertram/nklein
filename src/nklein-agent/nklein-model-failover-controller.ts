@@ -1,7 +1,9 @@
 import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "../core/api-contract";
 import { isEnabledByDefaultEnv } from "../core/env-flag";
+import { classifyFailureSignature } from "../core/failure-signature";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { decideModelFailover } from "../core/model-failover-policy";
+import { decideNextRetryStrategy } from "../core/retry-policy";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskLaunchConfigOverrides } from "./nklein-launch-config";
 
@@ -17,6 +19,8 @@ export interface ModelFailoverControllerDeps {
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
 	): Promise<unknown>;
+	/** Correlate the engine-selected carry rung with the next terminal attempt ledger event. */
+	noteStrategyApplied?: (taskId: string, strategy: string) => void;
 }
 
 export interface ModelFailoverController {
@@ -81,11 +85,23 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		if (!decision.failover || !decision.nextModelKey) {
 			return;
 		}
+		const failure = classifyFailureSignature(summary.warningMessage ?? "unknown model error");
+		const retryDecision = decideNextRetryStrategy({
+			lastOutcome: failure.outcome,
+			attemptsSoFar: 0,
+			retryBudget: 1,
+			triedStrategies: [],
+			availableStrategies: ["cross_model_carry"],
+		});
+		if (retryDecision.strategy !== "cross_model_carry") {
+			return;
+		}
 		const nextModelKey = decision.nextModelKey;
 		triedModelKeysByTaskId.set(taskId, [...tried, failedModelKey, nextModelKey]);
 		inFlightTaskIds.add(taskId);
 		void (async () => {
 			try {
+				deps.noteStrategyApplied?.(taskId, "cross_model_carry");
 				recordSelfObservation({
 					signal: "custom",
 					severity: "warning",

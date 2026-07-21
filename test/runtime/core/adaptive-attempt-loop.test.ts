@@ -95,8 +95,8 @@ describe("runAdaptiveAttemptLoop", () => {
 		expect(out.strategiesTried).toEqual(["raise_token_budget", "thinking_disable"]);
 	});
 
-	it("parks with the budget reason and returns the best partial when the budget is exhausted", async () => {
-		// A budget of 1 means: after the first failure, the brain parks (attemptsSoFar already ≥ budget).
+	it("counts the learned budget as retries, not total attempts", async () => {
+		// A budget of 1 permits the documented one retry after the baseline, then parks.
 		const { runAttempt } = scriptedAttempts(["other_failure"]);
 		const out = await runAdaptiveAttemptLoop({
 			profile: profile(),
@@ -104,8 +104,29 @@ describe("runAdaptiveAttemptLoop", () => {
 			retryBudgetOptions: { minBudget: 1 },
 		});
 		expect(out.outcome).toBe("other_failure");
+		expect(out.attempts).toBe(2);
+		expect(out.strategiesTried).toEqual(["same_model_retry"]);
 		expect(out.parkedReason).toMatch(/budget/i);
 		expect(out.result).toContain("other_failure"); // best partial still returned
+	});
+
+	it("selects only rungs the current attempt can execute", async () => {
+		const calls: Array<RetryStrategy | null> = [];
+		const out = await runAdaptiveAttemptLoop({
+			profile: profile(),
+			retryBudgetOptions: { minBudget: 3 },
+			runAttempt: async (strategy) => {
+				calls.push(strategy);
+				return {
+					result: "partial",
+					outcome: "no_tool_call",
+					availableStrategies: ["prompt_variant"],
+				};
+			},
+		});
+		expect(calls).toEqual([null, "prompt_variant"]);
+		expect(out.strategiesTried).toEqual(["prompt_variant"]);
+		expect(out.parkedReason).toMatch(/no untried/i);
 	});
 
 	it("respects the hard maxAttempts safety cap even with a generous budget", async () => {
@@ -121,7 +142,7 @@ describe("runAdaptiveAttemptLoop", () => {
 	});
 
 	it("parks when every relevant un-tried rung is exhausted", async () => {
-		// malformed ladder is short: constrained_schema → prompt_variant → best_of_n; all fail → park (no untried rung).
+		// Every malformed-output remedy fails, including endpoint and cross-model escalation, then the loop parks.
 		const { runAttempt } = scriptedAttempts(["malformed"]);
 		const out = await runAdaptiveAttemptLoop({
 			profile: profile(),
@@ -129,7 +150,13 @@ describe("runAdaptiveAttemptLoop", () => {
 			retryBudgetOptions: { minBudget: 20 },
 		});
 		expect(out.outcome).toBe("malformed");
-		expect(out.strategiesTried).toEqual(["constrained_schema", "prompt_variant", "best_of_n"]);
+		expect(out.strategiesTried).toEqual([
+			"constrained_schema",
+			"prompt_variant",
+			"best_of_n",
+			"alternate_endpoint",
+			"cross_model_carry",
+		]);
 		expect(out.parkedReason).toMatch(/no untried/i);
 	});
 });

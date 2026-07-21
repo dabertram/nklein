@@ -23,7 +23,8 @@ describe("createModelFailoverController", () => {
 
 	it("re-drives the card on the best untried candidate with a modelId override (default-on)", async () => {
 		const resend = vi.fn().mockResolvedValue(undefined);
-		const controller = createModelFailoverController({ resendTaskInput: resend });
+		const noteStrategyApplied = vi.fn();
+		const controller = createModelFailoverController({ resendTaskInput: resend, noteStrategyApplied });
 		controller.setCandidates("t1", ["gemma", "ministral", "qwable"]);
 		controller.maybeModelFailover("t1", errorSummary());
 		await flush();
@@ -34,6 +35,7 @@ describe("createModelFailoverController", () => {
 		expect(mode).toBe("act");
 		expect(images).toBeUndefined();
 		expect(overrides).toMatchObject({ providerId: "lmstudio", modelId: "gemma" });
+		expect(noteStrategyApplied).toHaveBeenCalledWith("t1", "cross_model_carry");
 	});
 
 	it("does nothing for a non-error terminal or a task/sandbox-scoped error", async () => {

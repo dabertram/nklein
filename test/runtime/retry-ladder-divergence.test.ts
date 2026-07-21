@@ -39,6 +39,18 @@ describe("compareLadders", () => {
 		expect(report.summary).toContain("loses nothing");
 	});
 
+	it("does not mistake an interleaved engine-only rung for a reorder of shared rungs", () => {
+		const report = compareLadders({
+			outcome: "aborted",
+			chatSequence: ["raise_token_budget", "same_model_retry"],
+		});
+		expect(report.safeToAdopt).toBe(true);
+		expect(report.divergences).toContainEqual(
+			expect.objectContaining({ kind: "engine_only", rung: "thinking_disable" }),
+		);
+		expect(report.divergences.some((divergence) => divergence.kind === "reordered")).toBe(false);
+	});
+
 	it("reports safe adoption when chat does nothing the engine cannot", () => {
 		const report = compareLadders({ outcome: "malformed", chatSequence: ["constrained_schema"] });
 		expect(report.safeToAdopt).toBe(true);

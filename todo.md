@@ -76,6 +76,13 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ AN ADAPTIVE RETRY BUDGET COUNTS RETRIES, NOT THE BASELINE ATTEMPT (live-found 2026-07-21).** The first
+> production wire of `runAdaptiveAttemptLoop` passed the baseline-inclusive attempt count into a policy whose learned
+> budget is explicitly the number of retries allowed. A budget of 1 therefore parked immediately instead of granting
+> its documented one retry. The driver now passes the number of executed strategy rungs. Keep one authoritative outer
+> budget too: wrapped provider turns set `nkleinProviderMaxRetries: 0`, or nested SDK retries multiply the real request
+> count. At a replacement-safe model seam, any emitted tool-call delta is a hard side-effect boundary: never replay it.
+
 > **⚠️ "ACP" NAMES THREE UNRELATED PROTOCOLS — disambiguate before importing any conclusion (P17.5, 2026-07-20).**
 > · **Agent Client Protocol** (agentclientprotocol.com, Zed + JetBrains) — the editor↔agent protocol we actually
 >   want. JSON-RPC 2.0 over **stdio**, `protocolVersion` is the bare integer `1`. This is the one P17.2 targets.
@@ -1777,16 +1784,27 @@ These are known defects or incomplete migrations. Clear them before widening cap
   signal classes (transient-abort recovery + the F3.5 runaway-interrupt stall class at the same seam); the full
   finish=length/stall taxonomy extension IS F3.10's adoption work (the engine is its consumer) — tracked there,
   where this entry's [>] successor already points. Crossed.
-- [>] **F3.10 — Adopt the retry-policy engine on swarm paths** *(after F3.9).* Map finish/truncation/stall signals,
-  apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool work.
+- [x] **F3.10 — Adopt the retry-policy engine on swarm paths** *(delivered 2026-07-21).* Map
+  finish/truncation/stall signals, apply budget/context/endpoint/prompt/cross-model rungs, and preserve completed tool
+  work. **DELIVERED:** the shared `runAdaptiveAttemptLoop` is now a live production consumer at the buffered swarm
+  `AgentModel` seam. It maps structured calls, caller cancellation, max-token truncation, provider abort/error bodies,
+  runaway interrupts, context overflow, unavailable models, and required-action clean stops into the shared outcome
+  taxonomy, advertises only executable rungs, and replaces failed turns before partial output becomes visible.
+  Budget raise, capability-gated thinking disable, reduced tools, role-aware prompt variation, tool-pair-preserving
+  context compaction, and local endpoint iteration execute in-turn; model-side terminal failures stamp
+  `cross_model_carry` before the existing ranked-model redrive so completed sandbox/board work survives. Inner provider
+  retries are zeroed, learned per-model profiles reach the attempt loop, and the learned budget correctly counts retries
+  rather than the baseline. Tool-required endpoint recovery skips native chat (its verified shape cannot accept tool
+  definitions) and uses forced `/v1/messages`; prose recovery may prefer native. A permanent fault-injection proof
+  recovered `read_file` through both reduced-tool and alternate-endpoint rungs on all four resident models without any
+  lifecycle change. Full gate: 1,264 files/1 skipped, 12,334 tests/1 skipped; simulator 65/65.
 - [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
   ledger, explore safely, and converge without locking onto a one-off win.
-  **AUDIT 2026-07-18: OPEN (core exists unwired)** — strategy-effectiveness-ledger.ts (Beta-posterior per model×failure×strategy + orderLadderByEffectiveness) has ZERO consumers and no tests; live ladder still static RELEVANT_STRATEGIES_BY_OUTCOME.
-  **WIRE SCOPING 2026-07-18:** premature to wire — the ladder itself has only a SINGLE-RUNG live consumer
-  (shouldAttemptAdaptiveBudgetRetry fires the raise_token_budget rung on aborted with triedStrategies=[]; no live
-  path walks multiple rungs), so effectiveness-ordering has nothing to reorder yet. Correct order: give the §5.AA
-  multi-rung loop a live consumer first (F3.10/runAdaptiveAttemptLoop), then record outcomes at its rung
-  resolutions, then consult orderLadderByEffectiveness. Not a cheap standalone wire.
+  **READY AFTER F3.10 (2026-07-21):** `strategy-effectiveness-ledger.ts` (Beta posterior per
+  model×failure×strategy + `orderLadderByEffectiveness`) remains unwired and untested, but its former prerequisite is
+  now satisfied: the swarm path walks multiple real rungs through `runAdaptiveAttemptLoop`, reports every rung result,
+  and carries the exact learned model profile into the turn. Wire outcome/cost recording at those rung resolutions,
+  then let the policy consult the posterior with explicit exploration and minimum-evidence guards.
 - [x] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
   context, tool subset, budget, evidence gates, and bounded transitions.
   **FINALIZED 2026-07-19:** the item's INTENT is realized by the LIVE board lifecycle, which IS the outer

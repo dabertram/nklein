@@ -54,6 +54,55 @@ export interface RecoveryLadderModelDeps {
 	onAttemptComplete?: (signal: RecoveryTurnSignal, willRecover: boolean) => void;
 }
 
+export interface BufferedRecoveryTurn {
+	events: AgentModelEvent[];
+	signal: RecoveryTurnSignal;
+}
+
+/** Run one provider attempt into a replacement-safe buffer and derive its terminal signal. */
+export async function collectBufferedModelTurn(
+	base: AgentModel,
+	request: AgentModelRequest,
+	onBufferedEvent?: (event: AgentModelEvent) => void,
+): Promise<BufferedRecoveryTurn> {
+	const events: AgentModelEvent[] = [];
+	let hadToolCall = false;
+	let finishReason: AgentModelFinishReason | null = null;
+	let finishError: string | null = null;
+	let thrownError: unknown | null = null;
+	try {
+		const iterable = await base.stream(request);
+		for await (const event of iterable) {
+			events.push(event);
+			try {
+				onBufferedEvent?.(event);
+			} catch {
+				// Observability must never turn a healthy model stream into a failed/retried attempt.
+			}
+			if (event.type === "tool-call-delta") {
+				hadToolCall = true;
+			} else if (event.type === "finish") {
+				finishReason = event.reason;
+				finishError = event.error ?? null;
+			}
+		}
+	} catch (error) {
+		thrownError = error;
+	}
+	return {
+		events,
+		signal: {
+			finishReason,
+			hadToolCall,
+			offeredTools: request.tools.length > 0,
+			attempt: 0,
+			finishError,
+			thrownError,
+			callerAborted: request.signal?.aborted === true,
+		},
+	};
+}
+
 /**
  * Wrap `deps.base` with the recovery ladder. Returns a new {@link AgentModel} whose `stream` recovers a stalled
  * (no-tool-call) turn per the injected policy. Default-inert-ish: if `shouldRecover` always returns false, it is a
@@ -74,41 +123,8 @@ async function* streamWithRecovery(
 	attempt: number,
 	maxAttempts: number,
 ): AsyncGenerator<AgentModelEvent> {
-	const buffered: AgentModelEvent[] = [];
-	let hadToolCall = false;
-	let finishReason: AgentModelFinishReason | null = null;
-	let finishError: string | null = null;
-	let thrownError: unknown | null = null;
-
-	try {
-		const iterable = await deps.base.stream(request);
-		for await (const event of iterable) {
-			buffered.push(event);
-			try {
-				deps.onBufferedEvent?.(event);
-			} catch {
-				// Observability must never turn a healthy model stream into a failed/retried attempt.
-			}
-			if (event.type === "tool-call-delta") {
-				hadToolCall = true;
-			} else if (event.type === "finish") {
-				finishReason = event.reason;
-				finishError = event.error ?? null;
-			}
-		}
-	} catch (error) {
-		thrownError = error;
-	}
-
-	const signal: RecoveryTurnSignal = {
-		finishReason,
-		hadToolCall,
-		offeredTools: request.tools.length > 0,
-		attempt,
-		finishError,
-		thrownError,
-		callerAborted: request.signal?.aborted === true,
-	};
+	const buffered = await collectBufferedModelTurn(deps.base, request, deps.onBufferedEvent);
+	const signal: RecoveryTurnSignal = { ...buffered.signal, attempt };
 	const willRecover = attempt < maxAttempts && deps.shouldRecover(signal);
 	try {
 		deps.onAttemptComplete?.(signal, willRecover);
@@ -123,10 +139,10 @@ async function* streamWithRecovery(
 	}
 
 	// No recovery — replay the base turn verbatim (byte-identical to the bare model).
-	for (const event of buffered) {
+	for (const event of buffered.events) {
 		yield event;
 	}
-	if (thrownError !== null) {
-		throw thrownError;
+	if (signal.thrownError !== null) {
+		throw signal.thrownError;
 	}
 }

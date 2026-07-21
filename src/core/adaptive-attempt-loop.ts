@@ -5,7 +5,8 @@
  * the next un-tried rung → run that rung (carrying the "do-not-repeat" note so a weak model doesn't rediscover state) →
  * record a failure capsule (no circles) → repeat, bounded by the learned per-model retry budget, ALWAYS terminating with
  * the best partial result and an inspectable park reason. Pure over an injected `runAttempt` so it is fully unit-testable
- * with a fake and is shared by BOTH the chat path and the swarm session runtime (one seam, no duplicated ladder logic).
+ * with a fake. The swarm session runtime uses this multi-attempt driver; chat uses the same policy through its
+ * streaming-safe retry cursor because its provider-specific continuation path cannot buffer whole turns.
  */
 
 import { buildFailureCapsule, type FailureCapsule } from "./failure-capsule";
@@ -79,6 +80,8 @@ export interface AdaptiveAttemptResult<TResult> {
 	evidence?: string;
 	/** Why the attempt failed, for the capsule. Optional — a default is derived from the outcome. */
 	whyFailed?: string;
+	/** Rungs the caller can execute for THIS result. Omitted means every policy rung for the outcome is executable. */
+	availableStrategies?: readonly RetryStrategy[];
 }
 
 export interface AdaptiveAttemptLoopInput<TResult> {
@@ -131,10 +134,12 @@ export async function runAdaptiveAttemptLoop<TResult>(
 	while (current.outcome !== "success") {
 		const plan = planNextAttempt({
 			lastOutcome: current.outcome,
-			attemptsSoFar,
+			// The learned budget is explicitly a RETRY budget. The baseline is attempt #1 but has consumed zero retries.
+			attemptsSoFar: strategiesTried.length,
 			profile: input.profile,
 			capsules,
 			supportsThinkingControl: input.supportsThinkingControl,
+			availableStrategies: current.availableStrategies,
 			...(input.retryBudgetOptions ? { retryBudgetOptions: input.retryBudgetOptions } : {}),
 		});
 		if (plan.parked || attemptsSoFar >= maxAttempts) {

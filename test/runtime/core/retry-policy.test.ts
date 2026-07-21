@@ -94,7 +94,13 @@ describe("decideNextRetryStrategy", () => {
 			lastOutcome: "malformed",
 			attemptsSoFar: 1,
 			retryBudget: 9,
-			triedStrategies: ["constrained_schema", "prompt_variant", "best_of_n"],
+			triedStrategies: [
+				"constrained_schema",
+				"prompt_variant",
+				"best_of_n",
+				"alternate_endpoint",
+				"cross_model_carry",
+			],
 		});
 		expect(d.strategy).toBe("park");
 		expect(d.reason).toMatch(/no untried/i);
@@ -135,14 +141,17 @@ describe("decideNextRetryStrategy", () => {
 		expect(d.strategy).not.toBe("park");
 	});
 
-	it("falls back to a plain re-run for an aborted turn once the budget-raise was tried", () => {
-		const d = decideNextRetryStrategy({
+	it("uses thinking control after a budget raise only when the aborted model supports it", () => {
+		const afterBudget = {
 			lastOutcome: "aborted",
 			attemptsSoFar: 1,
 			retryBudget: 3,
 			triedStrategies: ["raise_token_budget"],
-		});
-		expect(d.strategy).toBe("same_model_retry");
+		} as const;
+		expect(decideNextRetryStrategy(afterBudget).strategy).toBe("same_model_retry");
+		expect(decideNextRetryStrategy({ ...afterBudget, supportsThinkingControl: true }).strategy).toBe(
+			"thinking_disable",
+		);
 	});
 });
 
@@ -150,6 +159,7 @@ describe("retryLadderForOutcome", () => {
 	it("raises the budget first for aborted, then keeps the transient re-run rungs", () => {
 		const ladder = retryLadderForOutcome("aborted");
 		expect(ladder[0]).toBe("raise_token_budget");
+		expect(ladder[1]).toBe("thinking_disable");
 		expect(ladder).toContain("same_model_retry");
 		expect(ladder.length).toBeGreaterThan(0);
 	});

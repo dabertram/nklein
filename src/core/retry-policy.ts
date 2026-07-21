@@ -62,17 +62,24 @@ const RELEVANT_STRATEGIES_BY_OUTCOME: Record<ModelOutcomeKind, readonly RetryStr
 	// re-run RE-truncates) or a transient stall (SDK/endpoint timeout/iteration boundary — a re-run often completes). So
 	// try `raise_token_budget` FIRST (the root-cause fix for truncation via `raisedTokenBudget`; a harmless larger retry
 	// for a stall), then a plain re-run, a different endpoint, a shrink, and finally carry to another model.
-	aborted: ["raise_token_budget", "same_model_retry", "alternate_endpoint", "context_shrink", "cross_model_carry"],
+	aborted: [
+		"raise_token_budget",
+		"thinking_disable",
+		"same_model_retry",
+		"alternate_endpoint",
+		"context_shrink",
+		"cross_model_carry",
+	],
 	// Malformed args/JSON: force a valid shape, then reword, then sample.
-	malformed: ["constrained_schema", "prompt_variant", "best_of_n"],
+	malformed: ["constrained_schema", "prompt_variant", "best_of_n", "alternate_endpoint", "cross_model_carry"],
 	// Generic failure: a plain retry, sample more, then carry to a better model, then split.
-	other_failure: ["same_model_retry", "best_of_n", "cross_model_carry", "decompose"],
+	other_failure: ["same_model_retry", "best_of_n", "alternate_endpoint", "cross_model_carry", "decompose"],
 };
 
 export interface RetryDecisionInput {
 	/** The classified outcome of the attempt that just finished (§5.AA). */
 	lastOutcome: ModelOutcomeKind;
-	/** How many attempts have run so far for this task (0 = the just-finished first attempt). */
+	/** How many retries have already run after the baseline (0 immediately after the first failed attempt). */
 	attemptsSoFar: number;
 	/** The learned per-model retry budget (from the §5.AA `ModelBehaviorProfile`); clamped to ≥1. */
 	retryBudget: number;
@@ -181,7 +188,7 @@ export interface NextAttemptPlan {
 	parked: boolean;
 	/** The learned per-model retry budget in force. */
 	retryBudget: number;
-	/** Attempts run so far (echoed for the caller's bookkeeping). */
+	/** Retries consumed so far (legacy field name retained for compatibility). */
 	attemptsSoFar: number;
 	/** The "already tried — do not repeat" note to prepend to the next attempt's context (empty when no prior capsules). */
 	doNotRepeatNote: string;

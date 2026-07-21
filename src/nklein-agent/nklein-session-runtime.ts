@@ -31,8 +31,11 @@ import {
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
+import { preferredEndpointKind } from "../core/model-behavior-profile";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
+import { createLocalAlternateEndpointModel } from "./local-alternate-endpoint-model";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
 import { createNKleinArchitectBriefTool } from "./nklein-architect-tool";
 import { createNKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -77,7 +80,6 @@ import {
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
-import { createSwarmPromptVariationModel } from "./prompt-variation-model";
 import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -88,7 +90,6 @@ import {
 	type NKleinSdkStartSessionInput,
 	type NKleinSdkTeamEvent,
 } from "./sdk-runtime-boundary";
-import { createTransientAbortRecoveryModel } from "./transient-abort-recovery-model";
 import { createOpenAiCompatPhaseOnePickCaller } from "./two-phase-before-model";
 
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -545,73 +546,101 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: NKLEIN_MODEL_CATALOG_DEFAULTS,
-					// P0.4: buffer at the shared AgentModel seam so a provider/runtime abort can be replaced by a bounded
-					// same-model retry before any text/reasoning/usage event becomes visible. The wrapper refuses retries
-					// when the outer signal was cancelled or a tool-call delta appeared.
+					// F3.10: buffer at the shared AgentModel seam so a failed provider turn can be replaced by the next
+					// executable shared-policy rung before any partial text/reasoning/usage event becomes visible. Caller
+					// cancellation is authoritative, and a turn that emitted a tool call is never replayed.
 					modelWrapper: (base) => {
-						const transientRecoveryModel = createTransientAbortRecoveryModel(
-							// F3.5 interrupt-safely (OPT-IN via NKLEIN_RUNAWAY_ABORT; default OFF = byte-identical): sample the
-							// in-flight text and abort a degenerate turn typed, under the recovery buffer so the failure feeds
-							// the §5.AA attempt ladder instead of replaying garbage. Activation stays telemetry-gated.
-							isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
-								? createRunawayInterruptModel(base, {
-										onInterrupt: (verdict) => {
-											process.stderr.write(
-												`[nklein] Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}\n`,
-											);
-											// F4.8b: an ABORTED TURN was reported only to stderr — not countable, not
-											// attributable to a card, gone the moment the process exits. This mechanism kills
-											// a generation mid-flight; how often it does so is both the argument for enabling
-											// it and the first thing you would want after a card behaved oddly.
-											try {
-												recordSelfObservation({
-													signal: "custom",
-													severity: "warning",
-													message: `Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}`,
-													taskId: request.taskId,
-													metadata: {
-														category: "runaway_generation_interrupted",
-														reason: verdict.reason ?? null,
-														detail: verdict.detail ?? null,
-													},
-												});
-											} catch {
-												// Telemetry must never break an interrupt.
-											}
-										},
-									})
-								: base,
-							{
-								onBufferedToken: () =>
-									this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
-							},
-						);
-						if (!isEnabledByDefaultEnv(process.env.NKLEIN_SWARM_PROMPT_VARIATION)) {
-							return transientRecoveryModel;
-						}
-						return createSwarmPromptVariationModel(transientRecoveryModel, {
+						const recoveryBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
+							? createRunawayInterruptModel(base, {
+									onInterrupt: (verdict) => {
+										process.stderr.write(
+											`[nklein] Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}\n`,
+										);
+										// F4.8b: an ABORTED TURN was reported only to stderr — not countable, not
+										// attributable to a card, gone the moment the process exits. This mechanism kills
+										// a generation mid-flight; how often it does so is both the argument for enabling
+										// it and the first thing you would want after a card behaved oddly.
+										try {
+											recordSelfObservation({
+												signal: "custom",
+												severity: "warning",
+												message: `Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}`,
+												taskId: request.taskId,
+												metadata: {
+													category: "runaway_generation_interrupted",
+													reason: verdict.reason ?? null,
+													detail: verdict.detail ?? null,
+												},
+											});
+										} catch {
+											// Telemetry must never break an interrupt.
+										}
+									},
+								})
+							: base;
+						const alternateEndpointModel = request.baseUrl?.trim()
+							? createLocalAlternateEndpointModel({
+									baseUrl: request.baseUrl,
+									modelId: request.modelId,
+									baseMaxTokens: request.maxTokensPerTurn,
+									headers: request.apiKey?.trim()
+										? { authorization: `Bearer ${request.apiKey.trim()}` }
+										: undefined,
+									preferredKind: request.behaviorProfile
+										? preferredEndpointKind(request.behaviorProfile)
+										: null,
+									onWinningKind: (kind) => {
+										try {
+											recordSelfObservation({
+												signal: "custom",
+												severity: "info",
+												message: `Alternate endpoint ${kind} recovered the model turn for ${request.taskId}.`,
+												taskId: request.taskId,
+												providerId: request.providerId,
+												modelId: request.modelId,
+												workspacePath: agentPerceivedCwd,
+												metadata: { category: "swarm_alternate_endpoint", kind },
+											});
+										} catch {
+											// Telemetry must never alter endpoint recovery.
+										}
+									},
+								})
+							: undefined;
+						return createAdaptiveSwarmRecoveryModel(recoveryBase, {
+							modelId: request.modelId,
+							profile: request.behaviorProfile,
 							role: request.role ?? "unknown",
-							onOutcome: (outcome) => {
-								if (outcome.recovered) {
-									request.onPromptStrategyApplied?.(`prompt_variant:${outcome.family}`);
-								}
+							baseMaxTokens: request.maxTokensPerTurn,
+							promptVariationEnabled: isEnabledByDefaultEnv(process.env.NKLEIN_SWARM_PROMPT_VARIATION),
+							alternateEndpointModel,
+							onBufferedToken: () => this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
+							onStrategyApplied: (strategy) => request.onPromptStrategyApplied?.(strategy),
+							onAttempt: (attempt) => {
+								if (attempt.strategy === null) return;
 								try {
 									recordSelfObservation({
 										signal: "custom",
-										severity: outcome.recovered ? "info" : "warning",
-										message: outcome.recovered
-											? `Prompt variation ${outcome.family} recovered a no-tool-call turn for ${request.taskId}.`
-											: `Prompt variation ${outcome.family} did not recover a no-tool-call turn for ${request.taskId}.`,
+										severity: attempt.recovered ? "info" : "warning",
+										message: `Swarm retry ${attempt.strategyLabel ?? attempt.strategy} ${attempt.recovered ? "recovered" : "did not recover"} the model turn for ${request.taskId}.`,
 										taskId: request.taskId,
 										providerId: request.providerId,
 										modelId: request.modelId,
 										workspacePath: agentPerceivedCwd,
 										metadata: {
-											category: "swarm_prompt_variation",
-											role: outcome.role,
-											family: outcome.family,
-											toolName: outcome.toolName,
-											recovered: outcome.recovered,
+											category:
+												attempt.strategy === "prompt_variant"
+													? "swarm_prompt_variation"
+													: "swarm_adaptive_retry",
+											role: request.role ?? "unknown",
+											strategy: attempt.strategy,
+											strategyLabel: attempt.strategyLabel,
+											family: attempt.promptFamily,
+											toolName: attempt.toolName,
+											outcome: attempt.outcome,
+											recovered: attempt.recovered,
+											finishReason: attempt.finishReason,
+											evidence: attempt.evidence,
 										},
 									});
 								} catch {

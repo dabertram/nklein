@@ -11,6 +11,7 @@ import type {
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 } from "../core/api-contract";
+import type { ModelBehaviorProfile } from "../core/model-behavior-profile";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -98,6 +99,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	role?: RuntimeModelPerformanceRole;
 	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
 	onPromptStrategyApplied?: (strategy: string) => void;
+	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */
+	behaviorProfile?: ModelBehaviorProfile;
 	mode?: RuntimeTaskSessionMode;
 	apiKey?: string | null;
 	baseUrl?: string | null;

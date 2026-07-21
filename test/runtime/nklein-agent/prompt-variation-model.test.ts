@@ -157,6 +157,47 @@ describe("swarm prompt variation", () => {
 		]);
 	});
 
+	it("keeps the prior instruction as the anchor after a completed tool-result message", () => {
+		const baseInput = request({
+			instruction: "Call submit_review after checking the evidence.",
+			tools: [tool("submit_review", true)],
+		});
+		const input: AgentModelRequest = {
+			...baseInput,
+			messages: [
+				...baseInput.messages,
+				{
+					id: "a1",
+					role: "assistant",
+					content: [{ type: "tool-call", toolCallId: "read-1", toolName: "read_file", input: { path: "a.ts" } }],
+					createdAt: 2,
+				},
+				{
+					id: "u2",
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "read-1",
+							toolName: "read_file",
+							output: "evidence",
+							isError: false,
+						},
+					],
+					createdAt: 3,
+				},
+			],
+		};
+
+		const plan = planSwarmPromptVariation(input, "reviewer");
+		expect(plan?.toolName).toBe("submit_review");
+		expect(plan?.request.messages.at(-1)).toBe(input.messages.at(-1));
+		expect(plan?.request.messages[2]?.content[0]).toEqual({
+			type: "text",
+			text: "Respond with a single submit_review tool call and nothing else — no explanation.\nTask: Call submit_review after checking the evidence.",
+		});
+	});
+
 	it("never retries a turn that already emitted a tool call", async () => {
 		const base = scriptedBase([called, stopped]);
 		const onOutcome = vi.fn();

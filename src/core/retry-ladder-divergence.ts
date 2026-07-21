@@ -77,9 +77,14 @@ export interface DivergenceReport {
 export function compareLadders(comparison: LadderComparison): DivergenceReport {
 	const engineLadder = retryLadderForOutcome(comparison.outcome);
 	const engineSet = new Set<string>(engineLadder);
+	const chatSet = new Set<string>(comparison.chatSequence);
+	// Compare relative order only among rungs both paths share. An engine-only rung inserted between two shared rungs
+	// adds behaviour; it does not reorder those shared rungs and must not become a false blocking divergence.
+	const commonEngineSequence = engineLadder.filter((rung) => chatSet.has(rung));
+	const commonChatSequence = comparison.chatSequence.filter((rung) => engineSet.has(rung));
 	const divergences: Divergence[] = [];
 
-	comparison.chatSequence.forEach((rung, chatIndex) => {
+	comparison.chatSequence.forEach((rung) => {
 		if (!engineSet.has(rung)) {
 			divergences.push({
 				kind: "missing_in_engine",
@@ -88,7 +93,8 @@ export function compareLadders(comparison: LadderComparison): DivergenceReport {
 			});
 			return;
 		}
-		const engineIndex = engineLadder.indexOf(rung as RetryStrategy);
+		const chatIndex = commonChatSequence.indexOf(rung);
+		const engineIndex = commonEngineSequence.indexOf(rung as RetryStrategy);
 		if (engineIndex > chatIndex) {
 			divergences.push({
 				kind: "reordered",
@@ -98,7 +104,6 @@ export function compareLadders(comparison: LadderComparison): DivergenceReport {
 		}
 	});
 
-	const chatSet = new Set<string>(comparison.chatSequence);
 	for (const rung of engineLadder) {
 		if (!chatSet.has(rung)) {
 			divergences.push({

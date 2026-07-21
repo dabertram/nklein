@@ -30,7 +30,10 @@ import {
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
-import { buildAttemptRetryNoteFromLedger } from "../core/agent-ledger-projections";
+import {
+	buildAttemptRetryNoteFromLedger,
+	buildModelBehaviorProfilesFromLedger,
+} from "../core/agent-ledger-projections";
 import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
 	RuntimeNKleinTeamProgressEvent,
@@ -48,6 +51,7 @@ import { ATTEMPT_STARTED_CATEGORY } from "../core/card-tracking-coverage";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { emptyModelBehaviorProfile, type ModelBehaviorProfile } from "../core/model-behavior-profile";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
@@ -412,6 +416,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly modelFailoverController = createModelFailoverController({
 		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
+		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
 	});
 
 	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */
@@ -1026,19 +1031,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		};
 	}
 
-	private async buildAttemptRetryNote(taskId: string): Promise<string | null> {
+	private async buildAttemptRetryContext(
+		taskId: string,
+		modelId: string,
+	): Promise<{ note: string | null; profile: ModelBehaviorProfile }> {
 		if (this.diagnosticStoreRoot) {
 			try {
 				if (!readdirSync(this.diagnosticStoreRoot).some((file) => file.endsWith(".jsonl"))) {
-					return null;
+					return { note: null, profile: emptyModelBehaviorProfile(modelId, 0) };
 				}
 			} catch {
-				return null;
+				return { note: null, profile: emptyModelBehaviorProfile(modelId, 0) };
 			}
 		}
 		const events = await readAllAgentLedger({ rootDir: this.diagnosticStoreRoot }).catch(() => []);
 		const note = buildAttemptRetryNoteFromLedger(events, { workflowId: taskId }).trim();
-		return note.length > 0 ? note : null;
+		const profile =
+			buildModelBehaviorProfilesFromLedger(events).find((candidate) => candidate.modelId === modelId) ??
+			emptyModelBehaviorProfile(modelId, 0);
+		return { note: note.length > 0 ? note : null, profile };
 	}
 
 	private async withModelTurnAdmission<T>(
@@ -1208,7 +1219,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// (the byte-stable, volatility-ordered fragment assembly lives in the pure `buildSessionSystemPrompt`). This
 		// restart seam also builds the SYNTHETIC sessions (`::review`/`::plan-critique`/`::merge` — kind derived from
 		// the task-id suffix) and bakes the lean/full efficiency-rules level; it carries no planning/skill fragments.
-		const attemptRetryNote = await this.buildAttemptRetryNote(input.taskId);
+		const attemptRetryContext = await this.buildAttemptRetryContext(input.taskId, launchConfig.modelId);
+		const attemptRetryNote = attemptRetryContext.note;
 		const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 			this.buildSessionSystemPromptInput({
 				taskId: input.taskId,
@@ -1344,6 +1356,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				images: input.images,
 				providerId: launchConfig.providerId,
 				modelId: launchConfig.modelId,
+				behaviorProfile: attemptRetryContext.profile,
 				role: resolveNKleinTaskRole(input.taskId, this.explicitDecompositionTaskIds.has(input.taskId)),
 				onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(input.taskId, strategy),
 				mode: input.mode,
@@ -1897,7 +1910,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				} else {
 					this.surfacedSkillIdsByTaskId.delete(request.taskId);
 				}
-				const attemptRetryNote = await this.buildAttemptRetryNote(request.taskId);
+				const attemptRetryContext = await this.buildAttemptRetryContext(request.taskId, modelId);
+				const attemptRetryNote = attemptRetryContext.note;
 				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 					this.buildSessionSystemPromptInput({
 						taskId: request.taskId,
@@ -2018,6 +2032,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							images: request.images,
 							providerId,
 							modelId,
+							behaviorProfile: attemptRetryContext.profile,
 							role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
 							onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(request.taskId, strategy),
 							mode: resolvedMode,

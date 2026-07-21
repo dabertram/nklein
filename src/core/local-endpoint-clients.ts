@@ -36,22 +36,30 @@ export class LocalEndpointError extends Error {
 }
 
 /** POST a JSON body to a LOCAL endpoint URL and return the parsed JSON, with a bounded transient retry. */
-async function postLocalJson(url: string, body: unknown, fetchImpl: typeof fetch): Promise<unknown> {
+async function postLocalJson(
+	url: string,
+	body: unknown,
+	fetchImpl: typeof fetch,
+	maxRetries = 2,
+	signal?: AbortSignal,
+	headers?: Record<string, string>,
+): Promise<unknown> {
 	if (!isLocalBaseUrl(url)) {
 		throw new LocalEndpointError(`Refusing to reach non-local endpoint: ${url} (local-only, prime directive #1).`);
 	}
 	const attempt = async (): Promise<unknown> => {
 		const response = await fetchImpl(url, {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: { ...headers, "content-type": "application/json" },
 			body: JSON.stringify(body),
+			signal,
 		});
 		if (!response.ok) {
 			throw new LocalEndpointError(`Endpoint ${url} returned HTTP ${response.status}.`, response.status);
 		}
 		return response.json();
 	};
-	return withTransientRetry(attempt, { maxRetries: 2 });
+	return withTransientRetry(attempt, { maxRetries });
 }
 
 export interface LocalAnthropicMessagesCallInput extends AnthropicMessagesRequestInput {
@@ -59,15 +67,19 @@ export interface LocalAnthropicMessagesCallInput extends AnthropicMessagesReques
 	url: string;
 	/** Injected for testing; defaults to global fetch. */
 	fetchImpl?: typeof fetch;
+	/** Inner transport retries. Set to zero when an outer adaptive controller owns the attempt budget. */
+	maxRetries?: number;
+	signal?: AbortSignal;
+	headers?: Record<string, string>;
 }
 
 /** Call a local Anthropic-Messages-compatible endpoint and return the parsed text + tool calls + stop reason. */
 export async function callLocalAnthropicMessages(
 	input: LocalAnthropicMessagesCallInput,
 ): Promise<ParsedAnthropicMessagesResponse> {
-	const { url, fetchImpl, ...requestInput } = input;
+	const { url, fetchImpl, maxRetries, signal, headers, ...requestInput } = input;
 	const body = buildAnthropicMessagesRequest(requestInput);
-	const json = await postLocalJson(url, body, fetchImpl ?? fetch);
+	const json = await postLocalJson(url, body, fetchImpl ?? fetch, maxRetries, signal, headers);
 	return parseAnthropicMessagesResponse(json);
 }
 
@@ -76,12 +88,16 @@ export interface LocalNativeChatCallInput extends NativeChatRequestInput {
 	url: string;
 	/** Injected for testing; defaults to global fetch. */
 	fetchImpl?: typeof fetch;
+	/** Inner transport retries. Set to zero when an outer adaptive controller owns the attempt budget. */
+	maxRetries?: number;
+	signal?: AbortSignal;
+	headers?: Record<string, string>;
 }
 
 /** Call a local native `/api/v1/chat` endpoint and return the parsed text + reasoning + structured tool calls. */
 export async function callLocalNativeChat(input: LocalNativeChatCallInput): Promise<ParsedNativeChatResponse> {
-	const { url, fetchImpl, ...requestInput } = input;
+	const { url, fetchImpl, maxRetries, signal, headers, ...requestInput } = input;
 	const body = buildNativeChatRequest(requestInput);
-	const json = await postLocalJson(url, body, fetchImpl ?? fetch);
+	const json = await postLocalJson(url, body, fetchImpl ?? fetch, maxRetries, signal, headers);
 	return parseNativeChatResponse(json);
 }

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Swarm turns now recover through the same bounded policy as chat.** !Klein classifies truncation, stalls, provider
+  failures, loops, and required-action no-calls, then tries only remedies the current turn can actually execute:
+  more output room, optional thinking suppression, fewer tools, clearer phrasing, context compaction, or a compatible
+  local endpoint. Completed tool calls and results are never replayed or discarded, caller cancellation remains
+  terminal, and model-side terminal failures can continue on the next ranked model without losing sandbox work.
+
 - **Chat retries now follow one bounded policy instead of a separate implicit ladder.** !Klein preserves the proven
   recovery order for local models—more output room, optional thinking suppression, fewer tools, clearer phrasing, then
   constrained output—while skipping strategies that cannot apply to the current turn and never circling back to an

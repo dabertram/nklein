@@ -2047,3 +2047,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   live. A permanent real-model proof forced the baseline no-call and observed the engine-selected reduced-tool retry
   land `read_file` on all four resident LM Studio models without loading, unloading, or downloading anything. Focused
   policy/chat tests, typecheck, simulator tests, and the full suite pass: 1,262 files/1 skipped and 12,319 tests/1 skipped.
+
+- [x] **F3.10 — adopt the shared retry-policy engine on swarm paths** *(delivered 2026-07-21).* The formerly orphaned
+  multi-attempt driver now buffers and classifies real SDK model turns, asks the shared policy for the next executable
+  rung, and replaces failed output before the agent sees it. Max-token turns raise budget and optionally disable verified
+  thinking; required-action no-calls narrow tools then vary the role prompt; context overflow compacts old payloads while
+  retaining every tool-call/result block and id; model-unavailable turns try a compatible local endpoint; terminal
+  model-side failures stamp cross-model carry before the existing ranked-model redrive. Caller cancellation and content
+  filtering remain terminal, any emitted tool call forbids replay, and inner SDK retries are disabled so the learned
+  outer budget is authoritative. The attempt service supplies the exact ledger-derived model profile; a root budget bug
+  was fixed so a retry budget of one permits one retry after the baseline. Tool-required alternate-endpoint turns go
+  directly to forced LM Studio `/v1/messages` because the verified native request shape cannot carry tool definitions;
+  prose turns may still use native first. A permanent fault-injection verifier recovered `read_file` through both the
+  reduced-tool and alternate-endpoint rungs on all four resident models without loading, unloading, or downloading.
+  Focused tests pass 101/101, the full gate passes 1,264 files/1 skipped and 12,334 tests/1 skipped, and the simulator
+  passes 65/65.
