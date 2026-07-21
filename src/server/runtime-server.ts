@@ -1263,6 +1263,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							repoPath: scope.workspacePath,
 							taskId: terminalTaskId,
 						}).catch(() => null);
+						// Multiple terminal summaries can enter this async branch before the result-branch lookup resolves.
+						// Claim after that await as well; otherwise every waiter logs and schedules the supposedly one-shot redrive.
+						if (terminalRedriveAttemptedTaskKeys.has(redriveKey)) {
+							return;
+						}
 						// A result branch means the #21 prior-work rebound owns recovery (review judges the work);
 						// only the NO-work dead card needs a fresh attempt here.
 						if (!resultCommit) {

@@ -47,6 +47,8 @@ export interface PlanCritiqueRunner {
 	 * budget; failures and empty verdicts degrade to null (proceed) so a critique never blocks.
 	 */
 	buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined;
+	/** Trusted continuation context retained when a rejected architect turn dies before it can revise in-session. */
+	getPendingRevisionPrompt(taskId: string): string | null;
 	runPlanCritiqueSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -71,6 +73,27 @@ const CLARIFY_TURN_RUN_BUDGET = 6;
 export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCritiqueRunner {
 	/** F1.3e per-run clarify-turn budget: each auto-clarify round costs 1-2 bounded sessions; cap the total. */
 	let clarifyTurnsUsed = 0;
+	// A critic rejection is returned as a tool error so the architect can repair it immediately. Some local models end
+	// the turn at that boundary; the dead-card recovery then creates a fresh SDK session. Keep the critique lineage in
+	// the service-owned runner so that restart receives the exact feedback and candidate 2 cannot masquerade as a new
+	// candidate 1 merely because session-local tool state was rebuilt.
+	const critiqueAttemptsByPlanKey = new Map<string, number>();
+	const pendingRevisionSlugByTaskId = new Map<string, string>();
+	const pendingRevisionPromptByTaskId = new Map<string, string>();
+
+	function revisionPrompt(slug: string, attempt: number, feedback: string): string {
+		return [
+			"[!Klein plan-critique continuation — trusted runtime context]",
+			`The independent critic rejected candidate ${attempt}/2 for plan slug "${slug}" before any graph was materialized.`,
+			"Resume the revision; do not restart from the original decomposition assumptions and do not change the plan slug.",
+			"Rebuild the candidate from this exact feedback, then submit it for the mandatory fresh verdict:",
+			feedback,
+		].join("\n");
+	}
+
+	function getPendingRevisionPrompt(taskId: string): string | null {
+		return pendingRevisionPromptByTaskId.get(taskId) ?? null;
+	}
 
 	function buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined {
 		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
@@ -79,6 +102,20 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 		return async (request) => {
 			if (!deps.getAgentSandboxManager()) {
 				return null;
+			}
+			const expectedSlug = pendingRevisionSlugByTaskId.get(taskId);
+			const planSlug = expectedSlug ?? request.slug;
+			const planKey = `${taskId}:${planSlug}`;
+			const critiqueAttempt = (critiqueAttemptsByPlanKey.get(planKey) ?? 0) + 1;
+			if (expectedSlug && request.slug !== expectedSlug) {
+				critiqueAttemptsByPlanKey.set(planKey, critiqueAttempt);
+				const feedback = `Keep the stable plan slug "${expectedSlug}". Candidate ${critiqueAttempt} changed it to "${request.slug}", which would discard the prior critic lineage and cannot be accepted.`;
+				return {
+					verdict: "revise",
+					summary: "The revised candidate changed the stable plan slug.",
+					feedback,
+					critiqueAttempt,
+				};
 			}
 			// Probe for the diverse critic before starting the bracketed session. Availability + the shared admission gate
 			// define review capacity; a fixed service-lifetime count silently disabled critique after unrelated plans.
@@ -89,20 +126,53 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 			if (!critic) {
 				recordSelfObservation({
 					signal: "custom",
-					severity: "info",
-					message: `Plan-critique diversity waived for ${request.slug}: no lineage-diverse capable critic is loaded — proceeding without deliberation (a same-family debate is correlated noise).`,
+					severity: expectedSlug ? "warning" : "info",
+					message: expectedSlug
+						? `Plan-critique revision for ${request.slug} has no lineage-diverse critic — failing closed because its prior candidate was rejected.`
+						: `Plan-critique diversity waived for ${request.slug}: no lineage-diverse capable critic is loaded — proceeding without deliberation (a same-family debate is correlated noise).`,
 					taskId,
-					metadata: { category: "plan_critique_diversity_waived", planSlug: request.slug },
+					metadata: {
+						category: expectedSlug ? "plan_critique_revision_unavailable" : "plan_critique_diversity_waived",
+						planSlug: request.slug,
+					},
 				});
-				return null;
+				if (!expectedSlug) return null;
+				critiqueAttemptsByPlanKey.set(planKey, critiqueAttempt);
+				return {
+					verdict: "revise",
+					summary: "The required fresh verdict was unavailable.",
+					feedback:
+						"The prior candidate was rejected, so this revision cannot use the ordinary no-critic waiver. Keep the graph unmaterialized and escalate to another loaded lineage-diverse critic.",
+					critiqueAttempt,
+				};
 			}
-			return await runPlanCritiqueSession({
+			const result = await runPlanCritiqueSession({
 				taskId,
 				projectRepoPath,
 				baseRef: deps.getBaseRef(taskId) ?? "HEAD",
 				seedPrompt: buildPlanCritiqueSeedPrompt(request),
 				critic,
 			}).catch(() => null);
+			if (!result) {
+				if (!expectedSlug) return null;
+				critiqueAttemptsByPlanKey.set(planKey, critiqueAttempt);
+				return {
+					verdict: "revise",
+					summary: "The required fresh critic turn returned no verdict.",
+					feedback:
+						"The prior candidate was rejected and this revision received no fresh verdict. Keep the graph unmaterialized and retry with another loaded lineage-diverse critic.",
+					critiqueAttempt,
+				};
+			}
+			critiqueAttemptsByPlanKey.set(planKey, critiqueAttempt);
+			if (result.verdict === "revise" && result.feedback) {
+				pendingRevisionSlugByTaskId.set(taskId, planSlug);
+				pendingRevisionPromptByTaskId.set(taskId, revisionPrompt(planSlug, critiqueAttempt, result.feedback));
+			} else if (result.verdict === "proceed") {
+				pendingRevisionSlugByTaskId.delete(taskId);
+				pendingRevisionPromptByTaskId.delete(taskId);
+			}
+			return { ...result, critiqueAttempt };
 		};
 	}
 
@@ -218,5 +288,5 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 		};
 	}
 
-	return { buildRequestHandler, buildClarifyTurnHandler, runPlanCritiqueSession };
+	return { buildRequestHandler, getPendingRevisionPrompt, buildClarifyTurnHandler, runPlanCritiqueSession };
 }

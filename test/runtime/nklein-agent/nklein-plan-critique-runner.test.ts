@@ -27,6 +27,11 @@ import {
 } from "../../../src/nklein-agent/nklein-plan-critique-runner";
 
 const PROCEED = { verdict: "proceed" } as never;
+const REVISE = {
+	verdict: "revise",
+	summary: "Remove redundant work",
+	feedback: "Keep only scoring-cap, cli-output, and acceptance-tests.",
+} as never;
 
 function harness() {
 	return {
@@ -151,5 +156,62 @@ describe("createPlanCritiqueRunner — buildRequestHandler", () => {
 		await handler?.({ slug: "c" } as never);
 		expect(d.pickEscalationModel).toHaveBeenCalledTimes(3);
 		expect(d.startRuntimeSession).toHaveBeenCalledTimes(3);
+	});
+
+	it("retains revision feedback and candidate numbering across architect-session handlers", async () => {
+		const verdicts = [REVISE, PROCEED];
+		const d = deps({
+			startRuntimeSession: vi.fn(async (launch) => {
+				launch.onPlanCritiqueSubmitted?.(verdicts.shift() ?? PROCEED);
+				return { result: {} };
+			}),
+		});
+		const runner = createPlanCritiqueRunner(d);
+		const candidateOne = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+
+		expect(candidateOne).toMatchObject({ verdict: "revise", critiqueAttempt: 1 });
+		expect(runner.getPendingRevisionPrompt("t1")).toContain("candidate 1/2");
+		expect(runner.getPendingRevisionPrompt("t1")).toContain("Keep only scoring-cap");
+
+		const candidateTwo = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+		expect(candidateTwo).toMatchObject({ verdict: "proceed", critiqueAttempt: 2 });
+		expect(runner.getPendingRevisionPrompt("t1")).toBeNull();
+	});
+
+	it("rejects a revised candidate that changes its slug instead of resetting critique lineage", async () => {
+		const d = deps({
+			startRuntimeSession: vi.fn(async (launch) => {
+				launch.onPlanCritiqueSubmitted?.(REVISE);
+				return { result: {} };
+			}),
+		});
+		const runner = createPlanCritiqueRunner(d);
+		await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+		const changed = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "new-slug" } as never);
+
+		expect(changed).toMatchObject({ verdict: "revise", critiqueAttempt: 2 });
+		expect(changed?.feedback).toContain('Keep the stable plan slug "habit-insights"');
+		expect(d.startRuntimeSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("fails a rejected plan closed when its required fresh critic is no longer available", async () => {
+		const pickEscalationModel = vi
+			.fn()
+			.mockResolvedValueOnce({ providerId: "lmstudio", modelId: "critic-m" })
+			.mockResolvedValueOnce(null);
+		const d = deps({
+			pickEscalationModel,
+			startRuntimeSession: vi.fn(async (launch) => {
+				launch.onPlanCritiqueSubmitted?.(REVISE);
+				return { result: {} };
+			}),
+		});
+		const runner = createPlanCritiqueRunner(d);
+		await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+		const candidateTwo = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
+
+		expect(candidateTwo).toMatchObject({ verdict: "revise", critiqueAttempt: 2 });
+		expect(candidateTwo?.feedback).toContain("cannot use the ordinary no-critic waiver");
+		expect(d.startRuntimeSession).toHaveBeenCalledTimes(1);
 	});
 });

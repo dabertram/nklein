@@ -1755,6 +1755,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		) {
 			return cloneSummary(existing.summary);
 		}
+		const pendingPlanRevision = this.planCritiqueRunner.getPendingRevisionPrompt(request.taskId);
+		const taskPrompt = pendingPlanRevision ? `${request.prompt.trim()}\n\n${pendingPlanRevision}` : request.prompt;
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdStore.set(request.taskId, providerId);
 		this.autonomyBudgetWatchdog.resetTask(request.taskId);
@@ -1809,7 +1811,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// read failure ⇒ byte-identical; kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off).
 		const frameworkPreamble = await readWorkspaceFrameworkPreamble(request.cwd);
 		const startPromptParts = buildNKleinStartPromptParts(
-			request.prompt,
+			taskPrompt,
 			request.startInPlanMode,
 			isRefinableWorkCard,
 			request.autoDecompositionDepth ?? null, // F4.38 — advisory depth line (null ⇒ byte-identical)
@@ -1965,7 +1967,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						const freshness = await this.runDecompositionResearchPreflight({
 							taskId: request.taskId,
 							workspacePathHash,
-							taskText: request.prompt,
+							taskText: taskPrompt,
 							egressAvailable: this.retrievalToolsBuilder.isAvailable(request.taskId),
 						});
 						decompositionFreshnessPrompt = freshness.promptBlock;
@@ -2016,7 +2018,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// for a code/planning session). Fail-soft to [] — never blocks a start.
 				const sessionSkillFragments = await buildSessionSkillFragments({
 					role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
-					taskText: request.prompt,
+					taskText: taskPrompt,
 					workspacePath: request.workspaceRoot?.trim() || request.cwd,
 					modelId,
 					// Same gate the tool bundle uses to offer curated sandbox MCP servers — so the structural-retrieval
@@ -2056,7 +2058,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 					this.buildSessionSystemPromptInput({
 						taskId: request.taskId,
-						prompt: request.prompt,
+						prompt: taskPrompt,
 						modelId,
 						workspacePath: request.workspaceRoot?.trim() || request.cwd,
 						basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",

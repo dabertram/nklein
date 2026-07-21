@@ -513,8 +513,8 @@ function createDecomposeProjectTool(
 				critiqueAccepted: acceptedCritiqueFingerprintBySlug.get(slug) === critiqueFingerprint,
 			});
 			if (critiqueDecision.deliberate && requestPlanCritique) {
-				const critiqueAttempt = (critiqueAttemptsBySlug.get(slug) ?? 0) + 1;
-				critiqueAttemptsBySlug.set(slug, critiqueAttempt);
+				const localCritiqueAttempt = (critiqueAttemptsBySlug.get(slug) ?? 0) + 1;
+				critiqueAttemptsBySlug.set(slug, localCritiqueAttempt);
 				const critique = await requestPlanCritique({
 					slug,
 					spec,
@@ -525,6 +525,8 @@ function createDecomposeProjectTool(
 					})),
 					qualityWarnings: [...validation.quality.warnings, ...validation.quality.violations],
 				}).catch(() => null);
+				const critiqueAttempt = critique?.critiqueAttempt ?? localCritiqueAttempt;
+				critiqueAttemptsBySlug.set(slug, Math.max(localCritiqueAttempt, critiqueAttempt));
 				await recordSelfObservation({
 					signal: "custom",
 					severity: "info",

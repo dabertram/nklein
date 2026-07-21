@@ -32,6 +32,8 @@ export interface NKleinPlanCritiqueResult {
 	verdict: "proceed" | "revise";
 	summary: string;
 	feedback: string | null;
+	/** Service-owned candidate number. Optional for direct/tool-only callers that do not span architect sessions. */
+	critiqueAttempt?: number;
 }
 
 export type NKleinPlanCritiqueSubmittedHandler = (result: NKleinPlanCritiqueResult) => void | Promise<void>;

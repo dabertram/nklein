@@ -978,6 +978,38 @@ describe("nklein decomposition tools", () => {
 		await expect(readNKleinPlanArtifacts(workspacePath, "rejected-plan")).rejects.toThrow();
 	});
 
+	it("W4.3: honors service-owned candidate numbering after an architect session restart", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-restart-"));
+		const requestPlanCritique = vi.fn().mockResolvedValue({
+			verdict: "revise",
+			summary: "Still unsafe.",
+			feedback: "Remove the redundant implementation card.",
+			critiqueAttempt: 2,
+		});
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) throw new Error("missing decompose_project");
+
+		await expect(
+			tool.execute(
+				{
+					slug: "restarted-plan",
+					title: "Restarted plan",
+					spec: "Implement and test.",
+					plan: "Implement then test.",
+					defaultAcceptanceCommand: "npm test",
+					tasks: [
+						{ id: "impl", title: "Implement", prompt: "Implement the feature." },
+						{ id: "test", title: "Test", prompt: "Test it.", dependsOn: ["impl"] },
+					],
+				},
+				undefined as never,
+			),
+		).rejects.toThrow(/candidate 2\/2/);
+		await expect(readNKleinPlanArtifacts(workspacePath, "restarted-plan")).rejects.toThrow();
+	});
+
 	it("W4.3: binds acceptance to the exact graph and specification, not only the slug", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-fingerprint-"));
 		const requestPlanCritique = vi
