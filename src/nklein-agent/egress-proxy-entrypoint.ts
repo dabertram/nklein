@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { connect as netConnect } from "node:net";
 import type { Duplex } from "node:stream";
@@ -5,6 +6,9 @@ import { fileURLToPath } from "node:url";
 import { AGENT_RULESET_ROLES, type AgentCapabilityRulesetConfig, type AgentRulesetRole } from "../core/agent-rulesets";
 import { createEgressConfirmQueue, type EgressConfirmQueue } from "../core/egress-confirm-queue";
 import type { EgressProxyAuditRecord } from "../core/egress-proxy-audit";
+import { buildEgressProxyDnsAuditRecord, type EgressProxyDnsAuditRecord } from "../core/egress-proxy-dns-audit";
+import { createEgressTaskIdentityRegistry } from "../core/egress-task-identity";
+import { isTruthyEnv } from "../core/env-flag";
 import { createEgressConfirmControlServer, type EgressConfirmControlServer } from "./egress-confirm-control-server";
 import { createEgressProxyDnsStub, type EgressProxyDnsSocketFactory } from "./egress-proxy-dns-stub";
 import {
@@ -19,6 +23,7 @@ import {
 	type EgressProxyScheduler,
 } from "./egress-proxy-server";
 import { createEgressProxyAuditSink } from "./sandbox-egress-attempt-audit-store";
+import { createEgressProxyDnsAuditSink } from "./sandbox-egress-dns-audit-store";
 
 /**
  * The RUNNABLE egress-proxy process (docs/dev/egress-proxy-design.md §4 topology, §5 flow) — the thin effectful shell
@@ -51,6 +56,8 @@ export const EGRESS_PROXY_ALLOWLIST_ENV = "NKLEIN_EGRESS_PROXY_ALLOWLIST";
 export const EGRESS_CONFIRM_ROLES_ENV = "NKLEIN_EGRESS_CONFIRM_ROLES";
 /** Host-generated bearer token protecting the container control listener from self-approval by agent sandboxes. */
 export const EGRESS_CONFIRM_CONTROL_TOKEN_ENV = "NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN";
+/** Production manager flag: require a valid issued task credential on every proxy request. */
+export const EGRESS_REQUIRE_TASK_IDENTITY_ENV = "NKLEIN_EGRESS_REQUIRE_TASK_IDENTITY";
 /** Container-side control listener; Docker publishes it to a random HOST-loopback port. */
 export const EGRESS_CONFIRM_CONTROL_PORT = 3131;
 /**
@@ -69,8 +76,11 @@ export interface EgressProxyRuntimeDeps {
 	requirePerActionApprovalForRole?: (role: AgentRulesetRole) => boolean;
 	/** F2.3b queue shared by the proxy waiter and the authenticated HTTP control leaf. */
 	confirmQueue?: EgressConfirmQueue;
-	/** F2.3b effectful control leaf; production constructs it only when at least one role opts into confirms. */
+	/** F2.3b/F2.5b effectful control leaf for confirms plus task-credential issue/revoke. */
 	confirmControlServer?: EgressConfirmControlServer;
+	/** F2.5b authenticated per-task proxy identity validation. */
+	validateTaskIdentity?: (taskId: string, token: string) => boolean;
+	requireTaskIdentity?: boolean;
 	/** Root dir for the audit JSONL (RW mount). Default: the store's `~/.nklein/sandbox-audit`. */
 	auditRootDir?: string;
 	/** Host resolution seam. Default: `dns.lookup(host, { all: true })` → the resolved addresses. */
@@ -80,11 +90,12 @@ export interface EgressProxyRuntimeDeps {
 	/** Audit sink seam. Default: the JSONL append store. */
 	auditSink?: (record: EgressProxyAuditRecord) => void;
 	/**
-	 * Best-effort observability for each DNS-stub query name (§4 injection signal). NOT the typed JSONL sink: a DNS
-	 * query has no role/policy attribution (one shared UDP listener), and the I1 audit record requires both — routing
-	 * role-less DNS names into that trail is deferred to the config/schema increment. Default: dropped.
+	 * Best-effort observer for each DNS-stub query name (§4 injection signal), in addition to the durable anonymous
+	 * DNS-denial audit. A shared UDP/network namespace cannot truthfully identify one task or role.
 	 */
 	onDnsQuery?: (queryName: string) => void;
+	/** Durable anonymous DNS-denial trail; task attribution is impossible in the shared container network namespace. */
+	dnsAuditSink?: (record: EgressProxyDnsAuditRecord) => void;
 	/** `node:net` accept/listen seam passthrough (default from the server). Injected as a fake in unit tests. */
 	netServerFactory?: EgressProxyNetServerFactory;
 	/** `node:dgram` socket seam for the DNS stub. Injected as a fake in unit tests. */
@@ -140,6 +151,9 @@ export function buildEgressProxyListeners(): EgressProxyConnectionContext[] {
 export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): EgressProxyRuntime {
 	const listeners = buildEgressProxyListeners();
 	const auditSink = deps.auditSink ?? createEgressProxyAuditSink({ rootDir: deps.auditRootDir });
+	const dnsAuditSink = deps.dnsAuditSink ?? createEgressProxyDnsAuditSink({ rootDir: deps.auditRootDir });
+	const now = deps.now ?? Date.now;
+	const generateId = deps.generateId ?? randomUUID;
 
 	const server = createEgressProxyServer({
 		resolveRoleSnapshot: (context) =>
@@ -157,13 +171,26 @@ export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): Egr
 		netServerFactory: deps.netServerFactory,
 		listeners,
 		confirmQueue: deps.confirmQueue,
+		validateTaskIdentity: deps.validateTaskIdentity,
+		requireTaskIdentity: deps.requireTaskIdentity,
 	});
 
-	// The DNS stub answers NXDOMAIN to every query (§4 exfil-channel closure, risk Q1); query names surface on the
-	// best-effort `onDnsQuery` observability seam (role-less, so not the typed JSONL trail — see the deps doc).
+	// The DNS stub answers NXDOMAIN to every query (§4 exfil-channel closure, risk Q1). Query names reach both the
+	// optional observer and a separate durable trail that explicitly records the shared-namespace attribution limit.
 	const dnsStub = createEgressProxyDnsStub({
 		socketFactory: deps.dnsSocketFactory,
-		onQuery: deps.onDnsQuery ? (queryName) => deps.onDnsQuery?.(queryName) : undefined,
+		onQuery: (queryName, rinfo) => {
+			deps.onDnsQuery?.(queryName);
+			dnsAuditSink(
+				buildEgressProxyDnsAuditRecord({
+					id: generateId(),
+					queryName,
+					sourceAddress: rinfo.address,
+					sourcePort: rinfo.port,
+					recordedAt: now(),
+				}),
+			);
+		},
 	});
 	const dnsStubPort = deps.dnsStubPort ?? EGRESS_PROXY_DNS_STUB_PORT;
 
@@ -213,14 +240,18 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 	const scoped = parseRoleScopedEgressAllowlist(process.env[EGRESS_PROXY_ALLOWLIST_ENV]);
 	const hasEntries = scoped.global.length > 0 || Object.keys(scoped.byRole).length > 0;
 	const confirmRoles = parseEgressConfirmRoles(process.env[EGRESS_CONFIRM_ROLES_ENV]);
+	const taskIdentityRequired = isTruthyEnv(process.env[EGRESS_REQUIRE_TASK_IDENTITY_ENV]);
+	const controlRequired = confirmRoles.size > 0 || taskIdentityRequired;
 	const controlToken = process.env[EGRESS_CONFIRM_CONTROL_TOKEN_ENV]?.trim() ?? "";
-	if (confirmRoles.size > 0 && controlToken.length < 32) {
-		throw new Error("egress-confirm roles require a host-generated control token");
+	if (controlRequired && controlToken.length < 32) {
+		throw new Error("egress proxy requires a host-generated control token");
 	}
-	const confirmQueue = confirmRoles.size > 0 ? createEgressConfirmQueue() : undefined;
+	const confirmQueue = controlRequired ? createEgressConfirmQueue() : undefined;
+	const taskIdentities = taskIdentityRequired ? createEgressTaskIdentityRegistry() : undefined;
 	const confirmControlServer = confirmQueue
 		? createEgressConfirmControlServer({
 				queue: confirmQueue,
+				taskIdentities,
 				token: controlToken,
 				port: EGRESS_CONFIRM_CONTROL_PORT,
 			})
@@ -232,6 +263,8 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 		requirePerActionApprovalForRole: confirmRoles.size > 0 ? (role) => confirmRoles.has(role) : undefined,
 		confirmQueue,
 		confirmControlServer,
+		validateTaskIdentity: taskIdentities?.validate,
+		requireTaskIdentity: taskIdentityRequired,
 	});
 	await runtime.start();
 	return runtime;

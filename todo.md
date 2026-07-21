@@ -497,6 +497,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   inherited the general `fully_open` capability default and was not enforcing the allowlist at all. A non-zero client
   exit proves only that *something* failed. Use a known-resolvable public host outside the scoped allowlist and assert
   the audit's `reasonCode === "not_on_allowlist"`; otherwise DNS/TLS failures can certify a fail-open policy.
+- **AN IN-PROCESS SECURITY REGISTRY IS LOST WHEN ITS SIDECAR IS REPLACED.** F2.5 task credentials live inside the
+  egress-proxy process. Allowlist drift deliberately replaces that container; without an explicit re-registration
+  pass, every occupied task keeps a credential that only the dead process knew and all later egress fails opaquely.
+  After a replacement becomes healthy, re-issue every active placement's credential through the new authenticated
+  control endpoint before exposing it. The replacement-path test must prove old and newly assigned tasks are registered.
 - **HOST-LOOPBACK DOCKER PUBLISH DOES NOT MAKE THE CONTAINER LISTENER PRIVATE (live-proven 2026-07-21).**
   `--publish 127.0.0.1::<container-port>` limits the HOST socket to loopback, but Docker still forwards it to a
   container-interface listener that co-networked sandboxes can address directly. A security-sensitive control
@@ -1409,18 +1414,23 @@ These are known defects or incomplete migrations. Clear them before widening cap
   bypassed every allowlist. `EGRESS_PROXY_CAPABILITY_CONFIG` now binds this allowlist-only proxy to the `medium`
   (`networkPolicy: allowlist`) tier. The audit asserts the worker `confirm` executed while reviewer and unrelated,
   resolvable worker destinations were rejected specifically as `not_on_allowlist`; direct egress still has no route.
-- [ ] **F2.5b — Issue per-task credentials at sandbox creation + require-auth decision (attribution SHIPPED
+- [x] **F2.5b — Issue per-task credentials at sandbox creation + require-auth decision (attribution SHIPPED
   2026-07-13).** The proxy now ATTRIBUTES every CONNECT verdict: `parseProxyAuthorizationHeader` (pure,
-  attribution-only — malformed/absent claims never affect the verdict) extracts the `Basic taskId:token` claim
+  originally attribution-only) extracts the `Basic taskId:token` claim
   the sandbox's standard credentialed proxy URL emits automatically (`buildTaskProxyUrl` — no in-sandbox
   cooperation needed); the server validates via the injected `validateTaskIdentity` and stamps `taskId` on the
   audit record (schema extended, old lines parse with null). `createEgressTaskIdentityRegistry` is the host-side
-  issue/validate/revoke store (constant-shape token compare). REMAINING: wire issuance at sandbox creation (the
-  lifecycle passes the credentialed URL as HTTP(S)_PROXY env; revoke on teardown; the registry bridged into the
-  proxy container — the validate seam is in-container, so credentials ride an env/file handoff like the
-  allowlist), DNS-stub attribution (role-less shared UDP listener — needs a design), and the later policy
-  decision whether unauthenticated egress should be DENIED rather than merely unattributed (live-validate
-  first).
+  issue/validate/revoke store (constant-shape token compare).
+  **✅ REQUIRED TASK AUTH + LIFECYCLE SHIPPED 2026-07-21.** The existing authenticated host-loopback control channel
+  now issues/revokes credentials directly in the proxy's in-memory registry, avoiding a stale bind-mounted file. Each
+  allowlist placement receives a random 256-bit token; only that task's `docker exec` gets the credentialed worker
+  proxy URL, and release awaits revocation. A proxy replacement re-registers every occupied placement before the new
+  endpoint is exposed. Production sets `NKLEIN_EGRESS_REQUIRE_TASK_IDENTITY=1`: absent, malformed, wrong, or revoked
+  credentials are audited as `task_identity_required` and denied before DNS/upstream dial. Live Docker proof covers
+  attributed allow, role/policy deny, missing auth, and post-revoke deny. DNS cannot honestly carry task identity from
+  a shared container network namespace, so it stays universally NXDOMAIN and writes a separate durable
+  `egress-dns-queries.jsonl` record with `taskId:null` + `shared_network_namespace` instead of invented attribution;
+  a live UDP probe proves both NXDOMAIN and the audit.
 - [x] **F2.6b — Playwright re-validation of the open-workspace picker (typed intents SHIPPED 2026-07-13).**
   F2.6 is functionally COMPLETE: the raw `runtime.runCommand` tRPC surface is GONE (contract schema, validator,
   router procedure, handler, and the client-side shell-string builder all removed); the replacement

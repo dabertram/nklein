@@ -2,9 +2,9 @@
  * F2.5 (§5.L) — per-task egress IDENTITY: the host issues each task session a proxy credential, hands it to the
  * sandbox as a standard credentialed proxy URL (`http://<taskId>:<token>@proxy:port` — HTTP clients turn that
  * into `Proxy-Authorization` automatically, no in-sandbox cooperation needed), and the proxy validates the claim
- * to ATTRIBUTE every CONNECT verdict to the task that caused it. Attribution-only in this increment: an absent
- * or invalid claim audits as unattributed (`taskId: null`) and the role/allowlist policy gates exactly as
- * before — flipping auth to REQUIRED is a later, live-validated policy decision. Pure + injectable.
+ * to ATTRIBUTE every CONNECT verdict to the task that caused it. The pure registry remains policy-neutral; the
+ * production proxy now requires a valid claim and denies absent/invalid credentials before DNS or dial. Pure +
+ * injectable.
  */
 
 export interface EgressTaskIdentityRegistry {

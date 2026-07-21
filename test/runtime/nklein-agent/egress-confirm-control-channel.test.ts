@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createEgressConfirmQueue } from "../../../src/core/egress-confirm-queue";
+import { createEgressTaskIdentityRegistry } from "../../../src/core/egress-task-identity";
 import {
+	issueEgressTaskIdentity,
 	listPendingEgressConfirms,
 	resolvePendingEgressConfirm,
+	revokeEgressTaskIdentity,
 } from "../../../src/nklein-agent/egress-confirm-control-client";
 import {
 	createEgressConfirmControlServer,
@@ -18,10 +21,18 @@ afterEach(async () => {
 
 async function startChannel(now = 1_000) {
 	const queue = createEgressConfirmQueue();
-	const server = createEgressConfirmControlServer({ queue, token: TOKEN, host: "127.0.0.1", port: 0, now: () => now });
+	const taskIdentities = createEgressTaskIdentityRegistry();
+	const server = createEgressConfirmControlServer({
+		queue,
+		taskIdentities,
+		token: TOKEN,
+		host: "127.0.0.1",
+		port: 0,
+		now: () => now,
+	});
 	servers.push(server);
 	await server.start();
-	return { queue, endpoint: { baseUrl: `http://127.0.0.1:${server.boundPort()}`, token: TOKEN } };
+	return { queue, taskIdentities, endpoint: { baseUrl: `http://127.0.0.1:${server.boundPort()}`, token: TOKEN } };
 }
 
 describe("egress confirm authenticated control channel", () => {
@@ -88,5 +99,14 @@ describe("egress confirm authenticated control channel", () => {
 		await expect(listPendingEgressConfirms({ baseUrl: "http://localhost:3131", token: TOKEN })).rejects.toThrow(
 			/host loopback/,
 		);
+	});
+
+	it("issues and revokes a task identity without exposing registry contents", async () => {
+		const { taskIdentities, endpoint } = await startChannel();
+		const token = "b".repeat(64);
+		await issueEgressTaskIdentity(endpoint, { taskId: "task-9", token });
+		expect(taskIdentities.validate("task-9", token)).toBe(true);
+		await revokeEgressTaskIdentity(endpoint, "task-9");
+		expect(taskIdentities.validate("task-9", token)).toBe(false);
 	});
 });

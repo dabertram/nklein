@@ -104,10 +104,12 @@ export interface EgressProxyServerDeps {
 	confirmQueue?: EgressConfirmQueue;
 	confirmTimeoutMs?: number;
 	/**
-	 * F2.5: validate a claimed (taskId, token) proxy identity. Present => a valid claim attributes the attempt's
-	 * audit record to that task; absent/invalid claims audit unattributed. Attribution-only - never gates.
+	 * F2.5: validate a claimed (taskId, token) proxy identity. A valid claim attributes the attempt; when
+	 * `requireTaskIdentity` is true, absent/invalid claims are denied before resolution or upstream dial.
 	 */
 	validateTaskIdentity?: (taskId: string, token: string) => boolean;
+	/** F2.5b production boundary: absent/invalid task credentials are denied before DNS or upstream dial. */
+	requireTaskIdentity?: boolean;
 }
 
 export interface EgressProxyServer {
@@ -503,7 +505,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 				try {
 					const head = await readHead(client);
 					const parsed = head.parsed;
-					// F2.5: attribution-only identity — a VALID claimed (taskId, token) attributes this attempt's audit.
+					// F2.5: a valid claimed (taskId, token) attributes the attempt; production requires it below.
 					const identityClaim = parseProxyAuthorizationHeader(head.rawHead);
 					if (identityClaim && deps.validateTaskIdentity?.(identityClaim.taskId, identityClaim.token)) {
 						attributedTaskId = identityClaim.taskId;
@@ -511,6 +513,19 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					const transport: EgressProxyAuditTransport = parsed.ok
 						? egressProxyTransportForParsedKind(parsed.kind)
 						: "connect";
+					if (deps.requireTaskIdentity === true && attributedTaskId === null) {
+						refuse(
+							denyVerdict(
+								"task_identity_required",
+								"A valid per-task proxy credential is required before egress policy is evaluated.",
+								parsed.ok ? parsed.host : null,
+								parsed.ok ? parsed.port : null,
+							),
+							transport,
+							null,
+						);
+						return;
+					}
 
 					// §5 step 2: decide WITHOUT addresses (no socket may open yet).
 					const verdict1 = decideProxyVerdict(parsed, snapshot);

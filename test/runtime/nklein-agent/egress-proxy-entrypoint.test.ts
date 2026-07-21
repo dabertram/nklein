@@ -42,7 +42,7 @@ function createFakeDnsSocket(): EgressProxyDnsSocket {
 
 describe("createEgressProxyRuntime — §4 wiring", () => {
 	it("exposes exactly the three role listeners on the §4 role ports (3128/3129/3130)", () => {
-		const runtime = createEgressProxyRuntime();
+		const runtime = createEgressProxyRuntime({ dnsAuditSink: () => {} });
 		expect(runtime.listeners).toEqual([
 			{ role: "architect", listenerPort: 3128 },
 			{ role: "worker", listenerPort: 3129 },
@@ -71,6 +71,7 @@ describe("createEgressProxyRuntime — §4 wiring", () => {
 				throw new Error("dial should not be called in a wiring test");
 			},
 			auditSink: () => {},
+			dnsAuditSink: () => {},
 		});
 		await runtime.start();
 		expect(net.boundPorts.sort((a, b) => a - b)).toEqual([3128, 3129, 3130]);
@@ -81,9 +82,13 @@ describe("createEgressProxyRuntime — §4 wiring", () => {
 	it("forwards DNS query names to the best-effort onDnsQuery observability seam", async () => {
 		let messageListener: ((msg: Buffer, rinfo: { address: string; port: number }) => void) | undefined;
 		const seen: string[] = [];
+		const audits: unknown[] = [];
 		const runtime = createEgressProxyRuntime({
 			netServerFactory: createRecordingNetServerFactory().factory,
 			onDnsQuery: (name) => seen.push(name),
+			dnsAuditSink: (record) => audits.push(record),
+			now: () => 1000,
+			generateId: () => "dns-1",
 			dnsSocketFactory: () => ({
 				on(event, listener) {
 					if (event === "message") {
@@ -112,6 +117,20 @@ describe("createEgressProxyRuntime — §4 wiring", () => {
 		]);
 		messageListener?.(Buffer.concat([header, qname]), { address: "10.0.0.2", port: 5353 });
 		expect(seen).toEqual(["probe.test"]);
+		expect(audits).toEqual([
+			{
+				schemaVersion: 1,
+				id: "dns-1",
+				queryName: "probe.test",
+				sourceAddress: "10.0.0.2",
+				sourcePort: 5353,
+				decision: "deny",
+				reasonCode: "dns_blocked",
+				taskId: null,
+				attribution: "shared_network_namespace",
+				recordedAt: 1000,
+			},
+		]);
 		await runtime.stop();
 	});
 });

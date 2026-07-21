@@ -5,15 +5,20 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { EgressProxyAuditRecord } from "../../src/core/egress-proxy-audit";
+import type { EgressProxyDnsAuditRecord } from "../../src/core/egress-proxy-dns-audit";
+import { buildTaskProxyUrl } from "../../src/core/egress-task-identity";
 import { isTruthyEnv } from "../../src/core/env-flag";
 import {
+	issueEgressTaskIdentity,
 	listPendingEgressConfirms,
 	resolvePendingEgressConfirm,
+	revokeEgressTaskIdentity,
 } from "../../src/nklein-agent/egress-confirm-control-client";
 import {
 	EGRESS_CONFIRM_CONTROL_TOKEN_ENV,
 	EGRESS_CONFIRM_ROLES_ENV,
 	EGRESS_PROXY_ROLE_PORTS,
+	EGRESS_REQUIRE_TASK_IDENTITY_ENV,
 } from "../../src/nklein-agent/egress-proxy-entrypoint";
 import {
 	type EgressProxyRunDocker,
@@ -43,6 +48,7 @@ import { resolveAgentSandboxImageName } from "../../src/nklein-agent/nklein-agen
 const NAMESPACE = "itest";
 const ALLOWED_HOST = "example.com";
 const DENIED_HOST = "example.org";
+const DNS_PROBE_HOST = "taskless-leak.example";
 const WORKER_PORT = EGRESS_PROXY_ROLE_PORTS.worker;
 const REVIEWER_PORT = EGRESS_PROXY_ROLE_PORTS.reviewer;
 const AUDIT_DIR_IN_PROXY = "/tmp/audit";
@@ -178,6 +184,37 @@ function httpStatusInSandbox(networkName: string, url: string): number | null {
 	return result.status === 0 && Number.isInteger(status) ? status : null;
 }
 
+const PY_DNS_PROBE =
+	"import socket,struct,sys\n" +
+	"name=sys.argv[2]\n" +
+	"q=b''.join(bytes([len(x)])+x.encode() for x in name.split('.'))+b'\\0'\n" +
+	"packet=struct.pack('!HHHHHH',1,0x100,1,0,0,0)+q+struct.pack('!HH',1,1)\n" +
+	"s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(5);s.sendto(packet,(sys.argv[1],53))\n" +
+	"response=s.recv(512);sys.exit(0 if response[3]&15==3 else 1)\n";
+
+function dnsQueryIsDeniedInSandbox(networkName: string, proxyIp: string, queryName: string): boolean {
+	const result = spawnSync(
+		"docker",
+		[
+			"run",
+			"--rm",
+			"--network",
+			networkName,
+			"--cap-drop",
+			"ALL",
+			"--entrypoint",
+			"python3",
+			resolveAgentSandboxImageName(),
+			"-c",
+			PY_DNS_PROBE,
+			proxyIp,
+			queryName,
+		],
+		{ encoding: "utf8", timeout: 30_000 },
+	);
+	return result.status === 0;
+}
+
 function readProxyAudit(containerName: string): EgressProxyAuditRecord[] {
 	const result = spawnSync("docker", ["exec", containerName, "cat", `${AUDIT_DIR_IN_PROXY}/egress-attempts.jsonl`], {
 		encoding: "utf8",
@@ -192,12 +229,38 @@ function readProxyAudit(containerName: string): EgressProxyAuditRecord[] {
 		.map((line) => JSON.parse(line) as EgressProxyAuditRecord);
 }
 
+function readProxyDnsAudit(containerName: string): EgressProxyDnsAuditRecord[] {
+	const result = spawnSync(
+		"docker",
+		["exec", containerName, "cat", `${AUDIT_DIR_IN_PROXY}/egress-dns-queries.jsonl`],
+		{
+			encoding: "utf8",
+		},
+	);
+	if (result.status !== 0) return [];
+	return result.stdout
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.map((line) => JSON.parse(line) as EgressProxyDnsAuditRecord);
+}
+
 async function waitForProxyAudit(containerName: string, minimumRecords: number): Promise<EgressProxyAuditRecord[]> {
 	const deadline = Date.now() + 5_000;
 	let records = readProxyAudit(containerName);
 	while (records.length < minimumRecords && Date.now() < deadline) {
 		await new Promise((resolve) => setTimeout(resolve, 100));
 		records = readProxyAudit(containerName);
+	}
+	return records;
+}
+
+async function waitForProxyDnsAudit(containerName: string): Promise<EgressProxyDnsAuditRecord[]> {
+	const deadline = Date.now() + 5_000;
+	let records = readProxyDnsAudit(containerName);
+	while (records.length === 0 && Date.now() < deadline) {
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		records = readProxyDnsAudit(containerName);
 	}
 	return records;
 }
@@ -212,6 +275,8 @@ if (gate.ready) {
 		it("isolates role-scoped hosts, approves one worker CONNECT, and has no direct route", async () => {
 			try {
 				const controlToken = "d".repeat(64);
+				const taskToken = "e".repeat(64);
+				const taskId = "docker-live-task";
 				await teardownEgressProxy(runDocker, { containerName, networkName });
 				await ensureEgressNetwork(runDocker, networkName);
 				await startEgressProxyContainer(runDocker, {
@@ -223,6 +288,7 @@ if (gate.ready) {
 						NKLEIN_EGRESS_PROXY_AUDIT_DIR: AUDIT_DIR_IN_PROXY,
 						[EGRESS_CONFIRM_ROLES_ENV]: "worker",
 						[EGRESS_CONFIRM_CONTROL_TOKEN_ENV]: controlToken,
+						[EGRESS_REQUIRE_TASK_IDENTITY_ENV]: "1",
 					},
 					publishConfirmControl: true,
 				});
@@ -230,23 +296,32 @@ if (gate.ready) {
 				expect(await probeEgressProxyHealthy(runDocker, { containerName, port: WORKER_PORT })).toBe(true);
 				const ip = await resolveEgressProxyInternalIp(runDocker, containerName, networkName);
 				expect(ip).toBeTruthy();
-				const proxyEnv = {
-					HTTP_PROXY: `http://${ip}:${WORKER_PORT}`,
-					HTTPS_PROXY: `http://${ip}:${WORKER_PORT}`,
-					NO_PROXY: "",
-				};
-				const reviewerProxyEnv = {
-					HTTP_PROXY: `http://${ip}:${REVIEWER_PORT}`,
-					HTTPS_PROXY: `http://${ip}:${REVIEWER_PORT}`,
-					NO_PROXY: "",
-				};
-
 				const controlPort = await resolveEgressConfirmControlHostPort(runDocker, containerName);
 				expect(controlPort).toBeTruthy();
 				const endpoint = { baseUrl: `http://127.0.0.1:${controlPort}`, token: controlToken };
 				expect((await fetch(`${endpoint.baseUrl}/egress-confirms`)).status).toBe(401);
 				// Host-loopback publishing is not container auth: the sandbox can address the listener, but lacks its token.
 				expect(httpStatusInSandbox(networkName, `http://${ip}:3131/egress-confirms`)).toBe(401);
+				await issueEgressTaskIdentity(endpoint, { taskId, token: taskToken });
+				const workerProxyUrl = buildTaskProxyUrl({
+					proxyHost: ip as string,
+					proxyPort: WORKER_PORT,
+					taskId,
+					token: taskToken,
+				});
+				const reviewerProxyUrl = buildTaskProxyUrl({
+					proxyHost: ip as string,
+					proxyPort: REVIEWER_PORT,
+					taskId,
+					token: taskToken,
+				});
+				const proxyEnv = { HTTP_PROXY: workerProxyUrl, HTTPS_PROXY: workerProxyUrl, NO_PROXY: "" };
+				const reviewerProxyEnv = { HTTP_PROXY: reviewerProxyUrl, HTTPS_PROXY: reviewerProxyUrl, NO_PROXY: "" };
+				const unauthenticatedProxyEnv = {
+					HTTP_PROXY: `http://${ip}:${WORKER_PORT}`,
+					HTTPS_PROXY: `http://${ip}:${WORKER_PORT}`,
+					NO_PROXY: "",
+				};
 
 				// Allowlisted host parks, appears on the host-only control channel, and proceeds after one bound approval.
 				const allowedRequest = httpGetInSandboxAsync(networkName, `https://${ALLOWED_HOST}`, proxyEnv);
@@ -264,11 +339,26 @@ if (gate.ready) {
 				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, reviewerProxyEnv)).not.toBe(0);
 				// Unlisted host is refused by the proxy (non-zero exit).
 				expect(httpGetInSandbox(networkName, `https://${DENIED_HOST}`, proxyEnv)).not.toBe(0);
+				// Missing auth and a revoked credential both fail before policy evaluation or upstream dial.
+				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, unauthenticatedProxyEnv)).not.toBe(0);
+				await revokeEgressTaskIdentity(endpoint, taskId);
+				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, proxyEnv)).not.toBe(0);
 				// Without the proxy env, the `--internal` network gives no route (fail-closed backstop).
 				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, null)).not.toBe(0);
+				expect(dnsQueryIsDeniedInSandbox(networkName, ip as string, DNS_PROBE_HOST)).toBe(true);
+				const dnsAudit = await waitForProxyDnsAudit(containerName);
+				expect(dnsAudit.map((record) => record.queryName)).toContain(DNS_PROBE_HOST);
+				expect(
+					dnsAudit.every(
+						(record) =>
+							record.decision === "deny" &&
+							record.taskId === null &&
+							record.attribution === "shared_network_namespace",
+					),
+				).toBe(true);
 
 				// Audit is emitted when each tunnel closes; the sandbox process can exit just before the proxy's close event.
-				const audit = await waitForProxyAudit(containerName, 3);
+				const audit = await waitForProxyAudit(containerName, 5);
 				const allowRecord = audit.find(
 					(r) => r.host === ALLOWED_HOST && r.role === "worker" && r.decision === "confirm",
 				);
@@ -278,11 +368,19 @@ if (gate.ready) {
 				const denyRecord = audit.find(
 					(r) => r.host === DENIED_HOST && r.role === "worker" && r.decision === "deny",
 				);
+				const identityDenials = audit.filter(
+					(r) => r.host === ALLOWED_HOST && r.role === "worker" && r.reasonCode === "task_identity_required",
+				);
 				expect(allowRecord?.executed).toBe(true);
+				expect(allowRecord?.taskId).toBe(taskId);
 				expect(roleDenyRecord?.executed).toBe(false);
+				expect(roleDenyRecord?.taskId).toBe(taskId);
 				expect(roleDenyRecord?.reasonCode).toBe("not_on_allowlist");
 				expect(denyRecord?.executed).toBe(false);
+				expect(denyRecord?.taskId).toBe(taskId);
 				expect(denyRecord?.reasonCode).toBe("not_on_allowlist");
+				expect(identityDenials).toHaveLength(2);
+				expect(identityDenials.every((record) => record.taskId === null && record.executed === false)).toBe(true);
 			} finally {
 				await teardownEgressProxy(runDocker, { containerName, networkName });
 				rmSync(gate.bundlePath, { force: true });

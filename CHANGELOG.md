@@ -185,7 +185,10 @@
   host-loopback-only and independently token-authenticated, so a sandbox cannot approve its own request; no answer
   times out to deny. The production proxy is now explicitly bound to the allowlist network tier; previously it
   inherited the general fully-open tier and could bypass the configured host list. Live Docker coverage now proves
-  worker/reviewer scope isolation and audits policy denials by reason. Per-task audit attribution is still to come.
+  worker/reviewer scope isolation and audits policy denials by reason. Every proxied task now receives a unique,
+  revocable credential; missing, invalid, or revoked credentials are denied before any lookup or connection, and
+  CONNECT audits carry the authenticated task id. Blocked DNS queries are durably audited as explicitly unattributed
+  because shared-container DNS has no honest per-task identity.
 
 - **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
   machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when

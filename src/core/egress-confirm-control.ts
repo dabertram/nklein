@@ -1,4 +1,5 @@
 import type { EgressConfirmQueue } from "./egress-confirm-queue";
+import type { EgressTaskIdentityRegistry } from "./egress-task-identity";
 
 /**
  * F2.3b — the pure request logic for the egress-confirm LOOPBACK control channel. The egress proxy runs INSIDE the
@@ -6,9 +7,11 @@ import type { EgressConfirmQueue } from "./egress-confirm-queue";
  * 127.0.0.1-bound HTTP surface. This module is that surface's routing/validation, kept pure so it's unit-tested
  * without a socket: the thin HTTP server (a fleet-gated b-leaf) only binds a port, reads the body, and calls this.
  *
- * Routes (all fail-closed — a malformed resolve NEVER approves anything; the queue's own binding rejects a mismatch):
+ * Routes (all fail-closed — malformed input never mutates either state machine):
  *   - `GET  /egress-confirms`         → the pending attempts (host/port/role the operator must decide), oldest first
  *   - `POST /egress-confirms/resolve` → apply one operator decision (attemptId+host+port+role bound; approve boolean)
+ *   - `POST /task-identities/issue`    → register one host-issued task credential
+ *   - `POST /task-identities/revoke`   → revoke one task credential before releasing its sandbox placement
  */
 
 export interface EgressConfirmControlRequest {
@@ -29,6 +32,26 @@ interface ParsedResolveDecision {
 	port: number;
 	role: string;
 	approve: boolean;
+}
+
+function parseTaskIdentityIssue(body: unknown): { taskId: string; token: string } | null {
+	if (typeof body !== "object" || body === null) return null;
+	const record = body as Record<string, unknown>;
+	if (
+		typeof record.taskId !== "string" ||
+		record.taskId.length === 0 ||
+		typeof record.token !== "string" ||
+		record.token.length < 32
+	) {
+		return null;
+	}
+	return { taskId: record.taskId, token: record.token };
+}
+
+function parseTaskIdentityRevoke(body: unknown): { taskId: string } | null {
+	if (typeof body !== "object" || body === null) return null;
+	const taskId = (body as Record<string, unknown>).taskId;
+	return typeof taskId === "string" && taskId.length > 0 ? { taskId } : null;
 }
 
 /** Validate a resolve body to the exact bound shape; anything off returns null (⇒ a 400, never a spurious approval). */
@@ -61,6 +84,7 @@ export function handleEgressConfirmControlRequest(
 	request: EgressConfirmControlRequest,
 	queue: EgressConfirmQueue,
 	now: number,
+	taskIdentities?: EgressTaskIdentityRegistry,
 ): EgressConfirmControlResponse {
 	if (request.method === "GET" && request.path === "/egress-confirms") {
 		return { status: 200, body: { pending: queue.listPending(now) } };
@@ -71,6 +95,18 @@ export function handleEgressConfirmControlRequest(
 			return { status: 400, body: { error: "invalid resolve request" } };
 		}
 		return { status: 200, body: { outcome: queue.resolve(decision, now) } };
+	}
+	if (request.method === "POST" && request.path === "/task-identities/issue") {
+		const identity = parseTaskIdentityIssue(request.body);
+		if (!identity || !taskIdentities) return { status: 400, body: { error: "invalid task identity" } };
+		taskIdentities.issue(identity.taskId, identity.token);
+		return { status: 200, body: { outcome: "applied" } };
+	}
+	if (request.method === "POST" && request.path === "/task-identities/revoke") {
+		const identity = parseTaskIdentityRevoke(request.body);
+		if (!identity || !taskIdentities) return { status: 400, body: { error: "invalid task identity" } };
+		taskIdentities.revoke(identity.taskId);
+		return { status: 200, body: { outcome: "applied" } };
 	}
 	return { status: 404, body: { error: "not found" } };
 }

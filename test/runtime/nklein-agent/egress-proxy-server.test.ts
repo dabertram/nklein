@@ -511,10 +511,14 @@ describe("F2.5 — per-task attribution (Proxy-Authorization identity)", () => {
 		return `CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n${auth}\r\n`;
 	}
 
-	async function runWithAuth(credentials: string | null): Promise<EgressProxyAuditRecord> {
+	async function runWithAuth(
+		credentials: string | null,
+		requireTaskIdentity = false,
+	): Promise<EgressProxyAuditRecord> {
 		const harness = buildHarness({
 			depsOverride: {
 				validateTaskIdentity: (taskId, token) => taskId === "task-7" && token === "tok",
+				requireTaskIdentity,
 			},
 		});
 		const server = createEgressProxyServer(harness.deps);
@@ -538,5 +542,20 @@ describe("F2.5 — per-task attribution (Proxy-Authorization identity)", () => {
 	it("an INVALID or absent claim audits unattributed (and still never gates)", async () => {
 		expect((await runWithAuth("task-7:wrong")).taskId).toBeNull();
 		expect((await runWithAuth(null)).taskId).toBeNull();
+	});
+
+	it("production auth mode denies an absent or invalid claim before DNS/dial", async () => {
+		for (const credentials of [null, "task-7:wrong"]) {
+			const record = await runWithAuth(credentials, true);
+			expect(record).toMatchObject({
+				taskId: null,
+				decision: "deny",
+				reasonCode: "task_identity_required",
+				executed: false,
+			});
+		}
+		const valid = await runWithAuth("task-7:tok", true);
+		expect(valid.taskId).toBe("task-7");
+		expect(valid.decision).toBe("allow");
 	});
 });

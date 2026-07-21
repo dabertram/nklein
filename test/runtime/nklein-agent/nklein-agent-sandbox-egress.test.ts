@@ -1,5 +1,6 @@
 import type { execFile } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { EgressConfirmControlEndpoint } from "../../../src/nklein-agent/egress-confirm-control-client";
 import { EGRESS_PROXY_ROLE_PORTS } from "../../../src/nklein-agent/egress-proxy-entrypoint";
 import { AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
 
@@ -21,6 +22,18 @@ const EGRESS_NETWORK = "nklein-egress-int";
 const PROXY_CONTAINER = "nklein-egress-proxy";
 const PROXY_IP = "172.30.0.9";
 const BUNDLE_PATH = "/host/egress/entrypoint.mjs";
+const CONTROL_PORT = 49_153;
+const IDENTITY_TOKEN = "1".repeat(64);
+
+function createIdentityDeps() {
+	return {
+		issueEgressTaskIdentity: vi.fn(
+			async (_endpoint: EgressConfirmControlEndpoint, _identity: { taskId: string; token: string }) => {},
+		),
+		revokeEgressTaskIdentity: vi.fn(async (_endpoint: EgressConfirmControlEndpoint, _taskId: string) => {}),
+		generateEgressIdentityToken: () => IDENTITY_TOKEN,
+	};
+}
 
 interface EgressStubOptions {
 	/** Proxy health-probe outcome (exec into the proxy container). Default healthy. */
@@ -67,6 +80,9 @@ function createEgressExecFileStub(options: EgressStubOptions = {}): { execFile: 
 		if (a[0] === "inspect" && typeof a[2] === "string" && a[2].startsWith("{{with index .NetworkSettings")) {
 			return ok(`${ip}\n`); // proxy internal-IP resolve
 		}
+		if (a[0] === "port" && a[1]?.includes(PROXY_CONTAINER)) {
+			return ok(`127.0.0.1:${CONTROL_PORT}\n`);
+		}
 		// --- proxy health probe: exec <proxy> node -e <script> ---
 		if (a[0] === "exec" && typeof a[1] === "string" && a[1].includes(PROXY_CONTAINER) && a[2] === "node") {
 			return healthy ? ok() : fail(1, "unhealthy");
@@ -109,6 +125,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 		});
@@ -132,9 +149,11 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 	it("flag ON + available: sandbox joins the internal network + --dns, execs get the WORKER-port proxy env", async () => {
 		enableFlag();
 		const { execFile, calls } = createEgressExecFileStub({ healthy: true, ip: PROXY_IP });
+		const identity = createIdentityDeps();
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...identity,
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 		});
@@ -165,12 +184,22 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 
 		// Exec seam: the tool exec carries the WORKER-port HTTP(S)_PROXY env, NO_PROXY empty (nothing bypasses).
 		const toolExec = execCallsInto(calls, "nklein-agent-sandbox").find((a) => a.includes("echo")) ?? [];
-		expect(toolExec).toContain(`HTTP_PROXY=http://${PROXY_IP}:${WORKER_PORT}`);
-		expect(toolExec).toContain(`HTTPS_PROXY=http://${PROXY_IP}:${WORKER_PORT}`);
+		const credentialedProxy = `http://task-1:${IDENTITY_TOKEN}@${PROXY_IP}:${WORKER_PORT}`;
+		expect(toolExec).toContain(`HTTP_PROXY=${credentialedProxy}`);
+		expect(toolExec).toContain(`HTTPS_PROXY=${credentialedProxy}`);
 		expect(toolExec).toContain("NO_PROXY=");
+		expect(identity.issueEgressTaskIdentity).toHaveBeenCalledWith(
+			{ baseUrl: `http://127.0.0.1:${CONTROL_PORT}`, token: expect.any(String) },
+			{ taskId: "task-1", token: IDENTITY_TOKEN },
+		);
 		// The env args precede the container name / command (valid `docker exec [OPTIONS] CONTAINER COMMAND`).
-		expect(toolExec.indexOf(`HTTP_PROXY=http://${PROXY_IP}:${WORKER_PORT}`)).toBeLessThan(
+		expect(toolExec.indexOf(`HTTP_PROXY=${credentialedProxy}`)).toBeLessThan(
 			toolExec.indexOf("nklein-agent-sandbox-1"),
+		);
+		await manager.disposeWorkspace("task-1");
+		expect(identity.revokeEgressTaskIdentity).toHaveBeenCalledWith(
+			{ baseUrl: `http://127.0.0.1:${CONTROL_PORT}`, token: expect.any(String) },
+			"task-1",
 		);
 	});
 
@@ -180,6 +209,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 		});
@@ -202,6 +232,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 		});
@@ -225,6 +256,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 2, agentsPerContainer: 1, idleTimeoutMs: 0 },
 		});
@@ -246,6 +278,26 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		}
 	});
 
+	it("re-registers occupied task credentials after an allowlist-drift proxy replacement", async () => {
+		enableFlag();
+		const { execFile } = createEgressExecFileStub();
+		const identity = createIdentityDeps();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile,
+			...identity,
+			networkPolicy: "allowlist",
+			poolConfig: { maxContainers: 2, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		manager.setSandboxEgressConfig(true, "example.com");
+		await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+
+		const issuedTaskIds = identity.issueEgressTaskIdentity.mock.calls.map((call) => call[1].taskId);
+		expect(issuedTaskIds).toEqual(["task-1", "task-1", "task-2"]);
+	});
+
 	it("flag ON + policy 'none' / 'full': never touches egress resources or injects proxy env", async () => {
 		for (const policy of ["none", "full"] as const) {
 			enableFlag();
@@ -253,6 +305,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 			const manager = new AgentSandboxManager({
 				image: "test-image",
 				execFile,
+				...createIdentityDeps(),
 				networkPolicy: policy,
 				poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 			});
@@ -277,6 +330,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "allowlist",
 			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
 		});
@@ -294,6 +348,7 @@ describe("AgentSandboxManager egress-proxy wiring (I2b, §10c#18)", () => {
 		const manager = new AgentSandboxManager({
 			image: "test-image",
 			execFile,
+			...createIdentityDeps(),
 			networkPolicy: "none", // starts fully isolated
 			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
 		});

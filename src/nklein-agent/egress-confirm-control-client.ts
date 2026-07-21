@@ -100,3 +100,37 @@ export async function resolvePendingEgressConfirm(
 	}
 	return outcome as EgressConfirmResolveOutcome;
 }
+
+/** Register one task credential inside the proxy process; the bearer-protected channel never reaches a sandbox. */
+export async function issueEgressTaskIdentity(
+	endpoint: EgressConfirmControlEndpoint,
+	identity: { taskId: string; token: string },
+	options: EgressConfirmControlClientOptions = {},
+): Promise<void> {
+	const body = await requestControl(
+		endpoint,
+		"/task-identities/issue",
+		{ method: "POST", body: JSON.stringify(identity) },
+		options,
+	);
+	if ((body as { outcome?: unknown } | null)?.outcome !== "applied") {
+		throw new Error("egress control did not apply the task identity");
+	}
+}
+
+/** Revoke one task credential before its sandbox placement is released. */
+export async function revokeEgressTaskIdentity(
+	endpoint: EgressConfirmControlEndpoint,
+	taskId: string,
+	options: EgressConfirmControlClientOptions = {},
+): Promise<void> {
+	const body = await requestControl(
+		endpoint,
+		"/task-identities/revoke",
+		{ method: "POST", body: JSON.stringify({ taskId }) },
+		options,
+	);
+	if ((body as { outcome?: unknown } | null)?.outcome !== "applied") {
+		throw new Error("egress control did not revoke the task identity");
+	}
+}

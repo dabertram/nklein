@@ -193,6 +193,29 @@ describe("ensureEgressProxyAvailable — healthy path", () => {
 		expect(runCall).toContain("NKLEIN_EGRESS_CONFIRM_ROLES=worker");
 		expect(runCall).toContain(`NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN=${token}`);
 	});
+
+	it("task identity control publishes the authenticated channel even when confirms are disabled", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return FAIL;
+			if (has(argv, "inspect", "-f", "{{.State.Running}}")) return FAIL;
+			if (has(argv, "exec")) return OK;
+			if (argv[0] === "port") return { exitCode: 0, stdout: "127.0.0.1:49154\n", stderr: "" };
+			if (argv[0] === "inspect") return { exitCode: 0, stdout: "172.30.0.2\n", stderr: "" };
+			return OK;
+		});
+		const token = "b".repeat(64);
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+			taskIdentityControlEnabled: true,
+			generateConfirmControlToken: () => token,
+		});
+		expect(availability.confirmControl).toEqual({ baseUrl: "http://127.0.0.1:49154", token });
+		const runCall = docker.calls.find((call) => call[0] === "run") ?? [];
+		expect(runCall).toContain("127.0.0.1::3131");
+		expect(runCall).toContain(`NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN=${token}`);
+		expect(runCall.some((arg) => arg.startsWith("NKLEIN_EGRESS_CONFIRM_ROLES="))).toBe(false);
+	});
 });
 
 describe("resolveEgressConfirmControlHostPort", () => {
@@ -259,6 +282,13 @@ describe("buildEgressProxyExecEnv — per-role proxy env", () => {
 			"-e",
 			"NO_PROXY=",
 		]);
+	});
+	it("embeds one task credential in both standard proxy URLs", () => {
+		expect(buildEgressProxyExecEnv("172.30.0.2", "worker", { taskId: "task/1", token: "a:b c" })).toEqual({
+			HTTP_PROXY: "http://task%2F1:a%3Ab%20c@172.30.0.2:3129",
+			HTTPS_PROXY: "http://task%2F1:a%3Ab%20c@172.30.0.2:3129",
+			NO_PROXY: "",
+		});
 	});
 });
 

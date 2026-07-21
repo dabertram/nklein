@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { handleEgressConfirmControlRequest } from "../../../src/core/egress-confirm-control";
 import { createEgressConfirmQueue, type EgressConfirmRequest } from "../../../src/core/egress-confirm-queue";
+import { createEgressTaskIdentityRegistry } from "../../../src/core/egress-task-identity";
 
 const req: EgressConfirmRequest = { attemptId: "a1", host: "example.com", port: 443, role: "worker" };
 
@@ -60,5 +61,51 @@ describe("handleEgressConfirmControlRequest (F2.3b)", () => {
 	it("404s an unknown route", () => {
 		const queue = createEgressConfirmQueue();
 		expect(handleEgressConfirmControlRequest({ method: "GET", path: "/nope" }, queue, 1000).status).toBe(404);
+	});
+
+	it("issues and revokes task identities only through exact validated requests", () => {
+		const queue = createEgressConfirmQueue();
+		const identities = createEgressTaskIdentityRegistry();
+		const token = "a".repeat(64);
+		expect(
+			handleEgressConfirmControlRequest(
+				{ method: "POST", path: "/task-identities/issue", body: { taskId: "task-1", token } },
+				queue,
+				1000,
+				identities,
+			),
+		).toEqual({ status: 200, body: { outcome: "applied" } });
+		expect(identities.validate("task-1", token)).toBe(true);
+		expect(
+			handleEgressConfirmControlRequest(
+				{ method: "POST", path: "/task-identities/revoke", body: { taskId: "task-1" } },
+				queue,
+				1000,
+				identities,
+			),
+		).toEqual({ status: 200, body: { outcome: "applied" } });
+		expect(identities.validate("task-1", token)).toBe(false);
+	});
+
+	it("rejects malformed or unavailable identity mutations", () => {
+		const queue = createEgressConfirmQueue();
+		const identities = createEgressTaskIdentityRegistry();
+		for (const body of [null, { taskId: "" }, { taskId: "task-1", token: "short" }]) {
+			expect(
+				handleEgressConfirmControlRequest(
+					{ method: "POST", path: "/task-identities/issue", body },
+					queue,
+					1000,
+					identities,
+				).status,
+			).toBe(400);
+		}
+		expect(
+			handleEgressConfirmControlRequest(
+				{ method: "POST", path: "/task-identities/revoke", body: { taskId: "task-1" } },
+				queue,
+				1000,
+			).status,
+		).toBe(400);
 	});
 });

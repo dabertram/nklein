@@ -22,6 +22,7 @@ export const EGRESS_PROXY_LOCAL_REASON_CODES = [
 	"disallowed_port",
 	"resolve_failure",
 	"resolved_private_ip",
+	"task_identity_required",
 ] as const;
 export type EgressProxyLocalReasonCode = (typeof EGRESS_PROXY_LOCAL_REASON_CODES)[number];
 export type EgressProxyReasonCode = EgressDenyReasonCode | EgressProxyLocalReasonCode;

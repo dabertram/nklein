@@ -1,9 +1,9 @@
 # Host-side egress proxy — design (§5.L per-role network allowlists, GREENLIT §10c#18)
 
-> Maintained design/provenance reference, not a task list. Remaining implementation is tracked only in `todo.md`
-> F2.5; I1–I5 history below describes the shipped baseline.
+> Maintained design/provenance reference, not a task list. `todo.md` owns future work; I1–I5 history below describes
+> the shipped baseline.
 >
-> **Status:** I1–I5 plus live per-role isolation shipped; F2.5 owns the remaining per-task work. This document specifies the
+> **Status:** I1–I5, live per-role isolation, and required per-task CONNECT authentication shipped. This document specifies
 > host-side egress proxy + sandbox network topology that makes the `allowlist` network tier REAL: DNS/SNI-level
 > enforcement that calls the existing pure [`decideEgressPolicy`](../../src/core/egress-policy-decision.ts) at connect
 > time, per-ROLE allowlists keyed to the capability tiers, a per-attempt audit trail, and (optionally) per-action
@@ -315,8 +315,18 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
   token and bridges only typed pending facts/decisions to the globally-mounted UI. Authentication is load-bearing:
   Docker's host-loopback publish still forwards to a container interface reachable from the internal agent network,
   so publish topology alone would let a sandbox approve itself. Decisions remain attempt+host+port+role bound,
-  one-shot, and expiry-is-deny. Live Docker coverage proves approved CONNECT, deny, and no-route behavior. Proxy-auth
-  username/token for per-task attribution remains F2.5.
+  one-shot, and expiry-is-deny. Live Docker coverage proves approved CONNECT, deny, and no-route behavior.
+
+**F2.5b — required per-task identity (SHIPPED 2026-07-21).**
+- The host uses the already bearer-authenticated loopback control channel to issue and revoke 256-bit task tokens in
+  the proxy's in-memory registry. Each task receives a standard credentialed `HTTP(S)_PROXY` URL only on its own
+  `docker exec`; standard clients emit `Proxy-Authorization` without model cooperation. Production requires valid
+  credentials and denies missing/invalid/revoked claims before DNS resolution or upstream dial. Proxy replacement on
+  allowlist drift re-registers every occupied task before the replacement is exposed.
+- DNS has no authentication field and all tasks in a shared sandbox container use one network namespace. The proxy
+  therefore does not invent per-task DNS attribution: every UDP query receives NXDOMAIN and lands in the separate
+  `egress-dns-queries.jsonl` trail with `taskId:null` and `attribution:shared_network_namespace`. Live Docker coverage
+  proves authenticated CONNECT attribution, missing/post-revoke denial, role isolation, NXDOMAIN, and both audits.
 
 ## 7. Risks + open questions (defaults proposed — veto, don't design)
 
@@ -325,7 +335,7 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
 | Q1 | **Docker embedded-DNS leak** on `--internal` networks (external names forwarded upstream) — an exfil channel via query names. | Ship the proxy DNS stub + `--dns` upstream override in I2 and live-verify on macOS Docker Desktop; if a Docker version ignores the upstream override, fall back to documenting DNS-resolution-only leakage as a known limitation while CONNECT data flow stays enforced. |
 | Q2 | Should `full` tier also route through the proxy (gaining IP-literal/LAN denial + audit even at `more_open`/`fully_open`)? | v1: NO — `full` stays `--network bridge` (zero regression risk for non-proxy-aware tools). Add flag-gated `routeFullTierThroughProxy` later; `decideEgressPolicy` already handles `full` correctly (inward-pivot denials still apply). |
 | Q3 | CONNECT port policy — allowlisted host is an opaque tunnel to any port. | Default-allow only `:443` (+`:80` plain HTTP); other ports deny `disallowed_port`. Widen per-need via config later, never silently. |
-| Q4 | Audit attribution is role-level (port = role), not task-level, in v1; co-occupant tasks of one role share a listener. | Accept for I2–I4 (role + host + timestamp is enough to correlate with the §5.AF ledger); add proxy-auth-username `taskId` in I5. |
+| Q4 | Audit attribution is role-level (port = role), not task-level, in v1; co-occupant tasks of one role share a listener. | Resolved in F2.5b: required per-task proxy credentials authenticate every CONNECT. DNS remains explicitly unattributed because the shared UDP namespace carries no task identity and every query is denied. |
 | Q5 | The dual-homed proxy container is itself an egress bridge — a compromise of it defeats the allowlist. | Run it with the full sandbox hardening set (cap-drop ALL, read-only rootfs, no-new-privileges, non-root, pids/mem/cpu caps), read-only config/bundle mounts, our own image, and no inbound exposure except the role listeners on the internal net + the loopback-published control port (I5). Accept as the designed single egress point. |
 
 Non-risk worth stating: **ECH/encrypted-SNI does not threaten v1** — the design is explicit-CONNECT (the client

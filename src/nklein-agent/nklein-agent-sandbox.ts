@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +21,12 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
-import { listPendingEgressConfirms, resolvePendingEgressConfirm } from "./egress-confirm-control-client";
+import {
+	issueEgressTaskIdentity,
+	listPendingEgressConfirms,
+	resolvePendingEgressConfirm,
+	revokeEgressTaskIdentity,
+} from "./egress-confirm-control-client";
 import {
 	buildEgressProxyExecEnvArgs,
 	type EgressProxyAvailability,
@@ -147,6 +153,10 @@ export interface AgentSandboxManagerOptions {
 	execFile?: typeof execFile;
 	setTimeout?: typeof setTimeout;
 	clearTimeout?: typeof clearTimeout;
+	/** F2.5b deterministic seams; production uses the authenticated loopback client and 256-bit random tokens. */
+	issueEgressTaskIdentity?: typeof issueEgressTaskIdentity;
+	revokeEgressTaskIdentity?: typeof revokeEgressTaskIdentity;
+	generateEgressIdentityToken?: () => string;
 	/**
 	 * Optional diagnostic logger. When a slot acquisition has to QUEUE (pool at capacity), a warn fires if the
 	 * wait exceeds {@link SLOT_QUEUE_SLOW_WAIT_LOG_MS} and again on resolve/reject — so a silent capacity stall
@@ -194,6 +204,8 @@ interface TaskPlacement {
 	uid: number;
 	projectKey: string;
 	projectRepoPath: string;
+	/** F2.5b credential registered inside the proxy and injected only into this task's docker exec environment. */
+	egressIdentityToken: string | null;
 }
 
 interface QueueEntry {
@@ -356,6 +368,9 @@ export class AgentSandboxManager {
 	// resources (network + proxy container), so stopNow tears them down even after a memo reset left a prior proxy
 	// running (e.g. allowlist → none → allowlist). Never over-grants; only governs cleanup. Cleared after teardown.
 	private egressProxyEnsured = false;
+	private readonly issueEgressTaskIdentityImpl: typeof issueEgressTaskIdentity;
+	private readonly revokeEgressTaskIdentityImpl: typeof revokeEgressTaskIdentity;
+	private readonly generateEgressIdentityToken: () => string;
 
 	constructor(options: AgentSandboxManagerOptions = {}) {
 		this.image = options.image ?? resolveAgentSandboxImageName();
@@ -367,6 +382,9 @@ export class AgentSandboxManager {
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
+		this.issueEgressTaskIdentityImpl = options.issueEgressTaskIdentity ?? issueEgressTaskIdentity;
+		this.revokeEgressTaskIdentityImpl = options.revokeEgressTaskIdentity ?? revokeEgressTaskIdentity;
+		this.generateEgressIdentityToken = options.generateEgressIdentityToken ?? (() => randomBytes(32).toString("hex"));
 		this.staticWritableMounts = [...(options.writableMounts ?? [])];
 		this.warn = options.warn;
 	}
@@ -528,7 +546,7 @@ export class AgentSandboxManager {
 			const immediate = await this.tryAcquireSlot(input.taskId, input.projectRepoPath);
 			if (this.stopping) {
 				if (immediate && this.placements.get(input.taskId) === immediate) {
-					this.releaseSlot(input.taskId);
+					await this.releaseSlot(input.taskId);
 				}
 				throw new AgentSandboxUnavailableError("Agent sandbox stopped while a slot was being acquired.");
 			}
@@ -884,18 +902,31 @@ export class AgentSandboxManager {
 			container.idleTimer = null;
 		}
 		const projectKey = createAgentSandboxProjectKey(projectRepoPath);
-		const placement = {
+		const placement: TaskPlacement = {
 			taskId,
 			slot: container.slot,
 			workdir: `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`,
 			uid: createAgentSandboxTaskUid(taskId),
 			projectKey,
 			projectRepoPath,
+			egressIdentityToken: null,
 		};
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);
 		try {
 			await this.ensureContainerStarted(container);
+			if (container.egressProxyIp) {
+				const endpoint = await this.currentEgressControlEndpoint();
+				if (!endpoint) {
+					throw new AgentSandboxUnavailableError(
+						"The egress proxy is active but its task-identity control channel is unavailable.",
+					);
+				}
+				const token = this.generateEgressIdentityToken();
+				if (token.length < 32) throw new Error("egress task identity token generator returned an invalid token");
+				await this.issueEgressTaskIdentityImpl(endpoint, { taskId, token });
+				placement.egressIdentityToken = token;
+			}
 		} catch (error) {
 			this.placements.delete(taskId);
 			container.occupancy.delete(taskId);
@@ -1035,7 +1066,7 @@ export class AgentSandboxManager {
 		// From here Docker resources (the `--internal` network, the proxy container) MAY be created — mark the sticky
 		// teardown guard BEFORE the call so stopNow reaps them even if the probe later fails or is memo-reset.
 		this.egressProxyEnsured = true;
-		return await ensureEgressProxyAvailable((argv, options) => this.runDocker(argv, options), {
+		const availability = await ensureEgressProxyAvailable((argv, options) => this.runDocker(argv, options), {
 			namespace: this.poolConfig.namespace,
 			bundleHostPath,
 			image: this.image,
@@ -1044,7 +1075,25 @@ export class AgentSandboxManager {
 			// container as its `allowlistForRole` source. v1 is ONE global allowlist for every role (per-role later).
 			configuredEnabled: this.sandboxEgressProxyEnabled,
 			allowlist: parseEgressAllowlist(this.sandboxEgressAllowlist),
+			taskIdentityControlEnabled: true,
 		});
+		const controlEndpoint = availability.confirmControl;
+		if (controlEndpoint) {
+			// A config-drift replacement creates a fresh in-proxy registry. Re-register every still-live placement before
+			// exposing the replacement endpoint, or occupied tasks would keep credentials valid only in the old process.
+			const activeIdentities = [...this.placements.values()].flatMap((placement) =>
+				placement.egressIdentityToken ? [{ taskId: placement.taskId, token: placement.egressIdentityToken }] : [],
+			);
+			await Promise.all(
+				activeIdentities.map((identity) => this.issueEgressTaskIdentityImpl(controlEndpoint, identity)),
+			);
+		}
+		return availability;
+	}
+
+	private async currentEgressControlEndpoint() {
+		const availability = this.egressEnsurePromise ? await this.egressEnsurePromise : this.lastEgressAvailability;
+		return availability?.confirmControl ?? null;
 	}
 
 	/**
@@ -1053,17 +1102,24 @@ export class AgentSandboxManager {
 	 * (set at create time) — NOT the live pool policy — so a container's proxy env always matches the network it was
 	 * created on, and a flag-off / `none` / `full` / fail-closed container injects NOTHING (byte-identical exec argv).
 	 *
-	 * v1 attributes EVERY exec to the WORKER listener port (EGRESS_PROXY_ROLE_PORTS.worker). Per-role attribution is
+	 * Every exec currently uses the WORKER listener port, but F2.5b authenticates it as the exact task placement.
+	 * Per-role attribution is
 	 * an I3 refinement — the manager's exec seam does not carry the task's resolved ruleset role, and the design
 	 * (§6 I3, risk Q4) explicitly defers task/role attribution rather than plumbing role through the pool here.
 	 * TODO(I3): attribute injected exec env to the task's resolved role instead of always WORKER.
 	 */
-	private egressProxyExecEnvArgs(slot: number): string[] {
-		const internalIp = this.containers.get(slot)?.egressProxyIp;
+	private egressProxyExecEnvArgs(placement: TaskPlacement): string[] {
+		const internalIp = this.containers.get(placement.slot)?.egressProxyIp;
 		if (!internalIp) {
 			return [];
 		}
-		return buildEgressProxyExecEnvArgs(internalIp, "worker");
+		if (!placement.egressIdentityToken) {
+			throw new AgentSandboxUnavailableError("The task has no credential for the active egress proxy.");
+		}
+		return buildEgressProxyExecEnvArgs(internalIp, "worker", {
+			taskId: placement.taskId,
+			token: placement.egressIdentityToken,
+		});
 	}
 
 	private async startContainer(container: ContainerState): Promise<void> {
@@ -1193,10 +1249,20 @@ export class AgentSandboxManager {
 		return parseDockerOutputLines(result.stdout).filter(isAgentSandboxWorkspaceVolumeName);
 	}
 
-	private releaseSlot(taskId: string): void {
+	private async releaseSlot(taskId: string): Promise<void> {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
 			return;
+		}
+		if (placement.egressIdentityToken) {
+			const endpoint = await this.currentEgressControlEndpoint();
+			if (!endpoint) {
+				throw new AgentSandboxUnavailableError(
+					`Cannot revoke the egress credential for ${taskId}: the control channel is unavailable.`,
+				);
+			}
+			await this.revokeEgressTaskIdentityImpl(endpoint, taskId);
+			placement.egressIdentityToken = null;
 		}
 		this.placements.delete(taskId);
 		const container = this.containers.get(placement.slot);
@@ -1247,7 +1313,7 @@ export class AgentSandboxManager {
 				if (queuedIndex < 0) {
 					// Rejected while we acquired — hand back ONLY the placement THIS drain created.
 					if (this.placements.get(queued.taskId) === placement) {
-						this.releaseSlot(queued.taskId);
+						await this.releaseSlot(queued.taskId);
 					}
 					return;
 				}
@@ -1434,7 +1500,7 @@ export class AgentSandboxManager {
 			});
 			assertSandboxExecOk(removal, "remove sandbox task workspace");
 		} finally {
-			this.releaseSlot(taskId);
+			await this.releaseSlot(taskId);
 		}
 	}
 
@@ -1450,7 +1516,7 @@ export class AgentSandboxManager {
 					// §5.L: inject the egress-proxy env (`-e HTTP(S)_PROXY`) for a container on the egress network; `[]`
 					// otherwise, so a flag-off / non-proxied exec is byte-identical. Additive — this seam carries no
 					// other `-e` env (basic-memory rides the separate MCP-host exec), so nothing is clobbered.
-					...this.egressProxyExecEnvArgs(placement.slot),
+					...this.egressProxyExecEnvArgs(placement),
 					"-u",
 					String(placement.uid),
 					"-w",
@@ -1473,7 +1539,7 @@ export class AgentSandboxManager {
 				[
 					"exec",
 					// §5.L: same egress-proxy env injection as execAsTaskUser (EVERY task exec on the egress network).
-					...this.egressProxyExecEnvArgs(placement.slot),
+					...this.egressProxyExecEnvArgs(placement),
 					"-u",
 					"0:0",
 					"-w",
