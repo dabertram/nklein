@@ -20,7 +20,7 @@ export interface RepoVerifyDerivation {
 }
 
 /** Non-mutating verification scripts, in the order they should run (cheap/structural first). */
-const VERIFY_SCRIPT_PRIORITY = ["lint", "typecheck", "check", "lint:ci", "type-check"] as const;
+const VERIFY_SCRIPT_PRIORITY = ["lint", "format:check", "typecheck", "check", "lint:ci", "type-check"] as const;
 const MUTATING_MARKERS = /--write|--fix|\bformat\b(?!:check)/;
 const DEFAULT_MAX_COMMANDS = 2;
 

@@ -578,7 +578,8 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		item: "F11.2",
 		observes:
 			"a repo verify check failing AFTER a green acceptance — the acceptance passed and the repo is still broken",
-		enabledBy: "NKLEIN_REPO_VERIFY",
+		enabledBy: null,
+		covers: ["NKLEIN_REPO_VERIFY"],
 		expectation: "exceptional",
 	},
 	{

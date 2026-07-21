@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Repository-native verification is now on by default after a card's acceptance passes.** !Klein runs a bounded pair
+  of real non-mutating lint, `format:check`, or typecheck scripts and feeds failures into the normal repair bounce;
+  `NKLEIN_REPO_VERIFY=0` remains the kill-switch. An invocation marker prevents a repository that tests !Klein itself
+  from recursively activating the verification tail inside its acceptance child.
+
 - **Repo onboarding context now has an explicit minimality boundary.** Stable manifest-proven commands, stack facts,
   monorepo tooling, and layout remain in the compact start fact sheet, while task-personalized architecture stays in
   the live repo-map rail. CI-workflow command parsing was not added without the required post-adoption failure evidence,

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "item": "F11.2g",
+  "recordedAt": "2026-07-21T21:18:00Z",
+  "workspace": "nklein",
+  "probe": {
+    "acceptanceCommand": "npm run test:fast",
+    "repoVerifyFlag": "1",
+    "timeoutMs": 180000
+  },
+  "beforeFix": {
+    "passed": false,
+    "durationMs": 31092,
+    "failureCategory": "timeout",
+    "repoVerifyCommandsReached": [],
+    "failedTests": [
+      "nklein acceptance gate > handles output larger than the old 2 MB exec buffer",
+      "nklein acceptance gate > does NOT hang forever on a stuck pause"
+    ],
+    "rootCause": "The opt-in NKLEIN_REPO_VERIFY environment flag was inherited by the acceptance child. Because the acceptance command ran !Klein's own tests, nested acceptance-gate calls also enabled repo verification and changed their command lifecycle."
+  },
+  "afterFix": {
+    "passed": true,
+    "durationMs": 28964,
+    "failureCategory": null,
+    "acceptanceExitCode": 0,
+    "repoVerifyCommands": [
+      {
+        "command": "npm run lint",
+        "exitCode": 0
+      },
+      {
+        "command": "npm run typecheck",
+        "exitCode": 0
+      }
+    ]
+  },
+  "regressionGates": {
+    "focusedTests": 44,
+    "fullFastTestFiles": 1217,
+    "fullFastTests": 11898,
+    "typecheck": "passed",
+    "biome": "passed"
+  }
+}

@@ -1151,9 +1151,18 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			baseRef: "main",
 			maxQueueWaitMs: 120_000,
 		});
-		expect(sandboxManager.execMock).toHaveBeenCalledWith(acceptanceSession, ["/bin/sh", "-c", "npm test"], {
-			timeoutMs: 1234,
-		});
+		expect(sandboxManager.execMock).toHaveBeenNthCalledWith(
+			1,
+			acceptanceSession,
+			["/usr/bin/env", "NKLEIN_REPO_VERIFY_ACTIVE=1", "/bin/sh", "-c", "npm test"],
+			{ timeoutMs: 1234 },
+		);
+		expect(sandboxManager.execMock).toHaveBeenNthCalledWith(
+			2,
+			acceptanceSession,
+			["/usr/bin/env", "NKLEIN_REPO_VERIFY_ACTIVE=1", "/bin/sh", "-c", "cat package.json"],
+			{ timeoutMs: 1234 },
+		);
 		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith(acceptanceSession);
 	});
 

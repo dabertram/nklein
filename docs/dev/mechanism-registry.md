@@ -44,7 +44,7 @@ Tallied **49062** observation(s) across **28** categories — exhaustive, not a 
 | `review_panel_assembly` | §5.AB | NKLEIN_REVIEW_PANEL | every_run | 0 | **too_new_to_judge** |
 | `two_phase_tool_pick` | §5.O | NKLEIN_TWO_PHASE_TOOL_PICK | every_run | 0 | **never_enabled** |
 | `baseline_probe` | F12.60 | NKLEIN_BASELINE_PROBE | exceptional | 0 | **never_enabled** |
-| `repo_verify` | F11.2 | NKLEIN_REPO_VERIFY | exceptional | 0 | **never_enabled** |
+| `repo_verify` | F11.2 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `tool_trust_decay` | F12.24 | NKLEIN_TOOL_TRUST_DECAY | exceptional | 0 | **never_enabled** |
 | `typecheck_first` | F12.86 | NKLEIN_TYPECHECK_FIRST | exceptional | 0 | **never_enabled** |
 | `quant_floor_breach` | F12.27 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |

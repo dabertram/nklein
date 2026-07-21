@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	extractNKleinAcceptanceCommand,
 	resolveShellExecution,
@@ -8,6 +8,23 @@ import {
 } from "../../../src/nklein-agent/nklein-acceptance-gate";
 import type { AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { NKleinPauseController } from "../../../src/nklein-agent/nklein-pause-controller";
+
+let priorRepoVerify: string | undefined;
+
+beforeEach(() => {
+	priorRepoVerify = process.env.NKLEIN_REPO_VERIFY;
+	// Most cases exercise another acceptance behavior and retain the pre-F11.2g call shape. F11.2g cases opt in below.
+	process.env.NKLEIN_REPO_VERIFY = "0";
+});
+
+afterEach(() => {
+	if (priorRepoVerify === undefined) {
+		delete process.env.NKLEIN_REPO_VERIFY;
+	} else {
+		process.env.NKLEIN_REPO_VERIFY = priorRepoVerify;
+	}
+	delete process.env.NKLEIN_REPO_VERIFY_ACTIVE;
+});
 
 describe("nklein acceptance gate", () => {
 	it("extracts acceptance commands from decomposed task prompts", () => {
@@ -440,18 +457,74 @@ describe("nklein acceptance gate", () => {
 		}
 	});
 
-	it("F11.2g stays byte-identical with the flag off (no package.json read at all)", async () => {
-		const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
-		const result = await runNKleinAcceptanceGate({
-			taskId: "task-off",
-			workspacePath: "/repo",
-			taskPrompt: "Acceptance check: npm test",
-			runCommand,
-			recordObservation: vi.fn(),
+	it("F11.2g is default-on and forwards its recursion marker through the sandbox", async () => {
+		delete process.env.NKLEIN_REPO_VERIFY;
+		const exec = vi.fn(async (_taskId: string, argv: readonly string[]) => {
+			const command = argv.at(-1);
+			return command === "cat package.json"
+				? { exitCode: 0, stdout: JSON.stringify({ scripts: { lint: "eslint ." } }), stderr: "" }
+				: { exitCode: 0, stdout: "ok", stderr: "" };
 		});
+		const sandboxManager = {
+			assertAvailable: vi.fn(async () => {}),
+			prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/task-default-on", uid: 70_001 })),
+			exec,
+			disposeWorkspace: vi.fn(async () => {}),
+		} as unknown as AgentSandboxManager;
+
+		const result = await runNKleinAcceptanceGateInSandbox({
+			taskId: "task-default-on",
+			projectRepoPath: "/repo",
+			taskPrompt: "Acceptance check: npm test",
+			sandboxManager,
+		});
+
 		expect(result.passed).toBe(true);
-		expect(runCommand).toHaveBeenCalledTimes(1);
-		expect(result.output).not.toContain("repo verify");
+		expect(result.output).toContain("[repo verify: npm run lint] exit 0");
+		expect(exec).toHaveBeenCalledTimes(3);
+		for (const [, argv] of exec.mock.calls) {
+			expect(argv.slice(0, 2)).toEqual(["/usr/bin/env", "NKLEIN_REPO_VERIFY_ACTIVE=1"]);
+		}
+	});
+
+	it("F11.2g kill-switch stays byte-identical (no package.json read at all)", async () => {
+		process.env.NKLEIN_REPO_VERIFY = "0";
+		try {
+			const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
+			const result = await runNKleinAcceptanceGate({
+				taskId: "task-off",
+				workspacePath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				runCommand,
+				recordObservation: vi.fn(),
+			});
+			expect(result.passed).toBe(true);
+			expect(runCommand).toHaveBeenCalledTimes(1);
+			expect(result.output).not.toContain("repo verify");
+		} finally {
+			delete process.env.NKLEIN_REPO_VERIFY;
+		}
+	});
+
+	it("F11.2g invocation marker prevents recursive repo verification in an acceptance child", async () => {
+		process.env.NKLEIN_REPO_VERIFY = "1";
+		process.env.NKLEIN_REPO_VERIFY_ACTIVE = "1";
+		try {
+			const runCommand = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
+			const result = await runNKleinAcceptanceGate({
+				taskId: "task-nested",
+				workspacePath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				runCommand,
+				recordObservation: vi.fn(),
+			});
+			expect(result.passed).toBe(true);
+			expect(runCommand).toHaveBeenCalledTimes(1);
+			expect(runCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "npm test" }));
+		} finally {
+			delete process.env.NKLEIN_REPO_VERIFY;
+			delete process.env.NKLEIN_REPO_VERIFY_ACTIVE;
+		}
 	});
 });
 

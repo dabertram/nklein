@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
 import { type DiagnosticLanguage, parseCompilerDiagnostics, planTypeCheckRepair } from "../core/compiler-diagnostics";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { detectToolchains, type ToolchainLanguage } from "../core/language-toolchain-detection";
 import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -13,6 +13,8 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+/** Prevent default-on repo verification from recursively activating inside a command launched by this gate. */
+const REPO_VERIFY_ACTIVE_ENV = "NKLEIN_REPO_VERIFY_ACTIVE";
 // Keep in sync with the pure mirror in src/core/plan-integration-gate.ts (PLAN_ACCEPTANCE_CHECK_PATTERN) —
 // the core layer cannot value-import this impure module (node:child_process + telemetry sink).
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
@@ -21,6 +23,8 @@ export interface NKleinAcceptanceGateExecution {
 	command: string;
 	cwd: string;
 	timeoutMs: number;
+	/** Invocation-scoped environment additions; the sandbox adapter forwards these through `/usr/bin/env`. */
+	env?: Readonly<Record<string, string>>;
 }
 
 export interface NKleinAcceptanceGateResult {
@@ -158,6 +162,7 @@ async function defaultRunCommand(execution: NKleinAcceptanceGateExecution): Prom
 			env: {
 				...process.env,
 				PATH: process.env.PATH?.trim() || DEFAULT_ACCEPTANCE_PATH,
+				...execution.env,
 			},
 		});
 		return {
@@ -218,7 +223,15 @@ export async function runNKleinAcceptanceGate(
 			"Acceptance gate host execution requires an explicit runCommand or allowHostExecution=true; agent tasks must use the sandbox runner.",
 		);
 	}
-	const runCommand = options.runCommand ?? defaultRunCommand;
+	const executeCommand = options.runCommand ?? defaultRunCommand;
+	const repoVerifyEnabled =
+		isEnabledByDefaultEnv(process.env.NKLEIN_REPO_VERIFY) && process.env[REPO_VERIFY_ACTIVE_ENV] !== "1";
+	// Commands inherit an invocation marker. If an acceptance test imports and exercises this gate (as !Klein's own
+	// suite does), its nested gate runs only the declared command instead of recursively appending repo checks.
+	const runCommand = (execution: NKleinAcceptanceGateExecution) =>
+		executeCommand(
+			repoVerifyEnabled ? { ...execution, env: { ...execution.env, [REPO_VERIFY_ACTIVE_ENV]: "1" } } : execution,
+		);
 	// F12.86 type-check-FIRST micro-loop (OPT-IN via NKLEIN_TYPECHECK_FIRST; default OFF = byte-identical): a type
 	// check is the cheapest correctness gate there is, so run it BEFORE the expensive acceptance command and
 	// bounce with ANCHORED diagnostics (≤5 `file:line [code]: message`) rather than a wall of compiler output —
@@ -308,13 +321,13 @@ export async function runNKleinAcceptanceGate(
 			createdAt: finishedAt,
 		});
 	}
-	// F11.2g (OPT-IN via NKLEIN_REPO_VERIFY; default OFF = byte-identical): a GREEN acceptance also runs the
+	// F11.2g (DEFAULT-ON; kill-switch NKLEIN_REPO_VERIFY=0/false/no/off): a GREEN acceptance also runs the
 	// repo's OWN non-mutating verify scripts (lint/typecheck, derived from package.json, capped at 2) on the same
 	// delivered tree — matching the project's real rules IS fitting the codebase, and models self-heal reliably
 	// against explicit lint output. A red repo check FAILS the gate with the output appended, so the standard
 	// bounce machinery feeds it back. Reads package.json through the same runCommand, so it works identically in
 	// the sandbox and host paths; every degraded read/parse simply yields no extra checks.
-	if (passed && isTruthyEnv(process.env.NKLEIN_REPO_VERIFY)) {
+	if (passed && repoVerifyEnabled) {
 		const packageRead = await runCommand({ command: "cat package.json", cwd: options.workspacePath, timeoutMs });
 		const derivation = deriveRepoVerifyCommands({
 			packageJsonContent: packageRead.exitCode === 0 ? (packageRead.stdout ?? null) : null,
@@ -444,9 +457,12 @@ export async function runNKleinAcceptanceGateInSandbox(
 				}
 				const command = rewriteSandboxAcceptanceCommand(execution.command, execution.cwd);
 				const shellExecution = resolveShellExecution(command);
-				return await options.sandboxManager.exec(sandboxTaskId, [shellExecution.binary, ...shellExecution.args], {
-					timeoutMs: execution.timeoutMs,
-				});
+				const envArgs = Object.entries(execution.env ?? {}).map(([name, value]) => `${name}=${value}`);
+				const argv =
+					envArgs.length > 0
+						? ["/usr/bin/env", ...envArgs, shellExecution.binary, ...shellExecution.args]
+						: [shellExecution.binary, ...shellExecution.args];
+				return await options.sandboxManager.exec(sandboxTaskId, argv, { timeoutMs: execution.timeoutMs });
 			},
 		});
 	} finally {

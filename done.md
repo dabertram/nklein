@@ -2229,3 +2229,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   matrix, secret, deployment, or host-specific commands that are not valid worker acceptance commands. Future telemetry
   can reopen a narrowly evidenced extractor; the complete delivered profile remains A/B-disableable through
   `NKLEIN_FRAMEWORK_PREAMBLE`.
+
+- [x] **F11.2g — run the repository's own non-mutating checks in the acceptance gate** *(delivered 2026-07-17;
+  defaulted on 2026-07-21).* After a card's declared acceptance passes, the same sandbox/host command seam reads the
+  real root manifest and runs at most two non-duplicated verification scripts. Priority is lint, explicit
+  `format:check`, then typecheck/check variants; any body containing `--write` or `--fix` is rejected even if its script
+  name claims to be a check. A red repository check returns `lint_error` with bounded output through the existing
+  repair bounce. The mechanism is now default-on with `NKLEIN_REPO_VERIFY=0/false/no/off` as a byte-identical kill
+  switch. The first live probe exposed an ambient-recursion defect: the acceptance child inherited the opt-in flag, and
+  !Klein's own nested acceptance-gate tests appended repository checks again and timed out. Enablement is now computed
+  once per outer invocation and an internal active marker is forwarded through both host and Docker execution, so
+  nested gates run only their declared acceptance. The repeated production-shaped probe passed `test:fast`, lint, and
+  typecheck in 28.9 seconds; focused tests (44), the full 1,217-file / 11,898-test fast suite, TypeScript, and Biome pass.
+  Evidence: `docs/dev/f11.2g-repo-verify-live-2026-07-21.json`.

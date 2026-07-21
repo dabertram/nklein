@@ -20,14 +20,35 @@ describe("deriveRepoVerifyCommands (F11.2g)", () => {
 		]);
 	});
 
+	it("runs an explicit non-mutating format:check convention before typecheck", () => {
+		const derivation = deriveRepoVerifyCommands({
+			packageJsonContent: pkg({
+				lint: "eslint .",
+				"format:check": "prettier --check .",
+				typecheck: "tsc --noEmit",
+				format: "prettier --write .",
+			}),
+			acceptanceCommand: "npm test",
+		});
+		expect(derivation.commands).toEqual([
+			{ script: "lint", command: "npm run lint" },
+			{ script: "format:check", command: "npm run format:check" },
+		]);
+	});
+
 	it("skips mutating scripts and acceptance-covered scripts, with reasons", () => {
 		const derivation = deriveRepoVerifyCommands({
-			packageJsonContent: pkg({ lint: "biome check --write .", typecheck: "tsc --noEmit" }),
+			packageJsonContent: pkg({
+				lint: "biome check --write .",
+				"format:check": "prettier --write .",
+				typecheck: "tsc --noEmit",
+			}),
 			acceptanceCommand: "npm run typecheck && npm test",
 		});
 		expect(derivation.commands).toEqual([]);
 		expect(derivation.skippedScripts).toEqual([
 			{ script: "lint", reason: "mutating (would rewrite the tree, not verify it)" },
+			{ script: "format:check", reason: "mutating (would rewrite the tree, not verify it)" },
 			{ script: "typecheck", reason: "already covered by the acceptance command" },
 		]);
 	});

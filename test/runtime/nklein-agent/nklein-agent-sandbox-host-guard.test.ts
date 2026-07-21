@@ -132,9 +132,18 @@ describe("sandbox no-host-execution guard", () => {
 		const prepareCalls = prepareWorkspace.mock.calls as unknown as ReadonlyArray<[{ taskId: string }]>;
 		const acceptanceSession = prepareCalls[0]?.[0]?.taskId ?? "";
 		expect(acceptanceSession).toMatch(/^task-1::acceptance-\d+$/);
-		expect(exec).toHaveBeenCalledWith(acceptanceSession, [shellExecution.binary, ...shellExecution.args], {
-			timeoutMs: 300_000,
-		});
+		expect(exec).toHaveBeenNthCalledWith(
+			1,
+			acceptanceSession,
+			["/usr/bin/env", "NKLEIN_REPO_VERIFY_ACTIVE=1", shellExecution.binary, ...shellExecution.args],
+			{ timeoutMs: 300_000 },
+		);
+		expect(exec).toHaveBeenNthCalledWith(
+			2,
+			acceptanceSession,
+			["/usr/bin/env", "NKLEIN_REPO_VERIFY_ACTIVE=1", "/bin/sh", "-c", "cat package.json"],
+			{ timeoutMs: 300_000 },
+		);
 		expect(disposeWorkspace).toHaveBeenCalledWith(acceptanceSession);
 		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.appendFile).not.toHaveBeenCalled();
