@@ -23,6 +23,8 @@
   as they call a graph-building tool, so a rejected graph cannot end as an ordinary empty-patch Review hold.
   Cross-model architect handoffs now reset that bounded recovery budget; a stronger fresh architect no longer inherits
   nudges spent repairing the previous model and can act on a later independent-critic revision request.
+  Decomposition-exhaustion failover now keys off the authoritative guardrail activity as well as the summary warning,
+  so an unrelated concurrent advisory cannot overwrite the signal and silently suppress automatic handoff.
   Dead planning cards also honor their promised single restart;
   the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely. When
   one architect exhausts bounded validation/critique recovery, !Klein now carries the preserved specification, code

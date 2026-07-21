@@ -147,6 +147,12 @@ gap remains.
 > Review. A cross-model carry must reset the decomposition-stall budget before the fresh architect starts, while the
 > separate graph-validation/critique attempt caps continue to bound the overall workflow.
 
+> **⚠️ FAILOVER MUST READ THE GUARD EVENT, NOT AN UNRELATED SUMMARY WARNING (live-found run `20260721-160645`).**
+> The repeated-decomposition guard parked the architect after five failed graph attempts and retained the exact signal
+> in `latestHookActivity`, but `warningMessage` contained a concurrent Codebase Memory container-headroom advisory.
+> Failover inspected only `warningMessage`, so the promised automatic handoff never ran. Match the trusted guardrail
+> activity first (with `warningMessage` as a compatibility fallback), and classify the retry from that same signal.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

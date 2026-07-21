@@ -7,6 +7,21 @@ import { decideNextRetryStrategy } from "../core/retry-policy";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskLaunchConfigOverrides } from "./nklein-launch-config";
 
+const DECOMPOSITION_EXHAUSTION_MARKER = "decomposition attempts that kept failing graph validation";
+
+function findDecompositionExhaustionSignal(summary: RuntimeTaskSessionSummary): string | null {
+	for (const candidate of [
+		summary.latestHookActivity?.finalMessage,
+		summary.latestHookActivity?.activityText,
+		summary.warningMessage,
+	]) {
+		if (candidate?.includes(DECOMPOSITION_EXHAUSTION_MARKER)) {
+			return candidate;
+		}
+	}
+	return null;
+}
+
 /**
  * Service touchpoints — the same re-drive seam the adaptive-budget controller uses (`sendTaskSessionInput` with
  * launch-config overrides), so a failover lands as a normal re-driven turn on the substituted model.
@@ -67,9 +82,11 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		if (summary.state !== "awaiting_review") {
 			return;
 		}
+		// The guardrail event is authoritative. `warningMessage` may carry an unrelated concurrent advisory (live
+		// run 20260721-160645: Codebase Memory container-headroom warning), so inspect the retained hook activity too.
+		const decompositionExhaustionSignal = findDecompositionExhaustionSignal(summary);
 		const decompositionCapabilityExhausted =
-			summary.reviewReason === "attention" &&
-			(summary.warningMessage ?? "").includes("decomposition attempts that kept failing graph validation");
+			summary.reviewReason === "attention" && decompositionExhaustionSignal !== null;
 		// Ordinary attention/review terminals are not failures. The sole exception is the trusted repeated-
 		// decomposition guard: it means this architect exhausted its bounded validation/critique path and the next
 		// loaded architect must take over before a human is involved.
@@ -96,7 +113,8 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 		if (!decision.failover || !decision.nextModelKey) {
 			return;
 		}
-		const failure = classifyFailureSignature(summary.warningMessage ?? "unknown model error");
+		const failureMessage = decompositionExhaustionSignal ?? summary.warningMessage ?? "unknown model error";
+		const failure = classifyFailureSignature(failureMessage);
 		const retryDecision = decideNextRetryStrategy({
 			lastOutcome: failure.outcome,
 			attemptsSoFar: 0,

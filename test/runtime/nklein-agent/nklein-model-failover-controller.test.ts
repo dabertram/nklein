@@ -58,8 +58,18 @@ describe("createModelFailoverController", () => {
 			errorSummary({
 				reviewReason: "attention",
 				modelId: "qwopus",
-				warningMessage:
-					"!Klein paused this task after 4 decomposition attempts that kept failing graph validation.",
+				warningMessage: "Sandbox MCP server Codebase Memory is OFF for this task: container headroom is too low.",
+				latestHookActivity: {
+					activityText:
+						"!Klein paused this architect after 4 decomposition attempts that kept failing graph validation.",
+					toolName: null,
+					toolInputSummary: null,
+					finalMessage:
+						"!Klein paused this architect after 4 decomposition attempts that kept failing graph validation.",
+					hookEventName: "guardrail",
+					notificationType: "warning",
+					source: "kanban",
+				},
 			}),
 		);
 		await flush();
