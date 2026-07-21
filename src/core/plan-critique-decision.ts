@@ -7,8 +7,10 @@ import { type DeliberationTriggerDecision, shouldDeliberate } from "./deliberati
  * whole execution cascade inherits the graph, every decomposition is high-stakes and medium-confidence until that
  * independent sign-off.
  *
- * One critique per plan slug (the caller tracks `alreadyCritiqued`) and the diverse-critic requirement ride the
- * shared trigger (waivers surfaced, never silent). Loaded-model availability and admission define capacity.
+ * A slug is exempt only after a critic has accepted it (the caller tracks `critiqueAccepted`). Rejected revisions
+ * return through the gate until accepted or the bounded escalation threshold is reached. The diverse-critic
+ * requirement rides the shared trigger (waivers surfaced, never silent); loaded-model availability and admission
+ * define capacity.
  */
 export interface PlanCritiqueDecisionInput {
 	taskCount: number;
@@ -16,15 +18,15 @@ export interface PlanCritiqueDecisionInput {
 	qualityWarningCount: number;
 	diverseCriticAvailable: boolean;
 	critiqueBudgetRemaining: number;
-	/** True when this plan slug already received its one critique round (revisions never re-critique). */
-	alreadyCritiqued: boolean;
+	/** True only after this plan slug received a `proceed` verdict. */
+	critiqueAccepted: boolean;
 }
 
 export function decidePlanCritique(input: PlanCritiqueDecisionInput): DeliberationTriggerDecision {
-	if (input.alreadyCritiqued) {
+	if (input.critiqueAccepted) {
 		return {
 			deliberate: false,
-			reason: "This plan already received its one critique round — revisions apply it, not re-debate it.",
+			reason: "This plan already received its independent proceed verdict.",
 			diversityWaived: false,
 		};
 	}

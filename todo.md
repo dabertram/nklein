@@ -415,9 +415,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   - **CRITIQUE THE CANDIDATE GRAPH BEFORE MATERIALIZATION:** every structurally valid decomposition gets one
     lineage-diverse semantic critique before plan artifacts or live cards are written. Small/flat and warning-free
     graphs are not exempt: structural validation cannot catch invented scope or omitted requirements. A `revise`
-    verdict discards the candidate construction and rebuilds the same stable ids; only `proceed` (or a surfaced lack
-    of any diverse loaded critic) permits application. Critique capacity follows loaded-model availability and the
-    admission gate, not a fixed service-lifetime count; human review remains the last-resort fallback.
+    verdict discards the candidate construction and rebuilds the same stable ids, then the revised candidate receives
+    a fresh verdict; only `proceed` (or a surfaced lack of any diverse loaded critic) permits application. Two rejected
+    candidates fail closed into architect/model escalation instead of applying an unaccepted graph. Critique capacity
+    follows loaded-model availability and the admission gate, not a fixed service-lifetime count; human review remains
+    the last-resort fallback.
   - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
     Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
     must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child

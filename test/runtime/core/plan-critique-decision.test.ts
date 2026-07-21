@@ -7,7 +7,7 @@ const base = {
 	qualityWarningCount: 2,
 	diverseCriticAvailable: true,
 	critiqueBudgetRemaining: 2,
-	alreadyCritiqued: false,
+	critiqueAccepted: false,
 };
 
 describe("decidePlanCritique (W4.3)", () => {
@@ -34,11 +34,11 @@ describe("decidePlanCritique (W4.3)", () => {
 		}
 	});
 
-	it("critiques each plan slug at most once (revisions apply feedback, not re-debate)", () => {
-		const decision = decidePlanCritique({ ...base, alreadyCritiqued: true });
+	it("skips only after the candidate receives an independent proceed verdict", () => {
+		const decision = decidePlanCritique({ ...base, critiqueAccepted: true });
 		expect(decision.deliberate).toBe(false);
 		if (!decision.deliberate) {
-			expect(decision.reason).toContain("one critique round");
+			expect(decision.reason).toContain("proceed verdict");
 		}
 	});
 

@@ -223,7 +223,9 @@ function createDecomposeProjectTool(
 ): AgentTool {
 	// W4.3: each plan slug gets AT MOST one diverse-critic round (revisions apply the feedback, never re-debate);
 	// the per-run count budget lives in the service handler (it spans sessions).
-	const critiquedSlugs = new Set<string>();
+	const acceptedCritiqueFingerprintBySlug = new Map<string, string>();
+	const critiqueAttemptsBySlug = new Map<string, number>();
+	const MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG = 2;
 	// W2.7a (audit 2026-07-02): rejected-but-PARSEABLE graphs are stashed per plan slug; after the bounce budget
 	// the BEST stashed candidate is applied instead of bouncing again — a weak model that keeps emitting
 	// quality-violating graphs converges on its best attempt rather than spiraling into the repeated-call guard
@@ -496,13 +498,11 @@ function createDecomposeProjectTool(
 			// BEFORE artifacts or live board cards are materialized. Structural cleanliness does not prove semantic
 			// coverage: a small graph can still invent scope or omit a requirement. "revise" rides the same
 			// recoverable-bounce muscle as a quality violation — the architect's session applies the feedback and
-			// calls decompose_project again (same slug ⇒ never re-critiqued ⇒ no loop). A critique can only ever
-			// ADD one revision round; it never blocks (handler errors/null degrade to proceed).
-			// Adversarial-review fixes (2026-07-02): NEVER critique the W2.7a best-of-rejected path — it is a
-			// LAST-RESORT recovery for an architect that already proved it can't do better, and bouncing it again
-			// feeds the repeated-decomposition-failure guard toward parking a decomposition that would otherwise
-			// complete (the exact spiral the stash exists to prevent). Violations are summed with warnings for the
-			// not-clean signal (violations can only reach this point via non-enforced validation).
+			// calls decompose_project again. A revised candidate is NOT accepted merely because it applied feedback:
+			// it receives a fresh verdict. Two rejected candidates fail closed into the normal architect/model escalation
+			// path rather than materializing an unaccepted graph. Best-of-rejected quality recovery is not exempt either;
+			// structural validity is enough to ask the semantic critic, never enough to bypass it.
+			const critiqueFingerprint = JSON.stringify({ spec, taskGraph: validation.taskGraph });
 			const critiqueDecision = decidePlanCritique({
 				taskCount: validation.quality.taskCount,
 				dependencyCount: validation.quality.dependencyCount,
@@ -512,10 +512,11 @@ function createDecomposeProjectTool(
 				// diverse critic is loaded — a null never blocks).
 				diverseCriticAvailable: Boolean(requestPlanCritique),
 				critiqueBudgetRemaining: requestPlanCritique ? 1 : 0,
-				alreadyCritiqued: critiquedSlugs.has(slug),
+				critiqueAccepted: acceptedCritiqueFingerprintBySlug.get(slug) === critiqueFingerprint,
 			});
-			if (critiqueDecision.deliberate && requestPlanCritique && !appliedBestOfRejected) {
-				critiquedSlugs.add(slug);
+			if (critiqueDecision.deliberate && requestPlanCritique) {
+				const critiqueAttempt = (critiqueAttemptsBySlug.get(slug) ?? 0) + 1;
+				critiqueAttemptsBySlug.set(slug, critiqueAttempt);
 				const critique = await requestPlanCritique({
 					slug,
 					spec,
@@ -524,7 +525,7 @@ function createDecomposeProjectTool(
 						title: task.title,
 						dependsOn: task.dependsOn,
 					})),
-					qualityWarnings: validation.quality.warnings,
+					qualityWarnings: [...validation.quality.warnings, ...validation.quality.violations],
 				}).catch(() => null);
 				await recordSelfObservation({
 					signal: "custom",
@@ -541,6 +542,9 @@ function createDecomposeProjectTool(
 						summary: critique?.summary ?? null,
 					},
 				});
+				if (critique?.verdict === "proceed") {
+					acceptedCritiqueFingerprintBySlug.set(slug, critiqueFingerprint);
+				}
 				if (critique?.verdict === "revise" && critique.feedback) {
 					if (incrementalState) {
 						// A critic can request EDGE changes after an incremental graph has already been submitted. Retaining that
@@ -548,8 +552,13 @@ function createDecomposeProjectTool(
 						// is no remove/update-edge operation. Start the single allowed revision from a clean construction.
 						resetIncrementalDagSessionState(incrementalState);
 					}
+					if (critiqueAttempt >= MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG) {
+						throw new Error(
+							`The independent plan critic rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} for plan "${slug}". The graph was NOT materialized. Escalate to a stronger architect model and rebuild it from the critic feedback:\n${critique.feedback}`,
+						);
+					}
 					throw new Error(
-						`A second-opinion plan critic (a different model family) reviewed this decomposition and requested ONE revision before work starts. The prior incremental graph has been cleared so stable task ids can be reused. Rebuild it with add_task/add_dependency, or send one complete revised tasks array, then call decompose_project again with the same slug "${slug}":\n${critique.feedback}`,
+						`A second-opinion plan critic (a different model family) rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} before work starts. The prior incremental graph has been cleared so stable task ids can be reused. Rebuild it with add_task/add_dependency, or send one complete revised tasks array, then call decompose_project again with the same slug "${slug}" for a fresh acceptance verdict:\n${critique.feedback}`,
 					);
 				}
 			}

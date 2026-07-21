@@ -906,13 +906,16 @@ describe("nklein decomposition tools", () => {
 		return tool;
 	}
 
-	it("W4.3: a high-stakes warning-bearing plan gets ONE diverse-critic round; revise bounces, the revision applies without re-critique", async () => {
+	it("W4.3: a rejected candidate is rebuilt and must receive a fresh proceed verdict before application", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-"));
-		const requestPlanCritique = vi.fn().mockResolvedValueOnce({
-			verdict: "revise",
-			summary: "Coupling is missing.",
-			feedback: "Wire storage before the UI card.",
-		});
+		const requestPlanCritique = vi
+			.fn()
+			.mockResolvedValueOnce({
+				verdict: "revise",
+				summary: "Coupling is missing.",
+				feedback: "Wire storage before the UI card.",
+			})
+			.mockResolvedValueOnce({ verdict: "proceed", summary: "The rebuilt graph is sound.", feedback: null });
 		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
 			(candidate) => candidate.name === "decompose_project",
 		);
@@ -942,10 +945,62 @@ describe("nklein decomposition tools", () => {
 			qualityWarnings: expect.arrayContaining([expect.stringContaining("sparse")]),
 		});
 
-		// The REVISED call (same slug) must NOT re-critique — one round per plan, then it applies.
+		// The revised same-slug candidate must be accepted independently before it applies.
 		const revised = (await tool.execute(input, undefined as never)) as { ok: boolean };
 		expect(revised.ok).toBe(true);
-		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(2);
+	});
+
+	it("W4.3: two rejected candidates fail closed without writing plan artifacts", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-rejected-"));
+		const requestPlanCritique = vi.fn().mockResolvedValue({
+			verdict: "revise",
+			summary: "Still unsafe.",
+			feedback: "The graph still has parallel writers.",
+		});
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) throw new Error("missing decompose_project");
+		const input = {
+			slug: "rejected-plan",
+			title: "Rejected plan",
+			spec: "Two safe slices.",
+			plan: "Implement then test.",
+			defaultAcceptanceCommand: "npm test",
+			tasks: [
+				{ id: "impl", title: "Implement", prompt: "Implement the feature." },
+				{ id: "test", title: "Test", prompt: "Test it.", dependsOn: ["impl"] },
+			],
+		};
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/candidate 1\/2/);
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/candidate 2\/2/);
+		await expect(readNKleinPlanArtifacts(workspacePath, "rejected-plan")).rejects.toThrow();
+	});
+
+	it("W4.3: binds acceptance to the exact graph and specification, not only the slug", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-fingerprint-"));
+		const requestPlanCritique = vi
+			.fn()
+			.mockResolvedValue({ verdict: "proceed", summary: "Candidate accepted.", feedback: null });
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) throw new Error("missing decompose_project");
+		const input = {
+			slug: "fingerprinted-plan",
+			title: "Fingerprint plan",
+			spec: "Original requirement.",
+			plan: "Implement then test.",
+			defaultAcceptanceCommand: "npm test",
+			tasks: [
+				{ id: "impl", title: "Implement", prompt: "Implement the feature." },
+				{ id: "test", title: "Test", prompt: "Test it.", dependsOn: ["impl"] },
+			],
+		};
+		await tool.execute(input, undefined as never);
+		await tool.execute({ ...input, spec: "Changed requirement." }, undefined as never);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(2);
 	});
 
 	it("W4.3: a proceed verdict (or a null/absent critic) never blocks the decomposition", async () => {
