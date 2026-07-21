@@ -436,6 +436,9 @@ source repo went private — so if it vanishes the buildable source still lives 
     A terminal dead-card retry that awaits result-branch discovery must re-check the task's live session state after
     that await: the targeted decomposition nudger may already have resumed it, and the stale terminal snapshot must not
     launch a second replacement architect beside the recovery session (live run `20260721-130228`: 201 ms apart).
+    The two-rejected-candidate limit is an enforcing gate in the decompose tool, not prose in the second error: the same
+    architect session must not submit candidate 3 and launch critic round 3 (live run `20260721-132517`); it yields to
+    the stronger-model escalation path.
   - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
     Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
     must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child

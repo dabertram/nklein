@@ -977,6 +977,8 @@ describe("nklein decomposition tools", () => {
 		};
 		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/candidate 1\/2/);
 		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/candidate 2\/2/);
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/budget is exhausted/u);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(2);
 		await expect(readNKleinPlanArtifacts(workspacePath, "rejected-plan")).rejects.toThrow();
 	});
 

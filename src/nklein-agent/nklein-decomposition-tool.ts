@@ -226,6 +226,7 @@ function createDecomposeProjectTool(
 	// the per-run count budget lives in the service handler (it spans sessions).
 	const acceptedCritiqueFingerprintBySlug = new Map<string, string>();
 	const critiqueAttemptsBySlug = new Map<string, number>();
+	const lastRejectedCritiqueFeedbackBySlug = new Map<string, string>();
 	const MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG = 2;
 	// W2.7a (audit 2026-07-02): rejected-but-PARSEABLE graphs are stashed per plan slug; after the bounce budget
 	// the BEST stashed candidate is applied instead of bouncing again — a weak model that keeps emitting
@@ -514,6 +515,13 @@ function createDecomposeProjectTool(
 				critiqueAccepted: acceptedCritiqueFingerprintBySlug.get(slug) === critiqueFingerprint,
 			});
 			if (critiqueDecision.deliberate && requestPlanCritique) {
+				const priorCritiqueAttempts = critiqueAttemptsBySlug.get(slug) ?? 0;
+				if (priorCritiqueAttempts >= MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG) {
+					const lastFeedback = lastRejectedCritiqueFeedbackBySlug.get(slug);
+					throw new Error(
+						`The independent plan-critique budget is exhausted for plan "${slug}" after ${priorCritiqueAttempts}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} rejected candidates. The graph was NOT materialized. This architect session may not submit another candidate; escalate to a stronger architect model.${lastFeedback ? ` Last critic feedback:\n${lastFeedback}` : ""}`,
+					);
+				}
 				const localCritiqueAttempt = (critiqueAttemptsBySlug.get(slug) ?? 0) + 1;
 				critiqueAttemptsBySlug.set(slug, localCritiqueAttempt);
 				const critique = await requestPlanCritique({
@@ -544,6 +552,7 @@ function createDecomposeProjectTool(
 					acceptedCritiqueFingerprintBySlug.set(slug, critiqueFingerprint);
 				}
 				if (critique?.verdict === "revise" && critique.feedback) {
+					lastRejectedCritiqueFeedbackBySlug.set(slug, critique.feedback);
 					if (incrementalState) {
 						// A critic can request EDGE changes after an incremental graph has already been submitted. Retaining that
 						// graph makes the advertised revision impossible: add_task rejects the stable ids as duplicates and there

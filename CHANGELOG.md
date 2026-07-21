@@ -7,7 +7,8 @@
   outputs, and dependencies before anything is materialized. Decomposition also rejects a test-first card whose scope
   contains only exact non-test files, preventing workers from being assigned an impossible test/write contract. A
   decomposition recovery also suppresses a stale dead-card retry after asynchronous branch discovery, so the same card
-  cannot launch two replacement architects milliseconds apart.
+  cannot launch two replacement architects milliseconds apart. After two rejected candidates, the current architect
+  session is now actually blocked from submitting a third candidate and must yield to model escalation.
 
 - **Online evidence synthesis now keeps the answer while using much less context.** Long sources are narrowed before
   the local model call without losing stable citation ids. A paired live-fleet check held the task, instructions,
