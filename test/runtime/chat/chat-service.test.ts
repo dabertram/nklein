@@ -117,8 +117,12 @@ describe("createChatService", () => {
 				reason: allow ? "LongMemEval benchmark passed." : "No matching benchmark.",
 			}),
 		});
-		const source = await service.createSession({ title: "Source" });
-		const driver = await service.createSession({ title: "Driver", scope: "all_projects" });
+		const source = await service.createSession({ title: "Atlas", ownedWorkspaceId: "ws-atlas" });
+		const driver = await service.createSession({
+			title: "Driver",
+			scope: "all_projects",
+			ownedWorkspaceId: "ws-driver",
+		});
 		await appendChatMemory(
 			{ sessionId: source.id, text: "Project Atlas deploy target is staging-west." },
 			{ rootDir: join(rootDir, "memories") },

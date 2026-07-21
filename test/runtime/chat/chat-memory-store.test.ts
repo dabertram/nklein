@@ -194,7 +194,16 @@ describe("chat-memory-store", () => {
 
 	it("recallChatMemories honors allProjects — an all_projects driver recalls another session's private memory", async () => {
 		const memories = [
-			{ ...memory({ id: "x", text: "the deploy target is fly.io" }), sessionId: "other", shared: false },
+			{
+				...memory({
+					id: "x",
+					text: "the deploy target is fly.io",
+					namespaceId: "atlas",
+					namespaceLabel: "Atlas",
+				}),
+				sessionId: "other",
+				shared: false,
+			},
 		];
 		// Default scope: another session's private memory is NOT recalled.
 		expect(await recallChatMemories({ query: "deploy target", sessionId: "driver", memories })).toEqual([]);
@@ -204,6 +213,7 @@ describe("chat-memory-store", () => {
 			sessionId: "driver",
 			memories,
 			allProjects: true,
+			defaultNamespaceId: "atlas",
 		});
 		expect(recalled.map((m) => m.id)).toEqual(["x"]);
 	});

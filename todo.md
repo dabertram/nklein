@@ -188,6 +188,14 @@ source repo went private — so if it vanishes the buildable source still lives 
   topic" should budget for the research, not skip it to save a step.
   **TRACK every integration in [docs/dev/integrations.md](docs/dev/integrations.md)** (the registry — name · what · status ·
   license · #1/egress posture · where wired; user 2026-07-01). Update it whenever we adopt, evaluate, partial-wire, or drop one.
+- **An evaluation may authorize only the exact production seam it invokes (2026-07-21, live memory-eval finding).**
+  Never let the reader/judge model impersonate a retriever and then use that result to certify a different production
+  ranker. Preserve the real input→retrieval→compact-evidence→reader boundary, score retrieval and reading separately,
+  retain negative verdicts, and key authorization evidence to the versioned implementation/profile that produced it.
+- **Memory ownership is data, not an inference from a convenient filesystem root (2026-07-21).** Product chat memory,
+  Basic Memory, and ledger projections must carry/derive an explicit workspace namespace before cross-project recall.
+  A missing namespace, stale/failed pair verdict, changed store version, or unavailable approved embedder fails closed;
+  it must never silently scan the operator's tool memory or fall back to different retrieval semantics.
 
 ### Architecture opinions
 - Avoid thin shell wrappers that only forward props or relocate JSX for a single call site.
@@ -1545,17 +1553,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   Basic-Memory + focus-chain all unify. GENUINE REMAINDER: (1) the working-memory SNAPSHOT — needs the LIVE turn's
   working-memory state, which the runtime-api recall seam doesn't hold (a different integration point); (2) deeper
   SEMANTIC recall tuning (the lexical ranker is a first cut) — design/fleet, not a mechanical wire.
-- [ ] **F2.10c — Make the real recall stack pass its retained scope-broadening benchmark without fixture overfit.**
-  The first production-stack run (F2.10b) correctly FAILED: lexical retrieval reached recall@2=1.0 but returned
-  unrelated, stale, and wrong-workspace memories (`abstain=0`, relevance `0.667`, contradiction/privacy/recency
-  all `0`). The reader correctly abstained, proving retrieval — not answer generation — is the defect. Build
-  namespace-aware candidate filtering plus explicit supersession/recency handling in the shared production
-  composer; preserve compact evidence and separately scored retrieval/reader verdicts (the LongMemEval-V2
-  context-gathering split). Acceptance: the internal controls still fail; no prompt/fixture-id special cases;
-  the exact production composer passes every dimension for each currently resident reader/store pair tested;
-  each exact pair is retained; scope broadening stays closed for missing/failed/stale evidence and for embedding
-  failures. Use only the already-available local fleet — no downloads or model replacements without David's
-  explicit case-by-case decision.
 - [x] **F2.11 (narrowed by audit 2026-07-13) — Unified chat surface: residue only.** The audit found the
   checklist substantially LIVE and e2e-verified (hermetic 72/72): session create/select/DELETE/RELABEL (the
   sidebar's editable `chat-session-title` commits on blur/Enter; delete has a tooltip control; role + scope

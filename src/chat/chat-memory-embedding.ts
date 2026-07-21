@@ -36,7 +36,7 @@ export function createOpenAiCompatibleChatMemoryEmbedder(input: {
 	modelId: string;
 	fetchImpl?: typeof fetch;
 	timeoutMs?: number;
-	/** Production degrades to lexical recall; the live verifier disables this so an embedding failure fails the run. */
+	/** Narrow production recall may degrade to lexical; evidence-bound broad recall still withholds the whole band. */
 	failSoft?: boolean;
 }): ChatMemoryEmbedder {
 	const fetchImpl = input.fetchImpl ?? fetch;

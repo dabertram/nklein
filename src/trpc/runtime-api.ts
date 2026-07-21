@@ -15,13 +15,13 @@ import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/c
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
 import { resolveLoadedChatMemoryEmbedder } from "../chat/chat-memory-embedding";
 import { buildUnifiedMemoryNote } from "../chat/chat-memory-projection";
-import { readChatMemories } from "../chat/chat-memory-store";
 import { createChatService } from "../chat/chat-service";
 import { chatSessionGrantStore } from "../chat/chat-session-grants";
 import { hostActionConfirmQueue } from "../chat/host-action-confirm-wait";
 import { buildKleinSelfCorpusNote, readKleinCorpusFreshnessFromGit } from "../chat/klein-self-corpus-note";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { recallUnifiedMemoryBand } from "../chat/unified-memory-recall";
+import { loadUnifiedMemoryRuntimeSources } from "../chat/unified-memory-runtime-sources";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
@@ -52,12 +52,7 @@ import {
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
 import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/background-eval-controls";
-import {
-	nodeBasicMemoryFsDeps,
-	readBasicMemoryNotes,
-	readBasicMemoryRecallSources,
-} from "../core/basic-memory-note-reader";
-import { resolveBasicMemoryRecallRoots } from "../core/basic-memory-scoping";
+import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
@@ -82,6 +77,7 @@ import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import {
 	buildLongMemoryStoreProfile,
 	decideMemoryScopeBroadening,
+	isLongMemoryEvalVerdictFresh,
 	readLongMemoryEvalRetainedVerdict,
 } from "../core/long-memory-eval";
 import { mastRemedyHint, rollupMastDistribution } from "../core/mast-failure-modes";
@@ -453,6 +449,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						reason: `No retained passing LongMemEval run exists for model ${modelId} with store ${storeProfile}.`,
 					};
 				}
+				if (!isLongMemoryEvalVerdictFresh(verdict)) {
+					return {
+						accessAllOptIn: false,
+						reason: `The retained LongMemEval run for model ${modelId} with store ${storeProfile} is stale and must be rerun.`,
+					};
+				}
 				return decideMemoryScopeBroadening({ requestedAccessAllOptIn: true, benchmark: verdict });
 			},
 			// G3a: when a project is active, route the chat through the tool-using agent loop with READ-ONLY tools
@@ -520,15 +522,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			...(isTruthyEnv(process.env.NKLEIN_UNIFIED_MEMORY)
 				? {
 						buildUnifiedMemoryNote: async (session, query, memoryAccess) => {
-							const memories = await readChatMemories();
 							const focusChain = await readChatFocusChain(session.id).catch(() => null);
 							const ledgerEvents = await readAllAgentLedger().catch(() => []);
 							const knownSkillIds = new Set<string>(SELECTABLE_CHAT_SKILL_IDS);
 							const skillIds = session.selectedSkillIds.filter((id): id is SkillId => knownSkillIds.has(id));
 							const activeWorkspacePath = deps.getActiveWorkspacePath();
+							const activeWorkspaceId = deps.getActiveWorkspaceId();
 							const activeWorkspaceHash = activeWorkspacePath
 								? hashWorkspacePathForLedger(activeWorkspacePath)
 								: null;
+							const memorySources = await loadUnifiedMemoryRuntimeSources({
+								runtimeHome: resolveNkleinRuntimeHomePath(homedir()),
+								activeWorkspaceId,
+								activeWorkspacePath,
+								accessAllProjects: memoryAccess.allProjects,
+							});
 							const scopedLedgerEvents = scopeMemoryLayerEvents(
 								ledgerEvents,
 								activeWorkspaceHash,
@@ -538,28 +546,31 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							const memoryLayers = buildMemoryLayers({
 								events: scopedLedgerEvents,
 								skillIds,
-								snapshot: { activeGoal: session.goal, currentStep },
+								snapshot: {
+									activeGoal: session.goal,
+									currentStep,
+									...(activeWorkspaceId ? { namespaceId: activeWorkspaceId } : {}),
+								},
 							});
-							const basicMemoryRoots = resolveBasicMemoryRecallRoots({
-								runtimeHome: resolveNkleinRuntimeHomePath(homedir()),
-								workspaceHash: activeWorkspaceHash,
-								accessAllProjects: memoryAccess.allProjects,
-							});
-							const basicMemorySources = (
-								await Promise.all(
-									basicMemoryRoots.map((root) =>
-										readBasicMemoryRecallSources(root, nodeBasicMemoryFsDeps()).catch(() => []),
-									),
-								)
-							).flat();
+							const namespacedLayerRecords = memoryLayers.all.map((record) => ({
+								...record,
+								...(record.namespaceId
+									? {
+											namespaceId:
+												memorySources.workspaceIdByLedgerHash.get(record.namespaceId) ?? record.namespaceId,
+										}
+									: {}),
+							}));
 							const recalled = await recallUnifiedMemoryBand(
 								{
 									query,
 									sessionId: session.id,
-									chatMemories: memories,
-									layerRecords: memoryLayers.all,
-									basicMemorySources,
+									chatMemories: memorySources.chatMemories,
+									layerRecords: namespacedLayerRecords,
+									basicMemorySources: memorySources.basicMemorySources,
 									allProjects: memoryAccess.allProjects,
+									defaultNamespaceId: activeWorkspaceId,
+									namespaceHints: memorySources.namespaceHints,
 									...(focusChain
 										? {
 												focusChainSteps: focusChain.steps.map((step) => ({

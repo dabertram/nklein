@@ -6,8 +6,9 @@
   invokes the same unified recall composer as production, scores retrieval separately from the model reading the
   returned evidence, and retains the result for the exact resident reader plus versioned lexical/embedding store.
   Missing or failed evidence keeps recall scoped; an embedding outage cannot silently switch an approved semantic
-  profile to lexical ranking. The first real lexical run exposed stale and wrong-workspace retrieval, so it was
-  retained as a failure and cross-project recall remains closed until the retrieval layer actually passes.
+  profile to lexical ranking. Its first real run exposed stale and wrong-workspace retrieval; the fixed v2 stack now
+  resolves project namespaces, withholds unrelated private memory, suppresses high-confidence superseded facts, and
+  expires evidence weekly. All four currently resident reader/lexical-store pairs pass every dimension and control.
 
 - **A worker that gets stuck against a capability rule now reports the exact blocked tool and reason.** !Klein keeps
   using its existing bounded recovery ladder and only parks after automatic resolution and model escalation cannot

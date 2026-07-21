@@ -165,6 +165,8 @@ async function buildStoredMemories(
 			text: memory.text,
 			embedding,
 			embeddingModelId: embedding ? embedder?.modelId ?? null : null,
+			namespaceId: memory.namespace,
+			namespaceLabel: namespaceLabel(memory.namespace),
 			createdAt: memory.recordedAt,
 		});
 	}
@@ -183,12 +185,29 @@ async function retrieveWithProductionStack(
 			sessionId: `${case_.id}:eval-driver`,
 			chatMemories: memories,
 			allProjects: true,
+			namespaceHints: [
+				...new Map(
+					case_.memories.map((memory) => [
+						memory.namespace,
+						{ id: memory.namespace, label: namespaceLabel(memory.namespace) },
+					]),
+				).values(),
+			],
 			chatMemoryLimit: 2,
 			bandOptions: { maxRecords: 2, perSourceFloor: 0 },
 		},
 		embedder ? { embed: embedder.embed, embeddingModelId: embedder.modelId, requireEmbedding: true } : {},
 	);
 	return recalled.band.flatMap((record) => (record.source === "session" ? [record.id.replace(/^session:/u, "")] : []));
+}
+
+function namespaceLabel(namespace: string): string {
+	return namespace
+		.replace(/^ws[-_]?/iu, "")
+		.split(/[-_]+/u)
+		.filter(Boolean)
+		.map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+		.join(" ");
 }
 
 async function answerFromMemories(

@@ -70,7 +70,7 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-947 of 2323 exported core symbol(s) have NO non-test consumer. 61 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+947 of 2324 exported core symbol(s) have NO non-test consumer. 61 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
 ### Modules where EVERY export is orphaned (116)
 

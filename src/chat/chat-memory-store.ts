@@ -5,6 +5,12 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { parseValidatedJsonl } from "../state/jsonl-store";
+import {
+	filterChatMemoriesForRecall,
+	type MemoryNamespaceDecision,
+	type MemoryNamespaceRef,
+	resolveMemoryNamespaceDecision,
+} from "./chat-memory-retrieval-policy";
 
 /**
  * Long-term chat memory store + recall (todo §5.M). Persisted memories are "woken up" — semantically recalled
@@ -30,6 +36,12 @@ export interface ChatMemory {
 	embedding: number[] | null;
 	/** Identity of the model that produced `embedding`; absent on legacy rows, which therefore recall lexically. */
 	embeddingModelId?: string | null;
+	/** Owning workspace/project identity. Legacy rows are enriched from their source ChatSession before live recall. */
+	namespaceId?: string | null;
+	/** User-legible project label used to resolve explicit cross-project queries. */
+	namespaceLabel?: string | null;
+	/** Explicit reversible knowledge-update links; the old rows remain stored but are withheld from normal recall. */
+	supersedesMemoryIds?: string[];
 	createdAt: number;
 }
 
@@ -41,6 +53,9 @@ export const chatMemorySchema = z.object({
 	text: z.string(),
 	embedding: z.array(z.number()).nullable(),
 	embeddingModelId: z.string().nullable().optional(),
+	namespaceId: z.string().nullable().optional(),
+	namespaceLabel: z.string().nullable().optional(),
+	supersedesMemoryIds: z.array(z.string()).optional(),
 	createdAt: z.number(),
 }) satisfies z.ZodType<ChatMemory>;
 
@@ -62,6 +77,9 @@ export async function appendChatMemory(
 		shared?: boolean;
 		embedding?: number[] | null;
 		embeddingModelId?: string | null;
+		namespaceId?: string | null;
+		namespaceLabel?: string | null;
+		supersedesMemoryIds?: readonly string[];
 		id?: string;
 	},
 	options: ChatMemoryStoreOptions = {},
@@ -74,6 +92,9 @@ export async function appendChatMemory(
 		text: input.text,
 		embedding: input.embedding ?? null,
 		embeddingModelId: input.embeddingModelId ?? null,
+		namespaceId: input.namespaceId ?? null,
+		namespaceLabel: input.namespaceLabel ?? null,
+		supersedesMemoryIds: [...(input.supersedesMemoryIds ?? [])],
 		createdAt: (options.now ?? Date.now)(),
 	};
 	const root = options.rootDir ?? DEFAULT_ROOT;
@@ -283,22 +304,69 @@ export interface ChatMemoryRecall extends ChatMemory {
 	score: number;
 }
 
+/** Attach namespace metadata to legacy rows from the durable session that authored them. */
+export function enrichChatMemoryNamespaces(
+	memories: readonly ChatMemory[],
+	sessions: ReadonlyArray<{ id: string; title: string; ownedWorkspaceId: string | null }>,
+): ChatMemory[] {
+	const bySession = new Map(sessions.map((session) => [session.id, session]));
+	return memories.map((memory) => {
+		if (memory.namespaceId && memory.namespaceLabel) return memory;
+		const source = bySession.get(memory.sessionId);
+		if (!source?.ownedWorkspaceId) return memory;
+		return {
+			...memory,
+			namespaceId: memory.namespaceId ?? source.ownedWorkspaceId,
+			namespaceLabel: memory.namespaceLabel ?? source.title,
+		};
+	});
+}
+
 /**
  * Rank the session-accessible memories against `query`, returning the top matches (highest score first).
  * Uses cosine similarity when both the query and a memory have embeddings; otherwise lexical token overlap.
  * Zero-score memories are dropped so an unrelated query recalls nothing.
  */
 export async function recallChatMemories(
-	input: { query: string; sessionId: string; memories: readonly ChatMemory[]; limit?: number; allProjects?: boolean },
+	input: {
+		query: string;
+		sessionId: string;
+		memories: readonly ChatMemory[];
+		limit?: number;
+		allProjects?: boolean;
+		defaultNamespaceId?: string | null;
+		namespaceHints?: readonly MemoryNamespaceRef[];
+		namespaceDecision?: MemoryNamespaceDecision;
+	},
 	deps: ChatMemoryRecallDeps = {},
 ): Promise<ChatMemoryRecall[]> {
-	const accessible = accessibleChatMemories(input.memories, input.sessionId, {
-		...(input.allProjects ? { allProjects: true } : {}),
+	const namespaces = input.namespaceHints ?? [
+		...new Map(
+			input.memories.flatMap((memory) =>
+				memory.namespaceId && memory.namespaceLabel
+					? [[memory.namespaceId, { id: memory.namespaceId, label: memory.namespaceLabel }] as const]
+					: [],
+			),
+		).values(),
+	];
+	const namespaceDecision =
+		input.namespaceDecision ??
+		resolveMemoryNamespaceDecision({
+			query: input.query,
+			namespaces,
+			defaultNamespaceId: input.defaultNamespaceId,
+		});
+	const accessible = filterChatMemoriesForRecall({
+		memories: input.memories,
+		sessionId: input.sessionId,
+		allProjects: input.allProjects === true,
+		decision: namespaceDecision,
 	});
+	const retrievalQuery = input.allProjects ? namespaceDecision.retrievalQuery : input.query;
 	const queryEmbedding = Object.hasOwn(deps, "queryEmbedding")
 		? (deps.queryEmbedding ?? null)
 		: deps.embed
-			? await deps.embed(input.query)
+			? await deps.embed(retrievalQuery)
 			: null;
 	if (deps.requireEmbedding && (!queryEmbedding || !deps.embeddingModelId)) {
 		return [];
@@ -314,7 +382,7 @@ export async function recallChatMemories(
 			? cosineSimilarity(queryEmbedding ?? [], memory.embedding ?? [])
 			: deps.requireEmbedding
 				? 0
-				: lexicalSimilarity(input.query, memory.text);
+				: lexicalSimilarity(retrievalQuery, memory.text);
 		return { ...memory, score };
 	});
 	const ranked = scored

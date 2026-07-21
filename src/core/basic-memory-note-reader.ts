@@ -20,6 +20,12 @@ export interface BasicMemoryRecallSource {
 	title: string;
 	/** The note body (frontmatter stripped). */
 	body: string;
+	/** Workspace/project identity supplied by the caller that owns this root. */
+	namespaceId?: string;
+	/** User-legible project name used to resolve an explicitly addressed namespace. */
+	namespaceLabel?: string;
+	/** Global notes are deliberately shared and remain eligible beside a selected project namespace. */
+	shared?: boolean;
 }
 
 /** Drop a leading YAML frontmatter block, returning just the note body. Mirrors {@link readPermalink}'s cheap scan. */

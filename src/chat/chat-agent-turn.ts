@@ -65,6 +65,8 @@ export interface ChatAgentTurnDeps {
 	embeddingModelId?: string;
 	/** Retained embedding-backed cross-project evidence is invalid if recall falls back to lexical ranking. */
 	requireEmbedding?: boolean;
+	/** Active project fallback when an all-projects query does not explicitly name another known namespace. */
+	defaultMemoryNamespaceId?: string;
 	/** The agent model: prompt + whether tools are offered → text + requested tool calls. `onToken` is passed only on
 	 *  the final (no-tool) answer call (hybrid streaming, todo §5.M G3a) — the model streams the reply when it can. */
 	model: (
@@ -169,6 +171,7 @@ export async function runChatAgentTurn(
 			...(deps.embed ? { embed: deps.embed } : {}),
 			...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
 			...(deps.requireEmbedding ? { requireEmbedding: true } : {}),
+			...(deps.defaultMemoryNamespaceId ? { defaultMemoryNamespaceId: deps.defaultMemoryNamespaceId } : {}),
 		},
 	);
 	// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY; deps override for tests), relevance-gated

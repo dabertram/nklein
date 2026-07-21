@@ -8,6 +8,7 @@ import {
 	selectMemoryBand,
 	type UnifiedMemoryRecord,
 } from "./chat-memory-projection.js";
+import { type MemoryNamespaceRef, resolveMemoryNamespaceDecision } from "./chat-memory-retrieval-policy.js";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store.js";
 
 export interface UnifiedMemoryRecallResult {
@@ -31,6 +32,8 @@ export async function recallUnifiedMemoryBand(
 		basicMemorySources?: readonly BasicMemoryRecallSource[];
 		focusChainSteps?: readonly FocusChainStepInput[];
 		allProjects?: boolean;
+		defaultNamespaceId?: string | null;
+		namespaceHints?: readonly MemoryNamespaceRef[];
 		chatMemoryLimit?: number;
 		basicMemoryLimit?: number;
 		bandOptions?: MemoryBandOptions;
@@ -41,7 +44,24 @@ export async function recallUnifiedMemoryBand(
 		requireEmbedding?: boolean;
 	} = {},
 ): Promise<UnifiedMemoryRecallResult> {
-	const queryEmbedding = deps.requireEmbedding ? (deps.embed ? await deps.embed(input.query) : null) : undefined;
+	const namespaces = [
+		...input.chatMemories.flatMap((memory) =>
+			memory.namespaceId && memory.namespaceLabel ? [{ id: memory.namespaceId, label: memory.namespaceLabel }] : [],
+		),
+		...(input.basicMemorySources ?? []).flatMap((source) =>
+			source.namespaceId && source.namespaceLabel ? [{ id: source.namespaceId, label: source.namespaceLabel }] : [],
+		),
+		// Runtime registry hints are authoritative for a workspace id; place them last so a renamed/generic chat title
+		// cannot override the registered display name used to resolve an explicitly addressed project.
+		...(input.namespaceHints ?? []),
+	];
+	const namespaceDecision = resolveMemoryNamespaceDecision({
+		query: input.query,
+		namespaces: [...new Map(namespaces.map((entry) => [entry.id, entry])).values()],
+		defaultNamespaceId: input.defaultNamespaceId,
+	});
+	const retrievalQuery = input.allProjects ? namespaceDecision.retrievalQuery : input.query;
+	const queryEmbedding = deps.requireEmbedding ? (deps.embed ? await deps.embed(retrievalQuery) : null) : undefined;
 	// The retained broadening verdict is for this exact embedding-backed composition. If that mode is unavailable,
 	// withhold the whole widened band — including lexical Basic Memory/layer candidates — instead of mixing in an
 	// unbenchmarked fallback while claiming the retained profile still applies.
@@ -60,17 +80,29 @@ export async function recallUnifiedMemoryBand(
 			memories: input.chatMemories,
 			limit: input.chatMemoryLimit ?? 12,
 			...(input.allProjects ? { allProjects: true } : {}),
+			...(input.defaultNamespaceId ? { defaultNamespaceId: input.defaultNamespaceId } : {}),
+			namespaceHints: namespaces,
+			namespaceDecision,
 		},
 		{
 			...deps,
 			...(deps.requireEmbedding ? { queryEmbedding: queryEmbedding ?? null } : {}),
 		},
 	);
+	const allowedNamespaces = new Set(namespaceDecision.allowedNamespaceIds);
+	const eligibleBasicMemorySources = input.allProjects
+		? (input.basicMemorySources ?? []).filter(
+				(source) => source.shared || Boolean(source.namespaceId && allowedNamespaces.has(source.namespaceId)),
+			)
+		: (input.basicMemorySources ?? []);
 	const rankedBasicMemoryNotes = rankBasicMemoryNotesForRecall(
-		input.basicMemorySources ?? [],
-		input.query,
+		eligibleBasicMemorySources,
+		retrievalQuery,
 		input.basicMemoryLimit ?? 6,
 	);
+	const eligibleLayerRecords = input.allProjects
+		? (input.layerRecords ?? []).filter((record) => !record.namespaceId || allowedNamespaces.has(record.namespaceId))
+		: input.layerRecords;
 	const candidates = projectUnifiedMemory({
 		sessionMemories: recalledSessionMemories.map((entry) => ({
 			id: entry.id,
@@ -78,7 +110,7 @@ export async function recallUnifiedMemoryBand(
 			score: entry.score,
 			shared: entry.shared,
 		})),
-		...(input.layerRecords ? { layerRecords: input.layerRecords } : {}),
+		...(eligibleLayerRecords ? { layerRecords: eligibleLayerRecords } : {}),
 		basicMemoryNotes: rankedBasicMemoryNotes,
 		...(input.focusChainSteps ? { focusChainSteps: input.focusChainSteps } : {}),
 	});

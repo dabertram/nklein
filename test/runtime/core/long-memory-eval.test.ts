@@ -6,6 +6,7 @@ import {
 	buildLongMemoryStoreProfile,
 	decideMemoryScopeBroadening,
 	evaluateLongMemoryBenchmark,
+	isLongMemoryEvalVerdictFresh,
 	type LongMemoryEvalRanker,
 	readLongMemoryEvalRetainedVerdict,
 } from "../../../src/core/long-memory-eval";
@@ -147,5 +148,11 @@ describe("decideMemoryScopeBroadening", () => {
 		});
 		expect(readLongMemoryEvalRetainedVerdict([first], "reader-b", storeProfile)).toBeNull();
 		expect(readLongMemoryEvalRetainedVerdict([first], "reader-a", buildLongMemoryStoreProfile(null))).toBeNull();
+	});
+
+	it("expires time-stale and future-dated retained evidence", () => {
+		expect(isLongMemoryEvalVerdictFresh({ evaluatedAt: 900 }, 1_000, 100)).toBe(true);
+		expect(isLongMemoryEvalVerdictFresh({ evaluatedAt: 899 }, 1_000, 100)).toBe(false);
+		expect(isLongMemoryEvalVerdictFresh({ evaluatedAt: 1_001 }, 1_000, 100)).toBe(false);
 	});
 });

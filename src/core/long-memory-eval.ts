@@ -287,7 +287,9 @@ export function decideMemoryScopeBroadening(input: {
 export const LONG_MEMORY_EVAL_DECISION = "long_memory_eval";
 export const LONG_MEMORY_EVAL_WORKFLOW_ID = "long-memory-eval";
 /** Bump whenever the production recall composition/ranking semantics change; old evidence must then fail closed. */
-export const LONG_MEMORY_RECALL_STACK_VERSION = "unified-chat-memory-v1";
+export const LONG_MEMORY_RECALL_STACK_VERSION = "unified-chat-memory-v2";
+/** Re-run cheap live memory evidence weekly so a changed local runtime/model cannot inherit an old pass indefinitely. */
+const LONG_MEMORY_EVAL_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
 
 /** The exact recall implementation paired with a reader model in retained evidence. */
 export function buildLongMemoryStoreProfile(embeddingModelId: string | null): string {
@@ -305,6 +307,18 @@ export interface LongMemoryEvalRetainedVerdict {
 	abstainAccuracy: number;
 	dimensionPassRate: Record<LongMemoryEvalDimension, number>;
 	evaluatedAt: number;
+}
+
+export function isLongMemoryEvalVerdictFresh(
+	verdict: Pick<LongMemoryEvalRetainedVerdict, "evaluatedAt">,
+	now = Date.now(),
+	maxAgeMs = LONG_MEMORY_EVAL_MAX_AGE_MS,
+): boolean {
+	return (
+		Number.isFinite(verdict.evaluatedAt) &&
+		verdict.evaluatedAt <= now &&
+		now - verdict.evaluatedAt <= Math.max(0, maxAgeMs)
+	);
 }
 
 export function buildLongMemoryEvalRetainedVerdict(input: {

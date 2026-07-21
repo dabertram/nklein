@@ -46,6 +46,7 @@ export async function composeChatTurnContext(
 		embed?: (text: string) => Promise<number[] | null>;
 		embeddingModelId?: string;
 		requireEmbedding?: boolean;
+		defaultMemoryNamespaceId?: string;
 		summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	},
 ): Promise<ChatTurnContext> {
@@ -66,6 +67,7 @@ export async function composeChatTurnContext(
 			memories: input.memories,
 			limit: input.memoryLimit ?? 5,
 			...(input.allProjects ? { allProjects: true } : {}),
+			...(deps.defaultMemoryNamespaceId ? { defaultNamespaceId: deps.defaultMemoryNamespaceId } : {}),
 		},
 		{
 			...(deps.embed ? { embed: deps.embed } : {}),

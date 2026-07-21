@@ -33,6 +33,7 @@ import {
 	accessibleChatMemories,
 	appendChatMemory,
 	deleteChatMemory,
+	enrichChatMemoryNamespaces,
 	readChatMemories,
 	writeConsolidatedMemories,
 } from "./chat-memory-store";
@@ -295,6 +296,13 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		...(now ? { now } : {}),
 	};
 	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
+	const readNamespacedChatMemories = async () => {
+		const [memories, sessions] = await Promise.all([
+			readChatMemories(memoryOptions),
+			listChatSessions(sessionOptions),
+		]);
+		return enrichChatMemoryNamespaces(memories, sessions);
+	};
 	// F2.7b: sent images live out-of-band from the transcript (own subdir) so the lean-window read stays lean.
 	const imageOptions = rootDir ? { rootDir: join(rootDir, "images") } : {};
 	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
@@ -338,7 +346,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 	 * a failed extraction/persist never touches the turn's result. Covers BOTH turn paths (tool-using + plain).
 	 */
 	const maybeConsolidateSessionMemories = async (
-		sessionId: string,
+		session: ChatSession,
 		summary: string | null,
 		modelDeps: ChatModelDeps,
 		embedder: ChatMemoryEmbedder | null,
@@ -347,18 +355,20 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			return;
 		}
 		try {
-			const existingMemories = await readChatMemories(memoryOptions);
+			const existingMemories = await readNamespacedChatMemories();
 			await writeConsolidatedMemories(
-				{ sessionId, summary, existingMemories },
+				{ sessionId: session.id, summary, existingMemories },
 				{
 					extract: modelDeps.extractMemories,
 					persist: async (memory) => {
 						await appendChatMemory(
 							{
-								sessionId,
+								sessionId: session.id,
 								text: memory.text,
 								embedding: memory.embedding,
 								embeddingModelId: memory.embeddingModelId,
+								namespaceId: session.ownedWorkspaceId,
+								namespaceLabel: session.ownedWorkspaceId ? session.title : null,
 							},
 							memoryOptions,
 						);
@@ -509,7 +519,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		getSessionMemory: async (sessionId) => {
 			// F2.9b: the deletable, high-value source first — the session's own + shared chat memories, unified with
 			// provenance. (The §5.M four-layer + Basic-Memory sources compose in later, when their turn-feed lands.)
-			const memories = accessibleChatMemories(await readChatMemories(memoryOptions), sessionId);
+			const memories = accessibleChatMemories(await readNamespacedChatMemories(), sessionId);
 			return projectUnifiedMemory({
 				sessionMemories: memories.map((memory) => ({
 					id: memory.id,
@@ -553,12 +563,13 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
 					const storeDeps = {
 						readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
-						readMemories: () => readChatMemories(memoryOptions),
+						readMemories: () => readNamespacedChatMemories(),
 						appendMessage: (
 							sessionId: string,
 							message: { role: ChatMessage["role"]; content: string; meta?: ChatMessage["meta"] },
 						) => appendChatMessage(sessionId, message, transcriptOptions),
 						estimateTokens,
+						...(session.ownedWorkspaceId ? { defaultMemoryNamespaceId: session.ownedWorkspaceId } : {}),
 						...(memoryEmbedder ? { embed: memoryEmbedder.embed, embeddingModelId: memoryEmbedder.modelId } : {}),
 						...(memoryScope.accessAllOptIn && memoryEmbedder ? { requireEmbedding: true } : {}),
 						...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
@@ -852,7 +863,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						}
 						// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
 						await maybeConsolidateSessionMemories(
-							session.id,
+							session,
 							agentResult.context.summary,
 							modelDeps,
 							memoryEmbedder,
@@ -888,7 +899,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						},
 					);
 					// §5.M: same best-effort memory consolidation for the plain (non-tool) turn path.
-					await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps, memoryEmbedder);
+					await maybeConsolidateSessionMemories(session, result.context.summary, modelDeps, memoryEmbedder);
 					return {
 						userMessage: toRuntimeChatMessage(result.userMessage),
 						assistantMessage: toRuntimeChatMessage(result.assistantMessage),
@@ -973,10 +984,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
 				const storeDeps = {
 					readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
-					readMemories: () => readChatMemories(memoryOptions),
+					readMemories: () => readNamespacedChatMemories(),
 					appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
 						appendChatMessage(sessionId, message, transcriptOptions),
 					estimateTokens,
+					...(session.ownedWorkspaceId ? { defaultMemoryNamespaceId: session.ownedWorkspaceId } : {}),
 					...(memoryEmbedder ? { embed: memoryEmbedder.embed, embeddingModelId: memoryEmbedder.modelId } : {}),
 					...(memoryScope.accessAllOptIn && memoryEmbedder ? { requireEmbedding: true } : {}),
 					...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
@@ -1027,7 +1039,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
 						}
 						// §5.M: consolidate each autonomous turn's rolled-up summary into durable memory (best-effort, flag-gated).
-						await maybeConsolidateSessionMemories(session.id, turn.context.summary, modelDeps, memoryEmbedder);
+						await maybeConsolidateSessionMemories(session, turn.context.summary, modelDeps, memoryEmbedder);
 						return { finalText: turn.assistantMessage.content, steps: turn.steps };
 					},
 					readPlanProgress: () => readAutonomousChatPlanProgress(session.id),

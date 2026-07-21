@@ -1031,6 +1031,21 @@
   answers/controls PASS, but abstention `0`, relevance `0.667`, contradiction/privacy/recency `0`; broadening
   therefore remains closed and the retrieval defect continues as F2.10c. Typecheck + full suite green
   (1,259 files passed/1 skipped; 12,295 tests passed/1 skipped).
+- [x] **F2.10c — the production recall stack now passes all retained scope-broadening dimensions without fixture
+  special cases** *(delivered 2026-07-21).* `chat-memory-retrieval-policy.ts` resolves explicitly named projects
+  from registered workspace/session labels (or the active project fallback), strips namespace words before relevance
+  scoring, excludes unresolved private namespaces, and infers only high-signal same-project knowledge updates (newer
+  `changed`/`migrated`/`replaced` facts repeating at least two meaningful old-fact tokens). Chat-memory rows now carry
+  workspace identity, legacy rows are enriched from their authoring session, Basic Memory sources are tagged from
+  registered runtime-owned roots, and ledger-derived episodic/working records carry namespaces through the shared
+  composer. Store semantics bumped to `unified-chat-memory-v2`; v1 evidence cannot authorize it. Passing evidence
+  expires after seven days, and missing/failed/future/stale evidence plus embedding outages all fail closed. The exact
+  shared composer has a hermetic all-dimension regression. LIVE, sequential, resident-only runs retained PASS for all
+  four available lexical pairs — `qwen/qwen3.6-35b-a3b`, `google/gemma-4-31b-qat`,
+  `qwopus3.5-9b-coder-mlx@8bit`, and `qwen/qwen2.5-coder-14b`: recall/abstention and every
+  relevance/contradiction/privacy/recency dimension `1.0`; reader answers + negative controls PASS. No model was loaded,
+  downloaded, unloaded, or replaced. Typecheck + full suite green (1,261 files passed/1 skipped; 12,304 tests
+  passed/1 skipped).
 - [x] **F2.12a — typed host-action confirmation descriptor + filterable audit projection** *(delivered
   2026-07-13; the dialog + history UI are F2.12b in todo).* `src/chat/chat-confirmation-description.ts`:
   `describeHostActionConfirmation` produces the five F2.12 fields a confirmation must name — action, target

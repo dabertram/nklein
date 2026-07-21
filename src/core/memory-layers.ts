@@ -35,11 +35,14 @@ export interface MemoryRecord {
 	salience: number;
 	/** Where it came from (for "why recalled" surfacing + audit). */
 	provenance: string;
+	/** Workspace identity for project-bound records; absent means deliberately global/session-local. */
+	namespaceId?: string;
 }
 
 /** The live task state the WORKING layer projects — injected by the caller (the runtime's current state). */
 export interface WorkingMemorySnapshot {
 	taskId?: string | null;
+	namespaceId?: string | null;
 	/** The active objective/goal in one line. */
 	activeGoal?: string | null;
 	/** The step the agent is currently on (e.g. the in-progress focus-chain step). */
@@ -65,6 +68,7 @@ export function projectWorkingMemory(snapshot: WorkingMemorySnapshot): MemoryRec
 			recordedAt: null,
 			salience: 1,
 			provenance: snapshot.taskId ? `task ${snapshot.taskId}` : "active task",
+			...(snapshot.namespaceId ? { namespaceId: snapshot.namespaceId } : {}),
 		});
 	}
 	const step = snapshot.currentStep?.trim();
@@ -76,6 +80,7 @@ export function projectWorkingMemory(snapshot: WorkingMemorySnapshot): MemoryRec
 			recordedAt: null,
 			salience: 0.95,
 			provenance: snapshot.taskId ? `task ${snapshot.taskId}` : "active task",
+			...(snapshot.namespaceId ? { namespaceId: snapshot.namespaceId } : {}),
 		});
 	}
 	return records;
@@ -111,6 +116,7 @@ export function projectEpisodicMemory(
 			recordedAt: event.recordedAt,
 			salience: clamp01(recencyRank + (failed ? 0.1 : 0)),
 			provenance: `ledger attempt ${event.attemptId}`,
+			namespaceId: event.workspacePathHash,
 		};
 	});
 }

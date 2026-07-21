@@ -35,6 +35,8 @@ export interface ChatRuntimeDeps {
 	embeddingModelId?: string;
 	/** Retained embedding-backed cross-project evidence is invalid if recall falls back to lexical ranking. */
 	requireEmbedding?: boolean;
+	/** Active project fallback when an all-projects query does not explicitly name another known namespace. */
+	defaultMemoryNamespaceId?: string;
 	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
 	now?: () => Date;
 	/**
@@ -89,6 +91,7 @@ export async function runChatTurn(
 			...(deps.embed ? { embed: deps.embed } : {}),
 			...(deps.embeddingModelId ? { embeddingModelId: deps.embeddingModelId } : {}),
 			...(deps.requireEmbedding ? { requireEmbedding: true } : {}),
+			...(deps.defaultMemoryNamespaceId ? { defaultMemoryNamespaceId: deps.defaultMemoryNamespaceId } : {}),
 		},
 	);
 	// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY; overridable via deps for tests) and
