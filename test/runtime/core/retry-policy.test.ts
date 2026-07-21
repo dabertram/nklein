@@ -3,6 +3,7 @@ import { buildFailureCapsule } from "../../../src/core/failure-capsule";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 import { emptyModelBehaviorProfile } from "../../../src/core/model-behavior-profile";
 import {
+	createRetryStrategyCursor,
 	decideNextRetryStrategy,
 	planNextAttempt,
 	raisedTokenBudget,
@@ -38,7 +39,7 @@ describe("decideNextRetryStrategy", () => {
 			retryBudget: 5,
 			triedStrategies: ["raise_token_budget", "reduced_tool_set", "constrained_schema"],
 		});
-		expect(d.strategy).toBe("alternate_endpoint");
+		expect(d.strategy).toBe("prompt_variant");
 	});
 
 	it("offers thinking_disable only when the caller proves the model supports its soft switch", () => {
@@ -50,6 +51,31 @@ describe("decideNextRetryStrategy", () => {
 		};
 		expect(decideNextRetryStrategy(base).strategy).toBe("reduced_tool_set");
 		expect(decideNextRetryStrategy({ ...base, supportsThinkingControl: true }).strategy).toBe("thinking_disable");
+	});
+
+	it("skips rungs the caller cannot execute for the current turn", () => {
+		const decision = decideNextRetryStrategy({
+			lastOutcome: "no_tool_call",
+			attemptsSoFar: 0,
+			retryBudget: 5,
+			triedStrategies: [],
+			availableStrategies: ["reduced_tool_set", "prompt_variant", "constrained_schema"],
+		});
+		expect(decision.strategy).toBe("reduced_tool_set");
+	});
+
+	it("dispatches available rungs in policy order without circles", () => {
+		const cursor = createRetryStrategyCursor({
+			outcome: "no_tool_call",
+			availableStrategies: ["raise_token_budget", "thinking_disable", "reduced_tool_set"],
+			supportsThinkingControl: true,
+		});
+		expect(cursor.claim("reduced_tool_set")).toBe(false);
+		expect(cursor.claim("raise_token_budget")).toBe(true);
+		cursor.recordCoalesced("thinking_disable");
+		expect(cursor.claim("thinking_disable")).toBe(false);
+		expect(cursor.claim("reduced_tool_set")).toBe(true);
+		expect(cursor.claim("reduced_tool_set")).toBe(false);
 	});
 
 	it("parks when the learned retry budget is exhausted", () => {

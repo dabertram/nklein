@@ -515,6 +515,7 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		const model = createChatAgentModel(client, SIX_TOOLS);
 		const result = await model([{ role: "user", content: 'Use create_card to make a card titled "X".' }], true);
 		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		expect(result.promptStrategy).toBe("reduced_tool_set");
 		// First attempt offered all 6; the retry offered just the 1 referenced tool (grounded: phi works with 1).
 		expect(offeredCounts).toEqual([6, 1]);
 	});
@@ -579,6 +580,7 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		const model = createChatAgentModel(client, SIX_TOOLS, { sampling: { temperature: 0, maxTokens: 1024 } });
 		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
 		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		expect(result.promptStrategy).toBe("raise_token_budget");
 		// The retry used a BIGGER budget than the first attempt (3× = 3072).
 		expect(budgets[0]).toBe(1024);
 		expect(budgets[1]).toBe(3072);

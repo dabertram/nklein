@@ -2035,3 +2035,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   `NKLEIN_SWARM_PROMPT_VARIATION=off` as a kill switch. Pure policy, recovery observer, live SDK-wrapper, and
   task-role propagation regressions pass; typecheck is green, and the full repository suite passes 1,262 files/1
   skipped and 12,316 tests/1 skipped.
+
+- [x] **F3.8a/F3.8 — measure and adopt the shared retry-policy engine on chat** *(delivered 2026-07-21).* The divergence
+  audit first proved that a literal rewire would have deleted chat's field-earned cheapest recoveries. The policy now
+  represents the full cost-ranked no-tool-call sequence — raise the token budget, disable optional thinking when the
+  model supports it, reduce the tool set, vary the prompt, then constrain the schema — and callers can advertise only
+  the rungs executable for that turn. A shared stateful cursor owns rung ordering, the hard strategy budget, and
+  no-circles bookkeeping; chat retains provider-specific executors and its append-continuation streaming semantics.
+  The existing combined budget-raise/thinking-disable provider call is explicitly recorded as two coalesced rungs, so
+  adoption adds no redundant model invocation. The requirement-coverage audit now reports all three F3.8 elements
+  live. A permanent real-model proof forced the baseline no-call and observed the engine-selected reduced-tool retry
+  land `read_file` on all four resident LM Studio models without loading, unloading, or downloading anything. Focused
+  policy/chat tests, typecheck, simulator tests, and the full suite pass: 1,262 files/1 skipped and 12,319 tests/1 skipped.

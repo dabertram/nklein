@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Chat retries now follow one bounded policy instead of a separate implicit ladder.** !Klein preserves the proven
+  recovery order for local models—more output room, optional thinking suppression, fewer tools, clearer phrasing, then
+  constrained output—while skipping strategies that cannot apply to the current turn and never circling back to an
+  attempted rung. Existing streaming continuation behavior is unchanged. A repeatable live check recovered the
+  requested tool call on every currently resident LM Studio model.
+
 - **Local swarm models get one precise second chance when they explain instead of acting.** If a worker, architect, or
   reviewer cleanly stops without making the tool call its task clearly requires, !Klein retries once with a short
   role-specific framing. The original failed turn is replaced, stable prompt history remains cacheable, ambiguous prose

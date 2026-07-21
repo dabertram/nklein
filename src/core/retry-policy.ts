@@ -41,14 +41,14 @@ export type RetryStrategy =
 const RELEVANT_STRATEGIES_BY_OUTCOME: Record<ModelOutcomeKind, readonly RetryStrategy[]> = {
 	success: [],
 	// The model didn't emit a tool call: first remove output starvation (and disable optional thinking when supported),
-	// then shrink the menu, force the shape, try a more-structured endpoint, and reword.
+	// then shrink the menu, reword, force the shape, and try a more-structured endpoint.
 	no_tool_call: [
 		"raise_token_budget",
 		"thinking_disable",
 		"reduced_tool_set",
+		"prompt_variant",
 		"constrained_schema",
 		"alternate_endpoint",
-		"prompt_variant",
 		"cross_model_carry",
 	],
 	// It narrated the call as prose: recovery usually catches it; otherwise force the shape / try the native endpoint.
@@ -80,6 +80,8 @@ export interface RetryDecisionInput {
 	triedStrategies: readonly RetryStrategy[];
 	/** Whether this model has a verified soft switch for the `thinking_disable` rung. Unknown defaults to unsupported. */
 	supportsThinkingControl?: boolean;
+	/** Rungs this caller can actually execute for the current turn. Omitted means every relevant rung is available. */
+	availableStrategies?: readonly RetryStrategy[];
 }
 
 export interface RetryDecision {
@@ -104,7 +106,11 @@ export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecisio
 		};
 	}
 	const tried = new Set<RetryStrategy>(input.triedStrategies);
+	const available = input.availableStrategies ? new Set(input.availableStrategies) : null;
 	for (const strategy of RELEVANT_STRATEGIES_BY_OUTCOME[input.lastOutcome]) {
+		if (available && !available.has(strategy)) {
+			continue;
+		}
 		if (strategy === "thinking_disable" && input.supportsThinkingControl !== true) {
 			continue;
 		}
@@ -118,6 +124,48 @@ export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecisio
 	return {
 		strategy: "park",
 		reason: `No untried ladder rung remains for a "${input.lastOutcome}" outcome — escalate.`,
+	};
+}
+
+export interface RetryStrategyCursor {
+	/** Claim the next engine-selected rung. An out-of-order claim is rejected without advancing the cursor. */
+	claim(strategy: RetryStrategy): boolean;
+	/** Record a rung executed in the same provider call as another rung, preserving no-circles bookkeeping. */
+	recordCoalesced(strategy: RetryStrategy): void;
+}
+
+/**
+ * Stateful bounded dispatcher over the pure retry-policy decision core. Callers advertise only the rungs they can
+ * execute for the current attempt, then guard each executor with `claim`. This keeps ordering, no-circles, and the
+ * strategy budget in one shared controller while leaving provider-specific effects at their owning seam.
+ */
+export function createRetryStrategyCursor(input: {
+	outcome: ModelOutcomeKind;
+	availableStrategies: readonly RetryStrategy[];
+	supportsThinkingControl?: boolean;
+	retryBudget?: number;
+}): RetryStrategyCursor {
+	const triedStrategies: RetryStrategy[] = [];
+	const retryBudget = input.retryBudget ?? Math.max(1, input.availableStrategies.length);
+	return {
+		claim(strategy) {
+			const decision = decideNextRetryStrategy({
+				lastOutcome: input.outcome,
+				attemptsSoFar: triedStrategies.length,
+				retryBudget,
+				triedStrategies,
+				availableStrategies: input.availableStrategies,
+				supportsThinkingControl: input.supportsThinkingControl,
+			});
+			if (decision.strategy !== strategy) return false;
+			triedStrategies.push(strategy);
+			return true;
+		},
+		recordCoalesced(strategy) {
+			if (input.availableStrategies.includes(strategy) && !triedStrategies.includes(strategy)) {
+				triedStrategies.push(strategy);
+			}
+		},
 	};
 }
 
@@ -154,6 +202,7 @@ export function planNextAttempt(input: {
 	profile: ModelBehaviorProfile;
 	capsules: readonly FailureCapsule[];
 	supportsThinkingControl?: boolean;
+	availableStrategies?: readonly RetryStrategy[];
 	retryBudgetOptions?: RetryBudgetOptions;
 }): NextAttemptPlan {
 	const retryBudget = learnedRetryBudget(input.profile, input.retryBudgetOptions);
@@ -163,6 +212,7 @@ export function planNextAttempt(input: {
 		retryBudget,
 		triedStrategies: input.capsules.map((capsule) => capsule.strategy),
 		supportsThinkingControl: input.supportsThinkingControl,
+		availableStrategies: input.availableStrategies,
 	});
 	return {
 		strategy: decision.strategy,
@@ -185,8 +235,8 @@ export function planNextAttempt(input: {
  * Pure. WIRED (2026-07-07 verify): `raise_token_budget` already heads the `aborted` ladder in
  * `RELEVANT_STRATEGIES_BY_OUTCOME`, and the chat model-call seam already applies this to the truncation-retry
  * `maxTokens` (see `raisedTokenBudget` usage in chat-local-llm-adapter). The remaining engine-adoption gap is that the
- * chat seam runs its own live-tuned INLINE ladder rather than routing rung choice through `decideNextRetryStrategy` —
- * a behavior-changing rewire that needs representative cross-model validation (todo.md F3.8–F3.11 and H7.5–H7.11).
+ * chat seam now routes its live-tuned executors through `createRetryStrategyCursor`; swarm adoption and learned
+ * ordering remain separately tracked by F3.10–F3.11.
  */
 export function raisedTokenBudget(input: { current: number; attempt: number; ceiling?: number }): number {
 	const base = Math.max(1, Math.trunc(input.current));

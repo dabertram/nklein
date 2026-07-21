@@ -6,7 +6,7 @@
  * run them — which is what they were, sitting in cores with no consumer.
  *
  *  - **F3.8** (adopt the retry engine on chat): `auditChatLadderAdoption` reports whether the engine's ladders
- *    cover what chat's live-tuned inline ladder already does. Today they do not, so adopting would REGRESS.
+ *    cover what chat's live-tuned executors do. This gate turned green before the shared controller was connected.
  *  - **F4.8** (end-of-context re-anchors): `auditReanchorPaths` reports which of the four required elements
  *    actually reach a live prompt. Today two do.
  *
@@ -15,9 +15,8 @@
  * it still a rewrite that would lose something?* Both are the kind of check that gets skipped precisely because
  * running it requires knowing it exists. A named command is the difference.
  *
- * Both are expected to FAIL today, and the command exits non-zero when they do. That is the honest state, not a
- * defect: each gate is pinned by a test asserting it currently blocks, and the day a gate passes is the signal
- * that its item became a wire.
+ * The command exits non-zero while either precondition fails. A blocked gate is an honest state, not a defect; a
+ * transition to green is the signal that its item can proceed without deleting field-earned behaviour.
  */
 
 import { auditReanchorPaths, OBSERVED_REANCHOR_PATHS } from "../core/reanchor-coverage";
@@ -44,9 +43,8 @@ export async function runDevGatesCommand(options: { json?: boolean }): Promise<v
 
 	if (!retryLadder.safeToAdopt || !reanchor.passed) {
 		process.stdout.write(
-			"A BLOCKED gate is not a defect — it is the precondition doing its job. Each is pinned by a test that\n" +
-				"asserts it currently blocks, so the day a gate passes is the signal its item became a wire rather than\n" +
-				"a rewrite that would lose something.\n",
+			"A BLOCKED gate is not a defect — it is the precondition doing its job. Each transition is pinned by\n" +
+				"tests, so a gate may turn green only when its implementation preserves every observed behavior.\n",
 		);
 		process.exitCode = 1;
 	}

@@ -6,7 +6,7 @@ import { downgradeSchemaForProfile } from "../core/provider-schema-downgrade";
 import { schemaProviderFromProviderId, selectProviderSchemaProfile } from "../core/provider-schema-profile";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
-import { raisedTokenBudget } from "../core/retry-policy";
+import { createRetryStrategyCursor, type RetryStrategy, raisedTokenBudget } from "../core/retry-policy";
 import { resolveApiProfileRequest } from "../core/skill-api-profile-request";
 import type { SkillApiProfile } from "../core/skill-registry";
 import { buildTruncationObservation } from "../core/truncation-diagnostics-summary";
@@ -533,33 +533,76 @@ export function createChatAgentModel(
 		// §5.AF: which §5.AA recovery rung produced the returned response (stamped on it for the ledger writer).
 		let appliedPromptStrategy: string | null = null;
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
+		const instruction = lastUserText(messages);
+		const used = new Set(usedToolNames ?? []);
+		const initialAnchor = selectToolsForAttempt(offered, instruction, 1);
+		const initialAnchoredRemaining = initialAnchor.tools.filter((tool) => !used.has(tool.name));
+		const initialOfferedRemaining = offered.filter((tool) => !used.has(tool.name));
+		const initialHasFreshCall = response.toolCalls.some((call) => !used.has(call.name));
+		const baseBudget = sampling.maxTokens ?? 1024;
+		const initialTruncated =
+			response.toolCalls.length === 0 &&
+			deriveTruncationSignal({
+				rawReason: response.finishReason,
+				reasoningTokens: response.reasoningTokens,
+				tokenBudget: baseBudget,
+			}).shouldRetryLarger;
+		const modelSupportsThinkingControl = Boolean(options.modelId && supportsThinkingControl(options.modelId));
+		const availableStrategies: RetryStrategy[] = [];
+		if (allowTools && initialTruncated) {
+			availableStrategies.push("raise_token_budget");
+			if (modelSupportsThinkingControl) availableStrategies.push("thinking_disable");
+		}
+		if (
+			allowTools &&
+			response.toolCalls.length === 0 &&
+			offered.length > 1 &&
+			selectToolsForAttempt(offered, instruction, 1).reduced
+		) {
+			availableStrategies.push("reduced_tool_set");
+		}
+		if (allowTools && response.toolCalls.length === 0 && initialAnchor.matchedNames.length > 0) {
+			availableStrategies.push("prompt_variant");
+		}
+		const constrainedEligible = forceToolCall
+			? initialOfferedRemaining.length > 0 && !initialHasFreshCall
+			: response.toolCalls.length === 0 &&
+				initialAnchor.matchedNames.length > 0 &&
+				initialAnchoredRemaining.length > 0;
+		if (allowTools && client.complete && constrainedEligible) {
+			availableStrategies.push("constrained_schema");
+		}
+		const retryCursor = createRetryStrategyCursor({
+			outcome: "no_tool_call",
+			availableStrategies,
+			supportsThinkingControl: modelSupportsThinkingControl,
+		});
 		// §5.AA truncation rung (the CHEAPEST first recovery): a reasoning model can burn its whole token budget on
 		// reasoning_content and hit `finish:"length"` BEFORE emitting the tool call (live-confirmed: qwen3-8b spent 200
 		// tokens reasoning on a trivial reply). That is a budget truncation, not a complexity failure — so before shrinking
 		// the tool set or forcing a schema, just re-ask once with a larger budget. Fires on a no-call turn that EITHER hit
 		// `finish:"length"` OR whose `reasoningTokens` (§5.AN signal) consumed ≥90% of the budget (robust to endpoints
 		// that report the finish reason differently — reasoning still ate the budget before any call could land).
-		const baseBudget = sampling.maxTokens ?? 1024;
 		// §5.AN: dialect-robust truncation detection via the shared completion-stop-reason core (was the inline
 		// `finishReason === "length" || reasoningTokens ≥ 90%·budget`). Byte-identical on /v1 ("length" ⇒ TruncatedTokens),
 		// and now also catches a non-/v1 truncation stop reason; `shouldRetryLarger` = truncated-stop OR reasoning-starved.
 		if (
 			allowTools &&
 			response.toolCalls.length === 0 &&
-			deriveTruncationSignal({
-				rawReason: response.finishReason,
-				reasoningTokens: response.reasoningTokens,
-				tokenBudget: baseBudget,
-			}).shouldRetryLarger
+			initialTruncated &&
+			retryCursor.claim("raise_token_budget")
 		) {
 			const bumped = { ...sampling, maxTokens: Math.max(baseBudget * 3, 3072) };
 			// If the model has a thinking soft-switch (e.g. Qwen3 `/no_think`), DISABLE thinking on the retry — that removes
 			// the reasoning_content that caused the truncation (the ROOT cause), which is cheaper + more reliable than just
 			// enlarging the budget (live: qwen3 reasoning 965 → 2 chars, tool call still emitted). Else just re-ask bigger.
 			const retryWire =
-				options.modelId && supportsThinkingControl(options.modelId)
+				options.modelId && modelSupportsThinkingControl
 					? replaceLastUserText(wire, applyThinkingDisable(lastUserText(messages), options.modelId))
 					: wire;
+			// The established chat retry applies the budget raise and soft-switch in ONE provider call. Record both engine
+			// rungs as coalesced so selection remains no-circles without adding an identical extra model invocation.
+			if (modelSupportsThinkingControl) retryCursor.recordCoalesced("thinking_disable");
 			response = await client.completeWithTools({ messages: retryWire, sampling: bumped }, offered);
 			// §5.AA escalating truncation retry: if the single (x3) bump STILL truncated (a big reasoner needs more -- live:
 			// the 27B truncated at 1024 and needed ~4096 across escalations), grow the budget via the tested raisedTokenBudget
@@ -598,13 +641,13 @@ export function createChatAgentModel(
 				);
 				escalationBudget = escalated;
 			}
+			if (response.toolCalls.length > 0) appliedPromptStrategy = "raise_token_budget";
 		}
 		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
 		// names a tool it didn't call is likely drowning in tool-set complexity (grounded: phi-4 emits a clean call with
 		// 1 tool but fails with 6). Retry with a progressively narrowed set anchored on the instruction — shrink the ask
 		// instead of re-prompting. Only fires when there is a named-but-uncalled tool to anchor on (else no extra calls).
-		if (offered.length > 1 && response.toolCalls.length === 0) {
-			const instruction = lastUserText(messages);
+		if (offered.length > 1 && response.toolCalls.length === 0 && retryCursor.claim("reduced_tool_set")) {
 			let previousNames: string | null = null;
 			for (let level = 1; level <= MAX_ATTEMPT_SIMPLIFICATION_LEVEL; level += 1) {
 				const selection = selectToolsForAttempt(offered, instruction, level);
@@ -622,6 +665,7 @@ export function createChatAgentModel(
 				previousNames = names;
 				response = await client.completeWithTools({ messages: wire, sampling }, selection.tools);
 				if (response.toolCalls.length > 0) {
+					appliedPromptStrategy = "reduced_tool_set";
 					break;
 				}
 			}
@@ -636,9 +680,8 @@ export function createChatAgentModel(
 		// anchored tool set, giving the model a chance to emit a natural call before we force one. Same proven-safe anchor
 		// (the instruction must NAME an offered tool), so a legit prose answer is never re-phrased into a forced action;
 		// each family breaks on the first call. The instruction text is preserved verbatim — only the framing changes.
-		if (allowTools && response.toolCalls.length === 0) {
-			const instruction = lastUserText(messages);
-			const anchored = selectToolsForAttempt(offered, instruction, 1);
+		if (allowTools && response.toolCalls.length === 0 && retryCursor.claim("prompt_variant")) {
+			const anchored = initialAnchor;
 			if (anchored.matchedNames.length > 0) {
 				const toolName = anchored.matchedNames[0];
 				// §5.AA learned phrasing: try the model's known-responsive family FIRST (its profile's winning mode),
@@ -675,7 +718,6 @@ export function createChatAgentModel(
 		// proven-safe anchor) so we never force a call on a legit prose answer to a non-tool question. On the
 		// `forceToolCall` path the LOOP's evidence-gate is the safety (it only forces while REQUIRED, named tools remain
 		// uncalled), so we may force an UNNAMED-but-offered tool to advance the chain — see the `forceTools` fallback.
-		const used = new Set(usedToolNames ?? []);
 		// Bug-hunt fix (2026-07-05): on the FORCE-ADVANCE path, an upstream rung (truncation / reduced-tool-set / prompt-
 		// variant — all gated on `response.toolCalls.length === 0`) can recover a genuinely NEW, not-yet-used call within
 		// THIS SAME invocation even though `forceToolCall` is set (the PRIMARY call at the top of this function happened
@@ -684,8 +726,13 @@ export function createChatAgentModel(
 		// possibly a DIFFERENT tool than the model chose. Only force when there is still nothing to show for it: no call
 		// at all, OR every call in `response.toolCalls` names an already-used (non-progressing) tool.
 		const hasFreshCall = response.toolCalls.some((call) => !used.has(call.name));
-		if (allowTools && client.complete && (response.toolCalls.length === 0 || (forceToolCall && !hasFreshCall))) {
-			const anchored = selectToolsForAttempt(offered, lastUserText(messages), 1);
+		if (
+			allowTools &&
+			client.complete &&
+			(response.toolCalls.length === 0 || (forceToolCall && !hasFreshCall)) &&
+			retryCursor.claim("constrained_schema")
+		) {
+			const anchored = initialAnchor;
 			// Steer a stalled chain to the NEXT step: drop tools already executed this run from the forced set so a weak
 			// model can't re-pick a done tool (which the loop dedupes → no progress). Prefer the instruction-anchored
 			// remaining tools; when those are exhausted, fall back to ANY offered-but-unused tool (the force-advance path

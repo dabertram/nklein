@@ -1160,7 +1160,7 @@ export function registerDevCommand(program: Command): void {
 			},
 		);
 	dev.command("gates")
-		.description("Which planned changes are SAFE to make yet? Executable preconditions for F3.8 and F4.8.")
+		.description("Executable retry-adoption and context-reanchor coverage gates (F3.8 and F4.8).")
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevGatesCommand(options);

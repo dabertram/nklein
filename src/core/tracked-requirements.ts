@@ -8,10 +8,9 @@
  * **Both are indistinguishable from a healthy run.** No amount of care in `requirement-coverage-audit.ts` can
  * detect either, because both are lies of omission in its INPUT.
  *
- * So this map is seeded deliberately with requirements ALREADY PROVEN to be split — F4.8 and F3.8, both traced on
- * 2026-07-20 with named elements and named unwired providers. **They must come out RED.** A first run that passes
- * cleanly is evidence this map is wrong, not that the codebase is well-wired, and the accompanying test asserts
- * the failure rather than the pass for exactly that reason.
+ * So this map was seeded deliberately with requirements ALREADY PROVEN to be split — F4.8 and F3.8, both traced on
+ * 2026-07-20 with named elements and named unwired providers. They had to start RED; they may turn green only when
+ * their named providers gain a production consumer. A first run that passed cleanly would have proved the map wrong.
  *
  * Element→provider attributions are hand-written and can be wrong or stale. What is NOT hand-written is whether a
  * provider is wired: that comes from the same source scan `dev unwired-cores` uses. The judgement most likely to
@@ -38,8 +37,8 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 		],
 	},
 	{
-		// F3.8 — adopt the retry-policy engine on chat. Traced 2026-07-20: planNextAttempt's only caller is
-		// adaptive-attempt-loop.ts, which itself has zero importers, so rung SELECTION reaches no live path.
+		// F3.8 — adopt the retry-policy engine on chat. The shared decision core now selects the rung and enforces
+		// exhaustion; the shared stateful cursor dispatches those choices at the live chat provider seam.
 		id: "F3.8",
 		elements: [
 			{
@@ -48,9 +47,12 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 			},
 			{
 				element: "rung_selection",
-				providedBy: { module: "adaptive-attempt-loop.ts", symbol: "runAdaptiveAttemptLoop" },
+				providedBy: { module: "retry-policy.ts", symbol: "decideNextRetryStrategy" },
 			},
-			{ element: "ladder_planning", providedBy: { module: "retry-policy.ts", symbol: "planNextAttempt" } },
+			{
+				element: "bounded_rung_dispatch",
+				providedBy: { module: "retry-policy.ts", symbol: "createRetryStrategyCursor" },
+			},
 		],
 	},
 	{

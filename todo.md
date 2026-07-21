@@ -1736,7 +1736,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   ⚠️ `OBSERVED_CHAT_LADDERS` is **transcribed, not imported** — the adapter's ladder is imperative control flow,
   so there is nothing to import and this table CAN drift from the code it describes. That drift is itself part of
   what F3.8 should fix; it is recorded rather than left as a silent assumption.
-- [ ] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
+- [x] **F3.8 — Adopt the retry-policy engine on chat.** Replace inline ladders with the shared bounded controller while
   preserving streaming UX and simulator determinism.
   **RE-SCOPED 2026-07-20 BY F3.8a — this is NOT a wire yet, and treating it as one would delete field-earned
   behaviour.** Two prerequisites, in order: (1) teach the engine `raise_token_budget` on the `no_tool_call`
@@ -1762,7 +1762,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   anything** — it has been correct-looking, not correct-tested. Validate the table itself, not just the swap.
   Related: `adaptive-attempt-loop.ts` is a genuine orphan — add it to **P15.4b**'s keep/drop walk. It is the
   keep-shaped kind (it is what F3.8 would wire), so the honest label is "unwired", not "dead".
-  **AUDIT 2026-07-18: OPEN** — retry-policy engine adopted on the swarm path only (nklein-adaptive-retry-policy); chat still runs its inline ladder (src/chat imports only raisedTokenBudget).
+  **DELIVERED 2026-07-21 — the earlier audits above are the before-state.** The engine learned the missing
+  `raise_token_budget` and capability-gated `thinking_disable` vocabulary, the divergence gate is green, and chat
+  now dispatches its field-proven executors through the shared bounded/no-circles retry cursor. Specialized append-
+  continuation streaming remains unchanged. `dev requirement-coverage` reports all three F3.8 elements live. The
+  permanent live proof recovered `read_file` through the engine-selected `reduced_tool_set` rung on all four
+  resident LM Studio models without model lifecycle changes. Full suite: 1,262 files/1 skipped, 12,319 tests/1 skipped.
 - [x] **F3.9 — Add the vendored model-wrapper seam for swarm turn retries.** Keep the default inert, rebuild the SDK
   reproducibly, and wrap a single stalled turn rather than rerunning a whole session.
   **AUDIT 2026-07-19: THE SEAM EXISTS AND IS LIVE (P0.4)** — `createTransientAbortRecoveryModel` wraps the shared

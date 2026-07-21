@@ -51,8 +51,8 @@ describe("failure-capsule", () => {
 		expect(remaining).toEqual([
 			"raise_token_budget",
 			"thinking_disable",
-			"alternate_endpoint",
 			"prompt_variant",
+			"alternate_endpoint",
 			"cross_model_carry",
 		]);
 		// All tried → empty.

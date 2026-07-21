@@ -132,9 +132,15 @@ export function compareLadders(comparison: LadderComparison): DivergenceReport {
 export const OBSERVED_CHAT_LADDERS: readonly LadderComparison[] = [
 	{
 		// A no-tool-call turn: truncation retry (with thinking-disable when the model has a soft-switch), escalate
-		// the budget while it keeps truncating, then narrow the tool set.
+		// the budget while it keeps truncating, narrow the tool set, vary the prompt, then constrain the schema.
 		outcome: "no_tool_call",
-		chatSequence: ["raise_token_budget", "thinking_disable", "reduced_tool_set"],
+		chatSequence: [
+			"raise_token_budget",
+			"thinking_disable",
+			"reduced_tool_set",
+			"prompt_variant",
+			"constrained_schema",
+		],
 	},
 	{
 		outcome: "aborted",
