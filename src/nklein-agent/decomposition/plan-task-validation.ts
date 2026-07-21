@@ -42,6 +42,12 @@ export function validateTaskSizingContract(task: NKleinPlanTask): void {
 	if (task.testFirst && !task.acceptanceTestPrompt?.trim()) {
 		throw new Error(`Task ${task.id} is test-first but missing an acceptanceTestPrompt.`);
 	}
+	if (task.testFirst && !writeScopeCanContainTest(task)) {
+		const scope = effectiveWriteScope(task).join(", ");
+		throw new Error(
+			`Task ${task.id} is test-first, but its writeScope only permits exact non-test files (${scope}). Add a test file/directory/glob to writeScope (and filesLikelyTouched), or set testFirst to false.`,
+		);
+	}
 	if (task.complexity > MAX_DECOMPOSED_TASK_COMPLEXITY) {
 		throw new Error(
 			`Task ${task.id} has complexity ${Math.round(task.complexity)}/100; split it below ${MAX_DECOMPOSED_TASK_COMPLEXITY}/100 before decomposing.`,
@@ -52,6 +58,31 @@ export function validateTaskSizingContract(task: NKleinPlanTask): void {
 			`Task ${task.id} touches ${task.filesLikelyTouched.length} likely files; split it to ${MAX_DECOMPOSED_TASK_LIKELY_FILES} files or fewer before decomposing.`,
 		);
 	}
+}
+
+function effectiveWriteScope(task: NKleinPlanTask): string[] {
+	const explicit = task.writeScope?.map((path) => path.trim()).filter(Boolean) ?? [];
+	return explicit.length > 0 ? explicit : task.filesLikelyTouched.map((path) => path.trim()).filter(Boolean);
+}
+
+/** A test-first contract must leave the worker somewhere it can actually create or update the promised test. */
+function writeScopeCanContainTest(task: NKleinPlanTask): boolean {
+	const scope = effectiveWriteScope(task);
+	if (scope.length === 0) {
+		return true;
+	}
+	return scope.some((rawPath) => {
+		const path = rawPath.replaceAll("\\", "/").toLowerCase();
+		if (/(^|\/)(?:test|tests|__tests__)(?:\/|$)|\.(?:test|spec)\.[^/]+$/u.test(path)) {
+			return true;
+		}
+		// A directory or glob can contain a co-located test even when its name does not include "test".
+		if (/[*?[\]{}]/u.test(path)) {
+			return true;
+		}
+		const leaf = path.replace(/\/+$/u, "").split("/").at(-1) ?? "";
+		return leaf.length > 0 && !leaf.includes(".");
+	});
 }
 
 /**

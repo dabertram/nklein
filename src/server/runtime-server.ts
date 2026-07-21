@@ -245,7 +245,7 @@ import {
 	evaluateRunningTaskRemediation,
 	evaluateRunningTaskTrouble,
 } from "./task-trouble-monitor";
-import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
+import { hasLiveSessionForTerminalRedrive, shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
 import { applyTriggerCardToBoard, handleTriggerIntake, loadTriggerTemplateFile } from "./trigger-intake-handler";
 import { startExternalTriggerScheduler } from "./trigger-scheduler";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
@@ -1238,13 +1238,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				const activeSessionTaskIds = new Set(
 					service
 						.listSummaries()
-						.filter(
-							(summary) =>
-								summary.state === "running" ||
-								summary.state === "queued" ||
-								summary.state === "paused" ||
-								summary.state === "awaiting_review",
-						)
+						.filter((summary) => hasLiveSessionForTerminalRedrive(summary.state))
 						.map((summary) => summary.taskId),
 				);
 				const sweepTaskIds = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
@@ -1266,6 +1260,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// Multiple terminal summaries can enter this async branch before the result-branch lookup resolves.
 						// Claim after that await as well; otherwise every waiter logs and schedules the supposedly one-shot redrive.
 						if (terminalRedriveAttemptedTaskKeys.has(redriveKey)) {
+							return;
+						}
+						// The targeted decomposition nudger can resume the card while result-branch discovery is in flight.
+						// Re-read service state after the await; otherwise the stale terminal snapshot starts a second
+						// architect session beside the recovery session (live run 20260721-130228: starts 201ms apart).
+						if (hasLiveSessionForTerminalRedrive(service.getSummary(terminalTaskId)?.state)) {
 							return;
 						}
 						// A result branch means the #21 prior-work rebound owns recovery (review judges the work);

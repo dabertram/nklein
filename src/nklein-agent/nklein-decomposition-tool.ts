@@ -216,6 +216,7 @@ import type { NKleinClarifyTurnHandler, NKleinPlanCritiqueRequestHandler } from 
 function createDecomposeProjectTool(
 	workspacePath: string,
 	sourceTaskId?: string | null,
+	sourcePrompt?: string | null,
 	onApplied?: NKleinDecompositionAppliedHandler,
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler,
 	requestClarifyTurn?: NKleinClarifyTurnHandler,
@@ -517,12 +518,9 @@ function createDecomposeProjectTool(
 				critiqueAttemptsBySlug.set(slug, localCritiqueAttempt);
 				const critique = await requestPlanCritique({
 					slug,
+					sourcePrompt,
 					spec,
-					tasks: validation.taskGraph.tasks.map((task) => ({
-						id: task.id,
-						title: task.title,
-						dependsOn: task.dependsOn,
-					})),
+					tasks: validation.taskGraph.tasks,
 					qualityWarnings: [...validation.quality.warnings, ...validation.quality.violations],
 				}).catch(() => null);
 				const critiqueAttempt = critique?.critiqueAttempt ?? localCritiqueAttempt;
@@ -718,6 +716,8 @@ export function createNKleinDecompositionTools(options: {
 	workspacePath: string;
 	artifactWorkspacePath?: string | null;
 	sourceTaskId?: string | null;
+	/** The authoritative task text supplied to the architect; semantic critique checks candidate drift against it. */
+	sourcePrompt?: string | null;
 	onApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes plan; absent ⇒ the critique gate never fires. */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
@@ -731,6 +731,7 @@ export function createNKleinDecompositionTools(options: {
 		createDecomposeProjectTool(
 			options.artifactWorkspacePath?.trim() || options.workspacePath,
 			options.sourceTaskId,
+			options.sourcePrompt,
 			options.onApplied,
 			options.requestPlanCritique,
 			options.requestClarifyTurn,

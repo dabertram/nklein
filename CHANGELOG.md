@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Plan critique now audits executable card contracts, not just plausible titles.** The independent critic receives
+  the authoritative originating task plus each card's objective, file/write bounds, test-first contract, acceptance,
+  outputs, and dependencies before anything is materialized. Decomposition also rejects a test-first card whose scope
+  contains only exact non-test files, preventing workers from being assigned an impossible test/write contract. A
+  decomposition recovery also suppresses a stale dead-card retry after asynchronous branch discovery, so the same card
+  cannot launch two replacement architects milliseconds apart.
+
 - **Online evidence synthesis now keeps the answer while using much less context.** Long sources are narrowed before
   the local model call without losing stable citation ids. A paired live-fleet check held the task, instructions,
   model, and evidence constant: all four resident models retained every expected fact and citation across 12/12

@@ -1,10 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	buildPlanCritiqueSeedPrompt,
 	createNKleinPlanCritiqueTool,
 	nkleinPlanCritiqueSubmissionSchema,
 } from "../../../src/nklein-agent/nklein-plan-critique-tool";
 
 describe("submit_plan_critique (W4.3 decompose-critique)", () => {
+	it("shows the critic the authoritative task and full executable card contracts", () => {
+		const prompt = buildPlanCritiqueSeedPrompt({
+			slug: "trend-plan",
+			sourcePrompt: "Trend equality means steady and trend code lives in habit-insights.ts.",
+			spec: "Implement trend classification.",
+			tasks: [
+				{
+					id: "trend",
+					title: "Implement trend classifier",
+					prompt: "Edit the trend classifier.",
+					dependsOn: [],
+					complexity: 3,
+					suggestedRole: "typescript",
+					filesLikelyTouched: ["src/habit-score.ts"],
+					writeScope: ["src/habit-score.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: true,
+					acceptanceTestPrompt: "Add all three trend branch tests.",
+					knowledgeDebt: null,
+				},
+			],
+			qualityWarnings: [],
+		});
+
+		expect(prompt).toContain("Originating task (AUTHORITATIVE");
+		expect(prompt).toContain("trend code lives in habit-insights.ts");
+		expect(prompt).toContain('"writeScope"');
+		expect(prompt).toContain('"testFirst": true');
+		expect(prompt).toContain("testFirst cannot write a test");
+		expect(prompt).toContain("already implemented/redundant");
+	});
+
 	it("delivers a proceed verdict and tells the critic to stop", async () => {
 		const onSubmitted = vi.fn();
 		const tool = createNKleinPlanCritiqueTool({ onSubmitted });

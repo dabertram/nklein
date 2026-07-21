@@ -30,3 +30,8 @@ export function shouldRunTerminalRetrySweep(input: TerminalRetrySweepGateInput):
 	}
 	return input.now - input.lastSweepAt >= input.debounceMs;
 }
+
+/** States in which a task already has a live/recovering session and must not receive a dead-card restart. */
+export function hasLiveSessionForTerminalRedrive(state: string | null | undefined): boolean {
+	return state === "running" || state === "queued" || state === "paused" || state === "awaiting_review";
+}

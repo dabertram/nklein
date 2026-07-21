@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { NKleinPlanTask } from "./nklein-plan-artifacts";
 import type { AgentTool } from "./sdk-agent-types";
 
 /**
@@ -111,11 +112,13 @@ export type NKleinClarifyTurnHandler = (input: {
 	role: "propose" | "review";
 }) => Promise<NKleinPlanCritiqueResult | null>;
 
-/** What the decompose tool hands the critique executor — minimal, serializable plan facts. */
+/** What the decompose tool hands the critique executor — the authoritative task plus full candidate contracts. */
 export interface NKleinPlanCritiqueRequest {
 	slug: string;
+	/** The task text that asked the architect to decompose. Candidate prose must not silently replace it. */
+	sourcePrompt?: string | null;
 	spec: string;
-	tasks: ReadonlyArray<{ id: string; title: string; dependsOn: readonly string[] }>;
+	tasks: readonly NKleinPlanTask[];
 	qualityWarnings: readonly string[];
 }
 
@@ -129,12 +132,11 @@ export type NKleinPlanCritiqueRequestHandler = (
 
 /** The critic session's seed prompt: the plan's facts + the one-tool-call contract. */
 export function buildPlanCritiqueSeedPrompt(request: NKleinPlanCritiqueRequest): string {
-	const taskLines = request.tasks
-		.map(
-			(task) =>
-				`- ${task.id}: ${task.title}${task.dependsOn.length > 0 ? ` (depends on: ${task.dependsOn.join(", ")})` : ""}`,
-		)
-		.join("\n");
+	const sourcePrompt = request.sourcePrompt?.trim();
+	const sourceSection = sourcePrompt
+		? `Originating task (AUTHORITATIVE; reject candidate drift or contradictions):\n${sourcePrompt}`
+		: "Originating task: unavailable; verify the candidate against the repository and its maintained specification.";
+	const taskContracts = JSON.stringify(request.tasks, null, 2);
 	const warningLines =
 		request.qualityWarnings.length > 0
 			? `\n\nStructural quality warnings already flagged:\n${request.qualityWarnings.map((warning) => `- ${warning}`).join("\n")}`
@@ -142,9 +144,10 @@ export function buildPlanCritiqueSeedPrompt(request: NKleinPlanCritiqueRequest):
 	return [
 		`You are a plan critic giving a second opinion on a project decomposition BEFORE work starts. You come from a different model family than the architect on purpose — challenge assumptions rather than agree.`,
 		`Plan slug: ${request.slug}`,
-		`Specification:\n${request.spec}`,
-		`Task graph:\n${taskLines}${warningLines}`,
-		`Judge: Does the task breakdown cover the specification? Are dependencies correct and minimal (no false coupling, no missing prerequisite)? Is any task too big for one focused work session? Is anything missing that the spec requires? You may inspect the repository with your tools to verify claims.`,
+		sourceSection,
+		`Candidate specification (architect-authored; it is not allowed to weaken or mutate the originating task):\n${request.spec}`,
+		`Candidate task contracts (audit every field, not only titles/dependencies):\n${taskContracts}${warningLines}`,
+		`Audit every task id against the repository. Reject with "revise" if any objective is already implemented/redundant; prompt, expected outputs, likely files, or writeScope disagree; testFirst cannot write a test; acceptance does not prove the claimed change; dependencies omit a consumed output; the candidate specification contradicts the originating task; a requirement is missing; or a card is too broad for one focused session. A "proceed" verdict means every card contract is executable as written, not merely that the titles sound plausible. You may inspect the repository with your tools to verify claims.`,
 		`Then call submit_plan_critique EXACTLY ONCE: verdict "proceed" if the plan is sound (a valued sign-off), or "revise" with concrete, actionable feedback the architect can apply in one revision. Do not answer in prose.`,
 	].join("\n\n");
 }

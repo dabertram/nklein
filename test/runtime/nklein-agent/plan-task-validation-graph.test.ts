@@ -53,6 +53,37 @@ describe("validateTaskSizingContract", () => {
 		).not.toThrow();
 	});
 
+	it("rejects a test-first card whose bounded scope cannot contain a test", () => {
+		expect(() =>
+			validateTaskSizingContract(
+				task({
+					testFirst: true,
+					acceptanceTestPrompt: "add all branch tests",
+					filesLikelyTouched: ["src/habit-score.ts"],
+					writeScope: ["src/habit-score.ts"],
+				}),
+			),
+		).toThrow(/writeScope only permits exact non-test files/u);
+		expect(() =>
+			validateTaskSizingContract(
+				task({
+					testFirst: true,
+					acceptanceTestPrompt: "add all branch tests",
+					writeScope: ["src/**"],
+				}),
+			),
+		).not.toThrow();
+		expect(() =>
+			validateTaskSizingContract(
+				task({
+					testFirst: true,
+					acceptanceTestPrompt: "add all branch tests",
+					writeScope: ["test/habit-score.test.js"],
+				}),
+			),
+		).not.toThrow();
+	});
+
 	it("rejects an over-complex or too-wide task (split-before-decompose)", () => {
 		expect(() => validateTaskSizingContract(task({ complexity: 76 }))).toThrow(/complexity/u);
 		expect(() => validateTaskSizingContract(task({ filesLikelyTouched: ["a", "b", "c", "d"] }))).toThrow(

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { shouldRunTerminalRetrySweep } from "../../../src/server/terminal-retry-sweep-policy";
+import {
+	hasLiveSessionForTerminalRedrive,
+	shouldRunTerminalRetrySweep,
+} from "../../../src/server/terminal-retry-sweep-policy";
 
 const DEBOUNCE = 5_000;
 
@@ -51,5 +54,16 @@ describe("shouldRunTerminalRetrySweep — trailing timer (#26, live-found 2026-0
 		expect(
 			shouldRunTerminalRetrySweep({ now: 1_000, lastSweepAt: 999, debounceMs: 5_000, redrivePending: false }),
 		).toBe(false);
+	});
+});
+
+describe("hasLiveSessionForTerminalRedrive", () => {
+	it("blocks a stale terminal redrive when another recovery has already made the session live", () => {
+		for (const state of ["running", "queued", "paused", "awaiting_review"]) {
+			expect(hasLiveSessionForTerminalRedrive(state)).toBe(true);
+		}
+		for (const state of [undefined, null, "idle", "failed", "interrupted"]) {
+			expect(hasLiveSessionForTerminalRedrive(state)).toBe(false);
+		}
 	});
 });

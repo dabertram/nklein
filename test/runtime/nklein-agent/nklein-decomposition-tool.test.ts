@@ -593,6 +593,8 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			...storageTask,
 			testFirst: true,
 			acceptanceTestPrompt: "Add a failing storage persistence test before changing src/storage.ts.",
+			filesLikelyTouched: ["src/storage.ts", "test/storage.test.ts"],
+			writeScope: ["src/storage.ts", "test/storage.test.ts"],
 		};
 
 		const result = applyNKleinPlanTaskGraphToBoard({

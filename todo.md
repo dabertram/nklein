@@ -428,7 +428,14 @@ source repo went private — so if it vanishes the buildable source still lives 
     silently relaunch from only the original prompt or reset candidate 2 to candidate 1. A clean local-SDK turn end is
     `awaiting_review/exit` (not only `hook`): when no graph was applied, the bounded decomposition nudger must claim
     that stop before the generic turn-loop guard can park it as `attention`, then re-prompt the missing/invalid
-    `decompose_project` call.
+    `decompose_project` call. **The critic must see the executable contracts, not a title-only projection:** include the
+    authoritative originating task and every card's prompt, write scope/likely files, test-first instruction,
+    acceptance, outputs, and dependencies. A structurally valid plan can still be impossible (live 2026-07-21:
+    trend work scoped to the score file while its required tests were outside scope); reject test-first cards whose
+    bounded scope contains only exact non-test files before critique/materialization.
+    A terminal dead-card retry that awaits result-branch discovery must re-check the task's live session state after
+    that await: the targeted decomposition nudger may already have resumed it, and the stale terminal snapshot must not
+    launch a second replacement architect beside the recovery session (live run `20260721-130228`: 201 ms apart).
   - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
     Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
     must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child
