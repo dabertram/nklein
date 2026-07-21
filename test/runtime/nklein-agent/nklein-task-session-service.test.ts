@@ -4755,6 +4755,10 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const failoverStart = runtime.startTaskSessionMock.mock.calls[1]?.[0];
 		expect(failoverStart?.modelId).toBe("gemma");
 		expect(failoverStart?.prompt).toContain("fresh architect on a different loaded model");
+		expect(failoverStart?.prompt).toContain("[Authoritative originating task]\nDecompose the project.");
+		expect(failoverStart?.prompt).toContain("[Latest terminal tool evidence]");
+		expect(failoverStart?.prompt).toContain("Task graph failed dependency-coherence validation.");
+		expect(failoverStart?.initialMessages).toBeUndefined();
 		expect(service.getSummary("task-1")).toMatchObject({ state: "running", modelId: "gemma" });
 
 		const secondSessionId = await waitForTaskSessionId(runtime, "task-1");

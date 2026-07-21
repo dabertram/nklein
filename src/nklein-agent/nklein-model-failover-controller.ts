@@ -33,6 +33,7 @@ export interface ModelFailoverControllerDeps {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
+		options?: { freshModelCarry?: boolean },
 	): Promise<unknown>;
 	/** Correlate the engine-selected carry rung with the next terminal attempt ledger event. */
 	noteStrategyApplied?: (taskId: string, strategy: string) => void;
@@ -151,6 +152,7 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 					"act",
 					undefined,
 					{ providerId, modelId: nextModelKey },
+					{ freshModelCarry: true },
 				);
 			} catch {
 				// Fail-closed: a failed failover leaves the card parked in Review exactly as before.

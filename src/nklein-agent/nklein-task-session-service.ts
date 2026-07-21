@@ -228,6 +228,24 @@ const debugStreamEventLastAtByTaskId = new Map<string, number>();
 /** Re-prompt budget when a reviewer turn ends without calling `submit_review` (small models often forget). */
 const MAX_SECOND_OPINION_REVIEW_NUDGES = 2;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
+const FRESH_MODEL_CARRY_CONTEXT_CHARS = 16_000;
+
+function buildFreshModelCarryPrompt(basePrompt: string, messages: readonly NKleinTaskMessage[]): string {
+	const originatingTask = messages.find(
+		(message) => message.role === "user" && message.content.trim().length > 0,
+	)?.content;
+	const latestToolResult = [...messages]
+		.reverse()
+		.find((message) => message.role === "tool" && message.content.trim().length > 0)?.content;
+	const sections = [basePrompt];
+	if (originatingTask) {
+		sections.push(`[Authoritative originating task]\n${originatingTask.slice(0, FRESH_MODEL_CARRY_CONTEXT_CHARS)}`);
+	}
+	if (latestToolResult) {
+		sections.push(`[Latest terminal tool evidence]\n${latestToolResult.slice(-FRESH_MODEL_CARRY_CONTEXT_CHARS)}`);
+	}
+	return sections.join("\n\n");
+}
 
 import type {
 	CreateInMemoryNKleinTaskSessionServiceOptions,
@@ -428,8 +446,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** F3.2 failover leg: on an error-terminal summary, re-drive the card on the next untried ranked model (default-on;
 	 * kill-switch NKLEIN_MODEL_FAILOVER=off). Candidates are stashed at start via {@link setTaskFailoverCandidates}. */
 	private readonly modelFailoverController = createModelFailoverController({
-		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
-			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
+		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides, options) =>
+			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides, options),
 		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
 		resetDecompositionRecoveryBudget: (taskId) => {
 			this.decompositionStallNudger.resetTask(taskId);
@@ -1596,6 +1614,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		delivery?: "queue" | "steer";
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides;
 		forceRestart?: boolean;
+		freshModelCarry?: boolean;
 	}): Promise<{
 		result: unknown;
 		warnings?: string[];
@@ -1630,13 +1649,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				input.taskId,
 				restartLaunchConfig?.contextWindow,
 			);
-			const initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
-				taskId: input.taskId,
-				messages: persistedSnapshot?.messages,
-				prompt: input.prompt,
-				images: input.images,
-				contextWindow,
-			});
+			const initialMessages = input.freshModelCarry
+				? undefined
+				: this.contextBudgetController.prepareMessagesForKnownContextWindow({
+						taskId: input.taskId,
+						messages: persistedSnapshot?.messages,
+						prompt: input.prompt,
+						images: input.images,
+						contextWindow,
+					});
 			await this.sessionRuntime.stopTaskSession(input.taskId, { suppressTaskEvents: true });
 			return await this.restartTaskSessionFromResolvedConfig({
 				taskId: input.taskId,
@@ -1663,13 +1684,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			input.taskId,
 			restartLaunchConfig?.contextWindow,
 		);
-		const initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
-			taskId: input.taskId,
-			messages: persistedSnapshot?.messages,
-			prompt: input.prompt,
-			images: input.images,
-			contextWindow,
-		});
+		const initialMessages = input.freshModelCarry
+			? undefined
+			: this.contextBudgetController.prepareMessagesForKnownContextWindow({
+					taskId: input.taskId,
+					messages: persistedSnapshot?.messages,
+					prompt: input.prompt,
+					images: input.images,
+					contextWindow,
+				});
 		return await this.restartTaskSessionFromResolvedConfig({
 			taskId: input.taskId,
 			prompt: input.prompt,
@@ -2567,7 +2590,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
-		options?: { delivery?: "queue" | "steer" },
+		options?: { delivery?: "queue" | "steer"; freshModelCarry?: boolean },
 	): Promise<RuntimeTaskSessionSummary | null> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -2590,7 +2613,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		const normalized = text.trim();
+		const normalized = options?.freshModelCarry
+			? buildFreshModelCarryPrompt(text.trim(), entry.messages)
+			: text.trim();
 		const hasImages = Boolean(images && images.length > 0);
 		const effectiveMode: RuntimeTaskSessionMode = mode ?? entry.summary.mode ?? "act";
 		const effectiveLaunchConfig = this.resolveRestartLaunchConfig({ taskId, launchConfigOverrides });
@@ -2691,7 +2716,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									}),
 								}),
 							);
-							if (!queueDelivery) {
+							if (!queueDelivery && !options?.freshModelCarry) {
 								// F12.6 consult (record-only first): the agent's own request_compaction fire is consumed at
 								// this turn boundary and logged beside whether the budget compaction then actually ran —
 								// once live data shows requests track real need, this flips to FORCING the compaction.
@@ -2733,6 +2758,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								delivery: queueDelivery ? (options?.delivery ?? "queue") : undefined,
 								launchConfigOverrides,
 								forceRestart: restoredSandboxWorkspace,
+								freshModelCarry: options?.freshModelCarry,
 							});
 						} catch (error) {
 							const recovered = await this.contextOverflowController.recoverAfterOverflow({

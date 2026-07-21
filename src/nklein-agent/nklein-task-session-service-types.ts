@@ -150,7 +150,7 @@ export interface NKleinTaskSessionService {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
-		options?: { delivery?: "queue" | "steer" },
+		options?: { delivery?: "queue" | "steer"; freshModelCarry?: boolean },
 	): Promise<RuntimeTaskSessionSummary | null>;
 	reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;

@@ -29,12 +29,13 @@ describe("createModelFailoverController", () => {
 		controller.maybeModelFailover("t1", errorSummary());
 		await flush();
 		expect(resend).toHaveBeenCalledTimes(1);
-		const [taskId, text, mode, images, overrides] = resend.mock.calls[0] ?? [];
+		const [taskId, text, mode, images, overrides, options] = resend.mock.calls[0] ?? [];
 		expect(taskId).toBe("t1");
 		expect(String(text)).toContain("model-side error");
 		expect(mode).toBe("act");
 		expect(images).toBeUndefined();
 		expect(overrides).toMatchObject({ providerId: "lmstudio", modelId: "gemma" });
+		expect(options).toEqual({ freshModelCarry: true });
 		expect(noteStrategyApplied).toHaveBeenCalledWith("t1", "cross_model_carry");
 	});
 
@@ -76,6 +77,7 @@ describe("createModelFailoverController", () => {
 		expect(resend).toHaveBeenCalledTimes(1);
 		expect(resend.mock.calls[0]?.[1]).toContain("fresh architect on a different loaded model");
 		expect(resend.mock.calls[0]?.[4]).toMatchObject({ providerId: "lmstudio", modelId: "qwen" });
+		expect(resend.mock.calls[0]?.[5]).toEqual({ freshModelCarry: true });
 		expect(resetDecompositionRecoveryBudget).toHaveBeenCalledWith("t1");
 	});
 
