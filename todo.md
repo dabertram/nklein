@@ -114,6 +114,13 @@ gap remains.
 > covered. Strip the delimited focus brief before choosing a retry anchor. If the remaining instruction names several
 > tools, choose by textual mention order, never catalog registration order.
 
+> **⚠️ CRITIC FEEDBACK IS EVIDENCE, NOT AUTHORITY (live-found run `20260721-144558`).** A diverse critic claimed a
+> composed score was capped because one input term was capped and treated passing existing tests as proof that missing
+> requirements were already implemented. The architect then tried to discard the required work. Critics must trace
+> "already done" claims to exact symbols, observable end-to-end behavior, every originating invariant, and requested
+> acceptance coverage. Revision prompts must preserve the originating task as authoritative and require independent
+> verification of critic claims before cards are dropped or work is declared complete.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

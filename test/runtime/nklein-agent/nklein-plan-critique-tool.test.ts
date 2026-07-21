@@ -36,6 +36,9 @@ describe("submit_plan_critique (W4.3 decompose-critique)", () => {
 		expect(prompt).toContain('"testFirst": true');
 		expect(prompt).toContain("testFirst cannot write a test");
 		expect(prompt).toContain("already implemented/redundant");
+		expect(prompt).toContain("Existing tests passing proves only their current assertions");
+		expect(prompt).toContain("exact path/symbol");
+		expect(prompt).toContain("observable output or return value");
 	});
 
 	it("delivers a proceed verdict and tells the critic to stop", async () => {

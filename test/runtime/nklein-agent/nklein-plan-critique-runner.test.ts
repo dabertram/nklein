@@ -172,6 +172,8 @@ describe("createPlanCritiqueRunner — buildRequestHandler", () => {
 		expect(candidateOne).toMatchObject({ verdict: "revise", critiqueAttempt: 1 });
 		expect(runner.getPendingRevisionPrompt("t1")).toContain("candidate 1/2");
 		expect(runner.getPendingRevisionPrompt("t1")).toContain("Keep only scoring-cap");
+		expect(runner.getPendingRevisionPrompt("t1")).toContain("advisory evidence, not authority");
+		expect(runner.getPendingRevisionPrompt("t1")).toContain("never drop required work");
 
 		const candidateTwo = await runner.buildRequestHandler("t1", "/repo")?.({ slug: "habit-insights" } as never);
 		expect(candidateTwo).toMatchObject({ verdict: "proceed", critiqueAttempt: 2 });

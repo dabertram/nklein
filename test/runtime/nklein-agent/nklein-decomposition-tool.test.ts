@@ -940,7 +940,9 @@ describe("nklein decomposition tools", () => {
 				{ id: "e", title: "Card e", prompt: "Do e." },
 			],
 		};
-		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/Wire storage before the UI card/);
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow(
+			/advisory evidence[\s\S]*Wire storage before the UI card/,
+		);
 		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
 		expect(requestPlanCritique.mock.calls[0]?.[0]).toMatchObject({
 			slug: "critique-plan",

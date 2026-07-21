@@ -537,7 +537,7 @@ function createDecomposeProjectTool(
 				if (priorCritiqueAttempts >= MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG) {
 					const lastFeedback = lastRejectedCritiqueFeedbackBySlug.get(slug);
 					throw new Error(
-						`The independent plan-critique budget is exhausted for plan "${slug}" after ${priorCritiqueAttempts}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} rejected candidates. The graph was NOT materialized. This architect session may not submit another candidate; escalate to a stronger architect model.${lastFeedback ? ` Last critic feedback:\n${lastFeedback}` : ""}`,
+						`The independent plan-critique budget is exhausted for plan "${slug}" after ${priorCritiqueAttempts}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} rejected candidates. The graph was NOT materialized. This architect session may not submit another candidate; escalate to a stronger architect model. Critic feedback is advisory evidence: the originating task remains authoritative, and every critic claim must be verified against exact repository behavior before work is dropped or declared complete.${lastFeedback ? ` Last critic feedback:\n${lastFeedback}` : ""}`,
 					);
 				}
 				const localCritiqueAttempt = (critiqueAttemptsBySlug.get(slug) ?? 0) + 1;
@@ -579,11 +579,11 @@ function createDecomposeProjectTool(
 					}
 					if (critiqueAttempt >= MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG) {
 						throw new Error(
-							`The independent plan critic rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} for plan "${slug}". The graph was NOT materialized. Escalate to a stronger architect model and rebuild it from the critic feedback:\n${critique.feedback}`,
+							`The independent plan critic rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} for plan "${slug}". The graph was NOT materialized. Escalate to a stronger architect model. Treat the feedback as advisory evidence, verify every claim against the authoritative originating task and exact repository behavior, and rebuild from verified findings; never drop work solely because the critic claims it is implemented or existing tests pass:\n${critique.feedback}`,
 						);
 					}
 					throw new Error(
-						`A second-opinion plan critic (a different model family) rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} before work starts. The prior incremental graph has been cleared so stable task ids can be reused. Rebuild it with add_task/add_dependency, or send one complete revised tasks array, then call decompose_project again with the same slug "${slug}" for a fresh acceptance verdict:\n${critique.feedback}`,
+						`A second-opinion plan critic (a different model family) rejected candidate ${critiqueAttempt}/${MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG} before work starts. The prior incremental graph has been cleared so stable task ids can be reused. The originating task remains authoritative; treat the feedback as advisory evidence and verify every claim against exact repository behavior before dropping or declaring work complete. Rebuild from verified findings with add_task/add_dependency, or send one complete revised tasks array, then call decompose_project again with the same slug "${slug}" for a fresh acceptance verdict:\n${critique.feedback}`,
 					);
 				}
 			}
