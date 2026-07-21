@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A worker that gets stuck against a capability rule now reports the exact blocked tool and reason.** !Klein keeps
+  using its existing bounded recovery ladder and only parks after automatic resolution and model escalation cannot
+  get through; the needs-you entry then identifies the active broker refusal instead of describing a generic loop.
+  Old refusals are discarded if that same tool is later admitted, so the diagnosis cannot go stale.
+
 - **Planning and execution questions now stay attached to the exact work they block.** Risky decomposition choices
   are sent through a bounded architect/reviewer clarification loop instead of silently adopting a working default,
   while a worker's native follow-up question is persisted on its originating plan with the precise blocked card id.

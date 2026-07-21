@@ -70,6 +70,7 @@ import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
 import {
 	createSwarmToolBrokerState,
 	type SwarmToolBrokerState,
+	type SwarmToolHardDenial,
 	wrapSwarmAgentTools,
 	wrapSwarmToolExecutors,
 } from "./nklein-swarm-tool-broker";
@@ -859,6 +860,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
 	getSessionTaintLabels(taskId: string): readonly string[] | null {
 		return this.swarmBrokerStateByTaskId.get(taskId)?.taintLabels ?? null;
+	}
+
+	/** F2.2b: the active hard broker refusal that can explain a worker's subsequent turn loop. */
+	getSessionCapabilityBrokerHardDenial(taskId: string): SwarmToolHardDenial | null {
+		return this.swarmBrokerStateByTaskId.get(taskId)?.hardDenial ?? null;
 	}
 
 	async readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null> {

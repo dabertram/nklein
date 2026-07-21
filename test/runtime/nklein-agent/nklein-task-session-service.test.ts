@@ -321,6 +321,7 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 				return lastStartRequestByTaskId.has(taskId);
 			},
 			getSessionTaintLabels: () => null,
+			getSessionCapabilityBrokerHardDenial: () => null,
 			async readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null> {
 				return await readPersistedTaskSessionMock(taskId);
 			},

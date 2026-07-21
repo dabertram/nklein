@@ -50,6 +50,7 @@ function buildHarness(options?: {
 	withEscalationHandler?: boolean;
 	/** Simulate the run having already ended by itself: cancelTaskTurn resolves null. */
 	cancelFails?: boolean;
+	hardDenial?: { toolName: string; reason: string } | null;
 }): Harness {
 	const entry = buildEntry("task-1", { startPrompt: options?.startPrompt ?? "Implement the feature." });
 	const sent: string[] = [];
@@ -58,6 +59,7 @@ function buildHarness(options?: {
 	const observations: Array<Record<string, unknown>> = [];
 	const callbacks: TurnLoopGuardCallbacks = {
 		getTaskEntry: (taskId) => (taskId === "task-1" ? entry : null),
+		getCapabilityBrokerHardDenial: () => options?.hardDenial ?? null,
 		cancelTaskTurn: async () => (options?.cancelFails ? null : (entry.summary as RuntimeTaskSessionSummary)),
 		sendTaskSessionInput: async (_taskId, text) => {
 			sent.push(text);
@@ -122,6 +124,17 @@ describe("formatTurnLoopParkMessage", () => {
 			contestedQuestion: null,
 		});
 		expect(message).toContain("bouncing between the same two proposals");
+	});
+
+	it("prefers the exact capability-broker refusal when it explains the loop", () => {
+		const message = formatTurnLoopParkMessage(
+			{ kind: "repeat", occurrences: 4, fingerprint: "x", contestedQuestion: LOOPING_QUESTION },
+			{ toolName: "apply_patch", reason: "untrusted content may not influence a sandbox write" },
+		);
+		expect(message).toContain(
+			"capability broker permanently refused apply_patch — untrusted content may not influence a sandbox write",
+		);
+		expect(message).toContain(LOOPING_QUESTION);
 	});
 });
 
@@ -206,6 +219,25 @@ describe("TurnLoopGuard", () => {
 		expect(harness.parked).toHaveLength(1);
 		expect(harness.parked[0]?.message).toContain(LOOPING_QUESTION);
 		expect(harness.parked[0]?.metadata.guardrail).toBe("turn_loop");
+	});
+
+	it("attributes the existing terminal park path to the broker's active hard denial", async () => {
+		const hardDenial = {
+			toolName: "apply_patch",
+			reason: "untrusted repository content may not influence a sandbox write",
+		};
+		const harness = buildHarness({
+			startPrompt: "Implement the parser.",
+			escalationModel: null,
+			hardDenial,
+		});
+		pushAssistantTurns(harness.entry, [LOOPING_QUESTION, LOOPING_QUESTION, LOOPING_QUESTION]);
+		harness.guard.check("task-1");
+		await flush();
+
+		expect(harness.parked).toHaveLength(1);
+		expect(harness.parked[0]?.message).toContain("capability broker permanently refused apply_patch");
+		expect(harness.parked[0]?.metadata.capabilityBrokerHardDenial).toEqual(hardDenial);
 	});
 
 	it("parks (not escalates) when no escalation handler is wired even if a model exists", async () => {

@@ -193,6 +193,10 @@ export interface NKleinSessionRuntime {
 	canRestartTaskSession(taskId: string): boolean;
 	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
 	getSessionTaintLabels(taskId: string): readonly string[] | null;
+	/** F2.2b: latest hard broker refusal for turn-loop attribution, or null when none remains active. */
+	getSessionCapabilityBrokerHardDenial(
+		taskId: string,
+	): import("./nklein-swarm-tool-broker").SwarmToolHardDenial | null;
 	readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null>;
 	/**
 	 * Release task-scoped MCP transports without clearing the SDK session binding. Sandbox review finalization can

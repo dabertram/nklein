@@ -31,6 +31,8 @@ import type { AgentTool, AgentToolContext } from "./sdk-agent-types";
 
 export interface SwarmToolBrokerState {
 	taintLabels: readonly TaintLabel[];
+	/** The latest hard broker refusal that can explain a worker's subsequent turn loop. */
+	hardDenial: SwarmToolHardDenial | null;
 	/**
 	 * S5: the PROVENANCE ledger riding alongside {@link taintLabels} — which concrete source (tool name) introduced
 	 * each taint label. The labels decide allow/deny; this names the culprit source when a gate fires and feeds S8/S11.
@@ -57,6 +59,12 @@ export interface SwarmToolBrokerState {
 	outwardQueueRootDir?: string;
 }
 
+/** Structured attribution for a tool call the broker permanently refused (queued approvals are not refusals). */
+export interface SwarmToolHardDenial {
+	readonly toolName: string;
+	readonly reason: string;
+}
+
 /** Opt-in S3 outward-action config for {@link createSwarmToolBrokerState}. */
 export interface SwarmBrokerOutwardConfig {
 	outwardWriteToolNames?: Iterable<string>;
@@ -71,6 +79,7 @@ export function createSwarmToolBrokerState(
 ): SwarmToolBrokerState {
 	return {
 		taintLabels: propagateTaint([], initialTaint),
+		hardDenial: null,
 		provenance: [],
 		untrustedHosts: [],
 		fanout: emptyActionFanoutState(),
@@ -114,6 +123,7 @@ export function wrapSwarmAgentTools(
 			if (fanoutDenied) {
 				return fanoutDenied;
 			}
+			clearSupersededHardDenial(state, tool.name);
 			const output = await tool.execute(input, context);
 			recordSwarmToolOutputTaint(tool.name, output, state, options);
 			return fenceMcpToolOutput(tool.name, output, options);
@@ -154,6 +164,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "read_files");
 			const output = await readFile(...args);
 			recordSwarmToolOutputTaint("read_files", output, state, options);
 			return output;
@@ -166,6 +177,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "search_codebase");
 			const output = await search(...args);
 			recordSwarmToolOutputTaint("search_codebase", output, state, options);
 			return output;
@@ -178,6 +190,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "run_commands");
 			const output = await bash(...args);
 			recordSwarmToolOutputTaint("run_commands", output, state, options);
 			return output;
@@ -190,6 +203,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "fetch_web_content");
 			const output = await webFetch(...args);
 			recordSwarmToolOutputTaint("fetch_web_content", output, state, options);
 			return output;
@@ -202,6 +216,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "editor");
 			const output = await editor(...args);
 			recordSwarmToolOutputTaint("editor", output, state, options);
 			return output;
@@ -214,6 +229,7 @@ export function wrapSwarmToolExecutors(
 			if (denied) {
 				return denied;
 			}
+			clearSupersededHardDenial(state, "apply_patch");
 			const output = await applyPatch(...args);
 			recordSwarmToolOutputTaint("apply_patch", output, state, options);
 			return output;
@@ -302,7 +318,7 @@ function fanoutDenial(
 	}
 	const verdict = checkActionFanout(state.fanout, toolName, state.fanoutLimits);
 	if (!verdict.allow) {
-		return deniedToolResult(toolName, verdict.reason ?? "outward action refused by fan-out cap");
+		return hardDeniedToolResult(toolName, verdict.reason ?? "outward action refused by fan-out cap", state);
 	}
 	state.fanout = recordAction(state.fanout, toolName);
 	return null;
@@ -336,9 +352,11 @@ function outwardApprovalGate(toolName: string, input: unknown, state: SwarmToolB
 		return null;
 	}
 	if (decision.decision === "deny") {
-		return deniedToolResult(toolName, decision.reason);
+		return hardDeniedToolResult(toolName, decision.reason, state);
 	}
 	// require_approval → queue the intended action for out-of-band operator review (David's chosen S3 model).
+	// Reaching this branch proves a prior hard refusal of this same tool is no longer the active outcome.
+	clearSupersededHardDenial(state, toolName);
 	const at = Date.now();
 	const argsSummary = redactArgsSummary(input);
 	const id = createHash("sha256").update(`${toolName}|${argsSummary}|${at}`).digest("hex").slice(0, 12);
@@ -402,7 +420,9 @@ function egressProvenanceDenial(toolName: string, input: unknown, state: SwarmTo
 		untrustedHosts: state.untrustedHosts,
 		contextCarriesSensitiveData: state.taintLabels.includes("secret_like"),
 	});
-	return verdict.allow ? null : deniedToolResult(toolName, verdict.reason ?? "egress refused by provenance gate");
+	return verdict.allow
+		? null
+		: hardDeniedToolResult(toolName, verdict.reason ?? "egress refused by provenance gate", state);
 }
 
 /**
@@ -420,7 +440,19 @@ function brokerDenialResult(
 		return null;
 	}
 	const provenance = explainTaintProvenance(state.provenance);
-	return deniedToolResult(toolName, provenance ? `${denial} — ${provenance}` : denial);
+	return hardDeniedToolResult(toolName, provenance ? `${denial} — ${provenance}` : denial, state);
+}
+
+function hardDeniedToolResult(toolName: string, reason: string, state: SwarmToolBrokerState): string {
+	state.hardDenial = { toolName, reason };
+	return deniedToolResult(toolName, reason);
+}
+
+/** A later non-denied dispatch/queue of the same tool proves the recorded refusal is no longer the active blocker. */
+function clearSupersededHardDenial(state: SwarmToolBrokerState, toolName: string): void {
+	if (state.hardDenial?.toolName === toolName) {
+		state.hardDenial = null;
+	}
 }
 
 function deniedToolResult(toolName: string, reason: string): string {

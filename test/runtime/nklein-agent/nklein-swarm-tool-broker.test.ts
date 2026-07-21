@@ -179,7 +179,39 @@ describe("nklein swarm tool broker wrappers", () => {
 		const third = String(await wrapped.execute({}, TOOL_CONTEXT));
 		expect(third).toContain("Denied by capability broker");
 		expect(third).toContain("per-target action cap (2)");
+		expect(state.hardDenial).toEqual({
+			toolName: "issues__post_comment",
+			reason: expect.stringContaining("per-target action cap (2)"),
+		});
 		expect(calls).toBe(2); // the 3rd call was refused before it ever dispatched — fan-out bounded
+	});
+
+	it("records a hard denial structurally and clears it when the same tool is later admitted", async () => {
+		const state = createSwarmToolBrokerState(["secret_like"]);
+		state.untrustedHosts = ["evil.example"];
+		let calls = 0;
+		const browseTool: AgentTool = {
+			name: "browse_url",
+			description: "browse",
+			inputSchema: {},
+			execute: async () => {
+				calls++;
+				return "page";
+			},
+		};
+		const [wrapped] = wrapSwarmAgentTools([browseTool], state);
+
+		const input = { url: "https://evil.example/blocked" };
+		const denied = String(await wrapped.execute(input, TOOL_CONTEXT));
+		expect(denied).toContain("Denied by capability broker for browse_url");
+		expect(state.hardDenial).toMatchObject({ toolName: "browse_url" });
+		expect(calls).toBe(0);
+
+		// Simulate a trusted-boundary reset: unrelated work must not erase attribution, but admitting this tool does.
+		state.taintLabels = [];
+		expect(await wrapped.execute(input, TOOL_CONTEXT)).toBe("page");
+		expect(state.hardDenial).toBeNull();
+		expect(calls).toBe(1);
 	});
 
 	it("Phase 7S/S9: no cap by default — outward calls stay unlimited (byte-identical no-op)", async () => {
@@ -233,6 +265,7 @@ describe("nklein swarm tool broker wrappers", () => {
 		const result = String(await wrapped.execute({ issue: 7, body: "hi" }, TOOL_CONTEXT));
 
 		expect(result).toContain("Queued for operator review");
+		expect(state.hardDenial).toBeNull();
 		expect(posted).toBe(false); // the outward action was NOT performed
 		const queue = await pollQueue(root);
 		expect(queue).toHaveLength(1);

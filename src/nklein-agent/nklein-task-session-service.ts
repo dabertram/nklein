@@ -639,6 +639,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	): TurnLoopGuardCallbacks {
 		return {
 			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
+			getCapabilityBrokerHardDenial: (taskId) => this.sessionRuntime.getSessionCapabilityBrokerHardDenial(taskId),
 			cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
 			sendTaskSessionInput: (taskId, text) => this.sendTaskSessionInput(taskId, text),
 			pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),

@@ -35,6 +35,7 @@ import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import type { NKleinTaskSessionEntry } from "./nklein-session-state";
+import type { SwarmToolHardDenial } from "./nklein-swarm-tool-broker";
 
 /** Auto-resolve nudges allowed per task session — past this the ladder moves to escalate/park. */
 export const TURN_LOOP_AUTO_RESOLVE_NUDGE_LIMIT = 1;
@@ -73,6 +74,8 @@ export interface TurnLoopGuardCallbacks {
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary;
 	recordObservation(event: { taskId: string; message: string; metadata: Record<string, unknown> }): void;
+	/** Latest hard capability-broker refusal, when one can attribute the loop's blocked boundary. */
+	getCapabilityBrokerHardDenial?: (taskId: string) => SwarmToolHardDenial | null;
 	/** The runtime's §5.AG escalation effect (absent in bare unit setups ⇒ the guard parks instead). */
 	onEscalateModel?: (event: TurnLoopEscalationEvent) => void | Promise<void>;
 }
@@ -103,12 +106,22 @@ export function collectCompletedAssistantTurns(entry: NKleinTaskSessionEntry): A
 }
 
 /** Park message for a confirmed, unresolvable turn loop — names the SPECIFIC contested question. */
-export function formatTurnLoopParkMessage(verdict: TurnLoopVerdict): string {
+export function formatTurnLoopParkMessage(
+	verdict: TurnLoopVerdict,
+	hardDenial: SwarmToolHardDenial | null = null,
+): string {
 	const shape =
 		verdict.kind === "oscillation"
 			? "kept bouncing between the same two proposals"
 			: "kept re-raising the same question";
 	const question = verdict.contestedQuestion ? ` The contested question: "${verdict.contestedQuestion}"` : "";
+	if (hardDenial) {
+		return (
+			`!Klein parked this task: capability broker permanently refused ${hardDenial.toolName} — ` +
+			`${hardDenial.reason}. The agent then ${shape} across ${verdict.occurrences} turns without progressing.${question} ` +
+			"Adjust the task or its capability policy, then send an instruction to continue."
+		);
+	}
 	return (
 		`!Klein paused this task: the agent ${shape} across ${verdict.occurrences} turns without progressing — ` +
 		`a boundary it cannot resolve on its own.${question} Answer it (or adjust the task/acceptance criteria), ` +
@@ -254,15 +267,17 @@ export class TurnLoopGuard {
 			return;
 		}
 		state.resolvedTerminally = true;
+		const hardDenial = this.callbacks.getCapabilityBrokerHardDenial?.(taskId) ?? null;
 		this.callbacks.parkTaskForAutonomyBudget({
 			taskId,
 			entry: current,
-			message: formatTurnLoopParkMessage(verdict),
+			message: formatTurnLoopParkMessage(verdict, hardDenial),
 			metadata: {
 				guardrail: "turn_loop",
 				kind: verdict.kind,
 				occurrences: verdict.occurrences,
 				contestedQuestion: verdict.contestedQuestion,
+				...(hardDenial ? { capabilityBrokerHardDenial: hardDenial } : {}),
 			},
 		});
 	}
