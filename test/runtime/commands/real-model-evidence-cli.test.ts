@@ -37,6 +37,7 @@ describe("real-model evidence collector", () => {
 						ts: 1,
 						content: [
 							{ type: "tool_use", id: "failed", name: "decompose_project", input: { tasks: [] } },
+							{ type: "tool_use", id: "nested-failed", name: "run_commands", input: { commands: ["npm test"] } },
 							{ type: "tool_use", id: "pending", name: "submit_plan_critique", input: {} },
 						],
 					},
@@ -49,6 +50,11 @@ describe("real-model evidence collector", () => {
 								tool_use_id: "failed",
 								is_error: true,
 								content: { error: "missing implementation dependency" },
+							},
+							{
+								type: "tool_result",
+								tool_use_id: "nested-failed",
+								content: [{ query: "npm test", success: false, error: "exit 1" }],
 							},
 						],
 					},
@@ -96,20 +102,33 @@ describe("real-model evidence collector", () => {
 
 		expect(summary).toMatchObject({
 			sessions: 2,
-			toolUses: 3,
-			errorResults: 1,
+			toolUses: 4,
+			errorResults: 2,
 			pendingToolUses: 1,
 			transitions: 1,
 			boards: 1,
 			runtimeSignals: 2,
 			collectionErrors: [],
 		});
-		const toolErrors = (await readFile(join(output, "tool-errors.jsonl"), "utf8")).trim().split("\n");
-		expect(JSON.parse(toolErrors[0] ?? "{}")).toMatchObject({
-			toolName: "decompose_project",
-			isError: true,
-			result: { error: "missing implementation dependency" },
-		});
+		const toolErrors = (await readFile(join(output, "tool-errors.jsonl"), "utf8"))
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+		expect(toolErrors).toContainEqual(
+			expect.objectContaining({
+				toolName: "decompose_project",
+				isError: true,
+				result: { error: "missing implementation dependency" },
+			}),
+		);
+		expect(toolErrors).toContainEqual(
+			expect.objectContaining({
+				toolName: "run_commands",
+				isError: false,
+				effectiveError: true,
+				errorSource: "nested_result",
+			}),
+		);
 		expect(await readFile(join(output, "pending-tool-uses.jsonl"), "utf8")).toContain("submit_plan_critique");
 		expect(await readFile(join(output, "card-transitions.jsonl"), "utf8")).toContain('"to":"running"');
 		expect(await readFile(join(output, "runtime-signals.jsonl"), "utf8")).toContain('"kind":"model_capacity_wait"');

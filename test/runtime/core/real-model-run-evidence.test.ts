@@ -18,6 +18,7 @@ describe("real-model run evidence", () => {
 					content: [
 						{ type: "tool_use", id: "use-ok", name: "read_files", input: { files: ["a.ts"] } },
 						{ type: "tool_use", id: "use-error", name: "decompose_project", input: { tasks: [] } },
+						{ type: "tool_use", id: "use-nested-error", name: "run_commands", input: { commands: ["npm test"] } },
 						{ type: "tool_use", id: "use-pending", name: "submit_plan", input: {} },
 					],
 				},
@@ -32,13 +33,18 @@ describe("real-model run evidence", () => {
 							is_error: true,
 							content: { error: "dependency-coherence validation failed" },
 						},
+						{
+							type: "tool_result",
+							tool_use_id: "use-nested-error",
+							content: [{ query: "npm test", success: false, error: "exit 1" }],
+						},
 						{ type: "tool_result", tool_use_id: "missing-use", name: "unknown", content: "orphan" },
 					],
 				},
 			],
 		});
 
-		expect(executions).toHaveLength(4);
+		expect(executions).toHaveLength(5);
 		expect(executions[0]).toMatchObject({
 			toolName: "read_files",
 			status: "completed",
@@ -51,14 +57,20 @@ describe("real-model run evidence", () => {
 			isError: true,
 			result: { error: "dependency-coherence validation failed" },
 		});
-		expect(executions[2]).toMatchObject({ status: "pending", isError: null, result: null });
-		expect(executions[3]).toMatchObject({ status: "orphan_result", isError: false, result: "orphan" });
+		expect(executions[2]).toMatchObject({
+			toolName: "run_commands",
+			isError: false,
+			effectiveError: true,
+			errorSource: "nested_result",
+		});
+		expect(executions[3]).toMatchObject({ status: "pending", isError: null, result: null });
+		expect(executions[4]).toMatchObject({ status: "orphan_result", isError: false, result: "orphan" });
 		expect(summarizeRealModelToolEvidence([executions])).toEqual({
 			sessions: 1,
-			toolUses: 3,
-			completedResults: 2,
+			toolUses: 4,
+			completedResults: 3,
 			successfulResults: 1,
-			errorResults: 1,
+			errorResults: 2,
 			pendingToolUses: 1,
 			orphanResults: 1,
 		});

@@ -164,7 +164,7 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 		writeJsonLines(join(options.outputDir, "tool-executions.jsonl"), executions),
 		writeJsonLines(
 			join(options.outputDir, "tool-errors.jsonl"),
-			executions.filter((execution) => execution.isError === true),
+			executions.filter((execution) => execution.effectiveError === true),
 		),
 		writeJsonLines(
 			join(options.outputDir, "pending-tool-uses.jsonl"),

@@ -385,8 +385,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   the 4-model fleet loaded on m5max at 32k in ~26s and the runtime came up in 4s.)
   - **EVIDENCE CONTRACT (fixed + live-proven 2026-07-21): counts are not evidence.** The controller snapshots every
     live transcript (including short-lived auxiliary critic/reviewer sessions) and the collector emits exact
-    `tool_use`→`tool_result` pairs, `is_error`, error bodies, pending/orphan calls, board transitions, durable-ledger
-    events, runtime signals, runtime log, and `lms log stream`. A reactive abort kills the drain immediately; JSON mode
+    `tool_use`→`tool_result` pairs, raw `is_error`, effective error classification, error bodies, pending/orphan calls,
+    board transitions, durable-ledger events, runtime signals, runtime log, and `lms log stream`. Top-level
+    `is_error:false` is not success when a structured nested result reports `success:false`, `ok:false`, or its own
+    `is_error:true`; the collector and attempt ledger classify those as failures and retain the nested body. A reactive
+    abort kills the drain immediately; JSON mode
     stays machine-parseable; controller success follows the drain classification and returns non-zero otherwise. Never
     call a run "progressing" from tool-call counts without reading the corresponding results.
   - **CONTROLLER OWNERSHIP PRECEDES CLEANUP:** reject a busy port and acquire the repo-wide controller lock BEFORE

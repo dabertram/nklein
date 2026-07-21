@@ -1,3 +1,5 @@
+import { isEffectiveToolResultError } from "./tool-result-failure";
+
 export interface RealModelToolExecutionEvidence {
 	sessionId: string;
 	agent: string | null;
@@ -10,7 +12,11 @@ export interface RealModelToolExecutionEvidence {
 	status: "completed" | "pending" | "orphan_result";
 	resultMessageId: string | null;
 	resultAt: number | null;
+	/** Raw SDK `tool_result.is_error`; preserved even when the tool embeds a failure in a nominally successful envelope. */
 	isError: boolean | null;
+	/** Effective classification: transport error OR a structured nested `{success:false}` / `{ok:false}` result. */
+	effectiveError: boolean | null;
+	errorSource: "transport" | "nested_result" | null;
 	result: unknown;
 }
 
@@ -51,6 +57,23 @@ function asString(value: unknown): string | null {
 
 function asNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function classifyToolResult(block: JsonRecord): {
+	isError: boolean;
+	effectiveError: boolean;
+	errorSource: "transport" | "nested_result" | null;
+	result: unknown;
+} {
+	const result = block.content ?? null;
+	const isError = block.is_error === true;
+	const effectiveError = isEffectiveToolResultError(isError, result);
+	return {
+		isError,
+		effectiveError,
+		errorSource: isError ? "transport" : effectiveError ? "nested_result" : null,
+		result,
+	};
 }
 
 /**
@@ -103,6 +126,8 @@ export function extractRealModelToolEvidence(document: unknown): RealModelToolEx
 					resultMessageId: null,
 					resultAt: null,
 					isError: null,
+					effectiveError: null,
+					errorSource: null,
 					result: null,
 				});
 				continue;
@@ -115,6 +140,7 @@ export function extractRealModelToolEvidence(document: unknown): RealModelToolEx
 				continue;
 			}
 			const pendingIndex = pendingByUseId.get(toolUseId);
+			const classification = classifyToolResult(block);
 			if (pendingIndex === undefined) {
 				executions.push({
 					sessionId,
@@ -128,8 +154,10 @@ export function extractRealModelToolEvidence(document: unknown): RealModelToolEx
 					status: "orphan_result",
 					resultMessageId: messageId,
 					resultAt: messageAt,
-					isError: block.is_error === true,
-					result: block.content ?? null,
+					isError: classification.isError,
+					effectiveError: classification.effectiveError,
+					errorSource: classification.errorSource,
+					result: classification.result,
 				});
 				continue;
 			}
@@ -142,8 +170,10 @@ export function extractRealModelToolEvidence(document: unknown): RealModelToolEx
 			pending.status = "completed";
 			pending.resultMessageId = messageId;
 			pending.resultAt = messageAt;
-			pending.isError = block.is_error === true;
-			pending.result = block.content ?? null;
+			pending.isError = classification.isError;
+			pending.effectiveError = classification.effectiveError;
+			pending.errorSource = classification.errorSource;
+			pending.result = classification.result;
 		}
 	}
 
@@ -159,8 +189,8 @@ export function summarizeRealModelToolEvidence(
 		sessions: sessionExecutions.length,
 		toolUses: executions.filter((execution) => execution.status !== "orphan_result").length,
 		completedResults: completed.length,
-		successfulResults: completed.filter((execution) => execution.isError === false).length,
-		errorResults: completed.filter((execution) => execution.isError === true).length,
+		successfulResults: completed.filter((execution) => execution.effectiveError === false).length,
+		errorResults: completed.filter((execution) => execution.effectiveError === true).length,
 		pendingToolUses: executions.filter((execution) => execution.status === "pending").length,
 		orphanResults: executions.filter((execution) => execution.status === "orphan_result").length,
 	};

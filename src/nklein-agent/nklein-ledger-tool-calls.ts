@@ -10,6 +10,7 @@
 
 import type { AttemptToolCall } from "../core/agent-attempt-ledger";
 import type { RecordedToolExecution } from "../core/tool-replay-policy";
+import { isEffectiveToolResultError } from "../core/tool-result-failure";
 import { hashToolResultContent } from "../core/tool-result-record";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
@@ -95,7 +96,9 @@ export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMe
 				const index = callIndexByUseId.get(block.tool_use_id);
 				const call = index === undefined ? undefined : calls[index];
 				if (call) {
-					call.outcome = block.is_error ? "error" : "success";
+					call.outcome = isEffectiveToolResultError(block.is_error === true, block.content ?? null)
+						? "error"
+						: "success";
 					// F1.16: the durable evidence hash of what the tool returned — replay can verify the recorded
 					// execution without re-running the side effect or persisting the payload.
 					call.resultHash = hashToolResultContent(block.content ?? null);

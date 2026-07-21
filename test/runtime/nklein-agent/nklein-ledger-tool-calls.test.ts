@@ -21,6 +21,25 @@ function toolResult(toolUseId: string, isError = false): NKleinSdkPersistedMessa
 	};
 }
 
+function nestedFailedToolResult(toolUseId: string): NKleinSdkPersistedMessage {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "tool_result",
+				tool_use_id: toolUseId,
+				name: "run_commands",
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({ query: "npm test", result: "", error: "exit 1", success: false }),
+					},
+				],
+			},
+		],
+	};
+}
+
 describe("extractTerminalToolCalls", () => {
 	it("records each tool call with name + input fingerprint + success outcome, in order", () => {
 		const calls = extractTerminalToolCalls([
@@ -40,6 +59,14 @@ describe("extractTerminalToolCalls", () => {
 			toolResult("u1", true),
 		]);
 		expect(calls[0]?.outcome).toBe("error");
+	});
+
+	it("marks a structured nested command failure as error even when top-level is_error is absent", () => {
+		const calls = extractTerminalToolCalls([
+			toolUse("u1", "run_commands", { commands: ["npm test"] }),
+			nestedFailedToolResult("u1"),
+		]);
+		expect(calls[0]).toMatchObject({ outcome: "error", resultSummary: expect.stringContaining('"success":false') });
 	});
 
 	it("leaves a call with no tool_result outcome null (the run ended before it completed)", () => {

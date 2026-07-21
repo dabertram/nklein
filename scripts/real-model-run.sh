@@ -212,10 +212,17 @@ tool_activity(){    # exact use/result/error/pending counts across persisted tra
   local uses=0 results=0 errors=0 counts file_uses file_results file_errors
   for f in "$RUN_HOME"/.nklein/data/sessions/*/*.messages.json; do
     [ -f "$f" ] || continue
-    counts=$(jq -r '[
+    counts=$(jq -r '
+      def nested_failure:
+        if type == "array" then any(.[]; nested_failure)
+        elif type == "object" then
+          (.success == false or .ok == false or .is_error == true or .isError == true or any(.[]; nested_failure))
+        elif type == "string" then (try (fromjson | nested_failure) catch false)
+        else false end;
+      [
       ([.messages[]?.content[]? | select(.type == "tool_use")] | length),
       ([.messages[]?.content[]? | select(.type == "tool_result")] | length),
-      ([.messages[]?.content[]? | select(.type == "tool_result" and .is_error == true)] | length)
+      ([.messages[]?.content[]? | select(.type == "tool_result" and (.is_error == true or (.content | nested_failure)))] | length)
     ] | @tsv' "$f" 2>/dev/null) || continue
     IFS=$'\t' read -r file_uses file_results file_errors <<< "$counts"
     uses=$((uses + ${file_uses:-0})); results=$((results + ${file_results:-0})); errors=$((errors + ${file_errors:-0}))
