@@ -201,6 +201,7 @@ import {
 import { formatExpansionRevisionMarkdown } from "./decomposition/plan-task-expansion";
 import { normalizeDecomposeProjectToolInput } from "./decomposition/plan-task-input-parse";
 import {
+	DECOMPOSE_DEPENDENCY_GUIDANCE,
 	decomposeProjectExpansionsJsonSchema,
 	decomposeProjectStringifiedExpansionsJsonSchema,
 	decomposeProjectStringifiedTaskArrayJsonSchema,
@@ -231,8 +232,7 @@ function createDecomposeProjectTool(
 	const MAX_QUALITY_BOUNCES = 2;
 	return {
 		name: "decompose_project",
-		description:
-			"Validate and persist !Klein decomposition artifacts for a project-scale idea. Use this instead of editing .nklein/nklein plan files or tasks.json directly.",
+		description: `Validate and persist !Klein decomposition artifacts for a project-scale idea. ${DECOMPOSE_DEPENDENCY_GUIDANCE} Use this instead of editing .nklein/nklein plan files or tasks.json directly.`,
 		// The strict JSON Schema below documents the intended shape; toPermissiveAgentInputSchema relaxes it
 		// (strips `required`, opens `additionalProperties`) so the SDK never pre-rejects a small model's call
 		// before our handler can return a compact, recoverable error. See toPermissiveAgentInputSchema.
@@ -281,8 +281,7 @@ function createDecomposeProjectTool(
 				title: { type: "string", description: "Project/task graph title." },
 				tasks: {
 					anyOf: [decomposeProjectTaskArrayJsonSchema, decomposeProjectStringifiedTaskArrayJsonSchema],
-					description:
-						"Task leaves. May be an array or a JSON-stringified array. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts. OMIT this field to submit the graph you built incrementally with add_task/add_dependency.",
+					description: `Task leaves. ${DECOMPOSE_DEPENDENCY_GUIDANCE} May be an array or a JSON-stringified array. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts. OMIT this field to submit the graph you built incrementally with add_task/add_dependency.`,
 				},
 				defaultAcceptanceCommand: {
 					type: "string",

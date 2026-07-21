@@ -152,6 +152,9 @@ describe("§5.AK contract fields flow through the decompose input (schema advert
 		]) {
 			expect(advertised, `JSON schema must advertise ${field}`).toContain(field);
 		}
+		expect(decomposeProjectTaskJsonSchema.properties.dependsOn.description).toContain(
+			"directly depend on at least one implementation card",
+		);
 	});
 });
 

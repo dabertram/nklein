@@ -7,6 +7,7 @@ import {
 import { type NKleinPlanTask, nkleinPlanTaskSchema } from "../nklein-plan-artifacts";
 import { repairJsonStringValue } from "../nklein-tool-argument-repair";
 import type { AgentTool } from "../sdk-agent-types";
+import { DECOMPOSE_DEPENDENCY_GUIDANCE } from "./plan-task-schemas";
 
 /**
  * F1.7 (§5.AV) — the LIVE wiring of incremental valid-DAG construction: `add_task` / `add_dependency` tools whose
@@ -125,13 +126,16 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			type: "object",
 			properties: {
 				id: { type: "string", description: "Stable short task id, e.g. setup-db." },
-				title: { type: "string", description: "Task title." },
+				title: {
+					type: "string",
+					description:
+						"Action-oriented task identity. Test/verify/acceptance/coverage/golden titles identify verifier cards.",
+				},
 				prompt: { type: "string", description: "What the task's worker should do." },
 				dependsOn: {
 					type: "array",
 					items: { type: "string" },
-					description:
-						"Ids of already-declared tasks this one depends on (each validated; you can also use add_dependency later).",
+					description: `${DECOMPOSE_DEPENDENCY_GUIDANCE} Dependencies must already be declared; you can also use add_dependency later.`,
 				},
 			},
 			required: ["id", "title", "prompt"],

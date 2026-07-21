@@ -86,6 +86,43 @@ describe("assessNKleinPlanTaskGraphQuality", () => {
 		expect(result.violations).toHaveLength(0);
 	});
 
+	it("explains why a verifier dependency does not satisfy the direct implementation rule", () => {
+		const result = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "impl", title: "Implement weekly summary" }),
+				task({ id: "verify", title: "Verify weekly summary", dependsOn: ["impl"] }),
+				task({ id: "tests", title: "Add acceptance tests", dependsOn: ["verify"] }),
+			]),
+		);
+		expect(result.violations).toHaveLength(1);
+		expect(result.violations[0]).toContain("verify (verifier)");
+		expect(result.violations[0]).toContain("cycle-safe implementation ids: impl");
+	});
+
+	it("does not suggest a downstream implementation edge that would create a cycle", () => {
+		const result = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "upstream", title: "Implement foundation" }),
+				task({ id: "verify", title: "Verify integration" }),
+				task({ id: "verify-output", title: "Verify output", dependsOn: ["verify"] }),
+				task({ id: "downstream", title: "Implement CLI", dependsOn: ["verify-output"] }),
+			]),
+		);
+		expect(result.violations[0]).toContain("cycle-safe implementation ids: upstream");
+		expect(result.violations[0]).not.toContain("cycle-safe implementation ids: upstream, downstream");
+	});
+
+	it("does not mistake documentation for implementation when validating a test dependency", () => {
+		const result = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "impl", title: "Implement public API" }),
+				task({ id: "docs", title: "Update API documentation", dependsOn: ["impl"] }),
+				task({ id: "tests", title: "Add API tests", dependsOn: ["docs"] }),
+			]),
+		);
+		expect(result.violations.some((violation) => violation.startsWith("Test card tests"))).toBe(true);
+	});
+
 	it("flags a documentation card with no dependency on delivered work", () => {
 		const result = assessNKleinPlanTaskGraphQuality(
 			graph([

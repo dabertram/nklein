@@ -9,13 +9,20 @@ export const MAX_DECOMPOSED_TASK_EXPANSION_DEPTH = 4;
 export const MAX_SHARED_PLAN_SPEC_PROMPT_CHARS = 2_400;
 export const MAX_SHARED_PLAN_DECISIONS_PROMPT_CHARS = 1_600;
 
+export const DECOMPOSE_DEPENDENCY_GUIDANCE =
+	"dependsOn contains DIRECT prerequisite task ids. Hard rule: every test, verification, acceptance, coverage, or golden-output card must directly depend on at least one implementation card it verifies; every documentation card must directly depend on delivered implementation work. Example: tests.dependsOn = ['api-implementation']. Do not reverse the edge.";
+
 export const decomposeProjectTaskJsonSchema = {
 	type: "object",
 	properties: {
 		id: { type: "string" },
-		title: { type: "string" },
+		title: {
+			type: "string",
+			description:
+				"Action-oriented task identity. Titles containing test, verify, acceptance, coverage, or golden identify verifier cards and activate the direct implementation-dependency rule.",
+		},
 		prompt: { type: "string" },
-		dependsOn: { type: "array", items: { type: "string" } },
+		dependsOn: { type: "array", items: { type: "string" }, description: DECOMPOSE_DEPENDENCY_GUIDANCE },
 		complexity: { type: "number" },
 		suggestedRole: { type: ["string", "null"] },
 		filesLikelyTouched: { type: "array", items: { type: "string" } },

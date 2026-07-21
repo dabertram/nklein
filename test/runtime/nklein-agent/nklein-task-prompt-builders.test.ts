@@ -39,6 +39,8 @@ describe("buildNKleinStartPromptParts (§5.U)", () => {
 		expect(sys).toContain("never absolute host or sandbox paths");
 		// The dev-test fixture convention + phrasing are still present (existing scenarios rely on them).
 		expect(sys).toContain("authoritative product specification");
+		expect(sys).toContain("every test, verification, acceptance, coverage, or golden-output card");
+		expect(sys).toContain("directly depend on at least one implementation card");
 	});
 
 	describe("F4.38 AUTO decomposition-depth guidance", () => {

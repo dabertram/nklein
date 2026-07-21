@@ -8,6 +8,7 @@ import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-
 import { isTruthyEnv } from "../core/env-flag";
 import { lintSpecForDecompose } from "../core/spec-lint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { DECOMPOSE_DEPENDENCY_GUIDANCE } from "./decomposition/plan-task-schemas";
 import {
 	isDecompositionPlanningPrompt,
 	parseAcceptanceCommand,
@@ -97,6 +98,7 @@ function buildNKleinPlanningSystemPrompt(
 			"Keep your thinking and any prose brief: a short focused pass, then the tool call. Do not write a long analysis, reasoning dump, or running commentary before calling `decompose_project` — long output wastes the context budget and can crash a local model host.",
 			"Reasoning or thinking alone is not an answer and does not make progress. After your brief think, you MUST emit a tool call in your output — never end your turn with only reasoning and no tool call. The decomposition is delivered by calling `decompose_project`, not by describing it.",
 			decompositionInstruction,
+			DECOMPOSE_DEPENDENCY_GUIDANCE,
 			minimumTaskCount !== null
 				? `When calling decompose_project, pass \`minimumTaskCount: ${minimumTaskCount}\`.`
 				: null,

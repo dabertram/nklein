@@ -145,18 +145,34 @@ export function assessNKleinPlanTaskGraphQuality(taskGraph: NKleinPlanTaskGraph)
 	const violations: string[] = [];
 	const warnings: string[] = [];
 
-	const nonTestExists = classified.some((entry) => !entry.isTest);
-	const nonDocsExists = classified.some((entry) => !entry.isDocs);
+	const implementationCards = classified.filter((entry) => !entry.isTest && !entry.isDocs);
+	const implementationExists = implementationCards.length > 0;
 	const domainCoreExists = classified.some((entry) => entry.isDomainCore);
+	const dependsTransitivelyOn = (taskId: string, dependencyId: string): boolean => {
+		const pending = [...(classifiedById.get(taskId)?.task.dependsOn ?? [])];
+		const seen = new Set<string>();
+		while (pending.length > 0) {
+			const current = pending.pop();
+			if (!current || seen.has(current)) {
+				continue;
+			}
+			if (current === dependencyId) {
+				return true;
+			}
+			seen.add(current);
+			pending.push(...(classifiedById.get(current)?.task.dependsOn ?? []));
+		}
+		return false;
+	};
 
-	// Dependents index: which cards BUILD ON a given card. A test-classified card that non-test cards depend on
+	// Dependents index: which cards BUILD ON a given card. A test-classified card that implementation cards depend on
 	// is scaffolding/harness infrastructure (e.g. "Project scaffold: … test wiring" as a chain ROOT), not a
 	// floating verifier — the hard must-depend-on-implementation rule cannot apply to it (it is the thing being
 	// depended on). Live-found 2026-07-18: scenario-02's fully-coherent 18-card chain was hard-rejected three
 	// times because its root's title mentioned "test wiring", then the repeated-call guard parked the seed.
 	const nonTestDependentsByTaskId = new Map<string, number>();
 	for (const entry of classified) {
-		if (entry.isTest) {
+		if (entry.isTest || entry.isDocs) {
 			continue;
 		}
 		for (const dependencyId of new Set(entry.task.dependsOn)) {
@@ -168,26 +184,47 @@ export function assessNKleinPlanTaskGraphQuality(taskGraph: NKleinPlanTaskGraph)
 		const dependencies = [...new Set(entry.task.dependsOn)]
 			.map((id) => classifiedById.get(id))
 			.filter((dependency): dependency is ClassifiedTask => Boolean(dependency));
+		const safeImplementationIds = implementationCards
+			.filter((candidate) => !dependsTransitivelyOn(candidate.task.id, entry.task.id))
+			.map((candidate) => candidate.task.id);
+		const safeImplementationSummary = safeImplementationIds.length > 0 ? safeImplementationIds.join(", ") : "none";
 
-		// Hard: a test/acceptance card must verify something — it must depend on a non-test card. EXEMPT
-		// foundational cards that non-test work builds on (see the dependents index above): those are harness
+		// Hard: a test/acceptance card must verify something — it must depend directly on an implementation card. EXEMPT
+		// foundational cards that implementation work builds on (see the dependents index above): those are harness
 		// scaffolding despite the test-flavored title; surface a warning instead so the operator still sees it.
-		if (entry.isTest && nonTestExists && !dependencies.some((dependency) => !dependency.isTest)) {
+		if (
+			entry.isTest &&
+			implementationExists &&
+			!dependencies.some((dependency) => !dependency.isTest && !dependency.isDocs)
+		) {
 			if ((nonTestDependentsByTaskId.get(entry.task.id) ?? 0) > 0) {
 				warnings.push(
-					`Test-titled card ${entry.task.id} ("${entry.task.title}") has no implementation dependency but non-test cards build on it — treating it as scaffolding, not a floating verifier.`,
+					`Test-titled card ${entry.task.id} ("${entry.task.title}") has no implementation dependency but implementation cards build on it — treating it as scaffolding, not a floating verifier.`,
 				);
 			} else {
+				const dependencySummary =
+					dependencies.length === 0
+						? "none"
+						: dependencies
+								.map(
+									(dependency) =>
+										`${dependency.task.id} (${dependency.isTest ? "verifier" : dependency.isDocs ? "documentation" : "implementation"})`,
+								)
+								.join(", ");
 				violations.push(
-					`Test card ${entry.task.id} ("${entry.task.title}") does not depend on any implementation card; add a dependsOn edge to the card(s) it verifies.`,
+					`Test card ${entry.task.id} ("${entry.task.title}") does not depend on any implementation card. Current direct dependencies: ${dependencySummary}. Add a direct dependsOn edge to at least one implementation card it verifies; cycle-safe implementation ids: ${safeImplementationSummary}.`,
 				);
 			}
 		}
 
-		// Hard: a documentation card should document delivered work — it must depend on a non-docs card.
-		if (entry.isDocs && nonDocsExists && !dependencies.some((dependency) => !dependency.isDocs)) {
+		// Hard: a documentation card should document delivered work — it must depend directly on implementation.
+		if (
+			entry.isDocs &&
+			implementationExists &&
+			!dependencies.some((dependency) => !dependency.isTest && !dependency.isDocs)
+		) {
 			violations.push(
-				`Documentation card ${entry.task.id} ("${entry.task.title}") does not depend on any feature/API card; add a dependsOn edge to the work it documents.`,
+				`Documentation card ${entry.task.id} ("${entry.task.title}") does not depend on any implementation card; add a direct dependsOn edge to the work it documents. Cycle-safe implementation ids: ${safeImplementationSummary}.`,
 			);
 		}
 
@@ -205,7 +242,7 @@ export function assessNKleinPlanTaskGraphQuality(taskGraph: NKleinPlanTaskGraph)
 
 		// Soft: a non-test implementation card depending on a test card is a likely reversed edge.
 		const reversed = dependencies.filter((dependency) => dependency.isTest);
-		if (!entry.isTest && reversed.length > 0) {
+		if (!entry.isTest && !entry.isDocs && reversed.length > 0) {
 			warnings.push(
 				`Card ${entry.task.id} ("${entry.task.title}") depends on test card(s) ${reversed
 					.map((dependency) => dependency.task.id)
