@@ -94,6 +94,8 @@ import {
 	runtimeNKleinModelRegistryRemoveRequestSchema,
 	runtimeNKleinModelRegistryRemoveResponseSchema,
 	runtimeNKleinModelRegistryResponseSchema,
+	runtimeNKleinModelResearchRequestSchema,
+	runtimeNKleinModelResearchResponseSchema,
 	runtimeNKleinOauthLoginRequestSchema,
 	runtimeNKleinOauthLoginResponseSchema,
 	runtimeNKleinPlanArtifactActionRequestSchema,
@@ -589,6 +591,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeNKleinAdvisorSendResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.sendNKleinAdvisor(ctx.workspaceScope, input);
+			}),
+		researchNKleinModel: t.procedure
+			.input(runtimeNKleinModelResearchRequestSchema)
+			.output(runtimeNKleinModelResearchResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.researchNKleinModel(ctx.workspaceScope, input);
 			}),
 		writeNKleinDogfoodBacklog: t.procedure
 			.input(runtimeNKleinDogfoodBacklogRequestSchema)

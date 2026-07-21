@@ -31,6 +31,7 @@ import {
 	summarizeKnowledgeDebtOutcomes,
 	summarizeKnowledgeOutcomeByModel,
 } from "../core/agent-attempt-ledger";
+import { isAirGappedMode } from "../core/air-gap-posture";
 import type {
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeTaskContextImportResponse,
@@ -45,6 +46,7 @@ import {
 	parseNKleinEndpointModelDiscoveryRequest,
 	parseNKleinMcpOAuthRequest,
 	parseNKleinMcpSettingsSaveRequest,
+	parseNKleinModelResearchRequest,
 	parseNKleinOauthLoginRequest,
 	parseNKleinProviderModelsRequest,
 	parseProtectedTestApprovalGrantRequest,
@@ -125,7 +127,7 @@ import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-h
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
 import { createNKleinMcpSettingsService } from "../nklein-agent/nklein-mcp-settings-service";
-import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
+import { buildNKleinModelFreshnessAdvisorRequest, runNKleinModelResearch } from "../nklein-agent/nklein-model-research";
 import {
 	listNKleinPlanArtifactsForSourceTask,
 	type NKleinPlanArtifactSummary,
@@ -1455,6 +1457,33 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				sentAt,
 				receivedAt: Date.now(),
 			};
+		},
+		researchNKleinModel: async (workspaceScope, input) => {
+			const body = parseNKleinModelResearchRequest(input);
+			const runtimeConfig = workspaceScope
+				? await deps.loadScopedRuntimeConfig(workspaceScope)
+				: (deps.getActiveRuntimeConfig?.() ?? (await loadGlobalRuntimeConfig()));
+			const launchConfig = await nkleinProviderService.resolveLaunchConfig({
+				providerIdOverride: body.advisorProviderId,
+				modelIdOverride: body.advisorModelId,
+			});
+			assertLocalProviderAllowed({
+				providerId: launchConfig.providerId,
+				baseUrl: launchConfig.baseUrl,
+			});
+			return await (deps.runNKleinModelResearch ?? runNKleinModelResearch)(
+				{
+					...body,
+					advisorProviderId: launchConfig.providerId,
+					advisorModelId: launchConfig.modelId ?? body.advisorModelId,
+					egressEnabled: runtimeConfig.retrievalEgressEnabled,
+					searchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+					airGapped: isAirGappedMode(),
+				},
+				{
+					complete: (prompt) => runLocalAdvisorCompletion({ launchConfig, prompt }),
+				},
+			);
 		},
 		writeNKleinDogfoodBacklog: async (workspaceScope, input) => {
 			if (!workspaceScope) {

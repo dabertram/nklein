@@ -6,6 +6,7 @@ import {
 	Lightbulb,
 	RotateCcw,
 	Save,
+	Search,
 	Server,
 	Trash2,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import type {
 	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeModelFleetSuggestion,
 	RuntimeNKleinModelRegistryEntry,
+	RuntimeNKleinModelResearchResponse,
 	RuntimeNKleinProviderModel,
 } from "@/runtime/types";
 
@@ -207,6 +209,10 @@ interface NKleinModelRegistryPanelProps {
 	onPruneStale?: () => Promise<void> | void;
 	onCheckCatalogUpdate?: () => Promise<void> | void;
 	onPullCatalogUpdate?: () => Promise<void> | void;
+	onResearchModel?: (
+		entry: RuntimeNKleinModelRegistryEntry,
+		failureSummary?: string,
+	) => Promise<RuntimeNKleinModelResearchResponse>;
 	catalogUpdateMode?: RuntimeLlmfitCatalogUpdateCheckResponse["mode"];
 }
 
@@ -224,6 +230,7 @@ export function NKleinModelRegistryPanel({
 	onPruneStale,
 	onCheckCatalogUpdate,
 	onPullCatalogUpdate,
+	onResearchModel,
 	catalogUpdateMode = "notify",
 }: NKleinModelRegistryPanelProps) {
 	const selectedEntry = findNKleinModelRegistryEntry(entries, selectedProviderId, selectedModelId);
@@ -244,6 +251,12 @@ export function NKleinModelRegistryPanel({
 	const [removeErrorByKey, setRemoveErrorByKey] = useState<Record<string, string>>({});
 	const [pruneError, setPruneError] = useState("");
 	const [catalogCheckError, setCatalogCheckError] = useState("");
+	const [researchingKey, setResearchingKey] = useState<string | null>(null);
+	const [researchContextByKey, setResearchContextByKey] = useState<Record<string, string>>({});
+	const [researchResultByKey, setResearchResultByKey] = useState<
+		Record<string, RuntimeNKleinModelResearchResponse | undefined>
+	>({});
+	const [researchErrorByKey, setResearchErrorByKey] = useState<Record<string, string>>({});
 
 	const saveOverride = async (entry: RuntimeNKleinModelRegistryEntry, contextWindow: number | null) => {
 		if (!onContextWindowOverrideSave) {
@@ -348,6 +361,23 @@ export function NKleinModelRegistryPanel({
 			setCatalogCheckError(error instanceof Error ? error.message : String(error));
 		} finally {
 			setIsPullingCatalog(false);
+		}
+	};
+
+	const researchModel = async (entry: RuntimeNKleinModelRegistryEntry) => {
+		if (!onResearchModel) return;
+		setResearchingKey(entry.key);
+		setResearchErrorByKey((current) => ({ ...current, [entry.key]: "" }));
+		try {
+			const result = await onResearchModel(entry, researchContextByKey[entry.key]);
+			setResearchResultByKey((current) => ({ ...current, [entry.key]: result }));
+		} catch (error) {
+			setResearchErrorByKey((current) => ({
+				...current,
+				[entry.key]: error instanceof Error ? error.message : String(error),
+			}));
+		} finally {
+			setResearchingKey(null);
 		}
 	};
 
@@ -488,6 +518,9 @@ export function NKleinModelRegistryPanel({
 						const saveError = saveErrorByKey[entry.key]?.trim();
 						const concurrencyError = concurrencyErrorByKey[entry.key]?.trim();
 						const removeError = removeErrorByKey[entry.key]?.trim();
+						const researchError = researchErrorByKey[entry.key]?.trim();
+						const researchResult = researchResultByKey[entry.key];
+						const isResearching = researchingKey === entry.key;
 						return (
 							<div
 								key={entry.key}
@@ -510,6 +543,20 @@ export function NKleinModelRegistryPanel({
 										<span className="shrink-0 rounded-sm border border-status-orange/50 px-1.5 py-0.5 text-[10px] text-status-orange">
 											Set context window
 										</span>
+									) : null}
+									{onResearchModel ? (
+										<Button
+											size="sm"
+											variant="ghost"
+											icon={<Search size={14} />}
+											disabled={isResearching}
+											title="Explicitly search current publisher-primary documentation. Requires enabled retrieval egress."
+											onClick={() => {
+												void researchModel(entry);
+											}}
+										>
+											{isResearching ? "Researching..." : "Research model"}
+										</Button>
 									) : null}
 									{onRemoveEntry ? (
 										<Button
@@ -549,6 +596,90 @@ export function NKleinModelRegistryPanel({
 									<span>Latency {formatLatency(entry.speed.wallTimeMsPer1kPromptTokensEwma)}</span>
 									<span>Capability {Math.round(entry.capability.effectiveScore)}</span>
 								</div>
+								{onResearchModel ? (
+									<div className="mt-2 grid gap-1">
+										<input
+											value={researchContextByKey[entry.key] ?? ""}
+											onChange={(event) => {
+												const value = event.currentTarget.value;
+												setResearchContextByKey((current) => ({ ...current, [entry.key]: value }));
+											}}
+											maxLength={2000}
+											placeholder="Optional observed failure (context only, not evidence)"
+											aria-label={`Observed failure for ${entry.providerId}/${entry.modelId}`}
+											className="h-8 w-full rounded-md border border-border bg-surface-0 px-2 text-xs text-text-primary outline-none focus:border-border-focus"
+										/>
+										<div className="text-[10px] text-text-tertiary">
+											Research runs only on click, uses the configured retrieval egress, and never changes or
+											downloads models.
+										</div>
+										{researchError ? (
+											<div className="text-[11px] text-status-red">{researchError}</div>
+										) : null}
+									</div>
+								) : null}
+								{researchResult ? (
+									<div
+										className="mt-2 rounded-md border border-status-orange/40 bg-status-orange/10 p-2 text-[11px]"
+										role="status"
+										data-testid="model-research-proposal"
+									>
+										<div className="font-semibold text-text-primary">
+											Provisional catalog update — review only
+										</div>
+										<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-text-secondary">
+											<span>Tool use: {researchResult.proposal.toolUse?.value ?? "unknown"}</span>
+											<span>Kind: {researchResult.proposal.kind?.value ?? "unknown"}</span>
+											<span>Chaining: {researchResult.proposal.chaining?.value ?? "unknown"}</span>
+											<span>
+												Structured output: {researchResult.proposal.structuredOutput?.value ?? "unknown"}
+											</span>
+										</div>
+										{researchResult.proposal.findings.length > 0 ? (
+											<ul className="mt-2 grid gap-1 pl-4 text-text-primary">
+												{researchResult.proposal.findings.map((finding, index) => (
+													<li key={`${finding.area}:${index}`}>
+														<span className="font-medium">{finding.area.replaceAll("_", " ")}:</span>{" "}
+														{finding.claim}{" "}
+														{finding.sourceIds.map((sourceId) => {
+															const source = researchResult.evidence.find(
+																(item) => item.id === sourceId,
+															);
+															return source ? (
+																<a
+																	key={sourceId}
+																	href={source.url}
+																	target="_blank"
+																	rel="noreferrer"
+																	className="text-accent underline"
+																>
+																	[{sourceId}]
+																</a>
+															) : null;
+														})}
+													</li>
+												))}
+											</ul>
+										) : (
+											<div className="mt-2 text-text-secondary">No cited catalog claims were extracted.</div>
+										)}
+										{researchResult.proposal.unknowns.length > 0 ? (
+											<div className="mt-2 text-text-secondary">
+												Unknown: {researchResult.proposal.unknowns.join("; ")}
+											</div>
+										) : null}
+										{researchResult.proposal.warnings.length > 0 ? (
+											<div className="mt-1 text-status-orange">
+												{researchResult.proposal.warnings.join(" ")}
+											</div>
+										) : null}
+										<div className="mt-2 text-text-tertiary">
+											Exact-id draft: <code>{researchResult.proposal.match}</code> ·{" "}
+											{researchResult.evidence.length} primary source
+											{researchResult.evidence.length === 1 ? "" : "s"} · auto-applied: no
+										</div>
+									</div>
+								) : null}
 								{onContextWindowOverrideSave ? (
 									<div className="mt-2 grid gap-1">
 										<div className="flex flex-wrap items-center gap-2">

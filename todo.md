@@ -76,6 +76,14 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A PROMPT THAT SAYS “RESEARCH THE WEB” HAS NO WEB CAPABILITY (live-found F3.34, 2026-07-21).** The old model
+> freshness advisor set `requiresWebResearch: true` and linked aggregators, but its action was a plain local completion
+> with no search/fetch tool; it could only improvise from stale weights. Any research feature must own an EFFECTFUL,
+> explicit-user egress path and prove the server-side gate before network I/O. For model facts, search broadly but admit
+> only publisher-primary domain/path matches (an entire GitHub or Hugging Face host is not primary), SSRF-check the
+> fetched final URL, treat page text as untrusted data, and require every proposed field to cite admitted evidence.
+> Research output stays provisional; model lifecycle and unsafe setting changes are separate user-controlled actions.
+
 > **⚠️ AN ADAPTIVE RETRY BUDGET COUNTS RETRIES, NOT THE BASELINE ATTEMPT (live-found 2026-07-21).** The first
 > production wire of `runAdaptiveAttemptLoop` passed the baseline-inclusive attempt count into a policy whose learned
 > budget is explicitly the number of retries allowed. A budget of 1 therefore parked immediately instead of granting
@@ -2011,9 +2019,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `dev routing-calibration` summarizes predicted-vs-realized. What remains is the ENFORCING flip (route BY the
   combiner) plus a faithful shadow-prediction, both of which need hot-path resource probes (queue/RAM per start —
   a latency tradeoff to decide WITH calibration data in hand) → data-gated flip, David batch. Crossed.
-- [ ] **F3.34 — Add an egress-gated “research this model” flow.** For unknown/failing local models, search current
-  primary documentation for API switches, tool dialect, reasoning controls, context/quant quirks, and fit; present a
-  provisional catalog update for review and never auto-apply model downloads or unsafe settings.
 - [x] **F3.35 — Surface capability-ceiling model recommendations.** When the loaded fleet cannot clear a role/challenge,
   show the evidence, exact promising local model/quant, target machine, expected fit, and uncertainty; recommendations
   never download/delete/load without the user-controlled policy. **DETECTION HALF SHIPPED + LIVE (verified 2026-07-15):**

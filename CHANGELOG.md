@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Unknown or failing local models can now be researched from Settings without changing the fleet.** The action only
+  runs when retrieval egress is explicitly enabled and configured, searches current publisher documentation for API,
+  tool-calling, reasoning, context/quant, and fit details, and shows a cited provisional catalog draft for review.
+  Secondary sources and fabricated citations are rejected; no model is downloaded, loaded, deleted, or reconfigured.
+
 - **Swarm retries now learn which remedy works for each model and role.** Every retry records what failed, which
   strategy ran, whether it recovered, and its measured time/token cost. After enough repeated evidence, !Klein moves
   reliably effective remedies earlier and uses cost to break close ties; one-off wins cannot reorder the ladder, and

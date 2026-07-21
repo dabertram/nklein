@@ -8,6 +8,8 @@ import type {
 	RuntimeNKleinModelRegistryPruneResponse,
 	RuntimeNKleinModelRegistryRemoveResponse,
 	RuntimeNKleinModelRegistryResponse,
+	RuntimeNKleinModelResearchRequest,
+	RuntimeNKleinModelResearchResponse,
 } from "@/runtime/types";
 
 export async function fetchNKleinModelRegistry(
@@ -15,6 +17,15 @@ export async function fetchNKleinModelRegistry(
 ): Promise<RuntimeNKleinModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getNKleinModelRegistry.query();
+}
+
+/** F3.34: explicit operator-triggered research. The server enforces egress and returns a review-only proposal. */
+export async function researchNKleinModel(
+	workspaceId: string | null,
+	input: RuntimeNKleinModelResearchRequest,
+): Promise<RuntimeNKleinModelResearchResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.researchNKleinModel.mutate(input);
 }
 
 export async function checkLlmfitCatalogUpdate(

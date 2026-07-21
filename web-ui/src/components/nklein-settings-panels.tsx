@@ -22,6 +22,7 @@ import {
 	pruneNKleinModelRegistry,
 	pullLlmfitCatalogUpdate,
 	removeNKleinModelRegistryEntry,
+	researchNKleinModel,
 	runNKleinSmokeEval,
 	saveNKleinModelContextWindowOverride,
 	saveNKleinModelMaxConcurrentRequests,
@@ -254,6 +255,26 @@ export function NKleinModelContextWindowSettingsPanel({
 		});
 	}, [disabled, refreshRegistry, workspaceId]);
 
+	const researchModel = useCallback(
+		async (entry: RuntimeNKleinModelRegistryEntry, failureSummary?: string) => {
+			if (disabled) {
+				throw new Error("Model research is unavailable while Settings controls are disabled.");
+			}
+			if (!selectedProviderId.trim() || !selectedModelId.trim()) {
+				throw new Error("Select a loaded local advisor model before researching a model.");
+			}
+			return await researchNKleinModel(workspaceId, {
+				targetProviderId: entry.providerId,
+				targetModelId: entry.modelId,
+				targetEndpoint: entry.endpoint,
+				...(failureSummary?.trim() ? { failureSummary: failureSummary.trim() } : {}),
+				advisorProviderId: selectedProviderId,
+				advisorModelId: selectedModelId,
+			});
+		},
+		[disabled, selectedModelId, selectedProviderId, workspaceId],
+	);
+
 	const checkCatalogUpdate = useCallback(async () => {
 		if (disabled) {
 			return;
@@ -353,6 +374,7 @@ export function NKleinModelContextWindowSettingsPanel({
 				onPruneStale={disabled ? undefined : pruneStale}
 				onCheckCatalogUpdate={disabled ? undefined : checkCatalogUpdate}
 				onPullCatalogUpdate={disabled ? undefined : pullCatalogUpdate}
+				onResearchModel={disabled ? undefined : researchModel}
 			/>
 			<KleinCorePyHealthLine workspaceId={workspaceId} />
 		</div>

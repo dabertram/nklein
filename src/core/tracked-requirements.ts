@@ -83,6 +83,27 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 		],
 	},
 	{
+		// F3.34 — "research this model" is only real if the production action owns the explicit egress gate, filters
+		// search/fetch results to publisher-primary paths, and rejects uncited model-generated catalog claims before the
+		// review-only response reaches Settings. Tracking all three prevents the old prompt-only advisor facade from
+		// looking like research merely because it says "requiresWebResearch".
+		id: "F3.34",
+		elements: [
+			{
+				element: "explicit_egress_gate",
+				providedBy: { module: "model-research-policy.ts", symbol: "assertModelResearchEgressAllowed" },
+			},
+			{
+				element: "publisher_primary_source_filter",
+				providedBy: { module: "model-research-policy.ts", symbol: "isPrimaryModelSourceUrl" },
+			},
+			{
+				element: "cited_provisional_proposal",
+				providedBy: { module: "model-research-policy.ts", symbol: "validateModelResearchCitations" },
+			},
+		],
+	},
+	{
 		// P20.5 — metric discipline. The formatting half is wired into the fitness table; the naming guard is
 		// enforced as a repo ratchet rather than a caller, so it has no symbol-level consumer by design.
 		id: "P20.5",

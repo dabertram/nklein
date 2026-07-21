@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
-import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import type {
+	RuntimeBoardData,
+	RuntimeNKleinModelResearchResponse,
+	RuntimeTaskSessionSummary,
+} from "../../../src/core/api-contract";
 import {
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
@@ -5318,6 +5322,85 @@ describe("createRuntimeApi startTaskSession", () => {
 		} finally {
 			vi.unstubAllGlobals();
 		}
+	});
+
+	it("runs explicit model research with scoped egress config and returns only the controller's provisional result", async () => {
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "reviewer",
+			baseUrl: "http://127.0.0.1:11434",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "ollama",
+			models: [{ id: "reviewer", name: "Reviewer", contextWindow: 32_768 }],
+		});
+		const provisional = {
+			status: "provisional",
+			targetProviderId: "lmstudio",
+			targetModelId: "qwen/qwen3.6-35b-a3b",
+			targetEndpoint: "http://localhost:1234/v1",
+			advisorProviderId: "ollama",
+			advisorModelId: "reviewer",
+			researchedAt: 100,
+			queries: [],
+			evidence: [],
+			proposal: {
+				family: "qwen/qwen3.6-35b-a3b",
+				match: "^qwen/qwen3\\.6-35b-a3b$",
+				toolUse: null,
+				kind: null,
+				chaining: null,
+				structuredOutput: null,
+				note: "No cited catalog claims extracted.",
+				sources: [],
+				basis: "research",
+				verified: false,
+				findings: [],
+				unknowns: [],
+				warnings: ["No evidence."],
+			},
+			autoApplied: false,
+		} satisfies RuntimeNKleinModelResearchResponse;
+		const runResearch = vi.fn(async () => provisional);
+		const config = createRuntimeConfigState();
+		config.retrievalEgressEnabled = true;
+		config.retrievalSearchBackendUrl = "http://127.0.0.1:8888";
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => config),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+			runNKleinModelResearch: runResearch,
+		});
+
+		const response = await api.researchNKleinModel(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				targetProviderId: " lmstudio ",
+				targetModelId: " qwen/qwen3.6-35b-a3b ",
+				targetEndpoint: " http://localhost:1234/v1 ",
+				failureSummary: " narrated tool call ",
+				advisorProviderId: " ollama ",
+				advisorModelId: " reviewer ",
+			},
+		);
+
+		expect(response).toBe(provisional);
+		expect(runResearch).toHaveBeenCalledWith(
+			expect.objectContaining({
+				targetProviderId: "lmstudio",
+				targetModelId: "qwen/qwen3.6-35b-a3b",
+				failureSummary: "narrated tool call",
+				egressEnabled: true,
+				searchBackendUrl: "http://127.0.0.1:8888",
+				advisorProviderId: "ollama",
+				advisorModelId: "reviewer",
+			}),
+			expect.objectContaining({ complete: expect.any(Function) }),
+		);
 	});
 
 	it("writes dogfood backlog artifacts for the active workspace", async () => {

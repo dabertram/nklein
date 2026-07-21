@@ -77,6 +77,87 @@ export const runtimeNKleinAdvisorSendResponseSchema = z.object({
 });
 export type RuntimeNKleinAdvisorSendResponse = z.infer<typeof runtimeNKleinAdvisorSendResponseSchema>;
 
+// F3.34 — explicit, egress-gated research for one unknown/failing LOCAL model. This is deliberately separate from
+// the generic advisor contract: invoking it is the operator's egress action, and its result is review-only data. There
+// is no "apply" flag or model-lifecycle action anywhere in this wire shape.
+export const runtimeNKleinModelResearchRequestSchema = z.object({
+	targetProviderId: z.string().min(1),
+	targetModelId: z.string().min(1),
+	targetEndpoint: z.string().nullable().optional(),
+	failureSummary: z.string().max(2_000).optional(),
+	/** A loaded local model used only to synthesize the gathered primary-source evidence. */
+	advisorProviderId: z.string().min(1),
+	advisorModelId: z.string().min(1),
+});
+export type RuntimeNKleinModelResearchRequest = z.infer<typeof runtimeNKleinModelResearchRequestSchema>;
+
+export const runtimeNKleinModelResearchAreaSchema = z.enum([
+	"api_switches",
+	"tool_dialect",
+	"reasoning_controls",
+	"context_quant_quirks",
+	"fit",
+]);
+export type RuntimeNKleinModelResearchArea = z.infer<typeof runtimeNKleinModelResearchAreaSchema>;
+
+export const runtimeNKleinModelResearchEvidenceSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+	url: z.string().url(),
+	excerpt: z.string(),
+});
+export type RuntimeNKleinModelResearchEvidence = z.infer<typeof runtimeNKleinModelResearchEvidenceSchema>;
+
+const citedResearchValue = <T extends z.ZodTypeAny>(value: T) =>
+	z.object({ value, sourceIds: z.array(z.string().min(1)).min(1) });
+
+export const runtimeNKleinModelResearchFindingSchema = z.object({
+	area: runtimeNKleinModelResearchAreaSchema,
+	claim: z.string().min(1),
+	sourceIds: z.array(z.string().min(1)).min(1),
+});
+export type RuntimeNKleinModelResearchFinding = z.infer<typeof runtimeNKleinModelResearchFindingSchema>;
+
+export const runtimeNKleinModelResearchProposalSchema = z.object({
+	/** Exact-id overlay draft. Family-wide regex generalization requires later human review. */
+	family: z.string().min(1),
+	match: z.string().min(1),
+	toolUse: citedResearchValue(
+		z.enum(["TOOL_NATIVE", "TOOL_CAPABLE", "TOOL_WEAK", "TOOL_UNSUITABLE", "UNKNOWN"]),
+	).nullable(),
+	kind: citedResearchValue(
+		z.enum(["instruct", "agentic", "code", "reasoning", "chat", "roleplay", "unknown"]),
+	).nullable(),
+	chaining: citedResearchValue(z.enum(["native", "via_force", "single_only", "fails", "unknown"])).nullable(),
+	structuredOutput: citedResearchValue(
+		z.enum(["json_schema", "json_schema_deadend", "native_tool_call", "unknown"]),
+	).nullable(),
+	note: z.string(),
+	sources: z.array(z.string().url()),
+	basis: z.literal("research"),
+	verified: z.literal(false),
+	findings: z.array(runtimeNKleinModelResearchFindingSchema),
+	unknowns: z.array(z.string()),
+	warnings: z.array(z.string()),
+});
+export type RuntimeNKleinModelResearchProposal = z.infer<typeof runtimeNKleinModelResearchProposalSchema>;
+
+export const runtimeNKleinModelResearchResponseSchema = z.object({
+	status: z.literal("provisional"),
+	targetProviderId: z.string(),
+	targetModelId: z.string(),
+	targetEndpoint: z.string().nullable(),
+	advisorProviderId: z.string(),
+	advisorModelId: z.string(),
+	researchedAt: z.number().int().nonnegative(),
+	queries: z.array(z.string()),
+	evidence: z.array(runtimeNKleinModelResearchEvidenceSchema),
+	proposal: runtimeNKleinModelResearchProposalSchema,
+	/** Load-bearing safety promise surfaced to every client. */
+	autoApplied: z.literal(false),
+});
+export type RuntimeNKleinModelResearchResponse = z.infer<typeof runtimeNKleinModelResearchResponseSchema>;
+
 export const runtimeNKleinDogfoodBacklogRequestSchema = z.object({
 	suggestion: z.string().optional(),
 	slug: z.string().optional(),

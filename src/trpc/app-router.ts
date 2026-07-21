@@ -113,6 +113,8 @@ import type {
 	RuntimeNKleinModelRegistryRemoveRequest,
 	RuntimeNKleinModelRegistryRemoveResponse,
 	RuntimeNKleinModelRegistryResponse,
+	RuntimeNKleinModelResearchRequest,
+	RuntimeNKleinModelResearchResponse,
 	RuntimeNKleinOauthLoginRequest,
 	RuntimeNKleinOauthLoginResponse,
 	RuntimeNKleinPlanArtifactActionRequest,
@@ -510,6 +512,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeNKleinAdvisorSendRequest,
 		) => Promise<RuntimeNKleinAdvisorSendResponse>;
+		researchNKleinModel: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeNKleinModelResearchRequest,
+		) => Promise<RuntimeNKleinModelResearchResponse>;
 		writeNKleinDogfoodBacklog: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeNKleinDogfoodBacklogRequest,

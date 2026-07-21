@@ -16,6 +16,7 @@ import {
 	type RuntimeNKleinModelContextWindowOverrideRequest,
 	type RuntimeNKleinModelMaxConcurrentRequestsRequest,
 	type RuntimeNKleinModelRegistryRemoveRequest,
+	type RuntimeNKleinModelResearchRequest,
 	type RuntimeNKleinOauthLoginRequest,
 	type RuntimeNKleinProviderModelsRequest,
 	type RuntimeNKleinProviderSettingsSaveRequest,
@@ -59,6 +60,7 @@ import {
 	runtimeNKleinModelContextWindowOverrideRequestSchema,
 	runtimeNKleinModelMaxConcurrentRequestsRequestSchema,
 	runtimeNKleinModelRegistryRemoveRequestSchema,
+	runtimeNKleinModelResearchRequestSchema,
 	runtimeNKleinOauthLoginRequestSchema,
 	runtimeNKleinProviderModelsRequestSchema,
 	runtimeNKleinProviderSettingsSaveRequestSchema,
@@ -479,6 +481,26 @@ export function parseNKleinAdvisorBuildRequest(value: unknown): RuntimeNKleinAdv
 
 export function parseNKleinAdvisorSendRequest(value: unknown): RuntimeNKleinAdvisorSendRequest {
 	return parseWithSchema(runtimeNKleinAdvisorSendRequestSchema, value);
+}
+
+export function parseNKleinModelResearchRequest(value: unknown): RuntimeNKleinModelResearchRequest {
+	const parsed = parseWithSchema(runtimeNKleinModelResearchRequestSchema, value);
+	const targetProviderId = parsed.targetProviderId.trim();
+	const targetModelId = parsed.targetModelId.trim();
+	const advisorProviderId = parsed.advisorProviderId.trim();
+	const advisorModelId = parsed.advisorModelId.trim();
+	if (!targetProviderId || !targetModelId || !advisorProviderId || !advisorModelId) {
+		throw new Error("Model research target and advisor provider/model IDs cannot be empty.");
+	}
+	return {
+		...parsed,
+		targetProviderId,
+		targetModelId,
+		targetEndpoint: parsed.targetEndpoint?.trim() || null,
+		failureSummary: parsed.failureSummary?.trim() || undefined,
+		advisorProviderId,
+		advisorModelId,
+	};
 }
 
 export function parseNKleinDogfoodBacklogRequest(value: unknown): RuntimeNKleinDogfoodBacklogRequest {

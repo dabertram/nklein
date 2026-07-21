@@ -8,7 +8,7 @@ import {
 	formatNKleinModelRegistryPanelSummary,
 	NKleinModelRegistryPanel,
 } from "@/components/detail-panels/nklein-model-registry-panel";
-import type { RuntimeNKleinModelRegistryEntry } from "@/runtime/types";
+import type { RuntimeNKleinModelRegistryEntry, RuntimeNKleinModelResearchResponse } from "@/runtime/types";
 
 function createModelRegistryEntry(
 	overrides: Partial<RuntimeNKleinModelRegistryEntry> = {},
@@ -281,6 +281,87 @@ describe("NKleinModelRegistryPanel", () => {
 		expect(text).toContain("Set context window");
 		expect(text).toContain("Effective context: unknown");
 		expect(text).toContain("Samples: 0");
+	});
+
+	it("runs model research only on click and renders a cited provisional proposal without an apply action", async () => {
+		const result = {
+			status: "provisional",
+			targetProviderId: "ollama",
+			targetModelId: "qwen",
+			targetEndpoint: "http://localhost:11434",
+			advisorProviderId: "lmstudio",
+			advisorModelId: "reviewer",
+			researchedAt: 123,
+			queries: ["qwen primary docs"],
+			evidence: [
+				{
+					id: "S1",
+					title: "Qwen model card",
+					url: "https://huggingface.co/Qwen/Qwen3",
+					excerpt: "Native tool calling.",
+				},
+			],
+			proposal: {
+				family: "qwen",
+				match: "^qwen$",
+				toolUse: { value: "TOOL_NATIVE", sourceIds: ["S1"] },
+				kind: { value: "agentic", sourceIds: ["S1"] },
+				chaining: null,
+				structuredOutput: { value: "native_tool_call", sourceIds: ["S1"] },
+				note: "Uses native tool calls.",
+				sources: ["https://huggingface.co/Qwen/Qwen3"],
+				basis: "research",
+				verified: false,
+				findings: [{ area: "tool_dialect", claim: "Uses native tool calls.", sourceIds: ["S1"] }],
+				unknowns: ["Quant-specific degradation"],
+				warnings: [],
+			},
+			autoApplied: false,
+		} satisfies RuntimeNKleinModelResearchResponse;
+		const onResearchModel = vi.fn().mockResolvedValue(result);
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinModelRegistryPanel
+					entries={[createModelRegistryEntry()]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+					onResearchModel={onResearchModel}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		expect(onResearchModel).not.toHaveBeenCalled();
+		const context = container.querySelector("input[aria-label='Observed failure for ollama/qwen']");
+		expect(context).toBeInstanceOf(HTMLInputElement);
+		await act(async () => {
+			if (context instanceof HTMLInputElement) {
+				context.value = "tool call narrated";
+				Simulate.change(context);
+			}
+			await Promise.resolve();
+		});
+		await act(async () => {
+			const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
+				candidate.textContent?.includes("Research model"),
+			);
+			button?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(onResearchModel).toHaveBeenCalledWith(
+			expect.objectContaining({ providerId: "ollama", modelId: "qwen" }),
+			"tool call narrated",
+		);
+		const text = container.textContent ?? "";
+		expect(text).toContain("Provisional catalog update — review only");
+		expect(text).toContain("tool dialect: Uses native tool calls.");
+		expect(text).toContain("auto-applied: no");
+		expect(text).not.toContain("Apply proposal");
+		expect(container.querySelector("a[href='https://huggingface.co/Qwen/Qwen3']")).not.toBeNull();
 	});
 
 	it("saves a context-window override when controls are enabled", async () => {

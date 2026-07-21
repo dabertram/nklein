@@ -2077,3 +2077,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   with the full tool menu, without loading/unloading anything. Focused tests pass 302/302, simulator 65/65, and the full
   repository gate passes 1,264 files/1 skipped and 12,343 tests/1 skipped (the first saturated run exposed and fixed an
   outer 60s integration-test budget that contradicted its own 90s server-start allowance).
+
+- [x] **F3.34 — egress-gated “research this model” flow** *(delivered 2026-07-21).* The former model-freshness
+  advisor only labelled a prompt as requiring web research and then ran a tool-less local completion. Settings now
+  exposes an explicit per-loaded-model action backed by a dedicated mutation: it fails before I/O unless retrieval
+  egress is enabled, SearXNG is configured, and air-gap mode is off; searches five bounded evidence axes; admits only
+  publisher-primary domains and exact GitHub/Hugging Face owner paths; and SSRF-checks fetched pages and redirects.
+  Untrusted page text is screened before a loaded local advisor synthesizes a proposal. Every proposed catalog field
+  and operational finding must cite admitted evidence; fabricated/unknown citations are dropped. The result is an
+  exact-id, unverified, provisional overlay draft with clickable sources, unknowns, and warnings. There is deliberately
+  no apply/download/load/delete/settings action in the API or UI. Focused backend/runtime/UI tests and both TypeScript
+  checks pass; the full repository gate passes 1,264 files/1 skipped and 12,350 tests/1 skipped. F3.34 is
+  element-tracked across its effectful gate, primary-source filter, and citation validator.
